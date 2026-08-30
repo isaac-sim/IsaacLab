@@ -73,11 +73,13 @@ _CAMERA_RANKS = 4
 _UNORDERED_DEVICES = (3, 1, 2, 0)
 
 _OVPHYSX_OVRTX_XFAIL_REASON = (
-    "``ovphysx,ovrtx`` does not complete a multi-GPU run. The limitation is the pairing, not"
-    " either backend alone: measured on 8x L40 (2026-08-26, four ranks) ``ovphysx,newton_renderer``"
-    " trains in 11.4 s and ``newton_mjwarp,ovrtx`` in 27.3 s, while this combination still had not"
-    " reached the first iteration at 900 s -- with the shader cache already warmed by the preceding"
-    " ovrtx run, so it is not cold-compile latency."
+    "``ovphysx,ovrtx`` did not complete a multi-GPU run under ovphysx 0.5.10. The limitation was the"
+    " pairing, not either backend alone: measured on 8x L40 (2026-08-26, four ranks)"
+    " ``ovphysx,newton_renderer`` trained in 11.4 s and ``newton_mjwarp,ovrtx`` in 27.3 s, while"
+    " this combination had not reached the first iteration at 900 s -- with the shader cache already"
+    " warmed by the preceding ovrtx run, so it was not cold-compile latency. Kept as a non-strict"
+    " xfail while ovphysx 0.5.11 is evaluated: the case now runs, so an XPASS reports the fix and a"
+    " failure keeps the gap visible without breaking the suite."
 )
 
 
@@ -95,16 +97,16 @@ _STACKS = [
     pytest.param("newton_mjwarp,ovrtx", id="newton-ovrtx", marks=pytest.mark.kitless),
     pytest.param("newton_mjwarp,newton_renderer", id="newton-newton_renderer", marks=pytest.mark.kitless),
     pytest.param("ovphysx,newton_renderer", id="ovphysx-newton_renderer", marks=pytest.mark.kitless),
-    # Xfailed rather than omitted so the gap is reported by every run. ``run=False`` because the
-    # failure mode is a non-terminating run: executing it would spend the full idle timeout to
-    # re-derive a known result. Flip to ``run=True`` when the pairing is fixed, so an XPASS
-    # reports it.
+    # Executed rather than skipped now that ovphysx is 0.5.11: the pairing failed under 0.5.10, so
+    # the case runs to measure whether the bump fixed it. Still xfail, non-strict, so an XPASS
+    # reports the fix while a residual failure stays visible without breaking the suite. The startup
+    # budget bounds the cost if it is still non-terminating.
     pytest.param(
         "ovphysx,ovrtx",
         id="ovphysx-ovrtx",
         marks=[
             pytest.mark.kitless,
-            pytest.mark.xfail(reason=_OVPHYSX_OVRTX_XFAIL_REASON, run=False),
+            pytest.mark.xfail(reason=_OVPHYSX_OVRTX_XFAIL_REASON),
         ],
     ),
 ]
