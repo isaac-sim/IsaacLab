@@ -89,6 +89,15 @@ class ActionTerm(ManagerTermBase):
         raise NotImplementedError
 
     @property
+    def neutral_actions(self) -> torch.Tensor:
+        """Raw actions suitable for passive agent playback.
+
+        The default is a zero-filled tensor. Action terms for which zero has a different or invalid meaning,
+        such as absolute-pose controllers, should override this property with a semantically neutral command.
+        """
+        return torch.zeros_like(self.raw_actions)
+
+    @property
     def has_debug_vis_implementation(self) -> bool:
         """Whether the action term has a debug visualization implemented."""
         # check if function raises NotImplementedError
@@ -262,6 +271,18 @@ class ActionManager(ManagerBase):
     def prev_action(self) -> torch.Tensor:
         """The previous actions sent to the environment. Shape is (num_envs, total_action_dim)."""
         return self._prev_action
+
+    @property
+    def neutral_actions(self) -> torch.Tensor:
+        """Raw actions suitable for passive playback of all active action terms.
+
+        The returned tensor has shape ``(num_envs, total_action_dim)``. Since
+        some terms derive their neutral command from the current simulation
+        state, consumers should retrieve this property immediately before use.
+        """
+        if not self._terms:
+            return torch.zeros_like(self._action)
+        return torch.cat([term.neutral_actions for term in self._terms.values()], dim=-1)
 
     @property
     def has_debug_vis_implementation(self) -> bool:

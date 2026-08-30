@@ -75,6 +75,16 @@ class PinkInverseKinematicsAction(ActionTerm):
         # Resolve hand joints
         self._hand_joint_ids, self._hand_joint_names = self._asset.find_joints(self.cfg.hand_joint_names)
 
+        # Resolve controlled frames in the same order as their pose commands.
+        self._controlled_frame_ids, controlled_frame_names = self._asset.find_bodies(
+            list(self.cfg.target_eef_link_names.values()), preserve_order=True
+        )
+        if len(self._controlled_frame_ids) != len(self.cfg.target_eef_link_names):
+            raise ValueError(
+                "Expected one controlled body for every Pink IK target. Resolved "
+                f"{controlled_frame_names} from {list(self.cfg.target_eef_link_names.values())}."
+            )
+
         # Combine all joint information
         self._controlled_joint_ids = self._isaaclab_controlled_joint_ids + self._hand_joint_ids
         self._controlled_joint_names = self._isaaclab_controlled_joint_names + self._hand_joint_names
@@ -109,6 +119,11 @@ class PinkInverseKinematicsAction(ActionTerm):
             1 for task in self._ik_controllers[0].cfg.variable_input_tasks if isinstance(task, FrameTask)
         )
         self._num_frame_tasks = num_frame_tasks
+        if len(self._controlled_frame_ids) != self._num_frame_tasks:
+            raise ValueError(
+                f"Pink IK has {self._num_frame_tasks} variable frame tasks but "
+                f"{len(self._controlled_frame_ids)} controlled bodies were configured."
+            )
         self._controlled_frame_poses = torch.zeros(num_frame_tasks, self.num_envs, 4, 4, device=self.device)
 
         # Pre-allocate tensor for base frame computations
@@ -154,6 +169,14 @@ class PinkInverseKinematicsAction(ActionTerm):
     def processed_actions(self) -> torch.Tensor:
         """Get the processed actions tensor."""
         return self._processed_actions
+
+    @property
+    def neutral_actions(self) -> torch.Tensor:
+        """Raw actions that hold the controlled frames and hand joints at their current state."""
+        frame_poses = self._asset.data.body_link_pose_w.torch[:, self._controlled_frame_ids].clone()
+        frame_poses[..., :3] -= self._env.scene.env_origins.unsqueeze(1)
+        hand_joint_positions = self._asset.data.joint_pos.torch[:, self._hand_joint_ids]
+        return torch.cat((frame_poses.flatten(start_dim=1), hand_joint_positions), dim=-1)
 
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:

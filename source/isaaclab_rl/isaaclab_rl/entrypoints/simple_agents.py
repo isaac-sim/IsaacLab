@@ -6,7 +6,7 @@
 """Checkpoint-free playback workflows for Isaac Lab environments.
 
 The zero and random agents are variations of playback that need no trained checkpoint:
-the policy either emits constant zero actions or samples uniform random actions.
+the policy either emits neutral actions or samples uniform random actions.
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ import gymnasium as gym
 import torch
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.envs.utils.spaces import sample_space
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
@@ -46,7 +47,7 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
 
     Args:
         argv: Command-line arguments excluding the executable name. Reads ``sys.argv`` when omitted.
-        policy: Action policy to apply, either constant zero actions or uniform random actions.
+        policy: Action policy to apply, either neutral actions or uniform random actions.
 
     Raises:
         ValueError: If the requested policy is not supported.
@@ -61,13 +62,18 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
     # parse configuration via Hydra (supports preset selection, e.g. env.sim.physics=newton_mjwarp)
     env_cfg, _ = resolve_task_config(args_cli.task, "")
 
-    with launch_simulation(env_cfg, args_cli):
-        # override with CLI arguments
-        env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-        env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
-        if args_cli.disable_fabric:
-            env_cfg.sim.use_fabric = False
+    # override with CLI arguments and reject unsupported configurations before
+    # launching Kit or initializing a native physics backend.
+    env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+    if args_cli.disable_fabric:
+        env_cfg.sim.use_fabric = False
+    try:
+        env_cfg.validate()
+    except (TypeError, ValueError) as exc:
+        raise SystemExit(f"Invalid environment configuration: {exc}") from None
 
+    with launch_simulation(env_cfg, args_cli):
         # create environment
         env = gym.make(args_cli.task, cfg=env_cfg)
 
@@ -80,7 +86,6 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         # keep running while any visualizer is open, and until the step budget is exhausted
         sim = env.unwrapped.sim
         device = env.unwrapped.device
-        zero_actions = torch.zeros(env.action_space.shape, device=device)
         step = 0
         while sim.is_headless_or_exist_active_visualizer():
             if args_cli.max_steps is not None and step >= args_cli.max_steps:
@@ -89,7 +94,7 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
             # run everything in inference mode
             with torch.inference_mode():
                 if policy == "zero":
-                    actions = zero_actions
+                    actions = _get_neutral_actions(env)
                 else:
                     # sample actions from -1 to 1
                     actions = 2 * torch.rand(env.action_space.shape, device=device) - 1
@@ -97,6 +102,28 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
                 env.step(actions)
         # close the simulator
         env.close()
+
+
+def _get_neutral_actions(env: gym.Env):
+    """Create semantically neutral actions for passive environment playback.
+
+    Manager-based environments can provide semantic neutral actions for terms
+    where literal zeros are unsafe, such as absolute-pose IK. Direct-workflow
+    environments fall back to zero-filled samples of their declared Gymnasium
+    spaces, including composite and multi-agent spaces.
+    """
+    unwrapped = env.unwrapped
+    action_manager = getattr(unwrapped, "action_manager", None)
+    if action_manager is not None:
+        return action_manager.neutral_actions
+
+    if hasattr(unwrapped, "action_spaces"):
+        return {
+            agent: sample_space(space, unwrapped.device, batch_size=unwrapped.num_envs, fill_value=0)
+            for agent, space in unwrapped.action_spaces.items()
+        }
+
+    return sample_space(unwrapped.single_action_space, unwrapped.device, batch_size=unwrapped.num_envs, fill_value=0)
 
 
 def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespace:

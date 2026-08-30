@@ -11,11 +11,86 @@ import importlib
 import runpy
 import sys
 import types
+from types import SimpleNamespace
 
 import gymnasium as gym
+import numpy as np
 import pytest
+import torch
 
 from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch
+from isaaclab_rl.entrypoints import simple_agents as _simple_agents
+from isaaclab_rl.entrypoints.simple_agents import _get_neutral_actions
+
+
+def test_zero_agent_uses_manager_semantic_neutral_actions() -> None:
+    """The zero agent honors action-term neutral commands instead of forcing literal zeros."""
+    expected = torch.tensor([[0.1, 0.2, 0.3, 1.0]])
+    unwrapped = SimpleNamespace(action_manager=SimpleNamespace(neutral_actions=expected))
+
+    assert _get_neutral_actions(SimpleNamespace(unwrapped=unwrapped)) is expected
+
+
+def test_zero_agent_supports_composite_direct_action_spaces() -> None:
+    """Direct environments receive tensorized zeros matching composite action spaces."""
+    action_space = gym.spaces.Dict(
+        {
+            "continuous": gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32),
+            "discrete": gym.spaces.Discrete(3),
+        }
+    )
+    unwrapped = SimpleNamespace(
+        action_manager=None,
+        single_action_space=action_space,
+        device="cpu",
+        num_envs=2,
+    )
+
+    actions = _get_neutral_actions(SimpleNamespace(unwrapped=unwrapped))
+
+    assert torch.equal(actions["continuous"], torch.zeros(2, 2))
+    assert torch.equal(actions["discrete"], torch.zeros(2, 1, dtype=torch.int64))
+
+
+def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
+    """Direct multi-agent environments receive a zero action for every agent."""
+    unwrapped = SimpleNamespace(
+        action_manager=None,
+        action_spaces={
+            "robot": gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32),
+            "object": gym.spaces.Discrete(2),
+        },
+        device="cpu",
+        num_envs=3,
+    )
+
+    actions = _get_neutral_actions(SimpleNamespace(unwrapped=unwrapped))
+
+    assert torch.equal(actions["robot"], torch.zeros(3, 2))
+    assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
+
+
+def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unsupported task presets fail cleanly before a simulator backend is initialized."""
+
+    class _InvalidCfg:
+        scene = SimpleNamespace(num_envs=1)
+        sim = SimpleNamespace(device="cpu", use_fabric=True)
+
+        def validate(self) -> None:
+            raise ValueError("unsupported physics backend")
+
+    args = SimpleNamespace(num_envs=None, device=None, disable_fabric=False, task="Invalid-Task")
+    monkeypatch.setattr(_simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(_simple_agents, "resolve_task_config", lambda task, agent: (_InvalidCfg(), None))
+    monkeypatch.setattr(
+        _simple_agents,
+        "launch_simulation",
+        lambda *args, **kwargs: pytest.fail("simulation launched before config validation"),
+    )
+
+    with pytest.raises(SystemExit, match="Invalid environment configuration: unsupported physics backend"):
+        _simple_agents.run([], policy="zero")
 
 
 def test_train_request_adapts_typed_parameters_to_cli(monkeypatch) -> None:

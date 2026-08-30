@@ -140,6 +140,16 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         return self._processed_actions
 
     @property
+    def neutral_actions(self) -> torch.Tensor:
+        """Raw actions that hold the current end-effector pose."""
+        if self.cfg.controller.use_relative_mode:
+            return super().neutral_actions
+
+        ee_pos, ee_quat = self._compute_frame_pose()
+        command = ee_pos if self.cfg.controller.command_type == "position" else torch.cat((ee_pos, ee_quat), dim=-1)
+        return torch.where(self._scale != 0.0, command / self._scale, torch.zeros_like(command))
+
+    @property
     def jacobian_w(self) -> torch.Tensor:
         return self._asset.data.body_link_jacobian_w.torch[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
 
@@ -449,6 +459,40 @@ class OperationalSpaceControllerAction(ActionTerm):
     def processed_actions(self) -> torch.Tensor:
         """Processed actions for operational space control."""
         return self._processed_actions
+
+    @property
+    def neutral_actions(self) -> torch.Tensor:
+        """Raw actions that hold the current end-effector pose and apply no wrench."""
+        actions = super().neutral_actions
+        if self._pose_abs_idx is None:
+            return actions
+
+        self._compute_ee_pose()
+        self._compute_task_frame_pose()
+        if self._task_frame_pose_b is None:
+            ee_pos_task = self._ee_pose_b[:, :3]
+            ee_quat_task = self._ee_pose_b[:, 3:7]
+        else:
+            ee_pos_task, ee_quat_task = math_utils.subtract_frame_transforms(
+                self._task_frame_pose_b[:, :3],
+                self._task_frame_pose_b[:, 3:7],
+                self._ee_pose_b[:, :3],
+                self._ee_pose_b[:, 3:7],
+            )
+
+        position_slice = slice(self._pose_abs_idx, self._pose_abs_idx + 3)
+        orientation_slice = slice(self._pose_abs_idx + 3, self._pose_abs_idx + 7)
+        actions[:, position_slice] = torch.where(
+            self._position_scale != 0.0,
+            ee_pos_task / self._position_scale,
+            torch.zeros_like(ee_pos_task),
+        )
+        actions[:, orientation_slice] = torch.where(
+            self._orientation_scale != 0.0,
+            ee_quat_task / self._orientation_scale,
+            torch.zeros_like(ee_quat_task),
+        )
+        return actions
 
     @property
     def jacobian_w(self) -> torch.Tensor:
