@@ -81,16 +81,23 @@ Prims outside the environment hierarchies remain in the shared background partit
 Environment-owned ``PointInstancer`` markers can carry one matching scene-partition
 token per instance; markers without that ownership information remain shared.
 
+.. warning::
+
+   Kit RTX sizes each partition from the bounding boxes of the prims it contains and never
+   refreshes the bounding box of an animated ``UsdGeom.BasisCurves`` prim, so cables can be
+   culled once they deform beyond their initial extent. See
+   :ref:`known-issues-animated-curve-scene-partition` for the workaround.
+
 Architecture Overview
 ---------------------
 
 The renderer system consists of:
 
 1. **BaseRenderer** — Abstract base class defining the rendering lifecycle and interface
-2. **Renderer** — Factory that instantiates the appropriate backend based on renderer configuration class
-3. **RendererCfg** — Base configuration; each backend extends it with backend-specific options
-4. **Concrete implementations** — Backend-specific renderers in extension packages
-5. **RenderContext** — A management class for instantiating and accessing renderer instances using a **RendererCfg**.
+2. **RendererCfg** — Base configuration; each backend extends it with backend-specific options and declares
+   its implementation in ``class_type``
+3. **Concrete implementations** — Backend-specific renderers in extension packages
+4. **RenderContext** — A management class for instantiating and accessing renderer instances using a **RendererCfg**.
    After instantiation, a config can then be used to acquire the instance of the renderer as needed.
 
 .. code-block:: python
@@ -101,7 +108,7 @@ The renderer system consists of:
 
    # Create a Newton Warp renderer (no Isaac Sim required)
    sim_ctx = sim_utils.SimulationContext.instance()
-   # RenderContext.get_renderer will instantiate the renderer backend
+   # RenderContext.get_renderer constructs cfg.class_type(cfg)
    # or return an existing renderer with a matching config
    renderer: BaseRenderer = sim_ctx.render_context.get_renderer(NewtonWarpRendererCfg())
    assert isinstance(renderer, BaseRenderer)
@@ -116,7 +123,7 @@ For the RTX renderer (requires Isaac Sim):
 
    # Create an RTX renderer
    sim_ctx = sim_utils.SimulationContext.instance()
-   # RenderContext.get_renderer will instantiate the renderer backend
+   # RenderContext.get_renderer constructs cfg.class_type(cfg)
    # or return an existing renderer with a matching config
    renderer: BaseRenderer = sim_ctx.render_context.get_renderer(IsaacRtxRendererCfg())
 
@@ -126,13 +133,13 @@ For RTX renderer settings, see
 Core concepts
 -------------
 
-- **Use the RenderContext**: Always instantiate renderers via the RenderContext with a renderer-specific config class
+- **Use the RenderContext**: Always acquire renderers via the RenderContext with a renderer-specific config class
   (e.g. ``sim_ctx.render_context.get_renderer(IsaacRtxRendererCfg())``). Do not import or instantiate concrete backend classes
   (e.g. ``IsaacRtxRenderer``, ``OVRTXRenderer``) directly—their names and package locations are
   implementation details and may change without notice.
 
 - **Lightweight config imports**: Importing a renderer configuration class does not pull in backend-specific
-  dependencies. The backend is lazily loaded when the renderer is instantiated, and instantiation may fail
+  dependencies. ``class_type`` is resolved lazily when the renderer is constructed, and construction may fail
   if the backend is not installed.
 
   .. code-block:: python
