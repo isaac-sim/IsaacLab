@@ -35,7 +35,6 @@ from isaaclab.utils.images import make_camera_output_grid, normalize_camera_outp
 from isaaclab.utils.io import dump_yaml
 
 _PHYSICS_BACKEND_NAMES = {"PhysxCfg": "isaacsim_physx", "OvPhysxCfg": "ovphysx", "PhysxAutoCfg": "physx"}
-_DETERMINISTIC_NEWTON_SOLVERS = frozenset({"FeatherstoneSolverCfg", "MJWarpSolverCfg", "XPBDSolverCfg"})
 _RENDERER_BACKEND_NAMES = {"isaac_rtx": "isaacsim_rtx", "newton_warp": "newton_renderer", "auto_rtx": "rtx"}
 
 RUN_MANIFEST_FILENAME = "run.json"
@@ -476,40 +475,46 @@ def import_local_module(module_name: str, module_path: Path) -> ModuleType:
     return module
 
 
-def _apply_deterministic_physics(physics_cfg: Any) -> None:
-    """Configure a resolved physics config for run-to-run reproducibility.
+def _base_class_names(obj: Any) -> frozenset[str]:
+    """Return the names of ``obj``'s type and all of its bases.
 
-    Dispatches on the config's type name so this module keeps working without the
-    optional backend packages installed.
+    Args:
+        obj: Object to inspect.
+
+    Returns:
+        Every class name in the object's method resolution order.
+    """
+    return frozenset(cls.__name__ for cls in type(obj).__mro__)
+
+
+def _apply_deterministic_physics(physics_cfg: Any) -> None:
+    """Request run-to-run reproducibility from a resolved physics config.
+
+    Dispatches on class names rather than :func:`isinstance` so this module keeps working
+    without the optional backend packages installed. Names are matched across the whole method
+    resolution order, so a subclass dispatches like its base.
+
+    Validation belongs to the backend: this only requests the guarantee, and
+    :class:`~isaaclab_newton.physics.NewtonManager` rejects a solver that cannot provide it when
+    the solver is initialized.
 
     Args:
         physics_cfg: Concrete physics config, as resolved by :func:`~isaaclab.app.scan`.
-
-    Raises:
-        ValueError: If the resolved backend cannot provide a determinism guarantee.
     """
-    class_name = type(physics_cfg).__name__
-    if class_name in ("PhysxCfg", "OvPhysxCfg"):
+    physics_names = _base_class_names(physics_cfg)
+    if not physics_names.isdisjoint(("PhysxCfg", "OvPhysxCfg")):
         physics_cfg.enable_enhanced_determinism = True
         return
-    if class_name != "NewtonCfg":
+    if "NewtonCfg" not in physics_names:
         return
 
     solver_cfg = getattr(physics_cfg, "solver_cfg", None)
-    solver_name = type(solver_cfg).__name__
-    if solver_name not in _DETERMINISTIC_NEWTON_SOLVERS:
-        raise ValueError(
-            f"--deterministic is not supported by {solver_name}. Use MJWarp on the GPU, XPBD, or"
-            " Featherstone, or drop --deterministic."
-        )
+    # MuJoCo on the CPU is already reproducible and Warp's deterministic mode does not reach it,
+    # so requesting the mode here would only trip Newton's validation.
     if getattr(solver_cfg, "use_mujoco_cpu", False):
-        raise ValueError(
-            "--deterministic is not supported by the MuJoCo CPU backend. Set"
-            " MJWarpSolverCfg.use_mujoco_cpu=False, or drop --deterministic."
-        )
-    if solver_name == "MJWarpSolverCfg":
-        # MJWarp's internal sensor kernels mix atomic reduction families, which Warp's
-        # deterministic code generation rejects. Isaac Lab sensors read Newton state directly.
+        return
+    if "MJWarpSolverCfg" in _base_class_names(solver_cfg):
+        # MJWarp on the GPU cannot honour the guarantee while its internal sensor kernels run.
         solver_cfg.disable_sensors = True
     # Only fill in the default. A config that already requests a guarantee -- e.g. the stronger
     # "gpu_to_gpu" set through a Hydra override -- is the more specific instruction and wins.
@@ -524,10 +529,6 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any, *, apply_dev
         args_cli: Parsed command-line arguments.
         env_cfg: Isaac Lab environment config.
         apply_device: Whether to apply the ``--device`` override for non-distributed runs.
-
-    Raises:
-        ValueError: If ``--deterministic`` is set and the resolved physics backend cannot
-            provide a determinism guarantee.
     """
     if getattr(args_cli, "num_envs", None) is not None:
         env_cfg.scene.num_envs = args_cli.num_envs

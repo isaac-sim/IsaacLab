@@ -37,11 +37,14 @@ optional PyTorch deterministic algorithms. Whether the **rendering** half of the
 on the workload: **physics-only** simulation does not render at all; **RTX** rendering (non-minimal
 mode) needs it for reproducible imagery; **Newton** rendering is already deterministic.
 
-**Physics determinism** comes from the same flag. It sets
-:attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode` to ``"run_to_run"`` on Newton backends,
+**Physics determinism** comes from the same flag in the Isaac Lab RL training entrypoints, which
+configure the backend after preset resolution. There it requests
+:attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode` ``"run_to_run"`` on Newton backends,
 applying the MJWarp prerequisite that setting documents, and enables
-:attr:`~isaaclab_physx.physics.PhysxCfg.enable_enhanced_determinism` on PhysX backends. A backend that
-cannot provide the guarantee raises an error.
+:attr:`~isaaclab_physx.physics.PhysxCfg.enable_enhanced_determinism` on PhysX backends. Each backend
+validates its own solver, so an unsupported solver is rejected when the solver is initialized rather
+than by the flag. Reproducibility on OvPhysX is best-effort and is not verified end to end. Other
+scripts that take ``--deterministic`` from ``AppLauncher`` configure Torch and rendering only.
 
 .. tab-set::
 
@@ -70,8 +73,20 @@ ordering in its collision pipeline. Deterministic execution can increase
 memory use and reduce simulation performance. MJWarp on the GPU with
 :attr:`isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` set to ``True``,
 XPBD, and Featherstone are supported; selecting an unsupported solver raises
-an error. Set this attribute directly only to request ``"gpu_to_gpu"`` or to
-override what ``--deterministic`` selects.
+an error. MuJoCo on the CPU
+(:attr:`isaaclab_newton.physics.MJWarpSolverCfg.use_mujoco_cpu`) is already
+reproducible and is left unchanged by ``--deterministic``. Set this attribute
+directly to request the stronger ``"gpu_to_gpu"`` guarantee, which
+``--deterministic`` preserves. The flag cannot be opted out of by setting
+``"not_guaranteed"``, which is indistinguishable from the default; drop the flag
+instead.
+
+.. note::
+
+   ``disable_sensors`` turns off MuJoCo Warp's internal sensor computation,
+   including its ``rne_postconstraint`` stage. Integrations that read native
+   MJWarp sensor outputs, or the Newton ``body_qdd`` and ``body_parent_f`` state
+   that stage fills, are affected while a determinism guarantee is requested.
 
 .. warning::
 
