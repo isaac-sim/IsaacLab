@@ -3,8 +3,9 @@ Added
 
 * Added translation of :attr:`~isaaclab.physics.PhysicsCfg.deterministic` in ``NewtonManager``.
   The request selects ``deterministic_mode="run_to_run"`` and sets ``MJWarpSolverCfg.disable_sensors``
-  on the MJWarp GPU path. An explicitly set ``deterministic_mode`` takes precedence, and MuJoCo on
-  the CPU is left unchanged because it is already reproducible.
+  on the MJWarp GPU path. An explicitly set ``deterministic_mode`` takes precedence. MuJoCo on the
+  CPU is left unchanged: Warp's deterministic mode does not reach that path, and the request is
+  logged instead of applied.
 
 Fixed
 ^^^^^
