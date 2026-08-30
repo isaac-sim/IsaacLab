@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+2.4.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to ``OVRTXRendererCfg`` through its ``class_type`` field.
+
+
 2.3.1 (2026-08-29)
 ~~~~~~~~~~~~~~~~~~
 
