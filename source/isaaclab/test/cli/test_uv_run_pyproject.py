@@ -118,6 +118,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras():
         "video",
         "leapp",
         "test",
+        "test-runtime",
     }
 
 

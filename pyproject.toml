@@ -119,13 +119,18 @@ importers = [
     "tinyobjloader==2.0.0rc13",
 ]
 
-test = [
+# Test runners without the docs stack: the container image installs these so in-image pytest
+# works (``tools/conftest.py`` imports junitparser) without pulling Sphinx.
+test-runtime = [
     "pytest",
     "pytest-mock",
     "junitparser",
     "flaky",
     # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
     "coverage>=7.6.1",
+]
+test = [
+    "isaaclab-dev[test-runtime]",
     "sphinx>=7.0,<9",
     "sphinx-book-theme>=1.1",
     "myst-parser",
@@ -208,7 +213,7 @@ all = [
 # The Isaac Sim container's package set. Kit is provided by the base image, so this excludes
 # ``ov`` (the container renders through Kit) and takes teleop without the Isaac Sim wheel.
 kit-image = [
-    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,mimic,teleop-no-isaacsim]",
+    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,mimic,teleop-no-isaacsim,test-runtime]",
 ]
 
 # Single source of truth for externally-pinned versions, read by docs/conf.py, the
