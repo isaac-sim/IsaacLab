@@ -174,7 +174,7 @@ def test_xr_anchor(empty_env, mock_xrcore):
     """Test XR anchor creation and configuration."""
     env, env_cfg = empty_env
     # Use xyzw format for quaternion: identity is (0, 0, 0, 1)
-    env_cfg.xr = XrCfg(anchor_pos=(1, 2, 3), anchor_rot=(0, 0, 0, 1))
+    env_cfg.xr = XrCfg(anchor_pos=(1, 2, 3), anchor_rot=(0, 0, 0, 1), near_plane=0.05)
 
     device = OpenXRDevice(OpenXRDeviceCfg(xr_cfg=env_cfg.xr))
 
@@ -190,6 +190,13 @@ def test_xr_anchor(empty_env, mock_xrcore):
     # Check that xr anchor mode and custom anchor are set correctly
     assert carb.settings.get_settings().get("/persistent/xr/anchorMode") == "custom anchor"
     assert carb.settings.get_settings().get("/xrstage/customAnchor") == "/World/XRAnchor"
+
+    # Check the configured near plane reaches the generic AND the profile-specific
+    # settings: the ar/vr profile paths default to 0.15 and take precedence, so a
+    # non-default value (0.05) would never reach a profile-based session otherwise.
+    assert carb.settings.get_settings().get("/persistent/xr/render/nearPlane") == pytest.approx(0.05)
+    assert carb.settings.get_settings().get("/persistent/xr/profile/ar/render/nearPlane") == pytest.approx(0.05)
+    assert carb.settings.get_settings().get("/persistent/xr/profile/vr/render/nearPlane") == pytest.approx(0.05)
 
     device.reset()
 
