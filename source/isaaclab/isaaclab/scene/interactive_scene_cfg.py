@@ -79,6 +79,12 @@ class InteractiveSceneCfg:
 
     """
 
+    class_type: type[InteractiveScene] | str = "{DIR}.interactive_scene:InteractiveScene"
+    """The class to use for the interactive scene.
+
+    Defaults to :class:`isaaclab.scene.InteractiveScene`.
+    """
+
     num_envs: int = MISSING
     """Number of environment instances handled by the scene."""
 
@@ -143,16 +149,6 @@ class InteractiveSceneCfg:
 
     clone_cfg: CloneCfg = CloneCfg()
     """Clone execution and legal scene-combination configuration."""
-
-    class_type: type[InteractiveScene] | str = "{DIR}.interactive_scene:InteractiveScene"
-    """The class to use for the interactive scene.
-
-    Defaults to :class:`isaaclab.scene.InteractiveScene`.
-
-    .. note::
-        Declared last so that :attr:`num_envs` and :attr:`env_spacing` keep their leading
-        positional slots for scene configurations that construct them positionally.
-    """
 
 
 def add(
