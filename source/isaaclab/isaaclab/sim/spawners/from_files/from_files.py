@@ -236,7 +236,8 @@ def spawn_ground_plane(
         # apply scale to the mesh
         environment_prim.GetAttribute("xformOp:scale").Set(scale)
 
-        # Keep the bundled grid metric when renderers consume authored UVs instead of OmniPBR projection.
+        # The bundled asset maps its texture through ``primvars:st`` alone, so rescale the UVs with the
+        # plane to keep the 5 m tile -- and therefore the 1 m grid -- metric in every renderer.
         from . import from_files_cfg  # noqa: PLC0415
 
         if cfg.usd_path == from_files_cfg._DEFAULT_GROUND_PLANE_USD:

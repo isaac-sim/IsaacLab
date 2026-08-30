@@ -33,9 +33,10 @@ def test_default_ground_plane_usd_contract():
 
     mesh = UsdGeom.Mesh(stage.GetPrimAtPath("/World/Environment/Geometry"))
     shader = UsdShade.Shader(stage.GetPrimAtPath("/World/Looks/theGrid/Shader"))
-    assert shader.GetInput("project_uvw").Get()
-    assert shader.GetInput("world_or_object").Get()
-    assert tuple(shader.GetInput("texture_scale").Get()) == pytest.approx((0.2, 0.2))
+    # ``primvars:st`` is the only texture mapping: OmniPBR reads UV set 0 rather than projecting.
+    assert shader.GetInput("project_uvw").Get() is False
+    assert not shader.GetInput("world_or_object")
+    assert tuple(shader.GetInput("texture_scale").Get()) == pytest.approx((1.0, 1.0))
     assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(mesh).GetPrimvar("st").Get()] == [
         (-10.0, -10.0),
         (10.0, -10.0),
