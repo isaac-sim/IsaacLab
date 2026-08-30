@@ -72,23 +72,13 @@ _CAMERA_RANKS = 4
 # Not sorted and not contiguous-from-zero, so no rank resolves by assuming the list is ordered.
 _UNORDERED_DEVICES = (3, 1, 2, 0)
 
-_OVPHYSX_OVRTX_XFAIL_REASON = (
-    "``ovphysx,ovrtx`` did not complete a multi-GPU run under ovphysx 0.5.10. The limitation was the"
-    " pairing, not either backend alone: measured on 8x L40 (2026-08-26, four ranks)"
-    " ``ovphysx,newton_renderer`` trained in 11.4 s and ``newton_mjwarp,ovrtx`` in 27.3 s, while"
-    " this combination had not reached the first iteration at 900 s -- with the shader cache already"
-    " warmed by the preceding ovrtx run, so it was not cold-compile latency. Kept as a non-strict"
-    " xfail while ovphysx 0.5.11 is evaluated: the case now runs, so an XPASS reports the fix and a"
-    " failure keeps the gap visible without breaking the suite."
-)
-
-
 # The backend grid is 3 physics x 3 renderers; two of the nine cells cannot run at all, rejected
 # before launch by ``sim_launcher._validate_runtime`` because OVRTX and OvPhysX are kitless and
 # cannot share a process with Kit: ``isaacsim_physx,ovrtx`` and ``ovphysx,isaacsim_rtx``. The
 # Newton renderer pairs with every physics backend -- ``NewtonManager.get_model`` builds a shadow
 # model when the active backend is not Newton -- so it appears three times here. The ``kitless``
-# marker routes each stack to the CI image that carries its runtime.
+# marker routes each stack to the CI image that carries its runtime. All seven run: ``ovphysx,ovrtx``
+# did not complete under ovphysx 0.5.10 and was xfailed, which 0.5.11 fixed.
 _STACKS = [
     pytest.param("isaacsim_physx", id="isaacsim_physx-kit_rtx"),
     pytest.param("newton_mjwarp,isaacsim_rtx", id="newton-kit_rtx"),
@@ -97,18 +87,7 @@ _STACKS = [
     pytest.param("newton_mjwarp,ovrtx", id="newton-ovrtx", marks=pytest.mark.kitless),
     pytest.param("newton_mjwarp,newton_renderer", id="newton-newton_renderer", marks=pytest.mark.kitless),
     pytest.param("ovphysx,newton_renderer", id="ovphysx-newton_renderer", marks=pytest.mark.kitless),
-    # Executed rather than skipped now that ovphysx is 0.5.11: the pairing failed under 0.5.10, so
-    # the case runs to measure whether the bump fixed it. Still xfail, non-strict, so an XPASS
-    # reports the fix while a residual failure stays visible without breaking the suite. The startup
-    # budget bounds the cost if it is still non-terminating.
-    pytest.param(
-        "ovphysx,ovrtx",
-        id="ovphysx-ovrtx",
-        marks=[
-            pytest.mark.kitless,
-            pytest.mark.xfail(reason=_OVPHYSX_OVRTX_XFAIL_REASON),
-        ],
-    ),
+    pytest.param("ovphysx,ovrtx", id="ovphysx-ovrtx", marks=pytest.mark.kitless),
 ]
 
 _DEVICE_ORDERS = [
