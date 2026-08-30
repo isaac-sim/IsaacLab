@@ -166,10 +166,10 @@ jobs:
 
   test-multi-gpu-pytest:
     name: Multi-GPU unit tests
-    needs: [config, build, build-kitless, changes]
-    # ``always()`` is load-bearing: ``build-kitless`` is skipped when only the unit gate fires,
-    # and GitHub skips a job whose dependency skipped unless the condition carries a status
-    # function. Without it a unit-only change would silently skip the shards too.
+    needs: [config, build, changes]
+    # ``always()`` is load-bearing: ``build`` is skipped when neither gate fires, and GitHub skips
+    # a job whose dependency skipped unless the condition carries a status function. Without it a
+    # gate-miss would silently skip the shards too.
     if: always() && needs.build.result == 'success'
     # The ``multi-gpu`` label is the multi-GPU pool. Do NOT add ``gpu`` here:
     # in this fleet ``gpu`` tags single-GPU runners, so requiring it routes the
@@ -287,12 +287,37 @@ jobs:
           # commit never contained. The shard launcher already bind-mounts for this reason.
           volume-mount-source: ${{ github.workspace }}
 
+      - name: Aggregated test summary
+        # Per-shard + per-file pass/total/walltime, plus a combined table, also
+        # written to $GITHUB_STEP_SUMMARY. Runs on success or failure.
+        if: always()
+        env:
+          RUNTIME_DIR: ${{ env.MGPU_RUNTIME_DIR }}
+        run: python3 .github/actions/multi-gpu/aggregate_test_summary.py
+
+  test-multi-gpu-smoke-kitless:
+    name: Multi-GPU training smoke (kit-less)
+    needs: [config, build-kitless, changes]
+    # Split out of ``Multi-GPU unit tests`` so a kit-less image build that fails -- or a runner
+    # that dies under it -- cannot take down the Kit-renderer lane, which needs a different image
+    # entirely. When two multi-GPU runners are free the lanes also overlap; when only one is, the
+    # scheduler serialises them onto it, which is the previous behaviour.
+    if: always() && needs.build-kitless.result == 'success' && needs.changes.outputs.smoke == 'true'
+    runs-on: [self-hosted, linux, x64, multi-gpu]
+    # One lane only; the 120 min ceiling on the sharded job covers shards + Kit smoke together.
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 1
+          lfs: true
+
       - name: Pull kit-less image from ECR
         # ``build-kitless`` pushes to ECR from whichever multi-GPU runner it landed on, so the
         # image is not necessarily present locally here. Without this the kitless step's
         # ``docker run`` fails with ``pull access denied`` whenever the two jobs are scheduled
         # on different runners.
-        if: always() && needs.changes.outputs.smoke == 'true' && needs.build-kitless.result == 'success'
         uses: ./.github/actions/ecr-build-push-pull
         env:
           NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
@@ -304,11 +329,10 @@ jobs:
           cache-tag: cache-kitless
 
       - name: Multi-GPU training smoke (kitless renderer)
-        # Same tests as the step above with the marker inverted, but run in the kit-less image,
-        # which already carries ``ov[all]``. Kept a separate step so a fault in the kitless
-        # renderer cannot take down the Kit-renderer coverage, which is what guards renderer
-        # device selection -- and so each stack runs in the image built for it.
-        if: always() && needs.changes.outputs.smoke == 'true' && needs.build-kitless.result == 'success'
+        # Same tests as the Kit lane with the marker inverted, but run in the kit-less image,
+        # which already carries ``ov[all]``. Each stack runs in the image built for it, and the
+        # job split keeps a kitless-renderer fault from taking down the Kit-renderer coverage
+        # that guards renderer device selection.
         uses: ./.github/actions/run-tests
         with:
           test-path: source/isaaclab/test/multi_gpu/test_multi_gpu_training_smoke.py
@@ -318,11 +342,3 @@ jobs:
           pytest-options: -m kitless
           # Same reason as the Kit step above.
           volume-mount-source: ${{ github.workspace }}
-
-      - name: Aggregated test summary
-        # Per-shard + per-file pass/total/walltime, plus a combined table, also
-        # written to $GITHUB_STEP_SUMMARY. Runs on success or failure.
-        if: always()
-        env:
-          RUNTIME_DIR: ${{ env.MGPU_RUNTIME_DIR }}
-        run: python3 .github/actions/multi-gpu/aggregate_test_summary.py
