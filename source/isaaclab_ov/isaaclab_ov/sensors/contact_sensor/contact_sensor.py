@@ -18,7 +18,7 @@ import warp as wp
 
 from isaaclab.sensors.contact_sensor import BaseContactSensor
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
-from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import CapturedKernelUpdate, ProxyArray
 
 import isaaclab_ov.tensor_types as TT
 from isaaclab_ov.physics import OvPhysxManager
@@ -298,6 +298,8 @@ class ContactSensor(BaseContactSensor):
 
         self._create_buffers()
 
+        self._update_graph = CapturedKernelUpdate(self._device, owner=f"contact sensor at '{self.cfg.prim_path}'")
+
     def _create_buffers(self) -> None:
         """Allocate Warp buffers, including the pre-allocated ovphysx read tensors."""
         self._num_filter_shapes = self._contact_binding.filter_count if self.cfg.filter_prim_paths_expr else 0
@@ -337,10 +339,19 @@ class ContactSensor(BaseContactSensor):
             self._poses_flat_buf = None
 
     def _update_buffers_impl(self, env_mask: wp.array | None = None) -> None:
-        """Read contact data from ovphysx and update sensor buffers."""
+        """Read contact data from ovphysx and update sensor buffers.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active (the blocking
+                native reads cannot be captured, so replays would consume stale data).
+        """
+        self._update_graph.refuse_outer_capture()
         env_mask = self._resolve_indices_and_mask(None, env_mask)
 
-        # Pull aggregate forces into the pre-allocated flat buffer:
+        # Blocking native reads: refresh the sensor-owned buffers in place, every
+        # update including graph replays. Not graph-capturable. The ``.view(...)``
+        # reinterprets allocate Python wrappers, so they stay in this eager prelude
+        # bound to locals the captured closure below reuses.
         # shape [num_envs * num_sensors, 3] float32 -> [num_envs * num_sensors] vec3f.
         self._contact_binding.read_net_forces(self._net_forces_flat_buf)
         net_forces_flat = self._net_forces_flat_buf.view(wp.vec3f)
@@ -351,45 +362,49 @@ class ContactSensor(BaseContactSensor):
         else:
             force_matrix_flat = None
 
-        wp.launch(
-            update_net_forces_ovphysx_kernel,
-            dim=(self._num_envs, self._num_sensors),
-            inputs=[
-                net_forces_flat,
-                force_matrix_flat,
-                env_mask,
-                self._num_envs,
-                self._num_sensors,
-                self._num_filter_shapes,
-                self._history_length,
-                self.cfg.force_threshold,
-                self._timestamp,
-                self._timestamp_last_update,
-            ],
-            outputs=[
-                self._data._net_forces_w,
-                self._data._net_forces_w_history,
-                self._data._force_matrix_w,
-                self._data._force_matrix_w_history,
-                self._data._current_air_time,
-                self._data._current_contact_time,
-                self._data._last_air_time,
-                self._data._last_contact_time,
-            ],
-            device=self._device,
-        )
-
         if self.cfg.track_pose:
             # Read pose into [num_envs * num_sensors, 7] float32 -> view as transformf.
             self._root_view.read_into(TT.RIGID_BODY_POSE, self._poses_flat_buf)
             poses_flat = self._poses_flat_buf.view(wp.transformf)
+
+        def _compute() -> None:
             wp.launch(
-                split_flat_pose_to_pos_quat,
+                update_net_forces_ovphysx_kernel,
                 dim=(self._num_envs, self._num_sensors),
-                inputs=[poses_flat, env_mask, self._num_sensors],
-                outputs=[self._data._pos_w, self._data._quat_w],
+                inputs=[
+                    net_forces_flat,
+                    force_matrix_flat,
+                    env_mask,
+                    self._num_envs,
+                    self._num_sensors,
+                    self._num_filter_shapes,
+                    self._history_length,
+                    self.cfg.force_threshold,
+                    self._timestamp,
+                    self._timestamp_last_update,
+                ],
+                outputs=[
+                    self._data._net_forces_w,
+                    self._data._net_forces_w_history,
+                    self._data._force_matrix_w,
+                    self._data._force_matrix_w_history,
+                    self._data._current_air_time,
+                    self._data._current_contact_time,
+                    self._data._last_air_time,
+                    self._data._last_contact_time,
+                ],
                 device=self._device,
             )
+            if self.cfg.track_pose:
+                wp.launch(
+                    split_flat_pose_to_pos_quat,
+                    dim=(self._num_envs, self._num_sensors),
+                    inputs=[poses_flat, env_mask, self._num_sensors],
+                    outputs=[self._data._pos_w, self._data._quat_w],
+                    device=self._device,
+                )
+
+        self._update_graph.run(_compute)
 
     """
     Operations
@@ -512,6 +527,9 @@ class ContactSensor(BaseContactSensor):
     def _invalidate_initialize_callback(self, event) -> None:
         """Release native handles when the simulation stops."""
         super()._invalidate_initialize_callback(event)
+        # The captured graph points into buffers dropped below; re-capture on next play.
+        if getattr(self, "_update_graph", None) is not None:
+            self._update_graph.invalidate()
         # Drop strong references; ovphysx native handles are torn down on the
         # next reset() of OvPhysxManager.
         if self._contact_binding is not None:

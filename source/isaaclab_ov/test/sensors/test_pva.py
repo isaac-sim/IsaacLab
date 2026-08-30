@@ -22,6 +22,8 @@ Nucleus or ``omni.client`` loader state.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 # ---------------------------------------------------------------------------
 # Wheel gate: skip the whole file if the ovphysx wheel is missing or too old.
 # ---------------------------------------------------------------------------
@@ -44,6 +46,7 @@ if not hasattr(_TT_module, "RIGID_BODY_POSE"):
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_ov.sensors.pva.pva import Pva as OvPhysxPva  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
@@ -52,6 +55,13 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors.pva import Pva, PvaCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils.warp import CapturedKernelUpdate  # noqa: E402
+
+from .conftest import (  # noqa: E402
+    CountingReadView,
+    assert_update_refused_inside_outer_capture,
+    requires_cuda,
+)
 
 wp.init()
 
@@ -865,3 +875,26 @@ def test_indirect_attachment():
         " source/isaaclab_physx/test/sensors/test_pva.py::test_indirect_attachment and adapt"
         " them to the kitless RigidObject/Articulation pattern used by the rest of this file."
     )
+
+
+# ===========================================================================
+# CUDA-graph capture refusal (scene-free unit test)
+# ===========================================================================
+
+
+def _make_pva_for_refusal() -> OvPhysxPva:
+    """Build a PVA sensor via ``__new__`` wired only for the outer-capture refusal check."""
+    device = "cuda:0"
+    sensor = OvPhysxPva.__new__(OvPhysxPva)
+    sensor.cfg = SimpleNamespace(prim_path="/World/Robot")
+    sensor._device = device
+    sensor._root_view = CountingReadView()
+    sensor._update_graph = CapturedKernelUpdate(device, owner=f"PVA sensor at '{sensor.cfg.prim_path}'")
+    return sensor
+
+
+@requires_cuda
+def test_pva_refuses_update_inside_outer_capture():
+    """The update must raise before reading OVPhysX when an outer capture is active."""
+    sensor = _make_pva_for_refusal()
+    assert_update_refused_inside_outer_capture(sensor, sensor._update_buffers_impl, sensor._root_view)

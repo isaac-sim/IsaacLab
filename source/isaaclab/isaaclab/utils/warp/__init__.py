@@ -20,6 +20,7 @@ lazy_export()
 # already loaded above. Importing it here ensures the class is available inside
 # the shim.
 from .proxy_array import ProxyArray  # noqa: E402
+from .capture import CapturedKernelUpdate  # noqa: E402
 
 _WP_TO_TORCH_ORIGINAL = wp.to_torch
 _WP_TO_TORCH_WARNED = False

@@ -76,7 +76,7 @@ def main():
 
     sensor = scene["contact_sensor"]
     if args_cli.disable_graph:
-        sensor._use_graph = False
+        sensor._update_graph.enabled = False
 
     synchronize_device = partial(wp.synchronize_device, sim.device)
     mode = "eager" if args_cli.disable_graph else "graph"

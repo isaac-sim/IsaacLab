@@ -19,6 +19,7 @@ from pxr import Usd, UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims, path_expr_to_glob
+from isaaclab.utils.warp import CapturedKernelUpdate
 
 import isaaclab_ov.tensor_types as TT
 from isaaclab_ov.physics import OvPhysxManager
@@ -167,6 +168,8 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         self._data.create_buffers(num_envs=self._num_envs, num_bodies=self._num_bodies, device=self._device)
 
+        self._update_graph = CapturedKernelUpdate(self._device, owner=f"joint wrench sensor at '{self.cfg.prim_path}'")
+
         logger.info(f"Joint wrench sensor initialized: {self._num_envs} envs, {self._num_bodies} bodies")
 
     def _resolve_articulation_root_prim_path(self) -> str:
@@ -242,7 +245,14 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         Args:
             env_mask: A mask containing which environments need to be updated. Shape is ``(num_envs,)``.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active on the device, since the
+                blocking native wrench read cannot be graph-captured and a replay would consume
+                stale data.
         """
+        self._update_graph.refuse_outer_capture()
+
         if self._root_view is None or self._wrench_buf is None:
             raise RuntimeError(
                 f"Joint wrench sensor '{self.cfg.prim_path}': not initialized."
@@ -251,21 +261,27 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         if self._joint_pos_b is None or self._joint_quat_b is None:
             raise RuntimeError(f"Joint wrench sensor '{self.cfg.prim_path}': joint frame buffers are not initialized.")
 
+        # The blocking native read cannot be graph-captured; it refreshes the
+        # sensor-owned buffer in place on every update, including graph replays.
         self._root_view.read_into(TT.LINK_INCOMING_JOINT_FORCE, self._wrench_buf)
-        wp.launch(
-            joint_wrench_split_kernel,
-            dim=(self._num_envs, self._num_bodies),
-            inputs=[
-                env_mask,
-                self._wrench_buf,
-                self._joint_pos_b,
-                self._joint_quat_b,
-                self._timestamp,
-                self._data._force,
-                self._data._torque,
-            ],
-            device=self._device,
-        )
+
+        def _compute() -> None:
+            wp.launch(
+                joint_wrench_split_kernel,
+                dim=(self._num_envs, self._num_bodies),
+                inputs=[
+                    env_mask,
+                    self._wrench_buf,
+                    self._joint_pos_b,
+                    self._joint_quat_b,
+                    self._timestamp,
+                    self._data._force,
+                    self._data._torque,
+                ],
+                device=self._device,
+            )
+
+        self._update_graph.run(_compute)
 
     def _invalidate_initialize_callback(self, event) -> None:
         """Drop binding, cached sizes, and buffers when physics stops.
@@ -274,6 +290,9 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             event: An invalidate event.
         """
         super()._invalidate_initialize_callback(event)
+        # buffers the captured graph points into are being dropped below
+        if getattr(self, "_update_graph", None) is not None:
+            self._update_graph.invalidate()
         # Drop the view (and the binding it owns) before the wrench buffer it reads into:
         # the view caches a float32 reinterpret of that buffer, so releasing it first keeps
         # Warp's array deallocator from aborting on a freed-but-still-referenced allocation.

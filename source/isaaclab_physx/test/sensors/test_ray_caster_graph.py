@@ -18,6 +18,7 @@ from isaaclab_physx.sensors.ray_caster import ray_caster as ray_caster_module
 from isaaclab_physx.sensors.ray_caster.ray_caster import RayCaster
 
 from isaaclab.sensors.ray_caster import BaseRayCaster
+from isaaclab.utils.warp import CapturedKernelUpdate
 
 pytestmark = [
     pytest.mark.isaacsim_ci,
@@ -72,8 +73,9 @@ def _make_ray_caster(use_graph: bool = True, cache_raw_transforms: bool = True):
     sensor._device = device
     sensor._physx_body_view = transform_view
     sensor._raw_transforms = transforms if cache_raw_transforms else None
-    sensor._compute_graph = None
-    sensor._use_graph = use_graph
+    # the harness bypasses _initialize_impl, so build the capture helper the sensor would own
+    sensor._update_graph = CapturedKernelUpdate(device, owner=f"ray caster at '{sensor.cfg.prim_path}'")
+    sensor._update_graph.enabled = use_graph
     sensor._env_mask = None
     sensor._transforms_prefetched = False
     sensor._test_output = wp.zeros(2, dtype=wp.vec3f, device=device)
@@ -120,7 +122,7 @@ def test_ray_caster_updates_eagerly_when_graphs_are_disabled(monkeypatch):
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor.device)
 
-    assert sensor._compute_graph is None
+    assert not sensor._update_graph.is_captured
     torch.testing.assert_close(
         wp.to_torch(sensor._test_output),
         torch.tensor([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0]], device=sensor.device),
@@ -131,7 +133,7 @@ def test_ray_caster_updates_eagerly_when_graphs_are_disabled(monkeypatch):
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor.device)
 
-    assert sensor._compute_graph is None
+    assert not sensor._update_graph.is_captured
     assert transform_view.get_count == 2
     assert transform_view.conversion_count == 1
     torch.testing.assert_close(
@@ -153,7 +155,7 @@ def test_ray_caster_refuses_update_inside_outer_graph_capture(monkeypatch):
         # record something so the outer capture does not end empty
         wp.copy(sensor._test_output, zeros)
 
-    assert sensor._compute_graph is None
+    assert not sensor._update_graph.is_captured
     assert transform_view.get_count == 0
 
 
@@ -164,7 +166,9 @@ def test_ray_caster_captures_and_replays_update_graph(monkeypatch):
 
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor.device)
-    compute_graph = sensor._compute_graph
+    # private access is deliberate: the assertion below checks the identical graph object was
+    # reused rather than merely that some graph is present
+    compute_graph = sensor._update_graph._graph
 
     assert compute_graph is not None
     torch.testing.assert_close(
@@ -178,7 +182,7 @@ def test_ray_caster_captures_and_replays_update_graph(monkeypatch):
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor.device)
 
-    assert sensor._compute_graph is compute_graph
+    assert sensor._update_graph._graph is compute_graph
     torch.testing.assert_close(
         wp.to_torch(sensor._test_output),
         torch.tensor([[1.0, 0.0, 0.0], [3.0, 0.0, 0.0]], device=sensor.device),
@@ -204,7 +208,7 @@ def test_ray_caster_falls_back_when_graph_capture_fails(monkeypatch):
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor.device)
 
-    assert not sensor._use_graph
+    assert not sensor._update_graph.enabled
     torch.testing.assert_close(
         wp.to_torch(sensor._test_output)[0],
         torch.tensor([1.0, 0.0, 0.0], device=sensor.device),
@@ -214,7 +218,9 @@ def test_ray_caster_falls_back_when_graph_capture_fails(monkeypatch):
 def test_ray_caster_invalidation_drops_cached_graph_state(monkeypatch):
     """Physics invalidation should release the cached PhysX view and CUDA graph."""
     sensor, _, _, _ = _make_ray_caster()
-    sensor._compute_graph = object()
+    # private access is deliberate: plant a sentinel graph so the assertion below proves
+    # invalidation actually dropped it
+    sensor._update_graph._graph = object()
     sensor._env_mask = object()
     sensor._transforms_prefetched = True
     monkeypatch.setattr(BaseRayCaster, "_invalidate_initialize_callback", lambda self, event: None)
@@ -224,6 +230,7 @@ def test_ray_caster_invalidation_drops_cached_graph_state(monkeypatch):
     assert sensor._view is None
     assert sensor._physx_body_view is None
     assert sensor._raw_transforms is None
-    assert sensor._compute_graph is None
+    assert not sensor._update_graph.is_captured
+    assert sensor._update_graph._graph is None
     assert sensor._env_mask is None
     assert not sensor._transforms_prefetched

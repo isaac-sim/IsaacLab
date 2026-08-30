@@ -20,6 +20,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import copy_mesh_transforms_to_table_kernel
+from isaaclab.utils.warp import CapturedKernelUpdate
 
 from isaaclab_ov.physics import OvPhysxManager
 
@@ -117,6 +118,9 @@ class _OvPhysxRayCasterMixin:
             device=str(self._pose_buf.device),
             copy=False,
         )
+        # Set True by the graphed :class:`RayCaster` while its captured kernels
+        # consume the already-refreshed staging buffer (see :meth:`_get_view_transforms_wp`).
+        self._transforms_prefetched = False
 
         if fixed_pos_b is None or fixed_quat_b is None:
             fixed_pos_b = (0.0, 0.0, 0.0)
@@ -151,16 +155,21 @@ class _OvPhysxRayCasterMixin:
         self._offset_quat_contiguous = identity_quat.contiguous()
         self._offset_quat_wp = wp.from_torch(self._offset_quat_contiguous, dtype=wp.quatf)
         self._mesh_view_bufs = {}
+        # Set True by the graphed :class:`RayCaster` while its captured kernels
+        # consume the already-refreshed staging buffer (see :meth:`_get_view_transforms_wp`).
+        self._transforms_prefetched = False
 
     def _get_view_transforms_wp(self: Any) -> wp.array:
         """Return tracked sensor-frame transforms as a ``wp.transformf`` array.
 
         Live path reads the ovphysx binding into the cached staging buffer
-        every call; static path returns the cached snapshot directly.
+        (skipped when the caller already prefetched this update); static path
+        returns the cached snapshot directly.
         """
         if self._ovphysx_body_view is None:
             return self._static_view_transforms_wp
-        self._ovphysx_body_view.read(self._pose_buf)
+        if not self._transforms_prefetched:
+            self._ovphysx_body_view.read(self._pose_buf)
         return self._pose_buf_transformf
 
     def get_world_poses(self: Any, indices=None):
@@ -271,6 +280,40 @@ class _OvPhysxRayCasterMixin:
         self._mesh_views = []
         self._mesh_view_bufs = {}
 
+        # The captured graph reads staging buffers tied to the view handles
+        # destroyed above; drop it so the next play re-captures against freshly
+        # created handles.
+        graph = getattr(self, "_update_graph", None)
+        if graph is not None:
+            graph.invalidate()
+        self._transforms_prefetched = False
+
 
 class RayCaster(_OvPhysxRayCasterMixin, BaseRayCaster):
-    """OVPhysX RayCaster implementation."""
+    """OVPhysX RayCaster implementation.
+
+    Wraps the core kernel-only :meth:`BaseRayCaster._update_buffers_impl` in a
+    captured CUDA graph. Only the standard ``RayCaster`` is graphed; the camera
+    and multi-mesh variants inherit the mixin (not this class) and stay eager.
+    """
+
+    def _initialize_impl(self) -> None:
+        super()._initialize_impl()
+        self._update_graph = CapturedKernelUpdate(self._device, owner=f"ray caster at '{self.cfg.prim_path}'")
+
+    def _update_buffers_impl(self, env_mask: wp.array) -> None:
+        """Refresh OvPhysX poses eagerly, then update ray data through a CUDA graph.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active (the blocking
+                native pose read cannot be captured, so replays would consume stale data).
+        """
+        self._update_graph.refuse_outer_capture()
+        # Blocking native read: refresh the sensor-owned staging buffer in place,
+        # outside the graph, then let the captured kernels consume the cached view.
+        self._get_view_transforms_wp()
+        self._transforms_prefetched = True
+        try:
+            self._update_graph.run(lambda: super(RayCaster, self)._update_buffers_impl(env_mask))
+        finally:
+            self._transforms_prefetched = False

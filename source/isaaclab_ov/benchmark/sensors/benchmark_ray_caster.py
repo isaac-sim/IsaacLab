@@ -36,6 +36,11 @@ parser.add_argument(
     default="all",
     help="Terrain workload to run. The default runs plane and rough workloads.",
 )
+parser.add_argument(
+    "--disable_graph",
+    action="store_true",
+    help="Run the update kernels eagerly instead of replaying the captured CUDA graph.",
+)
 args_cli = parser.parse_args()
 if args_cli.grid_size <= 0:
     parser.error("--grid_size must be greater than zero")
@@ -151,6 +156,9 @@ def main() -> None:
         scene.reset()
 
         sensors = {workload: scene[f"{workload}_ray_caster"] for workload in workloads}
+        if args_cli.disable_graph:
+            for ray_caster in sensors.values():
+                ray_caster._update_graph.enabled = False
         rays_per_env = next(iter(sensors.values())).num_rays
         if any(sensor.num_rays != rays_per_env for sensor in sensors.values()):
             raise RuntimeError("Plane and rough workloads must cast the same number of rays.")

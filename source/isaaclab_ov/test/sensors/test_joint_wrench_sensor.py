@@ -23,6 +23,7 @@ unlocked device so single-device runs finish cleanly.
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -34,20 +35,32 @@ from pxr import Gf, UsdPhysics
 # the optional ovphysx wheel. Skip the OVPhysX tests gracefully in that case.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+import isaaclab_ov.tensor_types as TT  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_ov.sensors.joint_wrench.joint_wrench_sensor import JointWrenchSensor  # noqa: E402
+from isaaclab_ov.sensors.joint_wrench.joint_wrench_sensor_data import JointWrenchSensorData  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.actuators import ImplicitActuatorCfg  # noqa: E402
 from isaaclab.assets import Articulation, ArticulationCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
-from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg  # noqa: E402
+from isaaclab.sensors import JointWrenchSensorCfg  # noqa: E402
+from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
 from isaaclab.utils import math as math_utils  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR  # noqa: E402
 from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils.warp import CapturedKernelUpdate  # noqa: E402
 
 from isaaclab_assets.robots.ant import ANT_CFG  # noqa: E402
+
+from .conftest import (  # noqa: E402
+    CountingReadView,
+    assert_invalidation_drops_captured_graph,
+    assert_update_refused_inside_outer_capture,
+    requires_cuda,
+)
 
 wp.init()
 
@@ -532,3 +545,74 @@ def test_no_stale_data_after_scene_reset(sim, device):
     post_reset_torque = sensor.data.torque.torch
     torch.testing.assert_close(post_reset_force, torch.zeros_like(post_reset_force))
     torch.testing.assert_close(post_reset_torque, torch.zeros_like(post_reset_torque))
+
+
+# ---------------------------------------------------------------------------
+# CUDA-graph capture (scene-free unit tests)
+# ---------------------------------------------------------------------------
+
+
+def _make_graphed_joint_wrench_sensor(num_envs: int = 2):
+    """Create a JointWrench sensor without a USD scene, wired for graph unit tests."""
+    device = "cuda:0"
+    wrenches_torch = torch.arange(1, num_envs * 6 + 1, dtype=torch.float32, device=device).reshape(num_envs, 1, 6)
+
+    sensor = JointWrenchSensor.__new__(JointWrenchSensor)
+    sensor.cfg = SimpleNamespace(prim_path="/World/Robot")
+    sensor._device = device
+    sensor._num_envs = num_envs
+    sensor._num_bodies = 1
+    sensor._root_view = CountingReadView(
+        wrenches_torch, dtype=wp.spatial_vectorf, expected_tensor_type=TT.LINK_INCOMING_JOINT_FORCE
+    )
+    sensor._wrench_buf = wp.zeros((num_envs, 1), dtype=wp.spatial_vectorf, device=device)
+    sensor._joint_pos_b = wp.zeros(1, dtype=wp.vec3f, device=device)
+    sensor._joint_quat_b = wp.array([wp.quatf(0.0, 0.0, 0.0, 1.0)], dtype=wp.quatf, device=device)
+    sensor._timestamp = wp.ones(num_envs, dtype=wp.float32, device=device)
+    sensor._data = JointWrenchSensorData()
+    sensor._data.create_buffers(num_envs=num_envs, num_bodies=1, device=device)
+    sensor._update_graph = CapturedKernelUpdate(device, owner="joint wrench sensor at '/World/Robot'")
+    sensor._initialize_handle = None
+    sensor._invalidate_initialize_handle = None
+    sensor._prim_deletion_handle = None
+
+    env_mask = wp.ones(num_envs, dtype=wp.bool, device=device)
+    return sensor, wrenches_torch, env_mask
+
+
+@requires_cuda
+def test_joint_wrench_graph_replay_sees_refreshed_reads_and_mask():
+    """Replays must consume freshly read wrench data and in-place mask changes."""
+    sensor, wrenches_torch, env_mask = _make_graphed_joint_wrench_sensor(num_envs=2)
+
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor._device)
+    assert sensor._update_graph.is_captured
+    force_before = wp.to_torch(sensor._data._force).clone()
+    assert sensor._root_view.read_count == 1
+
+    wrenches_torch[:, :, :3] *= 10.0
+    wp.to_torch(env_mask)[:] = torch.tensor([False, True], device=sensor._device)
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor._device)
+
+    assert sensor._root_view.read_count == 2  # fetch still runs eagerly on replay
+    force_after = wp.to_torch(sensor._data._force)
+    torch.testing.assert_close(force_after[0], force_before[0])  # masked-off env untouched
+    assert not torch.allclose(force_after[1], force_before[1])  # masked-on env refreshed
+
+
+@requires_cuda
+def test_joint_wrench_refuses_update_inside_outer_capture():
+    """The update must raise before reading OvPhysX when an outer capture is active."""
+    sensor, _, env_mask = _make_graphed_joint_wrench_sensor()
+    assert_update_refused_inside_outer_capture(sensor, lambda: sensor._update_buffers_impl(env_mask), sensor._root_view)
+
+
+@requires_cuda
+def test_joint_wrench_invalidation_drops_captured_graph(monkeypatch):
+    """Invalidation must invalidate the update graph alongside the native handles."""
+    sensor, _, env_mask = _make_graphed_joint_wrench_sensor()
+    assert_invalidation_drops_captured_graph(
+        sensor, lambda: sensor._update_buffers_impl(env_mask), BaseJointWrenchSensor, monkeypatch
+    )

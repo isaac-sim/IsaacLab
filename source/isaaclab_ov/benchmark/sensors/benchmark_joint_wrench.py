@@ -27,6 +27,11 @@ add_sensor_benchmark_args(
     default_physics_variant="ovphysx",
     add_device=True,
 )
+parser.add_argument(
+    "--disable_graph",
+    action="store_true",
+    help="Run the update kernels eagerly instead of replaying the captured CUDA graph.",
+)
 args_cli = parser.parse_args()
 
 import isaaclab_ov.tensor_types as TT
@@ -70,6 +75,8 @@ def main() -> None:
         scene.reset()
 
         sensor = scene["joint_wrench"]
+        if args_cli.disable_graph:
+            sensor._update_graph.enabled = False
 
         for _ in range(args_cli.warmup_steps):
             sim.step()

@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "CapturedKernelUpdate",
     "ParticleMeshCounter",
     "ProxyArray",
     "convert_to_warp_mesh",
@@ -16,6 +17,7 @@ __all__ = [
     "sample_particles_in_mesh",
 ]
 
+from .capture import CapturedKernelUpdate
 from .ops import convert_to_warp_mesh, raycast_dynamic_meshes, raycast_mesh, raycast_single_mesh
 from .particle_mesh import ParticleMeshCounter, make_box_region_mesh, make_frustum_region_mesh
 from .particle_sampler import sample_particles_in_cavity, sample_particles_in_mesh

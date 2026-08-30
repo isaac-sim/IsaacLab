@@ -28,6 +28,8 @@ first import can fail native symbol resolution after ``ovphysx.reset()``.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 # ---------------------------------------------------------------------------
 # Wheel gate: skip the whole file if the ovphysx wheel is missing or too old.
 # ---------------------------------------------------------------------------
@@ -50,6 +52,7 @@ if not hasattr(_TT_module, "RIGID_BODY_POSE"):
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_ov.sensors.imu.imu import Imu as OvPhysxImu  # noqa: E402
 
 # Preload Omni Client while Kit's native libraries are still in a clean loader
 # state. Importing it for the first time after an OVPhysX reset can fail with an
@@ -63,8 +66,15 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors.imu import Imu, ImuCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils.warp import CapturedKernelUpdate  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
+
+from .conftest import (  # noqa: E402
+    CountingReadView,
+    assert_update_refused_inside_outer_capture,
+    requires_cuda,
+)
 
 wp.init()
 
@@ -703,3 +713,26 @@ def test_single_dof_pendulum():
 )
 def test_indirect_attachment():
     """Test attaching the IMU through an Xform primitive offset chain."""
+
+
+# ===========================================================================
+# CUDA-graph capture refusal (scene-free unit test)
+# ===========================================================================
+
+
+def _make_imu_for_refusal() -> OvPhysxImu:
+    """Build an IMU sensor via ``__new__`` wired only for the outer-capture refusal check."""
+    device = "cuda:0"
+    sensor = OvPhysxImu.__new__(OvPhysxImu)
+    sensor.cfg = SimpleNamespace(prim_path="/World/Robot")
+    sensor._device = device
+    sensor._root_view = CountingReadView()
+    sensor._update_graph = CapturedKernelUpdate(device, owner=f"IMU at '{sensor.cfg.prim_path}'")
+    return sensor
+
+
+@requires_cuda
+def test_imu_refuses_update_inside_outer_capture():
+    """The update must raise before reading OVPhysX when an outer capture is active."""
+    sensor = _make_imu_for_refusal()
+    assert_update_refused_inside_outer_capture(sensor, sensor._update_buffers_impl, sensor._root_view)

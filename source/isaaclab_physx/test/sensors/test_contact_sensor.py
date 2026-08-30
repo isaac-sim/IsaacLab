@@ -38,6 +38,7 @@ from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_cont
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.warp import CapturedKernelUpdate
 
 ##
 # Custom helper classes.
@@ -236,8 +237,8 @@ def _make_graph_test_sensor(device: str = "cuda:0") -> PhysxContactSensor:
     sensor = PhysxContactSensor.__new__(PhysxContactSensor)
     sensor.cfg = SimpleNamespace(prim_path="/World/Sensor")
     sensor._device = device
-    sensor._use_graph = True
-    sensor._compute_graph = None
+    # the harness bypasses _initialize_impl, so build the capture helper the sensor would own
+    sensor._update_graph = CapturedKernelUpdate(device, owner=f"contact sensor at '{sensor.cfg.prim_path}'")
     sensor._initialize_handle = None
     sensor._invalidate_initialize_handle = None
     sensor._prim_deletion_handle = None
@@ -298,7 +299,7 @@ def test_contact_sensor_refuses_update_inside_outer_graph_capture():
         # record something so the outer capture does not end empty
         wp.copy(destination, source)
 
-    assert sensor._compute_graph is None
+    assert not sensor._update_graph.is_captured
     assert fetch_call_count == 0
 
 
@@ -334,8 +335,8 @@ def test_contact_sensor_falls_back_when_graph_capture_fails(monkeypatch):
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(device)
 
-    assert sensor._use_graph is False
-    assert sensor._compute_graph is None
+    assert sensor._update_graph.enabled is False
+    assert not sensor._update_graph.is_captured
     assert compute_call_count == 1
     assert destination.numpy().tolist() == [1]
 
@@ -353,7 +354,6 @@ def test_contact_sensor_invalidation_drops_cached_graph_state(monkeypatch):
     cached_attrs = [
         "_body_physx_view",
         "_contact_view",
-        "_compute_graph",
         "_net_forces_flat",
         "_force_matrix_flat",
         "_poses_flat",
@@ -364,11 +364,15 @@ def test_contact_sensor_invalidation_drops_cached_graph_state(monkeypatch):
     ]
     for attr in cached_attrs:
         setattr(sensor, attr, object())
+    # the captured graph now lives inside the helper: private access is deliberate so the
+    # assertion below proves invalidation dropped this exact sentinel
+    sensor._update_graph._graph = object()
 
     sensor._invalidate_initialize_callback(None)
 
     for attr in cached_attrs:
         assert getattr(sensor, attr) is None, attr
+    assert not sensor._update_graph.is_captured
 
 
 @pytest.mark.parametrize("disable_contact_processing", [True, False])

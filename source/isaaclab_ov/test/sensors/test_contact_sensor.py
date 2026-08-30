@@ -39,6 +39,7 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 from enum import Enum
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -53,6 +54,7 @@ from isaaclab_ov.assets import RigidObject  # noqa: E402
 from isaaclab_ov.cloner import ovphysx_replicate  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ov.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
+from isaaclab_ov.sensors.contact_sensor.contact_sensor_data import ContactSensorData  # noqa: E402
 
 from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 
@@ -61,10 +63,19 @@ import isaaclab.sim.schemas as schemas  # noqa: E402
 from isaaclab import cloner  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
+from isaaclab.sensors.contact_sensor import BaseContactSensor  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
 from isaaclab.sim.utils.stage import get_current_stage  # noqa: E402
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg  # noqa: E402
 from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils.warp import CapturedKernelUpdate  # noqa: E402
+
+from .conftest import (  # noqa: E402
+    CountingReadView,
+    assert_invalidation_drops_captured_graph,
+    assert_update_refused_inside_outer_capture,
+    requires_cuda,
+)
 
 wp.init()
 
@@ -1081,3 +1092,109 @@ def _perform_sim_step(sim: SimulationContext, scene: InteractiveScene, sim_dt: f
     sim.step(render=False)
     # update buffers at sim dt
     scene.update(dt=sim_dt)
+
+
+# ---------------------------------------------------------------------------
+# CUDA-graph capture (scene-free unit tests)
+# ---------------------------------------------------------------------------
+
+
+class _FakeContactBinding(CountingReadView):
+    """Fill the caller-owned net-forces buffer from a torch source, counting reads."""
+
+    def read_net_forces(self, dst) -> None:
+        """Count a net-forces read and fill ``dst`` from the source tensor."""
+        self.read(dst)
+
+    def read_force_matrix(self, dst) -> None:
+        """Fail loudly: the filtered path must stay unused when no filters are configured."""
+        raise AssertionError("read_force_matrix must not be called when no filters are configured")
+
+
+def _make_graphed_contact_sensor(num_envs: int = 2):
+    """Create a ContactSensor without a USD scene, wired for graph unit tests."""
+    device = "cuda:0"
+    # Flat net forces are pattern-major [num_sensors * num_envs, 3]; here num_sensors == 1.
+    net_forces_torch = torch.arange(1, num_envs * 3 + 1, dtype=torch.float32, device=device).reshape(num_envs, 3)
+
+    sensor = ContactSensor.__new__(ContactSensor)
+    sensor.cfg = SimpleNamespace(
+        prim_path="/World/S",
+        filter_prim_paths_expr=[],
+        track_pose=False,
+        force_threshold=1.0,
+        history_length=0,
+    )
+    sensor._device = device
+    sensor._num_envs = num_envs
+    sensor._num_sensors = 1
+    sensor._num_filter_shapes = 0
+    sensor._history_length = 1
+    sensor._net_forces_flat_buf = wp.zeros((num_envs, 3), dtype=wp.float32, device=device)
+    sensor._force_matrix_flat_buf = None
+    sensor._poses_flat_buf = None
+    sensor._contact_binding = _FakeContactBinding(net_forces_torch)
+    sensor._root_view = None
+    sensor._pose_binding = None
+    sensor._timestamp = wp.zeros(num_envs, dtype=wp.float32, device=device)
+    sensor._timestamp_last_update = wp.zeros(num_envs, dtype=wp.float32, device=device)
+    sensor._resolve_indices_and_mask = lambda env_ids, mask: mask
+    sensor._data = ContactSensorData()
+    sensor._data.create_buffers(
+        num_envs=num_envs,
+        num_sensors=1,
+        num_filter_shapes=0,
+        history_length=0,
+        track_pose=False,
+        track_air_time=True,
+        track_contact_points=False,
+        track_friction_forces=False,
+        device=device,
+    )
+    sensor._update_graph = CapturedKernelUpdate(device, owner="contact sensor at '/World/S'")
+    sensor._initialize_handle = None
+    sensor._invalidate_initialize_handle = None
+    sensor._prim_deletion_handle = None
+
+    env_mask = wp.ones(num_envs, dtype=wp.bool, device=device)
+    return sensor, net_forces_torch, env_mask
+
+
+@requires_cuda
+def test_contact_graph_replay_sees_refreshed_reads_and_mask():
+    """Replays must consume freshly read net forces and in-place mask changes."""
+    sensor, net_forces_torch, env_mask = _make_graphed_contact_sensor(num_envs=2)
+
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor._device)
+    assert sensor._update_graph.is_captured
+    forces_before = wp.to_torch(sensor._data._net_forces_w).clone()
+    assert sensor._contact_binding.read_count == 1
+
+    net_forces_torch *= 10.0
+    wp.to_torch(env_mask)[:] = torch.tensor([False, True], device=sensor._device)
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor._device)
+
+    assert sensor._contact_binding.read_count == 2  # fetch still runs eagerly on replay
+    forces_after = wp.to_torch(sensor._data._net_forces_w)
+    torch.testing.assert_close(forces_after[0], forces_before[0])  # masked-off env untouched
+    assert not torch.allclose(forces_after[1], forces_before[1])  # masked-on env refreshed
+
+
+@requires_cuda
+def test_contact_refuses_update_inside_outer_capture():
+    """The update must raise before reading ovphysx when an outer capture is active."""
+    sensor, _, env_mask = _make_graphed_contact_sensor()
+    assert_update_refused_inside_outer_capture(
+        sensor, lambda: sensor._update_buffers_impl(env_mask), sensor._contact_binding
+    )
+
+
+@requires_cuda
+def test_contact_invalidation_drops_captured_graph(monkeypatch):
+    """Invalidation must invalidate the update graph alongside the native handles."""
+    sensor, _, env_mask = _make_graphed_contact_sensor()
+    assert_invalidation_drops_captured_graph(
+        sensor, lambda: sensor._update_buffers_impl(env_mask), BaseContactSensor, monkeypatch
+    )
