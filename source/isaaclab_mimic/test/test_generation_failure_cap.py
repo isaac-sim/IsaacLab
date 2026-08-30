@@ -108,9 +108,13 @@ def test_cap_reached_before_enough_successes_ends_the_run():
     assert (succ, fail) == (2, 4)
 
 
-@pytest.mark.parametrize("max_num_failures", [None, 100])
+@pytest.mark.parametrize("max_num_failures", [None, 3, 100])
 def test_attempt_based_termination_is_unchanged(max_num_failures):
-    """With the guarantee off the run still stops on ``generation_num_trials`` attempts."""
+    """With the guarantee off the run stops on ``generation_num_trials`` attempts, cap or no cap.
+
+    A cap of 3 against 10 requested attempts is the case that matters: the fixed-attempt contract
+    says the run delivers the attempts it was asked for, so the cap must not end it at 3.
+    """
     how, _, _, attempts = _run(
         [False] * 100, max_num_failures=max_num_failures, generation_num_trials=10, generation_guarantee=False
     )

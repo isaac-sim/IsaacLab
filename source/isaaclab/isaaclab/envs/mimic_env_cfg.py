@@ -41,10 +41,13 @@ class DataGenConfig:
     max_num_failures: int | None = None
     """Maximum number of failed generation attempts before stopping, or None for no limit.
 
-    Only meaningful together with :attr:`generation_guarantee`. With the guarantee enabled,
-    generation keeps retrying until :attr:`generation_num_trials` demos succeed, so a task whose
-    success rate is low can run for an unbounded number of attempts; this caps that. Defaults to
-    None so the guarantee keeps its usual meaning unless a limit is asked for.
+    Only applies together with :attr:`generation_guarantee`. With the guarantee enabled, generation
+    keeps retrying until :attr:`generation_num_trials` demos succeed, so a task whose success rate is
+    low can run for an unbounded number of attempts; this caps that. Defaults to None so the
+    guarantee keeps its usual meaning unless a limit is asked for.
+
+    With the guarantee disabled, generation already stops after :attr:`generation_num_trials`
+    attempts and this field is ignored, so setting it cannot cut a fixed-attempt run short.
     """
 
     seed: int = 1

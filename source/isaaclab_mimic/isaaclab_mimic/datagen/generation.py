@@ -141,9 +141,11 @@ def env_loop(
                     break
 
                 # with the success guarantee on, nothing else bounds the run: a task that rarely
-                # succeeds retries forever. max_num_failures is the opt-in bound on that.
+                # succeeds retries forever. max_num_failures is the opt-in bound on that. Without the
+                # guarantee the check above already stops on generation_num_trials attempts, so the
+                # cap has nothing to add and must not cut a fixed-attempt run short.
                 max_num_failures = env.cfg.datagen_config.max_num_failures
-                if max_num_failures is not None and num_failures >= max_num_failures:
+                if generation_guarantee and max_num_failures is not None and num_failures >= max_num_failures:
                     print(
                         f"Reached {num_failures} failures (max_num_failures={max_num_failures}) after"
                         f" {num_success}/{generation_num_trials} successes. Exiting."
