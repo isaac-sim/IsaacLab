@@ -46,7 +46,7 @@ As a result, training with hydra arguments can be run with the following syntax:
 
               .. code-block:: shell
 
-                  uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+                  uv run --extra rl-games isaaclab train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
 
            .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -63,7 +63,7 @@ As a result, training with hydra arguments can be run with the following syntax:
 
               .. code-block:: shell
 
-                  uv run isaaclab train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+                  uv run --extra skrl isaaclab train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
            .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -80,7 +80,7 @@ As a result, training with hydra arguments can be run with the following syntax:
 
               .. code-block:: shell
 
-                  uv run isaaclab train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+                  uv run --extra sb3 isaaclab train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
            .. tab-item:: isaaclab.sh / isaaclab.bat
 

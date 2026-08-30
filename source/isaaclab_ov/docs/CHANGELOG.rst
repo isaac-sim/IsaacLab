@@ -1,6 +1,45 @@
 Changelog
 ---------
 
+2.3.1 (2026-08-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added compatibility with the OVRTX 0.5 ``frame.render_vars`` API, which keys render vars by the
+  authored RenderVar prim path (for example ``/Render/Vars/LdrColor``) instead of the source name.
+  The key form is resolved from the installed ``ovrtx`` version when
+  :mod:`isaaclab_ov.renderers.ovrtx_compat` is imported; OVRTX 0.4 keeps source-name keys and the
+  public extras stay pinned to ``ovrtx==0.4.1.364340``.
+
+Changed
+^^^^^^^
+
+* Updated the optional ovphysx runtime to 0.5.11. OVStage attachment now honors
+  explicit CUDA device selection. OVStage-backed articulation link and DOF
+  indices now use stable path-derived ordering, which may differ from 0.5.10;
+  use reported paths or names when identity matters.
+
+
+2.3.0 (2026-08-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.physics.OvPhysxCfg.cooked_collider_cache_dir` to select where OVPhysX
+  writes its cooked-collider cache. It defaults to a per-user directory under the system temporary
+  directory, so cooked colliders are reusable across runs from that directory. Set it to ``None`` to
+  use the runtime default.
+
+Fixed
+^^^^^
+
+* Fixed OvPhysX writing its cooked-collider cache into the directory holding the Python interpreter,
+  which logged ``omni.datastore`` errors when that directory was not writable.
+
+
 2.2.3 (2026-08-27)
 ~~~~~~~~~~~~~~~~~~
 
