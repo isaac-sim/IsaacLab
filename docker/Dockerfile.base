@@ -160,6 +160,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     find ${VIRTUAL_ENV} \! -user isaaclab \
       -exec chown isaaclab:isaaclab {} + -exec chmod a+rwX {} +
 
+# Isaac Sim's prebundled packages sit on PYTHONPATH ahead of the venv for launch paths that
+# never import isaaclab (``runheadless.sh``, ``isaac-sim.streaming.sh``), so its torch would
+# shadow the venv's and load a libtorch_cuda.so needing an NCCL symbol the bundled NCCL does
+# not export (nvbugs 6343978). Repoint them at the venv; the pip install path did this itself.
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p -c \
+      "from isaaclab.cli.commands.install import _repoint_prebundle_packages; _repoint_prebundle_packages()"
+
 # uv venv/uv sync above needed Kit's interpreter as the venv base; from here on ``uv pip``
 # should target the venv, including the interactive ``pip`` alias below.
 ENV UV_PYTHON=${VENV_PATH_ARG}/bin/python
