@@ -176,6 +176,11 @@ RUN chown -R isaaclab:isaaclab \
         ${VIRTUAL_ENV} \
         /var/cache/hub
 
+# CI installs optional extras into the venv at test time (e.g. ``pytetwild`` for the
+# tetrahedralization feature) and a volume-mounted run executes as the runner's uid rather
+# than the image's, so the venv must be writable by a uid the image cannot know.
+RUN chmod -R a+rwX ${VIRTUAL_ENV}
+
 # Open up traversal of the Isaac Sim root and runtime home for non-root users.
 # Inner Isaac Sim files keep their original permissions, so avoid chowning the
 # full install. Keep the runtime home closed to unrelated users.
