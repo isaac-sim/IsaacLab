@@ -5,15 +5,23 @@
 
 """Configuration for Newton Warp Renderer."""
 
-from typing import Literal
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.configclass import configclass
+
+if TYPE_CHECKING:
+    from .newton_warp_renderer import NewtonWarpRenderer
 
 
 @configclass
 class NewtonWarpRendererCfg(RendererCfg):
     """Configuration for Newton Warp Renderer."""
+
+    class_type: type[NewtonWarpRenderer] | str = "{DIR}.newton_warp_renderer:NewtonWarpRenderer"
+    """Renderer implementation class."""
 
     renderer_type: str = "newton_warp"
     """Type identifier for Newton Warp renderer."""
