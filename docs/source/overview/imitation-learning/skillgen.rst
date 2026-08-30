@@ -36,6 +36,11 @@ Installation
 
 SkillGen requires Isaac Lab, Isaac Sim, and cuRobo. Follow these steps in your Isaac Lab conda environment.
 
+.. note::
+
+   Installing cuRobo alongside Isaac Lab and Isaac Sim in a conda environment is the recommended and supported setup.
+   This ensures consistent CUDA toolkit versions, isolated dependencies, and avoids conflicts with system-level packages.
+
 Step 1: Install and verify Isaac Sim and Isaac Lab
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
