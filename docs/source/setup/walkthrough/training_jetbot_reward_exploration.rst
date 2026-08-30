@@ -47,14 +47,14 @@ we can finally run training!  Let's see what happens!
 
       .. code-block:: bash
 
-          uv run --extra skrl isaaclab train --rl_library skrl --task=Template-Isaac-Lab-Tutorial-Direct-v0
+          uv run --extra skrl isaaclab train --rl_library skrl --task=Template-Isaac-Lab-Tutorial-Direct
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-          ./isaaclab.sh train --rl_library skrl --task=Template-Isaac-Lab-Tutorial-Direct-v0
+          ./isaaclab.sh train --rl_library skrl --task=Template-Isaac-Lab-Tutorial-Direct
 
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/walkthrough_naive_webp.webp
