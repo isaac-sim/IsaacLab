@@ -404,7 +404,24 @@ Prerequisites
 
 * **Calibration**: The SO-101 arm must be calibrated before use. The plugin talks to the FEETECH
   servos directly -- it has no ``lerobot`` or FEETECH SDK dependency -- so calibrate with its own
-  ``calibrate`` subcommand, which needs no OpenXR runtime:
+  ``calibrate`` subcommand, which needs no OpenXR runtime.
+
+  First, identify the serial port. The easiest way is ``uvx``, which runs
+  ``lerobot-find-port`` in a temporary environment with no installation required:
+
+  .. code-block:: bash
+
+     uvx --from "lerobot[hardware]" lerobot-find-port
+
+  Alternatively, plug in the USB cable and immediately run:
+
+  .. code-block:: bash
+
+     sudo dmesg | grep tty | tail -1
+
+  Because ``tail -1`` shows only the most recent kernel message, the output unambiguously
+  names the just-connected device, e.g. ``[12345.6] usb ... ttyACM0``.
+  Use that path (``/dev/ttyACM0``, ``/dev/ttyACM1``, etc.) in the command below.
 
   .. code-block:: bash
 
@@ -482,7 +499,8 @@ Start the plugin
 Isaac Lab does not spawn the plugin for you. Launch the sim first -- it brings up the CloudXR
 runtime the plugin connects through -- then, in a **separate terminal**, source the environment
 file the runtime writes on startup (this points the OpenXR loader at CloudXR) and start the plugin
-on the leader's serial port:
+on the leader's serial port (replace ``/dev/ttyACM0`` with your device -- see the port-identification
+note in the Calibration step above):
 
 .. code-block:: bash
 
@@ -537,6 +555,12 @@ Move the physical SO-101 leader arm and the simulated follower will mirror its j
 time. To record demonstrations from this task, run ``scripts/tools/record_demos.py`` with the same
 ``--task`` and the plugin running in its second terminal -- see `Data Collection in Sim`_ for the
 full recording workflow and runtime troubleshooting.
+
+.. note::
+
+   After stacking the cube, open the gripper **all the way** before ending the episode. The task's
+   success check requires the gripper to be fully open -- a partially open gripper holding position
+   on top of the stack will not register as success, even if the cube is correctly placed.
 
 
 .. _isaac-teleop-retargeting:
@@ -1271,6 +1295,18 @@ environment runs with ``--xr``. PiP is absent unless the task explicitly selects
 the same view shown to the operator. Both reference cameras are parented to a physical robot body
 link, so the recorded view follows robot motion. The NutPour and ExhaustPipe GR1T2 teleoperation
 tasks also present their existing recorded ``robot_pov_cam``:
+
+.. figure:: ../_static/teleop/xr-camera-pip.jpg
+   :width: 80%
+   :alt: XR teleoperation view with the robot point-of-view camera shown in a picture-in-picture panel
+
+   Robot point-of-view camera feedback shown as a picture-in-picture panel during XR teleoperation.
+
+.. warning::
+
+   If a PiP panel enters its source camera's field of view, the camera captures the panel and
+   produces a recursive hall-of-mirrors effect. Move the panel or reorient the camera, for example
+   by changing the robot pose, to keep the panel outside the camera's field of view.
 
 .. code-block:: bash
 

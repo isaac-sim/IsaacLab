@@ -26,6 +26,7 @@ ManagerBasedRLEnv = None
 retrieve_file_path = None
 patch_env_for_export = None
 ensure_env_spec_id = None
+get_pretrained_checkpoint_backend_names = None
 get_published_pretrained_checkpoint = None
 get_checkpoint_path = None
 resolve_checkpoint_selector = None
@@ -52,7 +53,8 @@ def _load_runtime_dependencies() -> None:
     """Import runtime dependencies after Isaac Sim has been launched."""
     global _RUNTIME_IMPORTS_LOADED
     global CHECKPOINT_SELECTORS, ManagerBasedRLEnv, PPO, RecurrentPPO, annotate, gym, leapp
-    global ensure_env_spec_id, get_checkpoint_path, get_published_pretrained_checkpoint
+    global ensure_env_spec_id, get_checkpoint_path, get_pretrained_checkpoint_backend_names
+    global get_published_pretrained_checkpoint
     global load_from_pkl, load_from_zip_file, patch_env_for_export, resolve_checkpoint_selector, retrieve_file_path
     global state_dict_from_sequence, state_sequence_from_registered, torch
 
@@ -88,6 +90,9 @@ def _load_runtime_dependencies() -> None:
         resolve_checkpoint_selector as resolve_checkpoint_selector_fn,
     )
     from isaaclab_rl.utils.pretrained_checkpoint import (
+        get_pretrained_checkpoint_backend_names as get_pretrained_checkpoint_backend_names_fn,
+    )
+    from isaaclab_rl.utils.pretrained_checkpoint import (
         get_published_pretrained_checkpoint as get_published_pretrained_checkpoint_fn,
     )
 
@@ -112,6 +117,7 @@ def _load_runtime_dependencies() -> None:
     retrieve_file_path = retrieve_file_path_fn
     patch_env_for_export = patch_env_for_export_fn
     ensure_env_spec_id = ensure_env_spec_id_fn
+    get_pretrained_checkpoint_backend_names = get_pretrained_checkpoint_backend_names_fn
     get_published_pretrained_checkpoint = get_published_pretrained_checkpoint_fn
     get_checkpoint_path = get_checkpoint_path_fn
     resolve_checkpoint_selector = resolve_checkpoint_selector_fn
@@ -221,10 +227,11 @@ def _load_agent(checkpoint_path: str, device: str):
     return PPO.load(checkpoint_path, device=device, print_system_info=True)
 
 
-def _resolve_checkpoint(args_cli: argparse.Namespace, task_name: str) -> str | None:
+def _resolve_checkpoint(args_cli: argparse.Namespace, task_name: str, env_cfg) -> str | None:
     """Resolve the SB3 checkpoint selected by the export arguments."""
-    if args_cli.use_pretrained_checkpoint:
-        return get_published_pretrained_checkpoint("sb3", task_name)
+    if args_cli.checkpoint == "pretrained":
+        backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+        return get_published_pretrained_checkpoint("sb3", task_name, *backend_names)
 
     log_root_path = os.path.abspath(os.path.join("logs", "sb3", task_name))
     if args_cli.checkpoint in CHECKPOINT_SELECTORS:
@@ -259,7 +266,7 @@ def export_sb3_agent(
 
     task_name = args_cli.task.split(":")[-1]
     checkpoint_task_name = task_name.replace("-Play", "")
-    checkpoint_path = _resolve_checkpoint(args_cli, checkpoint_task_name)
+    checkpoint_path = _resolve_checkpoint(args_cli, checkpoint_task_name, env_cfg)
     if not checkpoint_path:
         print(f"[INFO] No checkpoint found for task: {checkpoint_task_name}")
         return False
@@ -274,6 +281,13 @@ def export_sb3_agent(
 
     env = None
     leapp_started = False
+    # SB3 constructs torch.distributions.Normal even for deterministic PPO
+    # inference. Its eager argument validation reduces tensor predicates to
+    # Python booleans, which is not representable in a LEAPP static graph and
+    # is unrelated to the action computation. Disable it only while tracing
+    # and restore the process-wide default before returning.
+    previous_validate_args = torch.distributions.Distribution._validate_args
+    torch.distributions.Distribution.set_default_validate_args(False)
     try:
         env = gym.make(args_cli.task, cfg=env_cfg, render_mode=None)
         if not isinstance(env.unwrapped, ManagerBasedRLEnv):
@@ -300,7 +314,7 @@ def export_sb3_agent(
 
         if args_cli.export_save_path is not None:
             save_path = args_cli.export_save_path
-        elif args_cli.use_pretrained_checkpoint:
+        elif args_cli.checkpoint == "pretrained":
             save_path = os.path.join(".pretrained_checkpoints", "sb3", checkpoint_task_name)
         else:
             save_path = log_dir
@@ -344,6 +358,7 @@ def export_sb3_agent(
         validate = args_cli.validation_steps > 0
         leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=validate)
     finally:
+        torch.distributions.Distribution.set_default_validate_args(previous_validate_args)
         if leapp_started:
             with contextlib.suppress(Exception):
                 leapp.stop()

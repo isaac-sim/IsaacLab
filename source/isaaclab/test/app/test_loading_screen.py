@@ -132,3 +132,25 @@ def test_shutdown_restores_output_when_live_rendering_fails(monkeypatch: pytest.
         screen.close()
 
     restore.assert_called_once_with()
+
+
+@pytest.mark.parametrize("platform", ["darwin", "win32"])
+def test_redirect_uses_stream_swapping_on_platforms_without_descriptor_redirection(
+    monkeypatch: pytest.MonkeyPatch, platform: str
+):
+    original_stdout = _OpenStringIO()
+    original_stderr = _OpenStringIO()
+    monkeypatch.setattr(loading_screen.sys, "platform", platform)
+    monkeypatch.setattr(loading_screen.sys, "stdout", original_stdout)
+    monkeypatch.setattr(loading_screen.sys, "stderr", original_stderr)
+    screen = loading_screen.LoadingScreen(1, enabled=True)
+
+    screen._redirect()
+    print("hidden output")
+    assert screen._saved_fds is None
+    assert screen._saved_streams == (original_stdout, original_stderr)
+
+    assert screen._restore() == "hidden output\n"
+    assert screen._console is original_stdout
+    assert loading_screen.sys.stdout is original_stdout
+    assert loading_screen.sys.stderr is original_stderr

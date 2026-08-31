@@ -18,15 +18,97 @@ from isaaclab.envs import DirectRLEnv
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, saturate, scale_transform, unscale_transform
+from isaaclab.utils.math import (
+    quat_conjugate,
+    quat_error_magnitude,
+    quat_mul,
+    sample_uniform,
+    saturate,
+    scale_transform,
+    unscale_transform,
+)
 
-from isaaclab_tasks.core.reorient.mdp.rewards import evaluate_reorient_success, reorient_reward
-from isaaclab_tasks.core.reorient.reorient_common import GOAL_MARKER_POSITION, IN_HAND_POS_OFFSET
-from isaaclab_tasks.core.utils import EpisodeErrorRecorder, randomize_rotation, sample_joint_positions_within_limits
+from isaaclab_tasks.core.utils import (
+    EpisodeErrorRecorder,
+    randomize_rotation,
+    sample_joint_positions_within_limits,
+)
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
+
+
+@torch.jit.script
+def reorient_reward(
+    reset_buf: torch.Tensor,
+    reset_goal_buf: torch.Tensor,
+    successes: torch.Tensor,
+    consecutive_successes: torch.Tensor,
+    object_pos: torch.Tensor,
+    target_pos: torch.Tensor,
+    goal_reached: torch.Tensor,
+    rotation_distance: torch.Tensor,
+    actions: torch.Tensor,
+    distance_scale: float,
+    rotation_scale: float,
+    rotation_epsilon: float,
+    action_penalty_scale: float,
+    success_bonus: float,
+    fall_distance: float,
+    fall_penalty: float,
+    averaging_factor: float,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Compute the Direct reorientation reward and success state transition.
+
+    The success evaluation is not recomputed here: callers pass the flags and
+    orientation errors computed once
+    per step.
+
+    Args:
+        reset_buf: Current episode-reset flags.
+        reset_goal_buf: Current goal-reset flags.
+        successes: Goals reached in each episode.
+        consecutive_successes: Moving-average success count.
+        object_pos: Object positions in the environment frame [m].
+        target_pos: Goal positions in the environment frame [m].
+        goal_reached: Per-environment success flags for this step.
+        rotation_distance: Per-environment orientation errors [rad].
+        actions: Normalized joint actions.
+        distance_scale: Position-distance reward scale [1/m].
+        rotation_scale: Orientation reward scale [rad].
+        rotation_epsilon: Orientation reward regularizer [rad].
+        action_penalty_scale: Squared-action reward scale.
+        success_bonus: Reward added when a goal is reached.
+        fall_distance: Object-to-goal termination distance [m].
+        fall_penalty: Reward added when the object is out of reach.
+        averaging_factor: Consecutive-success moving-average factor.
+
+    Returns:
+        Reward, goal-reset flags, episode success counts, and moving-average
+        consecutive successes.
+    """
+    goal_distance = torch.linalg.norm(object_pos - target_pos, ord=2, dim=-1)
+    goal_resets = reset_goal_buf | goal_reached
+    successes = successes + goal_resets
+    fell = goal_distance >= fall_distance
+    reward = (
+        goal_distance * distance_scale
+        + rotation_scale / (rotation_distance + rotation_epsilon)
+        + actions.square().sum(dim=-1) * action_penalty_scale
+        + goal_resets.to(goal_distance.dtype) * success_bonus
+        + fell.to(goal_distance.dtype) * fall_penalty
+    )
+    resets = reset_buf | fell
+    num_resets = resets.sum()
+    finished_successes = (successes * resets).sum()
+    mean_successes = finished_successes / num_resets.clamp_min(1)
+    consecutive_successes = torch.where(
+        num_resets > 0,
+        averaging_factor * mean_successes + (1.0 - averaging_factor) * consecutive_successes,
+        consecutive_successes,
+    )
+    return reward, goal_resets, successes, consecutive_successes
 
 
 class ReorientDirectEnv(DirectRLEnv):
@@ -64,15 +146,14 @@ class ReorientDirectEnv(DirectRLEnv):
         # -- goal and success state --
         # in-hand target = object default position + shared offset (mirrors ReorientCommand)
         self.in_hand_pos = self.object.data.default_root_pose.torch[:, 0:3].clone()
-        self.in_hand_pos += torch.tensor(IN_HAND_POS_OFFSET, dtype=torch.float, device=self.device)
+        self.in_hand_pos += torch.tensor(self.cfg.in_hand_pos_offset, dtype=torch.float, device=self.device)
         self.goal_rot = torch.zeros((self.num_envs, 4), dtype=torch.float, device=self.device)
         self.goal_rot[:, 3] = 1.0  # identity quaternion in (x, y, z, w) layout
         self.goal_pos = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
-        self.goal_pos[:, :] = torch.tensor(GOAL_MARKER_POSITION, device=self.device)
+        self.goal_pos[:, :] = torch.tensor(self.cfg.goal_marker_position, device=self.device)
         self.reset_goal_buf = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.successes = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.consecutive_successes = torch.zeros(1, dtype=torch.float, device=self.device)
-        self._last_episode_success = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
         # -- per-step evaluation state and diagnostics --
         # written once per step in :meth:`_get_dones`; the reward and metrics reuse them
@@ -230,9 +311,8 @@ class ReorientDirectEnv(DirectRLEnv):
         out_of_reach = goal_dist >= self.cfg.fall_dist
 
         # single per-step success evaluation; the reward and metrics reuse these buffers
-        self._success_flags, self._orientation_error_buf = evaluate_reorient_success(
-            self.object_rot, self.goal_rot, self.cfg.success_tolerance
-        )
+        self._orientation_error_buf = quat_error_magnitude(self.object_rot, self.goal_rot)
+        self._success_flags = self._orientation_error_buf <= self.cfg.success_tolerance
 
         if self.cfg.max_consecutive_success > 0:
             # reset progress (episode length buf) on goal environments
@@ -249,10 +329,12 @@ class ReorientDirectEnv(DirectRLEnv):
         return out_of_reach, time_out
 
     def _reset_idx(self, env_ids: Sequence[int]):
-        # Episode counts as successful when goals reached >= cfg.success_count_threshold.
-        self._last_episode_success[env_ids] = self.successes[env_ids] >= self.cfg.success_count_threshold
+        # Per-attempt success rate, matching the manager workflow's metric of the same
+        # name: reaching a goal draws a replacement, so exactly one goal is outstanding
+        # when the episode ends and it presented ``successes + 1``.
         # 0-dim device tensor: avoids a host sync here; consumers read it at logging cadence
-        self.extras.setdefault("log", {})["Metrics/success_rate"] = self._last_episode_success[env_ids].float().mean()
+        goals = self.successes[env_ids]
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = (goals / (goals + 1.0)).mean()
         for statistic, value in self._orientation_error.reset(env_ids).items():
             self.extras["log"][f"Diagnostics/episode_min_orientation_error_{statistic}"] = value
 

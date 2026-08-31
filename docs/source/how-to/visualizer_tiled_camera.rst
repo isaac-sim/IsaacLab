@@ -30,7 +30,7 @@ Running this script demonstrates two ways to use the streaming camera view:
 
    .. literalinclude:: ../../../scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py
       :language: python
-      :emphasize-lines: 72-78,87-94
+      :emphasize-lines: 72-78,81-83,89-96,107-109
       :linenos:
 
 
@@ -38,8 +38,8 @@ Example One: Following AnymalD Robots
 --------------------------------------
 
 The Kit Visualizer shows the streaming camera view in a separate tab inside the main
-Viewport window. The highlighted tab area in the figures below shows where to
-toggle between the interactive viewport and the streaming camera view.
+Viewport window, labelled **Streaming View**. The highlighted tab area in the figures
+below shows where to toggle between the interactive viewport and the streaming camera view.
 
 .. figure:: ../_static/visualizers/kit_viz_anymal_iteractive_view.jpg
    :width: 100%
@@ -85,7 +85,8 @@ Example Two: Streaming from Robot-Mounted Cameras
 -------------------------------------------------
 
 The Newton visualizer provides a streaming camera view in a lightweight OpenGL window.
-Use the ``Streaming Camera View`` dropdown in the left-hand sidebar to show or hide the panel.
+The panel is hidden by default. To open it, expand the **Streaming View** section in the
+left-hand sidebar and change the toggle from **Hide** to **Open**.
 
 .. figure:: ../_static/visualizers/newton_viz_galbot_interactive_view.jpg
    :width: 100%
@@ -128,7 +129,9 @@ To customize streaming camera behavior, edit the highlighted ``VisualizerCfg`` f
 ``run_tiled_camera_visualizer.py``:
 
 * For auto-created cameras, ``streaming_cam_target_prim_path`` chooses the followed prim and
-  ``streaming_cam_eye`` sets the camera offset from that prim.
+  ``streaming_cam_eye`` sets the camera offset from that prim.  Defaults to ``None``, which
+  causes the visualizer to adopt the first scene camera it discovers at init — no explicit path
+  is needed when a ``TiledCamera`` sensor is already in the scene.
 * For existing scene cameras, ``streaming_sensor_prim_path`` must match an Isaac Lab
   :class:`~isaaclab.sensors.Camera` sensor prim path in the selected task.
 * ``streaming_envs`` controls how many environment tiles are shown. Pass an ``int`` to randomly
@@ -143,9 +146,10 @@ See :ref:`streaming-camera-view` for the full field reference.
 Troubleshooting
 ---------------
 
-* If a generated view fails with a missing prim error, check that
-  ``streaming_cam_target_prim_path`` resolves in each selected environment. Common template
-  forms include ``/World/envs/*/...`` and ``/World/envs/env_.*/...``.
+* If a generated view fails with a missing prim error, verify that
+  ``streaming_cam_target_prim_path`` resolves in each selected environment (common template
+  forms: ``/World/envs/*/...``, ``/World/envs/env_.*/...``).  In most cases you can leave
+  it as ``None`` and let the visualizer adopt an existing scene camera automatically.
 * If an existing-camera view reports that no Isaac Lab camera owns the prim, check that
   ``streaming_sensor_prim_path`` matches a :class:`~isaaclab.sensors.Camera` sensor in the task.
 * If the depth panel shows a flat color, adjust ``streaming_depth_min`` and

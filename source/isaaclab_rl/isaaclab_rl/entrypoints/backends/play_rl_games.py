@@ -36,7 +36,10 @@ from isaaclab_rl.entrypoints.common import (
     startup_screen,
 )
 from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
-from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+from isaaclab_rl.utils.pretrained_checkpoint import (
+    get_pretrained_checkpoint_backend_names,
+    get_published_pretrained_checkpoint,
+)
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
@@ -72,13 +75,8 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
     "--agent", type=str, default="rl_games_cfg_entry_point", help="Name of the RL agent configuration entry point."
 )
-parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
+parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, latest/best, or pretrained.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
-parser.add_argument(
-    "--use_pretrained_checkpoint",
-    action="store_true",
-    help="Use the pre-trained checkpoint from Nucleus.",
-)
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
     "--train_env_cfg",
@@ -120,10 +118,10 @@ def main():
             log_root_path = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])
             log_root_path = os.path.abspath(log_root_path)
             print(f"[INFO] Loading experiment from directory: {log_root_path}")
-            if args_cli.use_pretrained_checkpoint:
-                resume_path = get_published_pretrained_checkpoint("rl_games", train_task_name)
+            if args_cli.checkpoint == "pretrained":
+                backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+                resume_path = get_published_pretrained_checkpoint("rl_games", train_task_name, *backend_names)
                 if not resume_path:
-                    print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                     return
             elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
                 config_name = agent_cfg["params"]["config"]["name"]

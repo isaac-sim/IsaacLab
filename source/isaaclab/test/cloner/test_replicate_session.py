@@ -16,10 +16,10 @@ from isaaclab.sensors import SensorBaseCfg
 from isaaclab.sim import SimulationContext
 
 
-def test_sensor_default_requests_usd_replication():
-    """Sensors request USD cloning explicitly so kitless runs author per-env prims."""
+def test_sensor_default_does_not_request_a_cloning_context():
+    """Sensors rely on automatic Kit replication unless a user explicitly overrides it."""
 
-    assert SensorBaseCfg().cloning_contexts == ("isaaclab.cloner:UsdReplicateContext",)
+    assert SensorBaseCfg().cloning_contexts == ()
 
 
 @pytest.mark.parametrize(
@@ -52,7 +52,7 @@ def test_replicate_distinguishes_automatic_and_explicit_usd_contexts(
     monkeypatch.setattr(SimulationContext, "instance", lambda: published)
 
     cfg = SimpleNamespace(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="/World/envs/env_[^/]+/Robot",
         cloning_contexts=(FakeUsdContext,) if explicit_request else (),
         spawn=object(),
     )

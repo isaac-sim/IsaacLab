@@ -78,6 +78,8 @@ Choose an installation path
 
       Provision a remote GPU workstation on a supported cloud provider.
 
+.. _installation-system-requirements:
+
 System requirements
 -------------------
 
@@ -142,9 +144,9 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
          uv run isaaclab train --rl_library rsl_rl \
             --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
-         # Add OV PhysX and OVRTX only when needed
-         uv run --extra ovphysx,ovrtx isaaclab train --rl_library rsl_rl \
-            --task Isaac-Cartpole-Direct physics=newton_mjwarp
+         # OV PhysX backend
+         uv run --extra ovphysx isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct physics=ovphysx
 
          # Full Isaac Sim support
          uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
@@ -168,9 +170,9 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
          uv run isaaclab train --rl_library rsl_rl \
             --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
-         # Add OV PhysX and OVRTX only when needed
-         uv run --extra ovphysx,ovrtx isaaclab train --rl_library rsl_rl \
-            --task Isaac-Cartpole-Direct physics=newton_mjwarp
+         # OV PhysX backend
+         uv run --extra ovphysx isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Direct physics=ovphysx
 
          # Full Isaac Sim support
          uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
@@ -208,9 +210,9 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
          uv run isaaclab train --rl_library rsl_rl ^
             --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
-         :: Add OV PhysX and OVRTX only when needed
-         uv run --extra ovphysx,ovrtx isaaclab train --rl_library rsl_rl ^
-            --task Isaac-Cartpole-Direct physics=newton_mjwarp
+         :: OV PhysX backend
+         uv run --extra ovphysx isaaclab train --rl_library rsl_rl ^
+            --task Isaac-Cartpole-Direct physics=ovphysx
 
          :: Full Isaac Sim support
          uv run --extra isaacsim isaaclab train --rl_library rsl_rl ^
@@ -219,15 +221,28 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
          :: Play a policy
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
 
-``uv run`` installs the core dependencies automatically. Add ``--extra <name>``
-before ``isaaclab`` when a command needs an optional integration. Pass a
-comma-separated list to enable several extras, or repeat ``--extra``. For example,
-``--extra ovphysx,ovrtx`` enables both OV backends. Use ``--extra all`` for a
-larger compatible bundle.
+``uv run`` installs the core dependencies automatically. The ``--extra <name>``
+option includes the selected optional integration in the command's environment. Place it
+before ``isaaclab``; for example, ``--extra ov`` installs both ovphysx and ovrtx
+backends. Pass a comma-separated list or repeat ``--extra``. No extras conflict, so
+any combination resolves into one environment. The ``--extra all`` shortcut installs a
+curated set of backends, RL libraries, and visualizers. It does not include the specialized
+extras ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, and ``leapp``;
+request them by name:
 
-You are now ready to use Isaac Lab. Continue with the :doc:`/source/setup/quickstart`,
-which starts with your first task and introduces the available commands, RL libraries,
-backends, optional extras, and visualizers.
+.. code-block:: bash
+
+   uv run --extra all isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Direct physics=isaacsim_physx
+
+See :ref:`installation-optional-extras` for the available extras.
+
+``uv run --extra <name> <command>`` syncs the selected extra into the project environment
+and then runs the command. To sync it without running a command, use
+``uv sync --inexact --extra <name>``.
+
+Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
+introduces the available commands, RL libraries, backends, and visualizers.
 
 .. _installation-legacy-installer:
 
@@ -297,8 +312,8 @@ Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ or
 
 ``-i`` always installs the core source packages. With no value, it also installs the optional
 ``mimic`` and ``teleop`` submodules plus the default Newton, RL, and visualizer dependencies.
-It does not install ``tetrahedralization``, ``contrib``, ``ov``, or Isaac Sim; request those
-explicitly when needed.
+It does not install ``tetrahedralization``, ``contrib``, ``ov``, or Isaac Sim;
+request those explicitly when needed.
 
 Use ``-i core`` for core packages only. Otherwise, pass a comma-separated list of selectors:
 
@@ -554,6 +569,8 @@ The project workflow records the dependency in ``pyproject.toml`` and updates ``
 when Isaac Lab is part of an application you maintain; use a standalone environment for exploratory
 or temporary work.
 
+.. _installation-optional-extras:
+
 Optional extras
 ~~~~~~~~~~~~~~~
 
@@ -567,26 +584,37 @@ use ``uv pip install "isaaclab[<extra>]"``; for a uv project, use
 
    * - Extra
      - What it installs
-   * - ``all``
-     - RL framework extras for SB3, SKRL, and RSL-RL.
    * - ``isaacsim``
      - Isaac Sim (``isaacsim[all,extscache]`` version |isaacsim_version|) from
        `pypi.nvidia.com <https://pypi.nvidia.com>`__.
+   * - ``ov``
+     - Both OV backends: OV PhysX and OV RTX.
+   * - ``ovphysx`` / ``ovrtx``
+     - OV PhysX only / OV RTX only.
+   * - ``rl-games`` / ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf``
+     - The corresponding RL framework.
+   * - ``rerun`` / ``viser``
+     - The corresponding visualizer.
+   * - ``mimic`` / ``teleop``
+     - Imitation learning / XR teleoperation.
+   * - ``tetrahedralization`` / ``video``
+     - Mesh tetrahedralization / video recording.
+   * - ``leapp``
+     - LEAP model export support.
+   * - ``all``
+     - A curated set of backends, RL libraries, and visualizers: ``isaacsim``, ``ov``, ``rl-games``,
+       ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser``.
+   * - ``test``
+     - Developer test and documentation tooling.
 
-For example, use ``isaaclab[all]`` for the RL extras or
-``isaaclab[isaacsim,all]`` for a full Isaac Sim and RL workflow. Combining ``isaacsim`` and
-``all`` requires the checked-in uv override file because Isaac Sim's package pins currently conflict
-with the Newton viewer stack:
+Extras can be combined freely: none of them conflict, so any set of extras -- including
+the Isaac Sim and OV backend stacks together -- resolves into a single environment.
+Use ``all`` to install the curated set of backends, RL libraries, and visualizers listed
+above with one flag. The specialized extras (``rlinf``, ``mimic``, ``teleop``,
+``tetrahedralization``, ``video``, ``leapp``) and the developer ``test`` tooling are not
+part of ``all``; request them by name.
 
 .. isaaclab-uv-wheel-install::
-
-The combined installation through ``pip`` is unsupported until the conflicting upstream Isaac Sim
-pins are updated. The ``rl_games`` package is not included in wheel extras; install it separately
-when required:
-
-.. code-block:: bash
-
-   pip install "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11" gym standard-distutils
 
 Install the CUDA-enabled PyTorch build appropriate for your system architecture:
 

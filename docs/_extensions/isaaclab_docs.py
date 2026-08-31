@@ -216,7 +216,7 @@ class IsaacLabUvWheelInstall(SphinxDirective):
         content = f"""\
 .. code-block:: bash
 
-   uv pip install "isaaclab[isaacsim,all]" \\
+   uv pip install "isaaclab[all]" \\
      --overrides "{overrides_url}" \\
      --extra-index-url https://pypi.nvidia.com \\
      --index-strategy unsafe-best-match --prerelease=allow
@@ -266,7 +266,7 @@ class IsaacLabOvrtxInstall(SphinxDirective):
         content = f"""\
 .. code-block:: bash
 
-   pip install --extra-index-url https://pypi.nvidia.com "ovrtx{spec}"
+   pip install "ovrtx{spec}"
 """
         return _parse_rst(self, content)
 

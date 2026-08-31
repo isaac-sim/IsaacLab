@@ -61,12 +61,16 @@ jobs:
         ACCEPT_EULA: Y
         ISAACSIM_ACCEPT_EULA: YES
       run: |
-        uv sync --extra all --extra test
-        # Isaac Sim conflicts with --extra all under uv, so install it imperatively
-        # after the sync. Read the pinned spec from pyproject (single source of truth).
-        ISAACSIM_SPEC=$(.venv/bin/python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['optional-dependencies']['isaacsim'][0])")
-        uv pip install "$ISAACSIM_SPEC"
-        uv pip install pip-licenses pipdeptree \
+        # ``all`` covers every backend (Isaac Sim included), RL library, and visualizer.
+        # ``rlinf`` and ``mimic`` are outside ``all``, so name them to keep them scanned.
+        # No extras conflict, so this is a single resolution -- Isaac Sim no longer needs
+        # an imperative install after the sync.
+        uv sync --extra all --extra test --extra rlinf --extra mimic
+        # ``[tool.uv.pip] prerelease = "allow"`` lets unpinned tools float onto
+        # prereleases. pip-licenses 6.0.0a1 reports an empty License where 5.x reports
+        # ``UNKNOWN``, which license-exceptions.json keys on, and joins multi-license
+        # strings unsorted. Cap below 6.0 until 6.x ships stable and is re-reviewed.
+        uv pip install "pip-licenses<6.0" pipdeptree \
           -r tools/template/requirements.txt
         # Put the venv on PATH for later steps.
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
@@ -130,15 +134,13 @@ jobs:
 
             # If the package is in the exceptions list
             if [ -n "$EXCEPTION" ]; then
-              # If the license is provided in the exceptions list, check the license
-              EXCEPTION_LICENSE=$(echo "$EXCEPTION" | jq -r '.license')
-
-              # echo "Comparing licenses for $pkg:"
-              # echo "  EXCEPTION_LICENSE='${EXCEPTION_LICENSE}' (len=${#EXCEPTION_LICENSE})"
-              # echo "  LICENSE='${LICENSE}' (len=${#LICENSE})"
-
-              # If the exceptions list has a license and doesn't match the current license
-              if [ "$EXCEPTION_LICENSE" != "null" ] && [ "$EXCEPTION_LICENSE" != "$LICENSE" ]; then
+              # If licenses are provided in the exception, require the primary value or an alias.
+              LICENSE_MATCH=$(echo "$EXCEPTION" | jq -r --arg license "$LICENSE" '
+                (.license == null)
+                or (.license == $license)
+                or any(.license_aliases[]?; . == $license)
+              ')
+              if [ "$LICENSE_MATCH" != "true" ]; then
                 echo "ERROR: $pkg has license: $LICENSE"
                 FAILED_PACKAGES=$((FAILED_PACKAGES + 1))  # Increment the counter
               fi
@@ -308,6 +310,7 @@ jobs:
           "0bsd"
           "apache-2.0"
           "apache-2.0 and cnri-python"
+          "apache-2.0 and mit"
           "apache-2.0 with llvm-exception"
           "bsd-0-clause"
           "bsd-1-clause"

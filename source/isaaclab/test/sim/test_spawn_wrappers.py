@@ -64,7 +64,7 @@ def test_spawn_multiple_shapes_with_regex_prefix(sim):
     prim = cfg.func("/World/env_.*/Cone/asset_.*", cfg)
     assert str(prim.GetPath()) == "/World/env_0/Cone/asset_0"
 
-    prim_paths = sim_utils.find_matching_prim_paths("/World/env_.*/Cone/asset_.*")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/env_[^/]+/Cone/asset_[^/]*")
     assert len(prim_paths) == num_assets * num_envs
 
     for env_idx in range(num_envs):
@@ -105,7 +105,7 @@ def test_spawn_multiple_shapes_with_global_settings(sim):
 
     assert prim.IsValid()
     assert str(prim.GetPath()) == "/World/template/Cone/asset_0"
-    prim_paths = sim_utils.find_matching_prim_paths("/World/template/Cone/asset_.*")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/template/Cone/asset_[^/]*")
     assert len(prim_paths) == 3
 
     for prim_path in prim_paths:
@@ -148,7 +148,7 @@ def test_spawn_multiple_shapes_with_individual_settings(sim):
 
     assert prim.IsValid()
     assert str(prim.GetPath()) == "/World/template/Cone/asset_0"
-    prim_paths = sim_utils.find_matching_prim_paths("/World/template/Cone/asset_.*")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/template/Cone/asset_[^/]*")
     assert len(prim_paths) == 3
 
     for prim_path in prim_paths:
@@ -223,5 +223,5 @@ def test_spawn_multiple_files_with_global_settings(sim):
 
     assert prim.IsValid()
     assert str(prim.GetPath()) == "/World/template/Robot/asset_0"
-    prim_paths = sim_utils.find_matching_prim_paths("/World/template/Robot/asset_.*")
+    prim_paths = sim_utils.find_matching_prim_paths("/World/template/Robot/asset_[^/]*")
     assert len(prim_paths) == 2

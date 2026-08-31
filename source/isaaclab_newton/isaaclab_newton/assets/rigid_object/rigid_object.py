@@ -20,7 +20,7 @@ from pxr import UsdPhysics
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.physics import PhysicsEvent
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -156,6 +156,7 @@ class RigidObject(BaseRigidObject):
                 inputs=[
                     composer.out_force_b,
                     composer.out_torque_b,
+                    self._data.body_link_pose_w.warp,
                     self._data._sim_bind_body_external_wrench,
                     self._ALL_ENV_MASK,
                     self._ALL_BODY_MASK,
@@ -1056,7 +1057,7 @@ class RigidObject(BaseRigidObject):
         # -- object view
         self._root_view = ArticulationView(
             SimulationManager.get_model(),
-            root_prim_path_expr.replace(".*", "*"),
+            path_expr_to_glob(root_prim_path_expr),
             verbose=False,
         )
 

@@ -8,17 +8,11 @@
 from unittest.mock import MagicMock
 
 import pytest
-from isaaclab_newton.physics import MJWarpSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
 
 import isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager as manager_module
 from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager import NewtonCoupledMJWarpVBDManager
 from isaaclab_contrib.custom_coupling.newton_manager_cfg import CoupledMJWarpVBDSolverCfg
-from isaaclab_contrib.deformable.newton_manager_cfg import (
-    CoupledMJWarpVBDSolverCfg as LegacyMJWarpCfg,
-)
-from isaaclab_contrib.deformable.newton_manager_cfg import (
-    VBDSolverCfg,
-)
 
 
 def test_reset_forwards_to_both_subsolvers(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -82,13 +76,14 @@ def test_build_solver_rejects_contact_sensors(monkeypatch: pytest.MonkeyPatch) -
         NewtonCoupledMJWarpVBDManager._build_solver(MagicMock(), CoupledMJWarpVBDSolverCfg())
 
 
-def test_build_solver_disables_contact_sensors(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_solver_sets_capabilities(monkeypatch: pytest.MonkeyPatch) -> None:
     solver_cfg = CoupledMJWarpVBDSolverCfg()
     monkeypatch.setattr(manager_module.NewtonManager, "_report_contacts", False)
     monkeypatch.setattr(manager_module.NewtonManager, "_supports_contact_sensors", True)
     monkeypatch.setattr(manager_module.NewtonManager, "_solver", None)
     monkeypatch.setattr(manager_module.NewtonManager, "_use_single_state", True)
     monkeypatch.setattr(manager_module.NewtonManager, "_needs_collision_pipeline", False)
+    monkeypatch.setattr(manager_module.NewtonManager, "_supports_rigid_body_force_input", False)
     monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_rigid_solver", None)
     monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_soft_solver", None)
     monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_coupling_mode", None)
@@ -101,15 +96,7 @@ def test_build_solver_disables_contact_sensors(monkeypatch: pytest.MonkeyPatch) 
     NewtonCoupledMJWarpVBDManager._build_solver(MagicMock(), solver_cfg)
 
     assert manager_module.NewtonManager._supports_contact_sensors is False
-
-
-def test_legacy_mjwarp_solver_config_warns() -> None:
-    with pytest.warns(DeprecationWarning, match="custom_coupling.CoupledMJWarpVBDSolverCfg"):
-        solver_cfg = LegacyMJWarpCfg()
-
-    assert solver_cfg.class_type == (
-        "isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
-    )
+    assert manager_module.NewtonManager._supports_rigid_body_force_input is True
 
 
 @pytest.mark.parametrize("mode", ["one_way", "two_way"])

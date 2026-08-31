@@ -977,7 +977,7 @@ def test_sensor_metadata(device: str):
         sim._app_control_on_stop_handle = None
         scene_cfg = _make_two_box_scene_cfg(num_envs)
         scene_cfg.contact_sensor_a = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Box.*",
+            prim_path="{ENV_REGEX_NS}/Box[^/]*",
             update_period=0.0,
             history_length=1,
         )
@@ -1019,8 +1019,8 @@ def test_sensor_metadata(device: str):
         sim._app_control_on_stop_handle = None
         scene_cfg = _make_two_box_scene_cfg(num_envs)
         scene_cfg.contact_sensor_a = NewtonContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Box.*",
-            sensor_shape_prim_expr=["{ENV_REGEX_NS}/Box.*"],
+            prim_path="{ENV_REGEX_NS}/Box[^/]*",
+            sensor_shape_prim_expr=["{ENV_REGEX_NS}/Box[^/]*"],
             update_period=0.0,
             history_length=1,
         )

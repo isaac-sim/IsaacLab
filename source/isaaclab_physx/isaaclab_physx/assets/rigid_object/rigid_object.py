@@ -17,7 +17,7 @@ from pxr import UsdPhysics
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -1004,7 +1004,7 @@ class RigidObject(BaseRigidObject):
         resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- object view
-        self._root_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_expr.replace(".*", "*"))
+        self._root_view = self._physics_sim_view.create_rigid_body_view(path_expr_to_glob(root_prim_path_expr))
 
         # check if the rigid body was created
         if self.root_view._backend is None:

@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+2.0.5 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+
+2.0.4 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`SceneAsset` leaking its cached frame view when the view is rebuilt,
+  which left the view's backend state to be released on garbage collection.
+
+
 2.0.3 (2026-08-07)
 ~~~~~~~~~~~~~~~~~~
 

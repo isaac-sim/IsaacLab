@@ -17,11 +17,13 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import pytest
 import torch
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_tasks.utils.hydra import resolve_presets
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -55,14 +57,23 @@ def test_manipulation_env_determinism(task_name, device):
 )
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
 def test_locomotion_env_determinism(task_name, device):
-    """Check deterministic environment creation for locomotion."""
-    _test_environment_determinism(task_name, device)
+    """Check deterministic Isaac Sim PhysX environment creation for locomotion."""
+    _test_environment_determinism(task_name, device, physics_preset_name="isaacsim_physx")
 
 
 @pytest.mark.parametrize(
     "task_name",
     [
-        "Isaac-Reorient-Cube-Allegro",
+        pytest.param(
+            "Isaac-Reorient-Cube-Allegro",
+            marks=pytest.mark.skip(
+                reason=(
+                    "Free rigid bodies are not bit-reproducible on Newton/CUDA:"
+                    " Isaac-Lift-Franka fails the same assertion on develop. This task passed only"
+                    " while its cube was declared as an articulation with no joints."
+                )
+            ),
+        ),
         # "Isaac-Reorient-Cube-Allegro-Direct",  # FIXME: @kellyg, any idea why it is not deterministic?
     ],
 )
@@ -72,14 +83,46 @@ def test_dextrous_env_determinism(task_name, device):
     _test_environment_determinism(task_name, device)
 
 
-def _test_environment_determinism(task_name: str, device: str):
+def test_newton_cartpole_env_determinism():
+    """Check deterministic stepping for a Newton environment."""
+    # One small CUDA-only case at a quarter of the default steps bounds Newton kernel compilation and test runtime.
+    _test_environment_determinism(
+        "Isaac-Cartpole",
+        "cuda",
+        num_steps=25,
+        physics_preset_name="newton_mjwarp",
+        deterministic_mode="gpu_to_gpu",
+    )
+
+
+def _test_environment_determinism(
+    task_name: str,
+    device: str,
+    *,
+    num_steps: int = 100,
+    physics_preset_name: str | None = None,
+    deterministic_mode: str | None = None,
+):
     """Check deterministic environment creation."""
     # fix number of steps
     num_envs = 2
-    num_steps = 100
     # call function to create and step the environment
-    obs_1, rew_1 = _obtain_transition_tuples(task_name, num_envs, device, num_steps)
-    obs_2, rew_2 = _obtain_transition_tuples(task_name, num_envs, device, num_steps)
+    obs_1, rew_1 = _obtain_transition_tuples(
+        task_name,
+        num_envs,
+        device,
+        num_steps,
+        physics_preset_name=physics_preset_name,
+        deterministic_mode=deterministic_mode,
+    )
+    obs_2, rew_2 = _obtain_transition_tuples(
+        task_name,
+        num_envs,
+        device,
+        num_steps,
+        physics_preset_name=physics_preset_name,
+        deterministic_mode=deterministic_mode,
+    )
 
     # check everything is as expected
     # -- rewards should be the same
@@ -89,13 +132,34 @@ def _test_environment_determinism(task_name: str, device: str):
         torch.testing.assert_close(obs_1[key], obs_2[key])
 
 
-def _obtain_transition_tuples(task_name: str, num_envs: int, device: str, num_steps: int) -> tuple[dict, torch.Tensor]:
+def _obtain_transition_tuples(
+    task_name: str,
+    num_envs: int,
+    device: str,
+    num_steps: int,
+    *,
+    physics_preset_name: str | None = None,
+    deterministic_mode: str | None = None,
+) -> tuple[dict, torch.Tensor]:
     """Run random actions and obtain transition tuples after fixed number of steps."""
     # create a new stage
     sim_utils.create_new_stage()
     try:
         # parse configuration
-        env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        if physics_preset_name is None:
+            env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        else:
+            env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+            env_cfg = resolve_presets(env_cfg, selected=(physics_preset_name,))
+            env_cfg.sim.device = device
+            env_cfg.scene.num_envs = num_envs
+        if deterministic_mode is not None:
+            assert isinstance(env_cfg.sim.physics, NewtonCfg)
+            env_cfg.sim.physics.deterministic_mode = deterministic_mode
+            if isinstance(env_cfg.sim.physics.solver_cfg, MJWarpSolverCfg):
+                # MJWarp's internal tactile sensor kernel mixes atomic reduction families, which Warp's
+                # deterministic code generation does not support. Isaac Lab sensors do not use this data.
+                env_cfg.sim.physics.solver_cfg.disable_sensors = True
         # set seed
         env_cfg.seed = 42
         # create environment

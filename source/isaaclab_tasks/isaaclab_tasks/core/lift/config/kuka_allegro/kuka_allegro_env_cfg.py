@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_ov.physics import OvPhysxCfg
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -27,13 +27,6 @@ FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "thum
 
 
 @configclass
-class KukaAllegroObjectCfg(lift.ObjectCfg):
-    """Object presets supported by the Kuka Allegro tasks."""
-
-    ovphysx = lift.ObjectCfg().cube
-
-
-@configclass
 class KukaAllegroPhysicsCfg(lift.PhysicsCfg):
     """Physics presets supported by the Kuka Allegro tasks."""
 
@@ -43,7 +36,8 @@ class KukaAllegroPhysicsCfg(lift.PhysicsCfg):
         gpu_found_lost_pairs_capacity=2**26,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    default = isaacsim_physx
+    newton_mjwarp = lift.PhysicsCfg().newton_mjwarp
+    default = newton_mjwarp
 
 
 @configclass
@@ -60,7 +54,6 @@ class KukaAllegroSceneCfg(lift.SceneCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.object.spawn = KukaAllegroObjectCfg()
         for link_name in FINGERTIP_LIST:
             setattr(
                 self,

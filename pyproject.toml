@@ -30,7 +30,6 @@ dependencies = [
     "isaaclab-experimental",
     "isaaclab-newton",
     "isaaclab-ov",
-    "isaaclab-ovphysx",
     "isaaclab-physx",
     "isaaclab-ppisp",
     "isaaclab-rl",
@@ -48,7 +47,7 @@ dependencies = [
     "protobuf>=4.25.8,!=5.26.0",
     "hidapi>=0.14.0",
     "gymnasium>=1.2.0",
-    "trimesh",
+    "trimesh>=4.6.8",  # lower bound inherited from newton[importers]
     "pyglet>=2.1.6,<3",
     "transformers==4.57.6",
     "einops",
@@ -67,11 +66,15 @@ dependencies = [
     "pin ; platform_system == 'Linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64')",
     "pin-pink==3.3.0 ; platform_system == 'Linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64')",
     "daqp==0.8.5 ; platform_system == 'Linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64')",
-    # OpenUSD (kit-less mode). Both packages vendor a complete ``pxr`` runtime, so
-    # they must never co-install: usd-core supplies pxr where it has wheels (x86_64),
-    # usd-exchange supplies it on aarch64 (where usd-core has no wheel).
-    "usd-core>=25.11,<26.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64'",
-    "usd-exchange>=2.2 ; platform_machine == 'aarch64'",
+    # OpenUSD (kit-less mode). Use the same provider required by the URDF and MJCF importer
+    # packages so another complete ``pxr`` runtime cannot co-install with it. Two providers in
+    # one environment overwrite each other's files, and removing either then breaks ``pxr``.
+    # usd-exchange 2.3.0 vendors USD 25.5, matching the Isaac Sim 6.0 wheel stack.
+    "usd-exchange==2.3.0",
+    # Standalone URDF/MJCF importers, so conversion works without Isaac Sim. They install
+    # alongside it without displacing it: Kit serves ``isaacsim.asset`` from its extension
+    # roots when the runtime is present, and the standalone packages serve it otherwise.
+    "isaacsim-asset-isolated>=6.0,<6.1",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64' or platform_machine == 'aarch64'",
     # ----- tasks -----
@@ -88,9 +91,19 @@ dependencies = [
     # ----- newton (default physics engine) -----
     # Loose bound so the wheel co-resolves with isaacsim's newton[sim]==1.2.0 pin; the
     # exact git commit is forced via [tool.uv].override-dependencies (uv sync only).
-    # The importers extra carries the mesh-processing deps (coacd, fast-simplification,
-    # ...) that honoring USD-authored ``physics:approximation`` requires.
-    "newton[sim,importers]>=1.2.0",
+    "newton[sim]>=1.2.0",
+    # Import and mesh-processing packages used by Newton, including the ones that honoring
+    # USD-authored ``physics:approximation`` requires. Keep these explicit instead of selecting
+    # newton[importers], whose standalone USD dependency would overlap with usd-exchange.
+    "requests>=2.25.0",
+    "scipy>=1.11.0",
+    "coacd>=1.0.7",
+    "fast-simplification>=0.1.11",
+    "alphashape>=1.3.1",
+    "meshio>=5.3.5",
+    "pycollada>=0.9",
+    "resolve-robotics-uri-py>=0.4.0",
+    "open3d>=0.19.0 ; python_version < '3.13' and (sys_platform != 'linux' or platform_machine != 'aarch64')",
     # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.1.
     "newton-usd-schemas>=0.2.0",
     "PyOpenGL-accelerate>=3.1.0",
@@ -100,13 +113,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Automatic surface-to-volume tetrahedralization. PyTetWild imports PyVista eagerly,
-# so its ``all`` extra is required even when only the array API is used.
+
 tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
-# Video recording. MoviePy bundles an FFmpeg binary through imageio-ffmpeg, so
-# keep this dependency explicit rather than including it in default installs.
+
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
-# Developer/test tooling.
+
 test = [
     "pytest",
     "pytest-mock",
@@ -150,9 +161,9 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
 
-ov = ["ovphysx==0.5.9", "ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.0.346039"]
-ovphysx = ["ovphysx==0.5.9", "ovstage==0.1.0.346039"]
-ovrtx = ["ovrtx>=0.4.0,<0.5.0", "ovstage==0.1.0.346039"]
+ov = ["ovphysx==0.5.10", "ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
+ovphysx = ["ovphysx==0.5.10", "ovstage==0.1.1.355824"]
+ovrtx = ["ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
 
 mimic = [
     "isaaclab-mimic",
@@ -160,17 +171,13 @@ mimic = [
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
-# XR teleoperation: carries Isaac Sim for the Kit XR runtime, and isaaclab_mimic because
-# ``isaaclab teleop record`` imports it (robomimic stays in ``mimic``).
 teleop = [
     "isaacsim[all,extscache]==6.0.1.0",
     "isaaclab-teleop",
     "isaaclab-mimic",
-    # IsaacTeleop is Linux x86_64 only
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
-# RLinf VLA post-training (externally contributed).
 rlinf = [
     "ray[default]>=2.47.0",
     "av>=12.3.0",
@@ -183,15 +190,15 @@ rlinf = [
     "peft>=0.17.0",
     "pandas",
 ]
-# Aggregate of the compatible extras. Omits teleop (would pull Isaac Sim in) and ovphysx
-# (packaging<24 clash with isaacsim); install those via their own extra.
-# Also omits tetrahedralization and video because their dependencies are large and
-# narrowly used; request either extra explicitly when needed.
-all = [
-    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,rlinf,mimic]",
-]
 leapp = [
     "leapp>=0.5.2",
+]
+# Every backend, RL library, and visualizer in one flag. No extra is forked in
+# [tool.uv].conflicts, so any combination resolves into a single environment. The
+# specialized extras (rlinf, mimic, teleop, tetrahedralization, video, leapp)
+# and the developer ``test`` tooling stay opt-in by name.
+all = [
+    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,isaacsim,ov]",
 ]
 
 # Single source of truth for externally-pinned versions, read by docs/conf.py, the
@@ -200,12 +207,13 @@ leapp = [
 # ``test_version_single_source`` fails CI if they drift.
 [tool.isaaclab.versions]
 isaacsim = "6.0.1.0"
+usd_exchange = "2.3.0"
 torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
-ovphysx = "0.5.9"
-ovrtx = ">=0.4.0,<0.5.0"
-ovstage = "0.1.0.346039"
+ovphysx = "0.5.10"
+ovrtx = "0.4.1.364340"
+ovstage = "0.1.1.355824"
 newton = "release-1.5"
 warp = "1.16.0"
 
@@ -343,11 +351,10 @@ markers = [
     "benchmark: test covers the Isaac Lab benchmark framework and infrastructure",
     "rendering: test exercises the rendering / camera / visualizer pipeline",
     "smoke: tests for core installation, task, and RL functionality",
-    "kit: test file needs a booted headless Kit app; it calls isaaclab.test.launch.launch_kit() at module scope rather than constructing AppLauncher",
-    "kit_cameras: like `kit`, but the app is booted with cameras enabled via launch_kit(cameras=True)",
-    "kitless: test file runs without Kit; no AppLauncher and no module-scope import of omni/carb/isaacsim",
+    "kitless: test must pass inside the Kit-less container, which has no Isaac Sim runtime",
+    "kit: test file needs a headless Kit app; the runner boots one before importing the module and shares it with the other `kit` files in the process",
+    "kit_cameras: like `kit`, but the app is booted with cameras enabled; the two configurations never share a process",
     "kit_solo: keep this file in its own process; it is never grouped with other files",
-    "newton_ci: mark test to run in the Newton CI lane",
 ]
 
 # Add pypi.nvidia.com so that `uv pip install isaaclab[isaacsim]` works without --extra-index-url.
@@ -393,7 +400,7 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.11.0",
     "mujoco-warp~=3.11.0",
-    "newton[sim,importers] @ git+https://github.com/newton-physics/newton.git@release-1.5",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@release-1.5",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.1",
     "torch==2.11.0",
@@ -403,16 +410,9 @@ override-dependencies = [
     "typing-extensions>=4.15.0",
     "websockets>=14.0,<17.0.0",
     "coverage>=7.6.1",
-]
-# ovphysx pins packaging>=20,<24 while isaacsim-core pins packaging==26.0: a genuine
-# two-sided incompatibility, so uv forks the resolution instead of failing. ``teleop``
-# bundles isaacsim, so it inherits that pair. Every other historical conflict was an
-# over-strict pin that the overrides above now reconcile.
-conflicts = [
-    [{ extra = "teleop" }, { extra = "ov" }],
-    [{ extra = "teleop" }, { extra = "ovphysx" }],
-    [{ extra = "isaacsim" }, { extra = "ov" }],
-    [{ extra = "isaacsim" }, { extra = "ovphysx" }],
+    # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
+    # stricter than the code needs, so widening lets them resolve together at 26.0.
+    "packaging>=20,<27",
 ]
 python-preference = "only-managed"
 package = false
@@ -420,6 +420,7 @@ package = false
 [tool.uv.sources]
 omniverseclient = { index = "pypi-public" }
 ovphysx = { index = "pypi-public" }
+ovrtx = { index = "pypi-public" }
 ovstage = { index = "pypi-public" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
@@ -428,7 +429,6 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-mimic" = { path = "source/isaaclab_mimic", editable = true }
 "isaaclab-newton" = { path = "source/isaaclab_newton", editable = true }
 "isaaclab-ov" = { path = "source/isaaclab_ov", editable = true }
-"isaaclab-ovphysx" = { path = "source/isaaclab_ovphysx", editable = true }
 "isaaclab-physx" = { path = "source/isaaclab_physx", editable = true }
 "isaaclab-ppisp" = { path = "source/isaaclab_ppisp", editable = true }
 "isaaclab-rl" = { path = "source/isaaclab_rl", editable = true }

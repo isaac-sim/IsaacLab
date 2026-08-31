@@ -104,7 +104,7 @@ def test_stage_in_memory_with_shapes(sim):
             mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
         )
-        prim_path_regex = "/World/Cone/asset_.*"
+        prim_path_regex = "/World/Cone/asset_[^/]*"
         cfg.func(prim_path_regex, cfg)
 
         # verify prims exist in stage
@@ -159,7 +159,7 @@ def test_stage_in_memory_with_usds(sim):
             ),
             activate_contact_sensors=True,
         )
-        prim_path_regex = "/World/Robot/asset_.*"
+        prim_path_regex = "/World/Robot/asset_[^/]*"
         cfg.func(prim_path_regex, cfg)
 
         # verify prims exist in stage

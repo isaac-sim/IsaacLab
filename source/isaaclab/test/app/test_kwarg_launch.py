@@ -7,6 +7,7 @@ import argparse
 import logging
 
 import pytest
+from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 
 import isaaclab.app as app_module
 import isaaclab.app.app_launcher as app_launcher_module
@@ -16,6 +17,13 @@ from isaaclab.app import AppLauncher
 from isaaclab.app.sim_launcher import Scan, _ensure_livestream_kit_visualizer, _get_kit_runtime_sources
 
 pytestmark = pytest.mark.integration
+
+
+def test_make_physics_cfg_builds_core_vbd():
+    physics_cfg = sim_launcher.make_physics_cfg("newton_vbd")
+
+    assert isinstance(physics_cfg, NewtonCfg)
+    assert isinstance(physics_cfg.solver_cfg, VBDSolverCfg)
 
 
 @pytest.mark.usefixtures("mocker")

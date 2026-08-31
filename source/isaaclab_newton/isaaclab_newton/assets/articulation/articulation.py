@@ -26,7 +26,7 @@ from pxr import UsdPhysics
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 
 _HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
 
@@ -93,7 +93,7 @@ def _resolve_articulation_root_prim_path_expr(cfg: ArticulationCfg) -> str:
 
 def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None:
     """Resolve configured actuator gains into Newton builder target modes before finalization."""
-    root_prim_path_regex = _resolve_articulation_root_prim_path_expr(cfg).replace(".*", "*").replace("*", ".*")
+    root_prim_path_regex = path_expr_to_glob(_resolve_articulation_root_prim_path_expr(cfg)).replace("*", ".*")
     articulation_ids, _ = resolve_matching_names(
         root_prim_path_regex, builder.articulation_label, raise_when_no_match=False
     )
@@ -421,6 +421,7 @@ class Articulation(BaseArticulation):
                     inputs=[
                         composer.out_force_b.warp,
                         composer.out_torque_b.warp,
+                        self._data.body_link_pose_w.warp,
                         self._body_user_to_backend_map(),
                         self._data._sim_bind_body_external_wrench,
                         self._ALL_ENV_MASK,
@@ -435,6 +436,7 @@ class Articulation(BaseArticulation):
                     inputs=[
                         composer.out_force_b,
                         composer.out_torque_b,
+                        self._data.body_link_pose_w.warp,
                         self._data._sim_bind_body_external_wrench,
                         self._ALL_ENV_MASK,
                         self._ALL_BODY_MASK,
@@ -3656,7 +3658,7 @@ class Articulation(BaseArticulation):
         # -- articulation
         self._root_view = ArticulationView(
             SimulationManager.get_model(),
-            root_prim_path_expr.replace(".*", "*"),
+            path_expr_to_glob(root_prim_path_expr),
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
         )

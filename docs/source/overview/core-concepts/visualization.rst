@@ -38,10 +38,10 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
      - Photorealistic rendering, studio lighting *(visualization markers, live plots, and streaming camera panel not yet supported)*
    * - **Rerun**
      - Remote viewing, replay
-     - Webviewer, time scrubbing, recording export, visualization markers
+     - Webviewer, time scrubbing, recording export, visualization markers, live plots
    * - **Viser**
      - Web-based remote visualization, sharing, recording
-     - Warp-based rendering, browser-based, share URL, visualization markers
+     - Warp-based rendering, browser-based, share URL, visualization markers, live plots
 
 
 *The following visualizers are shown training the Isaac-Velocity-Flat-AnymalD environment.*
@@ -279,6 +279,9 @@ displays or streams the result.
        (e.g. ``"/World/envs/*/Camera"``). Takes priority over the auto-created camera.
    * - ``streaming_cam_target_prim_path``, ``streaming_cam_eye``, ``streaming_cam_renderer``
      - Settings for the **auto-created** camera (ignored when ``streaming_sensor_prim_path`` is set).
+       ``streaming_cam_target_prim_path`` defaults to ``None``: the visualizer first adopts the
+       first scene camera it discovers at init time; only set this explicitly (e.g.
+       ``"/World/envs/*/Robot"``) when you need a specific follow-prim and no scene camera exists.
        ``streaming_cam_renderer`` accepts ``"newton_warp"``, ``"ovrtx"``, ``"isaac_rtx"``, or
        ``None`` (let each backend choose its default).
 
@@ -463,6 +466,7 @@ Newton Visualizer
 
 - Lightweight OpenGL rendering with low overhead
 - Simulation and rendering pause controls
+- Right-click rigid-body dragging with Newton rigid-body solvers
 - Adjustable update frequency for performance tuning
 - Some customizable rendering options (shadows, sky, wireframe)
 - Visualization markers (joints, contacts, springs, COM, debug markers)
@@ -483,6 +487,8 @@ Newton Visualizer
      - Down / Up
    * - **Left Click + Drag**
      - Look around
+   * - **Right Click + Drag**
+     - Apply an interactive force to a dynamic Newton rigid body
    * - **Mouse Scroll**
      - Zoom in/out
    * - **H**
@@ -511,9 +517,9 @@ Newton Visualizer
         streaming_envs=16,                        # Number of env tiles to show (or explicit list of env ids)
         streaming_sensor_prim_path=None,          # Existing Camera sensor prim path, e.g. "/World/envs/*/Camera"
         streaming_cam_eye=(4.0, -4.0, 3.0),       # Eye offset for generated streaming cameras
-        streaming_cam_target_prim_path=(          # Prim that generated cameras follow/look at
-            "/World/envs/*/Robot"                 # This is the default; different environments
-        ),                                        # may require a different path.
+        streaming_cam_target_prim_path=None,      # None (default): adopt first scene camera found
+                                                  # at init. Set explicitly (e.g. "/World/envs/*/Robot")
+                                                  # only when a specific follow-prim is needed.
 
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)
@@ -523,6 +529,7 @@ Newton Visualizer
         show_contacts=False,                      # Show contact points and normals
         show_springs=False,                       # Show spring constraints
         show_com=False,                           # Show center of mass markers
+        enable_picking=True,                      # Enable Newton rigid-body dragging
 
         # Rendering options
         enable_shadows=True,                      # Enable shadow rendering
@@ -534,6 +541,14 @@ Newton Visualizer
         sky_lower_color=(0.18, 0.20, 0.25),      # Lower sky / ground color (RGB [0,1])
         light_color=(1.0, 1.0, 1.0),             # Directional light color (RGB [0,1])
     )
+
+.. note::
+
+   Object dragging requires an interactive Newton visualizer with a Newton
+   rigid-body solver (MJWarp, XPBD, VBD, Featherstone, or Kamino), either standalone
+   or in a supported coupled solver with a rigid-body entry. Static and
+   kinematic bodies and MPM particles are not moved. Picking is disabled
+   automatically for headless viewers, standalone MPM, and non-Newton physics.
 
 
 Rerun Visualizer
@@ -797,21 +812,24 @@ instead:
 **Newton RTX Visualizer (Experimental)**
 
 The Newton RTX visualizer (``--viz newton_rtx`` / :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg`)
-is currently experimental. The following features are **not yet supported** and will be added in a future release:
+is currently experimental. Its path-traced LDR framebuffer is available through
+``render_rgb_array()`` and ``--video``. Frame capture performs a GPU-to-CPU readback.
+
+The following features are **not yet supported** and will be added in a future release:
 
 * **Visualization markers** — debug-draw geometry (:class:`~isaaclab.markers.VisualizationMarkers`) is skipped.
 * **Live plots** — per-step scalar streaming (reward, episode length, manager terms) is disabled.
 * **Streaming camera panel** — the ``streaming_view`` option has no display sink in the RTX viewer;
   use :class:`~isaaclab_visualizers.rerun.RerunVisualizerCfg` or
   :class:`~isaaclab_visualizers.viser.ViserVisualizerCfg` alongside Newton RTX for streaming output.
-* **``render_rgb_array()`` / video recording** — framebuffer readback requires
-  ``ViewerRTX.get_frame()`` support from the Newton team; the method currently returns ``None``.
-  As a result, ``--video`` with ``source="visualizer:newton_rtx"`` produces no frames.
-  Use ``source="visualizer:newton_gl"`` or a sensor source (``source="sensor:<name>"``) instead.
 * **Pause rendering** — the path-tracer runs at full cost every tick even while paused (unlike GL's
   lightweight update).
 
-All of the above features are available in the other three visualizer backends (Newton GL, Rerun, Viser).
+All of the above features are available in the Newton GL backend. Visualization markers, live
+plots, and the streaming camera panel are also available in Rerun and Viser; however,
+framebuffer-based video recording (``--video`` with ``source="visualizer:*"``) is only
+supported in Kit and Newton GL — use a sensor source (``source="sensor:<name>"``) for
+video recording with Rerun or Viser.
 
 
 See Also
