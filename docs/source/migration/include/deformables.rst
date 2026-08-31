@@ -1,7 +1,7 @@
 .. _migrating-deformables:
 
 Migration of Deformables
-========================
+------------------------
 
 .. currentmodule:: isaaclab
 
@@ -19,8 +19,7 @@ configurations live in ``isaaclab_newton.sim``.
   `release notes`_ for any changes in the future releases.
 
 
-Surface and Volume Deformables
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Surface and Volume Deformables
 
 With the new Omni Physics API, deformable bodies are split into two distinct types, as described in the
 `Omni Physics documentation`_:
@@ -42,11 +41,9 @@ The type of deformable is determined by the **physics material** assigned to the
   **surface** deformable.
 
 
-Migration from the Old API
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Migration from the Old API
 
-Import Changes
-^^^^^^^^^^^^^^
+**Import Changes**
 
 Deformable object cfgs remain in ``isaaclab.assets``. Deformable schema and material cfgs should be imported
 from the physics backend package:
@@ -72,8 +69,7 @@ from the physics backend package:
    * - ``from isaaclab_physx.assets import DeformableObjectCfg``
      - ``from isaaclab.assets import DeformableObjectCfg``
 
-Removed Properties
-^^^^^^^^^^^^^^^^^^
+**Removed Properties**
 
 The following properties have been **removed** from
 :class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg`:
@@ -93,8 +89,7 @@ The following properties have been **removed** from
   mesh, so authoring them on the body prim never reached the solver. Set them on the mesh spawner's
   ``collision_props`` instead: ``collision_props=[PhysxCollisionCfg(rest_offset=0.0005, contact_offset=0.005)]``.
 
-Added Properties
-^^^^^^^^^^^^^^^^
+**Added Properties**
 
 The following properties have been **added** to
 :class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg`:
@@ -114,8 +109,7 @@ The following properties have been **added** to
 For a full description of all available properties, refer to the `PhysX deformable schema`_ and
 `OmniPhysics deformable schema`_ documentation.
 
-Material Changes
-^^^^^^^^^^^^^^^^
+**Material Changes**
 
 The deformable material hierarchy is now split by backend:
 
@@ -134,18 +128,15 @@ The deformable material hierarchy is now split by backend:
 
 The old ``damping_scale`` property has been removed. Use ``elasticity_damping`` directly instead.
 
-DeformableObject View Change
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+**DeformableObject View Change**
 
 The internal PhysX view type has changed from ``physx.SoftBodyView`` to ``physx.DeformableBodyView``.
 The property ``root_physx_view`` has been deprecated in favor of ``root_view``.
 
 
-Code Examples
-~~~~~~~~~~~~~
+.. rubric:: Code Examples
 
-Volume Deformable (Before and After)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+**Volume Deformable (Before and After)**
 
 **Before**:
 
@@ -186,8 +177,7 @@ Volume Deformable (Before and After)
    )
    cube_object = DeformableObject(cfg=cfg)
 
-Surface Deformable (New)
-^^^^^^^^^^^^^^^^^^^^^^^^
+**Surface Deformable (New)**
 
 Surface deformables use :class:`~isaaclab.sim.spawners.meshes.MeshRectangleCfg` for 2D meshes, combined with
 :class:`~isaaclab_physx.sim.PhysxSurfaceDeformableBodyMaterialCfg`:
@@ -210,8 +200,7 @@ Surface deformables use :class:`~isaaclab.sim.spawners.meshes.MeshRectangleCfg` 
    )
    cloth_object = DeformableObject(cfg=cfg)
 
-USD File Deformable
-^^^^^^^^^^^^^^^^^^^
+**USD File Deformable**
 
 Deformable properties can also be applied to imported USD assets using
 :class:`~isaaclab.sim.spawners.from_files.UsdFileCfg`:
@@ -236,8 +225,7 @@ Deformable properties can also be applied to imported USD assets using
    teddy_object = DeformableObject(cfg=cfg)
 
 
-Limitations
-~~~~~~~~~~~
+.. rubric:: Limitations
 
 - **Kinematic targets are volume-only.** Calling
   :meth:`~isaaclab.assets.DeformableObject.write_nodal_kinematic_target_to_sim_index` on a surface
