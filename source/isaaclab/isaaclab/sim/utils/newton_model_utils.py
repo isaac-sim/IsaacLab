@@ -78,13 +78,31 @@ def _is_omnipbr_shader(shader_prim: Usd.Prim) -> bool:
     return False
 
 
+def _material_binding_targets_are_resolvable(shape_prim: Usd.Prim) -> bool:
+    """Return ``False`` if any authored ``material:binding*`` relationship on ``shape_prim`` targets
+    a prim that is absent from the stage (e.g. an out-of-scope reference target).
+
+    Such malformed bindings can make :meth:`UsdShade.MaterialBindingAPI.ComputeBoundMaterial`
+    traverse invalid composition and, on some USD assets (e.g. the ShadowHand payload), corrupt the
+    process heap during Newton environment cloning. Shapes that fail this check keep their color.
+    """
+    stage = shape_prim.GetStage()
+    for rel in shape_prim.GetRelationships():
+        name = rel.GetName()
+        if name == "material:binding" or name.startswith("material:binding:"):
+            for target in rel.GetTargets():
+                if not stage.GetPrimAtPath(target).IsValid():
+                    return False
+    return True
+
+
 def _get_bound_material_prim(shape_prim: Usd.Prim) -> Usd.Prim:
     """Resolve the effective bound *visual* material path for a geometry prim.
 
     This uses :meth:`UsdShade.MaterialBindingAPI.ComputeBoundMaterial` so inherited bindings and
     binding-strength semantics (e.g. ``strongerThanDescendants``) are handled correctly.
     """
-    if shape_prim.IsValid():
+    if shape_prim.IsValid() and _material_binding_targets_are_resolvable(shape_prim):
         material, _ = UsdShade.MaterialBindingAPI(shape_prim).ComputeBoundMaterial()
         if material:
             material_prim = material.GetPrim()
@@ -228,11 +246,6 @@ def replace_newton_builder_shape_colors(builder: Any, stage: Usd.Stage) -> int:
     Returns:
         Number of shapes that had their colors replaced.
     """
-    import os
-    if os.environ.get("ISAACLAB_NEWTON_REPLACE_SHAPE_COLORS", "1") == "0":
-        # Deprecated shape-color workaround traverses USD material bindings; on assets with
-        # malformed/out-of-scope PhysicsMaterial bindings it can corrupt the heap (SIGABRT).
-        return 0
     warnings.warn(
         "Newton shape color replacement is enabled; this workaround will be deprecated in a future release.",
         FutureWarning,
