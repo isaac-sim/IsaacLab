@@ -697,3 +697,31 @@ def test_ovrtx_close_is_idempotent():
     renderer.close()
 
     assert events == []
+
+
+def _make_camera_spec(prim_path: str, width: int = 16, height: int = 8):
+    return types.SimpleNamespace(
+        device="cuda:0",
+        camera_prim_paths=[prim_path],
+        num_instances=2,
+        cfg=types.SimpleNamespace(width=width, height=height, data_types=["rgb"], isp_cfg=None),
+    )
+
+
+def test_create_render_data_warns_on_second_camera_spec(caplog: pytest.LogCaptureFixture):
+    """The scene is built from the first camera's spec; a different later spec must warn, since that
+    camera silently receives the first camera's images (e.g. equal RendererCfgs deduped onto one
+    renderer by RenderContext.get_renderer)."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._initialized_scene = True
+    first_spec = _make_camera_spec("/World/envs/env_0/Camera")
+    renderer._initialized_spec_summary = ovrtx_renderer_module._camera_spec_summary(first_spec)
+
+    with caplog.at_level("WARNING"):
+        renderer.create_render_data(_make_camera_spec("/World/envs/env_0/Robot/palm_link/Camera"))
+    assert any("one camera spec per instance" in record.message for record in caplog.records)
+
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        renderer.create_render_data(_make_camera_spec("/World/envs/env_0/Camera"))
+    assert not caplog.records
