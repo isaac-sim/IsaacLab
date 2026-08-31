@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 import torch
 import warp as wp
@@ -17,7 +17,6 @@ from isaaclab.app.logging_utils import force_log_level
 from isaaclab.sensors.camera.camera_data import CameraData
 
 from .base_renderer import BaseRenderer, VisualMaterialBatch
-from .renderer import Renderer
 from .renderer_cfg import RendererCfg
 
 logger = logging.getLogger(__name__)
@@ -122,7 +121,7 @@ class RenderContext:
                 return r
         if self._consumers_finalized and self._visual_material_batches:
             raise RuntimeError("Renderers must be registered before rendering consumers are finalized.")
-        new_renderer = cast(BaseRenderer, Renderer(cfg))  # type: ignore[misc]
+        new_renderer = cfg.class_type(cfg)
         self._renderer_entries.append((cfg, new_renderer))
         with force_log_level(logging.INFO):
             logger.info("Created new renderer for simulation: %s", type(new_renderer).__name__)
