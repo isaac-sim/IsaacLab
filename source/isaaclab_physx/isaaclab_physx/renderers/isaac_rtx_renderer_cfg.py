@@ -55,7 +55,20 @@ class IsaacRtxRendererGlobalSettingsCfg:
     """Direct lighting samples per pixel."""
 
     enable_shadows: bool | None = None
-    """Enable shadow rendering."""
+    """Enable shadow rendering. ``None`` preserves the launch-time setting.
+
+    .. warning::
+
+        This has no effect on the rendered image with the RTX version shipped by Isaac Sim 6.0.
+        It writes ``/rtx/shadows/enabled``, which RTX registers but no render mode reads: the
+        path-traced modes always cast shadows, and RTX Minimal exposes no shadow switch at all.
+        Setting this to ``False`` leaves every camera output unchanged, so shadows cannot
+        currently be turned off on this backend.
+
+        :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.enable_shadows` does work, because the
+        ``ovrtx`` runtime carries a newer RTX whose Minimal mode has an
+        ``omni:rtx:minimal:castShadows`` switch.
+    """
 
     enable_ambient_occlusion: bool | None = None
     """Enable ambient occlusion."""
