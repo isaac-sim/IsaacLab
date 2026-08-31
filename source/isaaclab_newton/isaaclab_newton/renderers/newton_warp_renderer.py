@@ -48,6 +48,101 @@ def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
     raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
 
 
+@dataclass(frozen=True)
+class _PinholeCameraApertureParams:
+    """USD pinhole projection parameters in consistent linear units."""
+
+    focal_length: float
+    horizontal_aperture: float
+    vertical_aperture: float
+    horizontal_aperture_offset: float
+    vertical_aperture_offset: float
+
+
+def _read_float_attr(prim: Any, attr_name: str, default: float | None = None) -> float | None:
+    """Read a scalar float-valued USD attribute."""
+    attr = prim.GetAttribute(attr_name)
+    if not attr:
+        return default
+    value = attr.Get()
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        logger.warning(
+            "Camera prim '%s' attribute '%s' should be a scalar float but has value %r.",
+            prim.GetPath(),
+            attr_name,
+            value,
+        )
+        return None
+
+
+def _read_usd_pinhole_camera_aperture_params(
+    stage: Any | None, camera_prim_path: str | None
+) -> _PinholeCameraApertureParams | None:
+    """Read aperture-based pinhole projection parameters from a USD camera prim.
+
+    Returns ``None`` when the camera is missing, non-perspective, invalid, or
+    uses an authored lens-distortion model that the Newton Warp renderer does
+    not yet apply.
+    """
+    if stage is None or camera_prim_path is None:
+        return None
+    prim = stage.GetPrimAtPath(camera_prim_path)
+    if not prim:
+        return None
+
+    projection_attr = prim.GetAttribute("projection")
+    projection = projection_attr.Get() if projection_attr else "perspective"
+    if projection is not None and str(projection) != "perspective":
+        return None
+
+    distortion_model_attr = prim.GetAttribute("omni:lensdistortion:model")
+    distortion_model = distortion_model_attr.Get() if distortion_model_attr else None
+    if distortion_model:
+        logger.warning(
+            "Camera prim '%s' declares lens-distortion model '%s', which is not yet applied by the"
+            " Newton Warp renderer. Falling back to the camera intrinsic matrix FOV.",
+            camera_prim_path,
+            distortion_model,
+        )
+        return None
+
+    focal_length = _read_float_attr(prim, "focalLength")
+    horizontal_aperture = _read_float_attr(prim, "horizontalAperture")
+    vertical_aperture = _read_float_attr(prim, "verticalAperture")
+    horizontal_aperture_offset = _read_float_attr(prim, "horizontalApertureOffset", 0.0)
+    vertical_aperture_offset = _read_float_attr(prim, "verticalApertureOffset", 0.0)
+    if (
+        focal_length is None
+        or horizontal_aperture is None
+        or vertical_aperture is None
+        or horizontal_aperture_offset is None
+        or vertical_aperture_offset is None
+    ):
+        return None
+    if focal_length <= 0.0 or horizontal_aperture <= 0.0 or vertical_aperture <= 0.0:
+        logger.warning(
+            "Camera prim '%s' has invalid pinhole projection parameters: focalLength=%s,"
+            " horizontalAperture=%s, verticalAperture=%s. Falling back to the camera intrinsic matrix FOV.",
+            camera_prim_path,
+            focal_length,
+            horizontal_aperture,
+            vertical_aperture,
+        )
+        return None
+
+    return _PinholeCameraApertureParams(
+        focal_length=focal_length,
+        horizontal_aperture=horizontal_aperture,
+        vertical_aperture=vertical_aperture,
+        horizontal_aperture_offset=horizontal_aperture_offset,
+        vertical_aperture_offset=vertical_aperture_offset,
+    )
+
+
 class RenderData:
     # Back-compat alias for callers of ``RenderData.OutputNames``.
     OutputNames = RenderBufferKind
@@ -102,11 +197,14 @@ class RenderData:
         spec: CameraRenderSpec,
         seg_mapper: NewtonSegmentationMapper | None = None,
         renderer_cfg: NewtonWarpRendererCfg | None = None,
+        stage: Any | None = None,
     ):
         self.newton_sensor = newton_sensor
         # Shared, scene-static segmentation lookup builder (``None`` until segmentation is requested).
         self._seg_mapper = seg_mapper
         self._renderer_cfg = renderer_cfg
+        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
+        self._pinhole_camera_aperture = _read_usd_pinhole_camera_aperture_params(stage, camera_prim_path)
 
         self.num_cameras = 1
 
@@ -357,13 +455,25 @@ class RenderData:
         )
 
         if self.camera_rays is None:
-            first_focal_length = intrinsics.torch[:, 1, 1][0:1]
-            fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
+            if self._pinhole_camera_aperture is not None:
+                aperture = self._pinhole_camera_aperture
+                self.camera_rays = self.newton_sensor.utils.compute_camera_rays_pinhole(
+                    self.width,
+                    self.height,
+                    focal_length=aperture.focal_length,
+                    horizontal_aperture=aperture.horizontal_aperture,
+                    vertical_aperture=aperture.vertical_aperture,
+                    horizontal_aperture_offset=aperture.horizontal_aperture_offset,
+                    vertical_aperture_offset=aperture.vertical_aperture_offset,
+                )
+            else:
+                first_focal_length = intrinsics.torch[:, 1, 1][0:1]
+                fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
 
-            fov_warp = wp.from_torch(fov_radians_all, dtype=wp.float32)
-            self.camera_rays = self.newton_sensor.utils.compute_camera_rays_pinhole(
-                self.width, self.height, camera_fovs=fov_warp
-            )
+                fov_warp = wp.from_torch(fov_radians_all, dtype=wp.float32)
+                self.camera_rays = self.newton_sensor.utils.compute_camera_rays_pinhole(
+                    self.width, self.height, camera_fovs=fov_warp
+                )
 
     @wp.kernel
     def _update_transforms(
@@ -470,16 +580,15 @@ class NewtonWarpRenderer(BaseRenderer):
         """
         self._stage = stage
         # NOTE: OpenCV lens distortion (``spawn.distortion``) is not yet applied by the Newton
-        # renderer. The distortion cfg is renderer-agnostic and could be piped through Newton's warp
-        # ray-tracing utilities here in the future; for now the camera renders undistorted. This is
-        # the intended extension point.
+        # renderer. Aperture-based pinhole projection is handled in ``RenderData``; distortion cfgs
+        # remain the intended extension point for calibrated non-square or off-center projections.
         spawn = getattr(spec.cfg, "spawn", None)
         if getattr(spawn, "distortion", None) is not None:
             logger.warning(
                 "OpenCV lens distortion is set on the camera cfg but is not yet applied by the Newton"
-                " renderer: it derives a single field of view from fy, so the distortion coefficients,"
-                " the principal point, and a non-square fx are ignored and the camera renders as a"
-                " centered, square-pixel pinhole. Use the RTX/OVRTX renderer to apply the full model."
+                " renderer. The distortion coefficients, the principal point, and calibrated non-square"
+                " intrinsics are ignored and the camera renders as an undistorted pinhole. Use the"
+                " RTX/OVRTX renderer to apply the full model."
             )
         if spec.cfg.isp_cfg is None:
             return
@@ -518,7 +627,9 @@ class NewtonWarpRenderer(BaseRenderer):
                 RenderBufferKind.INSTANCE_SEGMENTATION, bool(self.cfg.colorize_instance_segmentation)
             )
 
-        render_data = RenderData(self.newton_sensor, spec, seg_mapper=self._seg_mapper, renderer_cfg=self.cfg)
+        render_data = RenderData(
+            self.newton_sensor, spec, seg_mapper=self._seg_mapper, renderer_cfg=self.cfg, stage=self._stage
+        )
         return render_data
 
     def set_outputs(self, render_data: RenderData, output_data: dict[str, ProxyArray]):
