@@ -32,6 +32,7 @@ References:
 
 * OneRobotics: http://www.onerobot.com/
 * Model source: https://github.com/katazen/onerobot_h1
+* Review bundle: https://github.com/katazen/onerobot_h1/releases/tag/onerobotics-a1-2026-review-v1
 * Asset license: https://github.com/katazen/onerobot_h1/blob/main/ASSET_LICENSE_STATUS.md
 """
 
