@@ -13,7 +13,7 @@ if sys.platform != "win32":
 
 from isaaclab.app import AppLauncher
 
-app_launcher = AppLauncher(headless=True)
+app_launcher = AppLauncher(headless=True, device="cpu")
 simulation_app = app_launcher.app
 
 import gymnasium as gym
