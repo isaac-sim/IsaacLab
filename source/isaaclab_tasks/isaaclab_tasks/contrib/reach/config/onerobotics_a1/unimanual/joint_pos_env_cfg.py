@@ -17,6 +17,12 @@ from .. import mdp as a1_mdp
 _A1_JOINT_PATTERNS = [f".*joint{index}.*" for index in range(1, 8)]
 _A1_END_EFFECTOR_PATTERN = ".*Link7.*"
 
+# The common Reach table occupies x=[0.05, 0.95], y=[-0.65, 0.65], with its top at z=0.
+# The canonical A1 base mesh extends 0.01575 m below base_link. Mounting at x=0.1 and
+# rotating by pi about +Z keeps both the base and the home-pose arm over the tabletop.
+_A1_TABLE_MOUNT_POSITION = (0.1, 0.0, 0.01575)
+_A1_TABLE_MOUNT_ROTATION = (0.0, 0.0, 1.0, 0.0)
+
 
 @configclass
 class OneRoboticsA1ReachEnvCfg(ReachEnvCfg):
@@ -33,7 +39,15 @@ class OneRoboticsA1ReachEnvCfg(ReachEnvCfg):
         # The source integration is validated with Isaac Sim PhysX; do not expose unvalidated backends.
         self.sim.physics = self.sim.physics.isaacsim_physx
 
-        self.scene.robot = ONEROBOTICS_A1_UNIMANUAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = ONEROBOTICS_A1_UNIMANUAL_CFG.replace(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            init_state=ONEROBOTICS_A1_UNIMANUAL_CFG.init_state.replace(
+                pos=_A1_TABLE_MOUNT_POSITION,
+                rot=_A1_TABLE_MOUNT_ROTATION,
+            ),
+        )
+        self.sim.default_visualizer_cfg.eye = (1.35, -1.25, 0.85)
+        self.sim.default_visualizer_cfg.lookat = (0.42, 0.0, 0.22)
 
         # Match the confirmed A1 control stack: 200 Hz implicit servo and 50 Hz actions.
         self.sim.dt = 1.0 / 200.0
