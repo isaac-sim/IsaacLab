@@ -116,7 +116,7 @@ class BaseFrameView(abc.ABC):
             .. code-block:: python
 
                 with view.xform_local_space_writer() as w:
-                    w.set_poses(translations=t, orientations=o)
+                    w.set_poses(positions=t, orientations=o)
                     w.set_scales(scales=s)
         """
         return self._make_local_space_writer()
@@ -306,10 +306,12 @@ class BaseFrameView(abc.ABC):
         """Get scales for prims in the view.
 
         .. note::
-            Prefer the explicit :meth:`get_local_scales` or
-            :meth:`get_world_scales` when the space matters.  This method
-            delegates to :meth:`_get_scales_impl`, which preserves each
-            backend's legacy space (world for Fabric, local for USD).
+            :meth:`get_local_scales` and :meth:`get_world_scales` are the
+            preferred reads: they name the space at the call site instead of
+            resolving to a per-backend default.  This method stays fully
+            supported and delegates to :meth:`_get_scales_impl`, which preserves
+            each backend's legacy space (world for Fabric, local for USD and
+            OVPhysX).
 
         Args:
             indices: Subset of prims to query.  ``None`` means all prims.
@@ -326,12 +328,20 @@ class BaseFrameView(abc.ABC):
     def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set scales for prims in the view.
 
-        This convenience method delegates to :meth:`_set_scales_impl`, which
-        opens the backend's legacy space (world for Fabric, local for USD) and
-        calls ``writer.set_scales``.  To update poses and scales together
-        without paying the opposite-space derive/sync twice, prefer
-        ``with view.xform_world_space_writer() as w: w.set_poses(...); w.set_scales(...)``
-        (or :meth:`xform_local_space_writer`).
+        .. note::
+            A writer scope's ``set_scales`` is the preferred write: it names the
+            space at the call site, and batching it with ``set_poses`` in one
+            scope avoids deriving the opposite-space matrices and synchronizing
+            twice::
+
+                with view.xform_world_space_writer() as w:
+                    w.set_poses(...)
+                    w.set_scales(...)
+
+            (or :meth:`xform_local_space_writer`).  This method stays fully
+            supported and delegates to :meth:`_set_scales_impl`, which opens the
+            backend's legacy space (world for Fabric, local for USD and OVPhysX)
+            and calls ``writer.set_scales``.
 
         Args:
             scales: Scales ``(M, 3)`` as ``wp.array``.

@@ -903,8 +903,9 @@ Changed
   implementations so writes follow the new
   :meth:`~isaaclab.sim.views.BaseFrameView.xform_world_space_writer` /
   :meth:`~isaaclab.sim.views.BaseFrameView.xform_local_space_writer` context API.
-  ``set_world_poses`` / ``set_local_poses`` shims still work (one-time
-  ``DeprecationWarning`` per class).  The legacy ``set_scales`` /
+  ``set_world_poses`` / ``set_local_poses`` remain supported convenience
+  helpers that route through those writer scopes; they are not deprecated
+  and emit no warning.  The legacy ``set_scales`` /
   ``get_scales`` paths continue to operate on Newton collision-shape
   geometry sizes -- they are not routed through the writer because the
   writer's ``set_scales`` writes the transform-scale state.
@@ -912,15 +913,15 @@ Changed
   ``c7ae7c7648cd0717df39e5c94b95d5a02c997320``, which includes the experimental
   coupled solver framework.
 
-Deprecated
-^^^^^^^^^^
+Notes
+^^^^^
 
-* Deprecated :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.get_scales`
-  and :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.set_scales` in favor
-  of the explicit transform-scale getters ``get_world_scales`` /
-  ``get_local_scales`` (and the writer scope's ``set_scales``).  The
-  deprecated methods still work but emit a ``DeprecationWarning`` and
-  preserve Newton's legacy collision shape geometry-scale behavior.
+* :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.get_scales` and
+  :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.set_scales` remain
+  supported and are not deprecated; they emit no warning.  Prefer the explicit
+  transform-scale getters ``get_world_scales`` / ``get_local_scales`` (and the
+  writer scope's ``set_scales``) when the space matters.  These two preserve
+  Newton's legacy collision shape geometry-scale behavior.
 
 Fixed
 ^^^^^

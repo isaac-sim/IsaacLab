@@ -1,0 +1,7 @@
+# No changelog entry / version bump: documentation-only correction. The 1.6.2
+# entry claimed NewtonSiteFrameView's ``set_world_poses`` / ``set_local_poses``
+# emit a one-time ``DeprecationWarning``, and that ``get_scales`` /
+# ``set_scales`` are deprecated and warn. Neither was ever true -- no released
+# view has ever emitted a DeprecationWarning. All four remain supported; the
+# entry now records the preferred space-explicit APIs as a note. No Newton
+# code changed.
