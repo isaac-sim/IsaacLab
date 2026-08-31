@@ -169,5 +169,6 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     """RTX attributes to author on the OVRTX render product, as ``{name: (usd_type_name, value)}``.
 
     ``usd_type_name`` names an ``Sdf.ValueTypeNames`` member, as a string so the config stays
-    copyable. For example, ``{"omni:rtx:quality:minSpp": ("Int", 32)}`` raises the path tracer's
-    sample floor, which ``ViewerRTX`` otherwise leaves low to keep interactive latency down."""
+    copyable. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's
+    quality convergence loop, which ``ViewerRTX`` otherwise disables to keep interactive latency
+    down."""

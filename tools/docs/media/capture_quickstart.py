@@ -155,7 +155,7 @@ def _configure_resolved_sim(sim_cfg: SimulationCfg, focal_length: float):
             window_height=240,
             headless=True,
             rtx_environment="default",
-            render_settings={"omni:rtx:quality:minSpp": ("Int", 32)},
+            render_settings={"omni:rtx:quality": ("Int", 100)},
         )
     ]
 
