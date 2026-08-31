@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.test.launch import launch_kit
-from isaaclab.test.utils import test_devices
-
-launch_kit()
-
 import weakref
 
 import numpy as np
@@ -20,6 +15,7 @@ import omni.timeline
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationCfg, SimulationContext
+from isaaclab.test.utils import test_devices
 
 pytestmark = [pytest.mark.kit, pytest.mark.integration]
 

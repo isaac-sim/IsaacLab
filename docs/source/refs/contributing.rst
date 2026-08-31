@@ -768,6 +768,31 @@ Please make sure that you add tests for your changes.
                isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
 
 
+Tests that need Isaac Sim
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A test file that imports ``omni``, ``carb``, or ``isaacsim`` at module scope needs Isaac Sim
+running by the time pytest imports it. Declare that with a marker rather than constructing
+:class:`~isaaclab.app.AppLauncher` yourself:
+
+.. code-block:: python
+
+   import pytest
+
+   import omni.timeline
+
+   pytestmark = [pytest.mark.kit, pytest.mark.integration]
+
+Use ``pytest.mark.kit_cameras`` instead when the test needs the renderer, which starts the app
+with cameras enabled. The two are alternatives: cameras cannot be enabled after startup, so a
+file of each kind cannot share a process.
+
+The app is started once per pytest process and shared by every marked file in it, so a run
+covering many such files pays Kit startup once rather than once per file. Add
+``pytest.mark.kit_solo`` to keep a file out of that sharing when it depends on having a process
+to itself. Tests that need the app object itself request the ``kit_app`` fixture.
+
+
 Tools
 -----
 

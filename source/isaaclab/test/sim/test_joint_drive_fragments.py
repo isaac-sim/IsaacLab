@@ -3,10 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.test.launch import launch_kit
-
-launch_kit()
-
 import math
 
 import pytest

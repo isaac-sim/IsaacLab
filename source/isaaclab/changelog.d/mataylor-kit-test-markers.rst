@@ -1,12 +1,25 @@
 Added
 ^^^^^
 
-* Added :func:`~isaaclab.test.launch.launch_kit` so test modules can share one Kit app per
-  pytest process instead of each launching their own. It is idempotent: the first module to
-  call it boots Kit and later modules receive the running app.
-* Added the ``kit``, ``kit_cameras``, ``kitless``, and ``kit_solo`` pytest markers so a test
-  file can declare its Kit launch configuration, plus a test that checks each file's markers
-  against what it actually does at module scope.
+* Added the ``kit``, ``kit_cameras``, and ``kit_solo`` pytest markers, and the
+  :mod:`isaaclab.test.kit` plugin that acts on them. A test file that needs Isaac Sim now
+  declares it in its module-level ``pytestmark``; the plugin reads that declaration out of the
+  file's source and boots Kit before pytest imports the module, so files sharing a launch
+  configuration share one app instead of each starting their own. Test files no longer
+  construct :class:`~isaaclab.app.AppLauncher` at module scope, and tests that need the app
+  object request the new ``kit_app`` fixture.
+* Added ``test_kit_marker_contract.py`` and ``test_kit_plugin.py``, which keep a file's markers
+  from drifting from what it does at module scope, and check that the app is started before the
+  module that needs it is imported.
+
+Changed
+^^^^^^^
+
+* Changed the test runner to group same-marker test files into a single pytest invocation
+  rather than giving every file its own process, so Kit startup is paid once per group. Only
+  files carrying the new markers are grouped; every other file keeps a process of its own, and
+  a file a dead group never reached is re-run individually. Set ``ISAACLAB_TEST_BATCH_KIT=0``
+  to turn the grouping off.
 
 Fixed
 ^^^^^

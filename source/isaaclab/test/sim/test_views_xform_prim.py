@@ -10,19 +10,16 @@ Imports the shared contract tests and provides the USD-specific
 prim ordering, xformOp standardization, and Isaac Sim comparison.
 """
 
-from isaaclab.test.launch import launch_kit
+import pytest
+import torch
+import warp as wp
+
+from pxr import Gf, UsdGeom
+
 from isaaclab.test.utils import test_devices
 
-launch_kit()
-
-import pytest  # noqa: E402
-import torch  # noqa: E402
-import warp as wp  # noqa: E402
-
-from pxr import Gf, UsdGeom  # noqa: E402
-
 try:
-    from isaaclab.sim.utils import enable_extension  # noqa: E402
+    from isaaclab.sim.utils import enable_extension
 
     # NOTE: this runs at import, so in a process shared with other test files it changes the
     # running app's extension set during collection, before any test executes. Harmless when
@@ -32,12 +29,12 @@ try:
 except (ModuleNotFoundError, ImportError, RuntimeError):
     _IsaacSimXformPrimView = None
 
-from frame_view_contract_utils import *  # noqa: F401, F403, E402
-from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402
+from frame_view_contract_utils import *  # noqa: F401, F403
+from frame_view_contract_utils import CHILD_OFFSET, ViewBundle
 
-import isaaclab.sim as sim_utils  # noqa: E402
-from isaaclab.sim.views import UsdFrameView as FrameView  # noqa: E402
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
+import isaaclab.sim as sim_utils
+from isaaclab.sim.views import UsdFrameView as FrameView
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 # kit_solo: test_compare_get_world_poses_with_isaacsim goes through Isaac Sim's
 # SimulationManager, a process-global singleton that caches the PhysxScene wrapping

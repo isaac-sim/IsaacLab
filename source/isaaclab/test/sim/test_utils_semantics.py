@@ -3,15 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.test.launch import launch_kit
-
-# note: need to enable cameras to be able to make replicator core available
-launch_kit(cameras=True)
-
 import pytest
 
 import isaaclab.sim as sim_utils
 
+# kit_cameras: replicator core is only available when the app is booted with cameras enabled.
 pytestmark = [pytest.mark.kit_cameras, pytest.mark.integration]
 
 

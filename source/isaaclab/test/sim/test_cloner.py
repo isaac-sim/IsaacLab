@@ -5,10 +5,6 @@
 
 """Tests for USD cloner utilities (no PhysX dependency)."""
 
-from isaaclab.test.launch import launch_kit
-
-launch_kit()
-
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 

@@ -13,10 +13,6 @@ If you need to make a change to this test, please make sure to also make the sam
 ``test_build_simulation_context_nonheadless.py``.
 """
 
-from isaaclab.test.launch import launch_kit
-
-launch_kit()
-
 import pytest
 
 from isaaclab.sim.simulation_cfg import SimulationCfg

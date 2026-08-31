@@ -5,11 +5,6 @@
 
 """Integration tests for simulation context with stage in memory."""
 
-from isaaclab.test.launch import launch_kit
-
-# FIXME (mmittal): Stage in memory requires cameras to be enabled.
-launch_kit(cameras=True)
-
 import pytest
 import torch
 
@@ -22,6 +17,8 @@ from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version
 
+# kit_cameras: FIXME (mmittal): stage in memory requires cameras to be enabled.
+#
 # kit_solo: sharing a Kit app with other test files killed the pytest process here. In the
 # kit-reuse-probe-batched CI job this file's first test aborted the interpreter immediately
 # after collection, with no Python traceback, while the same test is fine in its own process.

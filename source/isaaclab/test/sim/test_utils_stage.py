@@ -5,10 +5,6 @@
 
 """Tests for stage utilities."""
 
-from isaaclab.test.launch import launch_kit
-
-launch_kit()
-
 import tempfile
 from pathlib import Path
 
