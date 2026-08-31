@@ -375,15 +375,12 @@ class RenderData:
     def _build_distortion_rays(self) -> wp.array(dtype=wp.vec3f, ndim=4):
         """Build the ``(1, H, W, 2)`` camera-space ray field for an OpenCV lens-distortion camera.
 
-        Uses Newton's native OpenCV fisheye ray helper and the Isaac Lab OpenCV pinhole kernel. Both
-        paths honor calibrated ``fx/fy/cx/cy`` (non-square, off-center) intrinsics. When
+        Uses Newton's native OpenCV pinhole and fisheye ray helpers. Both paths honor calibrated
+        ``fx/fy/cx/cy`` (non-square, off-center) intrinsics. When
         :attr:`OpenCvDistortionCfg.apply_lens_distortion` is ``False``, the coefficients are treated
         as zero while the calibrated intrinsics remain active, matching the RTX/OVRTX behavior.
         """
-        from .opencv_distortion_rays import compute_camera_rays_opencv_pinhole
-
         cfg = self._distortion
-        device = self.newton_sensor.model.device
         image_width, image_height = float(cfg.image_size[0]), float(cfg.image_size[1])
         # ``apply_lens_distortion=False`` keeps the intrinsics but mutes the distortion coefficients.
         apply = bool(getattr(cfg, "apply_lens_distortion", True))
@@ -409,36 +406,28 @@ class RenderData:
                 max_fov=math.pi,
             )
 
-        rays = wp.empty((1, self.height, self.width, 2), dtype=wp.vec3f, device=device)
-        wp.launch(
-            compute_camera_rays_opencv_pinhole,
-            dim=(1, self.height, self.width),
-            inputs=[
-                self.width,
-                self.height,
-                float(cfg.fx),
-                float(cfg.fy),
-                float(cfg.cx),
-                float(cfg.cy),
-                image_width,
-                image_height,
-                _coeff("k1"),
-                _coeff("k2"),
-                _coeff("k3"),
-                _coeff("k4"),
-                _coeff("k5"),
-                _coeff("k6"),
-                _coeff("p1"),
-                _coeff("p2"),
-                _coeff("s1"),
-                _coeff("s2"),
-                _coeff("s3"),
-                _coeff("s4"),
-            ],
-            outputs=[rays],
-            device=device,
+        return self.newton_sensor.utils.compute_camera_rays_pinhole_opencv(
+            self.width,
+            self.height,
+            float(cfg.fx),
+            float(cfg.fy),
+            float(cfg.cx),
+            float(cfg.cy),
+            image_width=image_width,
+            image_height=image_height,
+            k1=_coeff("k1"),
+            k2=_coeff("k2"),
+            k3=_coeff("k3"),
+            k4=_coeff("k4"),
+            k5=_coeff("k5"),
+            k6=_coeff("k6"),
+            p1=_coeff("p1"),
+            p2=_coeff("p2"),
+            s1=_coeff("s1"),
+            s2=_coeff("s2"),
+            s3=_coeff("s3"),
+            s4=_coeff("s4"),
         )
-        return rays
 
     @wp.kernel
     def _update_transforms(
