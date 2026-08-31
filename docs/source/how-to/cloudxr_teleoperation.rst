@@ -347,6 +347,20 @@ Isaac Lab is now ready to receive connections from a CloudXR client.
    CloudXR client connects. The ``--headless`` flag was removed in Isaac Lab 3.0; ``HEADLESS=1``
    in the environment also forces headless.
 
+.. note::
+
+   **``ERROR_STREAMSDK_PORT_UNAVAILABLE`` / port 49100 already in use.** The CloudXR runtime
+   binds TCP port 49100 for WebRTC signaling. If a previous CloudXR runtime instance is still
+   running, ``Server::create`` fails with this error. Find and stop the process holding the
+   port, then retry:
+
+   .. code-block:: bash
+
+      ss -tlnp | grep 49100  # or: lsof -i :49100
+      lsof -ti tcp:49100 | xargs -r kill -9
+
+   Alternatively, set a different port with the ``NV_CXR_SERVER_PORT`` environment variable.
+
 
 .. _connect-xr-device:
 
