@@ -103,6 +103,30 @@ def _manifest(**sections) -> dict:
     return base
 
 
+def _with_damage(digest: str | None) -> dict:
+    """Return a manifest with one distribution damaged to a fixed extent, digested as ``digest``.
+
+    ``digest`` is ``None`` for a bundle captured before the digest was recorded.
+    """
+    entry = {
+        "distribution": "usd_core-25.5.dist-info",
+        "recorded": 78,
+        "missing": 12,
+        "examples": ["pxr/Usd/__init__.py"],
+    }
+    if digest is not None:
+        entry["digest"] = digest
+    return _manifest(
+        python={
+            "distributions": [],
+            "duplicates": [],
+            "pth_files": [],
+            "venv": None,
+            "integrity": {"damaged": [entry]},
+        }
+    )
+
+
 def _with_sys_path(*entries: str) -> dict:
     """Return a manifest whose probed interpreter reported ``entries`` as its ``sys.path``."""
     return _manifest(
@@ -965,32 +989,16 @@ class TestDiff:
 
     def test_equal_damage_to_a_different_set_of_files_is_a_difference(self):
         """Comparing counts alone calls two packages gutted in different places equivalent."""
-
-        def with_digest(digest):
-            return _manifest(
-                python={
-                    "distributions": [],
-                    "duplicates": [],
-                    "pth_files": [],
-                    "venv": None,
-                    "integrity": {
-                        "damaged": [
-                            {
-                                "distribution": "usd_core-25.5.dist-info",
-                                "recorded": 78,
-                                "missing": 12,
-                                "examples": ["pxr/Usd/__init__.py"],
-                                "digest": digest,
-                            }
-                        ]
-                    },
-                }
-            )
-
-        report = render_diff(with_digest("1111aaaa2222bbbb"), with_digest("3333cccc4444dddd"))
+        report = render_diff(_with_damage("1111aaaa2222bbbb"), _with_damage("3333cccc4444dddd"))
 
         assert "a different set of files" in report
         assert "1 difference(s) recorded" in report
+
+    def test_a_bundle_predating_digests_is_not_reported_as_damaged_differently(self):
+        """An older bundle cannot say which files were missing, so equal counts are all there is."""
+        report = render_diff(_with_damage(None), _with_damage("1111aaaa2222bbbb"))
+
+        assert "No differences recorded" in report
 
     def test_skipping_the_integrity_check_is_reported_rather_than_read_as_a_match(self):
         report = render_diff(_manifest(), _manifest())

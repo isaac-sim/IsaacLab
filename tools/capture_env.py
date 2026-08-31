@@ -2524,6 +2524,24 @@ def _resolved_sys_path(manifest: dict) -> list[str] | None:
     return list(sys_path) if sys_path else None
 
 
+def _damage_differs(before: tuple[str, str], after: tuple[str, str]) -> bool:
+    """Whether two records of one distribution's damage describe different states.
+
+    Args:
+        before: The extent and missing-file digest recorded by the baseline capture.
+        after: The extent and missing-file digest recorded by the current capture.
+
+    Returns:
+        ``True`` when the two captures disagree about the damage to this distribution.
+    """
+    if before[0] != after[0]:
+        return True
+    # A bundle captured before digests were recorded cannot say which files were missing, so an
+    # absent digest on either side leaves matching extents as the most that can be concluded.
+    # Treating it as a difference would make every older bundle report damage it cannot confirm.
+    return bool(before[1] and after[1]) and before[1] != after[1]
+
+
 def _resolved_path_section(
     baseline: dict, current: dict, baseline_label: str, current_label: str
 ) -> tuple[list[str], int]:
@@ -2730,7 +2748,7 @@ def render_diff(baseline: dict, current: dict) -> str:
         damaged_rows = [
             (name, before_damaged.get(name, intact), after_damaged.get(name, intact))
             for name in sorted(set(before_damaged) | set(after_damaged))
-            if before_damaged.get(name, intact) != after_damaged.get(name, intact)
+            if _damage_differs(before_damaged.get(name, intact), after_damaged.get(name, intact))
         ]
         if damaged_rows:
             differences += len(damaged_rows)
