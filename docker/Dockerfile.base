@@ -132,7 +132,7 @@ COPY --parents ../source/*/pyproject.toml ${ISAACLAB_PATH}/
 RUN --mount=type=cache,target=/root/.cache/uv \
     cd ${ISAACLAB_PATH} && \
     uv sync --frozen --inexact --extra kit-image \
-      --no-install-workspace && \
+      --no-install-workspace --no-install-package imageio-ffmpeg && \
     chown -R isaaclab:isaaclab ${VIRTUAL_ENV} && \
     chmod -R a+rwX ${VIRTUAL_ENV}/lib ${VIRTUAL_ENV}/bin
 
@@ -150,10 +150,13 @@ RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt $
     apt-get -y autoremove && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# robomimic and moviepy declare imageio-ffmpeg for optional video helpers. Its bundled
+# FFmpeg binary stays out of the distributed image; users who enable video recording install
+# MoviePy and its video backend explicitly.
 RUN --mount=type=cache,target=/root/.cache/uv \
     cd ${ISAACLAB_PATH} && \
     uv sync --frozen --inexact --extra kit-image \
-      && \
+      --no-install-package imageio-ffmpeg && \
     find ${VIRTUAL_ENV} \! -user isaaclab \
       -exec chown isaaclab:isaaclab {} + -exec chmod a+rwX {} +
 
