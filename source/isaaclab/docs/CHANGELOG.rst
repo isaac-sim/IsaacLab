@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+20.0.2 (2026-08-31)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added an ``ISAACLAB_NEWTON_REPLACE_SHAPE_COLORS`` environment variable that gates
+  :func:`~isaaclab.sim.utils.newton_model_utils.replace_newton_builder_shape_colors`.
+  Setting it to ``"0"`` skips the deprecated shape-color replacement, whose USD
+  material-binding traversal could corrupt the heap and abort the process (SIGABRT)
+  during Newton environment cloning on assets with malformed / out-of-scope
+  ``PhysicsMaterial`` bindings (e.g. ShadowHand). The default (``"1"``) preserves
+  the existing behavior.
+
+
 20.0.1 (2026-08-31)
 ~~~~~~~~~~~~~~~~~~~
 
