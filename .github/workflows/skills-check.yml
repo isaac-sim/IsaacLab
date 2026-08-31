@@ -72,7 +72,9 @@ jobs:
   #
   # Runs on a self-hosted runner: skillevaluator installs from NVIDIA's
   # internal PyPI mirror and needs network access to inference.nvidia.com for
-  # the Tier 1 security scan, Tier 2A/2B dedup judge, and the Tier 3 judge.
+  # the Tier 1 security scan, Tier 2A/2B dedup judge, and the Tier 3 judge —
+  # reuses the repo's existing NVIDIA_INFERENCE_API_KEY secret (already used
+  # by backport-release-3.0.yml) rather than provisioning a new one.
   # Also needs a reachable Docker daemon (Tier 3's default env-mode sandboxes
   # each agent trial in a container) — the [self-hosted, gpu] runner already
   # has one (see kitless-docker.yml), so it's reused here rather than adding
@@ -142,7 +144,10 @@ jobs:
       - name: Run SkillEvaluator Tier 1 / Tier 2A / Tier 3
         if: steps.touched.outputs.any == 'true'
         env:
-          NVIDIA_INFERENCE_KEY: ${{ secrets.NVIDIA_INFERENCE_KEY }}
+          # Reuses the repo's existing inference key (also used by
+          # backport-release-3.0.yml for conflict resolution), mapped to the
+          # env var name skillevaluator itself expects.
+          NVIDIA_INFERENCE_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
           SKILL_DIRS: ${{ steps.touched.outputs.dirs }}
         run: |
           set -euo pipefail
