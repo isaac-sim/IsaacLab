@@ -5,11 +5,17 @@
 
 """Configuration for OVRTX Renderer."""
 
+from __future__ import annotations
+
 import os
 import tempfile
+from typing import TYPE_CHECKING
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.configclass import configclass
+
+if TYPE_CHECKING:
+    from .ovrtx_renderer import OVRTXRenderer
 
 
 @configclass
@@ -22,6 +28,9 @@ class OVRTXRendererCfg(RendererCfg):
     :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data` is called
     (same pattern as Isaac RTX).
     """
+
+    class_type: type[OVRTXRenderer] | str = "{DIR}.ovrtx_renderer:OVRTXRenderer"
+    """Renderer implementation class."""
 
     renderer_type: str = "ovrtx"
     """Type identifier for OVRTX renderer."""
