@@ -15,11 +15,15 @@ Added
 Changed
 ^^^^^^^
 
-* Changed the test runner to group same-marker test files into a single pytest invocation
-  rather than giving every file its own process, so Kit startup is paid once per group. Only
-  files carrying the new markers are grouped; every other file keeps a process of its own, and
-  a file a dead group never reached is re-run individually. Set ``ISAACLAB_TEST_BATCH_KIT=0``
-  to turn the grouping off.
+* Changed ``isaaclab --test`` to drive the new ``tools/run_tests.py``. With no arguments it
+  runs the whole suite; ``--job <name>`` runs a single CI lane locally, ``--list-jobs`` lists
+  them, and directories run an ad-hoc selection. It previously ran ``pytest tools``, which went
+  through the CI orchestrator and silently dropped any pytest arguments passed after it.
+* Changed the runner to group same-marker test files into a single pytest invocation rather
+  than giving every file its own process, so Kit startup is paid once per group. Only files
+  carrying the new markers are grouped; every other file keeps a process of its own, and a file
+  a dead group never reached is re-run individually. Set ``ISAACLAB_TEST_BATCH_KIT=0`` to turn
+  the grouping off.
 
 Fixed
 ^^^^^

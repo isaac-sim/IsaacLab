@@ -27,38 +27,23 @@ inputs:
     description: 'Additional pytest options (e.g., -k filter)'
     default: ''
     required: false
-  filter-pattern:
-    description: >-
-      Pattern to filter test files (e.g., isaaclab_tasks); test files whose path
-      contains this pattern are included. Only one pattern can be used at a time,
-      no comma-separated substrings allowed. Also supports the legacy "not <pattern>"
-      form for exclude-only jobs.
-    default: ''
-    required: false
-  exclude-pattern:
-    description: >-
-      Comma-separated substrings; test files whose path contains any entry are
-      excluded. Combines with filter-pattern (include + exclude).
-    default: ''
-    required: false
   test-k-expr:
     description: >-
       Global pytest -k expression applied inside every per-file pytest run
-      spawned by tools/conftest.py (combined with device-split selectors).
+      spawned by tools/run_tests.py (combined with device-split selectors).
       Unlike pytest-options, this reaches the individual test processes, so it
       can deselect parametrized cases (e.g. "not ovphysx").
     default: ''
     required: false
-  curobo-only:
-    description: 'Run only cuRobo and SkillGen tests (requires the cuRobo Docker image)'
-    default: 'false'
+  job:
+    description: >-
+      Name of a job in tools/test_plan.toml. The plan decides which files the job covers;
+      tools/run_tests.py runs them. Leave empty only when test-path names a file to run
+      directly through pytest.
+    default: ''
     required: false
-  quarantined-only:
-    description: 'Run only tests listed in QUARANTINED_TESTS (skipped in normal jobs)'
-    default: 'false'
-    required: false
-  include-files:
-    description: 'Comma-separated list of specific test file paths to include (e.g., source/pkg/test/test_a.py,source/pkg/test/test_b.py)'
+  shard:
+    description: 'Which shard of a sharded job to run, 0-based. Empty for an unsharded job.'
     default: ''
     required: false
   test-node-ids-file:
@@ -67,14 +52,6 @@ inputs:
     required: false
   test-node-ids-key:
     description: 'Top-level key in test-node-ids-file containing the node IDs for this job'
-    default: ''
-    required: false
-  shard-index:
-    description: 'Zero-based index of this shard (used with shard-count to split tests across parallel jobs)'
-    default: ''
-    required: false
-  shard-count:
-    description: 'Total number of shards (used with shard-index to split tests across parallel jobs)'
     default: ''
     required: false
   volume-mount-source:
@@ -98,10 +75,6 @@ inputs:
     default: ''
   warp-cache-host-dir:
     description: 'Host Warp kernel cache directory bind-mounted into the container as WARP_CACHE_PATH'
-    default: ''
-    required: false
-  ci-marker:
-    description: 'CI_MARKER value forwarded to the container (read by tools/conftest.py to select test files by pytest marker)'
     default: ''
     required: false
   standalone-script-scope:
@@ -132,9 +105,8 @@ runs:
         # the run_tests positional arguments if substituted textually.
         PYTEST_OPTIONS: ${{ inputs.pytest-options }}
         TEST_K_EXPR_INPUT: ${{ inputs.test-k-expr }}
-        CI_MARKER_INPUT: ${{ inputs.ci-marker }}
       run: |
-        bash .github/actions/run-tests/run_tests.sh "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT" "${{ inputs.standalone-script-scope }}" "${{ inputs.standalone-script-visualizer }}" "${{ inputs.standalone-script-runtime-group }}" "${{ inputs.warp-cache-host-dir }}" "${{ inputs.extra-uv-packages }}"
+        bash .github/actions/run-tests/run_tests.sh "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.job }}" "${{ inputs.shard }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "${{ inputs.standalone-script-scope }}" "${{ inputs.standalone-script-visualizer }}" "${{ inputs.standalone-script-runtime-group }}" "${{ inputs.warp-cache-host-dir }}" "${{ inputs.extra-uv-packages }}"
     - name: Kill container on cancellation
       if: cancelled()
       shell: bash

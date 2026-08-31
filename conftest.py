@@ -11,7 +11,7 @@ can carry them into the uploaded test artifact.
 Also maintains a crash journal (see :data:`JOURNAL_ENV_VAR`). pytest writes its JUnit XML once,
 at the end of the session, so a run killed before then - a Kit shutdown crash, an OOM kill, a
 hard timeout - loses every verdict it had already printed. The journal records collection,
-per-test start/finish, and per-test outcomes as they happen, letting ``tools/conftest.py``
+per-test start/finish, and per-test outcomes as they happen, letting ``tools/run_tests.py``
 rebuild a real report instead of a single synthetic ``test_execution`` entry.
 
 Level markers (``unit`` / ``integration`` / ``benchmark``) are applied per file via a module-level ``pytestmark``
@@ -26,6 +26,7 @@ which boots one Kit app per process for the test files whose ``pytestmark`` decl
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 
@@ -37,7 +38,20 @@ except ModuleNotFoundError as exc:
 else:
     wp.config.enable_backward = False
 
-pytest_plugins = ["tools.ovrtx_log", "tools.hang_dump", "isaaclab.test.kit"]
+pytest_plugins = ["tools.ovrtx_log", "tools.hang_dump"]
+
+# The Kit launch plugin is the only entry here that needs Isaac Lab itself. Lanes that test the
+# repository's own tooling install pytest and nothing else, and none of their tests declare a
+# launch marker, so a missing package there is not an error. A lane that does need Kit has Isaac
+# Lab installed by definition -- its tests import it -- so this cannot quietly skip the launch.
+# The exact module is probed rather than the top-level package: an Isaac Lab old enough to
+# predate the plugin would otherwise pass the check and fail on import.
+try:
+    _has_kit_plugin = importlib.util.find_spec("isaaclab.test.kit") is not None
+except (ImportError, ValueError):
+    _has_kit_plugin = False
+if _has_kit_plugin:
+    pytest_plugins.append("isaaclab.test.kit")
 
 JOURNAL_ENV_VAR = "ISAACLAB_TEST_JOURNAL"
 """Environment variable naming the crash-journal file. Unset (the default) disables journaling."""
@@ -97,7 +111,7 @@ def pytest_collection_finish(session):
 
     Journaling from :func:`pytest_collection_modifyitems` would record tests that are about to be
     dropped: pytest's own mark plugin applies ``-k`` / ``-m`` deselection from a ``trylast`` hook,
-    which runs after this file's. Since ``tools/conftest.py`` splits a run into passes selected by
+    which runs after this file's. Since ``tools/run_tests.py`` splits a run into passes selected by
     marker and device, a rebuilt crash report would then emit every other pass's tests as "not run"
     skips, inflating the counts and duplicating node IDs whose real verdicts came from the sibling
     pass. ``session.items`` is post-deselection, so it holds exactly the tests this pass runs.

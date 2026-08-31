@@ -56,12 +56,19 @@ def command_new(new_args: list[str]) -> None:
 
 
 def command_test(test_args: list[str]) -> None:
-    """Run pytest for Isaac Lab tests (-t).
+    """Run Isaac Lab's tests (-t).
+
+    With no arguments this runs the whole suite, the same way CI does. Pass ``--job <name>`` to
+    run one CI lane, ``--list-jobs`` to see them, or one or more directories to run an ad-hoc
+    selection. Every argument goes to ``tools/run_tests.py``; see ``isaaclab -t --help``.
 
     Args:
-        test_args: Additional pytest arguments.
+        test_args: Arguments for ``tools/run_tests.py``.
     """
-    run_python_command("-m", ["pytest", str(ISAACLAB_ROOT / "tools")] + test_args)
+    runner = ISAACLAB_ROOT / "tools" / "run_tests.py"
+    # Bare `isaaclab -t` used to mean "run everything"; keep that, since the runner itself
+    # refuses an empty selection rather than guessing.
+    run_python_command(runner, test_args or ["--all"])
 
 
 def command_vscode_settings() -> None:

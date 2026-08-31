@@ -235,7 +235,10 @@ def cli() -> None:
         "-t",
         "--test",
         nargs=argparse.REMAINDER,
-        help="Run all python pytest tests.",
+        help=(
+            "Run the tests. No arguments runs the whole suite; '--job <name>' runs one CI lane,"
+            " '--list-jobs' lists them, and paths run an ad-hoc selection."
+        ),
     )
     parser.add_argument(
         "-o",

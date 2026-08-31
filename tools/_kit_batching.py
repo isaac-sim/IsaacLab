@@ -20,7 +20,7 @@ still most of the suite.
 Apart from reading :data:`BATCH_ENV_VAR` and :data:`BATCH_SIZE_ENV_VAR`, this module is
 deliberately free of process machinery: the grouping and the report demultiplexing are pure
 functions over paths and strings, so they can be exercised on any platform, unlike the
-POSIX-only subprocess handling in ``tools/conftest.py``.
+POSIX-only subprocess handling in ``tools/run_tests.py``.
 """
 
 from __future__ import annotations

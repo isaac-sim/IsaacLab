@@ -14,7 +14,7 @@ the one place that reads it back:
 
 * loaded as a pytest plugin by the repo-root ``conftest.py``, it claims the log for the test process and
   replays each test's share of it into pytest's capture, where a failing test's report picks it up;
-* imported by ``tools/conftest.py``, it quotes a bounded tail in the crash, hang, or timeout report of a
+* imported by ``tools/run_tests.py``, it quotes a bounded tail in the crash, hang, or timeout report of a
   process that died before it could replay anything.
 
 Both readers are needed: the replay attributes output to the test that produced it and stays out of the job
@@ -25,7 +25,7 @@ Both are also bounded, because what they report lands in the job log and in the 
 the log alone. So when :data:`LOG_DIR_ENV_VAR` names a directory, everything a test left in the renderer's
 own directory -- its own share of the log, uncapped, and any dump beside it -- is additionally saved there
 for CI to upload as an artifact, which is what a diagnosis reads when the quoted tail is not enough. The
-test that a crash, hang, or timeout killed never reaches the fixture that saves, so ``tools/conftest.py``
+test that a crash, hang, or timeout killed never reaches the fixture that saves, so ``tools/run_tests.py``
 saves what that process left behind on its behalf -- the one test in the run whose output would otherwise
 be missing from the artifact is the one the artifact exists for.
 """
@@ -57,7 +57,7 @@ hundred kilobytes each; the copy saved under :data:`LOG_DIR_ENV_VAR` covers the 
 LOG_DIR_ENV_VAR = "ISAACLAB_OVRTX_LOG_DIR"
 """Environment variable naming the directory each test's renderer output is saved under, uncapped.
 
-Set per pytest invocation by ``tools/conftest.py``, to a directory under ``tests/`` that CI collects as a
+Set per pytest invocation by ``tools/run_tests.py``, to a directory under ``tests/`` that CI collects as a
 job artifact. Unset by default, which leaves a local run writing nothing beyond the replay.
 """
 
@@ -172,7 +172,7 @@ def pytest_configure(config):
     Whatever is at the path belongs to a session that has ended, so it is dropped rather than reasoned
     about: the byte offsets recorded per test below are only meaningful against this session's own output.
     The log is left in place at session end instead, since a crashed run is diagnosed by reading it after
-    the process is gone; ``tools/conftest.py`` clears it before starting the next one.
+    the process is gone; ``tools/run_tests.py`` clears it before starting the next one.
     """
     with contextlib.suppress(OSError):
         os.remove(LOG_PATH)
@@ -191,7 +191,7 @@ def _echo_ovrtx_log(request):
     suppressed so that the reverse cannot happen either: this runs in the teardown of every test that
     rendered, so a full or unwritable artifact directory would otherwise turn each of them into an error
     and take the replay below down with it. An artifact matters less than the test result and the replay,
-    as it does to ``_make_crash_pass_result`` in ``tools/conftest.py``.
+    as it does to ``_make_crash_pass_result`` in ``tools/run_tests.py``.
     """
     label = request.node.name
 

@@ -89,7 +89,7 @@ def kpi_store():
 
 
 # Shard parametrized test items across parallel CI jobs.
-# Reads the same TEST_SHARD_INDEX / TEST_SHARD_COUNT env vars used by tools/conftest.py
+# Reads the same TEST_SHARD_INDEX / TEST_SHARD_COUNT env vars used by tools/run_tests.py
 # for file-level sharding, but applies them at the test-item level so a single
 # parametrized file can be split across multiple runners.
 # This is a pytest hook — pytest calls it automatically during test collection.

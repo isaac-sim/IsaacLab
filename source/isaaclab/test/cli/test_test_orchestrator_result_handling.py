@@ -32,8 +32,8 @@ It needs ``select`` on pipes, ``os.killpg``, and ``start_new_session``, and the 
 
 
 def _load_orchestrator_module() -> ModuleType:
-    """Load ``tools/conftest.py`` without registering it as a pytest plugin."""
-    module_path = TOOLS_DIR / "conftest.py"
+    """Load ``tools/run_tests.py`` under a private name, leaving any real import untouched."""
+    module_path = TOOLS_DIR / "run_tests.py"
     module_name = "isaaclab_test_orchestrator"
     tools_dir = str(module_path.parent)
     if tools_dir not in sys.path:

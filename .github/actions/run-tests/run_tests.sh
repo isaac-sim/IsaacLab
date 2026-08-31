@@ -17,26 +17,20 @@ run_tests() {
   local image_tag="$4"
   local reports_dir="$5"
   local pytest_options="$6"
-  local filter_pattern="$7"
-  local exclude_pattern="$8"
-  local curobo_only="$9"
-  local include_files="${10}"
-  local quarantined_only="${11}"
-  local shard_index="${12}"
-  local shard_count="${13}"
-  local volume_mount_source="${14}"
-  local extra_pip_packages="${15}"
-  local test_node_ids_file="${16}"
-  local test_node_ids_key="${17}"
-  local wheelhouse_host_dir="${18}"
-  local wheelhouse_packages="${19}"
-  local test_k_expr="${20}"
-  local ci_marker="${21}"
-  local standalone_script_scope="${22}"
-  local standalone_script_visualizer="${23}"
-  local standalone_script_runtime_group="${24}"
-  local warp_cache_host_dir="${25}"
-  local extra_uv_packages="${26}"
+  local job="$7"
+  local shard="$8"
+  local volume_mount_source="$9"
+  local extra_pip_packages="${10}"
+  local test_node_ids_file="${11}"
+  local test_node_ids_key="${12}"
+  local wheelhouse_host_dir="${13}"
+  local wheelhouse_packages="${14}"
+  local test_k_expr="${15}"
+  local standalone_script_scope="${16}"
+  local standalone_script_visualizer="${17}"
+  local standalone_script_runtime_group="${18}"
+  local warp_cache_host_dir="${19}"
+  local extra_uv_packages="${20}"
   local logs_pid=""
   local wait_pid=""
   local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -72,17 +66,8 @@ run_tests() {
   if [ -n "$wheelhouse_packages" ]; then
     echo "With wheelhouse packages: $wheelhouse_packages"
   fi
-  if [ -n "$filter_pattern" ]; then
-    echo "With filter pattern: $filter_pattern"
-  fi
-  if [ -n "$exclude_pattern" ]; then
-    echo "With exclude pattern: $exclude_pattern"
-  fi
-  if [ "$curobo_only" = "true" ]; then
-    echo "cuRobo-only mode enabled: running only cuRobo and SkillGen tests"
-  fi
-  if [ -n "$include_files" ]; then
-    echo "Include files: $include_files"
+  if [ -n "$job" ]; then
+    echo "Running test plan job: $job"
   fi
   if [ -n "$test_node_ids_file" ]; then
     echo "Test node IDs file: $test_node_ids_file"
@@ -90,8 +75,11 @@ run_tests() {
   if [ -n "$test_node_ids_key" ]; then
     echo "Test node IDs key: $test_node_ids_key"
   fi
-  if [ -n "$shard_index" ] && [ -n "$shard_count" ]; then
-    echo "Shard: $shard_index of $shard_count"
+  # The runner takes the shard as a flag; an unsharded job passes nothing.
+  local shard_arg=""
+  if [ -n "$shard" ]; then
+    shard_arg="--shard $shard"
+    echo "Shard: $shard"
   fi
 
   if [ -n "$test_node_ids_file" ] || [ -n "$test_node_ids_key" ]; then
@@ -121,24 +109,6 @@ run_tests() {
     -e GITHUB_ACTIONS=${GITHUB_ACTIONS:-} \
     -e TEST_RESULT_FILE=$result_file"
 
-  if [ "$curobo_only" = "true" ]; then
-    docker_env_vars="$docker_env_vars -e TEST_CUROBO_ONLY=true"
-    echo "Setting TEST_CUROBO_ONLY=true"
-  fi
-
-  if [ "$quarantined_only" = "true" ]; then
-    docker_env_vars="$docker_env_vars -e TEST_QUARANTINED_ONLY=true"
-    echo "Setting TEST_QUARANTINED_ONLY=true"
-  fi
-
-  if [ -n "$include_files" ]; then
-    # Strip spaces so the value is safe to embed in an unquoted docker_env_vars string.
-    # conftest.py splits on commas and strips whitespace, so compact form works fine.
-    include_files_compact="${include_files// /}"
-    docker_env_vars="$docker_env_vars -e TEST_INCLUDE_FILES=$include_files_compact"
-    echo "Setting TEST_INCLUDE_FILES=$include_files_compact"
-  fi
-
   if [ -n "${TEST_NODE_IDS:-}" ]; then
     docker_env_vars="$docker_env_vars -e TEST_NODE_IDS"
     echo "Setting TEST_NODE_IDS"
@@ -147,35 +117,6 @@ run_tests() {
   if [ -n "${TEST_NODE_IDS_FILE:-}" ]; then
     docker_env_vars="$docker_env_vars -e TEST_NODE_IDS_FILE -e TEST_NODE_IDS_KEY"
     echo "Setting TEST_NODE_IDS_FILE=$TEST_NODE_IDS_FILE TEST_NODE_IDS_KEY=$TEST_NODE_IDS_KEY"
-  fi
-
-  if [ -n "$shard_index" ] && [ -n "$shard_count" ]; then
-    docker_env_vars="$docker_env_vars -e TEST_SHARD_INDEX=$shard_index -e TEST_SHARD_COUNT=$shard_count"
-    echo "Setting TEST_SHARD_INDEX=$shard_index TEST_SHARD_COUNT=$shard_count"
-  fi
-
-  if [ -n "$filter_pattern" ]; then
-    if [[ "$filter_pattern" == "not "* ]]; then
-      # Handle "not <pattern>" case - note the trailing space to avoid
-      # matching words that happen to start with "not".
-      filter_exclude_pattern="${filter_pattern#not }"
-      if [ -n "$exclude_pattern" ]; then
-        exclude_pattern="${exclude_pattern},${filter_exclude_pattern}"
-      else
-        exclude_pattern="$filter_exclude_pattern"
-      fi
-    else
-      # Handle positive pattern case
-      docker_env_vars="$docker_env_vars -e TEST_FILTER_PATTERN=$filter_pattern"
-      echo "Setting include pattern: $filter_pattern"
-    fi
-  else
-    echo "No filter pattern provided"
-  fi
-
-  if [ -n "$exclude_pattern" ]; then
-    docker_env_vars="$docker_env_vars -e TEST_EXCLUDE_PATTERN=$exclude_pattern"
-    echo "Setting exclude pattern: $exclude_pattern"
   fi
 
   if [ -n "$extra_pip_packages" ]; then
@@ -193,10 +134,6 @@ run_tests() {
     echo "Setting per-file pytest -k expression: $test_k_expr"
   fi
 
-  if [ -n "$ci_marker" ]; then
-    docker_env_vars="$docker_env_vars -e CI_MARKER=$ci_marker"
-    echo "Setting CI_MARKER=$ci_marker"
-  fi
 
   if [ -n "$standalone_script_scope" ]; then
     docker_env_vars="$docker_env_vars \
@@ -373,8 +310,13 @@ run_tests() {
         bash /with-python-package-retries.sh \"\${uv_executable}\" pip install --python \"\${isaac_python}\" --target \"\${isaac_uv_overlay}\" --no-deps \${TEST_EXTRA_UV_PACKAGES}
         export PYTHONPATH=\"\${isaac_uv_overlay}\${PYTHONPATH:+:\${PYTHONPATH}}\"
       fi
-      echo 'Starting pytest with path: $test_path'
-      ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
+      if [ -n '$job' ]; then
+        echo 'Running test plan job: $job'
+        ./isaaclab.sh -p tools/run_tests.py --job '$job' $shard_arg
+      else
+        echo 'Starting pytest with path: $test_path'
+        ./isaaclab.sh -p -m pytest $test_path $pytest_options -v --junitxml=tests/$result_file
+      fi
     "
 
   # Stream container logs in background.

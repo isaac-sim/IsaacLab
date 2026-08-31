@@ -764,6 +764,24 @@ Please make sure that you add tests for your changes.
                isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
 
 
+Running what CI runs
+^^^^^^^^^^^^^^^^^^^^
+
+``isaaclab -t`` runs the whole suite the same way CI does. What each CI lane covers is
+described in ``tools/test_plan.toml``, and any lane can be run on its own:
+
+.. code-block:: bash
+
+   isaaclab -t --list-jobs                     # the CI lanes, and how many files each covers
+   isaaclab -t --job isaaclab-core --shard 0   # one lane, exactly as CI runs it
+   isaaclab -t source/isaaclab/test/sim        # an ad-hoc directory
+   isaaclab -t --job isaaclab-rl --list-files  # what a lane would run, without running it
+
+The plan is the single source of truth: ``tools/generate_workflows.py`` renders the uniform
+workflow jobs from it, and a test fails if the checked-in YAML has drifted. To change what a
+lane covers, edit the plan rather than the workflow file.
+
+
 Tests that need Isaac Sim
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
