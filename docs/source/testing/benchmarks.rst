@@ -87,8 +87,8 @@ for pipelined rendering; ``False`` renders synchronously:
    uv run isaaclab benchmark runtime \
        --task Isaac-Cartpole-Camera-Direct \
        --num_envs 256 \
-       --warmup_frames 30 \
-       --num_frames 200 \
+       --warmup_steps 30 \
+       --num_steps 200 \
        --benchmark_formatter schema,omniperf \
        --output_path ./results/ovrtx_async \
        physics=newton_mjwarp renderer=ovrtx presets=rgb \
