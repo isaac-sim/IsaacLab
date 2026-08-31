@@ -2524,6 +2524,32 @@ def _resolved_sys_path(manifest: dict) -> list[str] | None:
     return list(sys_path) if sys_path else None
 
 
+def _summary_line(differences: int, not_compared: list[str]) -> str:
+    """State what the comparison concluded, and what it could not reach a conclusion about.
+
+    Args:
+        differences: Differences counted across every section that could be compared.
+        not_compared: Names of the sections one of the captures recorded no data for.
+
+    Returns:
+        The single line closing the report.
+    """
+    gaps = ", ".join(f"*{section}*" for section in not_compared)
+    if differences:
+        counted = f"{differences} difference(s) recorded."
+        # The gaps are worth naming beside a difference too: a section that went uncompared can
+        # hold the one that explains the failure, and a count alone reads as the whole picture.
+        return f"{counted} The two environments could not be compared on: {gaps}." if gaps else counted
+    if gaps:
+        # An unqualified claim of agreement is what a reproduction attempt is accepted on, so it is
+        # reserved for a comparison with no gaps. Naming the gaps says what to capture again.
+        return (
+            f"No differences recorded, but the two environments could not be compared on: {gaps}."
+            " They agree on everything that was compared."
+        )
+    return "No differences recorded. The two environments agree on everything captured."
+
+
 def _damage_differs(before: tuple[str, str], after: tuple[str, str]) -> bool:
     """Whether two records of one distribution's damage describe different states.
 
@@ -2810,18 +2836,7 @@ def render_diff(baseline: dict, current: dict) -> str:
 
     lines.append("## Summary")
     lines.append("")
-    if differences:
-        lines.append(f"{differences} difference(s) recorded.")
-    elif not_compared:
-        # An unqualified claim of agreement is what a reproduction attempt is accepted on, so it
-        # is reserved for a comparison with no gaps. Naming the gaps says what to capture again.
-        lines.append(
-            "No differences recorded, but the two environments could not be compared on: "
-            + ", ".join(f"*{section}*" for section in not_compared)
-            + ". They agree on everything that was compared."
-        )
-    else:
-        lines.append("No differences recorded. The two environments agree on everything captured.")
+    lines.append(_summary_line(differences, not_compared))
     lines.append("")
     return "\n".join(lines)
 

@@ -1055,6 +1055,13 @@ class TestDiff:
         assert "could not be compared on: *Resolved import path*, *Package integrity*" in report
         assert "agree on everything captured" not in report
 
+    def test_the_summary_names_uncompared_sections_beside_a_difference_too(self):
+        """A gap can hold the difference that explains the failure, so a count is not the picture."""
+        report = render_diff(_with_sys_path("/venv/a"), _with_sys_path("/venv/b"))
+
+        assert "2 difference(s) recorded." in report
+        assert "could not be compared on: *Package integrity*." in report
+
     def test_a_pair_comparable_in_every_section_reports_agreement_without_qualification(self):
         """The unqualified claim is what says the reproduction worked, and it must stay earned."""
 
