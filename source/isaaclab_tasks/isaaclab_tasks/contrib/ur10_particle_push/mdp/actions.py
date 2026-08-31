@@ -50,8 +50,10 @@ class ClampedRelativeJointPositionAction(RelativeJointPositionAction):
         """Whether the latest policy action contained a non-finite component."""
         return self._invalid_actions
 
-    def process_actions(self, actions: torch.Tensor) -> None:
+    def process_actions(self, actions: torch.Tensor | None) -> None:
         """Sanitize the policy action and construct one bounded joint target."""
+        if actions is None:
+            actions = torch.zeros_like(self._raw_actions)
         self._previous_actions.copy_(self._raw_actions)
         self._invalid_actions.copy_(~torch.isfinite(actions).all(dim=1))
         self._raw_actions.copy_(torch.nan_to_num(actions, nan=0.0, posinf=1.0, neginf=-1.0).clamp(-1.0, 1.0))

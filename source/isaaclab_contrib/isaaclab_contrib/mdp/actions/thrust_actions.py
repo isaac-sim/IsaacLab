@@ -200,7 +200,7 @@ class ThrustAction(ActionTerm):
         """
         self._raw_actions[env_ids] = 0.0
 
-    def process_actions(self, actions: torch.Tensor):
+    def process_actions(self, actions: torch.Tensor | None):
         r"""Process actions by applying scaling, offset, and clipping.
 
         This method transforms raw policy actions into thrust commands through
@@ -216,12 +216,14 @@ class ThrustAction(ActionTerm):
 
         Args:
             actions: Raw action tensor from the policy. Shape is ``(num_envs, action_dim)``.
-                Typically in the range [-1, 1] for normalized policies.
+                Typically in the range [-1, 1] for normalized policies. If None, zeros are used.
 
         Note:
             The processed actions are stored internally and applied during the next
             :meth:`apply_actions` call.
         """
+        if actions is None:
+            actions = self._raw_actions.zero_()
         # store the raw actions
         self._raw_actions[:] = actions
         # apply the affine transformations
@@ -331,7 +333,7 @@ class NavigationAction(ThrustAction):
         descriptor.action_type = "NavigationAction"
         return descriptor
 
-    def process_actions(self, actions: torch.Tensor):
+    def process_actions(self, actions: torch.Tensor | None):
         """Process actions by applying scaling, offset, and clipping."""
         # Call parent to handle basic processing
         super().process_actions(actions)

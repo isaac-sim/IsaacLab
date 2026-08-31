@@ -173,7 +173,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     Operations - MDP
     """
 
-    def step(self, action: torch.Tensor) -> VecEnvStepReturn:
+    def step(self, action: torch.Tensor | None) -> VecEnvStepReturn:
         """Execute one time-step of the environment's dynamics and reset terminated environments.
 
         Unlike the :class:`ManagerBasedEnv.step` class, the function performs the following operations:
@@ -199,13 +199,14 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         - Post-reset re-renders for RTX sensors are also skipped.
 
         Args:
-            action: The actions to apply on the environment. Shape is (num_envs, action_dim).
+            action: The actions to apply on the environment. Shape is (num_envs, action_dim). If None, each action
+                term applies its zero-action behavior.
 
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
         # process actions
-        self.action_manager.process_action(action.to(self.device))
+        self.action_manager.process_action(action.to(self.device) if action is not None else None)
 
         self.recorder_manager.record_pre_step()
 

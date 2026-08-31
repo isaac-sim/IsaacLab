@@ -152,7 +152,9 @@ class JointPositionToLimitsAction(ActionTerm):
     Operations.
     """
 
-    def process_actions(self, actions: torch.Tensor):
+    def process_actions(self, actions: torch.Tensor | None):
+        if actions is None:
+            actions = self._raw_actions.zero_()
         # store the raw actions
         self._raw_actions[:] = actions
         # apply affine transformations
@@ -279,7 +281,7 @@ class EMAJointPositionToLimitsAction(JointPositionToLimitsAction):
             )
             self._prev_applied_actions[env_ids, :] = curr_applied_actions
 
-    def process_actions(self, actions: torch.Tensor):
+    def process_actions(self, actions: torch.Tensor | None):
         # apply affine transformations
         super().process_actions(actions)
         # set position targets as moving average

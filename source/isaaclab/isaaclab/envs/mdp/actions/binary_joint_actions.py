@@ -129,7 +129,9 @@ class BinaryJointAction(ActionTerm):
     Operations.
     """
 
-    def process_actions(self, actions: torch.Tensor):
+    def process_actions(self, actions: torch.Tensor | None):
+        if actions is None:
+            actions = self._raw_actions.zero_()
         # store the raw actions
         self._raw_actions[:] = actions
         # compute the binary mask
@@ -182,7 +184,9 @@ class AbsBinaryJointPositionAction(BinaryJointAction):
     cfg: actions_cfg.AbsBinaryJointPositionActionCfg
     """The configuration of the action term."""
 
-    def process_actions(self, actions: torch.Tensor):
+    def process_actions(self, actions: torch.Tensor | None):
+        if actions is None:
+            actions = self._raw_actions.zero_()
         # store the raw actions
         self._raw_actions[:] = actions
         # compute the binary mask
