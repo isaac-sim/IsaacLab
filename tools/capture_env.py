@@ -2544,7 +2544,7 @@ def _damage_differs(before: tuple[str, str], after: tuple[str, str]) -> bool:
 
 def _resolved_path_section(
     baseline: dict, current: dict, baseline_label: str, current_label: str
-) -> tuple[list[str], int]:
+) -> tuple[list[str], int, bool]:
     """Compare the ``sys.path`` two captures' own interpreters resolved.
 
     Matching ``.pth`` files do not mean the interpreters import the same code: ``PYTHONPATH``, a
@@ -2559,13 +2559,14 @@ def _resolved_path_section(
         current_label: Column heading naming the current capture.
 
     Returns:
-        The rendered lines of the section, and the number of differences counted in it.
+        The rendered lines of the section, the number of differences counted in it, and whether
+        the section could be compared at all.
     """
     before, after = _resolved_sys_path(baseline), _resolved_sys_path(current)
     if before is None or after is None:
-        return ["Not comparable: at least one capture has no interpreter that reported its `sys.path`."], 0
+        return ["Not comparable: at least one capture has no interpreter that reported its `sys.path`."], 0, False
     if before == after:
-        return [f"Identical: {len(before)} entries in the same order."], 0
+        return [f"Identical: {len(before)} entries in the same order."], 0, True
 
     before_set, after_set = set(before), set(after)
     lines = [f"- Only on `{baseline_label}`: `{entry}`" for entry in dict.fromkeys(before) if entry not in after_set]
@@ -2581,7 +2582,7 @@ def _resolved_path_section(
         lines.append("- Shared entries are ordered differently:")
         lines.append(f"    - {baseline_label}: {', '.join(f'`{entry}`' for entry in shared_before)}")
         lines.append(f"    - {current_label}: {', '.join(f'`{entry}`' for entry in shared_after)}")
-    return lines, differences
+    return lines, differences, True
 
 
 def render_diff(baseline: dict, current: dict) -> str:
@@ -2611,6 +2612,9 @@ def render_diff(baseline: dict, current: dict) -> str:
     lines.append("")
 
     differences = 0
+    # Sections whose inputs one of the captures did not record. Counting them as agreement would
+    # let the summary claim the environments match on state neither capture can speak to.
+    not_compared: list[str] = []
 
     left, right = _flatten(baseline), _flatten(current)
     rows = [(key, left[key], right[key]) for key in left if left[key] != right[key]]
@@ -2717,9 +2721,13 @@ def render_diff(baseline: dict, current: dict) -> str:
 
     lines.append("## Resolved import path")
     lines.append("")
-    path_lines, path_differences = _resolved_path_section(baseline, current, baseline_label, current_label)
+    path_lines, path_differences, path_comparable = _resolved_path_section(
+        baseline, current, baseline_label, current_label
+    )
     lines.extend(path_lines)
     differences += path_differences
+    if not path_comparable:
+        not_compared.append("Resolved import path")
     lines.append("")
 
     # A distribution present at the right version but missing the files its own RECORD claims
@@ -2742,6 +2750,7 @@ def render_diff(baseline: dict, current: dict) -> str:
     lines.append("")
     if baseline.get("python", {}).get("integrity") is None or current.get("python", {}).get("integrity") is None:
         lines.append("Not comparable: at least one capture ran with `--skip_integrity`.")
+        not_compared.append("Package integrity")
     else:
         intact = ("*intact*", "")
         before_damaged, after_damaged = damaged(baseline), damaged(current)
@@ -2801,11 +2810,18 @@ def render_diff(baseline: dict, current: dict) -> str:
 
     lines.append("## Summary")
     lines.append("")
-    lines.append(
-        f"{differences} difference(s) recorded."
-        if differences
-        else "No differences recorded. The two environments agree on everything captured."
-    )
+    if differences:
+        lines.append(f"{differences} difference(s) recorded.")
+    elif not_compared:
+        # An unqualified claim of agreement is what a reproduction attempt is accepted on, so it
+        # is reserved for a comparison with no gaps. Naming the gaps says what to capture again.
+        lines.append(
+            "No differences recorded, but the two environments could not be compared on: "
+            + ", ".join(f"*{section}*" for section in not_compared)
+            + ". They agree on everything that was compared."
+        )
+    else:
+        lines.append("No differences recorded. The two environments agree on everything captured.")
     lines.append("")
     return "\n".join(lines)
 

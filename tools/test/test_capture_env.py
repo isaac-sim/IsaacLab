@@ -1048,6 +1048,32 @@ class TestDiff:
 
         assert "No differences recorded" in report
 
+    def test_the_summary_does_not_claim_agreement_on_a_section_it_could_not_compare(self):
+        """A reproduction is accepted on this line, so it may not cover for a section with no data."""
+        report = render_diff(_manifest(), _manifest())
+
+        assert "could not be compared on: *Resolved import path*, *Package integrity*" in report
+        assert "agree on everything captured" not in report
+
+    def test_a_pair_comparable_in_every_section_reports_agreement_without_qualification(self):
+        """The unqualified claim is what says the reproduction worked, and it must stay earned."""
+
+        def complete():
+            return _manifest(
+                python={
+                    "distributions": [],
+                    "duplicates": [],
+                    "pth_files": [],
+                    "integrity": {"damaged": []},
+                    "venv": {"interpreter": {"sys_path": ["/venv/lib/python3.11/site-packages"]}},
+                }
+            )
+
+        report = render_diff(complete(), complete())
+
+        assert "No differences recorded. The two environments agree on everything captured." in report
+        assert "could not be compared" not in report
+
     def test_every_section_names_itself_even_when_it_matches(self):
         """The report doubles as the list of what was checked, so nothing may be dropped."""
         report = render_diff(_manifest(), _manifest())
