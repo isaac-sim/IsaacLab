@@ -228,6 +228,11 @@ def replace_newton_builder_shape_colors(builder: Any, stage: Usd.Stage) -> int:
     Returns:
         Number of shapes that had their colors replaced.
     """
+    import os
+    if os.environ.get("ISAACLAB_NEWTON_REPLACE_SHAPE_COLORS", "1") == "0":
+        # Deprecated shape-color workaround traverses USD material bindings; on assets with
+        # malformed/out-of-scope PhysicsMaterial bindings it can corrupt the heap (SIGABRT).
+        return 0
     warnings.warn(
         "Newton shape color replacement is enabled; this workaround will be deprecated in a future release.",
         FutureWarning,
