@@ -22,6 +22,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   check-skills:
@@ -50,3 +51,133 @@ jobs:
 
       - name: Test skills validator
         run: python3 -m pytest tools/skills/
+
+  # SkillEvaluator Tier 1 (schema/security/license/lint) + Tier 3 (live
+  # agent-eval against evals/evals.json, advisory) + Tier 2A (intra-skill
+  # context dedup) + local Tier 2B (intra-repo cross-skill dedup), for
+  # whichever skills/user/* skills this PR actually touches.
+  #
+  # skillevaluator is NVIDIA's internal successor to the older `nv-base` CLI
+  # (nv-base is now frozen at 3.7.1; skillevaluator is the actively released
+  # line, published from ai_tools/nvevalcollection/skill-evaluator). Mirrors
+  # the pattern proven on Isaac/isaac's `Quality / skills / SkillEvaluator`
+  # job (ci/gitlab_workflows/skills.yaml on that repo's main branch), adapted
+  # to GitHub Actions. skills/_internal/ is excluded: it is not part of the
+  # NVCARPS-facing catalog (see skills/README.md).
+  #
+  # Only validates skills changed by this PR, not the whole tree — matches
+  # onboarding guidance that pre-existing skills are not retroactively
+  # scanned by this gate (they were validated locally once, before the gate
+  # was added).
+  #
+  # Runs on a self-hosted runner: skillevaluator installs from NVIDIA's
+  # internal PyPI mirror and needs network access to inference.nvidia.com for
+  # the Tier 1 security scan, Tier 2A/2B dedup judge, and the Tier 3 judge.
+  # Also needs a reachable Docker daemon (Tier 3's default env-mode sandboxes
+  # each agent trial in a container) — the [self-hosted, gpu] runner already
+  # has one (see kitless-docker.yml), so it's reused here rather than adding
+  # a new runner label; the GPU itself is not required by this job.
+  validate-skills:
+    name: Validate skills (SkillEvaluator)
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 90
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install skillevaluator
+        env:
+          # Version pin: skillevaluator gates every skill-authoring PR, so an
+          # unattended bump can newly-fail every open PR the morning a
+          # release drops. Hard-pin and bump deliberately (matches
+          # Isaac/isaac's ci/gitlab_workflows/skills.yaml pin rationale).
+          SKILLEVALUATOR_VERSION: "1.0.0"
+        run: |
+          set -euo pipefail
+          python3 -m pip install --upgrade pip
+          python3 -m pip install "skillevaluator==${SKILLEVALUATOR_VERSION}" -i https://urm.nvidia.com/artifactory/api/pypi/nv-shared-pypi/simple
+          skillevaluator --version
+          skillevaluator doctor || true
+
+      - name: Determine touched skills
+        id: touched
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          changed_files="$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files" --jq '.[].filename')"
+
+          declare -A seen=()
+          skill_dirs=()
+          while IFS= read -r f; do
+            [[ "$f" == skills/user/*/* ]] || continue
+            name="${f#skills/user/}"
+            name="${name%%/*}"
+            root="skills/user/${name}"
+            if [[ -d "$root" && -z "${seen[$root]:-}" ]]; then
+              seen[$root]=1
+              skill_dirs+=("$root")
+            fi
+          done <<< "$changed_files"
+
+          if [ ${#skill_dirs[@]} -eq 0 ]; then
+            echo "No skills/user/ directories were changed by this PR; nothing to validate."
+            echo "any=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skills touched by this PR (validating only these):"
+            printf '  - %s\n' "${skill_dirs[@]}"
+            echo "any=true" >> "$GITHUB_OUTPUT"
+            printf 'dirs<<SKILL_DIRS_EOF\n%s\nSKILL_DIRS_EOF\n' "${skill_dirs[*]}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run SkillEvaluator Tier 1 / Tier 2A / Tier 3
+        if: steps.touched.outputs.any == 'true'
+        env:
+          NVIDIA_INFERENCE_KEY: ${{ secrets.NVIDIA_INFERENCE_KEY }}
+          SKILL_DIRS: ${{ steps.touched.outputs.dirs }}
+        run: |
+          set -euo pipefail
+          failed=0
+
+          for skill_dir in ${SKILL_DIRS}; do
+            echo ""
+            echo "===== Per-skill validation: ${skill_dir} ====="
+            if ! skillevaluator validate "${skill_dir}" \
+                  -c \
+                  --tier3 \
+                  --profile internal \
+                  --catalog-path skills \
+                  --no-dedup; then
+              failed=1
+            fi
+
+            echo ""
+            echo "===== Tier 2A intra-skill context dedup: ${skill_dir} ====="
+            if ! skillevaluator context-optimization-check "${skill_dir}"; then
+              failed=1
+            fi
+          done
+
+          echo ""
+          echo "===== Tier 2B intra-repo similarity scan: skills/user/ ====="
+          if ! skillevaluator similarity-check skills/user/ --type skill; then
+            failed=1
+          fi
+
+          exit "${failed}"
+
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.touched.outputs.any == 'true'
+        with:
+          name: skillevaluator-reports
+          path: reports/
+          retention-days: 7
