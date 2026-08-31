@@ -324,7 +324,7 @@ def test_retrieve_git_asset_path_clones_default_repo_cache(tmp_path, monkeypatch
 
     def mock_run_git_command(command):
         git_commands.append(command)
-        repo_dir = tmp_path / "tmp" / "asset_cache" / "example-assets"
+        repo_dir = Path(command[-1])
         asset_dir = repo_dir / "Robots" / "Disney" / "ExampleBot"
         asset_dir.mkdir(parents=True)
         (repo_dir / ".git").mkdir()
@@ -344,9 +344,147 @@ def test_retrieve_git_asset_path_clones_default_repo_cache(tmp_path, monkeypatch
             "--depth",
             "1",
             git_path,
-            str(tmp_path / "tmp" / "asset_cache" / "example-assets"),
+            str(tmp_path / "tmp" / "asset_cache" / "example-assets.partial"),
         ]
     ]
+
+
+def test_retrieve_git_asset_path_serializes_cold_cache_population(tmp_path, monkeypatch):
+    """Test concurrent callers publish one complete Git asset checkout."""
+    git_path = "https://example.com/example-assets.git"
+    cache_dir = tmp_path / "asset_cache"
+    clone_count = 0
+    active_clones = 0
+    max_active_clones = 0
+    counter_lock = threading.Lock()
+    start = threading.Barrier(2)
+
+    def mock_run_git_command(command):
+        nonlocal clone_count, active_clones, max_active_clones
+        with counter_lock:
+            clone_count += 1
+            active_clones += 1
+            max_active_clones = max(max_active_clones, active_clones)
+        time.sleep(0.05)
+        repo_dir = Path(command[-1])
+        asset_dir = repo_dir / "Robots" / "Disney" / "ExampleBot"
+        asset_dir.mkdir(parents=True)
+        (repo_dir / ".git").mkdir()
+        (asset_dir / "example_bot.usd").write_text("#usda 1.0\n", encoding="utf-8")
+        with counter_lock:
+            active_clones -= 1
+
+    monkeypatch.setattr(assets_utils, "_run_git_command", mock_run_git_command)
+
+    def retrieve() -> str:
+        start.wait()
+        return assets_utils.retrieve_git_asset_path(git_path, "Robots/Disney/ExampleBot", cache_dir=str(cache_dir))
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        retrieved = list(executor.map(lambda _: retrieve(), range(2)))
+
+    expected = str(cache_dir / "example-assets" / "Robots" / "Disney" / "ExampleBot")
+    assert retrieved == [expected, expected]
+    assert clone_count == 1
+    assert max_active_clones == 1
+
+
+def test_retrieve_git_asset_path_updates_checkout_for_missing_asset(tmp_path, monkeypatch):
+    """Test a cache miss updates an existing checkout before reporting the asset missing."""
+    git_path = "https://example.com/example-assets.git"
+    cache_dir = tmp_path / "asset_cache"
+    repo_dir = cache_dir / "example-assets"
+    (repo_dir / ".git").mkdir(parents=True)
+    git_commands = []
+
+    def mock_run_git_command(command):
+        git_commands.append(command)
+        asset_dir = repo_dir / "Robots" / "Disney" / "ExampleBot"
+        asset_dir.mkdir(parents=True)
+        (asset_dir / "example_bot.usd").write_text("#usda 1.0\n", encoding="utf-8")
+
+    monkeypatch.setattr(assets_utils, "_run_git_command", mock_run_git_command)
+
+    asset_path = assets_utils.retrieve_git_asset_path(git_path, "Robots/Disney/ExampleBot", cache_dir=str(cache_dir))
+
+    assert asset_path == str(repo_dir / "Robots" / "Disney" / "ExampleBot")
+    assert git_commands == [["git", "-C", str(repo_dir), "pull", "--ff-only"]]
+
+
+def test_retrieve_git_asset_path_restores_incomplete_checkout(tmp_path, monkeypatch):
+    """Test a checkout still missing an asset after update restores its working tree."""
+    git_path = "https://example.com/example-assets.git"
+    cache_dir = tmp_path / "asset_cache"
+    repo_dir = cache_dir / "example-assets"
+    (repo_dir / ".git").mkdir(parents=True)
+    git_commands = []
+
+    def mock_run_git_command(command):
+        git_commands.append(command)
+        if "checkout" in command:
+            asset_dir = repo_dir / "Robots" / "Disney" / "ExampleBot"
+            asset_dir.mkdir(parents=True)
+            (asset_dir / "example_bot.usd").write_text("#usda 1.0\n", encoding="utf-8")
+
+    monkeypatch.setattr(assets_utils, "_run_git_command", mock_run_git_command)
+
+    asset_path = assets_utils.retrieve_git_asset_path(git_path, "Robots/Disney/ExampleBot", cache_dir=str(cache_dir))
+
+    assert asset_path == str(repo_dir / "Robots" / "Disney" / "ExampleBot")
+    assert git_commands == [
+        ["git", "-C", str(repo_dir), "pull", "--ff-only"],
+        ["git", "-C", str(repo_dir), "checkout", "HEAD", "--", "."],
+    ]
+    assert not Path(str(repo_dir) + ".partial").exists()
+
+
+def test_retrieve_git_asset_path_replaces_checkout_when_update_fails(tmp_path, monkeypatch):
+    """Test an unusable checkout is replaced only after a fresh clone succeeds."""
+    git_path = "https://example.com/example-assets.git"
+    cache_dir = tmp_path / "asset_cache"
+    repo_dir = cache_dir / "example-assets"
+    (repo_dir / ".git").mkdir(parents=True)
+    git_commands = []
+
+    def mock_run_git_command(command):
+        git_commands.append(command)
+        if "pull" in command:
+            raise RuntimeError("checkout is incomplete")
+        replacement_dir = Path(command[-1])
+        asset_dir = replacement_dir / "Robots" / "Disney" / "ExampleBot"
+        asset_dir.mkdir(parents=True)
+        (replacement_dir / ".git").mkdir()
+        (asset_dir / "example_bot.usd").write_text("#usda 1.0\n", encoding="utf-8")
+
+    monkeypatch.setattr(assets_utils, "_run_git_command", mock_run_git_command)
+
+    asset_path = assets_utils.retrieve_git_asset_path(git_path, "Robots/Disney/ExampleBot", cache_dir=str(cache_dir))
+
+    assert asset_path == str(repo_dir / "Robots" / "Disney" / "ExampleBot")
+    assert git_commands == [
+        ["git", "-C", str(repo_dir), "pull", "--ff-only"],
+        ["git", "clone", "--depth", "1", git_path, str(repo_dir) + ".partial"],
+    ]
+
+
+def test_retrieve_git_asset_path_does_not_publish_failed_clone(tmp_path, monkeypatch):
+    """Test a failed clone leaves neither a partial nor final cache checkout."""
+    git_path = "https://example.com/example-assets.git"
+    cache_dir = tmp_path / "asset_cache"
+    repo_dir = cache_dir / "example-assets"
+
+    def mock_run_git_command(command):
+        partial_dir = Path(command[-1])
+        (partial_dir / ".git").mkdir(parents=True)
+        raise RuntimeError("clone failed")
+
+    monkeypatch.setattr(assets_utils, "_run_git_command", mock_run_git_command)
+
+    with pytest.raises(RuntimeError, match="clone failed"):
+        assets_utils.retrieve_git_asset_path(git_path, "Robots/Disney/ExampleBot", cache_dir=str(cache_dir))
+
+    assert not repo_dir.exists()
+    assert not Path(str(repo_dir) + ".partial").exists()
 
 
 def test_retrieve_git_asset_path_uses_cached_asset_without_git(tmp_path, monkeypatch):
