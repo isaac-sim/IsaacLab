@@ -98,9 +98,12 @@ The steps follow the same order every time, with the details filled in from the 
    its version, the allowlisted environment variables, the symlinks, the ``.pth`` files, the
    ``sys.path`` each environment's own interpreter resolved, the ``RECORD``-against-disk integrity
    check, and the findings, and it names each section it found identical. *No differences recorded*
-   means the two captures agree on all of that. It is the
-   evidence that the reproduction worked, not a proof: whatever the capture does not record --
-   listed under *What this bundle cannot reproduce* -- is untested either way.
+   means the two captures agree on all of that. A section one of the captures holds no data for --
+   an interpreter that never started, or a capture taken with ``--skip_integrity`` -- is named in
+   the summary as one that could not be compared rather than counted as agreement. Even the
+   unqualified form is the evidence that the reproduction worked, not a proof: whatever the
+   capture does not record -- listed under *What this bundle cannot reproduce* -- is untested
+   either way.
 
 Every bundle also contains a copy of ``capture_env.py``, so step 5 runs on a checkout too old to
 include the script, or on a machine with no Isaac Lab checkout at all:
