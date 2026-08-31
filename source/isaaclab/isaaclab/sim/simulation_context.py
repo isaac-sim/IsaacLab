@@ -11,7 +11,7 @@ import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import torch
 
@@ -23,7 +23,6 @@ from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
-from isaaclab.sim.service_locator import ServiceLocator
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
@@ -39,6 +38,9 @@ from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
+
+
+_BackendT = TypeVar("_BackendT")
 
 # Visualizer type names (CLI and config). App launcher parses CSV and stores as a space-separated setting.
 _VISUALIZER_TYPES = ("newton_gl", "newton_rtx", "rerun", "viser", "kit")
@@ -124,6 +126,7 @@ class SimulationContext:
 
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
+        self._backend_registry: dict[type[object], object] = {}
 
         use_isaac_sim = has_kit()
         self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
@@ -233,8 +236,6 @@ class SimulationContext:
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
-
-        self._services = ServiceLocator()
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
@@ -948,21 +949,23 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
-    # ------------------------------------------------------------------
-    # Service locator
-    # ------------------------------------------------------------------
+    def get_or_create_backend(self, backend_type: type[_BackendT], *args: Any, **kwargs: Any) -> _BackendT:
+        """Return the simulation-scoped native backend for a type.
 
-    @property
-    def services(self) -> ServiceLocator:
-        """Typed service registry for backend-specific singletons.
+        Consumers that register the same backend type resolve one shared native resource
+        instead of constructing state to synchronize.
 
-        Usage::
+        Args:
+            backend_type: Backend class to construct when the resource does not exist.
+            *args: Positional arguments used only when constructing the resource.
+            **kwargs: Keyword arguments used only when constructing the resource.
 
-            sim_context.services[FabricStageCache] = cache
-            cache = sim_context.services[FabricStageCache]
-            del sim_context.services[FabricStageCache]  # closes and removes
+        Returns:
+            The existing or newly constructed native backend.
         """
-        return self._services
+        if backend_type not in self._backend_registry:
+            self._backend_registry[backend_type] = backend_type(*args, **kwargs)
+        return cast(_BackendT, self._backend_registry[backend_type])
 
     @classmethod
     def clear_instance(cls) -> None:
@@ -990,10 +993,10 @@ class SimulationContext:
                     run_cleanup(viz.close)
                 instance._visualizers.clear()
 
-                # Close and drop all registered singleton services.
-                service_errors: list[Exception] = []
-                run_cleanup(lambda: instance._services.close_all(caught_exceptions=service_errors))
-                teardown_errors.extend(service_errors)
+                for resource in instance._backend_registry.values():
+                    if (clear := getattr(resource, "clear", None)) is not None:
+                        run_cleanup(clear)
+                instance._backend_registry.clear()
 
                 # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
                 # close_stage() + app shutdown destroy the entire stage at once.
