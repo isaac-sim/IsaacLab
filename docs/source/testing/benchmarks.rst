@@ -94,9 +94,8 @@ for pipelined rendering; ``False`` renders synchronously:
        physics=newton_mjwarp renderer=ovrtx presets=rgb \
        env.tiled_camera.renderer_cfg.async_rendering=True
 
-``ISAAC_LAB_ASYNC_RENDERING`` in the environment overrides the same setting for any task, which
-avoids naming a camera that a given task may not define. Only the OVRTX
-renderer pipelines renders; the others warn and render synchronously.
+``ISAAC_LAB_ASYNC_RENDERING`` in the environment overrides the same setting for any task.
+Only the OVRTX renderer pipelines renders; the others warn and render synchronously.
 
 Warm-Up
 ~~~~~~~
