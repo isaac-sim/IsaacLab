@@ -52,33 +52,11 @@ jobs:
       - name: Test skills validator
         run: python3 -m pytest tools/skills/
 
-  # SkillEvaluator Tier 1 (schema/security/license/lint) + Tier 3 (live
-  # agent-eval against evals/evals.json, advisory) + Tier 2A (intra-skill
-  # context dedup) + local Tier 2B (intra-repo cross-skill dedup), for
-  # whichever skills/user/* skills this PR actually touches.
-  #
-  # skillevaluator is NVIDIA's internal successor to the older `nv-base` CLI
-  # (nv-base is now frozen at 3.7.1; skillevaluator is the actively released
-  # line, published from ai_tools/nvevalcollection/skill-evaluator). Mirrors
-  # the pattern proven on Isaac/isaac's `Quality / skills / SkillEvaluator`
-  # job (ci/gitlab_workflows/skills.yaml on that repo's main branch), adapted
-  # to GitHub Actions. skills/_internal/ is excluded: it is not part of the
-  # NVCARPS-facing catalog (see skills/README.md).
-  #
-  # Only validates skills changed by this PR, not the whole tree — matches
-  # onboarding guidance that pre-existing skills are not retroactively
-  # scanned by this gate (they were validated locally once, before the gate
-  # was added).
-  #
-  # Runs on a self-hosted runner: skillevaluator installs from NVIDIA's
-  # internal PyPI mirror and needs network access to inference.nvidia.com for
-  # the Tier 1 security scan, Tier 2A/2B dedup judge, and the Tier 3 judge —
-  # reuses the repo's existing NVIDIA_INFERENCE_API_KEY secret (already used
-  # by backport-release-3.0.yml) rather than provisioning a new one.
-  # Also needs a reachable Docker daemon (Tier 3's default env-mode sandboxes
-  # each agent trial in a container) — the [self-hosted, gpu] runner already
-  # has one (see kitless-docker.yml), so it's reused here rather than adding
-  # a new runner label; the GPU itself is not required by this job.
+  # SkillEvaluator Tier 1/2A/2B/3 for skills/user/* skills touched by this PR
+  # (skills/_internal/ is excluded — not part of the NVCARPS-facing catalog).
+  # Needs internal network access (PyPI mirror + inference.nvidia.com) and a
+  # Docker daemon for Tier 3, hence the self-hosted runner and reuse of the
+  # NVIDIA_INFERENCE_API_KEY secret.
   validate-skills:
     name: Validate skills (SkillEvaluator)
     runs-on: [self-hosted, gpu]
@@ -96,10 +74,7 @@ jobs:
 
       - name: Install skillevaluator
         env:
-          # Version pin: skillevaluator gates every skill-authoring PR, so an
-          # unattended bump can newly-fail every open PR the morning a
-          # release drops. Hard-pin and bump deliberately (matches
-          # Isaac/isaac's ci/gitlab_workflows/skills.yaml pin rationale).
+          # Pinned deliberately: a bump can newly-fail every open PR.
           SKILLEVALUATOR_VERSION: "1.0.0"
         run: |
           set -euo pipefail
@@ -144,9 +119,6 @@ jobs:
       - name: Run SkillEvaluator Tier 1 / Tier 2A / Tier 3
         if: steps.touched.outputs.any == 'true'
         env:
-          # Reuses the repo's existing inference key (also used by
-          # backport-release-3.0.yml for conflict resolution), mapped to the
-          # env var name skillevaluator itself expects.
           NVIDIA_INFERENCE_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
           SKILL_DIRS: ${{ steps.touched.outputs.dirs }}
         run: |
