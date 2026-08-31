@@ -201,6 +201,12 @@ jobs:
         fetch-depth: 1
         lfs: true
 
+    # The GPU runners have no uv on PATH; the invariant check below needs it.
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
+
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
