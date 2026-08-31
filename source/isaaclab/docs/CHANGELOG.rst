@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+20.0.1 (2026-08-31)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed duplicate ``mjcPhysics`` schema registration during Kit visualizer startup while preserving
+  schema discovery for both installed and source Isaac Sim runtimes.
+
+
 20.0.0 (2026-08-30)
 ~~~~~~~~~~~~~~~~~~~
 
