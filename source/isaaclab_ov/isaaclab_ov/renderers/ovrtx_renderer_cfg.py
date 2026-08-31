@@ -50,12 +50,16 @@ class OVRTXRendererCfg(RendererCfg):
     """Path for OVRTX log file. Defaults to ``<system temp>/ovrtx_renderer.log``."""
 
     enable_shadows: bool = False
-    """Whether lights cast shadows. Defaults to False.
+    """Whether lights cast shadows in RTX Minimal mode. Defaults to False.
 
-    Shadow rays cost render time that rarely changes what a policy learns, so they are requested
-    off and opted back into for visually faithful renders. The value is authored on the render
-    product for every OVRTX render mode: ``omni:rtx:shadows:enabled`` for the path-traced modes
-    and ``omni:rtx:minimal:castShadows`` for the ``simple_shading_*`` data types.
+    Shadow rays cost render time that rarely changes what a policy learns, so they are turned off
+    and opted back into for visually faithful renders.
+
+    Only the ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl`` and
+    ``simple_shading_full_mdl`` data types are affected, because those are the ones that put the
+    render product into RTX Minimal mode, whose ``omni:rtx:minimal:castShadows`` switch this drives.
+    OVRTX's path-traced modes offer no equivalent switch and always cast shadows, so this setting
+    does not change ``rgb`` and the other AOV outputs.
     """
 
     colorize_semantic_segmentation: bool = True

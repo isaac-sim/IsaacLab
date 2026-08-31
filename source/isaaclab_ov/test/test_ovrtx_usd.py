@@ -111,9 +111,9 @@ def test_build_render_scope_usd_solid_background_color():
     assert 'token omni:rtx:background:source:type = "domeLight"' not in render_scope
 
 
-@pytest.mark.parametrize("minimal_mode", [None, 1])
-def test_build_render_scope_usd_disables_shadows_by_default(minimal_mode):
-    """Shadows are off by default in every render mode."""
+@pytest.mark.parametrize("enable_shadows,expected", [(False, "false"), (True, "true")])
+def test_build_render_scope_usd_authors_minimal_cast_shadows(enable_shadows, expected):
+    """enable_shadows drives the RTX Minimal shadow switch, and defaults to off."""
     render_scope = build_render_scope_usd(
         camera_paths=["/World/envs/env_0/Camera"],
         render_product_name="RenderProduct",
@@ -122,14 +122,15 @@ def test_build_render_scope_usd_disables_shadows_by_default(minimal_mode):
         source_name="LdrColor",
         tiled_width=16,
         tiled_height=8,
-        minimal_mode=minimal_mode,
+        minimal_mode=1,
+        enable_shadows=enable_shadows,
     )
-    assert "bool omni:rtx:shadows:enabled = false" in render_scope
-    assert "bool omni:rtx:minimal:castShadows = false" in render_scope
+    assert f"bool omni:rtx:minimal:castShadows = {expected}" in render_scope
 
 
-def test_build_render_scope_usd_enable_shadows_opts_back_in():
-    """Setting enable_shadows re-enables the shadow toggles of every render mode."""
+@pytest.mark.parametrize("enable_shadows", [False, True])
+def test_build_render_scope_usd_omits_shadow_settings_outside_minimal_mode(enable_shadows):
+    """The path-traced modes have no shadow switch, so neither shadow setting is authored for them."""
     render_scope = build_render_scope_usd(
         camera_paths=["/World/envs/env_0/Camera"],
         render_product_name="RenderProduct",
@@ -138,18 +139,20 @@ def test_build_render_scope_usd_enable_shadows_opts_back_in():
         source_name="LdrColor",
         tiled_width=16,
         tiled_height=8,
-        enable_shadows=True,
+        enable_shadows=enable_shadows,
     )
-    assert "bool omni:rtx:shadows:enabled = true" in render_scope
-    assert "bool omni:rtx:minimal:castShadows = true" in render_scope
+    assert "castShadows" not in render_scope
+    # exists as a setting name but is never read by the path-tracing backends
+    assert "omni:rtx:shadows:enabled" not in render_scope
 
 
 def test_build_render_product_as_string_forwards_enable_shadows():
     """The render product builder passes enable_shadows through to the render scope."""
-    disabled, _ = build_render_product_as_string(width=16, height=8, num_envs=1, data_types=["rgb"])
-    enabled, _ = build_render_product_as_string(width=16, height=8, num_envs=1, data_types=["rgb"], enable_shadows=True)
-    assert "bool omni:rtx:shadows:enabled = false" in disabled
-    assert "bool omni:rtx:shadows:enabled = true" in enabled
+    kwargs = dict(width=16, height=8, num_envs=1, data_types=["simple_shading_full_mdl"], minimal_mode=3)
+    disabled, _ = build_render_product_as_string(**kwargs)
+    enabled, _ = build_render_product_as_string(**kwargs, enable_shadows=True)
+    assert "bool omni:rtx:minimal:castShadows = false" in disabled
+    assert "bool omni:rtx:minimal:castShadows = true" in enabled
 
 
 def test_ovrtx_rgb_hdr_uses_hdr_color_render_var():

@@ -194,9 +194,8 @@ def build_render_scope_usd(
             When ``None``, the default dome-light background is used.
         device_id: CUDA device index the render product is pinned to via ``deviceIds``. When ``None``,
             OVRTX assigns the device automatically.
-        enable_shadows: Whether lights cast shadows. Defaults to False. Both the path-traced and the
-            minimal render modes are authored, so the mode chosen by ``minimal_mode`` does not change
-            whether shadows are drawn.
+        enable_shadows: Whether lights cast shadows. Defaults to False. Only honored in RTX Minimal
+            mode, that is when ``minimal_mode`` is set; the path-traced modes always cast shadows.
 
     Returns:
         The USD string for the render scope.
@@ -216,22 +215,17 @@ def build_render_scope_usd(
             f"        color3f omni:rtx:background:source:color = ({r}, {g}, {b})"
         )
 
+    # Minimal is the only OVRTX render mode with a shadow switch, so ``enable_shadows`` is authored
+    # only there. The path-traced modes always trace shadows: ``omni:rtx:shadows:enabled`` exists as
+    # a setting name and authors without error, but no path-tracing backend reads it.
     if minimal_mode is None:
         render_mode_lines = ['token omni:rtx:rendermode = "RealTimePathTracing"']
     else:
         render_mode_lines = [
             'token omni:rtx:rendermode = "Minimal"',
             f"int omni:rtx:minimal:mode = {minimal_mode}",
+            f"bool omni:rtx:minimal:castShadows = {'true' if enable_shadows else 'false'}",
         ]
-
-    # RTX splits the shadow toggle per render mode, so author both to keep the two modes consistent.
-    shadow_value = "true" if enable_shadows else "false"
-    shadow_block = "\n        ".join(
-        [
-            f"bool omni:rtx:shadows:enabled = {shadow_value}",
-            f"bool omni:rtx:minimal:castShadows = {shadow_value}",
-        ]
-    )
 
     render_mode_block = "\n        ".join(render_mode_lines)
     if render_var_configs is None:
@@ -254,7 +248,6 @@ def Scope "Render"
         rel camera = [{camera_rel_list}]{device_ids_line}
         {bg_type_line}
         float omni:rtx:rt:ambientLight:intensity = 1.0
-        {shadow_block}
         {render_mode_block}
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
         rel orderedVars = [{ordered_vars}]
@@ -307,7 +300,8 @@ def build_render_product_as_string(
         device_id: CUDA device index the render product is pinned to, so its render var buffers are
             allocated on the same device as the Warp kernels that read them. When ``None``, OVRTX
             assigns the device automatically.
-        enable_shadows: Whether lights cast shadows. Defaults to False.
+        enable_shadows: Whether lights cast shadows. Defaults to False. Only honored for the
+            ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode.
 
     Returns:
         Tuple of (render product USD snippet as a string, absolute render product prim path).

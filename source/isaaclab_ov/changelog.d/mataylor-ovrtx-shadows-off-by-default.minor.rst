@@ -2,11 +2,13 @@ Added
 ^^^^^
 
 * Added :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.enable_shadows`, which authors
-  ``omni:rtx:shadows:enabled`` and ``omni:rtx:minimal:castShadows`` on the OVRTX render product so
-  the toggle covers the path-traced and minimal render modes alike.
+  ``omni:rtx:minimal:castShadows`` on the OVRTX render product. It applies to the
+  ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode; OVRTX's
+  path-traced modes provide no shadow switch and always cast shadows.
 
 Changed
 ^^^^^^^
 
-* Changed the OVRTX renderer to request shadows off by default. Renders that need cast shadows must
-  now set ``OVRTXRendererCfg(enable_shadows=True)``.
+* Changed the OVRTX renderer to turn shadows off by default in RTX Minimal mode. Renders that need
+  cast shadows from the ``simple_shading_*`` data types must now set
+  ``OVRTXRendererCfg(enable_shadows=True)``.
