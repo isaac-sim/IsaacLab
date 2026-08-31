@@ -34,6 +34,7 @@ from newton.solvers import SolverMuJoCo
 from isaaclab_newton.assets import kernels as shared_kernels
 
 from . import kernels as articulation_kernels
+from .mjc_view_compat import ensure_custom_frequency_api
 
 if TYPE_CHECKING:
     from newton import Control, Model
@@ -65,22 +66,25 @@ class MjcTendonControl:
         Returns:
             The adapter, or None when the articulation's tendons are all passive.
         """
-        columns = resolve_fixed_tendon_actuator_columns(articulation.root_view, model)
+        view = ensure_custom_frequency_api(articulation.root_view, model)
+        columns = resolve_fixed_tendon_actuator_columns(view, model)
         if columns is None or not bool((columns >= 0).any()):
             return None
-        return cls(articulation, columns)
+        return cls(articulation, columns, view)
 
-    def __init__(self, articulation: Articulation, actuator_columns: np.ndarray):
+    def __init__(self, articulation: Articulation, actuator_columns: np.ndarray, view: ArticulationView):
         """Bind a tendon-to-actuator mapping to the articulation it drives.
 
         Args:
             articulation: Newton articulation owning the fixed tendons.
             actuator_columns: ``mujoco:actuator`` column per fixed tendon, ``-1`` where no actuator
                 transmits to that tendon. Shape is ``(num_fixed_tendons,)``.
+            view: Articulation view carrying the custom-frequency API, from
+                :func:`~isaaclab_newton.assets.articulation.mjc_view_compat.ensure_custom_frequency_api`.
         """
         self._articulation = articulation
         self._actuator_columns = wp.array(actuator_columns, dtype=wp.int32, device=articulation.device)
-        view = articulation.root_view
+        self._view = view
         if view.count_per_world != 1:
             raise NotImplementedError(
                 f"The articulation view reports {view.count_per_world} instances per world; the"
@@ -193,7 +197,7 @@ class MjcTendonControl:
             outputs=[commands],
             device=position_target.device,
         )
-        articulation.root_view.set_attribute("mujoco.ctrl", control, commands)
+        self._view.set_attribute("mujoco.ctrl", control, commands)
 
 
 def resolve_fixed_tendon_actuator_columns(view: ArticulationView, model: Model) -> np.ndarray | None:
