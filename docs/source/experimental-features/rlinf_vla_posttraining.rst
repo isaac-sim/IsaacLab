@@ -134,7 +134,7 @@ Quick Start
 
       .. code-block:: bash
 
-         uv run isaaclab train --rl_library rlinf \
+         uv run --extra rlinf isaaclab train --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model
 
@@ -154,7 +154,7 @@ Quick Start
 
       .. code-block:: bash
 
-         uv run --extra video isaaclab play --rl_library rlinf \
+         uv run --extra rlinf,video isaaclab play --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model \
              --video
@@ -176,7 +176,7 @@ Quick Start
 
       .. code-block:: bash
 
-         uv run --extra video isaaclab play --rl_library rlinf \
+         uv run --extra rlinf,video isaaclab play --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model \
              --checkpoint /path/to/checkpoints/global_step_N \

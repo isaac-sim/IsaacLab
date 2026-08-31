@@ -6,6 +6,7 @@
 """Tests for the unified teleoperation console entry point."""
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 from unittest import mock
@@ -23,6 +24,26 @@ TELEOP_WORKFLOWS = {
     "record": ("scripts", "tools", "record_demos.py"),
     "replay": ("scripts", "tools", "replay_demos.py"),
 }
+
+
+@pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
+def test_teleop_workflow_help_exposes_task_preset_selectors(command, script_parts):
+    """Every teleop workflow accepts the task preset selectors documented for teleoperation."""
+    script = cli.ISAACLAB_ROOT.joinpath(*script_parts)
+
+    result = subprocess.run(
+        [sys.executable, str(script), "--help"],
+        cwd=cli.ISAACLAB_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "preset selection:" in result.stdout
+    assert "physics=NAME" in result.stdout
+    assert "renderer=NAME" in result.stdout
+    assert "presets=NAME[,NAME,...]" in result.stdout
 
 
 @pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())

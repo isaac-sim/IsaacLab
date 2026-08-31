@@ -183,6 +183,17 @@ If the issue persists, additional NCCL fallbacks that may help are:
     export NCCL_IB_DISABLE=1
     export NCCL_ALGO=Ring
 
+When the failure only occurs with RTX rendering enabled (for example, for camera-based tasks),
+CUDA and the renderer may enumerate the same GPUs in different orders. Make CUDA enumerate GPUs
+by ascending PCI bus ID before launching training:
+
+.. code-block:: shell
+
+    export CUDA_DEVICE_ORDER=PCI_BUS_ID
+
+This changes the CUDA device ordinals, but not which GPUs are visible. The PCI bus IDs and their
+corresponding GPUs can be inspected with ``nvidia-smi --query-gpu=name,pci.bus_id``.
+
 On some multi-GPU systems, distributed training with RTX rendering enabled (for example,
 camera-based tasks) fails when the participating GPUs span
 multiple NUMA nodes, while the same training runs fine on GPUs attached to a single PCIe
@@ -218,6 +229,15 @@ systems, disabling NCCL's P2P transport resolves the hang:
 
     export NCCL_P2P_DISABLE=1
 
+The same restriction can be expressed with NCCL's topology cutoff:
+
+.. code-block:: shell
+
+    export NCCL_P2P_LEVEL=LOC
+
+In NCCL, ``LOC`` means that P2P is never used between GPUs, so set either
+``NCCL_P2P_DISABLE=1`` or ``NCCL_P2P_LEVEL=LOC`` rather than both.
+
 Then relaunch the distributed training command as usual.
 
 To confirm the problem is NCCL rather than Isaac Lab, reproduce it without Isaac Lab in the loop.
@@ -251,9 +271,10 @@ applying it to training.
 
     These variables are NCCL-level workarounds intended for affected systems. They are not
     required on all machines, and may change communication behavior or performance depending
-    on the hardware topology. In particular, ``NCCL_P2P_DISABLE=1`` routes inter-GPU traffic
-    through host/shared memory instead of a direct P2P link, which can reduce communication
-    bandwidth, so only set it after confirming it resolves an observed hang.
+    on the hardware topology. In particular, ``NCCL_P2P_DISABLE=1`` and
+    ``NCCL_P2P_LEVEL=LOC`` prevent direct P2P communication and force NCCL to select another
+    transport, which can reduce communication bandwidth, so only set one after confirming it
+    resolves an observed hang.
 
 Multi-Node Training
 -------------------
@@ -452,7 +473,7 @@ For skrl JAX training, pass an integer GPU count and the ``--coordinator_address
 
               .. code-block:: bash
 
-                  uv run python scripts/reinforcement_learning/train_multigpu.py \
+                  uv run --extra skrl python scripts/reinforcement_learning/train_multigpu.py \
                      --rl_library skrl --ml_framework jax --num_gpus 4 \
                      --coordinator_address localhost:5000 \
                      --task Isaac-Reorient-KukaAllegro \
@@ -473,7 +494,7 @@ For skrl JAX training, pass an integer GPU count and the ``--coordinator_address
 
         .. code-block:: bash
 
-            uv run isaaclab train_multigpu --rl_library skrl --ml_framework jax --num_gpus 4 \
+            uv run --extra skrl isaaclab train_multigpu --rl_library skrl --ml_framework jax --num_gpus 4 \
                --coordinator_address localhost:5000 \
                --task Isaac-Reorient-KukaAllegro \
                --num_envs 4096 --max_iterations 100
