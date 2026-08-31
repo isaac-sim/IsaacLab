@@ -23,7 +23,6 @@ private to :class:`_AsyncRenderStrategy`.
 from __future__ import annotations
 
 import logging
-import weakref
 from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Callable, Iterator
@@ -276,9 +275,7 @@ class _AsyncRenderStrategy(_RenderStrategy):
         self._ring: deque[_AsyncRenderEntry] = deque()
         self._slots: list[_AsyncRenderSlot] = []
         self._slot_index = 0
-        # Cameras whose first frame has been primed, held weakly: a camera released between frames
-        # drops out on its own, and a fresh render data primes like a new camera.
-        self._primed_targets: weakref.WeakSet = weakref.WeakSet()
+        self._primed = False
         self._current_slot: _AsyncRenderSlot | None = None
 
     def _has_pending_ops(self) -> bool:
@@ -319,7 +316,7 @@ class _AsyncRenderStrategy(_RenderStrategy):
         self._slot_index = 0
         self._current_slot = None
         self._num_envs = num_envs
-        self._primed_targets.clear()
+        self._primed = False
         self._ring.clear()
 
     def _create_slots(self) -> None:
@@ -410,21 +407,20 @@ class _AsyncRenderStrategy(_RenderStrategy):
     ) -> None:
         """Step OVRTX asynchronously and enqueue the op for deferred consumption.
 
-        Each camera's first frame is drained immediately, so its first read returns a rendered frame
-        rather than the zero-initialized output buffer (and its second read duplicates it, as every
-        pipelined read is one frame stale). Later frames are pipelined; a drain only replaces buffer
-        contents, so the output stays valid while the queue fills.
+        The first frame of a scene is drained immediately, so the first camera read returns a rendered
+        frame rather than the zero-initialized output buffer. Priming is per scene, not per camera:
+        when several cameras share this renderer, only the first submitted render is drained
+        synchronously. Later frames are pipelined; a drain only replaces buffer contents, so the
+        output stays valid while the queue fills.
         See :meth:`_RenderStrategy.render`.
         """
+        # The flag, not an empty ring, marks the first frame: scene writes can drain the ring dry every frame.
+        is_first_frame = not self._primed
         op = renderer.step_async(render_products=render_products, delta_time=delta_time, ordinal=ordinal)
-        entry = self._enqueue_render_op(op, render_data, consume_products)
-        # Membership, not an empty ring, marks a camera's first frame: scene writes can drain the
-        # ring dry every frame, and cameras sharing this strategy each need their own primed frame.
-        # ``None`` has no output buffers to prime (matching :meth:`_AsyncRenderEntry.deliver`).
-        if render_data is not None and render_data not in self._primed_targets:
-            self._primed_targets.add(render_data)
-            while entry in self._ring:
-                self._try_drain_one()
+        self._enqueue_render_op(op, render_data, consume_products)
+        self._primed = True
+        if is_first_frame:
+            self._try_drain_one()
 
     def settle_before_scene_write(self) -> None:
         """Drain every queued render so the caller's scene write cannot alter a frame in flight.
