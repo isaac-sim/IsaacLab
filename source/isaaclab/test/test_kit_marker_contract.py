@@ -25,6 +25,8 @@ test enforces:
   simulator") into a checked invariant.
 * Within :data:`_MIGRATED_ROOTS`, a module-scope Kit runtime import is backed by something
   that actually starts Kit -- a launch marker, or the file's own ``AppLauncher``.
+* ``solo`` appears only alongside a launch marker. It is the only case where it changes
+  anything, and writing it alone reads like a launch marker while starting no app at all.
 
 The checks are AST-based rather than text-based because a source-text search cannot tell an
 ``AppLauncher`` reference in a docstring from a real call -- several Kit-free files mention
@@ -38,7 +40,7 @@ from pathlib import Path
 
 import pytest
 
-from isaaclab.test.kit import KIT_MARKERS, module_markers
+from isaaclab.test.kit import KIT_MARKERS, SOLO_MARKER, module_markers
 
 pytestmark = pytest.mark.unit
 
@@ -198,6 +200,23 @@ def test_launch_markers_are_mutually_exclusive(facts: list[_FileFacts]):
     assert not offenders, (
         f"These files declare more than one of {', '.join(sorted(KIT_MARKERS))}, which are"
         " alternatives rather than nested configurations, so no single app satisfies both:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_solo_accompanies_a_launch_marker(facts: list[_FileFacts]):
+    """`solo` only changes anything for a file that gets an app booted for it.
+
+    A file with no launch marker already runs on its own, so `solo` alone is not merely
+    redundant -- it reads like a launch marker while starting no app, which is how a file ends
+    up importing ``omni`` into a process where Kit was never started.
+    """
+    offenders = [f.rel for f in facts if SOLO_MARKER in f.markers and not f.launch_markers]
+    assert not offenders, (
+        f"These files declare `{SOLO_MARKER}` without one of {', '.join(sorted(KIT_MARKERS))}, so"
+        " nothing boots an app for them and the marker changes nothing:\n  "
+        + "\n  ".join(offenders)
+        + f"\n\nFix: add the launch marker the file needs, or drop `{SOLO_MARKER}` -- an unmarked"
+        " file is never grouped with another anyway."
     )
 
 

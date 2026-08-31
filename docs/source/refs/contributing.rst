@@ -785,7 +785,7 @@ file of each kind cannot share a process.
 
 The app is started once per pytest process and shared by every marked file in it, so a run
 covering many such files pays Kit startup once rather than once per file. Add
-``pytest.mark.kit_solo`` to keep a file out of that sharing when it depends on having a process
+``pytest.mark.solo`` to keep a file out of that sharing when it depends on having a process
 to itself. Tests that need the app object itself request the ``kit_app`` fixture.
 
 

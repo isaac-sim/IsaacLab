@@ -36,13 +36,13 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim.views import UsdFrameView as FrameView
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-# kit_solo: test_compare_get_world_poses_with_isaacsim goes through Isaac Sim's
+# solo: test_compare_get_world_poses_with_isaacsim goes through Isaac Sim's
 # SimulationManager, a process-global singleton that caches the PhysxScene wrapping
 # /physicsScene. In a process shared with other test files that prim belongs to a stage an
 # earlier file already tore down, so the cached wrapper is dangling and the test dies with
 # "Accessed invalid expired 'PhysicsScene' prim". Nothing in this file owns that state, so the
 # file needs a process to itself until SimulationManager can be reset between files.
-pytestmark = [pytest.mark.kit, pytest.mark.kit_solo, pytest.mark.integration, pytest.mark.isaacsim_ci]
+pytestmark = [pytest.mark.kit, pytest.mark.solo, pytest.mark.integration, pytest.mark.isaacsim_ci]
 PARENT_POS = (0.0, 0.0, 1.0)
 
 

@@ -34,7 +34,7 @@ pytestmark = pytest.mark.unit
 
 KIT = "pytestmark = pytest.mark.kit\n"
 CAMERAS = "pytestmark = [pytest.mark.kit_cameras, pytest.mark.integration]\n"
-SOLO = "pytestmark = [pytest.mark.kit, pytest.mark.kit_solo]\n"
+SOLO = "pytestmark = [pytest.mark.kit, pytest.mark.solo]\n"
 UNMARKED = "pytestmark = pytest.mark.unit\n"
 BOTH = "pytestmark = [pytest.mark.kit, pytest.mark.kit_cameras]\n"
 LEGACY = "simulation_app = AppLauncher(headless=True).app\n"

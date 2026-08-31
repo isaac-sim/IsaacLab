@@ -1,7 +1,7 @@
 Added
 ^^^^^
 
-* Added the ``kit``, ``kit_cameras``, and ``kit_solo`` pytest markers, and the
+* Added the ``kit``, ``kit_cameras``, and ``solo`` pytest markers, and the
   :mod:`isaaclab.test.kit` plugin that acts on them. A test file that needs Isaac Sim now
   declares it in its module-level ``pytestmark``; the plugin reads that declaration out of the
   file's source and boots Kit before pytest imports the module, so files sharing a launch

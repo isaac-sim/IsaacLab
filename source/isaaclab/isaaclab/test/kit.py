@@ -49,8 +49,13 @@ if TYPE_CHECKING:
 KIT_MARKERS: dict[str, bool] = {"kit": False, "kit_cameras": True}
 """The launch markers, mapped to the ``enable_cameras`` setting each one asks for."""
 
-SOLO_MARKER = "kit_solo"
-"""Marker that keeps a file in a process of its own, never grouped with other files."""
+SOLO_MARKER = "solo"
+"""Marker that keeps a file in a process of its own, never grouped with other files.
+
+A separate axis from :data:`KIT_MARKERS`, which say *which* app a file needs rather than who
+else may share the process with it, so the two compose: ``[pytest.mark.kit, pytest.mark.solo]``
+still gets an app booted for it, just not one anybody else is using.
+"""
 
 _app: SimulationApp | None = None
 """The app booted for this process, or None before the first marked module is collected."""
@@ -195,7 +200,7 @@ def _launch(*, cameras: bool) -> SimulationApp:
         raise RuntimeError(
             "Kit is already running but was not started by this plugin, so its launch"
             " configuration is unknown. Another test file in this process constructs AppLauncher"
-            " itself; mark that file `kit_solo` so it keeps a process of its own."
+            " itself; mark that file `solo` so it keeps a process of its own."
         )
 
     from isaaclab.app import AppLauncher

@@ -108,7 +108,7 @@ def file_profile(source: str) -> str | None:
 
     This is :func:`isaaclab.test.kit.kit_marker` -- the same reader the plugin launches from,
     so a batch cannot be built around a marker the launch does not honour -- plus the
-    ``kit_solo`` opt-out, which is a batching concern rather than a launch one.
+    ``solo`` opt-out, which is a batching concern rather than a launch one.
 
     Args:
         source: The test file's text. Markers are read from the source rather than by
@@ -135,7 +135,7 @@ def group_test_files(
 ) -> list[Batch]:
     """Partition ``test_files`` into batches, preserving the given order.
 
-    Files that cannot be grouped -- unmarked, ``kit_solo``, or listed in ``unbatchable`` --
+    Files that cannot be grouped -- unmarked, ``solo``, or listed in ``unbatchable`` --
     each become a batch of one, which is exactly the current per-file behaviour.
 
     Args:

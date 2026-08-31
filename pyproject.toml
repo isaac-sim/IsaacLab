@@ -341,6 +341,7 @@ ignore-words-list = "aheared,collet,followng,haa,publically,rouines,slq,collapsa
 markers = [
     "isaacsim_ci: mark test to run in isaacsim ci",
     "device_split: re-invoke this file once per device (CPU and GPU) in CI due to process-global device locks (e.g., ovphysx<=0.3.7 gap G5)",
+    "solo: run this file in a process of its own; it is never grouped with other files",
     "windows_ci: mark test to run on Windows platforms in CI",
     "arm_ci: mark test to run on ARM platforms in CI (e.g. NVIDIA DGX Spark)",
     "unit: test exercises isolated logic and does not launch the simulator",
@@ -351,7 +352,6 @@ markers = [
     "kitless: test must pass inside the Kit-less container, which has no Isaac Sim runtime",
     "kit: test file needs a headless Kit app; the runner boots one before importing the module and shares it with the other `kit` files in the process",
     "kit_cameras: like `kit`, but the app is booted with cameras enabled; the two configurations never share a process",
-    "kit_solo: keep this file in its own process; it is never grouped with other files",
 ]
 
 # Add pypi.nvidia.com so that `uv pip install isaaclab[isaacsim]` works without --extra-index-url.
