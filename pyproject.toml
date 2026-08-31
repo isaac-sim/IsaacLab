@@ -394,7 +394,7 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.11.0",
     "mujoco-warp~=3.11.0",
-    "newton[sim]==1.5.1",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@24bd863528d6b91137408930d0fbe8fa216ad962",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.1",
     "torch==2.11.0",
