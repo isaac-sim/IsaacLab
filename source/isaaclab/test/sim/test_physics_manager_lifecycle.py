@@ -232,13 +232,12 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
     monkeypatch.setattr(context_module, "clear_resolve_matching_names_cache", lambda: events.append("cache"))
     monkeypatch.setattr(context_module.gc, "collect", lambda: events.append("gc"))
 
-    with pytest.raises(RuntimeError, match=r"4 error\(s\) occurred during teardown") as exc_info:
+    with pytest.raises(RuntimeError, match=r"3 error\(s\) occurred during teardown") as exc_info:
         SimulationContext.clear_instance()
 
     assert str(exc_info.value) == (
-        "SimulationContext.clear_instance(): 4 error(s) occurred during teardown: "
-        "RuntimeError: STOP failed; ValueError: visualizer failed; LookupError: backend failed; "
-        "AttributeError: 'InvalidBackend' object has no attribute 'clear'"
+        "SimulationContext.clear_instance(): 3 error(s) occurred during teardown: "
+        "RuntimeError: STOP failed; ValueError: visualizer failed; LookupError: backend failed"
     )
     assert str(exc_info.value.__cause__) == "STOP failed"
     assert events == [

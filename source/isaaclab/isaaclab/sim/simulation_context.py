@@ -11,7 +11,7 @@ import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import torch
 
@@ -38,6 +38,7 @@ from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
+
 
 _BackendT = TypeVar("_BackendT")
 
@@ -125,7 +126,7 @@ class SimulationContext:
 
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
-        self._backend_registry: dict[type[Any], Any] = {}
+        self._backend_registry: dict[type[object], object] = {}
 
         use_isaac_sim = has_kit()
         self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
@@ -955,8 +956,7 @@ class SimulationContext:
         instead of constructing state to synchronize.
 
         Args:
-            backend_type: Backend class to construct when the resource does not exist. Its
-                instances must implement ``clear()`` for simulation-owned teardown.
+            backend_type: Backend class to construct when the resource does not exist.
             *args: Positional arguments used only when constructing the resource.
             **kwargs: Keyword arguments used only when constructing the resource.
 
@@ -965,7 +965,7 @@ class SimulationContext:
         """
         if backend_type not in self._backend_registry:
             self._backend_registry[backend_type] = backend_type(*args, **kwargs)
-        return self._backend_registry[backend_type]
+        return cast(_BackendT, self._backend_registry[backend_type])
 
     @classmethod
     def clear_instance(cls) -> None:
@@ -993,9 +993,9 @@ class SimulationContext:
                     run_cleanup(viz.close)
                 instance._visualizers.clear()
 
-                # Native resources are shared by consumers and remain simulation-owned.
                 for resource in instance._backend_registry.values():
-                    run_cleanup(lambda resource=resource: resource.clear())
+                    if (clear := getattr(resource, "clear", None)) is not None:
+                        run_cleanup(clear)
                 instance._backend_registry.clear()
 
                 # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
