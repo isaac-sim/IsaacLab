@@ -302,10 +302,14 @@ class _AsyncRenderStrategy(_RenderStrategy):
         self._reset_slots(num_envs)
 
     def _reset_slots(self, num_envs: int) -> None:
-        """Drain and drop all staging slots, and record the camera count for future slot builds.
+        """Drain queued renders and staging slots, then drop them; record the camera count for future slot builds.
 
         ``num_envs == 0`` means the renderer is unbinding, so slots are simply cleared.
         """
+        # Deliver queued renders rather than dropping them: each op is its buffer's only keepalive,
+        # and a re-initialize must not discard a frame still executing. No-op from cleanup(), which
+        # drains the ring (best-effort) before calling here.
+        self.settle_before_scene_write()
         for slot in self._slots:
             slot.wait_for_writes()
         self._slots.clear()
@@ -404,8 +408,10 @@ class _AsyncRenderStrategy(_RenderStrategy):
         """Step OVRTX asynchronously and enqueue the op for deferred consumption.
 
         The first frame of a scene is drained immediately, so the first camera read returns a rendered
-        frame rather than the zero-initialized output buffer. Later frames are pipelined; a drain only
-        replaces buffer contents, so the output stays valid while the queue fills.
+        frame rather than the zero-initialized output buffer. Priming is per scene, not per camera:
+        when several cameras share this renderer, only the first submitted render is drained
+        synchronously. Later frames are pipelined; a drain only replaces buffer contents, so the
+        output stays valid while the queue fills.
         See :meth:`_RenderStrategy.render`.
         """
         # The flag, not an empty ring, marks the first frame: scene writes can drain the ring dry every frame.
