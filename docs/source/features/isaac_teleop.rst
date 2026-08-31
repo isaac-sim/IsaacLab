@@ -375,7 +375,10 @@ Prerequisites
      sudo apt-get update
      sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
-  Then clone, configure, build, and install. To target a specific Python version, pass
+  Then clone, check out the release branch matching the ``isaacteleop`` version Isaac Lab is
+  pinned to (``isaacteleop~=1.4.0`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
+  plugin's wire format matches the ``isaacteleop`` package Isaac Lab installs), configure, build,
+  and install. To target a specific Python version, pass
   ``-DISAAC_TELEOP_PYTHON_VERSION=3.12`` (or ``3.11``, ``3.13``) on the configure line; each
   version needs its own build directory if building multiple at once:
 
@@ -383,10 +386,16 @@ Prerequisites
 
      git clone https://github.com/NVIDIA/IsaacTeleop.git
      cd IsaacTeleop
+     git checkout release/1.4.x
 
      cmake -B build                       # configure (default: Python 3.11)
      cmake --build build --parallel       # build
      cmake --install build                # install into ./install
+
+  .. note::
+
+     When Isaac Lab bumps its Isaac Teleop pin, check out the matching ``release/<version>.x``
+     branch instead.
 
   The plugin is installed to ``<IsaacTeleop>/install/plugins/so101_leader/so101_leader_plugin``.
   Every later command in this section runs from the Isaac Teleop checkout root; substitute your own
@@ -1285,16 +1294,19 @@ XR Camera Feedback
 An ordered list of :class:`~isaaclab_teleop.XrCameraFeedCfg` objects selects existing task scene
 cameras. The manager publishes each new RGBA frame after rendering, while
 :class:`~isaaclab_teleop.XrCameraFeedLayoutCfg` places the panels manually or in horizontal,
-vertical, and grid layouts. ``IsaacContrib-PickPlace-GR1T2-Abs`` and
-``IsaacContrib-PickPlace-Locomanipulation-G1-Abs`` are the primary reference examples.
+vertical, and grid layouts. The following registered tasks enable PiP by default:
+
+* ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
+* ``IsaacContrib-PickPlace-GR1T2-Abs``
+* ``IsaacContrib-NutPour-GR1T2-Pink-IK-Abs``
+* ``IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs``
 
 ``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an IsaacTeleop-enabled
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
-``CameraCfg`` through ``xr_camera_feeds``. In the reference examples, the selected
+``CameraCfg`` through ``xr_camera_feeds``. In the registered tasks above, the selected
 ``robot_pov_cam`` is also a policy image observation, so the normal demonstration recorder stores
-the same view shown to the operator. Both reference cameras are parented to a physical robot body
-link, so the recorded view follows robot motion. The NutPour and ExhaustPipe GR1T2 teleoperation
-tasks also present their existing recorded ``robot_pov_cam``:
+the same view shown to the operator. Each camera is parented to a physical robot body link, so the
+recorded view follows robot motion:
 
 .. figure:: ../_static/teleop/xr-camera-pip.jpg
    :width: 80%
@@ -1587,6 +1599,31 @@ uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:
              --visualizer kit \
              --xr
 
+The ``run``, ``record``, and ``replay`` workflows accept task configuration selectors using
+Hydra-style ``key=value`` syntax (with no leading ``--``). For example, record the Franka reach
+task with the PhysX and differential IK presets as follows:
+
+.. code-block:: bash
+
+   uv run --extra teleop isaaclab teleop record \
+       --task Isaac-Reach-Franka \
+       --visualizer kit \
+       --dataset_file ./datasets/dataset.hdf5 \
+       --num_demos 1 \
+       --teleop_device keyboard \
+       physics=isaacsim_physx presets=diffik
+
+When replaying a preset-configured dataset, pass the same selectors again. The HDF5 metadata stores
+the registered task ID, but not the command-line selector values:
+
+.. code-block:: bash
+
+   uv run --extra teleop isaaclab teleop replay \
+       --task Isaac-Reach-Franka \
+       --visualizer kit \
+       --dataset_file ./datasets/dataset.hdf5 \
+       physics=isaacsim_physx presets=diffik
+
 Some environments use the legacy ``teleop_devices`` configuration instead of ``isaac_teleop``
 (e.g. the Galbot RmpFlow relative-mode tasks). For these, pass ``--teleop_device`` to select
 the input device:
@@ -1615,7 +1652,8 @@ The workflow is:
 
 #. Configure your environment with ``IsaacTeleopCfg`` (see :ref:`isaac-teleop-env-config`)
    or ``teleop_devices`` for legacy devices (keyboard, spacemouse).
-#. Run ``record_demos.py`` with the task name.
+#. Run ``record_demos.py`` with the task name and any ``physics=``, ``renderer=``, or ``presets=``
+   selectors required by the task.
 #. For XR tasks: start AR, connect your XR device, and teleoperate.
    For legacy tasks: use the configured input device directly.
 #. Demonstrations are recorded to HDF5 files.

@@ -152,6 +152,30 @@ class _NewtonViewerUIMixin:
     # checkbox can be greyed out in the UI.
     _contacts_available: bool = True
 
+    CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
+    """Factor applied to :attr:`camera_speed` while the speed-boost modifier is held."""
+
+    def _is_camera_speed_boost_active(self) -> bool:
+        """Return whether the camera speed-boost modifier (Left/Right Shift) is held."""
+        import pyglet
+
+        return bool(self.is_key_down(pyglet.window.key.LSHIFT) or self.is_key_down(pyglet.window.key.RSHIFT))
+
+    @property
+    def camera_speed(self) -> float:
+        """Keyboard camera translation speed [m/s], doubled while Shift is held."""
+        base_speed = self._camera_speed
+        if self._is_camera_speed_boost_active():
+            return base_speed * self.CAMERA_SPEED_BOOST_MULTIPLIER
+        return base_speed
+
+    @camera_speed.setter
+    def camera_speed(self, value: float) -> None:
+        value = float(value)
+        if not math.isfinite(value) or value < 0.0:
+            raise ValueError("camera_speed must be finite and nonnegative")
+        self._camera_speed = value
+
     def _register_isaaclab_ui_callbacks(self) -> None:
         """Register model-dependent Isaac Lab viewer controls."""
         self.register_ui_callback(self._render_training_controls, position="side")
@@ -434,6 +458,7 @@ class _NewtonViewerUIMixin:
                 imgui.text("Controls:")
                 imgui.pop_style_color()
                 imgui.text("WASD - Move camera")
+                imgui.text("Shift + WASD - Move camera 2x speed")
                 imgui.text("QE - Pan up/down")
                 imgui.text("Left Click - Look around")
                 imgui.text("Right Click - Pick and drag objects")
@@ -869,6 +894,11 @@ class NewtonVisualizer(BaseVisualizer):
     Do not instantiate this class directly; use :class:`NewtonGLVisualizer` or
     :class:`NewtonRTXVisualizer`.
     """
+
+    @property
+    def visual_material_writer(self):
+        """Return the shared Newton model color-writer factory."""
+        return NewtonManager.create_visual_material_writer
 
     class _ViewerPickingBinding:
         """Stable Newton-manager callback for viewer picking.
@@ -1535,7 +1565,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
     feature set: streaming camera panel, particle color override, live scalar and array
     plots (via Newton's ImGui sidebar), and :meth:`render_rgb_array` support.
 
-    Use :class:`NewtonGLVisualizerCfg` (factory type ``"newton"``) to select this backend.
+    Use :class:`NewtonGLVisualizerCfg` (selector ``"newton_gl"``) to select this backend.
     """
 
     def __init__(self, cfg: NewtonGLVisualizerCfg):
@@ -2049,7 +2079,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
     The ImGui sidebar (training pause, rendering pause, update-frequency slider,
     physics backend label) is fully supported via ``register_ui_callback``.
 
-    Use :class:`NewtonRTXVisualizerCfg` (factory type ``"newton_rtx"``) to select this backend.
+    Use :class:`NewtonRTXVisualizerCfg` (selector ``"newton_rtx"``) to select this backend.
 
     ``render_rgb_array()`` reads back the path-traced LDR render product directly.
     The tiled camera panel remains disabled because ``ViewerRTX.log_image`` has no

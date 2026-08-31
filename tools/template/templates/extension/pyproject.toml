@@ -1,3 +1,27 @@
 [build-system]
-requires = ["setuptools<82.0.0", "wheel", "toml"]
+requires = ["setuptools>=70.0,<82.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "{{ name }}"
+version = "0.1.0"
+description = "Isaac Lab environments for {{ name }}."
+license = { text = "BSD-3-Clause" }
+authors = [{ name = "Isaac Lab Project Developers" }]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "isaaclab[isaacsim{% for rl_library in rl_libraries %},{{ rl_library.name | replace('_', '-') }}{% endfor %}]",
+]
+
+[project.entry-points."isaaclab.tasks"]
+"{{ name }}" = "{{ name }}.tasks"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["{{ name }}", "{{ name }}.*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.toml", "*.usd", "*.yaml", "*.yml"]

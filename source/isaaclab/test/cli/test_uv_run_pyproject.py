@@ -59,6 +59,7 @@ def test_uv_run_exposes_centralized_feature_extras():
         "ovrtx",
         "mimic",
         "teleop",
+        "importers",
         "rlinf",
         "tetrahedralization",
         "all",
@@ -82,27 +83,20 @@ def test_uv_run_exposes_centralized_feature_extras():
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovrtx"])
 
 
-def test_all_extra_aggregates_backends_rl_libraries_and_visualizers():
-    """``all`` is the single flag for every backend, RL library, and visualizer.
-
-    Nothing is forked in ``[tool.uv].conflicts``, so Isaac Sim and both OV backends fit in
-    one environment alongside every RL library and visualizer. The specialized workflows stay
-    opt-in by name -- they are large, narrowly used, or both.
-    """
+def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras():
+    """``all`` aggregates only the curated OV, RL, and visualizer extras."""
     optional = _root_pyproject()["project"]["optional-dependencies"]
 
-    # ``all`` is a single self-reference listing the extras it aggregates.
     assert len(optional["all"]) == 1
     aggregated = set(re.fullmatch(r"isaaclab-dev\[(.+)\]", optional["all"][0]).group(1).split(","))
-    assert aggregated == {"isaacsim", "ov", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun"}
+    assert aggregated == {"ov", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun"}
 
-    # ``ov`` pulls both OV backends, so naming it covers ``ovphysx`` and ``ovrtx`` too.
     reachable = aggregated | {"ovphysx", "ovrtx"}
 
-    # Everything else is requested by name. A newly added extra lands in this diff and
-    # has to be classified deliberately -- into ``all`` or into this list.
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
+        "isaacsim",
+        "importers",
         "mimic",
         "teleop",
         "tetrahedralization",
@@ -139,7 +133,7 @@ def test_version_single_source_matches_literal_pins():
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
-    assert versions["ovphysx"] == "0.5.10"
+    assert versions["ovphysx"] == "0.5.11"
     assert "omniverseclient==2.72.3" in dependencies
 
     # Isaac Sim extra mirrors the table, and the teleop extra repeats the same pin.
@@ -173,10 +167,12 @@ def test_version_single_source_matches_literal_pins():
     for package in ("torch", "torchvision", "torchaudio"):
         assert f"{package}=={versions[package]}" in overrides
 
-    # Newton is pinned to a git ref (branch/tag/commit) via a uv override; warp-lang is a
-    # core dependency whose table value may be an exact pin ("1.2.3" -> ``==``) or a range
-    # (">=1.2.3" -> mirrored verbatim).
-    assert any(dep.endswith(f"newton.git@{versions['newton']}") for dep in overrides)
+    # The Newton uv override is its single pin and may select a release or Git revision.
+    newton_spec = next(requirement for requirement in overrides if requirement.startswith("newton[sim]"))
+    assert "==" in newton_spec or " @ git+" in newton_spec
+
+    # warp-lang is a core dependency whose table value may be an exact pin
+    # ("1.2.3" -> ``==``) or a range (">=1.2.3" -> mirrored verbatim).
     warp_value = versions["warp"]
     warp_spec = f"warp-lang=={warp_value}" if warp_value[0].isdigit() else f"warp-lang{warp_value}"
     assert warp_spec in dependencies

@@ -312,6 +312,10 @@ class MockArticulation:
         self.num_joints = num_joints
         self.device = DEVICE
         self._joint_names = [f"joint_{i}" for i in range(num_joints)]
+        self.actuators = SimpleNamespace(
+            applied_effort=data.applied_torque,
+            computed_effort=data.computed_torque,
+        )
         self.permanent_wrench_composer = MockWrenchComposer()
         # Tracking attributes for action tests
         self.last_pos_target = None

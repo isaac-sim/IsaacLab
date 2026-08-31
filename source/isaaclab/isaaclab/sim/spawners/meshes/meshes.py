@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -15,8 +14,8 @@ import trimesh.transformations
 from pxr import Usd, UsdPhysics
 
 from isaaclab.sim import schemas
+from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
-from isaaclab.utils.version import has_kit
 
 from ..materials import (
     DeformableBodyMaterialBaseCfg,
@@ -28,9 +27,6 @@ from ..materials.physics_materials import spawn_physics_material
 
 if TYPE_CHECKING:
     from . import meshes_cfg
-
-# import logger
-logger = logging.getLogger(__name__)
 
 
 @clone
@@ -353,6 +349,26 @@ Helper functions.
 """
 
 
+def _apply_deformable_collision_props(prim_path: str, collision_props, stage: Usd.Stage) -> None:
+    """Apply collision fragments to the simulation mesh of a deformable body.
+
+    The collider is the simulation mesh authored under the body prim, so mapping keys anchor there
+    (e.g. ``{"/sim_mesh": [...]}``) while a bare fragment list sweeps the subtree to reach it.
+
+    Args:
+        prim_path: The prim path of the deformable body.
+        collision_props: A mapping from target pattern to collision fragments, or a fragment or
+            sequence of fragments.
+        stage: The stage where the prims live.
+    """
+    if isinstance(collision_props, dict):
+        for pattern, fragments in collision_props.items():
+            schemas.apply_collision_properties(props_expr(prim_path, pattern), fragments, stage=stage)
+        return
+    fragments = collision_props if isinstance(collision_props, (list, tuple)) else [collision_props]
+    schemas.apply_collision_properties(props_expr(prim_path, "/.*"), fragments, stage=stage)
+
+
 def _spawn_mesh_geom_from_mesh(
     prim_path: str,
     cfg: meshes_cfg.MeshCfg,
@@ -409,8 +425,12 @@ def _spawn_mesh_geom_from_mesh(
         raise ValueError("Cannot use both deformable and rigid properties at the same time.")
     if cfg.deformable_props is not None and cfg.collision_props is not None:
         # only fragments resolve onto the simulation mesh, legacy cfgs would target the inert body prim
-        frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
-        if not all(isinstance(frag, schemas.SchemaFragment) for frag in frags):
+        collision_props_mapping = fragment_mapping(cfg.collision_props)
+        if collision_props_mapping is not None:
+            frags = [frag for fragments in collision_props_mapping.values() for frag in fragments]
+        else:
+            frags = [cfg.collision_props]
+        if not frags or not all(isinstance(frag, schemas.SchemaFragment) for frag in frags):
             raise ValueError("Deformable bodies require 'collision_props' as collision fragments.")
     # check material types are correct
     if cfg.deformable_props is not None and cfg.physics_material is not None:
@@ -454,10 +474,8 @@ def _spawn_mesh_geom_from_mesh(
         schemas.define_deformable_body_properties(
             prim_path, cfg.deformable_props, stage=stage, deformable_type=deformable_type
         )
-        # the collider is the simulation mesh, resolved from the body prim
         if cfg.collision_props is not None:
-            frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
-            schemas.apply_collision_properties(prim_path, frags, stage=stage)
+            _apply_deformable_collision_props(prim_path, cfg.collision_props, stage)
         if cfg.mass_props is not None:
             raise ValueError(
                 """MassPropertiesCfg are not supported for deformable bodies
@@ -477,26 +495,28 @@ def _spawn_mesh_geom_from_mesh(
         mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(mesh_prim)
         mesh_collision_api.GetApproximationAttr().Set(collision_approximation)
         # apply collision properties
-        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
-        coll_frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
-        if coll_frags and all(isinstance(f, schemas.SchemaFragment) for f in coll_frags):
-            schemas.apply_collision_properties(mesh_prim_path, coll_frags, stage=stage)
+        # fragment path: a mapping from target pattern to fragment list, applied entry by entry in
+        # insertion order; patterns anchor at the geometry prim this spawner authors, so ``""``
+        # preserves the legacy placement. Otherwise a legacy cfg routes to the legacy writer.
+        collision_props_mapping = fragment_mapping(cfg.collision_props)
+        if collision_props_mapping is not None:
+            for pattern, fragments in collision_props_mapping.items():
+                schemas.apply_collision_properties(
+                    props_expr(mesh_prim_path, pattern), fragments, create_if_missing=True, stage=stage
+                )
         else:
             schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
 
     # apply visual material
     if cfg.visual_material is not None:
-        if not has_kit():
-            logger.warning("Skipping visual material application for '%s' in kitless mode.", mesh_prim_path)
+        if not cfg.visual_material_path.startswith("/"):
+            material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
         else:
-            if not cfg.visual_material_path.startswith("/"):
-                material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
-            else:
-                material_path = cfg.visual_material_path
-            # create material
-            cfg.visual_material.func(material_path, cfg.visual_material)
-            # apply material
-            bind_visual_material(mesh_prim_path, material_path, stage=stage)
+            material_path = cfg.visual_material_path
+        # create material
+        cfg.visual_material.func(material_path, cfg.visual_material)
+        # apply material
+        bind_visual_material(mesh_prim_path, material_path, stage=stage)
 
     # apply physics material
     if cfg.physics_material is not None:
@@ -510,18 +530,25 @@ def _spawn_mesh_geom_from_mesh(
         bind_physics_material(prim_path, material_path, stage=stage)
 
     # note: we apply the rigid properties to the parent prim in case of rigid objects.
+    # fragment path: mapping entries anchor at the container prim, so ``""`` preserves the legacy
+    # placement; entries apply in insertion order. Otherwise a legacy cfg routes to the legacy writer.
     if cfg.rigid_props is not None:
-        # apply mass properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
+        # apply mass properties
         if cfg.mass_props is not None:
-            # normalize a single fragment to a list so the convenience form routes like a list
-            mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, schemas.SchemaFragment) else cfg.mass_props
-            if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
-                schemas.apply_mass_properties(prim_path, mass_frags, stage=stage)
+            mass_props_mapping = fragment_mapping(cfg.mass_props)
+            if mass_props_mapping is not None:
+                for pattern, fragments in mass_props_mapping.items():
+                    schemas.apply_mass_properties(
+                        props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
+                    )
             else:
                 schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
-        # apply rigid properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
-        rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
-        if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):
-            schemas.apply_rigid_body_properties(prim_path, rigid_frags, stage=stage)
+        # apply rigid properties
+        rigid_props_mapping = fragment_mapping(cfg.rigid_props)
+        if rigid_props_mapping is not None:
+            for pattern, fragments in rigid_props_mapping.items():
+                schemas.apply_rigid_body_properties(
+                    props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
+                )
         else:
             schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)

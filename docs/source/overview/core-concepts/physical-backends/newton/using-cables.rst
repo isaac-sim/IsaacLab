@@ -337,6 +337,8 @@ Limitations
 * **Uniform point spacing assumed.** One stiffness pair is derived from the mean segment
   length, so uneven spacing mistunes the outlier segments.
 * **CPU-only render sync** (NVBug 6502662); periodic curves are not synced.
+* **Culled by Isaac RTX scene partitioning** once the cable deforms beyond its initial
+  extent (OMPE-105749). See :ref:`known-issues-animated-curve-scene-partition`.
 
 .. note::
     Topologies the runtime object rejects still simulate: the Newton model is

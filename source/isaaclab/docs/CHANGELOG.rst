@@ -1,6 +1,474 @@
 Changelog
 ---------
 
+20.0.1 (2026-08-31)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed duplicate ``mjcPhysics`` schema registration during Kit visualizer startup while preserving
+  schema discovery for both installed and source Isaac Sim runtimes.
+
+
+20.0.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``create_if_missing`` to the fragment schema writers and matching spawner
+  configuration flags (``mass_props_create_if_missing``,
+  ``articulation_props_create_if_missing``, ``joint_drive_props_create_if_missing``)
+  to apply a defining USD API to matched prims that do not carry it.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed the fragment schema writers (e.g.
+  :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`) to take a prim path
+  expression instead of traversing the subtree of the input prim. A bare prim path now
+  matches only that prim; pass ``f"{prim_path}(/.*)?"`` to recover the previous
+  subtree-wide behavior. Zero matched targets now log a warning and return ``False``
+  instead of raising ``ValueError`` on an invalid path.
+* **Breaking:** Changed the spawner configuration fragment fields
+  (e.g. :attr:`~isaaclab.sim.spawners.RigidObjectSpawnerCfg.rigid_props`,
+  :attr:`~isaaclab.sim.spawners.from_files.FileCfg.articulation_props`) to take a
+  mapping from target pattern to fragment list instead of a bare fragment or fragment
+  list. Keys are regular-expression suffixes appended to the spawn prim, so a key
+  carries its own leading ``/`` when it targets descendants: ``""`` is the spawn prim
+  itself, ``"/[^/]+"`` its direct children, ``"/.*"`` all descendants, and ``"(/.*)?"``
+  the spawn prim together with its descendants. Entries apply in insertion order, so on
+  overlapping targets later entries override earlier ones per attribute. Pass
+  ``{"(/.*)?": [...]}`` to recover the previous fragment-list behavior. A bare fragment or
+  list of fragments is accepted as shorthand: on the shape and mesh spawners it targets the
+  anchor prim, and on the file spawners it targets the spawn prim together with its
+  descendants, keeping the reach the legacy nested writers had.
+  Legacy single-cfg values are unaffected.
+* **Breaking:** Changed the fragment schema writers to no longer apply their defining
+  USD API implicitly on bare prims; pass ``create_if_missing=True`` instead. The file
+  spawners keep doing so on the user's behalf for the bare-fragment shorthand when the
+  spawn prim's subtree carries no prim with the family's defining API, so pointing
+  :class:`~isaaclab.sim.spawners.from_files.UsdFileCfg` at an art asset that ships without
+  physics schemas still turns it into a single body. For
+  articulation roots, anchoring on the spawn prim needs an entry targeting it in
+  :attr:`~isaaclab.sim.spawners.from_files.FileCfg.articulation_props` together with
+  ``articulation_props_create_if_missing=True`` on the spawner configuration.
+* **Breaking:** Changed :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`
+  to author on every matched articulation root, warning when they nest, instead of
+  silently pruning nested roots; asset validity is the author's responsibility.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``Renderer`` and ``Visualizer`` factory classes and
+  ``VisualizerCfg.create_visualizer``. Concrete renderer and visualizer configs now declare
+  ``class_type``; construct custom implementations as ``cfg.class_type(cfg)`` and acquire camera
+  renderers through ``SimulationContext.render_context.get_renderer(cfg)``. Replaced the removed
+  ``VisualizerCfg.get_visualizer_type()`` accessor with the ``visualizer_type`` field.
+
+Fixed
+^^^^^
+
+* Fixed backend applied schemas being stranded on the former root link when a backend relocates
+  an articulation root. Relocation resolved schemas through the USD schema registry, which cannot
+  describe a schema a backend ships as an unregistered token, so the schema and its attributes were
+  left behind. Backends now declare the pairing through
+  :func:`~isaaclab.sim.schemas.register_articulation_root_companion`.
+
+* Fixed :func:`~isaaclab.sim.schemas.apply_rigid_body_properties` and
+  :func:`~isaaclab.sim.schemas.apply_mass_properties` only reaching the outermost
+  schema-bearing prim on assets with nested rigid-body hierarchies (child links authored
+  under their parent link prims, as produced by the URDF importer in Isaac Sim 6.0 and
+  later). A whole-subtree target pattern (``{"/.*": [...]}``) reaches every carrier.
+
+
+19.1.0 (2026-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Enabled the installed ``isaaclab`` command to run training, playback, dummy-agent, benchmark, and multi-GPU
+  workflows without requiring an Isaac Lab source checkout, and added automatic discovery of downstream task packages.
+* Updated the project generator to create task IDs without the legacy ``-v0`` suffix.
+* Organized generated environments as task families with robot-specific configuration packages.
+
+Changed
+^^^^^^^
+
+* Changed the Newton dependency pin from the ``release-1.5`` Git branch to the published
+  ``newton[sim]==1.5.1`` PyPI release. Existing installations update automatically.
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab.sensors.Camera.set_world_poses` and
+  :meth:`~isaaclab.sensors.Camera.set_world_poses_from_view` leaving the camera data buffers
+  (:attr:`~isaaclab.sensors.CameraData.pos_w` and orientation fields) stale when
+  :attr:`~isaaclab.sensors.CameraCfg.update_latest_camera_pose` is disabled. Explicitly set poses
+  are now written through to the data buffers; the flag continues to govern pose refresh for
+  cameras moved by other means.
+
+
+19.0.2 (2026-08-28)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``uv run --extra isaacsim,mimic`` Mimic annotation failing because the
+  ``isaaclab-teleop`` package was missing from the ``mimic`` extra.
+
+
+19.0.1 (2026-08-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added multi-GPU troubleshooting guidance for CUDA device ordering and NCCL P2P topology.
+* Added kitless asset-root and CDN routing for the ``ISAACSIM_STORAGE_PROFILE=china`` profile.
+
+Fixed
+^^^^^
+
+* Fixed ``LIVESTREAM=2`` (private WebRTC) failing to start the stream server on
+  Windows 11 with ``NVST_R_INTERNAL_ERROR`` / ``NVST_R_INVALID_OPERATION``.
+  ``AppLauncher`` now passes the required ``signalPort``, ``streamPort``, and
+  ``streamType`` arguments when enabling ``omni.kit.livestream.app``, matching
+  the configuration in ``isaacsim.exp.full.streaming.kit``.
+* Fixed ``NVST_R_BUSY`` errors emitted after a WebRTC client connects when the
+  OS resizes the application window. ``allowDynamicResize=true`` is now set for
+  both ``LIVESTREAM=1`` and ``LIVESTREAM=2`` so the stream adapts to resolution
+  changes instead of failing.
+
+
+19.0.0 (2026-08-25)
+~~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed late task-preset resolution from environment construction and the
+  :func:`isaaclab.utils.resolve_cfg_presets` helper. Compose registered tasks with
+  :func:`isaaclab_tasks.utils.resolve_task_config` or :func:`isaaclab_tasks.utils.parse_env_cfg`
+  before constructing an environment.
+* **Breaking:** Replaced ``run_config_from_presets`` with ``run_config_from_env_cfg`` in benchmark
+  capture. Pass the concrete composed environment configuration instead of inferring backends from
+  selector strings.
+
+
+18.0.1 (2026-08-24)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed backend factory resolution raising before simulator initialization by using the team-confirmed ``newton``
+  fallback when no ``SimulationContext`` exists.
+* Fixed scene gravity randomization to honor configured distributions with PhysX and OvPhysX.
+
+
+18.0.0 (2026-08-23)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.cloner.ClonePlan.global_paths` to identify scene assets shared by every environment
+  without representing them as replication rows.
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab.cloner.make_clone_plan`, :func:`~isaaclab.cloner.clone_plan_from_env_0`, and
+  :class:`~isaaclab.cloner.ReplicateSession` to accept explicit ``global_paths`` tuples.
+
+Fixed
+^^^^^
+
+* Fixed camera depth display normalization producing ``NaN`` values and suppressing finite depth contrast when
+  no-hit pixels contain ``inf`` or ``NaN`` values.
+
+
+17.0.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added scene-declared :class:`~isaaclab.assets.VisualMaterial` assets with shared or
+  per-environment cloning, numeric GPU channel randomization, and part-level material bindings.
+* Added kitless USD authoring for Preview Surface, OmniPBR, and OmniGlass materials.
+* Added the ``--isaacsim_source`` CLI option, which incrementally builds Isaac Sim from a source checkout,
+  links its live release tree into the repository as ``_isaac_sim``, and runs Python commands with
+  the active environment through Isaac Sim's generated launcher. This avoided rebuilding and
+  installing Python wheels after every incremental native build and left ``pyproject.toml`` and
+  ``uv.lock`` unchanged.
+* Added static Isaac Lab 3 and NVIDIA greetings to the loading screen, selected at random for each run.
+
+Changed
+^^^^^^^
+
+* Changed the loading screen's wide layout to start at 130 columns rather than 120, giving the
+  Isaac Lab 3 wordmark room to fit. Terminals between 120 and 129 columns now use the 80-column layout.
+* **Breaking:** Changed the ``isaaclab[all]`` extra to exclude Isaac Sim. Install
+  ``isaaclab[isaacsim]`` with the documented resolver overrides when Isaac Sim is required.
+* **Breaking:** Moved the standalone URDF/MJCF importers from the base wheel to the
+  ``isaaclab[importers]`` extra. Use the documented override command when installing it.
+
+Fixed
+^^^^^
+
+* Fixed Newton actuator imports with the minimum Newton versions supported by the wheel.
+* Fixed :func:`isaaclab.envs.mdp.image` so colorized semantic-segmentation observations are
+  converted to normalized ``float32`` tensors when ``normalize=True``.
+
+
+16.4.1 (2026-08-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added video recording to the RSL-RL, RL-Games, SKRL, and SB3 play benchmark adapters and populated
+  :attr:`~isaaclab.benchmark.schema.PlayBundle.video_path` with the recording directory.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Camera configurations now raise an error when the active renderer cannot produce a requested
+  data type, rather than silently omitting it. Remove unsupported types from ``CameraCfg.data_types`` or select
+  a renderer that supports them.
+
+Fixed
+^^^^^
+
+* Fixed the deprecated :class:`~isaaclab_physx.sim.schemas.ArticulationRootPropertiesCfg` /
+  :class:`~isaaclab_physx.sim.schemas.PhysxArticulationRootPropertiesCfg` ``enabled_self_collisions``
+  field silently no-oping under Newton. The legacy writer only authored
+  ``physxArticulation:enabledSelfCollisions`` (via ``PhysxArticulationAPI``); Newton's schema
+  resolver checks the native ``newton:selfCollisionEnabled`` attribute first and only falls back to
+  the PhysX one when it is unauthored, so the value never reached Newton simulations.
+  :meth:`~isaaclab.sim.schemas.modify_articulation_root_properties` now also mirrors
+  ``enabled_self_collisions`` onto ``newton:selfCollisionEnabled`` (applying
+  ``NewtonArticulationRootAPI``), so the deprecated cfg controls self-collisions on both backends.
+  The mirror is authored after root-link relocation so ``fix_root_link=True`` leaves a single
+  articulation root.
+* Fixed ``./isaaclab.sh -i`` and the CI Docker install failing with ``No matching distribution
+  found for isaaclab_physx`` because ``CORE_ISAACLAB_SUBMODULES`` installed ``isaaclab_assets``
+  before ``isaaclab_newton``/``isaaclab_physx``, which it now depends on. Reordered the submodule
+  list so the backend packages install first.
+* Stopped :class:`~isaaclab.sensors.SensorBase` and :class:`~isaaclab.sensors.camera.Camera`
+  destructors from running cleanup after interpreter shutdown. Previously, an abort that left a
+  camera alive could raise ``ImportError: sys.meta_path is None`` from a lazy ``isaaclab.sim``
+  import in ``__del__``, which then masked the original exception in logs.
+* Fixed play benchmarks running environment actions outside inference mode.
+* Fixed play benchmark metadata to report the resolved physics backend; ``isaacsim_physx`` play runs now report ``physx`` in ``run.config.physics_backend``.
+* Fixed scene gravity randomization dispatch for the kitless OvPhysX backend.
+* Fixed OVPhysX material randomization to use CPU-native shape material bindings.
+* Made preview-surface and MDL visual materials author and bind standard OpenUSD shader networks without requiring Kit.
+* Fixed ``dump_yaml`` failing when the output filename has no directory component, allowing YAML files to be
+  written directly into the current working directory.
+* Fixed the ``add_new_robot.py`` tutorial mutating the Dofbot's stored default joint positions through a
+  zero-copy Torch view while constructing its wave command.
+* Fixed ``convert_dict_to_backend(..., backend="warp")`` rejecting NumPy arrays because the
+  conversion registry used the ``np.array`` constructor instead of the ``np.ndarray`` type.
+* Fixed ``convert_dict_to_backend`` resetting nested dictionaries to the default NumPy backend instead
+  of preserving the backend and source array types requested by the caller.
+
+
+16.4.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an ``environment_ids`` argument to
+  :meth:`~isaaclab.markers.VisualizationMarkers.visualize` for assigning marker
+  instances to renderer scene partitions.
+* Added :class:`~isaaclab.actuators.ActuatorCollection` as the runtime
+  actuator API, with separate target-command, output-command, and telemetry
+  views (:attr:`~isaaclab.actuators.ActuatorCollection.target_command` and
+  :attr:`~isaaclab.actuators.ActuatorCollection.output_command`).
+* Added execution aggregation for disjoint implicit actuator groups while
+  preserving named group configuration and access. Explicit actuator groups
+  execute one group at a time.
+* Added ``actuator_effort_limit`` as the explicit actuator-model clipping
+  limit, alongside the canonical ``joint_effort_limit`` and
+  ``joint_velocity_limit`` joint-property overrides.
+* Added ``isaaclab.actuators.newton`` hosting the Newton actuator adapter,
+  host runtime, and kernels shared by every backend's native execution path.
+* Added :func:`~isaaclab.actuators.resolve_joint_parameter` as the public
+  joint-parameter resolution function shared by actuator models and the
+  collection.
+* Added :func:`~isaaclab.actuators.newton.read_group_parameter`
+  and :func:`~isaaclab.actuators.newton.write_group_parameter`
+  as the single group-addressed access to Newton actuator parameters (for
+  example ``("controller", "kp")`` or ``("clamping", "max_effort")``),
+  implemented on Newton's selection API on every backend.
+
+Changed
+^^^^^^^
+
+* Moved renderer backend creation into :meth:`~isaaclab.sensors.camera.Camera.__init__`, which runs
+  during scene construction. A backend's ``__init__`` is its pre-physics phase and must complete
+  before :meth:`~isaaclab.sim.SimulationContext.reset`, whereas sensor initialization only runs on
+  ``PhysicsEvent.PHYSICS_READY``. Backend construction order still follows sensor registration
+  order, and configs that compare equal still share one backend.
+* Changed per-environment Isaac RTX scene partitioning to be enabled by default
+  through ``IsaacRtxRendererCfg.enable_scene_partitioning``. The legacy
+  ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` environment variable
+  still supplies the construction default and now accepts only ``0`` or ``1``.
+  Set ``IsaacRtxRendererCfg(enable_scene_partitioning=False)`` to preserve the
+  previous unpartitioned behavior. OVRTX remains always-on.
+* Changed :class:`~isaaclab.app.AppLauncher` to initialize the all-environment
+  spectator view when the Kit viewport is enabled or Kit visualization, recording,
+  livestreaming, or XR is requested. Regular headless training and camera-sensor
+  runs retain partition isolation.
+* Changed :meth:`~isaaclab.markers.VisualizationMarkers.visualize` to reject
+  per-marker input arrays with differing first dimensions. Pass one entry per
+  marker in every supplied array.
+* Changed :class:`~isaaclab.actuators.ActuatorCollection` so named groups retain
+  their configuration and access identity while disjoint implicit groups can
+  share execution.
+* Changed :attr:`~isaaclab.actuators.ImplicitActuatorCfg.velocity_limit` to
+  populate the actuator soft velocity-limit view. Use ``joint_velocity_limit``
+  to configure the solver velocity clamp.
+* Changed actuator joint-property overrides to write articulation-owned runtime
+  state. Read live limits, armature, and friction through
+  :class:`~isaaclab.assets.ArticulationData`; ordinary actuator groups retain
+  only actuator-model state.
+* **Breaking:** Changed actuator collection membership to be fixed at
+  construction. Configure groups through
+  :attr:`~isaaclab.assets.ArticulationCfg.actuators` before constructing the
+  articulation; runtime assignment to or deletion from
+  :attr:`~isaaclab.assets.Articulation.actuators` raises :class:`TypeError`.
+* **Breaking:** Rejected actuator configurations that assign a joint to more
+  than one group. Use disjoint joint-name expressions so each joint belongs to
+  at most one actuator group.
+* **Breaking:** Changed explicit actuator groups to keep the authored solver
+  effort limit instead of widening it to ``1.0e9``. Effort submitted by an
+  explicit model is now also clipped by the solver's ``joint_effort_limit``;
+  configure it at least as large as ``actuator_effort_limit`` when the model
+  should be the only clip.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated articulation-level actuator command setters and command and
+  torque-telemetry properties on articulation data. Use the ``target_command``
+  view and ``computed_effort`` or ``applied_effort`` views on
+  :attr:`~isaaclab.assets.Articulation.actuators` instead.
+* Deprecated Isaac Lab execution of explicit actuator models. Enable
+  :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to execute these
+  models through the native actuator path.
+* Deprecated the actuator configuration aliases ``effort_limit``,
+  ``effort_limit_sim``, and ``velocity_limit_sim``, and the runtime group
+  property ``effort_limit``. Use
+  ``actuator_effort_limit`` for the rated actuator-model limit and
+  ``joint_effort_limit`` or ``joint_velocity_limit`` for solver limits.
+  Implicit groups may configure both to keep distinct rated and solver
+  effort limits. The aliases remain available through Isaac Lab 3.x and
+  will be removed in 4.0.
+* Deprecated ``write_actuator_stiffness_to_sim`` and
+  ``write_actuator_damping_to_sim``. These backend-specific writers remain
+  available through 3.x; use
+  :func:`~isaaclab.envs.mdp.events.randomize_actuator_gains` for managed
+  randomization or
+  :func:`~isaaclab.actuators.newton.write_group_parameter`
+  for direct controller writes.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``InteractiveScene.initialize_renderers``. It only pre-created the backends
+  that each camera now creates for itself, and its return value was unused. Delete the call; no
+  replacement is needed.
+* **Breaking:** Removed group-level ``effort_limit_sim``, ``velocity_limit_sim``,
+  ``armature``, ``friction``, ``dynamic_friction``, and ``viscous_friction``
+  accessors. Read the corresponding :class:`~isaaclab.assets.ArticulationData`
+  joint property and use the articulation's ``write_joint_*_to_sim_index``
+  writer instead.
+* **Breaking:** Removed the protected helper ``ActuatorBase._parse_joint_parameter``.
+  Custom actuator subclasses should call
+  :func:`~isaaclab.actuators.resolve_joint_parameter` with the group's joint
+  names, environment count, and device instead.
+* **Breaking:** Removed ``ArticulationData.gear_ratio`` and its backing buffers.
+  The property was legacy :class:`~isaaclab.actuators.DCMotor` telemetry that
+  was no longer updated by any execution path and always read one. Gear ratios
+  are an actuator configuration input; read them from your actuator
+  configuration instead.
+
+Fixed
+^^^^^
+
+* Fixed built-in pose and velocity command-marker instances appearing across
+  environment scene partitions.
+* Fixed runtime, play, and startup benchmarks to step environments under
+  PyTorch inference mode.
+* Fixed Newton neural actuators failing to load actuator-network checkpoints
+  from remote paths.
+* ``isaaclab benchmark training`` and ``isaaclab benchmark play`` for skrl now
+  automatically resolve the correct agent entry point when a preset is active,
+  matching the behaviour of ``isaaclab train``. The ``_parse_args`` functions in
+  :mod:`~isaaclab.benchmark.entrypoints.backends.skrl` now pass
+  ``agent_library="skrl"`` to :func:`~isaaclab_tasks.utils.setup_preset_cli`.
+* Fixed RL-Games and SKRL training benchmark bundles to report the saved checkpoint path.
+* Fixed concurrent remote USD cache initialization during distributed startup.
+* Fixed :class:`~isaaclab.markers.VisualizationMarkers` creating an unpumped Kit/USD marker
+  backend for non-Kit-pumping visualizers (e.g. ``newton_gl``). The Kit backend's raw USD marker
+  writes were never digested by Fabric without a Kit ``app.update()`` pump, desyncing the
+  point-instancer prototype table (``FabricManager::initializePointInstancer mismatched
+  prototypes``) and crashing the next PhysX GPU articulation step with ``CUDA error: unspecified
+  launch failure``. Backend selection now checks for an active GUI, RTX sensor rendering, XR, or
+  offscreen capture directly instead of the broader :attr:`~isaaclab.sim.SimulationContext.is_rendering`,
+  which is also true for visualizers that never pump Kit.
+* Fixed ``HEADLESS=1`` combined with ``--visualizer kit`` aborting with
+  ``AttributeError: module 'usdrt' has no attribute 'hierarchy'`` when the Newton backend set up its
+  USD/Fabric sync. The headless experience now declares ``omni.hydra.usdrt_delegate``, which every
+  other experience receives implicitly from the RTX renderer.
+* Raised an error when ``--export_method`` is used to export a direct RL environment with LEAPP.
+* Fixed the Newton Shadow Hand demo failing at startup after inheriting the reorientation task's
+  prototype spawn path.
+
+
+16.3.0 (2026-08-19)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Replaced the ``SceneDataRequirement`` dataclass and its resolution helpers with two
+  public boolean attributes on :class:`~isaaclab.sim.SimulationContext`,
+  ``requires_usd_stage`` and ``requires_newton_model``, and with the
+  ``REQUIRES_STAGE_AND_MODEL`` mapping exported from
+  :mod:`isaaclab.scene_data`. Read a requirement with ``sim.requires_newton_model`` instead of
+  ``sim.get_scene_data_requirements().requires_newton_model``, and publish one by OR-ing the flags
+  directly, for example::
+
+      requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL["newton_warp"]
+      sim.requires_usd_stage |= requires_stage
+      sim.requires_newton_model |= requires_model
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``isaaclab.physics.scene_data_requirements`` module, including
+  ``SceneDataRequirement``, ``resolve_scene_data_requirements``, ``aggregate_requirements``, and the
+  per-type requirement lookups, along with ``SimulationContext.get_scene_data_requirements`` and
+  ``SimulationContext.update_scene_data_requirements``. Use the attributes and mapping described
+  above instead.
+
+Fixed
+^^^^^
+
+* Fixed the USD camera tutorial after camera launcher flags were removed and prim paths adopted full regular-expression matching.
+* Retried transient package download failures at both the HTTP request and install-command levels during
+  ``isaaclab install``.
+
+
 16.2.3 (2026-08-18)
 ~~~~~~~~~~~~~~~~~~~
 

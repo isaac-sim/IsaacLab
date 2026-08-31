@@ -19,8 +19,9 @@ and registered in the repo-root ``pyproject.toml``. Select them with the standar
 e.g. ``pytest -m unit source/isaaclab/test`` or ``pytest -m "not unit" source/isaaclab/test``.
 
 Also loads ``tools/ovrtx_log.py``, which replays the OVRTX renderer log per test, so every suite that
-builds a renderer reports what it logged the same way, and ``isaaclab.test.kit``, which boots one
-Kit app per process for the test files whose ``pytestmark`` declares they need one.
+builds a renderer reports what it logged the same way; ``tools/hang_dump.py``, which lets the CI
+runner ask this process for a stack dump before it kills it for hanging; and ``isaaclab.test.kit``,
+which boots one Kit app per process for the test files whose ``pytestmark`` declares they need one.
 """
 
 from __future__ import annotations
@@ -28,7 +29,15 @@ from __future__ import annotations
 import json
 import os
 
-pytest_plugins = ["tools.ovrtx_log", "isaaclab.test.kit"]
+try:
+    import warp as wp
+except ModuleNotFoundError as exc:
+    if exc.name != "warp":
+        raise
+else:
+    wp.config.enable_backward = False
+
+pytest_plugins = ["tools.ovrtx_log", "tools.hang_dump", "isaaclab.test.kit"]
 
 JOURNAL_ENV_VAR = "ISAACLAB_TEST_JOURNAL"
 """Environment variable naming the crash-journal file. Unset (the default) disables journaling."""

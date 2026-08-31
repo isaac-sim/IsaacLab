@@ -236,6 +236,18 @@ def test_get_first_matching_child_prim():
     assert isaaclab_result.GetPrimPath() == "/World/env_1/Franka/panda_link0/visuals/panda_link0"
 
 
+def test_find_matching_prims_traverses_instance_proxies():
+    """Matching descends into instanceable prims so callers can detect (and skip) proxy carriers."""
+    stage = sim_utils.get_current_stage()
+    stage.DefinePrim("/World/Source", "Xform")
+    stage.DefinePrim("/World/Source/body", "Xform")
+    instance = stage.DefinePrim("/World/Asset", "Xform")
+    instance.GetReferences().AddInternalReference("/World/Source")
+    instance.SetInstanceable(True)
+    matched_paths = sim_utils.find_matching_prim_paths("/World/Asset(/.*)?")
+    assert "/World/Asset/body" in matched_paths
+
+
 def test_find_global_fixed_joint_prim():
     """Test find_global_fixed_joint_prim() function."""
     # create scene

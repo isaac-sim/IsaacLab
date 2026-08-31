@@ -1,6 +1,49 @@
 Changelog
 ---------
 
+1.9.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to every concrete visualizer config through its ``class_type`` field.
+
+
+1.8.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added renderer-owned visual-material writers to the Kit and Newton visualizers.
+
+
+1.7.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a camera speed-boost mode to the Newton GL and RTX visualizers: holding
+  Shift while flying the free camera with WASD doubles the camera translation
+  speed, matching the Kit visualizer's speed-up behavior.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_visualizers.kit.KitVisualizer` to leave its viewport
+  camera unpartitioned when AppLauncher enables the all-environment spectator
+  view. Otherwise, the viewport camera is assigned to the first visible
+  environment.
+
+Fixed
+^^^^^
+
+* Fixed global Kit/USD visualization-marker instances appearing across tiled
+  environments when per-instance environment IDs are provided.
+
+
 1.6.0 (2026-08-14)
 ~~~~~~~~~~~~~~~~~~
 

@@ -97,6 +97,7 @@ def reset_contact_sensor_kernel(
     net_forces_w: wp.array2d(dtype=wp.vec3f),
     net_forces_w_history: wp.array3d(dtype=wp.vec3f),
     force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
     # outputs
     current_air_time: wp.array2d(dtype=wp.float32),
     last_air_time: wp.array2d(dtype=wp.float32),
@@ -116,6 +117,8 @@ def reset_contact_sensor_kernel(
         net_forces_w: Net forces array. Shape is (num_envs, num_sensors).
         net_forces_w_history: Net forces history array. Shape is (num_envs, history_length, num_sensors).
         force_matrix_w: Force matrix array. Shape is (num_envs, num_sensors, num_filter_objects).
+        force_matrix_w_history: Force matrix history array. Shape is
+            (num_envs, history_length, num_sensors, num_filter_objects).
         current_air_time: Current air time array. Shape is (num_envs, num_sensors).
         last_air_time: Last air time array. Shape is (num_envs, num_sensors).
         current_contact_time: Current contact time array. Shape is (num_envs, num_sensors).
@@ -141,6 +144,11 @@ def reset_contact_sensor_kernel(
     if force_matrix_w:
         for f in range(num_filter_objects):
             force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
+
+    if force_matrix_w_history:
+        for i in range(history_length):
+            for f in range(num_filter_objects):
+                force_matrix_w_history[env, i, sensor, f] = wp.vec3f(0.0)
 
     # Reset air/contact time tracking
     if current_air_time:

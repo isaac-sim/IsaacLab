@@ -1,6 +1,208 @@
 Changelog
 ---------
 
+2.4.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to ``OVRTXRendererCfg`` through its ``class_type`` field.
+
+
+2.3.1 (2026-08-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added compatibility with the OVRTX 0.5 ``frame.render_vars`` API, which keys render vars by the
+  authored RenderVar prim path (for example ``/Render/Vars/LdrColor``) instead of the source name.
+  The key form is resolved from the installed ``ovrtx`` version when
+  :mod:`isaaclab_ov.renderers.ovrtx_compat` is imported; OVRTX 0.4 keeps source-name keys and the
+  public extras stay pinned to ``ovrtx==0.4.1.364340``.
+
+Changed
+^^^^^^^
+
+* Updated the optional ovphysx runtime to 0.5.11. OVStage attachment now honors
+  explicit CUDA device selection. OVStage-backed articulation link and DOF
+  indices now use stable path-derived ordering, which may differ from 0.5.10;
+  use reported paths or names when identity matters.
+
+
+2.3.0 (2026-08-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.physics.OvPhysxCfg.cooked_collider_cache_dir` to select where OVPhysX
+  writes its cooked-collider cache. It defaults to a per-user directory under the system temporary
+  directory, so cooked colliders are reusable across runs from that directory. Set it to ``None`` to
+  use the runtime default.
+
+Fixed
+^^^^^
+
+* Fixed OvPhysX writing its cooked-collider cache into the directory holding the Python interpreter,
+  which logged ``omni.datastore`` errors when that directory was not writable.
+
+
+2.2.3 (2026-08-27)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the ``isaaclab_ov.renderers.ovrtx_mapping`` module
+  (:func:`map_attribute_for_warp_writes` and ``cuda_device_id``). Nothing calls it since GPU
+  transform updates moved to caller-owned buffers with
+  ``binding.write(data_access=DataAccess.ASYNC, cuda_stream=...)``, and mapping OVRTX attribute
+  memory for per-frame GPU writes is an anti-pattern: every map/unmap cycle is a hidden
+  ``cudaMalloc``/``cudaFree``, and the API is deprecated in ovrtx and refused in BORROW attach
+  mode. Migration: write into a persistent caller-owned Warp buffer and hand it to
+  ``binding.write(..., cuda_stream=<producing Warp stream>)``; if mapping is unavoidable, pass the
+  producing stream explicitly via ``unmap(stream=...)`` — the mapping's context manager commits
+  without any CUDA sync.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX renderer re-deriving its CUDA device per call site from the device string, which
+  split a bare ``"cuda"`` across GPUs on multi-GPU processes: render-product device ids parsed it
+  to device 0 while Warp resolved kernel launches and sync streams on its current CUDA device. The
+  renderer now resolves the Warp device once when the render spec arrives, normalizes its device
+  string from it, and derives the render-product device ids and every CUDA sync stream — attribute
+  writes on both the legacy and ovstage paths, and render-var reads — from the cached device.
+
+
+2.2.2 (2026-08-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed an illegal memory access (CUDA error 700) when rendering with OVRTX on a device other than
+  ``cuda:0``. The OVRTX render product is now pinned to the renderer's CUDA device through its
+  ``deviceIds`` attribute, so its render var buffers are allocated on the same device as the Warp
+  kernels that extract camera tiles from them. Previously OVRTX chose the device itself, which on a
+  multi-GPU machine placed the buffers on ``cuda:0`` while the extraction kernels ran on the
+  simulation device.
+
+
+2.2.1 (2026-08-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX object and camera transform updates to write a caller-owned GPU buffer instead of mapping and unmapping OVRTX memory every frame.
+
+
+2.2.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added batched GPU material-channel writes for both OVRTX detached-scene APIs.
+
+Changed
+^^^^^^^
+
+* Changed the OVRTX ovstage path to write object transforms, camera transforms and deformable or
+  particle points straight from their Warp GPU buffers as CUDA DLTensors, removing the per-frame
+  host copies that ``ovstage 0.1.0`` required.
+* Changed those writes to be ordered by handing ovstage the producing Warp stream
+  (``write_attribute(cuda_stream=...)``), replacing the device-wide ``wp.synchronize_device`` with
+  stream-scoped producer ordering, and matching the legacy OVRTX binding path. The write is still
+  awaited, so the calling thread can block; the gain is the removed host copy and the narrower
+  synchronization scope, not a nonblocking handoff.
+* **Breaking:** Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to raise :class:`ValueError` when a camera
+  requests ``rgb`` or ``rgba`` together with a ``simple_shading_*`` data type, or more than one
+  distinct ``simple_shading_*`` data type. These outputs all read the ``LdrColor`` render var and
+  simple shading additionally requires the render product to be in RTX Minimal mode, so one render
+  product cannot serve them. Previously the conflict was resolved silently and produced wrongly
+  shaded or empty images. Request the conflicting outputs from separate cameras. Repeated identical
+  simple-shading requests still collapse to one render var.
+
+Fixed
+^^^^^
+
+* Cleared ``ContactSensorData.force_matrix_w_history`` when resetting an
+  OVPhysX contact sensor.
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` authoring only one pixel render var when a
+  camera requested several data types, which left every other requested output empty. The render
+  product now authors one render var per requested data type, so combinations such as ``rgb`` with
+  ``normals``, ``albedo``, ``motion_vectors``, segmentation, and depth are rendered together.
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` filling ``depth``,
+  ``distance_to_image_plane``, and ``distance_to_camera`` from a single depth render var, which
+  returned euclidean distance for the image-plane outputs (or the reverse) when they were requested
+  together. Each output is now extracted from the source that measures it.
+
+
+2.1.1 (2026-08-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added live scene gravity updates through sealed OvStage control ordinals.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX shape material bindings to allocate CPU buffers during GPU simulation.
+
+
+2.1.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OVPhysX execution of supported native explicit actuators through the
+  shared host adapter when
+  :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` is enabled.
+* Added OVRTX cable curve point updates driven by Newton segment shapes.
+* Added :func:`~isaaclab_ov.renderers.map_attribute_for_warp_writes`, a context manager that maps
+  an OVRTX attribute binding for CUDA writes and unmaps it with the producing Warp stream as the
+  CUDA sync. Use it instead of ``with binding.map(...)`` for GPU writes: the binding's own context
+  manager unmaps without a CUDA sync, so OVRTX's commit is not ordered against the fill.
+
+Changed
+^^^^^^^
+
+* Routed OVPhysX articulation actuator setup, compute, reset, and command
+  submission through :class:`~isaaclab.actuators.ActuatorCollection`.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` dropping authored USD scale when syncing
+  Newton body transforms into OVRTX, which rendered scaled assets (for example Shadow Hand) at
+  unit scale.
+* Fixed the OVRTX renderer's GPU transform writes (object and camera ``omni:xform`` mappings)
+  committing without CUDA synchronization against the Warp kernels that fill the mapped buffers.
+  The commit is now ordered on the producing Warp stream, as the OVRTX API contract requires;
+  previously the ordering held only through CUDA legacy default-stream serialization, an
+  implementation detail the contract does not promise.
+
+
+2.0.5 (2026-08-19)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the optional OVRTX runtime dependency to the public ``ovrtx==0.4.1.364340`` package and
+  enabled synchronous texture streaming for deterministic material readiness. Reinstall the OVRTX
+  extra with ``uv sync --extra ovrtx`` to use the supported runtime.
+* Updated OvPhysX to ``0.5.10`` and OVStage to ``0.1.1.355824``, which must be installed together.
+  Reinstall the Omniverse extras with ``uv sync --extra ov`` to use the supported runtime pair.
+
+
 2.0.4 (2026-08-18)
 ~~~~~~~~~~~~~~~~~~
 
