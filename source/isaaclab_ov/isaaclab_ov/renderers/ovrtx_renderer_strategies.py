@@ -249,7 +249,7 @@ class _AsyncRenderStrategy(_RenderStrategy):
     completes. A buffer is safe to recycle once its write has drained.
     """
 
-    # See :meth:`_ensure_slots` for why two is always enough.
+    # See :meth:`_create_slots` for why two is always enough.
     _NUM_SLOTS = 2
 
     # One frame of camera latency; the ring holds one more render because a frame is drained only
@@ -285,12 +285,13 @@ class _AsyncRenderStrategy(_RenderStrategy):
     def _enqueue_render_op(
         self, op: _AsyncRenderOp, render_data: OVRTXRenderData | None, consume_products: _RenderProductConsumer
     ) -> _AsyncRenderEntry:
-        """Queue a render op, close the frame's staging slot, and drain the oldest render when the ring is full."""
+        """Queue a render op, drain the oldest render when the ring is full, and advance the staging slot."""
         entry = _AsyncRenderEntry(op, render_data, consume_products)
         self._ring.append(entry)
-        self._current_slot = None
         if len(self._ring) >= self._render_queue_depth:
             self._try_drain_one()
+        if self._slots:
+            self._advance_slot()
         return entry
 
     def initialize(self, num_envs: int) -> None:
@@ -314,13 +315,12 @@ class _AsyncRenderStrategy(_RenderStrategy):
         self._primed = False
         self._ring.clear()
 
-    def _ensure_slots(self) -> None:
-        if self._slots:
-            return
-
-        # Two slots suffice at any render depth: with one write per frame, a slot's only outstanding
-        # work on reuse is its write from two frames ago, which :meth:`_begin_slot` waits on. OVRTX
-        # copies the buffer into its own storage before that write op completes.
+    def _create_slots(self) -> None:
+        # Two slots suffice at any render depth: the frame being assembled stages into one slot
+        # while the other still backs the frame in flight. :meth:`_advance_slot` waits out the
+        # incoming slot's writes, which were submitted before the render that has just drained and
+        # are therefore already complete. OVRTX copies the buffer into its own storage before that
+        # write op completes.
         assert self._warp_device is not None
         for _ in range(self._NUM_SLOTS):
             self._slots.append(
@@ -332,18 +332,30 @@ class _AsyncRenderStrategy(_RenderStrategy):
                 )
             )
 
-    def _begin_slot(self) -> _AsyncRenderSlot:
-        """Rotate to the next staging slot for a new frame's transform writes."""
-        self._ensure_slots()
-        slot = self._slots[self._slot_index]
+    def _staging_slot(self) -> _AsyncRenderSlot:
+        """The slot receiving this frame's staged transforms, whatever order the stagers run in.
+
+        The slot pool is built on first use (device and camera count are known by then). After
+        that, the only lifecycle event is :meth:`_advance_slot` when the frame's render is
+        enqueued; staging calls never rotate slots themselves.
+        """
+        if not self._slots:
+            self._create_slots()
+            self._current_slot = self._slots[self._slot_index]
+        assert self._current_slot is not None
+        return self._current_slot
+
+    def _advance_slot(self) -> None:
+        """Rotate to the next staging slot, called once per frame when its render is enqueued.
+
+        The incoming slot's outstanding writes belong to the frame whose render was drained just
+        before this call, so the wait completes immediately in steady state; it can only block on
+        a write op that outlived its own render.
+        """
         self._slot_index = (self._slot_index + 1) % len(self._slots)
+        slot = self._slots[self._slot_index]
         slot.wait_for_writes()
         self._current_slot = slot
-        return slot
-
-    def _current_or_begin_slot(self) -> _AsyncRenderSlot:
-        """Return the slot for the current frame, starting one if none is active yet."""
-        return self._current_slot or self._begin_slot()
 
     def _write_binding_async(self, slot: _AsyncRenderSlot, binding: Any, data: wp.array) -> None:
         """Record an async binding write on ``slot``, using the device's Warp stream for OVRTX ordering."""
@@ -351,13 +363,13 @@ class _AsyncRenderStrategy(_RenderStrategy):
 
     @contextmanager
     def stage_object_transforms(self, binding: Any, num_rows: int, buffer: wp.array) -> Iterator[wp.array]:
-        """Stage object transforms into a fresh frame slot; publish them on exit.
+        """Stage object transforms into the frame's slot; publish them on exit.
 
-        See :meth:`_RenderStrategy.stage_object_transforms`. Uses :meth:`_begin_slot`, so each object
-        update opens (and double-buffers) a new slot for the frame; ``buffer`` is unused because a
-        pipelined frame cannot share one array with the frame still in flight.
+        See :meth:`_RenderStrategy.stage_object_transforms`. ``buffer`` is unused because a
+        pipelined frame cannot share one array with the frame still in flight; the slot provides
+        the double-buffered replacement.
         """
-        slot = self._begin_slot()
+        slot = self._staging_slot()
         object_transforms = slot.object_transforms
         if object_transforms is None or object_transforms.shape[0] != num_rows:
             object_transforms = wp.zeros(num_rows, dtype=wp.mat44d, device=self._warp_device)
@@ -367,13 +379,13 @@ class _AsyncRenderStrategy(_RenderStrategy):
 
     @contextmanager
     def stage_camera_transforms(self, binding: Any, num_rows: int) -> Iterator[tuple[wp.array, wp.array]]:
-        """Stage camera transforms into the current frame slot; publish them on exit.
+        """Stage camera transforms into the frame's slot; publish them on exit.
 
-        See :meth:`_RenderStrategy.stage_camera_transforms`. Joins the slot opened by the object
-        update, or opens one when there was no object update this frame. The slot's camera buffers
-        are reallocated when ``num_rows`` diverges from their pre-sized ``num_envs``.
+        See :meth:`_RenderStrategy.stage_camera_transforms`. Camera and object updates share the
+        frame's slot in whichever order the frame runs them. The slot's camera buffers are
+        reallocated when ``num_rows`` diverges from their pre-sized ``num_envs``.
         """
-        slot = self._current_or_begin_slot()
+        slot = self._staging_slot()
         if slot.camera_transforms.shape[0] != num_rows:
             slot.camera_transforms = wp.zeros(num_rows, dtype=wp.mat44d, device=self._warp_device)
             slot.camera_quats = wp.empty(num_rows, dtype=wp.quatf, device=self._warp_device)

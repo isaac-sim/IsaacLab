@@ -11,6 +11,7 @@ import importlib.util
 from typing import Any
 
 import pytest
+import warp as wp
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -188,6 +189,57 @@ def test_frames_are_delivered_to_the_render_data_they_were_submitted_for(strateg
     strategy.settle_before_scene_write()
 
     assert delivered == [second_target]
+
+
+class _CompletedWriteOp:
+    """A binding write op that is already complete."""
+
+    def wait(self) -> None:
+        return None
+
+
+class _FakeBinding:
+    """Accepts async binding writes and completes them immediately."""
+
+    def write_async(self, data, **_kwargs) -> _CompletedWriteOp:
+        return _CompletedWriteOp()
+
+
+def _stage_camera(strategy: _AsyncRenderStrategy, binding: _FakeBinding) -> Any:
+    with strategy.stage_camera_transforms(binding, 2) as (_quats, transforms):
+        return transforms
+
+
+def _stage_objects(strategy: _AsyncRenderStrategy, binding: _FakeBinding) -> Any:
+    with strategy.stage_object_transforms(binding, 2, None) as transforms:
+        return transforms
+
+
+@pytest.mark.parametrize("camera_first", [True, False], ids=["camera_first", "objects_first"])
+def test_staged_buffers_are_double_buffered_per_frame(timeline, camera_first):
+    """Camera and object updates share one slot per frame, in either order: the buffers staged in
+    frame N are reused in frame N+2, never in frame N+1, whose render is still in flight."""
+    strategy = _AsyncRenderStrategy()
+    strategy.set_device(wp.get_device("cuda:0"))
+    strategy.initialize(2)
+    renderer = _FakeRenderer(timeline)
+    binding = _FakeBinding()
+    consumed: list[int] = []
+
+    camera_buffers = []
+    object_buffers = []
+    for ordinal in range(3):
+        if camera_first:
+            camera_buffers.append(_stage_camera(strategy, binding))
+            object_buffers.append(_stage_objects(strategy, binding))
+        else:
+            object_buffers.append(_stage_objects(strategy, binding))
+            camera_buffers.append(_stage_camera(strategy, binding))
+        _render(strategy, renderer, ordinal, consumed)
+
+    for buffers in (camera_buffers, object_buffers):
+        assert buffers[0] is not buffers[1]
+        assert buffers[0] is buffers[2]
 
 
 def test_cleanup_survives_failed_slot_writes(strategy, timeline):
