@@ -2123,17 +2123,15 @@ class NewtonManager(PhysicsManager):
             The deterministic mode to apply to the solver.
         """
         solver_cfg = cfg.solver_cfg
-        # MuJoCo-C is the exception: it steps single-threaded and is reproducible on its own, Warp's
-        # deterministic mode never reaches it, and its sensors are not Warp kernels. No Newton
-        # setting applies, however the guarantee was asked for -- so say so rather than go quiet.
+        # MuJoCo-C is reproducible on its own and Warp's deterministic mode never reaches it, so
+        # no Newton setting applies -- report the request rather than dropping it silently.
         if getattr(solver_cfg, "use_mujoco_cpu", False):
             if cfg.deterministic or cfg.deterministic_mode != "not_guaranteed":
                 logger.info("MuJoCo CPU backend is already reproducible; Newton's deterministic mode is not applied.")
             return wp.DeterministicMode.NOT_GUARANTEED
 
-        # Precedence: an explicit mode, then the generic request, then no guarantee.
-        # An explicit mode's prerequisites stay the caller's responsibility, so it is returned
-        # untouched for the validator to check.
+        # Precedence: an explicit mode, then the generic request, then no guarantee. An explicit
+        # mode's prerequisites stay the caller's responsibility, so it is returned untouched.
         if cfg.deterministic_mode != "not_guaranteed":
             return cls._resolve_deterministic_mode(cfg.deterministic_mode)
         if not cfg.deterministic:
