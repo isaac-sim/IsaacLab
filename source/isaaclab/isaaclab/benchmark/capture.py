@@ -278,12 +278,6 @@ def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
     return physics, rendering
 
 
-def _is_camera_cfg(node: object) -> bool:
-    """Return whether *node* derives from a supported camera configuration class."""
-    camera_cfg_names = {"CameraCfg", "RayCasterCameraCfg"}
-    return any(base.__name__ in camera_cfg_names for base in type(node).__mro__)
-
-
 def _camera_resolution(node: object) -> tuple[int, int] | None:
     """Return the resolved ``(width, height)`` for one camera configuration."""
     width = getattr(node, "width", None)
@@ -317,22 +311,29 @@ def camera_resolutions_from_env_cfg(env_cfg: object) -> dict[str, dict[str, int]
     Returns:
         Camera config paths mapped to their resolved image width and height in pixels.
     """
+    # Keep these imports local so importing benchmark capture does not eagerly load sensor dependencies.
+    from isaaclab.sensors import CameraCfg, RayCasterCameraCfg
+
+    camera_cfg_types = (CameraCfg, RayCasterCameraCfg)
     resolutions: dict[str, dict[str, int]] = {}
     stack: list[tuple[str, object]] = [("env", env_cfg)]
     visited: set[int] = set()
 
     while stack:
         path, node = stack.pop()
-        if node is None or isinstance(node, (str, bytes, int, float, bool, type)) or id(node) in visited:
+        if node is None or isinstance(node, (str, bytes, int, float, bool, type)):
             continue
-        visited.add(id(node))
 
-        if _is_camera_cfg(node):
+        if isinstance(node, camera_cfg_types):
             resolution = _camera_resolution(node)
             if resolution is not None:
                 width, height = resolution
                 resolutions[path] = {"width": width, "height": height}
             continue
+
+        if id(node) in visited:
+            continue
+        visited.add(id(node))
 
         if isinstance(node, dict):
             children = [(f"{path}.{key}", value) for key, value in node.items()]
