@@ -323,11 +323,11 @@ def test_camera_init_intrinsic_matrix(setup_sim_camera):
     )
 
 
-def test_camera_set_world_poses(setup_sim_camera):
-    """Test camera function to set specific world pose."""
+@pytest.mark.parametrize("update_latest_camera_pose", [False, True])
+def test_camera_set_world_poses(setup_sim_camera, update_latest_camera_pose):
+    """Test that an explicitly set world pose is reflected in the data buffers."""
     sim, camera_cfg, dt = setup_sim_camera
-    # enable update latest camera pose
-    camera_cfg.update_latest_camera_pose = True
+    camera_cfg.update_latest_camera_pose = update_latest_camera_pose
     # init camera
     camera = Camera(camera_cfg)
     # play sim
@@ -343,11 +343,11 @@ def test_camera_set_world_poses(setup_sim_camera):
     _assert_quat_close(camera.data.quat_w_world.warp.numpy(), orientation, rtol=1e-5, atol=1e-5)
 
 
-def test_camera_set_world_poses_from_view(setup_sim_camera):
-    """Test camera function to set specific world pose from view."""
+@pytest.mark.parametrize("update_latest_camera_pose", [False, True])
+def test_camera_set_world_poses_from_view(setup_sim_camera, update_latest_camera_pose):
+    """Test that a pose set from eye/target is reflected in the data buffers."""
     sim, camera_cfg, dt = setup_sim_camera
-    # enable update latest camera pose
-    camera_cfg.update_latest_camera_pose = True
+    camera_cfg.update_latest_camera_pose = update_latest_camera_pose
     # init camera
     camera = Camera(camera_cfg)
     # play sim
@@ -1099,7 +1099,6 @@ def test_camera_frame_offset(setup_camera_device, device):
 )
 def test_camera_raises_on_unsupported_data_types(setup_sim_camera, data_types, expected_names, expected_messages):
     """Test Camera rejects data types its renderer cannot produce or does not recognize."""
-    from isaaclab.renderers import Renderer
     from isaaclab.renderers.base_renderer import BaseRenderer
 
     sim, camera_cfg, dt = setup_sim_camera
@@ -1144,23 +1143,15 @@ def test_camera_raises_on_unsupported_data_types(setup_sim_camera, data_types, e
         def cleanup(self, render_data):
             pass
 
-    backend = Renderer._get_backend(camera_cfg.renderer_cfg)
-    original = Renderer._registry.get(backend)
-    Renderer._registry[backend] = _PartialRenderer
-    try:
-        camera = Camera(camera_cfg)
-        with pytest.raises(ValueError) as exc_info:
-            sim.reset()
-        assert all(name in str(exc_info.value) for name in expected_names)
-        assert all(message in str(exc_info.value) for message in expected_messages)
-        assert "Hint:" not in str(exc_info.value)
+    camera_cfg.renderer_cfg.class_type = _PartialRenderer
+    camera = Camera(camera_cfg)
+    with pytest.raises(ValueError) as exc_info:
+        sim.reset()
+    assert all(name in str(exc_info.value) for name in expected_names)
+    assert all(message in str(exc_info.value) for message in expected_messages)
+    assert "Hint:" not in str(exc_info.value)
 
-        del camera
-    finally:
-        if original is not None:
-            Renderer._registry[backend] = original
-        else:
-            Renderer._registry.pop(backend, None)
+    del camera
 
 
 def test_camera_raises_on_instance_segmentation_fast(setup_sim_camera):
