@@ -8,10 +8,13 @@
 from __future__ import annotations
 
 import warnings
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+
+if TYPE_CHECKING:
+    from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
 
 
 @configclass
@@ -22,6 +25,9 @@ class NewtonVisualizerCfg(VisualizerCfg):
         :class:`NewtonVisualizerCfg` is deprecated. Use :class:`NewtonGLVisualizerCfg` for the
         OpenGL rasterizer or :class:`NewtonRTXVisualizerCfg` for the OVRTX path tracer.
     """
+
+    class_type: type[NewtonGLVisualizer] | str = "{DIR}.newton_visualizer:NewtonGLVisualizer"
+    """Deprecated alias for the Newton GL visualizer implementation."""
 
     # Deprecated alias: "newton" routes to the GL backend via simulation_context._VISUALIZER_ALIASES.
     visualizer_type: str = "newton_gl"
@@ -116,8 +122,11 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
     sidebar combo, keeping per-step overhead zero when the panel is closed.
     """
 
+    class_type: type[NewtonGLVisualizer] | str = "{DIR}.newton_visualizer:NewtonGLVisualizer"
+    """Visualizer implementation class."""
+
     visualizer_type: str = "newton_gl"
-    """Factory type identifier. Do not change."""
+    """Visualizer selector identifier. Do not change."""
 
     streaming_view: bool = True
     """Enable the tiled streaming camera panel.
@@ -146,8 +155,11 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     unsupported because ``ViewerRTX.log_image`` has no display sink.
     """
 
+    class_type: type[NewtonRTXVisualizer] | str = "{DIR}.newton_visualizer:NewtonRTXVisualizer"
+    """Visualizer implementation class."""
+
     visualizer_type: str = "newton_rtx"
-    """Factory type identifier. Do not change."""
+    """Visualizer selector identifier. Do not change."""
 
     rtx_environment: str = "default"
     """OVRTX lighting environment.  One of ``"default"`` (dome + distant light),
