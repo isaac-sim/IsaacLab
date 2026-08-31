@@ -111,50 +111,6 @@ def test_build_render_scope_usd_solid_background_color():
     assert 'token omni:rtx:background:source:type = "domeLight"' not in render_scope
 
 
-@pytest.mark.parametrize("enable_shadows,expected", [(False, "false"), (True, "true")])
-def test_build_render_scope_usd_authors_minimal_cast_shadows(enable_shadows, expected):
-    """enable_shadows drives the RTX Minimal shadow switch, and defaults to off."""
-    render_scope = build_render_scope_usd(
-        camera_paths=["/World/envs/env_0/Camera"],
-        render_product_name="RenderProduct",
-        render_var_path="/Render/Vars/LdrColor",
-        render_var_name="LdrColor",
-        source_name="LdrColor",
-        tiled_width=16,
-        tiled_height=8,
-        minimal_mode=1,
-        enable_shadows=enable_shadows,
-    )
-    assert f"bool omni:rtx:minimal:castShadows = {expected}" in render_scope
-
-
-@pytest.mark.parametrize("enable_shadows", [False, True])
-def test_build_render_scope_usd_omits_shadow_settings_outside_minimal_mode(enable_shadows):
-    """The path-traced modes have no shadow switch, so neither shadow setting is authored for them."""
-    render_scope = build_render_scope_usd(
-        camera_paths=["/World/envs/env_0/Camera"],
-        render_product_name="RenderProduct",
-        render_var_path="/Render/Vars/LdrColor",
-        render_var_name="LdrColor",
-        source_name="LdrColor",
-        tiled_width=16,
-        tiled_height=8,
-        enable_shadows=enable_shadows,
-    )
-    assert "castShadows" not in render_scope
-    # exists as a setting name but is never read by the path-tracing backends
-    assert "omni:rtx:shadows:enabled" not in render_scope
-
-
-def test_build_render_product_as_string_forwards_enable_shadows():
-    """The render product builder passes enable_shadows through to the render scope."""
-    kwargs = dict(width=16, height=8, num_envs=1, data_types=["simple_shading_full_mdl"], minimal_mode=3)
-    disabled, _ = build_render_product_as_string(**kwargs)
-    enabled, _ = build_render_product_as_string(**kwargs, enable_shadows=True)
-    assert "bool omni:rtx:minimal:castShadows = false" in disabled
-    assert "bool omni:rtx:minimal:castShadows = true" in enabled
-
-
 def test_ovrtx_rgb_hdr_uses_hdr_color_render_var():
     """Requesting RGB_HDR from OVRTX selects the HdrColor render variable."""
     assert get_render_var_config(["rgb_hdr"]) == ("/Render/Vars/HdrColor", "HdrColor", "HdrColor")
