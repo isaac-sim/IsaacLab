@@ -18,6 +18,7 @@ import tomllib
 from junitparser import Error, JUnitXml, TestCase, TestSuite
 from prettytable import PrettyTable
 
+from isaaclab.test.kit import kit_marker
 from isaaclab.test.utils import resolve_test_sim_device
 
 # Local imports
@@ -51,19 +52,20 @@ timeout.  Only the first such test gets the extension — after it runs, the
 on-disk cache is populated.
 """
 
-_CAMERA_MARKERS = ("enable_cameras=True", "launch_kit(cameras=True)", "pytest.mark.kit_cameras")
-"""Source-text signatures of a test file that starts Kit with cameras enabled.
-
-Matched against the file's text rather than by importing it, because importing a test
-module boots Kit. ``enable_cameras=True`` covers files that still construct
-``AppLauncher`` directly; the other two cover files migrated to
-:func:`~isaaclab.test.launch.launch_kit`, which no longer contain that literal.
-"""
-
 
 def _enables_cameras(test_content: str) -> bool:
-    """Whether the given test file's source starts Kit with cameras enabled."""
-    return any(marker in test_content for marker in _CAMERA_MARKERS)
+    """Whether the given test file's source starts Kit with cameras enabled.
+
+    Decided from the file's text rather than by importing it, because importing a
+    Kit-dependent test module boots Kit. A file either declares ``kit_cameras`` and lets
+    :mod:`isaaclab.test.kit` launch for it, or still constructs ``AppLauncher`` itself.
+    """
+    try:
+        if kit_marker(test_content) == "kit_cameras":
+            return True
+    except ValueError:
+        pass  # contradictory markers; the file fails at collection and the contract test says why
+    return "enable_cameras=True" in test_content
 
 
 STARTUP_DEADLINE = 120
@@ -1599,10 +1601,11 @@ def pytest_sessionstart(session):
     # is set. The pytest -m flag only accepts one expression.
     effective_marker = ci_marker or ("isaacsim_ci" if isaacsim_ci else "")
 
-    # Files migrated to launch_kit() share one Kit app when they land in the same process, so
-    # group them and pay startup once per group instead of once per file. Off unless
-    # ISAACLAB_TEST_BATCH_KIT is set, and disabled under the work queue, which hands out files
-    # one at a time across containers and so cannot offer coherent groups.
+    # Files that declare a launch marker share one Kit app when they land in the same process,
+    # so group them and pay startup once per group instead of once per file. Unmarked files --
+    # still most of the suite -- keep a process each. Disabled by ISAACLAB_TEST_BATCH_KIT=0, and
+    # under the work queue, which hands out files one at a time across containers and so cannot
+    # offer coherent groups.
     batched_files, batch_results = [], ([], {}, [])
     if batching_enabled() and not os.environ.get("ISAACLAB_TEST_QUEUE"):
         sources = {}

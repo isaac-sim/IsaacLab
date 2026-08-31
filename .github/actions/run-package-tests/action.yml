@@ -79,13 +79,6 @@ inputs:
     description: 'Additional pytest options'
     default: ''
     required: false
-  test-path:
-    description: >-
-      Path handed to pytest. Defaults to "tools", which loads tools/conftest.py and runs each
-      test file in its own subprocess. Point it at a test directory instead to run those files
-      together in a single pytest process, bypassing the per-file orchestrator.
-    default: 'tools'
-    required: false
   extra-pip-packages:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
@@ -298,7 +291,7 @@ runs:
     - name: Run Tests
       uses: ./.github/actions/run-tests
       with:
-        test-path: ${{ inputs.test-path }}
+        test-path: "tools"
         result-file: "${{ inputs.result-file != '' && inputs.result-file || format('{0}-report.xml', github.job) }}"
         container-name: "${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ inputs.image-tag }}

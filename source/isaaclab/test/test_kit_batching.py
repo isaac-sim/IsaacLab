@@ -29,18 +29,19 @@ from _kit_batching import (  # noqa: E402
     split_batch_status,
 )
 
-pytestmark = [pytest.mark.unit, pytest.mark.kitless]
+pytestmark = pytest.mark.unit
 
 
 KIT = "pytestmark = pytest.mark.kit\n"
 CAMERAS = "pytestmark = [pytest.mark.kit_cameras, pytest.mark.integration]\n"
 SOLO = "pytestmark = [pytest.mark.kit, pytest.mark.kit_solo]\n"
-KITLESS = "pytestmark = pytest.mark.kitless\n"
+UNMARKED = "pytestmark = pytest.mark.unit\n"
+BOTH = "pytestmark = [pytest.mark.kit, pytest.mark.kit_cameras]\n"
 LEGACY = "simulation_app = AppLauncher(headless=True).app\n"
 
 
 class TestFileProfile:
-    """`file_profile` classifies a file from its marker text."""
+    """`file_profile` classifies a file from the markers its source declares."""
 
     @pytest.mark.parametrize(
         "source,expected",
@@ -48,19 +49,35 @@ class TestFileProfile:
             (KIT, "kit"),
             (CAMERAS, "kit_cameras"),
             (SOLO, None),
-            (KITLESS, None),
+            (UNMARKED, None),
             (LEGACY, None),
+            (BOTH, None),
             ("", None),
         ],
     )
     def test_profile_matches_markers(self, source: str, expected: str | None):
         assert file_profile(source) == expected
 
-    def test_kit_pattern_does_not_swallow_the_longer_markers(self):
-        """A bare `kit` match must not claim kit_cameras or kit_solo files."""
-        assert file_profile("pytest.mark.kit_cameras") == "kit_cameras"
-        assert file_profile("pytest.mark.kit_solo") is None
-        assert file_profile("pytest.mark.kitless") is None
+    @pytest.mark.parametrize(
+        "source",
+        [
+            '"""A docstring that mentions pytest.mark.kit."""\n',
+            "# pytest.mark.kit in a comment\n",
+            "@pytest.mark.kit\ndef test_one():\n    pass\n",
+            "def helper():\n    pytestmark = pytest.mark.kit\n",
+        ],
+    )
+    def test_markers_outside_a_module_scope_pytestmark_do_not_count(self, source: str):
+        """Only what the plugin launches from counts, and it launches from ``pytestmark``.
+
+        A per-test decorator resolves after the module is imported, which is already too late
+        to start Kit, so batching on one would group a file the plugin never launches for.
+        """
+        assert file_profile(source) is None
+
+    def test_unparsable_source_is_not_batched(self):
+        """A file that does not parse cannot be classified, so it must not be grouped."""
+        assert file_profile("pytestmark = [pytest.mark.kit\n") is None
 
 
 class TestGrouping:
@@ -80,7 +97,7 @@ class TestGrouping:
         assert by_profile["kit"] == ["a.py", "c.py"]
         assert by_profile["kit_cameras"] == ["b.py"]
 
-    @pytest.mark.parametrize("source", [SOLO, KITLESS, LEGACY])
+    @pytest.mark.parametrize("source", [SOLO, UNMARKED, LEGACY])
     def test_unbatchable_files_get_their_own_batch(self, source: str):
         sources = {"a.py": KIT, "b.py": source, "c.py": KIT}
         batches = group_test_files(list(sources), sources)
@@ -198,14 +215,14 @@ class TestSplitBatchStatus:
 
 
 class TestEnvironmentToggles:
-    """Batching stays off unless explicitly enabled."""
+    """Batching is on unless a lane explicitly turns it off."""
 
-    @pytest.mark.parametrize("value,expected", [("1", True), ("true", True), ("YES", True), ("0", False), ("", False)])
-    def test_enable_flag(self, value: str, expected: bool):
+    @pytest.mark.parametrize("value,expected", [("0", False), ("false", False), ("NO", False), ("1", True), ("", True)])
+    def test_disable_flag(self, value: str, expected: bool):
         assert batching_enabled({"ISAACLAB_TEST_BATCH_KIT": value}) is expected
 
-    def test_disabled_when_unset(self):
-        assert batching_enabled({}) is False
+    def test_enabled_when_unset(self):
+        assert batching_enabled({}) is True
 
     @pytest.mark.parametrize("value,expected", [("5", 5), ("", 12), ("nonsense", 12), ("0", 12), ("-3", 12)])
     def test_batch_size_override(self, value: str, expected: int):

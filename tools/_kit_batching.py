@@ -7,28 +7,31 @@
 
 A test file that boots Kit at module scope pays Kit startup on its own, and the runner
 gives every file its own subprocess, so a directory of 23 such files boots Kit 23 times.
-Files migrated to :func:`~isaaclab.test.launch.launch_kit` share the app when they land in
-one process, which turns those 23 boots into one.
+Files that declare a launch marker (see :mod:`isaaclab.test.kit`) share the app when they
+land in one process, which turns those 23 boots into one.
 
-Only files carrying the same launch profile may be grouped. ``kit`` and ``kit_cameras``
+Only files carrying the same launch marker may be grouped. ``kit`` and ``kit_cameras``
 cannot share a process in either direction: cameras cannot be enabled after startup, and a
 camera-enabled app is not a substitute for a plain one because some tests assert that
 offscreen rendering is off. Anything whose behaviour depends on having a process to itself
-stays on the per-file path.
+stays on the per-file path, and so does every file that declares no marker at all -- which is
+still most of the suite.
 
-This module is deliberately free of ``os`` and ``subprocess`` calls: the grouping and the
-report demultiplexing are pure functions over paths and strings, so they can be exercised on
-any platform, unlike the POSIX-only process machinery in ``tools/conftest.py``.
+Apart from reading :data:`BATCH_ENV_VAR` and :data:`BATCH_SIZE_ENV_VAR`, this module is
+deliberately free of process machinery: the grouping and the report demultiplexing are pure
+functions over paths and strings, so they can be exercised on any platform, unlike the
+POSIX-only subprocess handling in ``tools/conftest.py``.
 """
 
 from __future__ import annotations
 
 import os
-import re
 from dataclasses import dataclass, field
 
+from isaaclab.test.kit import SOLO_MARKER, kit_marker, module_markers
+
 BATCH_ENV_VAR = "ISAACLAB_TEST_BATCH_KIT"
-"""Environment variable that opts a run into batching. Unset keeps the per-file path."""
+"""Environment variable that turns batching off. Unset (the default) groups what it can."""
 
 BATCH_SIZE_ENV_VAR = "ISAACLAB_TEST_BATCH_SIZE"
 """Environment variable overriding :data:`DEFAULT_BATCH_SIZE`."""
@@ -47,11 +50,6 @@ A batch's timeout is the sum of its members', so one file hanging consumes the w
 The long-running files are also the ones where Kit startup is a rounding error, so excluding
 them removes most of the risk and almost none of the benefit.
 """
-
-# `kit` must not match `kit_cameras` or `kit_solo`.
-_MARK_KIT = re.compile(r"pytest\.mark\.kit(?![\w])")
-_MARK_CAMERAS = re.compile(r"pytest\.mark\.kit_cameras\b")
-_MARK_SOLO = re.compile(r"pytest\.mark\.kit_solo\b")
 
 
 @dataclass
@@ -82,9 +80,14 @@ class Batch:
 
 
 def batching_enabled(env: dict | None = None) -> bool:
-    """Whether the run opted into batching via :data:`BATCH_ENV_VAR`."""
+    """Whether this run may group files, i.e. :data:`BATCH_ENV_VAR` is not set to a false value.
+
+    Batching is on by default because only marker-carrying files can be grouped, and an
+    unreached member of a dead batch is re-run on the per-file path anyway. The escape hatch
+    exists so a lane that hits a grouping-specific failure can be unblocked without a revert.
+    """
     env = os.environ if env is None else env
-    return env.get(BATCH_ENV_VAR, "").strip().lower() in ("1", "true", "yes")
+    return env.get(BATCH_ENV_VAR, "").strip().lower() not in ("0", "false", "no")
 
 
 def batch_size(env: dict | None = None) -> int:
@@ -101,22 +104,26 @@ def batch_size(env: dict | None = None) -> int:
 
 
 def file_profile(source: str) -> str | None:
-    """Return the launch profile a test file declares, or None if it cannot be batched.
+    """Return the launch marker a test file can be grouped under, or None if it cannot be.
+
+    This is :func:`isaaclab.test.kit.kit_marker` -- the same reader the plugin launches from,
+    so a batch cannot be built around a marker the launch does not honour -- plus the
+    ``kit_solo`` opt-out, which is a batching concern rather than a launch one.
 
     Args:
-        source: The test file's text. Markers are matched against the source rather than by
+        source: The test file's text. Markers are read from the source rather than by
             importing the module, because importing a Kit-dependent module boots Kit.
 
     Returns:
-        ``"kit_cameras"``, ``"kit"``, or None when the file is unmarked or opts out.
+        ``"kit_cameras"``, ``"kit"``, or None when the file is unmarked, opts out, or declares
+        markers the launch plugin would itself reject.
     """
-    if _MARK_SOLO.search(source):
+    if SOLO_MARKER in module_markers(source):
         return None
-    if _MARK_CAMERAS.search(source):
-        return "kit_cameras"
-    if _MARK_KIT.search(source):
-        return "kit"
-    return None
+    try:
+        return kit_marker(source)
+    except ValueError:
+        return None  # more than one launch marker; the marker-contract test reports it
 
 
 def group_test_files(
