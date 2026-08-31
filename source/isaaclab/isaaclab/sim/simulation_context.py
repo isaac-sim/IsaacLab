@@ -428,7 +428,7 @@ class SimulationContext:
 
         Only propagates fields that were **explicitly set** in ``default_visualizer_cfg``
         (i.e. differ from the base :class:`~isaaclab.visualizers.VisualizerCfg` defaults)
-        AND are still at the backend cfg's own factory default (i.e. not already
+        AND are still at the backend cfg's own class default (i.e. not already
         customised by the caller).  This prevents base-class defaults such as
         ``streaming_view=False`` from stomping backend-specific defaults like
         ``NewtonGLVisualizerCfg.streaming_view=True``.
@@ -444,14 +444,14 @@ class SimulationContext:
             base_defaults = VisualizerCfg()
         except Exception:
             base_defaults = None
-        # Backend-specific factory defaults — used to detect which fields on cfg
+        # Backend-specific class defaults — used to detect which fields on cfg
         # the caller has already customised beyond the class defaults.
         try:
             factory_defaults = type(cfg)()
         except Exception:
             factory_defaults = None
         for field in fields(default_cfg):
-            if field.name == "visualizer_type" or not hasattr(cfg, field.name):
+            if field.name in ("class_type", "visualizer_type") or not hasattr(cfg, field.name):
                 continue
             default_val = getattr(default_cfg, field.name)
             # Skip fields that were not explicitly set in default_cfg (still at base default).
@@ -646,7 +646,7 @@ class SimulationContext:
                 pending_cfgs.append(cfg)
                 continue
             try:
-                visualizer = cfg.create_visualizer()
+                visualizer = cfg.class_type(cfg)
                 visualizer.initialize(self._scene_data_provider)
                 self._visualizers.append(visualizer)
                 new_visualizers.append(visualizer)

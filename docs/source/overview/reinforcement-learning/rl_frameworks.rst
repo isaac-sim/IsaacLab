@@ -110,10 +110,10 @@ Training commands (check for the *'Training time: XXX seconds'* line in the term
 
       .. code:: bash
 
-          uv run isaaclab train --rl_library rl_games --task Isaac-Humanoid --max_iterations 500
-          uv run isaaclab train --rl_library skrl --task Isaac-Humanoid --max_iterations 500
+          uv run --extra rl-games isaaclab train --rl_library rl_games --task Isaac-Humanoid --max_iterations 500
+          uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Humanoid --max_iterations 500
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Humanoid --max_iterations 500
-          uv run isaaclab train --rl_library sb3 --task Isaac-Humanoid --max_iterations 500
+          uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Humanoid --max_iterations 500
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code:: bash
