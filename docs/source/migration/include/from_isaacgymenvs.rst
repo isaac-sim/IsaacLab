@@ -936,7 +936,7 @@ To launch a training in Isaac Lab, use the command:
 
       .. code-block:: bash
 
-         uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole-Direct physics=physx
+         uv run --extra rl-games isaaclab train --rl_library rl_games --task=Isaac-Cartpole-Direct physics=physx
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -954,7 +954,7 @@ To run a trained policy in Isaac Lab, use the command:
 
       .. code-block:: bash
 
-         uv run isaaclab play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 \
+         uv run --extra rl-games isaaclab play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 \
              --checkpoint=<path/to/checkpoint> physics=physx
 
 

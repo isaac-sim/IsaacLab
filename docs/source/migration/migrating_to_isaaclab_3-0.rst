@@ -2230,7 +2230,7 @@ policy:
 
 .. code-block:: bash
 
-   uv run isaaclab play --rl_library rlinf \
+   uv run --extra rlinf isaaclab play --rl_library rlinf \
       --config_name isaaclab_ppo_gr00t_assemble_trocar \
       --model_path /path/to/base_model \
       --checkpoint /path/to/rlinf_checkpoint
@@ -2605,7 +2605,7 @@ automatically by the importer based on the robot name and cannot be overridden.
 
       .. code-block:: bash
 
-         uv run python scripts/tools/convert_urdf.py \
+         uv run --extra importers python scripts/tools/convert_urdf.py \
            robot.urdf \
            /output/dir/robot.usd \
            --fix-base \
@@ -2629,7 +2629,7 @@ automatically by the importer based on the robot name and cannot be overridden.
 
       .. code-block:: bash
 
-         uv run python scripts/tools/convert_urdf.py \
+         uv run --extra importers python scripts/tools/convert_urdf.py \
            robot.urdf \
            /output/dir \
            --fix-base \
@@ -2785,7 +2785,7 @@ are no longer available.
 
       .. code-block:: bash
 
-         uv run python scripts/tools/convert_mjcf.py \
+         uv run --extra importers python scripts/tools/convert_mjcf.py \
            ../mujoco_menagerie/unitree_h1/h1.xml \
            source/isaaclab_assets/data/Robots/Unitree/h1.usd \
            --import-sites \
@@ -2809,7 +2809,7 @@ are no longer available.
 
       .. code-block:: bash
 
-         uv run python scripts/tools/convert_mjcf.py \
+         uv run --extra importers python scripts/tools/convert_mjcf.py \
            ../mujoco_menagerie/unitree_h1/h1.xml \
            source/isaaclab_assets/data/Robots/Unitree/h1.usd \
            --merge-mesh \
@@ -2989,7 +2989,7 @@ exactly as for the training workflow. There is no ``--physics`` or ``--render`` 
 
    # Training benchmark — choose the RL library with --rl_library
    uv run isaaclab benchmark training --task Isaac-Cartpole-Direct --rl_library rsl_rl
-   uv run isaaclab benchmark training --task Isaac-Cartpole-Direct --rl_library skrl presets=newton_mjwarp
+   uv run --extra skrl isaaclab benchmark training --task Isaac-Cartpole-Direct --rl_library skrl presets=newton_mjwarp
 
    # Play (inference) benchmark — loads a checkpoint produced by training
    uv run isaaclab benchmark play --task Isaac-Cartpole-Direct --rl_library rsl_rl --checkpoint /path/to/model.pt
