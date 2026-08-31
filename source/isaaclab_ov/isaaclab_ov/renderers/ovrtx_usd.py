@@ -175,6 +175,7 @@ def build_render_scope_usd(
     render_var_configs: list[tuple[str, str, str]] | None = None,
     background_color: tuple[float, float, float] | None = None,
     device_id: int | None = None,
+    enable_shadows: bool = False,
 ) -> str:
     """Build the Render scope USD string (def Scope Render, RenderProduct, Vars).
 
@@ -193,6 +194,9 @@ def build_render_scope_usd(
             When ``None``, the default dome-light background is used.
         device_id: CUDA device index the render product is pinned to via ``deviceIds``. When ``None``,
             OVRTX assigns the device automatically.
+        enable_shadows: Whether lights cast shadows. Defaults to False. Both the path-traced and the
+            minimal render modes are authored, so the mode chosen by ``minimal_mode`` does not change
+            whether shadows are drawn.
 
     Returns:
         The USD string for the render scope.
@@ -220,6 +224,15 @@ def build_render_scope_usd(
             f"int omni:rtx:minimal:mode = {minimal_mode}",
         ]
 
+    # RTX splits the shadow toggle per render mode, so author both to keep the two modes consistent.
+    shadow_value = "true" if enable_shadows else "false"
+    shadow_block = "\n        ".join(
+        [
+            f"bool omni:rtx:shadows:enabled = {shadow_value}",
+            f"bool omni:rtx:minimal:castShadows = {shadow_value}",
+        ]
+    )
+
     render_mode_block = "\n        ".join(render_mode_lines)
     if render_var_configs is None:
         render_var_configs = [(render_var_path, render_var_name, source_name)]
@@ -241,6 +254,7 @@ def Scope "Render"
         rel camera = [{camera_rel_list}]{device_ids_line}
         {bg_type_line}
         float omni:rtx:rt:ambientLight:intensity = 1.0
+        {shadow_block}
         {render_mode_block}
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
         rel orderedVars = [{ordered_vars}]
@@ -271,6 +285,7 @@ def build_render_product_as_string(
     camera_rel_path: str = "Camera",
     background_color: tuple[float, float, float] | None = None,
     device_id: int | None = None,
+    enable_shadows: bool = False,
 ) -> tuple[str, str]:
     """Build the render product USD snippet as a string.
 
@@ -292,6 +307,7 @@ def build_render_product_as_string(
         device_id: CUDA device index the render product is pinned to, so its render var buffers are
             allocated on the same device as the Warp kernels that read them. When ``None``, OVRTX
             assigns the device automatically.
+        enable_shadows: Whether lights cast shadows. Defaults to False.
 
     Returns:
         Tuple of (render product USD snippet as a string, absolute render product prim path).
@@ -318,6 +334,7 @@ def build_render_product_as_string(
         render_var_configs,
         background_color,
         device_id,
+        enable_shadows,
     )
     return camera_content, render_product_path
 

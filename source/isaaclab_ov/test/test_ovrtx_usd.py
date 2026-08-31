@@ -111,6 +111,47 @@ def test_build_render_scope_usd_solid_background_color():
     assert 'token omni:rtx:background:source:type = "domeLight"' not in render_scope
 
 
+@pytest.mark.parametrize("minimal_mode", [None, 1])
+def test_build_render_scope_usd_disables_shadows_by_default(minimal_mode):
+    """Shadows are off by default in every render mode."""
+    render_scope = build_render_scope_usd(
+        camera_paths=["/World/envs/env_0/Camera"],
+        render_product_name="RenderProduct",
+        render_var_path="/Render/Vars/LdrColor",
+        render_var_name="LdrColor",
+        source_name="LdrColor",
+        tiled_width=16,
+        tiled_height=8,
+        minimal_mode=minimal_mode,
+    )
+    assert "bool omni:rtx:shadows:enabled = false" in render_scope
+    assert "bool omni:rtx:minimal:castShadows = false" in render_scope
+
+
+def test_build_render_scope_usd_enable_shadows_opts_back_in():
+    """Setting enable_shadows re-enables the shadow toggles of every render mode."""
+    render_scope = build_render_scope_usd(
+        camera_paths=["/World/envs/env_0/Camera"],
+        render_product_name="RenderProduct",
+        render_var_path="/Render/Vars/LdrColor",
+        render_var_name="LdrColor",
+        source_name="LdrColor",
+        tiled_width=16,
+        tiled_height=8,
+        enable_shadows=True,
+    )
+    assert "bool omni:rtx:shadows:enabled = true" in render_scope
+    assert "bool omni:rtx:minimal:castShadows = true" in render_scope
+
+
+def test_build_render_product_as_string_forwards_enable_shadows():
+    """The render product builder passes enable_shadows through to the render scope."""
+    disabled, _ = build_render_product_as_string(width=16, height=8, num_envs=1, data_types=["rgb"])
+    enabled, _ = build_render_product_as_string(width=16, height=8, num_envs=1, data_types=["rgb"], enable_shadows=True)
+    assert "bool omni:rtx:shadows:enabled = false" in disabled
+    assert "bool omni:rtx:shadows:enabled = true" in enabled
+
+
 def test_ovrtx_rgb_hdr_uses_hdr_color_render_var():
     """Requesting RGB_HDR from OVRTX selects the HdrColor render variable."""
     assert get_render_var_config(["rgb_hdr"]) == ("/Render/Vars/HdrColor", "HdrColor", "HdrColor")

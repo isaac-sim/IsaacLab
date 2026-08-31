@@ -49,6 +49,15 @@ class OVRTXRendererCfg(RendererCfg):
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
     """Path for OVRTX log file. Defaults to ``<system temp>/ovrtx_renderer.log``."""
 
+    enable_shadows: bool = False
+    """Whether lights cast shadows. Defaults to False.
+
+    Shadow rays cost render time that rarely changes what a policy learns, so they are requested
+    off and opted back into for visually faithful renders. The value is authored on the render
+    product for every OVRTX render mode: ``omni:rtx:shadows:enabled`` for the path-traced modes
+    and ``omni:rtx:minimal:castShadows`` for the ``simple_shading_*`` data types.
+    """
+
     colorize_semantic_segmentation: bool = True
     """Whether to colorize semantic segmentation output. Defaults to True.
 
