@@ -103,6 +103,19 @@ def _manifest(**sections) -> dict:
     return base
 
 
+def _with_sys_path(*entries: str) -> dict:
+    """Return a manifest whose probed interpreter reported ``entries`` as its ``sys.path``."""
+    return _manifest(
+        python={
+            "distributions": [],
+            "duplicates": [],
+            "pth_files": [],
+            "integrity": None,
+            "venv": {"interpreter": {"sys_path": list(entries)}},
+        }
+    )
+
+
 # A lockfile shaped like the real one in the details that decide what a sync installs: an
 # alias extra defined in terms of other extras, and a requirement that reaches a package only
 # through an extra declared after intervening `version` and `source` keys.
@@ -329,6 +342,27 @@ class TestRecordIntegrity:
         assert len(damaged) == 1
         assert damaged[0]["missing"] == 2
         assert "pxr/Plug/__init__.py" in damaged[0]["examples"]
+
+    def test_damage_to_a_different_file_is_told_apart_past_the_stored_examples(self, tmp_path):
+        """Only a bounded sample of the missing paths is stored, so the digest carries the rest."""
+
+        def damage(site_packages, tail):
+            shared = [f"pxr/Plug/m{index:02d}.py" for index in range(11)]
+            _write_distribution(
+                site_packages,
+                "usd-exchange",
+                "2.3.0",
+                files={"pxr/Plug/__init__.pyi": ""},
+                recorded_extra=[*shared, f"pxr/Plug/{tail}"],
+            )
+            return check_record_integrity(site_packages)["damaged"][0]
+
+        left = damage(tmp_path / "left", "n_alpha.py")
+        right = damage(tmp_path / "right", "n_omega.py")
+
+        assert left["missing"] == right["missing"]
+        assert left["examples"] == right["examples"], "the sample must be identical for the digest to be the fix"
+        assert left["digest"] != right["digest"]
 
     def test_byte_compiled_caches_are_not_treated_as_missing(self, tmp_path):
         _write_distribution(
@@ -881,6 +915,32 @@ class TestDiff:
         assert "/opt/IsaacLab/source" in report
         assert "1 difference(s) recorded" in report
 
+    def test_an_import_path_the_pth_files_do_not_explain_is_a_difference(self):
+        """`PYTHONPATH` and a relocated editable install move entries without touching a `.pth`."""
+        report = render_diff(
+            _with_sys_path("/venv/site-packages", "/home/user/IsaacLab/source"),
+            _with_sys_path("/venv/site-packages", "/opt/IsaacLab/source"),
+        )
+
+        assert "Only on `host (baseline)`: `/home/user/IsaacLab/source`" in report
+        assert "Only on `host (current)`: `/opt/IsaacLab/source`" in report
+        assert "2 difference(s) recorded" in report
+
+    def test_the_same_import_path_in_a_different_order_is_a_difference(self):
+        """The first entry satisfying an import wins, so order decides which copy is loaded."""
+        report = render_diff(
+            _with_sys_path("/repo/source", "/venv/site-packages"),
+            _with_sys_path("/venv/site-packages", "/repo/source"),
+        )
+
+        assert "Shared entries are ordered differently" in report
+        assert "1 difference(s) recorded" in report
+
+    def test_a_capture_without_a_probed_interpreter_says_so_rather_than_reading_as_a_match(self):
+        report = render_diff(_manifest(), _manifest())
+
+        assert "Not comparable: at least one capture has no interpreter that reported its `sys.path`." in report
+
     def test_a_package_gutted_on_one_side_is_a_difference(self):
         """A distribution at the right version with its files gone is not an equivalent one."""
 
@@ -901,6 +961,35 @@ class TestDiff:
         )
 
         assert "| `usd_core-25.5.dist-info` | 73 of 78 files missing | *intact* |" in report
+        assert "1 difference(s) recorded" in report
+
+    def test_equal_damage_to_a_different_set_of_files_is_a_difference(self):
+        """Comparing counts alone calls two packages gutted in different places equivalent."""
+
+        def with_digest(digest):
+            return _manifest(
+                python={
+                    "distributions": [],
+                    "duplicates": [],
+                    "pth_files": [],
+                    "venv": None,
+                    "integrity": {
+                        "damaged": [
+                            {
+                                "distribution": "usd_core-25.5.dist-info",
+                                "recorded": 78,
+                                "missing": 12,
+                                "examples": ["pxr/Usd/__init__.py"],
+                                "digest": digest,
+                            }
+                        ]
+                    },
+                }
+            )
+
+        report = render_diff(with_digest("1111aaaa2222bbbb"), with_digest("3333cccc4444dddd"))
+
+        assert "a different set of files" in report
         assert "1 difference(s) recorded" in report
 
     def test_skipping_the_integrity_check_is_reported_rather_than_read_as_a_match(self):
@@ -961,6 +1050,7 @@ class TestDiff:
             "## Environment variables",
             "## Symlinks",
             "## Import path files",
+            "## Resolved import path",
             "## Package integrity",
             "## Findings",
         ):

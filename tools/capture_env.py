@@ -43,6 +43,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import csv
+import hashlib
 import json
 import os
 import platform
@@ -917,12 +918,17 @@ def check_record_integrity(site_packages: Path) -> dict:
             continue
         checked_files += recorded
         if missing:
+            # Only a bounded sample of the paths is stored, so a large package gutted in two
+            # different places would otherwise be indistinguishable from itself. The digest
+            # covers every missing path and is what `diff` compares, keeping the stored sample
+            # short without letting two unequal sets of damage read as the same.
             damaged.append(
                 {
                     "distribution": info.name,
                     "recorded": recorded,
                     "missing": len(missing),
                     "examples": sorted(missing)[:10],
+                    "digest": hashlib.sha256("\n".join(sorted(missing)).encode()).hexdigest()[:16],
                 }
             )
 
@@ -1547,6 +1553,12 @@ def analyze(manifest: dict) -> list[Finding]:
                     "surfaces as an AttributeError on a symbol that should exist.",
                     "Repair: uv pip install --reinstall-package <name> --no-deps '<name>==<version>'",
                     *[f"  missing: {path}" for path in entry["examples"]],
+                    # The list above is capped, so say so rather than letting it read as complete.
+                    *(
+                        [f"  ... and {entry['missing'] - len(entry['examples'])} more not listed"]
+                        if entry["missing"] > len(entry["examples"])
+                        else []
+                    ),
                 ],
             )
         )
@@ -2494,6 +2506,66 @@ def _pth_entries(lines: list[str] | None) -> str:
     return ", ".join(f"`{entry}`" for entry in entries) if entries else "*empty*"
 
 
+def _resolved_sys_path(manifest: dict) -> list[str] | None:
+    """Return the ``sys.path`` the environment's own interpreter reported, if it started.
+
+    This is the resolved path rather than a reconstruction of it, so it accounts for every
+    mechanism that can place an entry there, including the ones no captured file names.
+
+    Args:
+        manifest: The manifest to read the probed interpreter state from.
+
+    Returns:
+        The interpreter's ``sys.path`` entries in order, or ``None`` when the capture has no
+        virtual environment or its interpreter could not be started.
+    """
+    venv = (manifest.get("python", {}) or {}).get("venv") or {}
+    sys_path = (venv.get("interpreter") or {}).get("sys_path")
+    return list(sys_path) if sys_path else None
+
+
+def _resolved_path_section(
+    baseline: dict, current: dict, baseline_label: str, current_label: str
+) -> tuple[list[str], int]:
+    """Compare the ``sys.path`` two captures' own interpreters resolved.
+
+    Matching ``.pth`` files do not mean the interpreters import the same code: ``PYTHONPATH``, a
+    site directory that resolves elsewhere, and an editable install pointing at another checkout
+    all move entries without touching a ``.pth``. Order is compared too, because the first entry
+    that satisfies an import is the one that wins.
+
+    Args:
+        baseline: The manifest being compared against.
+        current: The manifest being checked.
+        baseline_label: Column heading naming the baseline capture.
+        current_label: Column heading naming the current capture.
+
+    Returns:
+        The rendered lines of the section, and the number of differences counted in it.
+    """
+    before, after = _resolved_sys_path(baseline), _resolved_sys_path(current)
+    if before is None or after is None:
+        return ["Not comparable: at least one capture has no interpreter that reported its `sys.path`."], 0
+    if before == after:
+        return [f"Identical: {len(before)} entries in the same order."], 0
+
+    before_set, after_set = set(before), set(after)
+    lines = [f"- Only on `{baseline_label}`: `{entry}`" for entry in dict.fromkeys(before) if entry not in after_set]
+    lines += [f"- Only on `{current_label}`: `{entry}`" for entry in dict.fromkeys(after) if entry not in before_set]
+    differences = len(lines)
+
+    # The same entries in a different order shadow different copies of a module that is installed
+    # twice, so a reordering is a difference even when membership matches.
+    shared_before = [entry for entry in before if entry in after_set]
+    shared_after = [entry for entry in after if entry in before_set]
+    if shared_before != shared_after:
+        differences += 1
+        lines.append("- Shared entries are ordered differently:")
+        lines.append(f"    - {baseline_label}: {', '.join(f'`{entry}`' for entry in shared_before)}")
+        lines.append(f"    - {current_label}: {', '.join(f'`{entry}`' for entry in shared_after)}")
+    return lines, differences
+
+
 def render_diff(baseline: dict, current: dict) -> str:
     """Render every difference between two captured environments.
 
@@ -2625,13 +2697,26 @@ def render_diff(baseline: dict, current: dict) -> str:
         lines.append("Identical.")
     lines.append("")
 
+    lines.append("## Resolved import path")
+    lines.append("")
+    path_lines, path_differences = _resolved_path_section(baseline, current, baseline_label, current_label)
+    lines.extend(path_lines)
+    differences += path_differences
+    lines.append("")
+
     # A distribution present at the right version but missing the files its own RECORD claims
     # imports as an empty namespace package instead of raising, so package versions matching is
     # not enough to call two environments equivalent.
-    def damaged(manifest: dict) -> dict[str, str]:
+    # Carries the digest of the full missing set beside the human-readable extent: two packages
+    # missing the same number of different files are not in the same state, and the counts alone
+    # cannot tell them apart.
+    def damaged(manifest: dict) -> dict[str, tuple[str, str]]:
         integrity = manifest.get("python", {}).get("integrity") or {}
         return {
-            entry["distribution"]: f"{entry['missing']} of {entry['recorded']} files missing"
+            entry["distribution"]: (
+                f"{entry['missing']} of {entry['recorded']} files missing",
+                str(entry.get("digest") or ""),
+            )
             for entry in integrity.get("damaged", [])
         }
 
@@ -2640,18 +2725,22 @@ def render_diff(baseline: dict, current: dict) -> str:
     if baseline.get("python", {}).get("integrity") is None or current.get("python", {}).get("integrity") is None:
         lines.append("Not comparable: at least one capture ran with `--skip_integrity`.")
     else:
+        intact = ("*intact*", "")
         before_damaged, after_damaged = damaged(baseline), damaged(current)
         damaged_rows = [
-            (name, before_damaged.get(name, "*intact*"), after_damaged.get(name, "*intact*"))
+            (name, before_damaged.get(name, intact), after_damaged.get(name, intact))
             for name in sorted(set(before_damaged) | set(after_damaged))
-            if before_damaged.get(name) != after_damaged.get(name)
+            if before_damaged.get(name, intact) != after_damaged.get(name, intact)
         ]
         if damaged_rows:
             differences += len(damaged_rows)
             lines.append(f"| Distribution | {baseline_label} | {current_label} |")
             lines.append("|---|---|---|")
             for name, before, after in damaged_rows:
-                lines.append(f"| `{name}` | {before} | {after} |")
+                # Identical extents reaching this loop differ only in which files are gone, and
+                # printing the same cell twice with no explanation would read as a bug.
+                note = " (a different set of files)" if before[0] == after[0] else ""
+                lines.append(f"| `{name}` | {before[0]} | {after[0]}{note} |")
         else:
             lines.append("Identical.")
     lines.append("")

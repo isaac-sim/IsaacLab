@@ -96,8 +96,9 @@ The steps follow the same order every time, with the details filled in from the 
    at the recorded version, or a local build at the recorded revision.
 5. Run ``diff`` against the bundle. It compares the host and versions, every installed package and
    its version, the allowlisted environment variables, the symlinks, the ``.pth`` files, the
-   ``RECORD``-against-disk integrity check, and the findings, and it names each section it found
-   identical. *No differences recorded* means the two captures agree on all of that. It is the
+   ``sys.path`` each environment's own interpreter resolved, the ``RECORD``-against-disk integrity
+   check, and the findings, and it names each section it found identical. *No differences recorded*
+   means the two captures agree on all of that. It is the
    evidence that the reproduction worked, not a proof: whatever the capture does not record --
    listed under *What this bundle cannot reproduce* -- is untested either way.
 
