@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7-labs
 # Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
@@ -58,8 +59,12 @@ WORKDIR ${ISAACLAB_PATH}
 # Copy the install inputs before the rest of the runtime tree so dependency
 # installation remains cached when only scripts or application code changes.
 COPY pyproject.toml uv.lock VERSION LICENSE LICENSE-mimic README.md ./
-COPY source/ source/
 COPY isaaclab.sh ./
+
+# Workspace manifests only: ``uv sync --no-install-workspace`` needs every member's
+# pyproject.toml to build an installation plan, but not their sources. Resolving the
+# third-party packages here means a source edit re-runs only the workspace install below.
+COPY --parents source/*/pyproject.toml ./
 
 # Installed from uv.lock rather than via ``isaaclab.sh --install``: only the lock applies
 # ``[tool.uv] override-dependencies``, which pins ``packaging>=20,<27`` against ovphysx's
@@ -71,8 +76,19 @@ COPY isaaclab.sh ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv venv --seed "${VIRTUAL_ENV}" \
  && uv sync --frozen --inexact --extra all --extra importers --extra test-runtime \
+      --no-install-workspace
+
+COPY source/ source/
+
+# Fix the line endings a Windows checkout may carry, then restore the launcher's mode;
+# ``sed -i`` rewrites under the build umask, so set 755 explicitly.
+RUN find "${ISAACLAB_PATH}" -type f -name "*.sh" -exec sed -i 's/\r$//' {} + \
+ && chmod 755 "${ISAACLAB_PATH}/isaaclab.sh"
+
+# The workspace members install editable now that their sources are present.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --inexact --extra all --extra importers --extra test-runtime \
  && chmod -R a+rwX "${VIRTUAL_ENV}/lib" "${VIRTUAL_ENV}/bin" \
- && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \
  && python -c "import importlib.metadata as m; \
       names = {d.metadata['Name'].lower() for d in m.distributions()}; \
       assert 'isaacsim' not in names; \
