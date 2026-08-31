@@ -457,6 +457,27 @@ jobs:
         extra-pip-packages: "leapp"
         container-name: isaac-lab-rl-test
 
+  test-isaaclab-policy-debug:
+    name: isaaclab_policy_debug
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "isaaclab_policy_debug"
+        container-name: isaac-lab-policy-debug-test
+
   test-isaaclab-mimic:
     name: isaaclab_mimic
     runs-on: [self-hosted, gpu]

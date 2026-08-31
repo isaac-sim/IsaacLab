@@ -72,6 +72,21 @@ The following modules are available in the ``isaaclab_mimic`` extension:
    datagen
    envs
 
+isaaclab_policy_debug extension
+-------------------------------
+
+The following classes form the public ``isaaclab_policy_debug`` API:
+
+.. currentmodule:: isaaclab_policy_debug
+
+.. autosummary::
+   :toctree: lab_policy_debug
+
+   PolicyDebugCfg
+   PolicyDebugManager
+   PolicyDebugScenarioAdapter
+   resolve_scenario_adapter
+
 isaaclab_contrib extension
 -----------------------------
 

@@ -11,7 +11,10 @@ import contextlib
 import logging
 import math
 import os
+import re
 import sys
+from collections import deque
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np  # noqa: F401 — used in type hints and colorization helpers
@@ -971,6 +974,9 @@ class NewtonVisualizer(BaseVisualizer):
         self._scene_cameras: dict = {}
         self._scene_camera_names: list[str] = []
         self._active_camera_idx: int = 0
+        self._pending_viewer_commands: deque[tuple[str, Callable[[NewtonViewerGL], None]]] = deque()
+        self._sidebar_callback: Callable[[object], None] | None = None
+        self._environment_layers: dict[int, str] = {}
 
     # ------------------------------------------------------------------
     # Shared lifecycle
@@ -1048,6 +1054,8 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.picking_enabled = self._picking_enabled
 
             self._apply_viewer_post_init()
+            if self._sidebar_callback is not None:
+                self._viewer.register_ui_callback(self._sidebar_callback, position="side")
 
         self._setup_streaming_view(num_envs)
 
@@ -1110,6 +1118,8 @@ class NewtonVisualizer(BaseVisualizer):
         if not self._is_initialized or self._is_closed:
             return
 
+        self._apply_pending_viewer_commands()
+
         self._sim_time += dt
         self._step_counter += 1
 
@@ -1139,20 +1149,7 @@ class NewtonVisualizer(BaseVisualizer):
                         body_q = getattr(self._state, "body_q", None)
                         if hasattr(body_q, "shape") and body_q.shape[0] == 0:
                             return
-                        self._viewer.log_state(self._state)
-                        contacts = NewtonManager.get_contacts()
-                        if contacts is not None:
-                            self._viewer.log_contacts(contacts, self._state)
-                        else:
-                            self._log_scene_contact_sensor_arrows(num_envs)
-                        if self.cfg.enable_markers and not isinstance(self._viewer, NewtonViewerRTX):
-                            # ViewerRTX uses a USD stage whose prim paths are not set up
-                            # for the debug mesh overlays that markers require; skip for RTX.
-                            render_newton_visualization_markers(
-                                self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
-                            )
-                        self._log_streaming_image()
-                        self._render_live_plots()
+                        self._log_simulation_state(NewtonManager.get_contacts(), num_envs)
                 finally:
                     self._viewer.end_frame()
                     if not self._viewer.is_running():
@@ -1172,6 +1169,239 @@ class NewtonVisualizer(BaseVisualizer):
                     type(self).__name__,
                 )
                 self._viewer = None
+
+    def _log_simulation_state(self, contacts, num_envs: int) -> None:
+        """Log one batched simulation state through the configured viewer layers."""
+        if self._viewer is None or self._state is None:
+            return
+        if not self._environment_layers:
+            self._viewer.log_state(self._state)
+            if contacts is not None:
+                self._viewer.log_contacts(contacts, self._state)
+            else:
+                self._log_scene_contact_sensor_arrows(num_envs)
+            if self.cfg.enable_markers and not isinstance(self._viewer, NewtonViewerRTX):
+                render_newton_visualization_markers(self._viewer, self._resolved_visible_env_ids, num_envs=num_envs)
+            self._log_streaming_image()
+            self._render_live_plots()
+            return
+
+        visible_env_ids = self._resolved_visible_env_ids
+        try:
+            for env_id in visible_env_ids:
+                layer_id = self._environment_layers.get(env_id)
+                if layer_id is None:
+                    continue
+                self._viewer.activate(layer_id)
+                self._viewer.log_state(self._state)
+                self._resolved_visible_env_ids = [env_id]
+                if contacts is not None:
+                    self._viewer.log_contacts(contacts, self._state)
+                else:
+                    self._log_scene_contact_sensor_arrows(num_envs)
+                if self.cfg.enable_markers:
+                    render_newton_visualization_markers(self._viewer, [env_id], num_envs=num_envs)
+        finally:
+            self._resolved_visible_env_ids = visible_env_ids
+        self._log_streaming_image()
+        self._render_live_plots()
+
+    def register_sidebar_callback(self, callback: Callable[[object], None]) -> None:
+        """Register a callback that draws controls in the Newton sidebar.
+
+        Args:
+            callback: Function receiving the active ImGui module.
+        """
+        if not callable(callback):
+            raise TypeError("callback must be callable")
+        self._sidebar_callback = callback
+        if self._viewer is not None:
+            self._viewer.register_ui_callback(callback, position="side")
+
+    def configure_environment_layers(self, env_ids: Sequence[int]) -> None:
+        """Queue one persistent Newton viewer layer for each simulation environment.
+
+        Physics remains batched in the original Newton model. Each layer selects
+        one world and owns only render state.
+
+        Args:
+            env_ids: Environment indices that receive viewer layers.
+        """
+        ids = [int(env_id) for env_id in env_ids]
+        if not ids or len(ids) != len(set(ids)):
+            raise ValueError("env_ids must contain at least one unique environment index")
+        num_envs = self._scene_data_provider.num_envs if self._scene_data_provider is not None else None
+        if num_envs is not None and any(env_id < 0 or env_id >= num_envs for env_id in ids):
+            raise ValueError(f"env_ids must be in the range [0, {num_envs})")
+
+        def apply(viewer: NewtonViewerGL) -> None:
+            if self._environment_layers:
+                if tuple(self._environment_layers) != tuple(ids):
+                    raise RuntimeError("environment layers are already configured with different indices")
+                return
+            if self._model is None:
+                raise RuntimeError("Newton model is unavailable")
+
+            default_layer_id = viewer.layer.layer_id
+            viewer.set_layer_visible(default_layer_id, False)
+            if self._state is not None:
+                viewer.log_state(self._state)
+
+            for env_id in ids:
+                layer_id = f"environment_{env_id}"
+                viewer.activate(layer_id)
+                viewer.set_model(self._model)
+                viewer.set_visible_worlds([env_id])
+                viewer.set_world_offsets((0.0, 0.0, 0.0))
+                viewer.set_layer_visible(layer_id, False)
+                self._environment_layers[env_id] = layer_id
+            self._resolved_visible_env_ids = []
+
+        self._pending_viewer_commands.append(("environment layer setup", apply))
+
+    def set_visible_environment_ids(self, env_ids: Sequence[int]) -> None:
+        """Queue a change to the rendered simulation environments."""
+        ids = [int(env_id) for env_id in env_ids]
+        if len(ids) != len(set(ids)):
+            raise ValueError("env_ids must not contain duplicates")
+        num_envs = self._scene_data_provider.num_envs if self._scene_data_provider is not None else None
+        if num_envs is not None and any(env_id < 0 or env_id >= num_envs for env_id in ids):
+            raise ValueError(f"env_ids must be in the range [0, {num_envs})")
+
+        def apply(viewer: NewtonViewerGL) -> None:
+            if not self._environment_layers:
+                raise RuntimeError(
+                    "configure_environment_layers() must be called before selecting visible environments"
+                )
+            unknown = set(ids).difference(self._environment_layers)
+            if unknown:
+                raise ValueError(f"environment layers are not configured for indices: {sorted(unknown)}")
+            visible = set(ids)
+            for env_id, layer_id in self._environment_layers.items():
+                viewer.set_layer_visible(layer_id, env_id in visible)
+            self._resolved_visible_env_ids = list(ids)
+
+        self._pending_viewer_commands.append(("visible environments", apply))
+
+    def set_environment_layout(self, layout: str) -> None:
+        """Queue compact-grid or zero-offset overlay layout selection."""
+        if layout not in ("grid", "overlay"):
+            raise ValueError("layout must be either 'grid' or 'overlay'")
+
+        def apply(viewer: NewtonViewerGL) -> None:
+            if not self._environment_layers:
+                raise RuntimeError("configure_environment_layers() must be called before selecting a layer layout")
+            origins = self._environment_origins()
+            if origins is None:
+                raise RuntimeError("environment origins are unavailable")
+            visible_env_ids = [
+                env_id for env_id in self._resolved_visible_env_ids if env_id in self._environment_layers
+            ]
+            compact_origins = {env_id: origins[compact_index] for compact_index, env_id in enumerate(visible_env_ids)}
+            for env_id, layer_id in self._environment_layers.items():
+                if layout == "overlay":
+                    translation = -origins[env_id]
+                elif env_id in compact_origins:
+                    translation = compact_origins[env_id] - origins[env_id]
+                else:
+                    translation = np.zeros(3, dtype=np.float32)
+                viewer.set_layer_transform(layer_id, tuple(float(value) for value in translation))
+
+        self._pending_viewer_commands.append((f"{layout} layout", apply))
+
+    def _environment_origins(self) -> np.ndarray | None:
+        """Return Isaac Lab environment origins as a CPU float32 array when available."""
+        provider = self._scene_data_provider
+        if provider is None or not hasattr(provider, "get_interactive_scene"):
+            return None
+        scene = provider.get_interactive_scene()
+        origins = getattr(scene, "env_origins", None)
+        if origins is None:
+            return None
+        if isinstance(origins, torch.Tensor):
+            origins = origins.detach().cpu().numpy()
+        origins = np.asarray(origins, dtype=np.float32)
+        expected_shape = (provider.num_envs, 3)
+        return origins if origins.shape == expected_shape else None
+
+    def scene_asset_shape_visibility(self, asset_names: Sequence[str]) -> tuple[bool, ...]:
+        """Resolve named scene assets to a Newton model-shape visibility mask."""
+        if not asset_names:
+            raise ValueError("asset_names must not be empty")
+        if self._model is None:
+            raise RuntimeError("Newton model is unavailable")
+        labels = getattr(self._model, "shape_label", None)
+        if not isinstance(labels, list) or len(labels) != self._model.shape_count:
+            raise RuntimeError("Newton model shape labels are unavailable or incomplete")
+
+        scene = self._scene_data_provider.get_interactive_scene()
+        patterns: list[re.Pattern[str]] = []
+        for asset_name in asset_names:
+            try:
+                asset = scene[asset_name]
+            except KeyError as exc:
+                raise ValueError(f"Unknown scene asset for layer visibility: {asset_name}") from exc
+            prim_expr = str(asset.cfg.prim_path)
+            try:
+                pattern = re.compile(f"^(?:{prim_expr})(?:/.*)?$")
+            except re.error as exc:
+                raise ValueError(f"Invalid prim path expression for scene asset {asset_name}: {prim_expr}") from exc
+            patterns.append(pattern)
+
+        visibility = tuple(any(pattern.fullmatch(label) for pattern in patterns) for label in labels)
+        if not any(visibility):
+            raise RuntimeError(f"No Newton shapes matched scene assets: {tuple(asset_names)}")
+        return visibility
+
+    def set_environment_render_styles(self, styles: Sequence[object]) -> None:
+        """Queue one Newton layer render style per simulation environment."""
+        resolved = tuple(styles)
+
+        def apply(viewer: NewtonViewerGL) -> None:
+            if not self._environment_layers:
+                raise RuntimeError("configure_environment_layers() must be called before setting layer styles")
+            highest_env_id = max(self._environment_layers)
+            if len(resolved) <= highest_env_id:
+                raise ValueError(f"styles must contain an entry for environment {highest_env_id}")
+            for env_id, layer_id in self._environment_layers.items():
+                viewer.set_layer_render_style(layer_id, resolved[env_id])
+
+        self._pending_viewer_commands.append(("environment layer render styles", apply))
+
+    def set_environment_shape_visibility(self, visibility: Sequence[Sequence[bool] | None]) -> None:
+        """Queue one explicit Newton shape mask per simulation environment."""
+        resolved = tuple(None if mask is None else tuple(mask) for mask in visibility)
+
+        def apply(viewer: NewtonViewerGL) -> None:
+            if not self._environment_layers:
+                raise RuntimeError("configure_environment_layers() must be called before setting shape visibility")
+            highest_env_id = max(self._environment_layers)
+            if len(resolved) <= highest_env_id:
+                raise ValueError(f"visibility must contain an entry for environment {highest_env_id}")
+            for env_id, layer_id in self._environment_layers.items():
+                viewer.set_layer_shape_visibility(layer_id, resolved[env_id])
+
+        self._pending_viewer_commands.append(("environment layer shape visibility", apply))
+
+    def frame_visible_environments(self) -> None:
+        """Queue camera framing for the currently visible environments."""
+
+        def apply(viewer: NewtonViewerGL) -> None:
+            if viewer.gui is not None:
+                viewer.gui.frame_camera_on_model()
+
+        self._pending_viewer_commands.append(("frame visible environments", apply))
+
+    def _apply_pending_viewer_commands(self) -> None:
+        """Apply UI-originated viewer mutations at a simulation frame boundary."""
+        if self._viewer is None:
+            return
+        while self._pending_viewer_commands:
+            label, command = self._pending_viewer_commands.popleft()
+            try:
+                command(self._viewer)
+            except Exception:
+                logger.exception("[%s] Failed to apply queued %s request.", type(self).__name__, label)
 
     def is_reset_requested(self) -> bool:
         """Return whether an episode reset was requested via the viewer UI."""
@@ -1200,6 +1430,8 @@ class NewtonVisualizer(BaseVisualizer):
             if self._picking_enabled:
                 self._viewer.wind = None
             self._viewer._register_isaaclab_ui_callbacks()
+            if self._sidebar_callback is not None:
+                self._viewer.register_ui_callback(self._sidebar_callback, position="side")
             self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
             self._viewer.set_world_offsets(self.cfg.world_spacing)
             self._apply_model_visualization_options()

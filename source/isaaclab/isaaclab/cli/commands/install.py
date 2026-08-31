@@ -685,6 +685,7 @@ CORE_ISAACLAB_SUBMODULES: list[str] = [
 # Maps the short CLI name to one or more source directory names under source/.
 OPTIONAL_ISAACLAB_SUBMODULES: dict[str, tuple[str, ...]] = {
     "mimic": ("isaaclab_teleop", "isaaclab_mimic"),
+    "policy_debug": ("isaaclab_policy_debug",),
     "teleop": ("isaaclab_teleop",),
 }
 
@@ -693,12 +694,14 @@ OPTIONAL_ISAACLAB_SUBMODULES: dict[str, tuple[str, ...]] = {
 # declare dependencies). Derived from OPTIONAL_ISAACLAB_SUBMODULES rather than
 # redefined: each ``isaaclab_<name>`` source dir maps to the same-named root
 # extra (so ``mimic`` pulls in the ``teleop`` stack as well, matching the
-# editable-install behavior it replaces). The extra names are validated against
-# the root pyproject by :func:`_root_extra_dependencies` at install time.
+# editable-install behavior it replaces). Policy debug also needs the existing
+# RSL-RL runtime extra. Names are validated against the root pyproject by
+# :func:`_root_extra_dependencies` at install time.
 OPTIONAL_SUBMODULE_ROOT_EXTRAS: dict[str, tuple[str, ...]] = {
     submodule: tuple(directory.removeprefix("isaaclab_") for directory in directories)
     for submodule, directories in OPTIONAL_ISAACLAB_SUBMODULES.items()
 }
+OPTIONAL_SUBMODULE_ROOT_EXTRAS["policy_debug"] += ("rsl-rl",)
 
 # Extra feature sets that install optional heavy dependencies on top of the
 # always-installed core submodules. Each name corresponds to one or more
@@ -1141,14 +1144,14 @@ def command_install(install_type: str = "all") -> None:
             dependencies to install on top of the always-installed core set.
 
             * ``"all"`` (default) — install core submodules + optional
-              submodules (``mimic``, ``teleop``) + all automatic
+              submodules (``mimic``, ``policy_debug``, ``teleop``) + all automatic
               extra features.
             * ``"core"`` — install core submodules only; no optional
               submodules, no extra feature dependencies.
             * Comma-separated tokens — install core submodules plus the listed
               optional submodules and extra features. Valid tokens:
 
-              - Optional submodules: ``mimic``, ``teleop``
+              - Optional submodules: ``mimic``, ``policy_debug``, ``teleop``
               - Extra features: ``contrib[rlinf]``, ``rl[<framework>]``,
                 ``tetrahedralization``, ``visualizer[<backend>]``,
                 ``ov[ovrtx|ovphysx|all]``
@@ -1157,6 +1160,7 @@ def command_install(install_type: str = "all") -> None:
               Examples::
 
                   ./isaaclab.sh -i rl[rsl-rl]
+                  ./isaaclab.sh -i policy_debug
                   ./isaaclab.sh -i tetrahedralization
                   ./isaaclab.sh -i mimic,visualizer[rerun]
                   ./isaaclab.sh -i teleop,rl[skrl],ov[ovrtx]

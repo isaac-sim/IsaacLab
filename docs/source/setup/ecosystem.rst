@@ -85,6 +85,8 @@ Isaac Lab is organized into a set of focused packages that can be used independe
   `RL Games`_.
 * ``isaaclab_mimic`` — APIs and pre-configured environments for data generation and imitation
   learning, including cuRobo-based motion planners and a full dataset-generation pipeline.
+* ``isaaclab_policy_debug`` — an interactive Newton GL view for comparing several RSL-RL
+  checkpoints against the same synchronized task scenario.
 * ``isaaclab_teleop`` — teleoperation session orchestration with XR (OpenXR / CloudXR) support,
   device retargeters for manipulators and humanoids, and gamepad/spacemouse/keyboard input.
 * ``isaaclab_visualizers`` — supplementary visualizer backends (Isaac Kit, Rerun, Viser) that
