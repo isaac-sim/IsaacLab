@@ -29,6 +29,13 @@ USD authoring lives on the schema side as
 it through :meth:`ArticulationCfg._post_spawn`.
 """
 
+import newton
+
+# Newton reads this while a ModelBuilder is populated and finalized, so it has to
+# be set before any builder exists. Isaac Lab indexes joint position targets per DOF.
+# Deprecated since Newton 1.5; pinned until Isaac Lab moves to the coordinate layout.
+newton.use_coord_layout_targets = False
+
 from .adapter import NewtonActuatorAdapter, read_group_parameter, write_group_parameter
 from .kernels import build_implicit_dof_mask
 from .physx_wrapper import PhysxActuatorWrapper
