@@ -210,6 +210,20 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
+    # #6329 aborts the pip install when it strands a prebundled package's __init__.py
+    # (nvbugs 6343978: 14 Isaac Sim extensions fail to load). The images install with
+    # ``uv sync``, which never runs that guard, so assert the same invariant on the image.
+    - name: Verify image invariants
+      shell: bash
+      env:
+        IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
+      run: |
+        set -euo pipefail
+        IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "${IMAGE_TAG}")"
+        export IMAGE_DIGEST
+        uv run --no-project --with pytest \
+          python -m pytest -q -m docker_image docker/test/test_image_invariants.py
+
   build-curobo:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]

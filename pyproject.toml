@@ -366,6 +366,7 @@ markers = [
     "rendering: test exercises the rendering / camera / visualizer pipeline",
     "smoke: tests for core installation, task, and RL functionality",
     "kitless: test must pass inside the Kit-less container, which has no Isaac Sim runtime",
+    "docker_image: test asserts an invariant of a built container image; needs IMAGE_TAG",
 ]
 
 # Add pypi.nvidia.com so that `uv pip install isaaclab[isaacsim]` works without --extra-index-url.

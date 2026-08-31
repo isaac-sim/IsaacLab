@@ -145,8 +145,12 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     assert "'rerun-sdk' in names" in dockerfile_text
     assert "libxrender1" in dockerfile_text
     assert 'test ! -e "${ISAACLAB_PATH}/_isaac_sim"' in dockerfile_text
-    assert "COPY docker/docker-compose.yaml docker/docker-compose.yaml" in dockerfile_text
-    assert "COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py" in dockerfile_text
+    # volume_mounts.py parses docker-compose.yaml at runtime, so both must reach the image -
+    # either named individually or via a whole-tree copy.
+    for required in ("docker/docker-compose.yaml", "docker/utils/volume_mounts.py"):
+        assert f"COPY {required} {required}" in dockerfile_text or "COPY . ." in dockerfile_text, (
+            f"{required} must be copied into the kit-less image"
+        )
 
 
 # --------------------------------------------------------------------------- #

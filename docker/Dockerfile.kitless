@@ -78,12 +78,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
  && uv sync --frozen --inexact --extra all --extra importers --extra test-runtime \
       --no-install-workspace
 
-COPY source/ source/
+COPY . .
 
-# Fix the line endings a Windows checkout may carry, then restore the launcher's mode;
-# ``sed -i`` rewrites under the build umask, so set 755 explicitly.
-RUN find "${ISAACLAB_PATH}" -type f -name "*.sh" -exec sed -i 's/\r$//' {} + \
- && chmod 755 "${ISAACLAB_PATH}/isaaclab.sh"
+# ``chmod +x`` applies the build umask and left the launcher at 751, unreadable by a
+# container started with a uid other than the image's own.
+RUN chmod 755 "${ISAACLAB_PATH}/isaaclab.sh"
 
 # The workspace members install editable now that their sources are present.
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -99,13 +98,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
       assert 'rerun-sdk' in names" \
  && test ! -e "${ISAACLAB_PATH}/_isaac_sim"
 
-# isaaclab.utils.assets parses apps/isaaclab.python.kit at import time to
-# resolve the Nucleus asset root, so apps/ is required even without Kit.
-COPY apps/ apps/
-COPY scripts/ scripts/
-COPY docs/licenses/ docs/licenses/
-COPY docker/docker-compose.yaml docker/docker-compose.yaml
-COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py
 
 FROM ${BASE_IMAGE_ARG} AS runtime
 
@@ -136,6 +128,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
       git \
+      git-lfs \
       libegl1 \
       libgl1 \
       libglib2.0-0 \
