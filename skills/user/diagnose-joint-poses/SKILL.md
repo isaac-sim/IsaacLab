@@ -1,6 +1,9 @@
 ---
 name: isaaclab-diagnosing-joint-poses
 description: Diagnoses and validates Isaac Lab robot initial joint poses from semantic or visual requests. Use when a robot starts with the wrong wrist, gripper, tool, camera, or end-effector orientation and the fix should be measured from articulation state instead of guessed from screenshots.
+license: BSD-3-Clause
+metadata:
+  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
 audience: user
 status: experimental
 owners:

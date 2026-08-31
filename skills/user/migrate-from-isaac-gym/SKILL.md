@@ -1,6 +1,9 @@
 ---
 name: isaaclab-migrating-from-isaac-gym
 description: Migrates Isaac Gym tasks, assets, vectorized environments, and training workflows to Isaac Lab. Use when porting Isaac Gym environments, legacy Gym tasks, or Isaac Gym reinforcement learning code to Isaac Lab.
+license: BSD-3-Clause
+metadata:
+  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
 audience: user
 status: experimental
 owners:

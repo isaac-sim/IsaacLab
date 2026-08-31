@@ -1,6 +1,9 @@
 ---
 name: isaaclab-using-sensors-actuators
 description: Adds and configures Isaac Lab sensors, actuators, and sensor-derived task terms in new or existing tasks. Use when adding cameras, contact sensors, foot or feet contacts, contact history, touchdown timing, air-time rewards, undesired contacts, sensor observations or terminations, ray casters, IMUs, joint wrench sensors, tiled cameras, or actuator models.
+license: BSD-3-Clause
+metadata:
+  author: Isaac Lab Team <Isaac-Lab@exchange.nvidia.com>
 audience: user
 status: experimental
 owners:
