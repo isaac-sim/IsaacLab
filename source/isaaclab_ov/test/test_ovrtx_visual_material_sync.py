@@ -267,8 +267,14 @@ def test_async_render_settles_in_flight_render_before_material_publish():
     writer = Writer()
     renderer._visual_material_writer_ref = lambda: writer
 
+    # One render data across frames, as one camera would pass: a fresh one would re-prime each
+    # frame. A plain class, because priming holds render data weakly (SimpleNamespace cannot be).
+    class _RenderData:
+        ppisp_pipeline = None
+
+    render_data = _RenderData()
     for _ in range(3):
-        renderer._render_ovstage(SimpleNamespace(ppisp_pipeline=None))
+        renderer._render_ovstage(render_data)
 
     # Frame 1's render is still queued when frame 2 begins (frame 0 was primed synchronously); it
     # must drain before frame 2's publish, not merely before frame 3's enqueue.

@@ -89,12 +89,21 @@ def strategy() -> _AsyncRenderStrategy:
     return strategy
 
 
-def _render(strategy: Any, renderer: _FakeRenderer, ordinal: int, consumed: list[int]) -> None:
+class _CameraTarget:
+    """Stands in for one camera's render data; priming is tracked per target."""
+
+
+_DEFAULT_CAMERA = _CameraTarget()
+
+
+def _render(
+    strategy: Any, renderer: _FakeRenderer, ordinal: int, consumed: list[int], camera: _CameraTarget = _DEFAULT_CAMERA
+) -> None:
     strategy.render(
         renderer,
         {"/Render/Product"},
         1.0 / 60.0,
-        object(),
+        camera,
         lambda render_data, products: consumed.append(ordinal),
         ordinal=ordinal,
     )
@@ -173,22 +182,40 @@ def test_first_frame_is_primed_after_reinitialize(strategy, timeline):
 
 
 def test_frames_are_delivered_to_the_render_data_they_were_submitted_for(strategy, timeline):
-    """A drain triggered by a scene write must not deliver into another frame's buffers."""
+    """A drain triggered by a scene write must not deliver into another camera's buffers."""
     renderer = _FakeRenderer(timeline)
-    first_target = object()
-    second_target = object()
+    camera_a = _CameraTarget()
+    camera_b = _CameraTarget()
     delivered: list[object] = []
 
     def consume(render_data, products):
         delivered.append(render_data)
 
-    strategy.render(renderer, {"/P"}, 1.0 / 60.0, first_target, consume, ordinal=0)
+    # Prime both cameras so the frames below pipeline instead of draining inline.
+    strategy.render(renderer, {"/P"}, 1.0 / 60.0, camera_a, consume, ordinal=0)
+    strategy.render(renderer, {"/P"}, 1.0 / 60.0, camera_b, consume, ordinal=1)
     delivered.clear()
 
-    strategy.render(renderer, {"/P"}, 1.0 / 60.0, second_target, consume, ordinal=1)
+    strategy.render(renderer, {"/P"}, 1.0 / 60.0, camera_b, consume, ordinal=2)
     strategy.settle_before_scene_write()
 
-    assert delivered == [second_target]
+    assert delivered == [camera_b]
+
+
+def test_each_cameras_first_frame_is_primed(strategy, timeline):
+    """Every camera sharing the strategy gets a delivered first frame, not only the first camera."""
+    renderer = _FakeRenderer(timeline)
+    camera_a = _CameraTarget()
+    camera_b = _CameraTarget()
+    delivered: list[object] = []
+
+    def consume(render_data, products):
+        delivered.append(render_data)
+
+    strategy.render(renderer, {"/P"}, 1.0 / 60.0, camera_a, consume, ordinal=0)
+    strategy.render(renderer, {"/P"}, 1.0 / 60.0, camera_b, consume, ordinal=0)
+
+    assert delivered == [camera_a, camera_b]
 
 
 class _CompletedWriteOp:
