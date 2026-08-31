@@ -40,6 +40,8 @@ mkdir -p "$BUILD_DIR/src/isaaclab"
 # 1. Copy inventory (the full source tree: apps/ + source/)
 cp -r apps "$BUILD_DIR/src/isaaclab/"
 cp -r source "$BUILD_DIR/src/isaaclab/"
+mkdir -p "$BUILD_DIR/src/isaaclab/tools"
+cp -r tools/template "$BUILD_DIR/src/isaaclab/tools/"
 
 # Ensure apps/ is discovered as a Python sub-package (it has no __init__.py)
 find "$BUILD_DIR/src/isaaclab/apps" -type d -exec touch {}/__init__.py \;

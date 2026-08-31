@@ -473,7 +473,7 @@ For skrl JAX training, pass an integer GPU count and the ``--coordinator_address
 
               .. code-block:: bash
 
-                  uv run python scripts/reinforcement_learning/train_multigpu.py \
+                  uv run --extra skrl python scripts/reinforcement_learning/train_multigpu.py \
                      --rl_library skrl --ml_framework jax --num_gpus 4 \
                      --coordinator_address localhost:5000 \
                      --task Isaac-Reorient-KukaAllegro \
@@ -494,7 +494,7 @@ For skrl JAX training, pass an integer GPU count and the ``--coordinator_address
 
         .. code-block:: bash
 
-            uv run isaaclab train_multigpu --rl_library skrl --ml_framework jax --num_gpus 4 \
+            uv run --extra skrl isaaclab train_multigpu --rl_library skrl --ml_framework jax --num_gpus 4 \
                --coordinator_address localhost:5000 \
                --task Isaac-Reorient-KukaAllegro \
                --num_envs 4096 --max_iterations 100

@@ -701,7 +701,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
          .. code:: bash
 
             # Train with a specific config
-            uv run isaaclab train --rl_library rlinf \
+            uv run --extra rlinf isaaclab train --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
                 --model_path /path/to/base_model
 
@@ -723,7 +723,7 @@ For installation instructions, see :ref:`rlinf-post-training`.
          .. code:: bash
 
             # Evaluate with video recording
-            uv run --extra video isaaclab play --rl_library rlinf \
+            uv run --extra rlinf,video isaaclab play --rl_library rlinf \
                 --config_name isaaclab_ppo_gr00t_assemble_trocar \
                 --model_path /path/to/base_model --video
 
