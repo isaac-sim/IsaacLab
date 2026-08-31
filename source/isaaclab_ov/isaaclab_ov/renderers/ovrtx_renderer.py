@@ -2423,6 +2423,10 @@ class OVRTXRenderer(BaseRenderer):
             return
         # Commit all per-frame writes (transforms, geometries, camera, materials) then step.
         # advance_write_floor must precede step — the renderer rejects ordinal > write_floor.
+        # Material publishes and the write-floor advance mutate the stage like any other scene
+        # write, but do not route through :meth:`_write_attribute_ovstage`, so drain in-flight
+        # renders here. A frame whose earlier writes already settled makes this a no-op.
+        self._strategy.settle_before_scene_write()
         material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
         try:
             if material_writer is not None:

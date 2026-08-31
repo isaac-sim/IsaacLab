@@ -430,4 +430,11 @@ class _AsyncRenderStrategy(_RenderStrategy):
             except Exception as e:
                 logger.warning("Error draining OVRTX async render op: %s", e, exc_info=True)
 
+        # Same best-effort rule for the slots' binding writes: ``wait_for_writes`` clears a slot's
+        # ops even on failure, so the reset below cannot raise out of the renderer's teardown.
+        for slot in self._slots:
+            try:
+                slot.wait_for_writes()
+            except Exception as e:
+                logger.warning("Error completing OVRTX async binding write during cleanup: %s", e, exc_info=True)
         self._reset_slots(0)

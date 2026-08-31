@@ -24,7 +24,11 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
-    from isaaclab_ov.renderers.ovrtx_renderer_strategies import _AsyncRenderStrategy, _SyncRenderStrategy
+    from isaaclab_ov.renderers.ovrtx_renderer_strategies import (
+        _AsyncRenderSlot,
+        _AsyncRenderStrategy,
+        _SyncRenderStrategy,
+    )
 
 
 class _Timeline:
@@ -184,6 +188,29 @@ def test_frames_are_delivered_to_the_render_data_they_were_submitted_for(strateg
     strategy.settle_before_scene_write()
 
     assert delivered == [second_target]
+
+
+def test_cleanup_survives_failed_slot_writes(strategy, timeline):
+    """A failed binding write at teardown must log and continue, not raise out of the renderer's close()."""
+    renderer = _FakeRenderer(timeline)
+    consumed: list[int] = []
+    _render(strategy, renderer, 0, consumed)
+    _render(strategy, renderer, 1, consumed)
+
+    class _FailingWriteOp:
+        def wait(self) -> None:
+            raise RuntimeError("device lost")
+
+    strategy._slots.append(
+        _AsyncRenderSlot(
+            camera_transforms=None, camera_quats=None, object_transforms=None, write_ops=[_FailingWriteOp()]
+        )
+    )
+    strategy.cleanup()
+
+    assert consumed == [0, 1]
+    assert not strategy._slots
+    assert not strategy._has_pending_ops()
 
 
 def test_sync_strategy_needs_no_barrier(timeline):

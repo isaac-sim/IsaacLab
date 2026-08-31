@@ -75,11 +75,12 @@ def _parse_async_rendering_enabled(value: bool | int | str) -> bool:
         if value in (0, 1):
             return bool(value)
         raise ValueError(f"async rendering is a flag; multi-frame latency ({value}) is not supported yet")
-    text = value.strip().lower()
-    if text in _FALSE_SPELLINGS:
-        return False
-    if text in _TRUE_SPELLINGS:
-        return True
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in _FALSE_SPELLINGS:
+            return False
+        if text in _TRUE_SPELLINGS:
+            return True
     raise ValueError(f"async rendering expects a boolean spelling, got {value!r}")
 
 
