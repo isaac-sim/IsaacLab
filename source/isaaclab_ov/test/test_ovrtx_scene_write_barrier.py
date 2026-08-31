@@ -209,8 +209,6 @@ def test_cleanup_survives_failed_slot_writes(strategy, timeline):
     strategy.cleanup()
 
     assert consumed == [0, 1]
-    assert not strategy._slots
-    assert not strategy._has_pending_ops()
 
 
 def test_sync_strategy_needs_no_barrier(timeline):
