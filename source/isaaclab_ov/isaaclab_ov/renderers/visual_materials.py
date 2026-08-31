@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import itertools
+import logging
 import weakref
 from typing import TYPE_CHECKING, Any
 
@@ -19,6 +20,8 @@ if TYPE_CHECKING:
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from .ovrtx_renderer import OVRTXRenderer
+
+logger = logging.getLogger(__name__)
 
 
 class OVRTXVisualMaterialWriter:
@@ -141,6 +144,12 @@ class OVRTXVisualMaterialWriter:
         finally:
             renderer = self._renderer_ref()
             if renderer is not None:
+                # An in-flight async render may still read these bindings; drain it before the
+                # release below. Best-effort, so teardown always reaches the release.
+                try:
+                    renderer._strategy.settle_before_scene_write()
+                except Exception as e:
+                    logger.warning("Error draining in-flight renders before material release: %s", e, exc_info=True)
                 self._release_backend_addresses(renderer)
             self._dirty_channels.clear()
             self._buffers.clear()
