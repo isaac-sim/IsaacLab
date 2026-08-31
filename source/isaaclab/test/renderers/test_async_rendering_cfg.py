@@ -44,6 +44,13 @@ def test_negative_value_is_rejected():
         resolve_async_rendering_enabled(RendererCfg(async_rendering=-1))
 
 
+@pytest.mark.parametrize("value", [None, 1.0], ids=["none", "float"])
+def test_untyped_cfg_value_raises_the_documented_error(value):
+    """Values outside bool/int/str (e.g. a Hydra ``null``) must raise ValueError, not AttributeError."""
+    with pytest.raises(ValueError, match="boolean spelling"):
+        resolve_async_rendering_enabled(RendererCfg(async_rendering=value))
+
+
 @pytest.mark.parametrize(
     "raw,expected",
     [("0", False), ("false", False), ("off", False), ("1", True), ("true", True), ("yes", True), (" on ", True)],
