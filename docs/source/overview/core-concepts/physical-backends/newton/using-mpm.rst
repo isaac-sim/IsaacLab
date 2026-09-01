@@ -124,11 +124,6 @@ Tune one group at a time in this order:
    only when tighter convergence improves a physical metric. These settings do
    not repair an unstable timestep, invalid reset, or incorrect collider.
 
-Only fixed grids and capacity-bounded rebuildable sparse grids support CUDA
-graph capture. Set a positive ``MPMSolverCfg.max_active_cell_count`` to bound a
-sparse grid; dense and unbounded sparse grids fall back to eager execution with
-a warning when ``NewtonCfg.use_cuda_graph`` is enabled.
-
 
 Tune Rigid-MPM Coupling
 -----------------------
