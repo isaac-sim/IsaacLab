@@ -26,7 +26,8 @@ Do not use this skill to bypass repository checks or to push to `origin`.
 7. Add package changelog fragments when `source/<package>/` code changes.
 8. Check whether `CONTRIBUTORS.md` needs an update for a new contributor.
 9. Draft a commit message in imperative mood with no AI attribution.
-10. Use the PR checklist in `.github/PULL_REQUEST_TEMPLATE.md`.
+10. Confirm the pull request targets the `develop` branch. `main` and `release/*` are not contribution targets.
+11. Use the PR checklist in `.github/PULL_REQUEST_TEMPLATE.md`.
 
 ## Validation
 

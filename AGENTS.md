@@ -47,7 +47,7 @@
 
 ## Commits and branches
 
-- Work on a feature branch; do not commit directly to `main`.
+- Work on a feature branch; do not commit directly to `develop`, `main`, or any `release/*` branch.
 - Keep commits focused and atomic.
 - Use an imperative, capitalized commit subject with no trailing period.
 - Inspect staged changes before committing.
