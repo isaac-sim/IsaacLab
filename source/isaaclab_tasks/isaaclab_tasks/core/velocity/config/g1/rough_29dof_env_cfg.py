@@ -113,3 +113,71 @@ class G129DofRoughEnvCfg(G1RoughEnvCfg):
                 "sensor_cfg": SceneEntityCfg("height_scanner"),
             },
         )
+
+
+HARDWARE_EFFORT_LIMITS = {
+    "hip": 88.0,
+    "knee": 139.0,
+    "waist_yaw": 88.0,
+    "ankle": 50.0,
+    "waist_roll_pitch": 50.0,
+    "shoulder_elbow": 25.0,
+    "wrist_roll": 25.0,
+    "wrist_pitch_yaw": 5.0,
+    "hand": 2.45,
+}
+"""Per-joint torque ceilings [N*m] from the official MJCF's ``ctrlrange``.
+
+:data:`~isaaclab_assets.robots.unitree.G1_29DOF_VELOCITY_CFG` inherits ``G1_CFG``'s blanket 300 for
+the legs, 300 for the arms and 20 for the feet. All three are wrong against the hardware, and the
+ankle is wrong in the direction that matters: a policy trained against a 20 N*m ankle never learns
+it has 50, and 20 is not enough to turn on rough terrain -- the default task ends at
+``error_vel_yaw`` 1.06 against a 0.4 success threshold while linear tracking is already fine at
+0.31.
+"""
+
+
+def _apply_hardware_efforts(cfg, ankle_only: bool = False) -> None:
+    """Replace the blanket torque ceilings with the hardware's, in place.
+
+    Args:
+        cfg: Environment config whose robot actuators are rewritten.
+        ankle_only: Change the ankle alone, leaving every other group on the blanket value. Isolates
+            the ankle as a cause rather than changing nine numbers at once.
+    """
+    actuators = cfg.scene.robot.actuators
+    actuators["feet"].effort_limit_sim = HARDWARE_EFFORT_LIMITS["ankle"]
+    if ankle_only:
+        return
+    actuators["legs"].effort_limit_sim = {
+        ".*_hip_.*": HARDWARE_EFFORT_LIMITS["hip"],
+        ".*_knee_joint": HARDWARE_EFFORT_LIMITS["knee"],
+        "waist_yaw_joint": HARDWARE_EFFORT_LIMITS["waist_yaw"],
+    }
+    actuators["waist"].effort_limit_sim = HARDWARE_EFFORT_LIMITS["waist_roll_pitch"]
+    actuators["arms"].effort_limit_sim = {
+        ".*_shoulder_.*": HARDWARE_EFFORT_LIMITS["shoulder_elbow"],
+        ".*_elbow_joint": HARDWARE_EFFORT_LIMITS["shoulder_elbow"],
+        ".*_wrist_roll_joint": HARDWARE_EFFORT_LIMITS["wrist_roll"],
+        ".*_wrist_pitch_joint": HARDWARE_EFFORT_LIMITS["wrist_pitch_yaw"],
+        ".*_wrist_yaw_joint": HARDWARE_EFFORT_LIMITS["wrist_pitch_yaw"],
+    }
+    actuators["hands"].effort_limit_sim = HARDWARE_EFFORT_LIMITS["hand"]
+
+
+@configclass
+class G129DofRoughRealAnkleEnvCfg(G129DofRoughEnvCfg):
+    """One variable changed against :class:`G129DofRoughEnvCfg`: the ankle torque ceiling."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        _apply_hardware_efforts(self, ankle_only=True)
+
+
+@configclass
+class G129DofRoughRealTorqueEnvCfg(G129DofRoughEnvCfg):
+    """Every torque ceiling taken from the hardware, as the sim-to-real DR29 task does."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        _apply_hardware_efforts(self)
