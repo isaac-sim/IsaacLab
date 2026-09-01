@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import copy
 import math
 
 import torch
@@ -24,6 +25,7 @@ from isaaclab.utils.noise import UniformNoiseCfg
 import isaaclab_tasks.contrib.deploy.mdp as mdp
 import isaaclab_tasks.contrib.deploy.mdp.events as gear_assembly_events
 from isaaclab_tasks.contrib.deploy.gear_assembly.gear_assembly_env_cfg import (
+    _NEWTON_GEAR_NUM_ENVS,
     _NEWTON_GEAR_OFFSETS,
     _PHYSX_GEAR_OFFSETS,
     GearAssemblyEnvCfg,
@@ -37,6 +39,8 @@ from isaaclab_tasks.utils import PresetCfg, preset
 ##
 # Pre-defined configs
 ##
+from . import events as rizon_events
+
 from isaaclab_assets import FLEXIV_RIZON4S_GRAV_GRIPPER_CFG  # isort: skip
 
 
@@ -84,16 +88,16 @@ def set_finger_joint_pos_grav(
 
 
 _NEWTON_PIN_UNSELECTED_GEARS_EVENT = EventTerm(
-    func=gear_assembly_events.pin_unselected_gears_to_shafts,
+    func=rizon_events.pin_unselected_gears_to_shafts,
     mode="interval",
     interval_range_s=(0.0, 0.0),
     params={"gear_offsets": _NEWTON_GEAR_OFFSETS, "seated_gear_z_offset": 0.0075},
 )
 
 
-def _gear_friction_range() -> PresetCfg:
+def _gear_friction_range(*, newton_default: bool = False) -> PresetCfg:
     return preset(
-        default=(0.75, 0.75),
+        default=(3.0, 3.0) if newton_default else (0.75, 0.75),
         physx=(0.75, 0.75),
         physx_sdf=(0.75, 0.75),
         newton_mjwarp=(3.0, 3.0),
@@ -102,10 +106,10 @@ def _gear_friction_range() -> PresetCfg:
     )
 
 
-def _backend_preset(physx_value: object, newton_value: object) -> PresetCfg:
-    """Create a PhysX-preserving preset with one value for all Newton variants."""
+def _backend_preset(physx_value: object, newton_value: object, *, newton_default: bool = False) -> PresetCfg:
+    """Create a backend preset with one value for all Newton variants."""
     return preset(
-        default=physx_value,
+        default=newton_value if newton_default else physx_value,
         physx=physx_value,
         physx_sdf=physx_value,
         newton_mjwarp=newton_value,
@@ -114,10 +118,12 @@ def _backend_preset(physx_value: object, newton_value: object) -> PresetCfg:
     )
 
 
-def _gear_asset_frame_preset(legacy_value: object, centered_value: object) -> PresetCfg:
+def _gear_asset_frame_preset(
+    legacy_value: object, centered_value: object, *, newton_default: bool = False
+) -> PresetCfg:
     """Create a preset that selects centered gear frames across physics backends."""
     return preset(
-        default=legacy_value,
+        default=centered_value if newton_default else legacy_value,
         physx=legacy_value,
         physx_sdf=centered_value,
         newton_mjwarp=centered_value,
@@ -263,11 +269,21 @@ class EventCfg:
 class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
     """Configure Flexiv Rizon 4s with the Grav gripper for gear assembly."""
 
+    _newton_default = False
+
     ee_grasp_weight_ramp_steps: int = 512_000
+
+    def _select_backend(self, physx_value: object, newton_value: object) -> PresetCfg:
+        """Create a backend preset using this task variant's fallback."""
+        return _backend_preset(physx_value, newton_value, newton_default=self._newton_default)
+
+    def _select_asset_frame(self, legacy_value: object, centered_value: object) -> PresetCfg:
+        """Create an asset-frame preset using this task variant's fallback."""
+        return _gear_asset_frame_preset(legacy_value, centered_value, newton_default=self._newton_default)
 
     def __post_init__(self):
         super().__post_init__()
-        self.gear_offsets = _gear_asset_frame_preset(_PHYSX_GEAR_OFFSETS, _NEWTON_GEAR_OFFSETS)
+        self.gear_offsets = self._select_asset_frame(_PHYSX_GEAR_OFFSETS, _NEWTON_GEAR_OFFSETS)
 
         arm_joint_names = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"]
         self.end_effector_body_name = "link7"
@@ -287,6 +303,18 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         self.observations.policy.joint_vel.params["asset_cfg"].joint_names = arm_joint_names
 
         self.events = EventCfg()
+        for material_term_name in (
+            "small_gear_physics_material",
+            "medium_gear_physics_material",
+            "large_gear_physics_material",
+        ):
+            material_params = getattr(self.events, material_term_name).params
+            material_params["static_friction_range"] = _gear_friction_range(newton_default=self._newton_default)
+            material_params["dynamic_friction_range"] = _gear_friction_range(newton_default=self._newton_default)
+        reset_pose_params = self.events.randomize_gears_and_base_pose.params
+        reset_pose_params["gear_offsets"] = self._select_backend(None, _NEWTON_GEAR_OFFSETS)
+        reset_pose_params["seated_gear_z_offset"] = self._select_backend(0.0, 0.0075)
+        self.events.pin_unselected_gears_to_shafts = self._select_backend(None, _NEWTON_PIN_UNSELECTED_GEARS_EVENT)
         self.terminations.gear_orientation_exceeded.params["roll_threshold_deg"] = 15.0
         self.terminations.gear_orientation_exceeded.params["pitch_threshold_deg"] = 15.0
         self.terminations.gear_orientation_exceeded.params["yaw_threshold_deg"] = 180.0
@@ -330,9 +358,11 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             spawn=FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.spawn.replace(
                 # Newton currently cannot exclude only the robot from gravity. Actuator gravity
                 # compensation below holds the arm while preserving gravity for the gears.
-                joint_drive_props=_backend_preset(None, sim_utils.MujocoJointDrivePropertiesCfg(actuatorgravcomp=True)),
+                joint_drive_props=self._select_backend(
+                    None, sim_utils.MujocoJointDrivePropertiesCfg(actuatorgravcomp=True)
+                ),
                 rigid_props=PhysxRigidBodyPropertiesCfg(
-                    disable_gravity=_backend_preset(True, False),
+                    disable_gravity=self._select_backend(True, False),
                     max_depenetration_velocity=5.0,
                     linear_damping=0.0,
                     angular_damping=0.0,
@@ -350,18 +380,18 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
                 ),
                 collision_props=PhysxCollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
             ),
-            init_state=_backend_preset(physx_robot_init, newton_robot_init),
+            init_state=self._select_backend(physx_robot_init, newton_robot_init),
         )
 
-        # Use the validated bare-arm gains for Newton while preserving the existing PhysX gains.
+        # Use backend-specific arm actuator gains.
         for actuator_name, physx_stiffness, physx_damping, newton_stiffness, newton_damping in (
             ("shoulder", 1320.0, 72.0, 6000.0, 108.5),
             ("elbow", 600.0, 35.0, 4200.0, 90.7),
             ("wrist", 216.0, 29.0, 1500.0, 54.2),
         ):
             actuator = self.scene.robot.actuators[actuator_name]
-            actuator.stiffness = _backend_preset(physx_stiffness, newton_stiffness)
-            actuator.damping = _backend_preset(physx_damping, newton_damping)
+            actuator.stiffness = self._select_backend(physx_stiffness, newton_stiffness)
+            actuator.damping = self._select_backend(physx_damping, newton_damping)
 
         physx_gripper_drive = ImplicitActuatorCfg(
             joint_names_expr=["finger_joint"],
@@ -377,7 +407,7 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             velocity_limit_sim=2.0,
             armature=0.1,
         )
-        self.scene.robot.actuators["gripper_drive"] = _backend_preset(physx_gripper_drive, newton_gripper_drive)
+        self.scene.robot.actuators["gripper_drive"] = self._select_backend(physx_gripper_drive, newton_gripper_drive)
 
         physx_gripper_passive = ImplicitActuatorCfg(
             joint_names_expr=[".*_knuckle_joint"],
@@ -395,12 +425,14 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             damping=10.0,
             armature=0.05,
         )
-        self.scene.robot.actuators["gripper_passive"] = _backend_preset(physx_gripper_passive, newton_gripper_passive)
+        self.scene.robot.actuators["gripper_passive"] = self._select_backend(
+            physx_gripper_passive, newton_gripper_passive
+        )
 
         base_rot = (0.0, 0.0, 0.70711, -0.70711)
         physx_asset_state = RigidObjectCfg.InitialStateCfg(pos=(0.481, -0.073, 0.071), rot=base_rot)
         newton_base_pos = (0.481, -0.073, -0.005)
-        self.scene.factory_gear_base.init_state = _gear_asset_frame_preset(
+        self.scene.factory_gear_base.init_state = self._select_asset_frame(
             physx_asset_state,
             RigidObjectCfg.InitialStateCfg(pos=newton_base_pos, rot=base_rot),
         )
@@ -414,7 +446,7 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
                 newton_base_pos[1],
                 newton_base_pos[2],
             )
-            asset.init_state = _gear_asset_frame_preset(
+            asset.init_state = self._select_asset_frame(
                 physx_asset_state,
                 RigidObjectCfg.InitialStateCfg(pos=newton_gear_pos, rot=base_rot),
             )
@@ -425,18 +457,18 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
             "gear_medium": [0.0, 0.0, -0.026],
             "gear_large": [0.0, 0.0, -0.026],
         }
-        self.gear_offsets_grasp = _gear_asset_frame_preset(physx_grasp_offsets, newton_grasp_offsets)
-        self.grasp_center_body_names = _gear_asset_frame_preset(None, ("left_finger_tip", "right_finger_tip"))
-        self.hand_grasp_width = _gear_asset_frame_preset(
+        self.gear_offsets_grasp = self._select_asset_frame(physx_grasp_offsets, newton_grasp_offsets)
+        self.grasp_center_body_names = self._select_asset_frame(None, ("left_finger_tip", "right_finger_tip"))
+        self.hand_grasp_width = self._select_asset_frame(
             {"gear_small": 0.05, "gear_medium": 0.2, "gear_large": 0.28},
             {"gear_small": 0.01, "gear_medium": 0.2, "gear_large": 0.28},
         )
-        self.hand_close_width = _gear_asset_frame_preset(
+        self.hand_close_width = self._select_asset_frame(
             {"gear_small": 0.0, "gear_medium": 0.139626, "gear_large": 0.139626},
             {"gear_small": 0.01, "gear_medium": 0.139626, "gear_large": 0.139626},
         )
-        self.ee_grasp_weight_ramp_start = _backend_preset(0.0, 0.2)
-        self.ee_grasp_weight_ramp_steps = _backend_preset(512_000, 250_000)
+        self.ee_grasp_weight_ramp_start = self._select_backend(0.0, 0.2)
+        self.ee_grasp_weight_ramp_steps = self._select_backend(512_000, 250_000)
 
         grasp_event_params = self.events.set_robot_to_grasp_pose.params
         grasp_event_params["gear_offsets_grasp"] = self.gear_offsets_grasp
@@ -479,3 +511,14 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         drop_params["grasp_rot_offset"] = self.grasp_rot_offset
         self.terminations.gear_orientation_exceeded.params["end_effector_body_name"] = self.end_effector_body_name
         self.terminations.gear_orientation_exceeded.params["grasp_rot_offset"] = self.grasp_rot_offset
+
+        newton_scene = copy.deepcopy(self.scene)
+        newton_scene.num_envs = _NEWTON_GEAR_NUM_ENVS
+        self.scene = preset(
+            default=newton_scene if self._newton_default else self.scene,
+            physx=self.scene,
+            physx_sdf=self.scene,
+            newton_mjwarp=newton_scene,
+            newton_sdf=newton_scene,
+            newton_hydroelastic=newton_scene,
+        )

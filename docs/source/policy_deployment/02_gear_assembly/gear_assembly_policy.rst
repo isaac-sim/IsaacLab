@@ -866,6 +866,7 @@ Now launch the full training run with more parallel environments in headless mod
                       --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav \
                       --num_envs 256 \
                       --visualizer none \
+                      --video --video_length 222 --video_interval 76800 \
                       presets=newton_hydroelastic
 
            .. tab-item:: isaaclab.sh / isaaclab.bat
@@ -876,19 +877,15 @@ Now launch the full training run with more parallel environments in headless mod
                       --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav \
                       --num_envs 256 \
                       --visualizer none \
+                      --video --video_length 222 --video_interval 76800 \
                       presets=newton_hydroelastic
 
-The Newton hydroelastic preset uses package-local concave SDF collision assets. Its defaults
-separate the expensive collision rate from contact integration: the outer physics and collision
-tick is 100 Hz, while 20 solver substeps produce a 2 kHz solver rate. A policy decimation of three
-gives a 33.3 Hz control rate. The preset also uses a 5 mm shape gap and a bounded triangle-pair
-buffer sized for 256 environments per GPU rank. The arm uses solver-native actuator gravity
-compensation so gravity remains enabled for the gears, and the Grav linkage is held by physical
-PD actuators; no action term rewrites the selected gear pose.
+Use ``newton_sdf`` for point-SDF contacts or ``newton_hydroelastic`` for distributed
+contacts. Both presets default to 256 environments per GPU rank; hydroelastic contacts require
+larger per-world contact and constraint buffers.
 
-The default triangle-pair capacity is 4,194,304 per GPU rank. If Newton reports a triangle-pair
-buffer overflow, reduce the number of environments per rank or increase the capacity before using
-the resulting policy; overflowed candidate contacts are discarded.
+If Newton reports a triangle-pair buffer overflow, reduce the number of environments per rank or
+increase the configured capacity and rerun. Overflowed candidate contacts are discarded.
 
 For four-GPU training, launch 256 environments per rank (1,024 total):
 
@@ -904,16 +901,16 @@ For four-GPU training, launch 256 environments per rank (1,024 total):
 **Command breakdown:**
 
 - ``--num_envs 256``: Runs 256 parallel environments per trainer process
-- ``--video_length 200``: Captures approximately one PhysX episode
-  (``6.66 / (1/120 * 4)`` ≈ 200 policy steps); a Newton episode is approximately
-  222 policy steps (``6.66 / (0.01 * 3)``)
+- ``--video_length 200``: Captures one PhysX episode; use ``222`` for the Newton command
 - ``--video_interval 76800``: Records a video every 76,800 environment steps (~every 150 iterations), producing ~10 videos over full training
 
 Training typically takes ~12-24 hours for a robust insertion policy. The videos will be saved in the ``logs`` directory and can be reviewed to assess policy performance during training.
 
 .. note::
 
-    **GPU Memory Considerations**: The default configuration uses 256 parallel environments, which should work on most modern GPUs (e.g., RTX 3090, RTX 4090, A100). For better sim-to-real transfer performance, you can increase ``solver_position_iteration_count`` from 4 to 196 in ``gear_assembly_env_cfg.py`` and ``joint_pos_env_cfg.py`` for more realistic contact simulation, but this requires a larger GPU (e.g., RTX PRO 6000 with 40GB+ VRAM). Higher solver iteration counts reduce penetration and improve contact stability but significantly increase GPU memory usage.
+    Video recording adds rendering overhead. If training runs out of memory or Newton reports
+    collision-buffer warnings, reduce ``--num_envs`` per rank. Omit the video flags in a separate
+    throughput run when periodic visual monitoring is not needed.
 
 
 **Monitoring Training Progress with TensorBoard:**

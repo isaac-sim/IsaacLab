@@ -43,9 +43,10 @@ CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(CONFIG_DIR, "assets")
 NEWTON_GEAR_ASSETS_DIR = os.path.join(ASSETS_DIR, "newton")
 
-# A 256-world GPU shard reached 1.54M broad-phase pairs during randomized resets.
-# Keep power-of-two headroom so reset spikes do not discard candidate contacts.
-_GEAR_MAX_TRIANGLE_PAIRS = 4_194_304
+# Newton discards candidate contacts when this per-rank triangle-pair capacity is exceeded.
+_NEWTON_GEAR_NUM_ENVS = 256
+_GEAR_TRIANGLE_PAIRS_PER_ENV = 16_384
+_GEAR_MAX_TRIANGLE_PAIRS = _NEWTON_GEAR_NUM_ENVS * _GEAR_TRIANGLE_PAIRS_PER_ENV
 _PHYSX_GEAR_OFFSETS = {
     "gear_small": [0.076125, 0.0, 0.0],
     "gear_medium": [0.030375, 0.0, 0.0],
@@ -58,19 +59,21 @@ _NEWTON_GEAR_OFFSETS = {
 }
 
 
-def _gear_usd_path(default_usd_path: str, asset_name: str) -> PresetCfg:
+def _gear_usd_path(default_usd_path: str, asset_name: str, *, newton_default: bool = False) -> PresetCfg:
     """Create a gear USD path preset with package-local SDF collision assets.
 
     Args:
         default_usd_path: Factory asset USD path used by the default and PhysX presets.
         asset_name: Gear asset directory and USD stem.
+        newton_default: Whether the fallback should use the Newton asset.
 
     Returns:
         Preset that resolves to the package-local SDF asset for SDF collision presets.
     """
     newton_usd_path = os.path.join(NEWTON_GEAR_ASSETS_DIR, asset_name, f"{asset_name}.usda")
     return preset(
-        default=default_usd_path,
+        default=newton_usd_path if newton_default else default_usd_path,
+        physx=default_usd_path,
         physx_sdf=newton_usd_path,
         newton_mjwarp=newton_usd_path,
         newton_sdf=newton_usd_path,
@@ -78,17 +81,18 @@ def _gear_usd_path(default_usd_path: str, asset_name: str) -> PresetCfg:
     )
 
 
-def _gear_collision_properties() -> PresetCfg:
+def _gear_collision_properties(*, newton_default: bool = False) -> PresetCfg:
     """Create backend-specific collision properties for the gear assets."""
+    physx = PhysxCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0)
+    newton = NewtonSDFCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0, hydroelastic_enabled=False)
+    hydroelastic = NewtonSDFCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0, hydroelastic_enabled=True)
     return preset(
-        default=PhysxCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
-        physx=PhysxCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
-        physx_sdf=PhysxCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0),
-        newton_mjwarp=NewtonSDFCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0, hydroelastic_enabled=False),
-        newton_sdf=NewtonSDFCollisionPropertiesCfg(contact_offset=0.02, rest_offset=0.0, hydroelastic_enabled=False),
-        newton_hydroelastic=NewtonSDFCollisionPropertiesCfg(
-            contact_offset=0.02, rest_offset=0.0, hydroelastic_enabled=True
-        ),
+        default=newton if newton_default else physx,
+        physx=physx,
+        physx_sdf=physx,
+        newton_mjwarp=newton,
+        newton_sdf=newton,
+        newton_hydroelastic=hydroelastic,
     )
 
 
@@ -110,9 +114,7 @@ class GearAssemblyPhysicsCfg(PresetCfg):
     * ``newton_mjwarp`` -- Newton with MuJoCo's internal contact solver.
     * ``newton_sdf`` -- Newton's collision pipeline with reduced point-SDF contacts.
     * ``newton_hydroelastic`` -- Newton's own collision pipeline (``use_mujoco_contacts=False``)
-      with SDF-based hydroelastic contacts. Produces distributed contact areas instead of
-      point contacts, which can improve fidelity for the gear-teeth/shaft-wall interaction.
-      More expensive; A/B test against ``newton_sdf`` before committing to it for training.
+      with distributed SDF-based hydroelastic contacts.
 
     Note:
         ``collision_cfg`` (and therefore hydroelastic contacts) is only valid when the Newton
@@ -166,9 +168,7 @@ class GearAssemblyPhysicsCfg(PresetCfg):
         solver_cfg=MJWarpSolverCfg(
             solver="newton",
             integrator="implicitfast",
-            # The hydroelastic SDF pipeline produces distributed contact areas (thousands of points
-            # for a gripped concave gear), so the per-world contact/constraint buffers must be far
-            # larger than the MuJoCo ``newton_mjwarp`` preset's. Sized for ~4k constraints/contacts.
+            # Hydroelastic contacts require larger per-world contact and constraint buffers.
             njmax=4096,
             nconmax=4096,
             impratio=10.0,
@@ -486,6 +486,8 @@ class TerminationsCfg:
 
 @configclass
 class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
+    _newton_default = False
+
     # Scene settings
     scene: GearAssemblySceneCfg = GearAssemblySceneCfg(num_envs=4096, env_spacing=2.5)
     # Basic settings
@@ -499,14 +501,50 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     # package-local SDF collision assets. See :class:`GearAssemblyPhysicsCfg`.
     sim: SimulationCfg = SimulationCfg(physics=GearAssemblyPhysicsCfg())
 
+    def validate_config(self) -> None:
+        """Validate Newton collision capacity for the resolved environment count."""
+        if not isinstance(self.sim.physics, NewtonCfg) or self.sim.physics.collision_cfg is None:
+            return
+
+        required_capacity = self.scene.num_envs * _GEAR_TRIANGLE_PAIRS_PER_ENV
+        configured_capacity = self.sim.physics.collision_cfg.max_triangle_pairs
+        if configured_capacity < required_capacity:
+            raise ValueError(
+                "Newton gear assembly requires at least "
+                f"{_GEAR_TRIANGLE_PAIRS_PER_ENV} triangle pairs per environment, but "
+                f"scene.num_envs={self.scene.num_envs} and max_triangle_pairs={configured_capacity}. "
+                f"Reduce scene.num_envs to at most {configured_capacity // _GEAR_TRIANGLE_PAIRS_PER_ENV} "
+                "or increase max_triangle_pairs; excess candidate contacts are discarded."
+            )
+
     def __post_init__(self):
         """Post initialization."""
         # general settings
         self.episode_length_s = 6.66
         self.viewer.eye = (3.5, 3.5, 3.5)
+
+        self.scene.replicate_physics = preset(
+            default=self._newton_default,
+            physx=False,
+            physx_sdf=False,
+            newton_mjwarp=True,
+            newton_sdf=True,
+            newton_hydroelastic=True,
+        )
+        for asset_name in (
+            "factory_gear_base",
+            "factory_gear_small",
+            "factory_gear_medium",
+            "factory_gear_large",
+        ):
+            asset = getattr(self.scene, asset_name)
+            asset.spawn.usd_path = _gear_usd_path(
+                asset.spawn.usd_path.physx, asset_name, newton_default=self._newton_default
+            )
+            asset.spawn.collision_props = _gear_collision_properties(newton_default=self._newton_default)
         # simulation settings
         self.decimation = preset(
-            default=4,
+            default=3 if self._newton_default else 4,
             physx=4,
             physx_sdf=4,
             newton_mjwarp=3,
@@ -514,7 +552,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
             newton_hydroelastic=3,
         )
         self.sim.render_interval = preset(
-            default=4,
+            default=3 if self._newton_default else 4,
             physx=4,
             physx_sdf=4,
             newton_mjwarp=3,
@@ -522,7 +560,7 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
             newton_hydroelastic=3,
         )
         self.sim.dt = preset(
-            default=1.0 / 120.0,
+            default=0.01 if self._newton_default else 1.0 / 120.0,
             physx=1.0 / 120.0,
             physx_sdf=1.0 / 120.0,
             newton_mjwarp=0.01,
@@ -533,20 +571,20 @@ class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
         physx_gear_offsets = _PHYSX_GEAR_OFFSETS
         newton_gear_offsets = _NEWTON_GEAR_OFFSETS
         gear_offsets = preset(
-            default=physx_gear_offsets,
+            default=newton_gear_offsets if self._newton_default else physx_gear_offsets,
             physx=physx_gear_offsets,
             physx_sdf=newton_gear_offsets,
             newton_mjwarp=newton_gear_offsets,
             newton_sdf=newton_gear_offsets,
             newton_hydroelastic=newton_gear_offsets,
         )
-        self.gear_offsets = physx_gear_offsets
+        self.gear_offsets = newton_gear_offsets if self._newton_default else physx_gear_offsets
 
         # Populate observation and reward term parameters with backend-specific shaft offsets.
         self.observations.policy.gear_shaft_pos.params["gear_offsets"] = gear_offsets
         self.observations.critic.gear_shaft_pos.params["gear_offsets"] = gear_offsets
         reward_gear_offsets = preset(
-            default=None,
+            default=newton_gear_offsets if self._newton_default else None,
             physx=None,
             physx_sdf=newton_gear_offsets,
             newton_mjwarp=newton_gear_offsets,

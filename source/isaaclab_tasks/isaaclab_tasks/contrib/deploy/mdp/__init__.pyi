@@ -6,7 +6,6 @@
 __all__ = [
     "randomize_gear_type",
     "randomize_gears_and_base_pose",
-    "pin_unselected_gears_to_shafts",
     "set_robot_to_grasp_pose",
     "ResetSampledConstantNoiseModel",
     "ResetSampledConstantNoiseModelCfg",
@@ -25,7 +24,6 @@ __all__ = [
 ]
 
 from .events import (
-    pin_unselected_gears_to_shafts,
     randomize_gear_type,
     randomize_gears_and_base_pose,
     set_robot_to_grasp_pose,
