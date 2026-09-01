@@ -22,14 +22,20 @@ from rendering_test_utils import (
 
 # Async variants of the synchronous combinations, so they must match the same golden images: the
 # frame of latency is absorbed by the tolerances, and the harness's warm-up frames prime the pipeline.
-_ASYNC_COMBINATIONS = group_rendering_params(
-    make_kitless_rendering_params(
-        [
-            *_make_sensor_data_type_params("ovphysx", "ovrtx", ["rgb"]),
-            *_make_sensor_data_type_params("newton", "ovrtx", ["rgb"]),
-        ]
+# Restricted to the legacy stage path: the ovstage path renders synchronously even when async is
+# requested, so an ovstage lane here would only duplicate the synchronous ovstage coverage.
+_ASYNC_COMBINATIONS = [
+    param
+    for param in group_rendering_params(
+        make_kitless_rendering_params(
+            [
+                *_make_sensor_data_type_params("ovphysx", "ovrtx", ["rgb"]),
+                *_make_sensor_data_type_params("newton", "ovrtx", ["rgb"]),
+            ]
+        )
     )
-)
+    if param.values[0] == "legacy"
+]
 
 pytestmark = pytest.mark.arm_ci
 

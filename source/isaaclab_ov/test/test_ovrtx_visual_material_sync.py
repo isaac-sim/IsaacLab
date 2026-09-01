@@ -229,7 +229,10 @@ def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovs
 
 def test_async_render_settles_in_flight_render_before_material_publish():
     """Material publishes and the write-floor advance are scene writes: they must not land while a
-    queued render is still reading the stage in place."""
+    queued render is still reading the stage in place.
+
+    Strategy selection gates async off on the ovstage path today; this forces the combination to
+    keep the barrier honest for the follow-up that re-enables it."""
     renderer, events = _renderer(use_ovstage=True)
     renderer._render_product_paths = ["/Render/Product"]
     renderer._strategy = _AsyncRenderStrategy()

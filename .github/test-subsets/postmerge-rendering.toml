@@ -24,6 +24,4 @@ rendering-correctness-kitless-legacy = [
 rendering-correctness-kitless-ovstage = [
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-newton-ovrtx_renderer-static]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovstage-ovphysx-ovrtx_renderer-static]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless_async[ovstage-newton-ovrtx-rgb]",
-  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless_async[ovstage-ovphysx-ovrtx-rgb]",
 ]

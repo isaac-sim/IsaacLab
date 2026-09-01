@@ -100,3 +100,21 @@ def test_negative_value_is_rejected(monkeypatch):
 
     with pytest.raises(ValueError):
         _resolve_render_strategy(OVRTXRendererCfg(async_rendering=-1))
+
+
+def test_ovstage_forces_sync_and_warns(async_cfg, caplog):
+    """The ovstage path renders synchronously for now; a requested async must warn, not silently apply."""
+    with caplog.at_level("WARNING"):
+        strategy = _resolve_render_strategy(async_cfg, use_ovstage=True)
+
+    assert isinstance(strategy, _SyncRenderStrategy)
+    assert any("ovstage" in record.message for record in caplog.records)
+
+
+def test_ovstage_sync_is_silent(sync_cfg, caplog):
+    """No warning when async was never requested on the ovstage path."""
+    with caplog.at_level("WARNING"):
+        strategy = _resolve_render_strategy(sync_cfg, use_ovstage=True)
+
+    assert isinstance(strategy, _SyncRenderStrategy)
+    assert not caplog.records
