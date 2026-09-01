@@ -275,12 +275,21 @@ def _resolve_rtx_minimal_mode(data_types: list[str]) -> int | None:
 
 
 def _camera_spec_summary(spec: CameraRenderSpec) -> tuple:
-    """The parts of a camera spec the initialized scene is built from, for mismatch detection."""
+    """The parts of a camera spec the initialized scene is built from, for mismatch detection.
+
+    The data types use the same normalization as scene initialization. Two specs that build the
+    same scene therefore compare equal. A spec whose ``isp_cfg`` adds the ``rgb_hdr`` output
+    compares different from one without it.
+    """
+    data_types = list(spec.cfg.data_types) if spec.cfg.data_types else ["rgb"]
+    if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
+        data_types.append("rgb_hdr")
     return (
         tuple(spec.camera_prim_paths),
         spec.cfg.width,
         spec.cfg.height,
-        tuple(spec.cfg.data_types or ()),
+        tuple(data_types),
+        getattr(spec.cfg, "background_color", None),
         spec.num_instances,
     )
 
@@ -645,6 +654,28 @@ class OVRTXRenderer(BaseRenderer):
         self._setup_deformable_bindings(num_envs)
         self._setup_particle_bindings()
         self._setup_cable_bindings()
+        self._warn_async_geometry_serialization()
+
+    def _warn_async_geometry_serialization(self) -> None:
+        """Warn once when async rendering meets legacy deformable, particle, or cable bindings.
+
+        Their per-frame blocking writes queue behind the in-flight render on the OVRTX op thread.
+        The host then stalls until that render completes, so the pipelining gain is largely lost.
+        The follow-up that stages these writes through the render strategy removes this limit.
+        """
+        if not isinstance(self._strategy, _AsyncRenderStrategy):
+            return
+        geometry_bindings = (
+            self._deformable_points_binding,
+            self._particle_points_binding,
+            self._cable_points_binding,
+        )
+        if any(binding is not None for binding in geometry_bindings):
+            logger.warning(
+                "Asynchronous rendering is enabled, but this scene has deformable, particle, or"
+                " cable geometry. Their blocking writes wait for the render still in flight, so"
+                " expect little to no throughput gain over synchronous rendering."
+            )
 
     def _clone_sources_in_ovrtx(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
@@ -1804,14 +1835,20 @@ class OVRTXRenderer(BaseRenderer):
 
     def close(self) -> None:
         """Release the shared stage state. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.close`."""
-        # Drain in-flight renders before either backend releases the renderer that owns them; each
-        # queued frame delivers into the buffers it was submitted with.
-        self._strategy.cleanup()
+        # Drain in-flight renders before either backend releases the renderer that owns them. Each
+        # queued frame delivers into the buffers it was submitted with. Drain failures are
+        # re-raised only after the backend release, so a bad final frame cannot leak resources
+        # and cannot exit the run silently either.
+        drain_errors = self._strategy.cleanup()
         if self._use_ovstage:
             self._close_ovstage()
         else:
             self._close_legacy()
         self._visual_material_writer_ref = None
+        if drain_errors:
+            raise RuntimeError(
+                f"{len(drain_errors)} in-flight OVRTX render(s) failed to complete during close"
+            ) from drain_errors[0]
 
     # ---------------------------------------------------------------------------
     # ovstage implementation
@@ -2459,15 +2496,19 @@ class OVRTXRenderer(BaseRenderer):
                 drain_errors = contextlib.nullcontext() if sys.exc_info()[0] is None else contextlib.suppress(Exception)
                 with drain_errors:
                     material_writer.drain()
+        # Advance the ordinal before the render call. The write floor above already bars writes at
+        # the current ordinal. If product consumption raises and the caller keeps stepping, a stale
+        # ordinal would make every later scene write hit that barrier.
+        step_ordinal = self._current_ordinal
+        self._current_ordinal += 1
         self._strategy.render(
             self._renderer,
             set(self._render_product_paths),
             _RENDER_DELTA_TIME,
             render_data,
             self._consume_products,
-            ordinal=self._current_ordinal,
+            ordinal=step_ordinal,
         )
-        self._current_ordinal += 1
 
     def _close_ovstage(self) -> None:
         """Release the renderer's stage queries, path lists and ovstage stage. See :meth:`close`."""
