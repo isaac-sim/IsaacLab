@@ -20,15 +20,129 @@ import torch
 
 from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch
 from isaaclab_rl.entrypoints import simple_agents as _simple_agents
-from isaaclab_rl.entrypoints.simple_agents import _get_neutral_actions
+from isaaclab_rl.entrypoints.simple_agents import _create_zero_action_policy
 
 
-def test_zero_agent_uses_manager_semantic_neutral_actions() -> None:
-    """The zero agent honors action-term neutral commands instead of forcing literal zeros."""
-    expected = torch.tensor([[0.1, 0.2, 0.3, 1.0]])
-    unwrapped = SimpleNamespace(action_manager=SimpleNamespace(neutral_actions=expected))
+def test_zero_agent_infers_finite_manager_actions() -> None:
+    """The zero agent holds absolute task-space targets and zeros all other action terms."""
 
-    assert _get_neutral_actions(SimpleNamespace(unwrapped=unwrapped)) is expected
+    class DifferentialInverseKinematicsAction:
+        action_dim = 7
+        cfg = SimpleNamespace(controller=SimpleNamespace(use_relative_mode=False, command_type="pose"))
+        _scale = torch.tensor([2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0])
+
+        def _compute_frame_pose(self):
+            return torch.tensor([[2.0, 4.0, 6.0]]), torch.tensor([[0.0, 0.0, 0.0, 1.0]])
+
+    class RMPFlowAction:
+        action_dim = 7
+        cfg = SimpleNamespace(use_relative_mode=False)
+        _scale = torch.ones(7)
+
+        def _compute_frame_pose(self):
+            return torch.tensor([[3.0, 2.0, 1.0]]), torch.tensor([[0.0, 0.0, 1.0, 0.0]])
+
+    class PinkInverseKinematicsAction:
+        action_dim = 16
+        cfg = SimpleNamespace(target_eef_link_names={"left": "left_hand", "right": "right_hand"})
+        _hand_joint_ids = [1, 3]
+        _num_frame_tasks = 2
+
+        def __init__(self):
+            body_poses = torch.tensor(
+                [
+                    [
+                        [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0],
+                        [4.0, 5.0, 6.0, 0.0, 0.0, 1.0, 0.0],
+                    ]
+                ]
+            )
+            self._asset = SimpleNamespace(
+                find_bodies=lambda expressions, preserve_order: ([1, 0], ["left_hand", "right_hand"]),
+                data=SimpleNamespace(
+                    body_link_pose_w=SimpleNamespace(torch=body_poses),
+                    joint_pos=SimpleNamespace(torch=torch.tensor([[0.1, 0.2, 0.3, 0.4]])),
+                ),
+            )
+
+    class OperationalSpaceControllerAction:
+        action_dim = 7
+        raw_actions = torch.zeros(1, 7)
+        _pose_abs_idx = 0
+        _position_scale = torch.ones(3)
+        _orientation_scale = torch.ones(4)
+        _task_frame_pose_b = None
+        _ee_pose_b = torch.tensor([[9.0, 8.0, 7.0, 0.0, 1.0, 0.0, 0.0]])
+
+        def _compute_ee_pose(self):
+            pass
+
+        def _compute_task_frame_pose(self):
+            pass
+
+    class JointAction:
+        action_dim = 2
+
+    terms = {
+        "diff_ik": DifferentialInverseKinematicsAction(),
+        "rmpflow": RMPFlowAction(),
+        "pink": PinkInverseKinematicsAction(),
+        "osc": OperationalSpaceControllerAction(),
+        "joints": JointAction(),
+    }
+    manager = SimpleNamespace(
+        action=torch.empty(1, sum(term.action_dim for term in terms.values())),
+        active_terms=list(terms),
+        get_term=terms.__getitem__,
+    )
+    unwrapped = SimpleNamespace(
+        action_manager=manager,
+        scene=SimpleNamespace(env_origins=torch.tensor([[1.0, 1.0, 1.0]])),
+    )
+
+    actions = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
+
+    expected_pink_poses = torch.tensor(
+        [[[3.0, 4.0, 5.0, 0.0, 0.0, 1.0, 0.0], [0.0, 1.0, 2.0, 0.0, 0.0, 0.0, 1.0]]]
+    ).flatten(start_dim=1)
+    expected = torch.cat(
+        (
+            torch.tensor([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]]),
+            torch.tensor([[3.0, 2.0, 1.0, 0.0, 0.0, 1.0, 0.0]]),
+            expected_pink_poses,
+            torch.tensor([[0.2, 0.4]]),
+            OperationalSpaceControllerAction._ee_pose_b,
+            torch.zeros(1, 2),
+        ),
+        dim=-1,
+    )
+
+    assert torch.equal(actions, expected)
+    assert torch.isfinite(actions).all()
+
+
+def test_zero_agent_rejects_non_finite_inferred_actions() -> None:
+    """The zero agent stops before a non-finite inferred action reaches the environment."""
+
+    class DifferentialInverseKinematicsAction:
+        action_dim = 7
+        cfg = SimpleNamespace(controller=SimpleNamespace(use_relative_mode=False, command_type="pose"))
+        _scale = torch.ones(7)
+
+        def _compute_frame_pose(self):
+            return torch.full((1, 3), torch.nan), torch.tensor([[0.0, 0.0, 0.0, 1.0]])
+
+    term = DifferentialInverseKinematicsAction()
+    manager = SimpleNamespace(
+        action=torch.empty(1, term.action_dim),
+        active_terms=["ik"],
+        get_term=lambda name: term,
+    )
+    unwrapped = SimpleNamespace(action_manager=manager)
+    policy = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))
+
+    with pytest.raises(RuntimeError, match="inferred non-finite actions"):
+        policy()
 
 
 def test_zero_agent_supports_composite_direct_action_spaces() -> None:
@@ -46,7 +160,7 @@ def test_zero_agent_supports_composite_direct_action_spaces() -> None:
         num_envs=2,
     )
 
-    actions = _get_neutral_actions(SimpleNamespace(unwrapped=unwrapped))
+    actions = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
 
     assert torch.equal(actions["continuous"], torch.zeros(2, 2))
     assert torch.equal(actions["discrete"], torch.zeros(2, 1, dtype=torch.int64))
@@ -64,7 +178,7 @@ def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
         num_envs=3,
     )
 
-    actions = _get_neutral_actions(SimpleNamespace(unwrapped=unwrapped))
+    actions = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
 
     assert torch.equal(actions["robot"], torch.zeros(3, 2))
     assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
