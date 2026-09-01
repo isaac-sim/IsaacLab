@@ -250,8 +250,13 @@ def test_simple_shading_configures_its_render_product(
     # The shading level must not leak into process-wide state, where the last camera would win.
     global_setting_calls = [
         setting_call
-        for setting_call in (*settings.set_int.call_args_list, *settings.set.call_args_list)
-        if setting_call.args and setting_call.args[0] in ("/rtx/minimal/mode", "/rtx/rendermode")
+        for setting_call in (
+            *settings.set_int.call_args_list,
+            *settings.set.call_args_list,
+            *settings.set_bool.call_args_list,
+        )
+        if setting_call.args
+        and setting_call.args[0] in ("/rtx/minimal/mode", "/rtx/rendermode", "/rtx/sdg/force/disableColorRender")
     ]
     assert global_setting_calls == []
 

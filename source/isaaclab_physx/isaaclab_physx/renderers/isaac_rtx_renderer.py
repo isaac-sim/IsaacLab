@@ -272,10 +272,9 @@ class IsaacRtxRenderer(BaseRenderer):
             needs_color_render = any(
                 data_type in spec.cfg.data_types for data_type in ("rgb", "rgba", str(RenderBufferKind.RGB_HDR))
             )
-            if not needs_color_render:
-                settings.set_bool("/rtx/sdg/force/disableColorRender", True)
-            if settings.get("/isaaclab/has_gui"):
-                settings.set_bool("/rtx/sdg/force/disableColorRender", False)
+            has_gui = settings.get("/isaaclab/has_gui")
+            if simple_shading_mode is None and (not needs_color_render or has_gui):
+                settings.set_bool("/rtx/sdg/force/disableColorRender", not needs_color_render and not has_gui)
         else:
             unsupported = []
             if "albedo" in spec.cfg.data_types:
