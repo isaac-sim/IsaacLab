@@ -100,6 +100,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras():
         "mimic",
         "teleop",
         "teleop-no-isaacsim",
+        "test-runtime",
         "tetrahedralization",
         "video",
         "leapp",

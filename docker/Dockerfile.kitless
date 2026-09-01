@@ -74,7 +74,7 @@ COPY --parents source/*/pyproject.toml ./
 # ``--inexact`` keeps the seeded pip, which is not a lock entry.
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv venv --seed "${VIRTUAL_ENV}" \
- && uv sync --frozen --inexact --extra all --extra importers --extra test \
+ && uv sync --frozen --inexact --extra all --extra importers --extra test-runtime \
       --no-install-workspace
 
 # Sources only: the workspace install below needs these, and nothing else in the repo. A docs
@@ -87,7 +87,7 @@ RUN chmod 755 "${ISAACLAB_PATH}/isaaclab.sh"
 
 # The workspace members install editable now that their sources are present.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --inexact --extra all --extra importers --extra test \
+    uv sync --frozen --inexact --extra all --extra importers --extra test-runtime \
  && chmod -R a+rwX "${VIRTUAL_ENV}/lib" "${VIRTUAL_ENV}/bin" \
  && python -c "import importlib.metadata as m; \
       names = {d.metadata['Name'].lower() for d in m.distributions()}; \

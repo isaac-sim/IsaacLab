@@ -173,6 +173,17 @@ mimic = [
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
+# The test runners without the Sphinx docs stack: Sphinx pulls docutils, which is
+# GPL-3.0-or-later and not allowed in the distributed images.
+test-runtime = [
+    "pytest",
+    "pytest-mock",
+    "junitparser",
+    "flaky",
+    # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
+    "coverage>=7.6.1",
+]
+
 # ``teleop`` minus the Isaac Sim wheel: the container already ships Kit, and installing the
 # wheel beside it would give a second, version-mismatched Isaac Sim.
 teleop-no-isaacsim = [

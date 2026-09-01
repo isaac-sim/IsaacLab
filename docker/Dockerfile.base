@@ -130,7 +130,7 @@ COPY --parents ../source/*/pyproject.toml ${ISAACLAB_PATH}/
 
 # The image's package set. Kit ships in the base image, so the teleop stack comes without the
 # ``isaacsim`` wheel; ``teleop`` itself is left exactly as tuned.
-ARG IMAGE_EXTRAS="--extra sb3 --extra skrl --extra rl-games --extra rsl-rl --extra viser --extra rerun --extra mimic --extra teleop-no-isaacsim --extra test"
+ARG IMAGE_EXTRAS="--extra sb3 --extra skrl --extra rl-games --extra rsl-rl --extra viser --extra rerun --extra mimic --extra teleop-no-isaacsim --extra test-runtime"
 
 
 RUN --mount=type=cache,target=/root/.cache/uv \
