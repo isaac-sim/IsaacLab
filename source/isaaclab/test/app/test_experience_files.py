@@ -37,6 +37,25 @@ def _kit_dependencies(experience: str) -> set[str]:
     return dependencies
 
 
+def _kit_setting_values(experience: str, setting: str) -> list[str]:
+    """Collect values assigned to a setting in an experience file's settings sections."""
+    values: list[str] = []
+    in_settings = False
+
+    for line in (APPS_DIR / experience).read_text(encoding="utf-8").splitlines():
+        section = _SECTION_RE.match(line)
+        if section is not None:
+            in_settings = section.group("name").strip() == "settings"
+            continue
+        if not in_settings:
+            continue
+        key, separator, value = line.partition("=")
+        if separator and key.strip() == setting:
+            values.append(value.partition("#")[0].strip())
+
+    return values
+
+
 @pytest.mark.parametrize("experience", ["isaaclab.python.kit", "isaaclab.python.headless.kit"])
 def test_base_experiences_enable_native_storage(experience: str):
     """Test the base experiences load the extension that applies ``ISAACSIM_ASSET_ROOT``."""
@@ -55,3 +74,12 @@ def test_base_experiences_enable_native_storage(experience: str):
 def test_derived_experiences_inherit_native_storage(experience: str, base: str):
     """Test the derived experiences inherit native storage from a base experience."""
     assert base in _kit_dependencies(experience)
+
+
+@pytest.mark.parametrize(
+    "experience",
+    ["isaaclab.python.xr.openxr.kit", "isaaclab.python.xr.openxr.headless.kit"],
+)
+def test_xr_experiences_show_all_scene_partitions(experience: str):
+    """Test each XR experience configures its spectator view before RTX starts."""
+    assert _kit_setting_values(experience, "rtx.scenePartitioning.showAllPartitionsByDefault") == ["true"]
