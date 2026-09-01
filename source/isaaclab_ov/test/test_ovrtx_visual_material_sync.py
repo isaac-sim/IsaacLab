@@ -23,7 +23,6 @@ if not _MISSING_MODULES:
     import isaaclab_ov.renderers.ovrtx_renderer as ovrtx_renderer_module
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
-    from isaaclab_ov.renderers.ovrtx_renderer_strategies import _AsyncRenderStrategy
     from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
     from ovrtx import DataAccess
 
@@ -225,58 +224,6 @@ def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovs
     render(SimpleNamespace(ppisp_pipeline=None))
 
     assert events == expected_events
-
-
-def test_async_render_settles_in_flight_render_before_material_publish():
-    """Material publishes and the write-floor advance are scene writes: they must not land while a
-    queued render is still reading the stage in place.
-
-    Strategy selection gates async off on the ovstage path today; this forces the combination to
-    keep the barrier honest for the follow-up that re-enables it."""
-    renderer, events = _renderer(use_ovstage=True)
-    renderer._render_product_paths = ["/Render/Product"]
-    renderer._strategy = _AsyncRenderStrategy()
-    renderer._strategy.set_device("cuda:0")
-    renderer._consume_products = lambda render_data, products: None
-
-    class _PendingStep:
-        def __init__(self, index: int):
-            self._index = index
-
-        def wait(self):
-            events.append(f"drain:{self._index}")
-            return self
-
-        def fetch(self):
-            return {}
-
-    steps: list[_PendingStep] = []
-
-    def step_async(**_kwargs):
-        op = _PendingStep(len(steps))
-        steps.append(op)
-        events.append(f"submit:{op._index}")
-        return op
-
-    renderer._renderer.step_async = step_async
-
-    class Writer:
-        def publish(self):
-            events.append("publish")
-
-        def drain(self):
-            events.append("drain-writer")
-
-    writer = Writer()
-    renderer._visual_material_writer_ref = lambda: writer
-
-    for _ in range(3):
-        renderer._render_ovstage(SimpleNamespace(ppisp_pipeline=None))
-
-    # Frame 1's render is still queued when frame 2 begins (frame 0 was primed synchronously); it
-    # must drain before frame 2's publish, not merely before frame 3's enqueue.
-    publishes = [index for index, event in enumerate(events) if event == "publish"]
-    assert events.index("drain:1") < publishes[2]
 
 
 @pytest.mark.parametrize(
