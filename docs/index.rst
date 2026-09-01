@@ -102,6 +102,8 @@ Table of Contents
    source/concepts/backends_and_presets
    source/concepts/actuators
    source/concepts/coupled_solvers
+   source/concepts/scene_data_providers
+   source/concepts/visualization
 
 
 .. toctree::
@@ -140,6 +142,9 @@ Table of Contents
    source/features/population_based_training
    source/features/ray
    source/features/reproducibility
+   source/features/draw_markers
+   source/features/record_video
+   source/features/visualizer_tiled_camera
 
 
 .. toctree::

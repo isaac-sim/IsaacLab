@@ -887,11 +887,51 @@ def test_newton_rtx_visualizer_fov_retries_when_camera_absent():
 
 
 def test_newton_rtx_visualizer_streaming_view_enabled():
-    # RTX streaming view is not yet supported (no display sink for the composited frame).
-    # _uses_streaming_view always returns False regardless of cfg.streaming_view, and
-    # setting streaming_view=True logs a warning to that effect.
+    # RTX streaming/tiled camera capture (via render_tiled_rgb_array) only needs the owned
+    # camera sensor, not the viewer, so _uses_streaming_view tracks cfg.streaming_view like
+    # the other Newton backends. Only the live on-screen preview panel stays unavailable,
+    # since ViewerRTX.log_image has no display sink (_log_streaming_image stays a no-op).
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(streaming_view=True))
-    assert visualizer._uses_streaming_view() is False
+    assert visualizer._uses_streaming_view() is True
 
     visualizer_off = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(streaming_view=False))
     assert visualizer_off._uses_streaming_view() is False
+
+
+def test_newton_rtx_visualizer_setup_streaming_view_creates_owned_camera(monkeypatch):
+    """_setup_streaming_view must create the owned camera sensor on RTX, not return early."""
+    generated_camera = object()
+    create_calls = []
+
+    def _create_visualizer_camera(**kwargs):
+        create_calls.append(kwargs)
+        return generated_camera, ["/World/envs/env_0/VisualizerCamera"], True, ("camera-key",)
+
+    monkeypatch.setattr(newton_visualizer_module, "create_visualizer_camera", _create_visualizer_camera)
+
+    visualizer = NewtonRTXVisualizer(
+        NewtonRTXVisualizerCfg(
+            streaming_view=True,
+            streaming_envs=1,
+            streaming_cam_eye=(3.0, 3.0, 3.0),
+            streaming_cam_target_prim_path="/World/envs/*/Robot/base",
+            window_width=960,
+            window_height=600,
+        )
+    )
+    visualizer._scene_data_provider = SimpleNamespace(get_camera_sensors=lambda: {})
+    visualizer._update_owned_camera_poses = lambda: None
+
+    visualizer._setup_streaming_view(num_envs=1)
+
+    assert visualizer._camera_sensor is generated_camera
+    assert len(create_calls) == 1
+    assert create_calls[0]["target_prim_path"] == "/World/envs/*/Robot/base"
+    assert create_calls[0]["eye"] == (3.0, 3.0, 3.0)
+
+    # _log_streaming_image stays a no-op (no on-screen preview sink), but render_tiled_rgb_array
+    # still builds the composite from the owned camera sensor for headless capture. VideoRecorder
+    # gates streaming-view capture on hasattr(viz, "render_tiled_rgb_array"), so this attribute
+    # must be present on RTX (it lives on the shared NewtonVisualizer base, not NewtonGLVisualizer).
+    visualizer._log_streaming_image()
+    assert hasattr(visualizer, "render_tiled_rgb_array")
