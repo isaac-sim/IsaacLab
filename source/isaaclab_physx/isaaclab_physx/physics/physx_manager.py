@@ -30,7 +30,7 @@ import omni.physics.tensors
 import omni.physx
 import omni.timeline
 import omni.usd
-from pxr import Sdf, Usd, UsdPhysics, UsdUtils
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
@@ -53,6 +53,29 @@ if TYPE_CHECKING:
 __all__ = ["IsaacEvents", "PhysxManager"]
 
 logger = logging.getLogger(__name__)
+
+_FABRIC_WORLD_MATRIX_ATTR = "omni:fabric:worldMatrix"
+_TRANSFORM_TOLERANCE = 1e-9
+
+
+def _is_identity_matrix(matrix) -> bool:
+    """Whether a 4x4 matrix equals identity within :data:`_TRANSFORM_TOLERANCE`.
+
+    Accepts any row-iterable 4x4 matrix, so both USD and Fabric matrix types work
+    without conversion.
+
+    Args:
+        matrix: Row-iterable 4x4 matrix.
+
+    Returns:
+        ``True`` when every component is within tolerance of identity.
+    """
+    for row_index, row in enumerate(matrix):
+        for column_index, value in enumerate(row):
+            expected = 1.0 if row_index == column_index else 0.0
+            if abs(float(value) - expected) > _TRANSFORM_TOLERANCE:
+                return False
+    return True
 
 
 class IsaacEvents(Enum):
@@ -481,6 +504,9 @@ class PhysxManager(PhysicsManager):
 
         if cls._view is not None:
             cls._view._backend.initialize_kinematic_bodies()
+
+        if not soft:
+            cls._refresh_fabric_static_xforms()
 
         cls.raise_callback_exception_if_any()
 
@@ -919,6 +945,81 @@ class PhysxManager(PhysicsManager):
                 "Could not re-attach fabric stage. Articulation visuals will be broken until next reset.",
                 exc_info=True,
             )
+
+    @classmethod
+    def _refresh_fabric_static_xforms(cls) -> None:
+        """Mark prims the fabric writer does not own as dirty so the Fabric hierarchy recomposes them.
+
+        The PhysX fabric writer publishes world transforms for rigid bodies and articulation
+        links. Static descendants such as visual and collision meshes instead get their world
+        transform composed by :class:`IFabricHierarchy`, which only visits prims flagged dirty.
+        Rebuilding a stage in the same process repopulates Fabric without flagging the new
+        subtree, so those descendants keep an identity world matrix and the render delegate
+        draws them at the world origin.
+
+        Re-asserting a prim's own local transform is a pure dirty-mark: the value is unchanged,
+        so world matrices stay owned by the hierarchy and physics-driven parents are never
+        recomposed from a stale local transform.
+
+        See: https://github.com/isaac-sim/IsaacLab/issues/7472
+        """
+        if cls._fabric is None:
+            return
+
+        import usdrt  # noqa: PLC0415
+
+        try:
+            from usdrt import hierarchy  # noqa: PLC0415
+        except ImportError:
+            logger.warning("usdrt.hierarchy unavailable; Fabric static transforms were not refreshed.")
+            return
+
+        from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id  # noqa: PLC0415
+
+        usd_stage = get_current_stage()
+        if usd_stage is None:
+            return
+
+        try:
+            fabric_stage = usdrt.Usd.Stage.Attach(get_current_stage_id())
+        except Exception:
+            logger.warning("Could not attach Fabric stage to refresh static transforms.")
+            return
+
+        fabric_hierarchy = hierarchy.IFabricHierarchy().get_fabric_hierarchy(
+            fabric_stage.GetFabricId(), fabric_stage.GetStageIdAsStageId()
+        )
+
+        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
+        dirtied = 0
+        for prim in usd_stage.Traverse():
+            if not prim.IsA(UsdGeom.Xformable):
+                continue
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+                continue
+
+            # Only prims USD places off the origin can be told apart from a legitimate identity.
+            if _is_identity_matrix(xform_cache.GetLocalToWorldTransform(prim)):
+                continue
+
+            path = prim.GetPath().pathString
+            rt_prim = fabric_stage.GetPrimAtPath(path)
+            if not rt_prim or not rt_prim.IsValid():
+                continue
+            attribute = rt_prim.GetAttribute(_FABRIC_WORLD_MATRIX_ATTR)
+            if not attribute or not attribute.IsValid():
+                continue
+            fabric_world = attribute.Get()
+            if fabric_world is None or not _is_identity_matrix(fabric_world):
+                continue
+
+            fabric_path = usdrt.Sdf.Path(path)
+            fabric_hierarchy.set_local_xform(fabric_path, fabric_hierarchy.get_local_xform(fabric_path))
+            dirtied += 1
+
+        if dirtied:
+            fabric_hierarchy.update_world_xforms()
+            logger.debug("Refreshed %d Fabric world transform(s) after stage build.", dirtied)
 
     @classmethod
     def _warmup_and_create_views(cls) -> None:
