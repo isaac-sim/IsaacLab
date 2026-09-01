@@ -273,6 +273,16 @@ def test_camera_resolutions_preserve_aliased_camera_paths():
     }
 
 
+def test_camera_resolutions_preserve_paths_through_aliased_containers():
+    shared_container = SimpleNamespace(camera=_camera_cfg())
+    env_cfg = SimpleNamespace(left=shared_container, right=shared_container)
+
+    assert camera_resolutions_from_env_cfg(env_cfg) == {
+        "env.left.camera": {"width": 64, "height": 48},
+        "env.right.camera": {"width": 64, "height": 48},
+    }
+
+
 def test_camera_resolutions_ignore_unrelated_same_named_class():
     class CameraCfg:
         width = 64

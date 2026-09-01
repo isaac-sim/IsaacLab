@@ -316,11 +316,10 @@ def camera_resolutions_from_env_cfg(env_cfg: object) -> dict[str, dict[str, int]
 
     camera_cfg_types = (CameraCfg, RayCasterCameraCfg)
     resolutions: dict[str, dict[str, int]] = {}
-    stack: list[tuple[str, object]] = [("env", env_cfg)]
-    visited: set[int] = set()
+    stack: list[tuple[str, object, frozenset[int]]] = [("env", env_cfg, frozenset())]
 
     while stack:
-        path, node = stack.pop()
+        path, node, ancestors = stack.pop()
         if node is None or isinstance(node, (str, bytes, int, float, bool, type)):
             continue
 
@@ -331,9 +330,9 @@ def camera_resolutions_from_env_cfg(env_cfg: object) -> dict[str, dict[str, int]
                 resolutions[path] = {"width": width, "height": height}
             continue
 
-        if id(node) in visited:
+        if id(node) in ancestors:
             continue
-        visited.add(id(node))
+        child_ancestors = ancestors | {id(node)}
 
         if isinstance(node, dict):
             children = [(f"{path}.{key}", value) for key, value in node.items()]
@@ -344,7 +343,7 @@ def camera_resolutions_from_env_cfg(env_cfg: object) -> dict[str, dict[str, int]
                 children = [(f"{path}.{name}", value) for name, value in vars(node).items() if not name.startswith("_")]
             except TypeError:
                 continue
-        stack.extend(reversed(children))
+        stack.extend((child_path, child, child_ancestors) for child_path, child in reversed(children))
 
     return dict(sorted(resolutions.items()))
 
