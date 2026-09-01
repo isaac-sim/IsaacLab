@@ -304,6 +304,15 @@ static configuration is shared by all cloned views in one camera batch; controll
 predict per-view exposure and color parameters, while the remaining coefficients stay shared. ISP
 configuration and discovered USD attributes are fixed for the camera lifetime.
 
+.. important::
+
+   With Isaac RTX and OVRTX, enabling ``isp_cfg`` makes PPISP the ISP authority. The renderer
+   disables RTX auto-exposure, authors neutral ``exposure:*`` values, and applies the
+   ``OmniRtxCameraAutoExposureAPI_1`` and ``OmniRtxCameraExposureAPI_1`` schemas on every matched
+   camera prim so RTX does not process the image a second time. Do not combine ``isp_cfg`` with
+   separately authored RTX exposure or tonemapping settings. When ``isp_cfg`` is ``None``, the
+   renderer leaves authored camera exposure unchanged.
+
 Run ``scripts/demos/sensors/ppisp_camera.py`` for a complete PPISP workflow:
 
 .. code-block:: bash

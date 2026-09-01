@@ -20,8 +20,16 @@ joint. Backend implementations convert their native solver output to this common
 Configure the sensor
 --------------------
 
-Set :attr:`~sensors.JointWrenchSensorCfg.prim_path` to the articulation root. The sensor reports one
-entry for each non-root articulation body:
+Set :attr:`~sensors.JointWrenchSensorCfg.prim_path` to the articulation root. Reported body coverage
+depends on the physics backend:
+
+* PhysX and OVPhysX report every articulation link, including the root link.
+* Newton reports the child link of each non-free, non-fixed joint. It therefore excludes the root
+  link and any links connected through free or fixed joints.
+
+Use :attr:`~sensors.JointWrenchSensor.body_names` or
+:meth:`~sensors.JointWrenchSensor.find_bodies` instead of assuming that different backends expose
+the same number or order of entries:
 
 .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_manager_env_cfg.py
    :language: python
@@ -51,5 +59,4 @@ shape ``(E, B, 3)``. Both buffers are ``None`` before simulation initialization.
    wrench = torch.cat((force, torque), dim=-1)
 
 The composed ``wrench`` has shape ``(E, num_selected_bodies, 6)`` with force components followed by
-torque components. Use ``body_names`` or :meth:`~sensors.JointWrenchSensor.find_bodies` instead of
-assuming backend body order.
+torque components. ``B`` and the entry ordering can differ between backends.
