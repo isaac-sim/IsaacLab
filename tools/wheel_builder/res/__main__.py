@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -120,11 +121,12 @@ def generate_vscode_settings():
         extensions_paths.extend(_get_paths(os.path.join(isaaclab_path, folder), mock_python_modules=True))
 
     # update 'python.defaultInterpreterPath'
+    # json.dumps escapes backslashes so Windows paths stay valid JSON
     template = VSCODE_SETTINGS_TEMPLATE[:]
-    template = template.replace("PYTHON.DEFAULTINTERPRETERPATH", sys.executable)
+    template = template.replace('"PYTHON.DEFAULTINTERPRETERPATH"', json.dumps(sys.executable))
 
     # update 'python.analysis.extraPaths'
-    content = "\n".join([f'"{path}",' for path in extensions_paths])
+    content = "\n".join([f"{json.dumps(path)}," for path in extensions_paths])
     content = textwrap.indent(content, prefix=" " * 8)[8:]
     template = template.replace("PYTHON.ANALYSIS.EXTRAPATHS", content)
 
