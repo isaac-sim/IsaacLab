@@ -221,3 +221,27 @@ def test_usd_file_volume_deformable_spawn(monkeypatch, tmp_path):
     assert stage is sim_utils.get_current_stage()
     # the pre-authored TetMesh is reused in place as the simulation mesh (path keeps its name)
     assert _StubManager.calls == [("/World/Soft", "volume", "/World/Soft/tet")]
+
+
+def test_bare_deformable_fragment_targets_only_the_spawn_prim():
+    """The deformable convenience form must resolve to the spawn prim on every spawner type.
+
+    The deformable writers always create a full simulation-mesh setup on each matched prim, so a
+    subtree default would tetrahedralize every mesh under an asset instead of making the asset one
+    deformable body. That is the reverse of the rigid-body, collision, and mass families, whose
+    convenience form widens to the subtree on the file spawners because they only tune carriers
+    that already exist.
+    """
+    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
+    from isaaclab.sim.spawners._utils import resolve_deformable_slot
+
+    fragment = OmniPhysicsDeformableBodyCfg(mass=1.0)
+    for spawn_cfg in (
+        sim_utils.MeshCuboidCfg(size=(0.1, 0.1, 0.1), volume_deformable_props=fragment),
+        sim_utils.UsdFileCfg(usd_path="unused.usda", volume_deformable_props=fragment),
+        sim_utils.UsdFileCfg(usd_path="unused.usda", surface_deformable_props=[fragment]),
+    ):
+        kind, mapping = resolve_deformable_slot(spawn_cfg)
+        assert kind in ("volume", "surface")
+        assert list(mapping) == [""], f"{type(spawn_cfg).__name__} widened the deformable default"
+        assert mapping[""] == [fragment]

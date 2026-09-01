@@ -376,7 +376,7 @@ def _apply_deformable_schema_properties(prim_path: str, cfg: from_files_cfg.File
         cfg: The file spawner configuration carrying the schema fields.
         stage: The stage where to author the properties.
     """
-    deformable_slot = resolve_deformable_slot(cfg, "(/.*)?")
+    deformable_slot = resolve_deformable_slot(cfg)
     if deformable_slot is None:
         return
     deformable_type, mapping = deformable_slot
