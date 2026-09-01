@@ -228,7 +228,7 @@ jobs:
         IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "${IMAGE_TAG}")"
         export IMAGE_DIGEST
         uv run --no-project --with pytest \
-          python -m pytest -q -m docker_image docker/test/test_image_invariants.py
+          python -m pytest -q docker/test/test_image_invariants.py
 
   build-curobo:
     name: Build cuRobo Docker Image

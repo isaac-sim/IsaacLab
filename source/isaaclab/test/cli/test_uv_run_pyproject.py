@@ -83,19 +83,6 @@ def test_uv_run_exposes_centralized_feature_extras():
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovrtx"])
 
 
-def _flatten_extra(optional_dependencies: dict[str, list[str]], name: str) -> list[str]:
-    """Return an extra's requirements with ``isaaclab-dev[...]`` self-references resolved."""
-    flattened: list[str] = []
-    for requirement in optional_dependencies[name]:
-        match = re.fullmatch(r"isaaclab-dev\[(.+)\]", requirement)
-        if match:
-            for referenced in match.group(1).split(","):
-                flattened += _flatten_extra(optional_dependencies, referenced.strip())
-        else:
-            flattened.append(requirement)
-    return flattened
-
-
 def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras():
     """``all`` aggregates only the curated OV, RL, and visualizer extras."""
     optional = _root_pyproject()["project"]["optional-dependencies"]
@@ -113,12 +100,10 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras():
         "mimic",
         "teleop",
         "teleop-no-isaacsim",
-        "kit-image",
         "tetrahedralization",
         "video",
         "leapp",
         "test",
-        "test-runtime",
     }
 
 
@@ -252,9 +237,7 @@ def test_uv_run_teleop_extra_bundles_isaacsim():
     ``isaacsim`` extra rather than repeating its pin.
     """
     optional_dependencies = _root_pyproject()["project"]["optional-dependencies"]
-    # ``teleop`` composes from ``teleop-no-isaacsim``, which carries the stack for
-    # environments that already provide Kit; flatten so the contract is on what it resolves to.
-    teleop = _flatten_extra(optional_dependencies, "teleop")
+    teleop = optional_dependencies["teleop"]
 
     # Isaac Sim is listed explicitly; test_version_single_source keeps the pin from drifting.
     assert any(dep.startswith("isaacsim[all,extscache]==") for dep in teleop)

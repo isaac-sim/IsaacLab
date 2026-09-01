@@ -128,9 +128,14 @@ RUN touch /bin/nvidia-smi && \
 # third-party packages here means a source edit re-runs only the workspace install below.
 COPY --parents ../source/*/pyproject.toml ${ISAACLAB_PATH}/
 
+# The image's package set. Kit ships in the base image, so the teleop stack comes without the
+# ``isaacsim`` wheel; ``teleop`` itself is left exactly as tuned.
+ARG IMAGE_EXTRAS="--extra sb3 --extra skrl --extra rl-games --extra rsl-rl --extra viser --extra rerun --extra mimic --extra teleop-no-isaacsim --extra test"
+
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     cd ${ISAACLAB_PATH} && \
-    uv sync --frozen --inexact --extra kit-image \
+    uv sync --frozen --inexact ${IMAGE_EXTRAS} \
       --no-install-workspace --no-install-package imageio-ffmpeg && \
     chown -R isaaclab:isaaclab ${VIRTUAL_ENV} && \
     chmod -R a+rwX ${VIRTUAL_ENV}/lib ${VIRTUAL_ENV}/bin
@@ -154,7 +159,7 @@ RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt $
 # MoviePy and its video backend explicitly.
 RUN --mount=type=cache,target=/root/.cache/uv \
     cd ${ISAACLAB_PATH} && \
-    uv sync --frozen --inexact --extra kit-image \
+    uv sync --frozen --inexact ${IMAGE_EXTRAS} \
       --no-install-package imageio-ffmpeg && \
     find ${VIRTUAL_ENV} \! -user isaaclab \
       -exec chown isaaclab:isaaclab {} + -exec chmod a+rwX {} +

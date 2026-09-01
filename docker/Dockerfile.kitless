@@ -74,10 +74,12 @@ COPY --parents source/*/pyproject.toml ./
 # ``--inexact`` keeps the seeded pip, which is not a lock entry.
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv venv --seed "${VIRTUAL_ENV}" \
- && uv sync --frozen --inexact --extra all --extra importers --extra test-runtime \
+ && uv sync --frozen --inexact --extra all --extra importers --extra test \
       --no-install-workspace
 
-COPY . .
+# Sources only: the workspace install below needs these, and nothing else in the repo. A docs
+# or CI edit then re-runs just the trailing COPY rather than the install.
+COPY source/ source/
 
 # ``chmod +x`` applies the build umask and left the launcher at 751, unreadable by a
 # container started with a uid other than the image's own.
@@ -85,7 +87,7 @@ RUN chmod 755 "${ISAACLAB_PATH}/isaaclab.sh"
 
 # The workspace members install editable now that their sources are present.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --inexact --extra all --extra importers --extra test-runtime \
+    uv sync --frozen --inexact --extra all --extra importers --extra test \
  && chmod -R a+rwX "${VIRTUAL_ENV}/lib" "${VIRTUAL_ENV}/bin" \
  && python -c "import importlib.metadata as m; \
       names = {d.metadata['Name'].lower() for d in m.distributions()}; \
@@ -96,6 +98,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
       assert 'viser' in names; \
       assert 'rerun-sdk' in names" \
  && test ! -e "${ISAACLAB_PATH}/_isaac_sim"
+
+# Everything else the image ships (apps, scripts, docker helpers, licenses). Last, so an edit
+# outside ``source/`` re-lays only this layer and leaves the install above cached.
+COPY . .
 
 
 FROM ${BASE_IMAGE_ARG} AS runtime

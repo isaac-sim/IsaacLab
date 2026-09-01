@@ -119,18 +119,13 @@ importers = [
     "tinyobjloader==2.0.0rc13",
 ]
 
-# Test runners without the docs stack: the container image installs these so in-image pytest
-# works (``tools/conftest.py`` imports junitparser) without pulling Sphinx.
-test-runtime = [
+test = [
     "pytest",
     "pytest-mock",
     "junitparser",
     "flaky",
     # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
     "coverage>=7.6.1",
-]
-test = [
-    "isaaclab-dev[test-runtime]",
     "sphinx>=7.0,<9",
     "sphinx-book-theme>=1.1",
     "myst-parser",
@@ -178,18 +173,21 @@ mimic = [
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
-# The teleop stack without the Isaac Sim wheel, for environments that already provide Kit
-# (the Docker images reach it through the _isaac_sim symlink). Installing the wheel there
-# would put a second, version-mismatched Isaac Sim beside the one the container ships.
+# ``teleop`` minus the Isaac Sim wheel: the container already ships Kit, and installing the
+# wheel beside it would give a second, version-mismatched Isaac Sim.
 teleop-no-isaacsim = [
     "isaaclab-teleop",
     "isaaclab-mimic",
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
+
 teleop = [
-    "isaaclab-dev[teleop-no-isaacsim]",
     "isaacsim[all,extscache]==6.0.1.0",
+    "isaaclab-teleop",
+    "isaaclab-mimic",
+    "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
 ]
 rlinf = [
     "ray[default]>=2.47.0",
@@ -208,12 +206,6 @@ leapp = [
 ]
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,ov]",
-]
-
-# The Isaac Sim container's package set. Kit is provided by the base image, so this excludes
-# ``ov`` (the container renders through Kit) and takes teleop without the Isaac Sim wheel.
-kit-image = [
-    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,mimic,teleop-no-isaacsim,test-runtime]",
 ]
 
 # Single source of truth for externally-pinned versions, read by docs/conf.py, the
@@ -366,7 +358,6 @@ markers = [
     "rendering: test exercises the rendering / camera / visualizer pipeline",
     "smoke: tests for core installation, task, and RL functionality",
     "kitless: test must pass inside the Kit-less container, which has no Isaac Sim runtime",
-    "docker_image: test asserts an invariant of a built container image; needs IMAGE_TAG",
 ]
 
 # Add pypi.nvidia.com so that `uv pip install isaaclab[isaacsim]` works without --extra-index-url.

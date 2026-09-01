@@ -8,7 +8,7 @@
 The image under test is named by ``IMAGE_TAG``; the tests skip when it is unset so a plain
 ``pytest docker/test`` stays green on a machine with no image. Run one explicitly with::
 
-    IMAGE_TAG=isaac-lab-base:latest pytest -m docker_image docker/test
+    IMAGE_TAG=isaac-lab-base:latest pytest docker/test/test_image_invariants.py
 """
 
 from __future__ import annotations
@@ -17,8 +17,6 @@ import os
 import subprocess
 
 import pytest
-
-pytestmark = [pytest.mark.docker_image]
 
 IMAGE_TAG = os.environ.get("IMAGE_TAG", "")
 
