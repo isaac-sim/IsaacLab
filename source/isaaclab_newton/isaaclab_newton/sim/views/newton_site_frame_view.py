@@ -271,8 +271,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 if shape_flags is None:
                     shape_flags = model.shape_flags.numpy()
                 if any(
-                    int(shape_flags[index])
-                    & int(ShapeFlags.COLLIDE_SHAPES | ShapeFlags.COLLIDE_PARTICLES)
+                    int(shape_flags[index]) & int(ShapeFlags.COLLIDE_SHAPES | ShapeFlags.COLLIDE_PARTICLES)
                     for index in shape_indices
                 ):
                     raise ValueError(
