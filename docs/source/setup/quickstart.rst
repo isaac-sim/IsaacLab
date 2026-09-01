@@ -130,7 +130,7 @@ All task commands accept ``--task <task_name>``. Start by listing the registered
      - ``uv run isaaclab benchmark runtime --task Isaac-Cartpole``
 
 All supported RL libraries use ``--checkpoint`` to choose a checkpoint for
-playback. See :doc:`/source/overview/reinforcement-learning/index` for the
+playback. See :doc:`/source/concepts/reinforcement_learning` for the
 complete training and playback reference.
 
 .. figure:: ../_static/quickstart/agent-comparison.gif

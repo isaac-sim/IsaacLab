@@ -69,7 +69,7 @@ Exporting a Policy
 
    Export requires a trained checkpoint. Normally you train a policy first — follow
    :ref:`uv-run-training` and
-   :doc:`/source/overview/reinforcement-learning/index` — and the export
+   :doc:`/source/concepts/reinforcement_learning` — and the export
    script then discovers the newest matching local run automatically. To get started
    without training, RSL-RL can pass ``--checkpoint pretrained`` to download a published
    policy for a supported core task and backend combination (availability is limited;

@@ -37,4 +37,4 @@ Keep this skill synchronized section-for-section with the sim-to-sim how-to, inc
 - [Examples](examples.md)
 - [Evaluations](evaluations.md)
 - [Asset migration guide](../../../docs/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton.rst)
-- [RL train and play guide](../../../docs/source/overview/reinforcement-learning/index.rst)
+- [RL train and play guide](../../../docs/source/concepts/reinforcement_learning.rst)
