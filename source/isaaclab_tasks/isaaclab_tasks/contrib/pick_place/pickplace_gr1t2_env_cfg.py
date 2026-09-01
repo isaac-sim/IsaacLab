@@ -391,6 +391,13 @@ _HAND_DRIVE_STIFFNESS = 200.0
 _HAND_DRIVE_DAMPING = 6.0
 _HAND_DRIVE_ARMATURE = 0.01
 _HAND_DRIVE_EFFORT = 2000.0
+# The passive mimic followers still need a capped effort and a reflected inertia, matching the
+# Newton-validated ``panda_finger2_passive`` group on the Franka lift task. Zero stiffness and
+# damping disable the second PD drive, but leaving the effort limit uncapped lets the equality
+# constraint drive the follower without bound -- Shadow Hand documents the same failure as
+# "an uncapped effort limit on either end diverges to NaN".
+_HAND_PASSIVE_EFFORT = 1.0
+_HAND_PASSIVE_ARMATURE = 0.1
 
 
 def _gr1t2_actuators():
@@ -432,6 +439,8 @@ def _gr1t2_actuators():
             joint_names_expr=[f"{side}_.*_intermediate_joint", f"{side}_thumb_distal_joint"],
             stiffness=0.0,
             damping=0.0,
+            joint_effort_limit=_HAND_PASSIVE_EFFORT,
+            armature=_HAND_PASSIVE_ARMATURE,
         )
     newton["posture"] = ImplicitActuatorCfg(
         joint_names_expr=["head_.*", ".*_hip_.*", ".*_knee_.*", ".*_ankle_.*"],
