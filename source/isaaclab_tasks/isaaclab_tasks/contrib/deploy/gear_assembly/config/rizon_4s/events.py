@@ -117,6 +117,4 @@ class pin_unselected_gears_to_shafts(ManagerTermBase):
             root_pose[:, :3] = gear_world_pos
             root_pose[:, 3:] = gear_world_quat
             gear.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=gear_env_ids)
-            gear.write_root_velocity_to_sim_index(
-                root_velocity=self._zero_velocity[:count], env_ids=gear_env_ids
-            )
+            gear.write_root_velocity_to_sim_index(root_velocity=self._zero_velocity[:count], env_ids=gear_env_ids)
