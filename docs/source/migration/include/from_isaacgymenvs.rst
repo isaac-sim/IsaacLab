@@ -1,15 +1,15 @@
 .. _migrating-from-isaacgymenvs:
 
-From IsaacGymEnvs
-=================
+Migration from Isaac Gym and IsaacGymEnvs
+------------------------------------------
 
 .. currentmodule:: isaaclab
 
 .. seealso::
 
-   This page is the source of truth for the ``isaaclab-migrating-from-isaac-gym`` agent skill
+   This section is the source of truth for the ``isaaclab-migrating-from-isaac-gym`` agent skill
    (`skills/user/migrate-from-isaac-gym/ <../../../skills/user/migrate-from-isaac-gym/SKILL.md>`__).
-   When you change this page, update the skill so agent guidance stays in sync. See
+   When you change this section, update the skill so agent guidance stays in sync. See
    :doc:`/source/overview/developer-guide/agent_skills`.
 
 
@@ -20,9 +20,19 @@ Preview Release and Isaac Sim. The maintained
 :isaaclab-source:`Cartpole direct environment <source/isaaclab_tasks/isaaclab_tasks/core/cartpole>` is the canonical
 complete example for the patterns used in this guide.
 
+For the smoothest migration, work through this section in order:
 
-Task Config Setup
-~~~~~~~~~~~~~~~~~
+1. Translate the task and simulation configuration to Python config classes.
+2. Recreate the scene and actors in a direct-workflow environment.
+3. Map simulation state access, paying particular attention to quaternion and joint ordering.
+4. Port actions, resets, observations, rewards, and termination logic.
+5. Smoke-test the environment before moving the training and inference commands.
+
+Use :ref:`migrating-from-isaacgymenvs-comparing-simulation` when the migrated task runs but its
+behavior does not match Isaac Gym.
+
+
+.. rubric:: Task Config Setup
 
 In IsaacGymEnvs, task config files were defined in ``.yaml`` format. With Isaac Lab, configs are now specified using
 a specialized Python class :class:`~isaaclab.utils.configclass`. The :class:`~isaaclab.utils.configclass`
@@ -58,8 +68,7 @@ Below is an example skeleton of a task config class:
       # task-specific parameters
       ...
 
-Simulation Config
------------------
+**Simulation Config**
 
 Simulation related parameters are defined as part of the :class:`~isaaclab.sim.SimulationCfg` class,
 which is a :class:`~isaaclab.utils.configclass` module that holds simulation parameters such as ``dt``,
@@ -142,8 +151,7 @@ has been validated for those solvers:
 Select a validated physics preset when launching the task, for example ``physics=physx`` or
 ``physics=newton_mjwarp``. A preset name is available only when the environment defines it.
 
-Scene Config
-------------
+**Scene Config**
 
 The :class:`~isaaclab.scene.InteractiveSceneCfg` class can be used to specify parameters related to the scene,
 such as the number of environments and the spacing between environments. Each task config must have a variable named
@@ -159,8 +167,7 @@ such as the number of environments and the spacing between environments. Each ta
 |    envSpacing: 4.0                                           |    env_spacing=4.0)                                               |
 +--------------------------------------------------------------+-------------------------------------------------------------------+
 
-Task Config
------------
+**Task Config**
 
 Each environment should specify its own config class that holds task specific parameters, such as the dimensions of the
 observation and action buffers. Reward term scaling parameters can also be specified in the config class.
@@ -180,8 +187,7 @@ in IsaacGymEnvs. To convert between step count to seconds, use the equation:
 ``episode_length_s = dt * decimation * num_steps``
 
 
-RL Config Setup
-~~~~~~~~~~~~~~~
+.. rubric:: RL Config Setup
 
 RL config files for the rl_games library can continue to be defined in ``.yaml`` files in Isaac Lab.
 Most of the content of the config file can be copied directly from IsaacGymEnvs.
@@ -205,8 +211,7 @@ they should be moved to the RL config file in Isaac Lab.
 |                          |     clip_actions: 1.0      |
 +--------------------------+----------------------------+
 
-Environment Creation
-~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Environment Creation
 
 In IsaacGymEnvs, environment creation generally included four components: creating the sim object with ``create_sim()``,
 creating the ground plane, importing the assets from MJCF or URDF files, and finally creating the environments
@@ -241,8 +246,7 @@ adding any other optional objects into the scene, such as lights.
 +------------------------------------------------------------------------------+------------------------------------------------------------------------+
 
 
-Ground Plane
-------------
+**Ground Plane**
 
 For a simple plane, spawn the ground directly in ``_setup_scene()``:
 
@@ -257,8 +261,7 @@ Use :class:`~terrains.TerrainImporterCfg` instead when the task needs generated 
 single plane.
 
 
-Actors
-------
+**Actors**
 
 Isaac Lab and Isaac Sim both use the `USD (Universal Scene Description) <https://github.com/PixarAnimationStudios/OpenUSD>`_
 library for describing the scene. Assets defined in MJCF and URDF formats can be imported to USD using importer
@@ -289,8 +292,7 @@ be added to the :class:`~scene.InteractiveScene` by calling ``self.scene.articul
 so that the :class:`~scene.InteractiveScene` can traverse through actors in the scene for writing values to the
 simulation and resetting.
 
-Simulation Parameters for Actors
-""""""""""""""""""""""""""""""""
+**Simulation Parameters for Actors**
 
 Some simulation parameters related to Rigid Bodies and Articulations may have different
 default values between Isaac Gym Preview Release and Isaac Sim.
@@ -344,8 +346,7 @@ For more details on performing thorough simulation comparisons between Isaac Gym
 please refer to the :ref:`migrating-from-isaacgymenvs-comparing-simulation` section.
 
 
-Cloner
-------
+**Cloner**
 
 Isaac Lab provides :mod:`isaaclab.cloner` for replication during the scene creation process.
 In IsaacGymEnvs, scenes had to be created by looping through the number of environments.
@@ -374,8 +375,7 @@ The scene creation process is as follow:
        self.scene.filter_collisions(global_prim_paths=[])
 
 
-Accessing States from Simulation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Accessing States from Simulation
 
 APIs for accessing physics states in Isaac Lab require the creation of an :class:`~assets.Articulation` or :class:`~assets.RigidObject`
 object. Multiple objects can be initialized for different articulations or rigid bodies in the scene by defining
@@ -425,8 +425,7 @@ avoids reading or rewriting state components that did not change.
 |       gymtorch.unwrap_tensor(env_ids_int32), len(env_ids_int32))          |       velocity=joint_vel, env_ids=env_ids)                    |
 +---------------------------------------------------------------------------+---------------------------------------------------------------+
 
-Quaternion Convention
----------------------
+**Quaternion Convention**
 
 .. warning::
 
@@ -458,8 +457,7 @@ IsaacGymEnvs, older Isaac Lab snippets, or USD examples without first confirming
 boundary.
 
 
-Articulation Joint Order
-------------------------
+**Articulation Joint Order**
 
 Physics simulation in Isaac Sim and Isaac Lab assumes a breadth-first
 ordering for the joints in a given kinematic tree.
@@ -470,8 +468,7 @@ In Isaac Lab, retrieve the ordered names from ``Articulation.joint_names`` and r
 :meth:`~assets.Articulation.find_joints`. Do not carry positional joint indices over from IsaacGymEnvs.
 
 
-Creating a New Environment
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Creating a New Environment
 
 Each environment in Isaac Lab should be in its own directory following this structure:
 
@@ -511,8 +508,7 @@ Each environment in Isaac Lab should be in its own directory following this stru
 * ``my_environment/my_env_cfg.py`` defines the environment, simulation preset, scene, and asset configurations.
 
 
-Task Logic
-~~~~~~~~~~
+.. rubric:: Task Logic
 
 In Isaac Lab, the ``post_physics_step`` function has been moved to the framework in the base class.
 Tasks are not required to implement this method, but can choose to override it if a different workflow is desired.
@@ -555,16 +551,14 @@ We have also performed some renamings of APIs:
 * In addition, Isaac Lab requires ``_get_dones(self)``, which returns the ``terminated`` and ``time_out`` buffers.
 
 
-Putting It All Together
-~~~~~~~~~~~~~~~~~~~~~~~
+.. rubric:: Putting It All Together
 
 The following sections compare the IsaacGymEnvs Cartpole with the current Isaac Lab implementation. For the complete,
 executable source, use the maintained
 :isaaclab-source:`Cartpole environment configuration <source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env_cfg.py>`
 and :isaaclab-source:`Cartpole environment <source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py>`.
 
-Task Config
------------
+**Task Config**
 
 +--------------------------------------------------------+---------------------------------------------------------------------+
 | IsaacGymEnvs                                           | Isaac Lab                                                           |
@@ -618,8 +612,7 @@ Task Config
 
 
 
-Task Setup
-----------
+**Task Setup**
 
 Isaac Lab no longer requires pre-initialization of buffers through the ``acquire_*`` APIs that were used in IsaacGymEnvs.
 It is also no longer necessary to ``wrap`` and ``unwrap`` tensors.
@@ -659,8 +652,7 @@ It is also no longer necessary to ``wrap`` and ``unwrap`` tensors.
 
 
 
-Scene Setup
------------
+**Scene Setup**
 
 Scene setup is now done through the ``Cloner`` API and by specifying actor attributes in config objects.
 This eliminates the need to loop through the number of environments to set up the environments and avoids
@@ -756,8 +748,7 @@ the need to set simulation parameters for actors in the task implementation.
 +------------------------------------------------------------------------+---------------------------------------------------------------------+
 
 
-Pre and Post Physics Step
--------------------------
+**Pre and Post Physics Step**
 
 In IsaacGymEnvs, due to limitations of the GPU APIs, observations had stale data when environments had to perform resets.
 This restriction has been eliminated in Isaac Lab, and thus, tasks follow the correct workflow of applying actions, stepping simulation,
@@ -793,8 +784,7 @@ However, individual tasks can override the ``step()`` API to control the workflo
 +------------------------------------------------------------------+-------------------------------------------------------------+
 
 
-Dones and Resets
-----------------
+**Dones and Resets**
 
 In Isaac Lab, ``dones`` are computed in the ``_get_dones()`` method and should return two variables: ``resets`` and ``time_out``.
 Tracking of the ``progress_buf`` has been moved to the base class and is now automatically incremented and reset by the framework.
@@ -853,8 +843,7 @@ The ``progress_buf`` variable has also been renamed to ``episode_length_buf``.
 +-----------------------------------------------------------------------+---------------------------------------------------------------------------+
 
 
-Observations
-------------
+**Observations**
 
 In Isaac Lab, the ``_get_observations()`` API should now return a dictionary containing the ``policy`` key with the observation
 buffer as the value.
@@ -882,8 +871,7 @@ For asymmetric policies, the dictionary should also include a ``critic`` key tha
 +--------------------------------------------------------------------------+---------------------------------------------------------------------------------------+
 
 
-Rewards
--------
+**Rewards**
 
 In Isaac Lab, the reward method ``_get_rewards`` should return the reward buffer as a return value.
 Similar to IsaacGymEnvs, computations in the reward function can also be performed using pytorch jit
@@ -938,8 +926,7 @@ by adding the ``@torch.jit.script`` annotation.
 
 
 
-Launching Training
-~~~~~~~~~~~~~~~~~~
+.. rubric:: Launching Training
 
 To launch a training in Isaac Lab, use the command:
 
@@ -957,8 +944,7 @@ To launch a training in Isaac Lab, use the command:
 
          ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct physics=physx
 
-Running Inference
-~~~~~~~~~~~~~~~~~
+.. rubric:: Running Inference
 
 To run a trained policy in Isaac Lab, use the command:
 
@@ -978,15 +964,6 @@ To run a trained policy in Isaac Lab, use the command:
 
          ./isaaclab.sh play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 \
              --checkpoint=<path/to/checkpoint> physics=physx
-
-
-Additional Resources
-~~~~~~~~~~~~~~~~~~~~
-
-.. toctree::
-   :maxdepth: 1
-
-   comparing_simulation_isaacgym
 
 
 .. _IsaacGymEnvs: https://github.com/isaac-sim/IsaacGymEnvs
