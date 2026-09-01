@@ -19,6 +19,9 @@ ISAACLAB_ROOT = Path(__file__).parents[4].resolve()
 # Default path to look for Isaac Sim is _isaac_sim symlink.
 DEFAULT_ISAAC_SIM_PATH = ISAACLAB_ROOT / "_isaac_sim"
 
+# Marker written into live Isaac Sim source builds linked by ``--isaacsim_source``.
+ISAAC_SIM_SOURCE_BUILD_MARKER = ".isaaclab_source_build"
+
 # Short script names supported by ``isaaclab -p``.
 _PYTHON_SCRIPT_ALIASES = {
     "train.py": ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train.py",
@@ -43,6 +46,18 @@ def is_arm() -> bool:
     """Check if the architecture is ARM (likely Mac)."""
     machine = platform.machine().lower()
     return "aarch64" in machine or "arm64" in machine
+
+
+def is_isaac_sim_source_build(isaac_sim_path: Path = DEFAULT_ISAAC_SIM_PATH) -> bool:
+    """Check whether an Isaac Sim directory is a live source build managed by Isaac Lab.
+
+    Args:
+        isaac_sim_path: Isaac Sim installation directory.
+
+    Returns:
+        Whether the source-build marker exists in the directory.
+    """
+    return (isaac_sim_path / ISAAC_SIM_SOURCE_BUILD_MARKER).is_file()
 
 
 def _colorize(text: str, color: str, stream: IO[str]) -> str:
@@ -610,6 +625,24 @@ def run_python_command(
     configured_isaac_path = command_env.get("ISAAC_PATH")
     local_sim = DEFAULT_ISAAC_SIM_PATH
     python_launcher = local_sim / ("python.bat" if is_windows() else "python.sh")
+    using_virtual_environment = bool(
+        command_env.get("VIRTUAL_ENV")
+        or command_env.get("CONDA_PREFIX")
+        or sys.prefix != sys.base_prefix
+        or _is_virtualenv_python(python_exe)
+    )
+    if (
+        local_sim.is_dir()
+        and python_launcher.is_file()
+        and not is_isaac_sim_source_build(local_sim)
+        and using_virtual_environment
+    ):
+        print_error("Downloaded Isaac Sim packages cannot be combined with a Python virtual environment.")
+        print_error(
+            "Use the bundled Python through isaaclab.sh/isaaclab.bat, or remove '_isaac_sim' and install "
+            "Isaac Sim from pip in the virtual environment."
+        )
+        raise SystemExit(1)
     isaac_env_active = (
         configured_isaac_path is not None and Path(configured_isaac_path).resolve() == local_sim.resolve()
     )

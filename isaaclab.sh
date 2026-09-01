@@ -11,6 +11,16 @@ set -e
 # Get repo directory.
 export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
+# Downloaded Isaac Sim packages must run with their bundled Python. Live source
+# builds created by --isaacsim_source carry a marker and support active environments.
+if [ -d "$ISAACLAB_PATH/_isaac_sim" ] && [ ! -f "$ISAACLAB_PATH/_isaac_sim/.isaaclab_source_build" ]; then
+    if [ -n "$VIRTUAL_ENV" ] || [ -n "$CONDA_PREFIX" ] || [ -f "$ISAACLAB_PATH/env_isaaclab/bin/python" ]; then
+        echo "[ERROR] Downloaded Isaac Sim packages cannot be combined with a Python virtual environment." >&2
+        echo "[ERROR] Use the bundled Python after removing/deactivating the virtual environment, or remove '_isaac_sim' and install Isaac Sim from pip in the virtual environment." >&2
+        exit 1
+    fi
+fi
+
 # Find python to run CLI.
 if [ -n "$VIRTUAL_ENV" ]; then
     python_exe="$VIRTUAL_ENV/bin/python"
