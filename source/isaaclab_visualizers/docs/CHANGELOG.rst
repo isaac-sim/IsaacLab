@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.9.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to every concrete visualizer config through its ``class_type`` field.
+
+
 1.8.0 (2026-08-22)
 ~~~~~~~~~~~~~~~~~~
 

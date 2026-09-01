@@ -173,7 +173,7 @@ Camera rendering is enabled automatically when launching an RTX camera task:
 
       .. code-block:: shell
 
-          uv run isaaclab train --rl_library rl_games \
+          uv run --extra rl-games isaaclab train --rl_library rl_games \
               --task=Isaac-Cartpole-Camera-Direct
 
 
