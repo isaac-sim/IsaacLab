@@ -92,15 +92,12 @@ class AgileBasedLowerBodyAction(ActionTerm):
 
         return policy_input
 
-    def process_actions(self, actions: torch.Tensor | None):
+    def process_actions(self, actions: torch.Tensor):
         """Process the input actions using the locomotion policy.
 
         Args:
-            actions: The lower body commands. If None, zeros are used.
+            actions: The lower body commands.
         """
-
-        if actions is None:
-            actions = torch.zeros((self.num_envs, self.action_dim), device=self.device)
 
         # Extract base command from the action tensor
         # Assuming the base command [vx, vy, wz, hip_height]

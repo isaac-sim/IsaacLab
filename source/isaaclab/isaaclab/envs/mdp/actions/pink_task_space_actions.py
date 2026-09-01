@@ -171,6 +171,14 @@ class PinkInverseKinematicsAction(ActionTerm):
         return self._processed_actions
 
     @property
+    def neutral_actions(self) -> torch.Tensor:
+        """Raw actions that hold the controlled frames and hand joints at their current state."""
+        frame_poses = self._asset.data.body_link_pose_w.torch[:, self._controlled_frame_ids].clone()
+        frame_poses[..., :3] -= self._env.scene.env_origins.unsqueeze(1)
+        hand_joint_positions = self._asset.data.joint_pos.torch[:, self._hand_joint_ids]
+        return torch.cat((frame_poses.flatten(start_dim=1), hand_joint_positions), dim=-1)
+
+    @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
         """The IO descriptor of the action term.
 
@@ -199,19 +207,12 @@ class PinkInverseKinematicsAction(ActionTerm):
     # Operations.
     # """
 
-    def process_actions(self, actions: torch.Tensor | None) -> None:
+    def process_actions(self, actions: torch.Tensor) -> None:
         """Process the input actions and set targets for each task.
 
         Args:
-            actions: The input actions tensor. If None, the current controlled-frame poses and hand-joint positions
-                are used.
+            actions: The input actions tensor.
         """
-        if actions is None:
-            frame_poses = self._asset.data.body_link_pose_w.torch[:, self._controlled_frame_ids].clone()
-            frame_poses[..., :3] -= self._env.scene.env_origins.unsqueeze(1)
-            hand_joint_positions = self._asset.data.joint_pos.torch[:, self._hand_joint_ids]
-            actions = torch.cat((frame_poses.flatten(start_dim=1), hand_joint_positions), dim=-1)
-
         # Store raw actions
         self._raw_actions[:] = actions
 

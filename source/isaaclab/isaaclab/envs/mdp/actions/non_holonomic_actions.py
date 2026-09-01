@@ -172,9 +172,7 @@ class NonHolonomicAction(ActionTerm):
     Operations.
     """
 
-    def process_actions(self, actions: torch.Tensor | None):
-        if actions is None:
-            actions = self._raw_actions.zero_()
+    def process_actions(self, actions):
         # store the raw actions
         self._raw_actions[:] = actions
         self._processed_actions = self.raw_actions * self._scale + self._offset

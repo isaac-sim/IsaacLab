@@ -119,6 +119,16 @@ class RMPFlowAction(ActionTerm):
         return self._processed_actions
 
     @property
+    def neutral_actions(self) -> torch.Tensor:
+        """Raw actions that hold the current end-effector pose."""
+        if self.cfg.use_relative_mode:
+            return super().neutral_actions
+
+        ee_pos, ee_quat = self._compute_frame_pose()
+        command = torch.cat((ee_pos, ee_quat), dim=-1)
+        return torch.where(self._scale != 0.0, command / self._scale, torch.zeros_like(command))
+
+    @property
     def jacobian_w(self) -> torch.Tensor:
         return self._asset.data.body_link_jacobian_w.torch[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
 
@@ -136,14 +146,7 @@ class RMPFlowAction(ActionTerm):
     """
 
     # This is called each env.step()
-    def process_actions(self, actions: torch.Tensor | None):
-        if actions is None:
-            if self.cfg.use_relative_mode:
-                actions = self._raw_actions.zero_()
-            else:
-                ee_pos, ee_quat = self._compute_frame_pose()
-                command = torch.cat((ee_pos, ee_quat), dim=-1)
-                actions = torch.where(self._scale != 0.0, command / self._scale, torch.zeros_like(command))
+    def process_actions(self, actions: torch.Tensor):
         # store the raw actions
         self._raw_actions[:] = actions
         self._processed_actions[:] = self.raw_actions * self._scale

@@ -95,9 +95,7 @@ class CubeActionTerm(ActionTerm):
     Operations
     """
 
-    def process_actions(self, actions: torch.Tensor | None):
-        if actions is None:
-            actions = self._asset.data.root_pos_w.torch - self._env.scene.env_origins
+    def process_actions(self, actions: torch.Tensor):
         # store the raw actions
         self._raw_actions[:] = actions
         # no-processing of actions

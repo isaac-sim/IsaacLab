@@ -50,7 +50,6 @@ def _ik_world_target_kernel(
     scale: wp.array(dtype=wp.float32),
     command_code: int,
     use_relative: int,
-    zero_action: int,
     out_pos: wp.array(dtype=wp.vec3f),
     out_rot: wp.array(dtype=wp.vec4f),
 ):
@@ -72,43 +71,42 @@ def _ik_world_target_kernel(
 
     target_pos = ee_pos
     target_rot = ee_rot
-    if zero_action == 0:
-        if command_code == 0:  # COMMAND_POSITION
-            disp = wp.vec3f(
+    if command_code == 0:  # COMMAND_POSITION
+        disp = wp.vec3f(
+            action[i, action_offset + 0] * scale[0],
+            action[i, action_offset + 1] * scale[1],
+            action[i, action_offset + 2] * scale[2],
+        )
+        target_pos = ee_pos + disp if use_relative == 1 else disp
+    else:
+        if use_relative == 1:
+            target_pos = ee_pos + wp.vec3f(
                 action[i, action_offset + 0] * scale[0],
                 action[i, action_offset + 1] * scale[1],
                 action[i, action_offset + 2] * scale[2],
             )
-            target_pos = ee_pos + disp if use_relative == 1 else disp
+            rot_vec = wp.vec3f(
+                action[i, action_offset + 3] * scale[3],
+                action[i, action_offset + 4] * scale[4],
+                action[i, action_offset + 5] * scale[5],
+            )
+            angle = wp.length(rot_vec)
+            delta_rot = wp.quat_identity()
+            if angle > 1.0e-6:
+                delta_rot = wp.quat_from_axis_angle(rot_vec / angle, angle)
+            target_rot = delta_rot * ee_rot
         else:
-            if use_relative == 1:
-                target_pos = ee_pos + wp.vec3f(
-                    action[i, action_offset + 0] * scale[0],
-                    action[i, action_offset + 1] * scale[1],
-                    action[i, action_offset + 2] * scale[2],
-                )
-                rot_vec = wp.vec3f(
-                    action[i, action_offset + 3] * scale[3],
-                    action[i, action_offset + 4] * scale[4],
-                    action[i, action_offset + 5] * scale[5],
-                )
-                angle = wp.length(rot_vec)
-                delta_rot = wp.quat_identity()
-                if angle > 1.0e-6:
-                    delta_rot = wp.quat_from_axis_angle(rot_vec / angle, angle)
-                target_rot = delta_rot * ee_rot
-            else:
-                target_pos = wp.vec3f(
-                    action[i, action_offset + 0] * scale[0],
-                    action[i, action_offset + 1] * scale[1],
-                    action[i, action_offset + 2] * scale[2],
-                )
-                target_rot = wp.quatf(
-                    action[i, action_offset + 3] * scale[3],
-                    action[i, action_offset + 4] * scale[4],
-                    action[i, action_offset + 5] * scale[5],
-                    action[i, action_offset + 6] * scale[6],
-                )
+            target_pos = wp.vec3f(
+                action[i, action_offset + 0] * scale[0],
+                action[i, action_offset + 1] * scale[1],
+                action[i, action_offset + 2] * scale[2],
+            )
+            target_rot = wp.quatf(
+                action[i, action_offset + 3] * scale[3],
+                action[i, action_offset + 4] * scale[4],
+                action[i, action_offset + 5] * scale[5],
+                action[i, action_offset + 6] * scale[6],
+            )
 
     # Broadcast against the env-0 prototype root (all roots identical, validated).
     world_t = wp.transform_multiply(wp.transformf(root_pos_w[0], root_quat_w[0]), wp.transformf(target_pos, target_rot))
@@ -268,10 +266,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
         self._IO_descriptor.extras["coordinate_names"] = self._action_coordinate_names()
         return self._IO_descriptor
 
-    def process_actions(self, actions: torch.Tensor | None) -> None:
-        zero_action = actions is None
-        if actions is None:
-            actions = self._raw_actions.zero_()
+    def process_actions(self, actions: torch.Tensor) -> None:
         self._raw_actions[:] = actions
         self._processed_actions[:] = self._raw_actions
         if self._clip is not None:
@@ -303,7 +298,6 @@ class NewtonInverseKinematicsAction(ActionTerm):
                     obj.scale,
                     obj.command_code,
                     obj.use_relative,
-                    int(zero_action),
                     obj.position_objective.target_positions,
                     obj.rotation_objective.target_rotations,
                 ],

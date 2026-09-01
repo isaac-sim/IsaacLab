@@ -500,7 +500,7 @@ class ManagerBasedEnv:
         # return observations
         return self.obs_buf, self.extras
 
-    def step(self, action: torch.Tensor | None) -> tuple[VecEnvObs, dict]:
+    def step(self, action: torch.Tensor) -> tuple[VecEnvObs, dict]:
         """Execute one time-step of the environment's dynamics.
 
         The environment steps forward at a fixed time-step, while the physics simulation is
@@ -521,14 +521,13 @@ class ManagerBasedEnv:
           app loop.
 
         Args:
-            action: The actions to apply on the environment. Shape is (num_envs, action_dim). If None, each action
-                term applies its zero-action behavior.
+            action: The actions to apply on the environment. Shape is (num_envs, action_dim).
 
         Returns:
             A tuple containing the observations and extras.
         """
         # process actions
-        self.action_manager.process_action(action.to(self.device) if action is not None else None)
+        self.action_manager.process_action(action.to(self.device))
 
         self.recorder_manager.record_pre_step()
 

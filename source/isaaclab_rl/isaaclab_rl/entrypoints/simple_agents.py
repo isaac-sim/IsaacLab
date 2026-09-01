@@ -6,7 +6,7 @@
 """Checkpoint-free playback workflows for Isaac Lab environments.
 
 The zero and random agents are variations of playback that need no trained checkpoint:
-the policy either requests each action term's zero-action behavior or samples uniform random actions.
+the policy either emits neutral actions or samples uniform random actions.
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
 
     Args:
         argv: Command-line arguments excluding the executable name. Reads ``sys.argv`` when omitted.
-        policy: Action policy to apply, either term-specific zero actions or uniform random actions.
+        policy: Action policy to apply, either neutral actions or uniform random actions.
 
     Raises:
         ValueError: If the requested policy is not supported.
@@ -94,7 +94,7 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
             # run everything in inference mode
             with torch.inference_mode():
                 if policy == "zero":
-                    actions = _get_zero_actions(env)
+                    actions = _get_neutral_actions(env)
                 else:
                     # sample actions from -1 to 1
                     actions = 2 * torch.rand(env.action_space.shape, device=device) - 1
@@ -104,16 +104,18 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         env.close()
 
 
-def _get_zero_actions(env: gym.Env):
-    """Create zero actions for passive environment playback.
+def _get_neutral_actions(env: gym.Env):
+    """Create semantically neutral actions for passive environment playback.
 
-    Manager-based environments accept None so that each action term can apply its zero-action behavior. Direct-workflow
-    environments use zero-filled samples of their declared Gymnasium spaces, including composite and multi-agent spaces.
+    Manager-based environments can provide semantic neutral actions for terms
+    where literal zeros are unsafe, such as absolute-pose IK. Direct-workflow
+    environments fall back to zero-filled samples of their declared Gymnasium
+    spaces, including composite and multi-agent spaces.
     """
     unwrapped = env.unwrapped
     action_manager = getattr(unwrapped, "action_manager", None)
     if action_manager is not None:
-        return None
+        return action_manager.neutral_actions
 
     if hasattr(unwrapped, "action_spaces"):
         return {

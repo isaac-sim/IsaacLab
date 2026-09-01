@@ -20,14 +20,15 @@ import torch
 
 from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch
 from isaaclab_rl.entrypoints import simple_agents as _simple_agents
-from isaaclab_rl.entrypoints.simple_agents import _get_zero_actions
+from isaaclab_rl.entrypoints.simple_agents import _get_neutral_actions
 
 
-def test_zero_agent_defers_to_manager_action_terms() -> None:
-    """The zero agent lets manager-based action terms define their zero-action behavior."""
-    unwrapped = SimpleNamespace(action_manager=SimpleNamespace())
+def test_zero_agent_uses_manager_semantic_neutral_actions() -> None:
+    """The zero agent honors action-term neutral commands instead of forcing literal zeros."""
+    expected = torch.tensor([[0.1, 0.2, 0.3, 1.0]])
+    unwrapped = SimpleNamespace(action_manager=SimpleNamespace(neutral_actions=expected))
 
-    assert _get_zero_actions(SimpleNamespace(unwrapped=unwrapped)) is None
+    assert _get_neutral_actions(SimpleNamespace(unwrapped=unwrapped)) is expected
 
 
 def test_zero_agent_supports_composite_direct_action_spaces() -> None:
@@ -45,7 +46,7 @@ def test_zero_agent_supports_composite_direct_action_spaces() -> None:
         num_envs=2,
     )
 
-    actions = _get_zero_actions(SimpleNamespace(unwrapped=unwrapped))
+    actions = _get_neutral_actions(SimpleNamespace(unwrapped=unwrapped))
 
     assert torch.equal(actions["continuous"], torch.zeros(2, 2))
     assert torch.equal(actions["discrete"], torch.zeros(2, 1, dtype=torch.int64))
@@ -63,7 +64,7 @@ def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
         num_envs=3,
     )
 
-    actions = _get_zero_actions(SimpleNamespace(unwrapped=unwrapped))
+    actions = _get_neutral_actions(SimpleNamespace(unwrapped=unwrapped))
 
     assert torch.equal(actions["robot"], torch.zeros(3, 2))
     assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))

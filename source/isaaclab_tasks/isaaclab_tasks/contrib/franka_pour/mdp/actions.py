@@ -39,7 +39,7 @@ class EMARelativeJointPositionAction(RelativeJointPositionAction):
             raise ValueError(f"Moving-average weight must lie in (0, 1], got {self._alpha}.")
         self._previous_delta = torch.zeros_like(self._processed_actions)
 
-    def process_actions(self, actions: torch.Tensor | None) -> None:
+    def process_actions(self, actions: torch.Tensor) -> None:
         """Affine-map the raw action, then smooth only the commanded joint delta."""
         super().process_actions(actions)
         self._processed_actions.lerp_(self._previous_delta, 1.0 - self._alpha)
@@ -136,7 +136,7 @@ class CurriculumGripperPositionAction(BinaryJointPositionAction):
         expanded = position.expand(-1, self._num_joints)
         self._processed_actions[selected] = expanded
 
-    def process_actions(self, actions: torch.Tensor | None) -> None:
+    def process_actions(self, actions: torch.Tensor) -> None:
         previous_target = self._processed_actions
         super().process_actions(actions)
         previous_target.lerp_(self._processed_actions, self._alpha)

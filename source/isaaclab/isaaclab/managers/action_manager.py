@@ -89,6 +89,15 @@ class ActionTerm(ManagerTermBase):
         raise NotImplementedError
 
     @property
+    def neutral_actions(self) -> torch.Tensor:
+        """Raw actions suitable for passive agent playback.
+
+        The default is a zero-filled tensor. Action terms for which zero has a different or invalid meaning,
+        such as absolute-pose controllers, should override this property with a semantically neutral command.
+        """
+        return torch.zeros_like(self.raw_actions)
+
+    @property
     def has_debug_vis_implementation(self) -> bool:
         """Whether the action term has a debug visualization implemented."""
         # check if function raises NotImplementedError
@@ -139,14 +148,14 @@ class ActionTerm(ManagerTermBase):
         return True
 
     @abstractmethod
-    def process_actions(self, actions: torch.Tensor | None):
+    def process_actions(self, actions: torch.Tensor):
         """Processes the actions sent to the environment.
 
         Note:
             This function is called once per environment step by the manager.
 
         Args:
-            actions: The actions to process. If None, the action term applies its zero-action behavior.
+            actions: The actions to process.
         """
         raise NotImplementedError
 
@@ -264,6 +273,18 @@ class ActionManager(ManagerBase):
         return self._prev_action
 
     @property
+    def neutral_actions(self) -> torch.Tensor:
+        """Raw actions suitable for passive playback of all active action terms.
+
+        The returned tensor has shape ``(num_envs, total_action_dim)``. Since
+        some terms derive their neutral command from the current simulation
+        state, consumers should retrieve this property immediately before use.
+        """
+        if not self._terms:
+            return torch.zeros_like(self._action)
+        return torch.cat([term.neutral_actions for term in self._terms.values()], dim=-1)
+
+    @property
     def has_debug_vis_implementation(self) -> bool:
         """Whether the command terms have debug visualization implemented."""
         # check if function raises NotImplementedError
@@ -363,31 +384,26 @@ class ActionManager(ManagerBase):
         # nothing to log here
         return {}
 
-    def process_action(self, action: torch.Tensor | None):
+    def process_action(self, action: torch.Tensor):
         """Processes the actions sent to the environment.
 
         Note:
             This function should be called once per environment step.
 
         Args:
-            action: The actions to process. If None, each action term applies its zero-action behavior.
+            action: The actions to process.
         """
+        # check if action dimension is valid
+        if self.total_action_dim != action.shape[1]:
+            raise ValueError(f"Invalid action shape, expected: {self.total_action_dim}, received: {action.shape[1]}.")
+        # store the input actions
         self._prev_action[:] = self._action
-        if action is None:
-            self._action.zero_()
-        else:
-            # check if action dimension is valid
-            if self.total_action_dim != action.shape[1]:
-                raise ValueError(
-                    f"Invalid action shape, expected: {self.total_action_dim}, received: {action.shape[1]}."
-                )
-            # store the input actions
-            self._action[:] = action.to(self.device)
+        self._action[:] = action.to(self.device)
 
         # split the actions and apply to each tensor
         idx = 0
         for term in self._terms.values():
-            term_actions = None if action is None else self._action[:, idx : idx + term.action_dim]
+            term_actions = action[:, idx : idx + term.action_dim]
             term.process_actions(term_actions)
             idx += term.action_dim
 

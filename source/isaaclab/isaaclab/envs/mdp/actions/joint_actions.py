@@ -167,9 +167,7 @@ class JointAction(ActionTerm):
     Operations.
     """
 
-    def process_actions(self, actions: torch.Tensor | None):
-        if actions is None:
-            actions = self._raw_actions.zero_()
+    def process_actions(self, actions: torch.Tensor):
         # store the raw actions
         self._raw_actions[:] = actions
         # apply the affine transformations
