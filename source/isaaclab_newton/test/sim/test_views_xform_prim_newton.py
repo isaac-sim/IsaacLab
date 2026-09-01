@@ -35,6 +35,8 @@ from isaaclab.utils.configclass import configclass
 
 NEWTON_SIM_CFG = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
 WORLD_MARKER_POS = (5.0, 3.0, 1.0)
+MJCF_SITE_PATH = "/World/Robot/Geometry/body/target_site"
+MJCF_VISUAL_PATH = "/World/Robot/Geometry/body/visual_geom"
 
 
 @configclass
@@ -133,6 +135,37 @@ def test_reject_shape_path(device):
 
     with pytest.raises(ValueError, match="collision shape"):
         FrameView(shape_labels[0], device=device)
+    ctx.__exit__(None, None, None)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_mjcf_site_and_visual_shape_after_finalize(device, tmp_path):
+    """Non-colliding MJCF and visual shapes remain valid after finalization."""
+    ctx = _sim_context(device, num_envs=1)
+    sim = ctx.__enter__()
+    sim._app_control_on_stop_handle = None
+
+    mjcf_path = tmp_path / "site_frame_view.xml"
+    mjcf_path.write_text(
+        '<mujoco><worldbody><body name="body"><freejoint/>'
+        '<geom name="collision_geom" type="sphere" size="0.1" mass="1"/>'
+        '<site name="target_site" type="sphere" size="0.01"/>'
+        "</body></worldbody></mujoco>"
+    )
+    cfg = sim_utils.MjcfFileCfg(
+        asset_path=str(mjcf_path),
+        usd_dir=str(tmp_path / "converted"),
+        force_usd_conversion=True,
+    )
+    cfg.func("/World/Robot", cfg)
+    sim_utils.create_prim(MJCF_VISUAL_PATH, prim_type="Cube", scale=(0.01, 0.01, 0.01))
+    sim.reset()
+
+    shape_labels = list(NewtonManager.get_model().shape_label)
+    assert MJCF_SITE_PATH in shape_labels
+    assert MJCF_VISUAL_PATH in shape_labels
+    FrameView(MJCF_SITE_PATH, device=device)
+    FrameView(MJCF_VISUAL_PATH, device=device)
     ctx.__exit__(None, None, None)
 
 

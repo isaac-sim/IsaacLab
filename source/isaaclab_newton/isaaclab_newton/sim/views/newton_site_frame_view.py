@@ -11,6 +11,7 @@ import logging
 import re
 
 import warp as wp
+from newton import ShapeFlags
 
 from pxr import UsdPhysics
 
@@ -32,6 +33,7 @@ WORLD_BODY_INDEX = -1
 # USD path. Patterns free of these can be resolved via an exact dict lookup instead of scanning
 # every body label with a compiled regex.
 _REGEX_TOKENS = frozenset(".*[]()+?|\\^$")
+_COLLISION_FLAGS = int(ShapeFlags.COLLIDE_SHAPES | ShapeFlags.COLLIDE_PARTICLES)
 
 
 def _has_regex_tokens(pattern: str) -> bool:
@@ -253,6 +255,7 @@ class NewtonSiteFrameView(BaseFrameView):
         model = NewtonManager.get_model()
         body_labels = list(model.body_label) if model is not None else ()
         shape_labels = list(model.shape_label) if model is not None else ()
+        shape_flags = None
         use_clone_body_pattern = model is None
         specs: list[
             tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]
@@ -264,11 +267,15 @@ class NewtonSiteFrameView(BaseFrameView):
                     f"FrameView prim '{path_expr}' is a Newton physics body. "
                     "FrameView should only be used for non-physics frames."
                 )
-            if resolve_matching_names(path_expr, shape_labels, raise_when_no_match=False)[1]:
-                raise ValueError(
-                    f"FrameView prim '{path_expr}' is a Newton collision shape. "
-                    "FrameView should only be used for non-physics frames."
-                )
+            shape_indices, _ = resolve_matching_names(path_expr, shape_labels, raise_when_no_match=False)
+            if shape_indices:
+                if shape_flags is None:
+                    shape_flags = model.shape_flags.numpy()
+                if any(int(shape_flags[index]) & _COLLISION_FLAGS for index in shape_indices):
+                    raise ValueError(
+                        f"FrameView prim '{path_expr}' matches a Newton collision shape. "
+                        "FrameView should only be used for non-physics frames."
+                    )
             matches = tuple(cloner.query.iter_sources(plan, path_expr)) if plan is not None else ()
             if matches:
                 for source_root, destination_template, source_path, env_ids in matches:
@@ -316,6 +323,11 @@ class NewtonSiteFrameView(BaseFrameView):
     ) -> tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]:
         """Resolve one source prim into body patterns, local frame, and xform scale."""
         prim_path = prim.GetPath().pathString
+        if prim.HasAPI(UsdPhysics.CollisionAPI):
+            raise ValueError(
+                f"FrameView prim '{prim_path}' is a Newton collision shape. "
+                "FrameView should only be used for non-physics frames."
+            )
         if prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.HasAPI(UsdPhysics.ArticulationRootAPI):
             raise ValueError(
                 f"FrameView prim '{prim_path}' is a Newton physics body. "
