@@ -33,7 +33,6 @@ WORLD_BODY_INDEX = -1
 # USD path. Patterns free of these can be resolved via an exact dict lookup instead of scanning
 # every body label with a compiled regex.
 _REGEX_TOKENS = frozenset(".*[]()+?|\\^$")
-_COLLISION_FLAGS = int(ShapeFlags.COLLIDE_SHAPES | ShapeFlags.COLLIDE_PARTICLES)
 
 
 def _has_regex_tokens(pattern: str) -> bool:
@@ -271,7 +270,11 @@ class NewtonSiteFrameView(BaseFrameView):
             if shape_indices:
                 if shape_flags is None:
                     shape_flags = model.shape_flags.numpy()
-                if any(int(shape_flags[index]) & _COLLISION_FLAGS for index in shape_indices):
+                if any(
+                    int(shape_flags[index])
+                    & int(ShapeFlags.COLLIDE_SHAPES | ShapeFlags.COLLIDE_PARTICLES)
+                    for index in shape_indices
+                ):
                     raise ValueError(
                         f"FrameView prim '{path_expr}' matches a Newton collision shape. "
                         "FrameView should only be used for non-physics frames."
