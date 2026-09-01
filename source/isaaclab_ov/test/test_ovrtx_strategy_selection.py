@@ -82,17 +82,13 @@ def test_multi_frame_latency_is_rejected(monkeypatch):
         _resolve_render_strategy(OVRTXRendererCfg(async_rendering=3))
 
 
-def test_multi_frame_env_override_is_ignored(async_cfg, monkeypatch):
-    """A frame count in the env var is not a boolean spelling, so it is ignored with a warning."""
-    monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, "3")
+@pytest.mark.parametrize("raw", ["3", "banana"])
+def test_invalid_env_override_is_rejected(async_cfg, monkeypatch, raw):
+    """An invalid env value raises. A silently ignored typo would flip the selected strategy."""
+    monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, raw)
 
-    assert isinstance(_resolve_render_strategy(async_cfg), _AsyncRenderStrategy)
-
-
-def test_invalid_env_override_falls_back_to_cfg(async_cfg, monkeypatch):
-    monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, "banana")
-
-    assert isinstance(_resolve_render_strategy(async_cfg), _AsyncRenderStrategy)
+    with pytest.raises(ValueError):
+        _resolve_render_strategy(async_cfg)
 
 
 def test_negative_value_is_rejected(monkeypatch):

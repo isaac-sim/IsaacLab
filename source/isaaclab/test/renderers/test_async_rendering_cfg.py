@@ -61,12 +61,20 @@ def test_env_var_spellings(raw, expected, monkeypatch):
     assert async_rendering_enabled_from_env() is expected
 
 
-@pytest.mark.parametrize("raw", ["", "   ", "banana", "1.5", "-1", "3"])
-def test_unusable_env_var_is_ignored(raw, monkeypatch):
-    """Non-boolean spellings are ignored with a warning — including frame counts above one."""
+@pytest.mark.parametrize("raw", ["", "   "])
+def test_empty_env_var_means_unset(raw, monkeypatch):
     monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, raw)
 
     assert async_rendering_enabled_from_env() is None
+
+
+@pytest.mark.parametrize("raw", ["banana", "1.5", "-1", "3", "yes please"])
+def test_invalid_env_var_raises(raw, monkeypatch):
+    """Invalid spellings raise. A silently ignored typo would degrade an async run to sync."""
+    monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, raw)
+
+    with pytest.raises(ValueError):
+        async_rendering_enabled_from_env()
 
 
 def test_env_var_overrides_cfg(monkeypatch):
@@ -81,12 +89,12 @@ def test_env_var_can_disable_cfg(monkeypatch):
     assert resolve_async_rendering_enabled(RendererCfg(async_rendering=True)) is False
 
 
-def test_invalid_env_var_leaves_cfg_in_effect(monkeypatch, caplog):
-    monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, "banana")
+def test_invalid_cfg_raises_despite_env_override(monkeypatch):
+    """The cfg value is validated even when the env var overrides it, so failures are not env-dependent."""
+    monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, "1")
 
-    with caplog.at_level(logging.WARNING):
-        assert resolve_async_rendering_enabled(RendererCfg(async_rendering=True)) is True
-    assert ASYNC_RENDERING_ENV_VAR in caplog.text
+    with pytest.raises(ValueError, match="not supported yet"):
+        resolve_async_rendering_enabled(RendererCfg(async_rendering=3))
 
 
 def test_unsupported_renderer_warns_when_requested(caplog):

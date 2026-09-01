@@ -21,8 +21,9 @@ logger = logging.getLogger(__name__)
 ASYNC_RENDERING_ENV_VAR = "ISAAC_LAB_ASYNC_RENDERING"
 """Environment variable overriding :attr:`RendererCfg.async_rendering` for every renderer.
 
-Accepts boolean spellings: ``0``/``false``/``no``/``off`` or ``1``/``true``/``yes``/``on``. Set it
-to exercise the asynchronous path without naming a camera that a given task may not define.
+Accepts boolean spellings: ``0``/``false``/``no``/``off`` or ``1``/``true``/``yes``/``on``. Any
+other value raises ``ValueError``. Set it to exercise the asynchronous path without naming a
+camera that a given task may not define.
 """
 
 _FALSE_SPELLINGS = ("0", "false", "no", "off")
@@ -89,20 +90,23 @@ def async_rendering_enabled_from_env() -> bool | None:
     """Return the :data:`ASYNC_RENDERING_ENV_VAR` override.
 
     Returns:
-        The override flag, or ``None`` when the variable is unset, empty, or unparsable.
+        The override flag, or ``None`` when the variable is unset or empty.
+
+    Raises:
+        ValueError: If the variable holds an unrecognized boolean spelling. A silently ignored
+            typo would degrade an intended asynchronous run to a synchronous one.
     """
     raw = os.environ.get(ASYNC_RENDERING_ENV_VAR)
     if raw is None or raw.strip() == "":
         return None
-    try:
-        return _parse_async_rendering_enabled(raw)
-    except ValueError:
-        logger.warning("Ignoring invalid %s=%r; expected a boolean spelling.", ASYNC_RENDERING_ENV_VAR, raw)
-        return None
+    return _parse_async_rendering_enabled(raw)
 
 
 def resolve_async_rendering_enabled(cfg: RendererCfg) -> bool:
     """Return whether ``cfg`` asks for asynchronous rendering, honoring :data:`ASYNC_RENDERING_ENV_VAR`.
+
+    The configuration value is validated even when the environment variable overrides it. An
+    invalid configuration therefore fails the same way in every environment.
 
     Args:
         cfg: Renderer configuration to read :attr:`RendererCfg.async_rendering` from.
@@ -111,12 +115,12 @@ def resolve_async_rendering_enabled(cfg: RendererCfg) -> bool:
         Whether asynchronous rendering is enabled.
 
     Raises:
-        ValueError: If :attr:`RendererCfg.async_rendering` is not a recognized boolean spelling.
+        ValueError: If the configuration value or the environment variable is not a recognized
+            boolean spelling.
     """
+    enabled = _parse_async_rendering_enabled(cfg.async_rendering)
     override = async_rendering_enabled_from_env()
-    if override is not None:
-        return override
-    return _parse_async_rendering_enabled(cfg.async_rendering)
+    return enabled if override is None else override
 
 
 def warn_unsupported_async_rendering(cfg: RendererCfg, renderer_name: str) -> None:
@@ -128,6 +132,10 @@ def warn_unsupported_async_rendering(cfg: RendererCfg, renderer_name: str) -> No
     Args:
         cfg: Renderer configuration to read :attr:`RendererCfg.async_rendering` from.
         renderer_name: Renderer to name in the warning, e.g. ``"newton_warp"``.
+
+    Raises:
+        ValueError: If the configuration value or the environment variable is not a recognized
+            boolean spelling. Renderers that ignore the setting still refuse an invalid value.
     """
     if resolve_async_rendering_enabled(cfg):
         logger.warning(
