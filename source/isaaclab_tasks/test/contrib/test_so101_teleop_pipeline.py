@@ -18,11 +18,13 @@ wiring:
   ``[pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w, gripper]``.
 - Each entry in ``output_order`` must resolve to a declared element name; an undeclared
   name resolves silently to a constant 0.0 instead of raising.
-- The clutch declares only the controller input (no ``robot_ee_pos`` / ``robot_base_pos``): the
-  base-frame rebase is handled upstream by ``target_frame_prim_path`` and the engage home is the
-  clutch's static reset-origin config, so no live end-effector or base feed is wired.
+- The clutch declares no ``robot_ee_pos`` / ``robot_base_pos``: the base-frame rebase is handled
+  upstream by ``target_frame_prim_path`` and the home is the clutch's static configured transform,
+  so no live end-effector or base feed is wired. Its optional ``measured_base_T_ee`` input is
+  declared but deliberately left unconnected by the builder.
 """
 
+import numpy as np
 import pytest
 
 pytest.importorskip("isaacteleop")
@@ -71,16 +73,22 @@ def test_so101_pipeline_output_order():
     )
 
 
-def test_clutch_consumes_controller_only():
-    """The clutch declares only the controller; no ``robot_ee_pos`` / ``robot_base_pos`` inputs.
+def test_clutch_consumes_controller_and_optional_measured_pose():
+    """The clutch declares the controller plus an optional measured EE pose -- nothing else.
 
     The world->base rebase happens upstream in the device via ``target_frame_prim_path`` (set to
-    the robot base), and the engage home is the clutch's static ``home_base_T_ee`` reset-origin, so
-    the clutch needs no live end-effector or base feed. This guards that the builder does not wire
-    inputs the device no longer provides.
+    the robot base), and the home is the clutch's static ``home_base_T_ee``, so the clutch needs no
+    ``robot_ee_pos`` / ``robot_base_pos`` feed. ``measured_base_T_ee`` is declared but
+    ``OptionalType``, and the builder deliberately leaves it unconnected: this task slews the arm
+    to ``_BASE_T_GRIPPER_HOME`` on reset, which is the same pose the clutch re-seeds to, so the
+    last-commanded-home fallback is correct here. This guards that the builder does not wire inputs
+    the device no longer provides.
     """
-    clutch = SO101ClutchRetargeter(name="ee_pose")
-    assert list(clutch.input_spec()) == [ControllersSource.RIGHT]
+    clutch = SO101ClutchRetargeter(name="ee_pose", home_base_T_ee=np.eye(4, dtype=np.float32))
+    assert set(clutch.input_spec()) == {
+        ControllersSource.RIGHT,
+        SO101ClutchRetargeter.MEASURED_BASE_T_EE_INPUT,
+    }
     assert not hasattr(SO101ClutchRetargeter, "ROBOT_EE_POS_INPUT")
     assert not hasattr(SO101ClutchRetargeter, "ROBOT_BASE_POS_INPUT")
     # The builder still flattens to the 8D action contract.

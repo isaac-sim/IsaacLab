@@ -684,7 +684,8 @@ These environments use the Isaac Teleop XR pipeline with motion controllers or h
      - Controllers
      - Right
      - **Arm:** right controller grip pose drives the end-effector via absolute IK
-       (clutch-rebased; IK tracks position, orientation soft-weighted).
+       (clutch-rebased; IK tracks position, orientation soft-weighted). Hold the squeeze (grip)
+       button to engage the clutch; release it to re-clutch — the arm holds its pose while released.
        **Gripper:** right trigger (analog).
    * - ``IsaacContrib-PickPlace-GR1T2-Abs``
      - Hand tracking

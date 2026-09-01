@@ -36,31 +36,78 @@ _TELEOP_AVAILABLE = True
 _SO101_GRIPPER_OFFSET = SO101_GRIPPER_OPEN  # [rad] closedness c=0 -> open
 _SO101_GRIPPER_SCALE = SO101_GRIPPER_CLOSE - SO101_GRIPPER_OPEN  # [rad] c=1 -> close
 
-# Clutch EE reset-origin home: the ``base_T_ee`` transform [m] for the gripper's pose in the
-# robot base frame at the seated reset pose. The clutch seeds its home from this on reset / first
-# engage (no live end-effector is read; the base rebase is handled upstream by
-# ``target_frame_prim_path`` and the EE state forward is the clutch's own running home). The robot
-# ``init_state`` MUST forward-kinematics to this value, or engaging snaps the arm -- this is the
-# forward kinematics of the seated ``_SO101_STACK_INIT_JOINT_POS`` measured in sim, so re-measure
-# (read ``ee_frame.data.target_pos_source`` at reset) if those init joints change. Only the
-# translation drives the IK position command; the orientation command is the live controller grip
-# orientation composed with the clutch's fixed calibration offset, not this transform's rotation.
-_BASE_T_GRIPPER_HOME = np.eye(4, dtype=np.float32)
-_BASE_T_GRIPPER_HOME[:3, 3] = (0.01918, -0.18852, 0.18887)
 
-# Fixed controller-grip -> gripper_link orientation calibration offset [x, y, z, w] (xyzw),
-# passed to the clutch as a body-frame right multiply. ``None`` uses the clutch default (Rz(pi)).
-# Derivation: with ``q_grip`` the controller grip orientation and ``q_G0`` the gripper_link
-# orientation in the base frame (both xyzw) at the reset pose, the offset is
-# ``quat_inv(q_grip) (x) q_G0`` (xyzw); tuning it here needs no Teleop rebuild.
-# Set to RPY (roll, pitch, yaw) = (-90, 0, 60) degrees (intrinsic XYZ), i.e.
-# ``Rotation.from_euler("XYZ", [-90, 0, 60], degrees=True).as_quat()``.
-_SO101_ORIENTATION_OFFSET_XYZW: tuple[float, float, float, float] | None = (
-    -0.61237244,
-    0.35355339,
-    0.35355339,
-    0.61237244,
-)
+def _matrix_from_quat_xyzw(quat_xyzw: tuple[float, float, float, float]) -> np.ndarray:
+    """Convert an ``(x, y, z, w)`` quaternion to a 3x3 rotation matrix.
+
+    Local to this module on purpose. The measured value below is stored as a quaternion because
+    that is natively what the sensor produces, and converting here keeps the stored literal exact:
+    a hand-typed 3x3 would be a rounded 9-number transcription that the retargeter's orthonormality
+    check polices, whereas any 4-number quaternion normalizes to an exactly proper rotation.
+
+    Args:
+        quat_xyzw: Rotation as ``(qx, qy, qz, qw)``; need not be normalized.
+
+    Returns:
+        The equivalent 3x3 rotation matrix, ``float64``.
+    """
+    q = np.asarray(quat_xyzw, dtype=np.float64)
+    x, y, z, w = q / np.linalg.norm(q)
+    return np.array(
+        [
+            [1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - z * w), 2.0 * (x * z + y * w)],
+            [2.0 * (x * y + z * w), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - x * w)],
+            [2.0 * (x * z - y * w), 2.0 * (y * z + x * w), 1.0 - 2.0 * (x * x + y * y)],
+        ],
+        dtype=np.float64,
+    )
+
+
+# Clutch EE home: the ``base_T_ee`` transform [m] for the gripper's pose in the robot base frame
+# at the seated reset pose, stored as the (position, quaternion) pair the sensor natively reports
+# and assembled into a 4x4 below. **Both** blocks are used -- the translation seeds the clutch's
+# home position, the rotation seeds its home orientation. The clutch seeds its held pose from this
+# at construction and re-seeds it on every episode reset (from this static transform, never from
+# live arm state -- the reset pulse can reach the retargeter on either side of the arm teleport).
+# The robot ``init_state`` MUST forward-kinematics to this transform, or engaging snaps the arm.
+#
+# The position is the forward kinematics of the seated ``_SO101_STACK_INIT_JOINT_POS``, measured in
+# sim. Re-measure BOTH values together if those init joints change.
+#
+# TODO(measure-in-sim): the quaternion below is still identity and is WRONG. It is the orientation
+# the clutch commands on the very first engage, so today the wrist slews to base-frame identity and
+# stays there: orientation is a wrist-only task here (``orientation_joint_names``), so the residual
+# never self-heals. It is not recoverable from the calibration offset this file used to carry --
+# that derivation was ``quat_inv(q_grip) (x) q_G0`` and ``q_grip`` at that moment was never
+# recorded -- so it needs a fresh measurement:
+#
+#   1. Launch the task and call ``env.reset()``.
+#   2. Read the pose ONCE, and take both blocks from that single read:
+#
+#          pose = env.unwrapped.scene["ee_frame"].data.target_pose_source.torch[0, 0]
+#
+#      One read matters. ``target_pos_source`` and ``target_quat_source`` are separate properties
+#      off a lazily-recomputed ``SensorBase.data``, so reading them separately can stitch one 4x4
+#      out of two different instants. ``target_pose_source`` is a single 7-vector
+#      ``(x, y, z, qx, qy, qz, qw)`` concatenated from both buffers in one launch -- see
+#      ``source/isaaclab_physx/isaaclab_physx/sensors/frame_transformer/
+#      frame_transformer_data.py:25-40``.
+#   3. Self-check BEFORE using it: ``pose[:3]`` must still equal ``_BASE_T_GRIPPER_HOME_POS`` to
+#      ~1 mm. If it does not, the arm is not at the seated pose -- either it has been stepped away
+#      from ``_SO101_STACK_INIT_JOINT_POS`` (step with a held pose, or do not step at all), or the
+#      sensor has not populated yet, whose identity/zero pre-initialisation this same check
+#      catches. Either way the orientation you would read does not belong to this home.
+#   4. Paste ``pose[3:]`` into ``_BASE_T_GRIPPER_HOME_QUAT`` as-is. It is ``(qx, qy, qz, qw)`` --
+#      **xyzw, NO reorder**. Two independent confirmations: the buffer is allocated ``wp.quatf``
+#      with the identity written at index 3 (``frame_transformer_data.py:170,176``), and Isaac Lab's
+#      own :func:`isaaclab.utils.math.matrix_from_quat` documents its input as ``(x, y, z, w)``
+#      (``source/isaaclab/isaaclab/utils/math.py:169``). Do not "fix" this to wxyz.
+_BASE_T_GRIPPER_HOME_POS = (0.01918, -0.18852, 0.18887)  # [m] measured
+_BASE_T_GRIPPER_HOME_QUAT = (0.0, 0.0, 0.0, 1.0)  # (qx, qy, qz, qw) -- TODO(measure-in-sim)
+
+_BASE_T_GRIPPER_HOME = np.eye(4, dtype=np.float32)
+_BASE_T_GRIPPER_HOME[:3, :3] = _matrix_from_quat_xyzw(_BASE_T_GRIPPER_HOME_QUAT)
+_BASE_T_GRIPPER_HOME[:3, 3] = _BASE_T_GRIPPER_HOME_POS
 
 
 def _build_so101_stack_pipeline():
@@ -71,11 +118,15 @@ def _build_so101_stack_pipeline():
     tensor via TensorReorderer.
 
     The SO-101 is 5-DOF and driven by a full-SE3-pose IK over all 5 arm joints (shoulder_pan,
-    shoulder_lift, elbow_flex, wrist_flex, wrist_roll): the clutch emits the controller pose
-    (position + grip orientation composed with a fixed calibration offset) and the IK tracks
-    position exactly while best-effort tracking orientation (soft-weighted). The gripper jaw
-    tracks the trigger proportionally (analog), and the EE position is clutch-rebased around a
-    captured origin so engaging teleop does not teleport the arm.
+    shoulder_lift, elbow_flex, wrist_flex, wrist_roll): the clutch emits an absolute EE pose and
+    the IK tracks position exactly while best-effort tracking orientation (soft-weighted). The
+    gripper jaw tracks the trigger proportionally (analog).
+
+    The clutch rebases the **full pose** around an origin captured on engage, so engaging teleop
+    does not teleport the arm: both the home position and the home orientation re-latch on every
+    engage and the orientation delta is composed on the left (base frame). Engagement requires the
+    session to be RUNNING **and** the controller squeeze to exceed the retargeter's threshold --
+    the operator holds the grip button to drive the arm and releases it to re-clutch.
 
     Returns:
         OutputCombiner with a single "action" output containing the flattened
@@ -104,22 +155,26 @@ def _build_so101_stack_pipeline():
     # receives base-frame data matching the absolute-pose IK command frame.
     transformed_controllers = controllers.transformed(transform_input.output(ValueInput.VALUE))
 
-    # Clutch (relative-origin) EE-pose retargeter (right hand). Emits the same absolute 7D
+    # Clutch (engage-relative) EE-pose retargeter (right hand). Emits the same absolute 7D
     # "ee_pose" contract as Se3AbsRetargeter (node name + output key "ee_pose"), but rebases
-    # controller motion around an origin captured on engage. It seeds the home from the static
-    # ``home_base_T_ee`` reset-origin on reset / first engage and keeps its own running home
-    # thereafter (so a mid-task re-clutch resumes from the last commanded pose). The robot
-    # ``init_state`` must reset the arm to ``_BASE_T_GRIPPER_HOME`` so the first engage does not
-    # jump. The full pose (position + orientation) drives the 5-joint SE3 IK below.
+    # controller motion around an origin captured on engage. It seeds its held pose from the static
+    # ``home_base_T_ee`` and re-seeds it there on every episode reset; between resets a re-clutch
+    # resumes from the last commanded pose. The robot ``init_state`` must reset the arm to
+    # ``_BASE_T_GRIPPER_HOME`` so neither the first engage nor a reset jumps. The full pose
+    # (position + orientation) drives the 5-joint SE3 IK below.
+    #
+    # ``MEASURED_BASE_T_EE_INPUT`` is deliberately NOT wired. It is an OptionalType input, so
+    # omitting it from connect() is legal, and the last-commanded-home fallback it selects is the
+    # correct behaviour here: the task slews the arm to ``_BASE_T_GRIPPER_HOME`` on reset, which is
+    # exactly the pose the clutch re-seeds to. Wiring it would need a per-frame base-frame EE feed
+    # the device does not provide.
+    #
+    # ``squeeze_threshold`` is left at the retargeter default: engagement is RUNNING AND
+    # squeeze > threshold, so the operator holds the controller grip button while driving the arm.
     clutch = SO101ClutchRetargeter(
         name="ee_pose",
-        input_device=ControllersSource.RIGHT,
         home_base_T_ee=_BASE_T_GRIPPER_HOME,
-        orientation_offset=(
-            np.array(_SO101_ORIENTATION_OFFSET_XYZW, dtype=np.float64)
-            if _SO101_ORIENTATION_OFFSET_XYZW is not None
-            else None
-        ),
+        input_device=ControllersSource.RIGHT,
     )
     connected_clutch = clutch.connect(
         {
@@ -291,8 +346,8 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
             # prim's world transform each frame and left-multiplies its inverse onto the XR
             # anchor (``base_T_world @ world_T_anchor``), so the clutch retargeter works
             # in the base frame -- the IK command's root frame (the FrameTransformer source
-            # also uses ``Robot/base``). The clutch's reset-origin home (_BASE_T_GRIPPER_HOME)
-            # provides the engage seed, so no live end-effector feed is needed. Teleop runs a
-            # single env (env_0).
+            # also uses ``Robot/base``). The clutch's configured home (_BASE_T_GRIPPER_HOME)
+            # provides both the startup seed and the reset seed, so no live end-effector feed is
+            # needed. Teleop runs a single env (env_0).
             target_frame_prim_path="/World/envs/env_0/Robot/base",
         )
