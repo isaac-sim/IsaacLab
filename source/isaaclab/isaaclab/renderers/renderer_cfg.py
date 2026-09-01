@@ -47,11 +47,12 @@ class RendererCfg:
     accepted as shorthand, as are the usual string spellings through the environment variable;
     frame counts above one are rejected until multi-frame latency lands.
 
-    Only the OVRTX renderer implements this; other renderers warn and render synchronously. One
-    frame is also the most its ovstage scene-ownership path can pipeline: ovstage retains a single
-    committed snapshot that renders read in place, so each frame's scene writes must drain the
-    render still in flight. Deeper queues on the legacy path are possible future work once they are
-    worth their review surface. :data:`ASYNC_RENDERING_ENV_VAR` overrides this value.
+    Only the OVRTX renderer on its legacy stage path implements this; other renderers, and the
+    OVRTX ovstage path, warn and render synchronously. On ovstage each frame's scene writes must
+    drain the render still in flight (ovstage retains a single committed snapshot that renders
+    read in place), which leaves too little overlap to pay off — asynchronous ovstage rendering is
+    postponed until that is solved. Deeper queues on the legacy path are possible future work.
+    :data:`ASYNC_RENDERING_ENV_VAR` overrides this value.
     """
 
 

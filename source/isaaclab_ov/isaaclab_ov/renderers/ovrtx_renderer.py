@@ -183,18 +183,29 @@ def ovrtx_use_ovstage_enabled() -> bool:
     return value == "1"
 
 
-def _resolve_render_strategy(cfg: OVRTXRendererCfg) -> _RenderStrategy:
+def _resolve_render_strategy(cfg: OVRTXRendererCfg, use_ovstage: bool = False) -> _RenderStrategy:
     """Return the asynchronous strategy when ``cfg`` enables it, else the synchronous one.
 
-    Both scene-ownership paths pipeline exactly one frame deep. One frame is also the most the
-    ovstage path could ever sustain: ovstage retains "the latest committed snapshot only" and the
-    default ``OVRTX_ATTACH_MODE_BORROW`` attach reads it in place ("rendering may observe that
-    publication or a later one"), so every frame's first scene write must drain the render still in
-    flight (see :meth:`OVRTXRenderer._write_attribute_ovstage`) — a concurrent write could both
-    tear the in-flight frame and bleed newer state into it. Deeper queues on the legacy path, or on
-    ovstage once it retains per-ordinal payload history, are future work.
+    The ovstage path always renders synchronously for now. Its scene writes must drain the render
+    still in flight: ovstage retains "the latest committed snapshot only" and the default
+    ``OVRTX_ATTACH_MODE_BORROW`` attach reads it in place ("rendering may observe that publication
+    or a later one"), so a concurrent write could both tear the in-flight frame and bleed newer
+    state into it. That drain leaves so little overlap that benchmarks measure no gain over
+    synchronous rendering, so asynchronous ovstage rendering is postponed to a follow-up. The
+    scene-write barriers (:meth:`OVRTXRenderer._write_attribute_ovstage`) stay in place; the
+    follow-up only changes this selection and the ovstage snapshot handling.
+
+    The legacy path pipelines exactly one frame deep. Deeper queues are future work.
     """
-    return _AsyncRenderStrategy.try_create(cfg) or _SyncRenderStrategy()
+    strategy = _AsyncRenderStrategy.try_create(cfg)
+    if strategy is not None and use_ovstage:
+        logger.warning(
+            "Asynchronous rendering is not supported on the OVRTX ovstage path yet; rendering"
+            " synchronously. Use the legacy stage path (unset ISAAC_LAB_OVRTX_USE_OVSTAGE) to"
+            " pipeline renders."
+        )
+        return _SyncRenderStrategy()
+    return strategy or _SyncRenderStrategy()
 
 
 def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
@@ -392,7 +403,7 @@ class OVRTXRenderer(BaseRenderer):
         # Selected once at construction so every dispatch method below sees a stable path for the
         # lifetime of the renderer, even if the environment variable changes mid-process.
         self._use_ovstage = ovrtx_use_ovstage_enabled()
-        self._strategy: _RenderStrategy = _resolve_render_strategy(cfg)
+        self._strategy: _RenderStrategy = _resolve_render_strategy(cfg, use_ovstage=self._use_ovstage)
         self._init_fields()
 
         logger.info("Creating OVRTX renderer...")

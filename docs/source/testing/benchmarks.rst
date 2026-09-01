@@ -95,7 +95,8 @@ for pipelined rendering; ``False`` renders synchronously:
        env.tiled_camera.renderer_cfg.async_rendering=True
 
 The ``ISAAC_LAB_ASYNC_RENDERING`` environment variable overrides the same setting for any task.
-Only the OVRTX renderer pipelines renders; the others warn and render synchronously.
+Only the OVRTX renderer on its legacy stage path pipelines renders; the other renderers, and the
+OVRTX ovstage path, warn and render synchronously.
 
 Warm-Up
 ~~~~~~~
