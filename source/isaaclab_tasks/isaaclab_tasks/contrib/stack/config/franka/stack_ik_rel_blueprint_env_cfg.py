@@ -225,6 +225,9 @@ class FrankaCubeStackBlueprintEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvC
         # post init of parent
         super().__post_init__()
 
+        # Limit the default camera allocation to avoid exhausting GPU memory.
+        self.scene.num_envs = 1
+
         # Set Franka as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
         self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
