@@ -20,7 +20,6 @@ import logging
 import os
 import posixpath
 import re
-import shutil
 import subprocess
 import tempfile
 import uuid
@@ -300,14 +299,13 @@ def _get_git_asset_dir(git_path: str, cache_dir: str | None = None, force_update
         elif os.path.exists(git_asset_dir):
             raise RuntimeError(f"Git asset cache exists but is not a git repository: {git_asset_dir}")
         else:
-            os.makedirs(os.path.dirname(git_asset_dir), exist_ok=True)
-            temporary_path = git_asset_dir + ".partial"
-            shutil.rmtree(temporary_path, ignore_errors=True)
-            try:
+            cache_parent = os.path.dirname(git_asset_dir)
+            os.makedirs(cache_parent, exist_ok=True)
+            prefix = f".{os.path.basename(git_asset_dir)}."
+            with tempfile.TemporaryDirectory(prefix=prefix, dir=cache_parent) as temporary_dir:
+                temporary_path = os.path.join(temporary_dir, "checkout")
                 _run_git_command(["git", "clone", "--depth", "1", git_path, temporary_path])
                 os.replace(temporary_path, git_asset_dir)
-            finally:
-                shutil.rmtree(temporary_path, ignore_errors=True)
 
     return git_asset_dir
 
