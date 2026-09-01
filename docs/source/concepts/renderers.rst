@@ -4,20 +4,36 @@
 Renderers
 =========
 
-Isaac Lab uses a pluggable renderer architecture to support different rendering backends for camera sensors.
-The :class:`~isaaclab.renderers.BaseRenderer` abstract base class defines the interface that all renderer
-implementations must follow.
+Renderers produce camera-sensor buffers for policy observations and synthetic-data workflows.
+They are distinct from :doc:`visualizers <../overview/core-concepts/visualization>`, which provide
+human-facing, interactive views for inspection, debugging, and recording. Isaac Lab uses a
+pluggable renderer architecture. All implementations follow the interface defined by
+:class:`~isaaclab.renderers.BaseRenderer`.
 
 Isaac Lab supports three rendering backends:
 
-- **Isaac RTX renderer** (``IsaacRtxRendererCfg``) — NVIDIA's Omniverse RTX rendering pipeline
-  running inside Isaac Sim. Requires Isaac Sim. Best for photorealistic rendering, full camera
-  sensor support (RGB, depth, semantic segmentation, etc.), and production quality outputs.
-- **OVRTX renderer** (``OVRTXRendererCfg``) — A standalone RTX path-tracing renderer provided by
-  the ``isaaclab_ov`` extension. Delivers RTX-quality rendering.
-- **Newton Warp renderer** (``NewtonWarpRendererCfg``) — A lightweight GPU-accelerated renderer
-  built on NVIDIA Warp. Works with the Newton physics backend and does **not** require Isaac Sim
-  (kit-less mode). Ideal for training workflows where full RTX fidelity is not needed.
+- **Isaac RTX renderer** (``IsaacRtxRendererCfg``)
+
+  - Runs NVIDIA's Omniverse RTX rendering pipeline inside Isaac Sim and pairs with PhysX.
+  - Provides RTX Minimal and photo-real rendering, plus the broadest camera-output coverage.
+  - Best for full RTX fidelity and workflows that already depend on Isaac Sim or Kit.
+
+- **OVRTX renderer** (``OVRTXRendererCfg``)
+
+  - Provides kit-less RTX rendering through the ``isaaclab_ov`` extension and pairs with Newton.
+  - Provides RTX Minimal and photo-real rendering with geometry, motion, and label outputs.
+  - Best for RTX image quality without running Isaac Sim.
+
+- **Newton Warp renderer** (``NewtonWarpRendererCfg``)
+
+  - Provides lightweight, kit-less rasterization built on NVIDIA Warp and pairs with Newton.
+  - Produces RGB, albedo, depth, normals, and label outputs, but not motion vectors or RTX material
+    transport.
+  - Best for training workflows where throughput matters more than full RTX fidelity. Its focused
+    raster pipeline exposes fewer ground-truth outputs than the RTX renderers, which integrate a
+    broader set of RTX and annotator capabilities.
+
+See :ref:`camera-supported-annotators` for the output-by-backend support matrix.
 
 Choosing a renderer backend
 ----------------------------
