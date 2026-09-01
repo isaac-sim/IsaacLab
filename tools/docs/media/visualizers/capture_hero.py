@@ -22,40 +22,35 @@ This module plays two roles, matching two different process tiers:
   ``hero_*.mp4`` clips end to end -- calibrates timing, launches ``play.py`` per visualizer,
   and post-processes each clip with ffmpeg. Requires ``uv run --no-project --with playwright
   --with pillow python capture_hero.py``. Kit and Newton RTX use a real window too
-  (``HERO_WINDOWED``), but still capture through the standard step-count-bound
-  ``VideoRecorderCfg``/``render_rgb_array()`` path, not an X11 screen-grab.
+  (``HERO_WINDOWED``), but still capture through the standard ``VideoRecorderCfg`` path, not
+  an X11 screen-grab.
 
 Kit/Newton GL/Newton RTX are captured via a step-count-bound ``VideoRecorderCfg`` (see
 :data:`_SOURCE_BY_VISUALIZER`), so clip content is always exactly ``video_length`` simulated
 steps regardless of wall-clock time. Rerun/Viser are instead a wall-clock-bound screen
-recording of a fixed real-time duration, so a slow pipeline covers *less* simulated motion
-(confirmed by testing). :func:`main` calibrates each browser visualizer's own natural
-real-time factor, sizes its recording window to cover the same simulated duration as the
-other 3, then speeds the result back up to a uniform output length via ffmpeg.
+recording of a fixed real-time duration, so a slow pipeline covers less simulated motion.
+:func:`main` calibrates each browser visualizer's own natural real-time factor, sizes its
+recording window to cover the same simulated duration as the other 3, then speeds the result
+back up to a uniform output length via ffmpeg.
 
 Kit follows the robot via its streaming/tiled camera (``streaming_cam_target_prim_path``).
 Newton GL, Newton RTX, Rerun, and Viser instead drive their *interactive* camera every step
 via an ``EventTermCfg`` calling ``visualizer.set_camera_view(eye, target)``:
 
-* Newton GL's streaming camera never draws visualization markers into that sensor (confirmed
-  by testing), so this uses its interactive view instead, like Kit's.
+* Newton GL's streaming camera never draws visualization markers into that sensor, so this
+  uses its interactive view instead, like Kit's.
 * Newton RTX's streaming camera targets Kit-hosted sensors, which throws in kitless
-  ``NewtonRTXVisualizer`` sessions, so its clip uses ``render_rgb_array()`` instead.
-  ``focal_length`` is increased from the 12mm default to match the streaming-camera clips'
-  zoom at the same eye distance.
+  ``NewtonRTXVisualizer`` sessions, so its clip uses ``render_rgb_array()`` instead, with
+  ``focal_length`` increased from the 12mm default to match the streaming-camera clips' zoom.
 * Rerun and Viser both have real ``set_camera_view`` implementations, so their clips are a
-  headless-browser recording of their own native view (rather than the shared streaming
-  camera sensor, which made their hero clips look like Newton GL's regardless of backend).
+  headless-browser recording of their own native view, not the shared streaming camera sensor.
 
-Rerun and Viser's hero clips previously each ran in their own separate ``play.py``
-subprocess; since each browser capture's settle timing is a variable-length real-time wait, a
-fixed recording window didn't start at the same simulated step across the two clips.
-:func:`_run_combined_capture` instead launches ONE ``play.py`` process with
+:func:`_run_combined_capture` launches ONE ``play.py`` process with
 ``HERO_VISUALIZER=combined``, attaching Newton GL, Rerun, and Viser to the same simulation so
 all 3 render the exact same simulated step at any wall-clock moment, screen-recording both
-browser URLs concurrently using a fixed settle time (which :func:`main` also converts to an
-equivalent Newton GL ``step_offset``). This needs playwright, so it's invoked as a subprocess
-of itself (``python capture_hero.py --combined-capture ...``).
+browser URLs concurrently with a fixed settle time (:func:`main` converts this to an
+equivalent Newton GL ``step_offset``). Needs playwright, so it's invoked as a subprocess of
+itself (``python capture_hero.py --combined-capture ...``).
 """
 
 from __future__ import annotations
@@ -92,16 +87,13 @@ _STREAMING_EYE = (1.98, 1.98, 1.8)
 # Per-step follow-camera (Kit windowed, Newton GL): same offset as the streaming clip.
 _FOLLOW_EYE_OFFSET = _STREAMING_EYE
 # Newton RTX/Rerun/Viser framed closer than Kit/Newton GL: their panels leave more empty
-# space around the robot at the shared offset above, and CSS upscaling to compensate
-# interfered with the video player's controls -- baking the closer framing into the camera
-# pose avoids that. Newton RTX framed a bit further back than Rerun/Viser (their tighter
-# framing looked too tight for RTX at the same offset).
+# space around the robot at the shared offset above. Newton RTX framed a bit further back
+# than Rerun/Viser, whose tighter framing looked too tight for RTX at the same offset.
 _RTX_FOLLOW_EYE_OFFSET = (1.4, 1.4, 1.28)
 _BROWSER_FOLLOW_EYE_OFFSET = (1.0, 1.0, 0.91)
 _VISER_FOLLOW_EYE_OFFSET = (0.8, 0.8, 0.73)
-# Narrows Newton GL/RTX's FOV to match Kit's streaming-camera framing at this eye distance
-# (the interactive viewport's default 12mm focal length is noticeably more zoomed-out); no
-# effect on Rerun (no FOV field) or Viser (already matches at the default 12mm).
+# Narrows Newton GL/RTX's FOV to match Kit's streaming-camera framing at this eye distance;
+# no effect on Rerun (no FOV field) or Viser (already matches at the default 12mm).
 _NARROW_FOCAL_LENGTH = 20.0
 
 _WINDOW_WIDTH = 960
@@ -112,27 +104,24 @@ _WINDOW_HEIGHT = 600
 _SKY_UPPER_COLOR = (0.05, 0.55, 0.55)
 _SKY_LOWER_COLOR = (0.15, 0.80, 0.65)
 
-# Visualizers captured via the standard programmatic VideoRecorderCfg path (see
-# _configure_capture). Newton GL, Newton RTX, Rerun, and Viser are captured separately via a
-# headless-browser/render_rgb_array recording of their live follow-cam view (see main()).
+# Kit/Newton GL/Newton RTX sources for the standard VideoRecorderCfg path (see
+# _configure_capture); Rerun/Viser are captured separately via headless-browser recording.
 _SOURCE_BY_VISUALIZER = {
     "kit": "visualizer:kit:streaming_view",
     "newton_gl": "visualizer:newton_gl",
     "newton_rtx": "visualizer:newton_rtx",
 }
 
-# Visualizers driven by the per-step _follow_camera event rather than streaming_cam_target_prim_path.
+# Driven by the per-step _follow_camera event rather than streaming_cam_target_prim_path.
 _FOLLOW_CAM_VISUALIZERS = {"newton_gl", "newton_rtx", "rerun", "viser"}
 
 # Double-exponential (Holt's linear trend) smoothing applied to the robot's raw per-step root
 # position before it drives the follow camera (see _follow_camera): raw position has visible
-# high-frequency foot-contact noise that otherwise transfers into camera jitter. A single-pole
-# EMA (no trend term) was rejected: damping it enough to look smooth left a steady-state lag
-# offset behind the target, since the robot moves at a roughly constant speed while turning
-# (confirmed by testing, alpha=0.025 visibly drifted off-center). Tracking a smoothed trend
-# alongside the smoothed position lets the filter predict ahead instead. BETA > ALPHA so the
-# trend estimate doesn't lag behind ALPHA's own smoothing. Only applies to Newton GL/RTX/
-# Rerun/Viser -- Kit follows via the native, zero-lag streaming_cam_target_prim_path.
+# high-frequency foot-contact noise that otherwise transfers into camera jitter. A trend term
+# is tracked alongside the smoothed position so the filter predicts ahead rather than lagging
+# behind a steadily-moving target. BETA > ALPHA so the trend estimate doesn't lag behind
+# ALPHA's own smoothing. Only applies to Newton GL/RTX/Rerun/Viser -- Kit follows via the
+# native, zero-lag streaming_cam_target_prim_path.
 _CAMERA_SMOOTHING_ALPHA = 0.025
 _CAMERA_SMOOTHING_BETA = 0.15
 _smoothed_follow_target: list[tuple[float, float, float]] = []
@@ -140,17 +129,16 @@ _smoothed_follow_trend: list[tuple[float, float, float]] = []
 
 # Rerun re-sends its whole camera blueprint on every set_camera_view() call; at the task's
 # full step rate this backs up its broadcast channel badly enough that no scene data reaches
-# the client at all (confirmed via a "Sender has been blocked" warning in its log). Newton
-# GL/RTX and Viser have no such cost, so _follow_camera runs every step and only throttles
-# Rerun's own calls down to this stride (last value confirmed not to trip the warning).
+# the client at all ("Sender has been blocked" in its log). Newton GL/RTX and Viser have no
+# such cost, so _follow_camera runs every step and only throttles Rerun's own calls down to
+# this stride.
 _RERUN_UPDATE_STRIDE = 3
 _follow_camera_call_count: list[int] = [0]
 
 # Forward speed stays fixed; only the turn rate differs from a straight walk (see
 # _pin_velocity_command). Exactly one full turn over the clip's 10s duration (2*pi/10 rad/s)
 # keeps every clip's start/end orientation aligned despite Newton GL/Rerun/Viser starting a
-# few seconds into the shared trajectory that Kit/Newton RTX start at step 0 (confirmed by
-# testing against an earlier sub-revolution rate, which showed a visible spin-rate mismatch).
+# few seconds into the shared trajectory that Kit/Newton RTX start at step 0.
 _FIXED_VELOCITY_COMMAND = (1.0, 0.0, 0.0)
 _HERO_CLIP_DURATION_S = 10.0
 _ROTATE_ANG_VEL_Z = 2.0 * math.pi / _HERO_CLIP_DURATION_S
@@ -162,9 +150,8 @@ def _pin_velocity_command(env, env_ids) -> None:
 
     ``UniformVelocityCommand._resample_command`` samples via PyTorch's *global* RNG, not a
     seeded local generator, so Kit and the kitless Newton-family processes can draw a
-    different random command and diverge from step 0 (confirmed by testing: this caused a
-    hero-shot misalignment other fixes didn't resolve). Overwriting the command tensor
-    directly every step sidesteps the random draw regardless of any RNG-state difference.
+    different random command and diverge from step 0. Overwriting the command tensor directly
+    every step sidesteps the random draw regardless of any RNG-state difference.
     """
     del env_ids
     command_term = env.command_manager.get_term("base_velocity")
@@ -256,9 +243,8 @@ def _make_kit_visualizer_cfg() -> VisualizerCfg:
             streaming_cam_eye=_STREAMING_EYE,
             enable_markers=True,
         )
-    # Windowed capture records the main "Viewport" tab, not the "Streaming View" tab -- so
-    # this drives the primary interactive camera via _follow_camera instead, like the other
-    # _FOLLOW_CAM_VISUALIZERS.
+    # Windowed capture records the "Viewport" tab, not "Streaming View", so it follows via
+    # _follow_camera instead, like the other _FOLLOW_CAM_VISUALIZERS.
     return KitVisualizerCfg(
         headless=False,
         window_width=_WINDOW_WIDTH,
@@ -273,8 +259,8 @@ def _make_kit_visualizer_cfg() -> VisualizerCfg:
 def _make_newton_gl_visualizer_cfg() -> VisualizerCfg:
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
-    # No streaming_view: markers aren't drawn into that separate camera sensor (see module
-    # docstring). eye/lookat seed the initial pose before _follow_camera takes over.
+    # No streaming_view: markers aren't drawn into that camera sensor (see module docstring).
+    # eye/lookat seed the initial pose before _follow_camera takes over.
     return NewtonGLVisualizerCfg(
         headless=_headless(),
         window_width=_WINDOW_WIDTH,
@@ -329,13 +315,11 @@ _VISUALIZER_BUILDERS = {
     "viser": _make_viser_visualizer_cfg,
 }
 
-# Visualizers attached simultaneously (one physics process, one shared trajectory) when
-# HERO_VISUALIZER=combined, rather than each running in its own play.py subprocess -- so
-# they're literally the same physics loop rendered through 3 sinks, avoiding the per-process
-# browser-settle timing misalignment described in the module docstring. Kit and Newton RTX
-# stay separate: they're already well-aligned via their own step-count-bound VideoRecorderCfg
-# captures, and Kit needs a full Kit app process that can't coexist with Newton's kitless
-# viewers.
+# Attached simultaneously (one physics process, one shared trajectory) when
+# HERO_VISUALIZER=combined, avoiding the per-process browser-settle timing misalignment
+# described in the module docstring. Kit and Newton RTX stay separate: they're already
+# well-aligned via their own step-count-bound VideoRecorderCfg captures, and Kit needs a full
+# Kit app process that can't coexist with Newton's kitless viewers.
 _COMBINED_VISUALIZERS = ("newton_gl", "rerun", "viser")
 
 
@@ -373,19 +357,15 @@ def _configure_capture(env_cfg: AnymalDTileCaptureCfg) -> None:
     else:
         env_cfg.sim.visualizer_cfgs = [_VISUALIZER_BUILDERS[visualizer]()]
 
-    # The task's default reset_base event randomizes spawn position/yaw via
-    # mdp.reset_root_state_uniform, which samples through PyTorch's *global* RNG, not a seeded
-    # local generator -- same anti-pattern as the velocity command (see
-    # _pin_velocity_command's docstring). Even with an identical --seed, Kit and the kitless
-    # Newton-family processes drew different spawn offsets/yaws (confirmed by testing: this
-    # was the actual cause of hero-clip divergence). Zeroing the range pins every process to
-    # the exact same default root pose.
+    # reset_base's default mdp.reset_root_state_uniform samples through PyTorch's *global*
+    # RNG, not a seeded local generator -- same anti-pattern as the velocity command (see
+    # _pin_velocity_command's docstring). Zeroing the range pins every process to the exact
+    # same default root pose regardless of --seed.
     env_cfg.events.reset_base.params["pose_range"] = {}
     env_cfg.events.reset_base.params["velocity_range"] = {}
 
     # Same anti-pattern, two more places: reset_robot_joints randomizes starting limb
-    # posture/gait phase per process, and add_base_mass randomizes base mass (changing the
-    # whole rollout's dynamics from the first step). Both pinned to their identity scale.
+    # posture/gait phase, and add_base_mass randomizes base mass. Both pinned to identity.
     env_cfg.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
     env_cfg.events.add_base_mass.params["mass_distribution_params"] = (1.0, 1.0)
 
@@ -407,8 +387,7 @@ def _configure_capture(env_cfg: AnymalDTileCaptureCfg) -> None:
     if output_dir:
         if visualizer == "combined":
             # Only Newton GL is step-count-recorded here; Rerun/Viser are screen-recorded by
-            # _run_combined_capture from the same process. step_offset skips ahead to the
-            # same point in the shared trajectory the browser recordings start at.
+            # _run_combined_capture from the same process.
             env_cfg.video_recorders = [
                 VideoRecorderCfg(
                     source=_SOURCE_BY_VISUALIZER["newton_gl"],
@@ -431,9 +410,8 @@ def _configure_capture(env_cfg: AnymalDTileCaptureCfg) -> None:
                     output_filename_prefix=os.environ.get("HERO_VIDEO_PREFIX", "clip"),
                     # Matches the task's control rate (decimation=4, sim.dt=0.005s -> 50 Hz).
                     fps=50,
-                    # In simulated steps: skips ahead to the same trajectory point a
-                    # browser-captured visualizer starts recording at (see main()'s
-                    # calibration step), so both clip types of the same rollout stay aligned.
+                    # Skips ahead to the same trajectory point a browser-captured visualizer
+                    # starts recording at, so both clip types stay aligned.
                     step_offset=int(os.environ.get("HERO_STEP_OFFSET", "0")),
                 )
             ]
@@ -503,9 +481,8 @@ def _run_combined_capture(args: argparse.Namespace) -> None:
         args.task,
         "--checkpoint",
         "pretrained",
-        # Must list all 3 types env_cfg.sim.visualizer_cfgs attaches: when --viz is passed,
-        # SimulationContext._resolve_visualizer_cfgs() filters down to only the CLI-requested
-        # types, silently dropping the rest (confirmed by testing).
+        # Must list all 3 types env_cfg.sim.visualizer_cfgs attaches: SimulationContext
+        # ._resolve_visualizer_cfgs() filters to only the CLI-requested types otherwise.
         "--num_envs",
         "1",
         "--viz",
@@ -519,7 +496,7 @@ def _run_combined_capture(args: argparse.Namespace) -> None:
     proc_env = {"PYTHONPATH": f"{args.repo_root}/tools/docs/media/visualizers", "HERO_VISUALIZER": "combined"}
     if args.out_newton_gl_mp4:
         # --video_length is play.py's *total* rollout length, not just the recorder's clip
-        # length (confirmed by testing), so it must include the step offset too.
+        # length, so it must include the step offset too.
         cmd += ["--video", "--video_length", str(args.newton_gl_step_offset + args.newton_gl_video_length)]
         newton_gl_video_dir.mkdir(exist_ok=True)
         proc_env |= {
@@ -568,8 +545,7 @@ def _run_combined_capture(args: argparse.Namespace) -> None:
                 # finishes writing (it needs a few more steps than the Rerun/Viser window
                 # alone): closing the contexts first stalls the *shared* step loop, since
                 # Rerun's server-side rr.log() calls block on backpressure once their only
-                # client disconnects (confirmed by testing: without this, Newton GL's clip
-                # was truncated and never caught up).
+                # client disconnects.
                 deadline = time.time() + 90.0
                 last_size = -1
                 stable_checks = 0
@@ -598,9 +574,8 @@ def _run_combined_capture(args: argparse.Namespace) -> None:
 
         # mpdecimate drops the duplicate frames Playwright pads in whenever the browser's
         # render rate falls behind its capture rate, shrinking the post-decimation duration by
-        # an amount not known in advance (confirmed by testing: applying speed_factor directly
-        # on top of mpdecimate undershot the target). So decimate first, measure the actual
-        # resulting duration, then compute the exact speed-up to hit target_duration_s.
+        # an amount not known in advance. So decimate first, measure the actual resulting
+        # duration, then compute the exact speed-up to hit target_duration_s.
         target_duration_s = args.record_s / args.speed_factor
         for name, out_mp4 in (("rerun", args.out_rerun_mp4), ("viser", args.out_viser_mp4)):
             webm = webm_paths[name]
@@ -649,13 +624,12 @@ def _run_combined_capture(args: argparse.Namespace) -> None:
             video_filters = [f"setpts=PTS/{out_speed}", "crop=iw:ih-20:0:10"]
             if name == "viser":
                 # Viser's viewer has no directional/fill light and renders the floor dark;
-                # raising ambient light only brightens the sky, not the floor (confirmed by
-                # testing), so this brightens the video directly instead. A gamma curve
-                # (exponent <1) lifts dark values without pushing already-bright pixels (the
-                # command arrows, the robot's red) toward white the way a flat offset did.
-                # Exponents computed by sampling mean floor-region RGB in Viser vs. the
-                # equivalent Newton GL frame and solving for the exponent that moves 37.5% of
-                # that gap. The curves= pass afterward deepens shadows the gamma lift alone
+                # raising ambient light only brightens the sky, not the floor, so this
+                # brightens the video directly instead. A gamma curve (exponent <1) lifts dark
+                # values without pushing already-bright pixels toward white the way a flat
+                # offset did. Exponents computed by sampling mean floor-region RGB in Viser vs.
+                # the equivalent Newton GL frame and solving for the exponent that moves 37.5%
+                # of that gap. The curves= pass afterward deepens shadows the gamma lift alone
                 # left looking gray on the robot's legs.
                 video_filters.append(
                     "lutrgb=r='255*pow(val/255,0.545)':g='255*pow(val/255,0.544)':b='255*pow(val/255,0.549)',"
@@ -674,9 +648,8 @@ def _run_combined_capture(args: argparse.Namespace) -> None:
                 "libx264",
             ]
             if name == "rerun":
-                # crf 27 (confirmed by testing to show no visible artifacts) keeps file size
-                # down; left at the default for viser so the color grading above isn't
-                # compounded with extra compression artifacts.
+                # crf 27 keeps file size down; left at the default for viser so the color
+                # grading above isn't compounded with extra compression artifacts.
                 final_cmd += ["-preset", "slow", "-crf", "27"]
             final_cmd += ["-pix_fmt", "yuv420p", str(out_path)]
             subprocess.run(final_cmd, check=True)
@@ -726,20 +699,17 @@ def _combined_capture_argparser() -> argparse.ArgumentParser:
 # ---------------------------------------------------------------------------
 
 # 10s clip at this task's control rate: decimation=4, sim.dt=0.005s -> step_dt=0.02s (50 Hz).
-# Kit and Newton RTX (record_visualizer) capture exactly this many steps.
+# Kit and Newton RTX capture exactly this many steps.
 _CAPTURE_STEPS = 500
-# Newton GL/Rerun/Viser capture 10% more steps than _CAPTURE_STEPS while _TARGET_SIM_SECONDS
-# stays at 10 -- the combined capture's speed_factor math compresses that extra motion into
-# the same ~10s output, a 10% "speedup" without changing the output clip's length.
+# Newton GL/Rerun/Viser capture 10% more steps while _TARGET_SIM_SECONDS stays at 10 -- the
+# combined capture's speed_factor compresses that extra motion into the same ~10s output.
 _COMBINED_CAPTURE_STEPS = round(_CAPTURE_STEPS * 1.1)
-# Calibrated real-time throughput target for the combined (Newton GL + Rerun + Viser)
-# process. Kit/Newton RTX need no calibration -- their clips are step-count-bound.
+# Calibrated real-time throughput target for the combined (Newton GL + Rerun + Viser) process.
 _TARGET_SIM_SECONDS = 10
-# Guards against a runaway record_s if the combined process is catastrophically slow to
-# connect (rendering 3 visualizers at once is inherently slower than any one alone).
+# Guards against a runaway record_s if the combined process is catastrophically slow to connect.
 _MAX_RECORD_S = 90
-# Fixed real-time wait (not motion-detection) before Rerun/Viser start recording, converted to
-# an equivalent Newton GL step_offset below.
+# Fixed real-time wait before Rerun/Viser start recording, converted to an equivalent Newton
+# GL step_offset below.
 _COMBINED_SETTLE_S = 15
 _UV_EXTRAS = "isaacsim,rerun,viser,rsl-rl,ov,video"
 
@@ -810,7 +780,7 @@ def _record_visualizer(
     video_filter = "crop=iw:ih-20:0:10"
     if output_speed_factor != 1.0:
         video_filter += f",setpts=PTS/{output_speed_factor}"
-    # crf 24 (confirmed by testing to show no visible artifacts) keeps file size down.
+    # crf 24 keeps file size down without visible artifacts.
     subprocess.run(
         [
             "ffmpeg",
@@ -838,11 +808,10 @@ def _record_visualizer(
 def _calibrate_combined(script_dir: Path, repo_root: Path, work_dir: Path, seed: int | None) -> float:
     """Run the combined capture briefly, unrecorded, to measure its natural real-time throughput.
 
-    A short calibration window undercounts: Rerun's per-step camera-blueprint log can build
-    up backpressure over tens of seconds that a brief run never encounters (confirmed by
-    testing -- an 8s calibration gave 0.073s/step, but the resulting ~51s production run only
-    completed 499 of the ~706 steps it needed). Calibrating over a window close to the real
-    production duration (settle + record) captures the same sustained-load behavior.
+    A short calibration window undercounts: Rerun's per-step camera-blueprint log can build up
+    backpressure over tens of seconds that a brief run never encounters. Calibrating over a
+    window close to the real production duration (settle + record) captures the same
+    sustained-load behavior.
     """
     log = Path("/tmp/capture_tile_combined/play.log")
     log.unlink(missing_ok=True)
@@ -908,9 +877,8 @@ def main() -> None:
 
         print("Calibrating combined Newton GL/Rerun/Viser real-time throughput...")
         step_time = _calibrate_combined(script_dir, repo_root, work_dir, args.seed)
-        # 20% safety margin on top of the calibrated rate, since sustained throughput over the
-        # full (longer) production run can still run a bit slower than even a representative
-        # calibration.
+        # 20% safety margin: sustained throughput over the full production run can still run
+        # a bit slower than the calibration.
         record_s = _COMBINED_CAPTURE_STEPS * step_time * 1.2 if step_time > 0 else _TARGET_SIM_SECONDS
         record_s = max(record_s, _TARGET_SIM_SECONDS)
         record_s = min(record_s, _MAX_RECORD_S)
@@ -921,9 +889,8 @@ def main() -> None:
             f"speed-factor={speed_factor:.3f}, step-offset={step_offset}"
         )
 
-        # Kit/Newton RTX use the same step_offset as the combined group so all 5 clips start
-        # at the same point in the shared trajectory. Played back 10% slower than the other 3
-        # (output_speed_factor=0.9) -- see _record_visualizer's docstring.
+        # Same step_offset as the combined group so all 5 clips start at the same point.
+        # Played back 10% slower than the other 3 -- see _record_visualizer's docstring.
         for visualizer in ("kit", "newton_rtx"):
             _record_visualizer(
                 script_dir,
@@ -938,8 +905,7 @@ def main() -> None:
                 output_speed_factor=0.9,
             )
 
-        # Newton GL, Rerun, and Viser are captured TOGETHER from one shared physics process
-        # (see _run_combined_capture's docstring).
+        # Newton GL, Rerun, and Viser are captured together from one shared physics process.
         combined_cli_args = [
             str(repo_root),
             _TASK,
@@ -974,11 +940,9 @@ def main() -> None:
         ]
         subprocess.run(cmd, check=True)
 
-        # Unlike Rerun/Viser (real-time captures already compressed to ~10s by
-        # _run_combined_capture's own speed_factor), Newton GL's clip comes out of its
-        # step-count-bound VideoRecorderCfg at native fps -- _COMBINED_CAPTURE_STEPS steps
-        # play out over _COMBINED_CAPTURE_STEPS/_CAPTURE_STEPS times as long (~11s), so it
-        # needs the same ratio applied here to land back on ~10s like the rest.
+        # Unlike Rerun/Viser (already compressed to ~10s by _run_combined_capture's own
+        # speed_factor), Newton GL's clip comes out of VideoRecorderCfg at native fps
+        # (~11s), so it needs the same step-count ratio applied here to match.
         newton_gl_speedup = _COMBINED_CAPTURE_STEPS / _CAPTURE_STEPS
         newton_gl_raw = work_dir / "hero_newton_gl_raw.mp4"
         (output_dir / "hero_newton_gl.mp4").rename(newton_gl_raw)

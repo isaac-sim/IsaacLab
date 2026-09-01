@@ -92,8 +92,7 @@ _REACH_LOOKAT = (0.3, 0.0, -0.3)
 _KUKA_ALLEGRO_LIFT_EYE = (-_REACH_EYE[0], -_REACH_EYE[1], _REACH_EYE[2])
 _KUKA_ALLEGRO_LIFT_LOOKAT = _REACH_LOOKAT
 _KUKA_ALLEGRO_LIFT_ENV_SPACING = 2.4
-# Raised/pulled back from a tighter framing that cropped the top row of envs out of frame
-# (confirmed with as few as 64 envs).
+# Pulled back so the top row of envs isn't cropped out of frame.
 _NEWTON_GL_EYE = (2.1, -2.1, 2.3)
 _NEWTON_GL_LOOKAT = (0.0, 0.0, -0.1)
 # Zoomed in close: Shadow Hand's env_spacing is tiny, so a wide camera leaves the hands as an
@@ -652,9 +651,8 @@ def record_showcase_browser(
         with sync_playwright() as p:
             browser = capture_common.launch_browser(p, force_headless=force_headless)
 
-            # A single continuous connection throughout: reconnecting with a fresh page/context
-            # forces a full re-sync of everything already logged (confirmed by testing to
-            # never finish loading for large scene geometry). This loads once and stays live.
+            # Single continuous connection: reconnecting forces a full re-sync of everything
+            # already logged, which never finishes for large scene geometry.
             context = browser.new_context(
                 viewport={"width": _VIEWPORT_WIDTH, "height": _VIEWPORT_HEIGHT},
                 record_video_dir=str(video_dir),
@@ -700,17 +698,16 @@ def record_showcase_browser(
         webm = webm_files[-1]
         out_mp4.parent.mkdir(parents=True, exist_ok=True)
         # Keep the last record_s seconds (skips the page-reconnect settle at the start).
-        # mpdecimate drops near-duplicate frames before speed-up: Playwright's recording is
-        # fixed-rate regardless of how often the scene actually changes, so a repeated frame
-        # (render lag exceeding one capture interval) would otherwise stretch into a visible
-        # freeze-then-jump once sped up (confirmed by testing). setpts closes the resulting gaps.
+        # mpdecimate drops near-duplicate frames before speed-up, since Playwright's fixed-rate
+        # recording repeats frames under render lag, which would otherwise freeze-then-jump
+        # once sped up; setpts closes the resulting gaps.
         ffmpeg_cmd = ["ffmpeg", "-y", "-v", "error", "-sseof", f"-{record_s}", "-i", str(webm)]
         vf_filters = ["mpdecimate", "setpts=N/FRAME_RATE/TB"]
         if speed_factor != 1.0:
             vf_filters.append(f"setpts=PTS/{speed_factor}")
         if visualizer == "viser":
             # Newton's Viser viewer has no fill light; raising ambient light only brightens
-            # the sky, not the floor/robot (confirmed by testing), so brighten the video instead.
+            # the sky, not the floor/robot, so brighten the video instead.
             vf_filters.append("eq=brightness=0.08:saturation=1.05")
         ffmpeg_cmd += ["-vf", ",".join(vf_filters)]
         ffmpeg_cmd += ["-c:v", "libx264", "-pix_fmt", "yuv420p", str(out_mp4)]
@@ -810,8 +807,7 @@ def main() -> None:
 
     # Captured via record_showcase_browser (row: visualizer, task, num_envs, checkpoint,
     # filename, reset, speed_factor). reset=True forces a fresh episode so the capture lands
-    # on active motion. num_envs is kept low (well below the default 512): higher counts were
-    # confirmed too slow to show visible motion within a reasonable capture window.
+    # on active motion. num_envs is kept well below the default 512 so motion stays visible.
     browser_rows = [
         # Shadow Hand has no sim-pacing mechanism like the windowed rows' step_pacer, and runs
         # faster than real time at this env count; speed_factor=0.8 slows the clip back down.
