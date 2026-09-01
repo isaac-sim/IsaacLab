@@ -17,6 +17,7 @@ from .pickplace_gr1t2_env_cfg import (
     EventCfg,
     ObjectTableSceneCfg,
     ObservationsCfg,
+    PhysicsCfg,
     TerminationsCfg,
     _build_gr1t2_pickplace_pipeline,
 )
@@ -51,6 +52,10 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
+        # Shared with the fixed-waist task: this variant reuses the same scene, actions and
+        # robot, so it needs the same backend presets to run on Newton.
+        self.sim.physics = PhysicsCfg()
+        self.num_rerenders_on_reset = 3
 
         # Add waist joint to pink_ik_cfg
         waist_joint_names = ["waist_yaw_joint", "waist_pitch_joint", "waist_roll_joint"]
