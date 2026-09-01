@@ -192,8 +192,8 @@ def _resolve_render_strategy(cfg: OVRTXRendererCfg, use_ovstage: bool = False) -
     or a later one"), so a concurrent write could both tear the in-flight frame and bleed newer
     state into it. That drain leaves so little overlap that benchmarks measure no gain over
     synchronous rendering, so asynchronous ovstage rendering is postponed to a follow-up. The
-    scene-write barriers (:meth:`OVRTXRenderer._write_attribute_ovstage`) stay in place; the
-    follow-up only changes this selection and the ovstage snapshot handling.
+    follow-up must add scene-write barriers (drain in-flight renders before every ovstage write,
+    including material publishes and the write-floor advance) besides changing this selection.
 
     The legacy path pipelines exactly one frame deep. Deeper queues are future work.
     """
@@ -1823,15 +1823,6 @@ class OVRTXRenderer(BaseRenderer):
     #   barrier — an ``Operation`` is its buffer's only keepalive. Saves caller-side blocking only.
     # ---------------------------------------------------------------------------
 
-    def _write_attribute_ovstage(self, *args, **kwargs) -> None:
-        """Write one ovstage attribute, draining queued renders first.
-
-        All ovstage scene mutations funnel through here: OVRTX reads the stage's storage in place,
-        so an unguarded write could corrupt a frame still being rendered.
-        """
-        self._strategy.settle_before_scene_write()
-        self._stage.write_attribute(*args, **kwargs).wait()
-
     def _init_fields_ovstage(self) -> None:
         self._stage = None
         self._stage_paths = None
@@ -1923,14 +1914,14 @@ class OVRTXRenderer(BaseRenderer):
             camera_target_ids = np.array(
                 [self._stage_paths.intern_path(path) for path in camera_paths], dtype=np.uint64
             )
-            self._write_attribute_ovstage(
+            self._stage.write_attribute(
                 render_product_query,
                 camera_attribute,
                 ordinal=self._current_ordinal,
                 tensors=camera_target_ids,
                 is_array=True,
                 semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
-            )
+            ).wait()
         self._stage_paths.destroy_path_list(render_product_paths)
 
         self._camera_paths_list = self._stage_paths.create_path_list_from_strings(camera_paths)
@@ -1942,13 +1933,13 @@ class OVRTXRenderer(BaseRenderer):
 
         # Resetting the xform stack makes omni:xform the absolute world transform, preventing
         # ancestor transforms (env root, asset root) from compounding on top of the camera pose.
-        self._write_attribute_ovstage(
+        self._stage.write_attribute(
             self._camera_xform_query,
             "omni:resetXformStack",
             ordinal=self._current_ordinal,
             tensors=np.full(num_envs, True, dtype=np.bool_),
             is_array=False,
-        )
+        ).wait()
 
         self._setup_xform_bindings_ovstage()
         self._setup_deformable_bindings_ovstage(num_envs)
@@ -1997,14 +1988,14 @@ class OVRTXRenderer(BaseRenderer):
         env_root_xforms[:, 3, :3] = clone_plan.positions
         env_paths_list = self._stage_paths.create_path_list_from_strings(env_prim_paths)
         env_query = self._stage.query_from_path_list(env_paths_list)
-        self._write_attribute_ovstage(
+        self._stage.write_attribute(
             env_query,
             "omni:xform",
             ordinal=self._current_ordinal,
             tensors=xform_tensor_from_numpy(env_root_xforms),
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
-        )
+        ).wait()
 
         self._stage.release_query(env_query).wait()
         self._stage_paths.destroy_path_list(env_paths_list)
@@ -2020,28 +2011,28 @@ class OVRTXRenderer(BaseRenderer):
 
         env_paths_list = self._stage_paths.create_path_list_from_strings(env_prim_paths)
         env_query = self._stage.query_from_path_list(env_paths_list)
-        self._write_attribute_ovstage(
+        self._stage.write_attribute(
             env_query,
             "primvars:omni:scenePartition",
             ordinal=self._current_ordinal,
             tensors=token_ids,
             is_array=False,
             semantic=ovstage.AttributeSemantic.TOKEN_ID,
-        )
+        ).wait()
         self._stage.release_query(env_query).wait()
         self._stage_paths.destroy_path_list(env_paths_list)
         logger.info("Written primvars:omni:scenePartition to %d environments", num_envs)
 
         cam_paths_list = self._stage_paths.create_path_list_from_strings(camera_prim_paths)
         cam_query = self._stage.query_from_path_list(cam_paths_list)
-        self._write_attribute_ovstage(
+        self._stage.write_attribute(
             cam_query,
             "omni:scenePartition",
             ordinal=self._current_ordinal,
             tensors=token_ids,
             is_array=False,
             semantic=ovstage.AttributeSemantic.TOKEN_ID,
-        )
+        ).wait()
         self._stage.release_query(cam_query).wait()
         self._stage_paths.destroy_path_list(cam_paths_list)
         logger.info("Written omni:scenePartition to %d cameras", num_envs)
@@ -2082,13 +2073,13 @@ class OVRTXRenderer(BaseRenderer):
         self._object_paths_list = self._stage_paths.create_path_list_from_strings(object_paths)
         self._object_xform_query = self._stage.query_from_path_list(self._object_paths_list)
 
-        self._write_attribute_ovstage(
+        self._stage.write_attribute(
             self._object_xform_query,
             "omni:resetXformStack",
             ordinal=self._current_ordinal,
             tensors=np.full(len(object_paths), True, dtype=np.bool_),
             is_array=False,
-        )
+        ).wait()
 
         if self._object_xform_query is None:
             raise RuntimeError("Failed to create OVRTX object bindings")
@@ -2162,23 +2153,23 @@ class OVRTXRenderer(BaseRenderer):
 
         # particle_q is already in world space, so resetting the xform stack and pinning an identity
         # omni:xform prevents the env-root and asset-root ancestor transforms from being applied on top.
-        self._write_attribute_ovstage(
+        self._stage.write_attribute(
             self._deformable_points_query,
             "omni:resetXformStack",
             ordinal=self._current_ordinal,
             tensors=np.full(prim_count, True, dtype=np.bool_),
             is_array=False,
-        )
+        ).wait()
 
         identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
-        self._write_attribute_ovstage(
+        self._stage.write_attribute(
             self._deformable_points_query,
             "omni:xform",
             ordinal=self._current_ordinal,
             tensors=xform_tensor_from_numpy(identity_xforms),
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
-        )
+        ).wait()
 
         if self._deformable_points_query is None:
             raise RuntimeError("Failed to create OVRTX deformable body bindings")
@@ -2263,23 +2254,23 @@ class OVRTXRenderer(BaseRenderer):
         #
         # particle_q is already in world space, so resetting the xform stack and pinning an identity
         # omni:xform prevents the env-root and asset-root ancestor transforms from being applied on top.
-        self._write_attribute_ovstage(
+        self._stage.write_attribute(
             self._particle_points_query,
             "omni:resetXformStack",
             ordinal=self._current_ordinal,
             tensors=np.full(prim_count, True, dtype=np.bool_),
             is_array=False,
-        )
+        ).wait()
 
         identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
-        self._write_attribute_ovstage(
+        self._stage.write_attribute(
             self._particle_points_query,
             "omni:xform",
             ordinal=self._current_ordinal,
             tensors=xform_tensor_from_numpy(identity_xforms),
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
-        )
+        ).wait()
 
         if self._particle_points_query is None:
             raise RuntimeError("Failed to create OVRTX particle point bindings")
@@ -2315,7 +2306,7 @@ class OVRTXRenderer(BaseRenderer):
         # ``wp.synchronize_device()`` with stream-scoped ordering and removes the host copy; it is
         # not a nonblocking handoff, and the wait inside the write can still block the calling thread.
         # A GPU-side wait would need the event-based API instead.
-        self._write_attribute_ovstage(
+        self._stage.write_attribute(
             self._object_xform_query,
             "omni:xform",
             ordinal=self._current_ordinal,
@@ -2323,7 +2314,7 @@ class OVRTXRenderer(BaseRenderer):
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
             cuda_stream=self._warp_device.stream.cuda_stream,
-        )
+        ).wait()
 
     def _update_geometries_ovstage(self) -> None:
         if self._deformable_points_query is not None or self._particle_points_query is not None:
@@ -2387,7 +2378,7 @@ class OVRTXRenderer(BaseRenderer):
         # queued on that stream before it touches the slices. That replaces the device-wide
         # ``wp.synchronize_device()`` with stream-scoped ordering and removes the host copy; it is
         # not a nonblocking handoff, and the wait inside the write can still block the calling thread.
-        self._write_attribute_ovstage(
+        self._stage.write_attribute(
             query,
             "points",
             ordinal=self._current_ordinal,
@@ -2395,7 +2386,7 @@ class OVRTXRenderer(BaseRenderer):
             is_array=True,
             semantic=ovstage.AttributeSemantic.POINT,
             cuda_stream=self._warp_device.stream.cuda_stream,
-        )
+        ).wait()
 
     def _write_cable_points_ovstage(self) -> None:
         """Recompute world-space cable curve points on device and write them through ovstage."""
@@ -2406,7 +2397,7 @@ class OVRTXRenderer(BaseRenderer):
         # ``cuda_stream`` gives producer ordering: ovstage drains the work already queued on that
         # stream before it touches the slices. That keeps the handover off the host; it is not a
         # nonblocking handoff, and the wait inside the write can still block the calling thread.
-        self._write_attribute_ovstage(
+        self._stage.write_attribute(
             self._cable_points_query,
             "points",
             ordinal=self._current_ordinal,
@@ -2414,7 +2405,7 @@ class OVRTXRenderer(BaseRenderer):
             is_array=True,
             semantic=ovstage.AttributeSemantic.POINT,
             cuda_stream=self._warp_device.stream.cuda_stream,
-        )
+        ).wait()
 
     def _update_camera_ovstage(
         self,
@@ -2441,7 +2432,7 @@ class OVRTXRenderer(BaseRenderer):
         )
         if self._camera_xform_query is not None:
             # Stream-ordered zero-copy handoff, as for the object transforms above.
-            self._write_attribute_ovstage(
+            self._stage.write_attribute(
                 self._camera_xform_query,
                 "omni:xform",
                 ordinal=self._current_ordinal,
@@ -2449,7 +2440,7 @@ class OVRTXRenderer(BaseRenderer):
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
                 cuda_stream=self._warp_device.stream.cuda_stream,
-            )
+            ).wait()
 
     def _render_ovstage(self, render_data: OVRTXRenderData) -> None:
         if not self._initialized_scene:
@@ -2458,10 +2449,6 @@ class OVRTXRenderer(BaseRenderer):
             return
         # Commit all per-frame writes (transforms, geometries, camera, materials) then step.
         # advance_write_floor must precede step — the renderer rejects ordinal > write_floor.
-        # Material publishes and the write-floor advance mutate the stage like any other scene
-        # write, but do not route through :meth:`_write_attribute_ovstage`, so drain in-flight
-        # renders here. A frame whose earlier writes already settled makes this a no-op.
-        self._strategy.settle_before_scene_write()
         material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
         try:
             if material_writer is not None:
