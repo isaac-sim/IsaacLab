@@ -143,6 +143,7 @@ Guidelines for modifications:
 * Michael Gussert
 * Michael Lin
 * Michael Noseworthy
+* Michael Wedd
 * Michal Hapala
 * Miguel Alonso Jr
 * Mihir Kulkarni

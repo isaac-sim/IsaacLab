@@ -48,11 +48,11 @@ def command_new(new_args: list[str]) -> None:
 
     print_info("Installing template dependencies...")
     reqs = ISAACLAB_ROOT / "tools" / "template" / "requirements.txt"
-    run_python_command("pip", ["install", "-q", "-r", str(reqs)], is_module=True)
+    run_python_command("pip", ["install", "-q", "-r", str(reqs)], is_module=True, check=True)
 
     print_info("Running template generator...")
     cli_script = ISAACLAB_ROOT / "tools" / "template" / "cli.py"
-    run_python_command(cli_script, new_args)
+    run_python_command(cli_script, new_args, check=True)
 
 
 def command_test(test_args: list[str]) -> None:
@@ -61,7 +61,7 @@ def command_test(test_args: list[str]) -> None:
     Args:
         test_args: Additional pytest arguments.
     """
-    run_python_command("-m", ["pytest", str(ISAACLAB_ROOT / "tools")] + test_args)
+    run_python_command("-m", ["pytest", str(ISAACLAB_ROOT / "tools")] + test_args, check=True)
 
 
 def command_vscode_settings() -> None:
@@ -74,6 +74,8 @@ def command_vscode_settings() -> None:
 
     # Check if the file exists before attempting to run it.
     if setup_vscode_script.exists():
+        # Best-effort: a failure generating editor settings should not abort the
+        # invoking command (this also runs inside the install flow).
         run_python_command(setup_vscode_script, [])
         print_info("VS Code settings generated successfully.")
     else:
@@ -206,4 +208,4 @@ def command_run_docker(args: list[str]) -> None:
     """
     script_path = ISAACLAB_ROOT / "docker" / "container.py"
     print_info(f"Running docker utility script from: {script_path}")
-    run_python_command(script_path, args)
+    run_python_command(script_path, args, check=True)
