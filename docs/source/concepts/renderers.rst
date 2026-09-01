@@ -58,8 +58,8 @@ Renderer outputs at a glance
 The galleries below use the same authored scene, camera, lights, materials, and initial conditions.
 Six spheres exercise mirror-like, transparent, semi-transparent, matte, glossy, and emissive
 materials. The RGB output is animated to show the spheres falling onto the table; the remaining
-outputs are still frames from the same run. Stills use the third rendered frame so temporal outputs,
-such as motion vectors, have valid frame history while the spheres remain near their initial poses.
+outputs are still frames from the same run. Stills use the sixth rendered frame so temporal outputs,
+such as motion vectors, show useful motion while the spheres remain near their initial poses.
 
 Treat the images as a qualitative comparison of feature coverage and image character, not a
 performance benchmark. The kit-less renderers use Newton physics while Isaac RTX uses PhysX, so

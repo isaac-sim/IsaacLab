@@ -26,7 +26,7 @@
                :width: 100%
                :alt: Color-mapped Newton Warp depth output for six material spheres.
 
-               Depth
+               Depth. Turbo colors progress from near (purple) to far (red).
 
          .. grid-item::
 
@@ -78,7 +78,7 @@
                :width: 100%
                :alt: Color-mapped OVRTX depth output for six material spheres.
 
-               Depth
+               Depth. Turbo colors progress from near (purple) to far (red).
 
          .. grid-item::
 
@@ -110,7 +110,8 @@
                :width: 100%
                :alt: Color-mapped OVRTX motion-vector output for six falling material spheres.
 
-               Motion vectors
+               Motion vectors. Color encodes direction and relative magnitude; arrows show sampled
+               image-space motion.
 
          .. grid-item::
 
@@ -162,7 +163,7 @@
                :width: 100%
                :alt: Color-mapped Isaac RTX depth output for six material spheres.
 
-               Depth
+               Depth. Turbo colors progress from near (purple) to far (red).
 
          .. grid-item::
 
@@ -194,7 +195,8 @@
                :width: 100%
                :alt: Color-mapped Isaac RTX motion-vector output for six falling material spheres.
 
-               Motion vectors
+               Motion vectors. Color encodes direction and relative magnitude; arrows show sampled
+               image-space motion.
 
          .. grid-item::
 
