@@ -66,10 +66,17 @@ Asynchronous Rendering
 ----------------------
 
 :attr:`RendererCfg.async_rendering` trades one frame of camera latency for pipelined rendering, and
-:data:`ASYNC_RENDERING_ENV_VAR` overrides it process-wide. Renderers resolve it through these
-helpers; only the OVRTX renderer implements the pipelined path.
+:data:`ASYNC_RENDERING_ENV_VAR` overrides it process-wide. Renderers resolve it through the helpers
+below. Only the OVRTX renderer implements the pipelined path.
 
-.. autodata:: ASYNC_RENDERING_ENV_VAR
+.. py:data:: ASYNC_RENDERING_ENV_VAR
+   :value: "ISAAC_LAB_ASYNC_RENDERING"
+
+   Environment variable overriding :attr:`RendererCfg.async_rendering` for every renderer.
+
+   Accepts boolean spellings: ``0``/``false``/``no``/``off`` or ``1``/``true``/``yes``/``on``. Any
+   other value raises ``ValueError``. Set it to exercise the asynchronous path without naming a
+   camera that a given task may not define.
 
 .. autofunction:: resolve_async_rendering_enabled
 
