@@ -5,15 +5,6 @@
 
 """Tests for USD cloner utilities (no PhysX dependency)."""
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -38,7 +29,7 @@ from isaaclab.cloner import (
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim.utils import queries
 
-pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+pytestmark = [pytest.mark.kit, pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 
 @pytest.fixture(params=["cpu", "cuda"])

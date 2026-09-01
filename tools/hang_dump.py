@@ -6,7 +6,7 @@
 """On-demand stack dump for a test process the CI runner believes is hung.
 
 A test that crashes reports a traceback, because ``PYTHONFAULTHANDLER=1`` (set per test file in
-``tools/conftest.py``) installs ``faulthandler`` for ``SIGSEGV`` and friends. A test that *hangs* reported
+``tools/run_tests.py``) installs ``faulthandler`` for ``SIGSEGV`` and friends. A test that *hangs* reported
 nothing: the runner detects the hang and kills the process group with ``SIGKILL``, which cannot be caught, so
 no handler ever ran. This module closes that gap by giving the runner a signal to ask for a stack first.
 
@@ -41,7 +41,7 @@ import sys
 DUMP_SIGNAL = getattr(signal, "SIGUSR1", None)
 """Signal the CI runner sends to ask a hung test process for a stack dump.
 
-``None`` off POSIX. ``tools/conftest.py`` reads this so the sender and the receiver cannot disagree.
+``None`` off POSIX. ``tools/run_tests.py`` reads this so the sender and the receiver cannot disagree.
 """
 
 DUMP_PATH_ENV_VAR = "ISAACLAB_HANG_DUMP"

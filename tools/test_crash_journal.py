@@ -406,7 +406,7 @@ def test_a_clean_run_rebuilds_to_the_cases_pytest_itself_wrote(tmp_path):
 def test_deselected_tests_are_not_journaled_as_collected(tmp_path):
     """Regression test for a rebuilt report claiming tests that this pass never selected.
 
-    ``tools/conftest.py`` splits a run into passes selected by marker and device, so journaling
+    ``tools/run_tests.py`` splits a run into passes selected by marker and device, so journaling
     from ``pytest_collection_modifyitems`` — which runs before pytest's own ``trylast``
     deselection hook — would record the other passes' tests too. A crash would then rebuild them
     as "not run" skips, inflating the counts and duplicating node IDs the sibling pass reported.
@@ -614,7 +614,7 @@ _CRASH_CASES = [
         marks=pytest.mark.skipif(not _HAS_FLAKY, reason="the rerun this case needs is driven by the flaky plugin"),
     ),
     pytest.param(
-        # The startup-hang shape ``tools/conftest.py`` guards against: collection has finished
+        # The startup-hang shape ``tools/run_tests.py`` guards against: collection has finished
         # journaling by the time the run loop starts, so this kills the session in the window where
         # the journal knows every test but none has a verdict. They must come back as "not run"
         # rather than disappear from the uploaded results, which would silently shrink the suite.

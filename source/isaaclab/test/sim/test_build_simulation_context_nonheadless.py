@@ -12,21 +12,12 @@ If you need to make a change to this test, please make sure to also make the sam
 ``test_build_simulation_context_headless.py``.
 """
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 import pytest
 
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.sim.simulation_context import build_simulation_context
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.kit, pytest.mark.integration]
 
 
 @pytest.mark.parametrize("gravity_enabled", [True, False])

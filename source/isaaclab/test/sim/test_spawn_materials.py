@@ -3,16 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
-
 import pytest
 
 from pxr import UsdPhysics, UsdShade
@@ -21,7 +11,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
-pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+pytestmark = [pytest.mark.kit, pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 
 @pytest.fixture

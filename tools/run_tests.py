@@ -3,6 +3,33 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Run Isaac Lab's tests, locally or in CI.
+
+``tools/test_plan.toml`` says what each job covers and :mod:`testplan` resolves it to a file
+list; this module executes that list. It owns everything that makes a long test run
+survivable -- per-file timeouts, startup-hang detection, stack dumps from a wedged process,
+crash reports for a process that died before writing one, retries, the work queue, and the
+merged JUnit output -- none of which pytest does on its own.
+
+Files declaring a launch marker (see :mod:`isaaclab.test.kit`) are handed to pytest together
+so they share one Kit app; everything else gets a process to itself. That grouping is the
+normal schedule rather than a special case, because sharing a process is the only way a
+directory of Kit-dependent files boots Kit once instead of once per file.
+
+This was ``tools/conftest.py``, which disabled collection and did all of the above from
+``pytest_sessionstart``. Being a conftest meant it hijacked any pytest run rooted at the
+repository, which is why ``tools-tests.yml`` had to pass ``--noconftest`` to run the tools'
+own tests. It is a script now::
+
+    python tools/run_tests.py --list-jobs
+    python tools/run_tests.py --job isaaclab-core --shard 0
+    python tools/run_tests.py source/isaaclab/test/sim
+    python tools/run_tests.py --all
+"""
+
+from __future__ import annotations
+
+import argparse
 import contextlib
 import logging
 import os
@@ -18,22 +45,34 @@ import tomllib
 from junitparser import Error, JUnitXml, TestCase, TestSuite
 from prettytable import PrettyTable
 
+from isaaclab.test.kit import kit_marker, module_markers
 from isaaclab.test.utils import resolve_test_sim_device
 
 # Local imports
 import hang_dump  # isort: skip
 import ovrtx_log  # isort: skip
 import test_settings as test_settings  # isort: skip
+import testplan  # isort: skip
 from crash_journal import JOURNAL_ENV_VAR, create_crash_report  # isort: skip
 from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
+from _kit_batching import (  # isort: skip
+    BATCH_TIMEOUT_CUTOFF,
+    batch_size,
+    batching_enabled,
+    group_test_files,
+    split_batch_status,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
-def pytest_ignore_collect(collection_path, config):
-    # Skip collection and run each test script individually
-    return True
+class TestRunError(Exception):
+    """A run could not be set up. Carries the exit code the process should end with."""
+
+    def __init__(self, message: str, returncode: int = 1):
+        super().__init__(message)
+        self.returncode = returncode
 
 
 COLD_CACHE_BUFFER = 700
@@ -44,6 +83,22 @@ run (~600 s).  This buffer prevents that from being misreported as a test
 timeout.  Only the first such test gets the extension — after it runs, the
 on-disk cache is populated.
 """
+
+
+def _enables_cameras(test_content: str) -> bool:
+    """Whether the given test file's source starts Kit with cameras enabled.
+
+    Decided from the file's text rather than by importing it, because importing a
+    Kit-dependent test module boots Kit. A file either declares ``kit_cameras`` and lets
+    :mod:`isaaclab.test.kit` launch for it, or still constructs ``AppLauncher`` itself.
+    """
+    try:
+        if kit_marker(test_content) == "kit_cameras":
+            return True
+    except ValueError:
+        pass  # contradictory markers; the file fails at collection and the contract test says why
+    return "enable_cameras=True" in test_content
+
 
 STARTUP_DEADLINE = 120
 """Seconds to wait for AppLauncher init or pytest collection before declaring a
@@ -1338,7 +1393,7 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
 
         # The first camera-enabled test in a fresh container compiles shaders
         # (~600 s).  Give it extra time so that doesn't look like a test timeout.
-        is_cold_cache_test = not cold_cache_applied and "enable_cameras=True" in test_content
+        is_cold_cache_test = not cold_cache_applied and _enables_cameras(test_content)
         if is_cold_cache_test:
             timeout += COLD_CACHE_BUFFER
             cold_cache_applied = True
@@ -1401,76 +1456,109 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
     return failed_tests, test_status, xml_reports
 
 
-def _collect_test_files(
-    source_dirs,
-    filter_pattern,
-    exclude_pattern,
-    include_files,
-    quarantined_only,
-    curobo_only,
-):
-    """Collect test files from source directories, applying all active filters."""
-    test_files = []
-    for source_dir in source_dirs:
-        if not os.path.exists(source_dir):
-            logger.error(f"Error: source directory not found at {source_dir}")
-            pytest.exit("Source directory not found", returncode=1)
+def _batching_exclusions(test_files, test_node_ids_by_file, sources):
+    """Files that must keep a process to themselves even when batching is on.
 
-        for root, _, files in os.walk(source_dir):
-            # source/isaaclab/test/install_ci/ has its own pytest config and conftest.
-            # It is run via .github/actions/install-ci-run, never via this collector,
-            # so skip the whole subtree to keep install_ci tests out of build.yaml jobs.
-            if "install_ci" in root.replace("\\", "/").split("/"):
+    Batching only changes how files are grouped, so anything whose current behaviour depends
+    on process isolation, on its own timeout, or on being invoked more than once is left on
+    the per-file path.
+    """
+    excluded = set()
+    for path in test_files:
+        name = os.path.basename(path)
+        source = sources.get(path, "")
+        if name in PROCESS_FAILURE_RETRIES_BY_FILE:
+            excluded.add(path)  # retried in a fresh process after stale render state
+        elif os.path.normpath(path) in test_node_ids_by_file:
+            excluded.add(path)  # node-ID selection is expressed per file
+        elif is_device_split_file(path, source=source):
+            excluded.add(path)  # already invoked once per device with different -k
+        elif test_settings.PER_TEST_TIMEOUTS.get(name, 0) >= BATCH_TIMEOUT_CUTOFF:
+            excluded.add(path)  # a batch timeout is the sum of its members'
+        elif name in getattr(test_settings, "NEVER_BATCH", ()):
+            excluded.add(path)
+    return excluded
+
+
+def run_batched_tests(batches, workspace_root, ci_marker, cold_cache_applied=False):
+    """Run each batch as a single pytest invocation and split the results per file.
+
+    Args:
+        batches: Batches to run; each must contain more than one file.
+        workspace_root: Repository root, passed to pytest's ``--config-file``.
+        ci_marker: Optional marker expression applied to every invocation.
+        cold_cache_applied: Whether the cold-shader-cache buffer was already granted.
+
+    Returns:
+        A 4-tuple ``(failed_tests, test_status, xml_reports, leftovers)``. ``leftovers`` are
+        files the batch never reached because the shared process died; the caller re-runs
+        them on the per-file path, which is the floor this can degrade to.
+    """
+    failed_tests, test_status, xml_reports, leftovers = [], {}, [], []
+    global_k_expr = os.environ.get("TEST_K_EXPR", "").strip() or None
+
+    for batch in batches:
+        logger.info(f"\n\n🚀 Running {len(batch.files)} '{batch.profile}' files in one Kit process...\n")
+        for path in batch.files:
+            logger.info(f"    {path}")
+
+        env = os.environ.copy()
+        env["PYTHONFAULTHANDLER"] = "1"
+
+        # A batch's budget is the sum of its members', so no file gets less time than it
+        # would have had alone.
+        timeout = sum(
+            test_settings.PER_TEST_TIMEOUTS.get(os.path.basename(p), test_settings.DEFAULT_TIMEOUT) for p in batch.files
+        )
+        is_cold_cache = not cold_cache_applied and batch.profile == "kit_cameras"
+        if is_cold_cache:
+            timeout += COLD_CACHE_BUFFER
+            cold_cache_applied = True
+            logger.info(f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer (timeout now {timeout}s)")
+        startup_deadline = min(timeout, STARTUP_DEADLINE + (COLD_CACHE_BUFFER if is_cold_cache else 0))
+
+        ctx = _PassContext(
+            test_file=batch.label,
+            file_name=batch.label,
+            workspace_root=workspace_root,
+            ci_marker=ci_marker,
+            timeout=timeout,
+            startup_deadline=startup_deadline,
+            env=env,
+            inject_shard_select=False,
+            pytest_targets=list(batch.files),
+        )
+
+        report, status, _ = _run_one_pass(ctx, k_expr=global_k_expr, suffix="")
+        if report is not None:
+            xml_reports.append(report)
+
+        if report is None:
+            # Nothing landed, so nothing can be attributed; hand the whole batch back.
+            logger.warning(f"⚠️  batch {batch.label} produced no report; re-running its files individually")
+            leftovers.extend(batch.files)
+            continue
+
+        per_file = split_batch_status(
+            report, batch.files, wall_time=status.get("wall_time", 0.0), batch_result=status.get("result", "CRASHED")
+        )
+        unreached = []
+        for path, file_status in per_file.items():
+            if file_status["result"] in ("CRASHED", "TIMEOUT", "STARTUP_HANG"):
+                unreached.append(path)
                 continue
+            test_status[path] = file_status
+            if file_status["result"] == "FAILED":
+                failed_tests.append(path)
 
-            for file in files:
-                if not (file.startswith("test_") and file.endswith(".py")):
-                    continue
+        if unreached:
+            logger.warning(
+                f"⚠️  batch {batch.label} ended at {unreached[0]} ({status.get('result')});"
+                f" re-running {len(unreached)} remaining file(s) individually"
+            )
+            leftovers.extend(unreached)
 
-                # Mode-exclusive filters (each bypasses TESTS_TO_SKIP)
-                if quarantined_only:
-                    if file not in test_settings.QUARANTINED_TESTS:
-                        continue
-                elif curobo_only:
-                    if file not in test_settings.CUROBO_TESTS:
-                        continue
-                else:
-                    # An explicit include_files entry overrides TESTS_TO_SKIP, allowing
-                    # dedicated jobs (e.g. test-environments-training) to run tests that
-                    # are otherwise excluded from general CI runs.
-                    if file in test_settings.TESTS_TO_SKIP and file not in include_files:
-                        logger.debug(f"Skipping {file} as it's in the skip list")
-                        continue
-
-                full_path = os.path.join(root, file)
-
-                if filter_pattern and filter_pattern not in full_path:
-                    logger.debug(f"Skipping {full_path} (does not match include pattern: {filter_pattern})")
-                    continue
-                if exclude_pattern and any(p.strip() in full_path for p in exclude_pattern.split(",")):
-                    logger.debug(f"Skipping {full_path} (matches exclude pattern: {exclude_pattern})")
-                    continue
-                if include_files and file not in include_files:
-                    logger.debug(f"Skipping {full_path} (not in include files list)")
-                    continue
-
-                test_files.append(full_path)
-
-    # Sort test files deterministically to ensure consistent test ordering.
-    test_files.sort()
-
-    # Apply file-level sharding: select every Nth file from the deterministic order.
-    # Skip when include_files is set — in that case the test's own conftest handles
-    # sharding at the test-item level (e.g. parametrized test cases).
-    shard_index = os.environ.get("TEST_SHARD_INDEX", "")
-    shard_count = os.environ.get("TEST_SHARD_COUNT", "")
-    if shard_index and shard_count and not include_files:
-        shard_index = int(shard_index)
-        shard_count = int(shard_count)
-        test_files = [f for i, f in enumerate(test_files) if i % shard_count == shard_index]
-        logger.info(f"Shard {shard_index}/{shard_count}: selected {len(test_files)} test files")
-
-    return test_files
+    return failed_tests, test_status, xml_reports, leftovers
 
 
 def _load_test_node_ids_from_toml(workspace_root: str) -> list[str]:
@@ -1480,7 +1568,7 @@ def _load_test_node_ids_from_toml(workspace_root: str) -> list[str]:
     if not (node_ids_file or node_ids_key):
         return []
     if not (node_ids_file and node_ids_key):
-        pytest.exit("Both TEST_NODE_IDS_FILE and TEST_NODE_IDS_KEY must be set together", returncode=1)
+        raise TestRunError("Both TEST_NODE_IDS_FILE and TEST_NODE_IDS_KEY must be set together", 1)
 
     path = node_ids_file if os.path.isabs(node_ids_file) else os.path.join(workspace_root, node_ids_file)
 
@@ -1488,14 +1576,14 @@ def _load_test_node_ids_from_toml(workspace_root: str) -> list[str]:
         with open(os.path.normpath(path), "rb") as stream:
             node_ids = tomllib.load(stream).get(node_ids_key)
     except OSError as exc:
-        pytest.exit(f"Could not read TEST_NODE_IDS_FILE {node_ids_file!r}: {exc}", returncode=1)
+        raise TestRunError(f"Could not read TEST_NODE_IDS_FILE {node_ids_file!r}: {exc}", 1)
     except tomllib.TOMLDecodeError as exc:
-        pytest.exit(f"{node_ids_file}: invalid TOML: {exc}", returncode=1)
+        raise TestRunError(f"{node_ids_file}: invalid TOML: {exc}", 1)
 
     if not node_ids:
-        pytest.exit(f"{node_ids_key!r} not found or empty in {node_ids_file}", returncode=1)
+        raise TestRunError(f"{node_ids_key!r} not found or empty in {node_ids_file}", 1)
     if not isinstance(node_ids, list) or not all(isinstance(node_id, str) for node_id in node_ids):
-        pytest.exit(f"{node_ids_key!r} must be a TOML array of strings in {node_ids_file}", returncode=1)
+        raise TestRunError(f"{node_ids_key!r} must be a TOML array of strings in {node_ids_file}", 1)
 
     return node_ids
 
@@ -1505,13 +1593,13 @@ def _collect_test_node_ids_by_file(workspace_root: str) -> dict[str, list[str]]:
     node_ids = [line.strip() for line in os.environ.get("TEST_NODE_IDS", "").splitlines() if line.strip()]
     node_ids.extend(_load_test_node_ids_from_toml(workspace_root))
     if len(node_ids) != len(set(node_ids)):
-        pytest.exit("Configured test node IDs contain duplicates", returncode=1)
+        raise TestRunError("Configured test node IDs contain duplicates", 1)
 
     grouped: dict[str, list[str]] = {}
     for node_id in node_ids:
         normalized_node_id = node_id.replace("\\", "/")
         if "::" not in normalized_node_id:
-            pytest.exit(f"Configured test node ID must include '::': {node_id}", returncode=1)
+            raise TestRunError(f"Configured test node ID must include '::': {node_id}", 1)
 
         file_part, test_part = normalized_node_id.split("::", 1)
         if os.path.isabs(file_part):
@@ -1520,7 +1608,7 @@ def _collect_test_node_ids_by_file(workspace_root: str) -> dict[str, list[str]]:
             abs_file = os.path.normpath(os.path.join(workspace_root, file_part))
 
         if not os.path.exists(abs_file):
-            pytest.exit(f"Configured test node ID file does not exist: {node_id}", returncode=1)
+            raise TestRunError(f"Configured test node ID file does not exist: {node_id}", 1)
 
         grouped.setdefault(abs_file, []).append(f"{normalized_node_id.split('::', 1)[0]}::{test_part}")
 
@@ -1564,134 +1652,124 @@ def _format_test_file_results(test_files: list[str], test_status: dict[str, dict
     return summary + table.get_string()
 
 
-def pytest_sessionstart(session):
-    """Intercept pytest startup to execute tests in the correct order."""
-    # Get the workspace root directory (one level up from tools)
-    workspace_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    source_dirs = [
-        os.path.join(workspace_root, "scripts"),
-        os.path.join(workspace_root, "source"),
-    ]
+def _resolve_selection(args) -> tuple[list[str], str, str | None]:
+    """Turn the command line into the files to run, the ``-m`` marker and the ``-k`` expression.
 
-    # Get filter pattern from environment variable or command line
-    filter_pattern = os.environ.get("TEST_FILTER_PATTERN", "")
-    exclude_pattern = os.environ.get("TEST_EXCLUDE_PATTERN", "")
-    include_files_str = os.environ.get("TEST_INCLUDE_FILES", "")
-    quarantined_only = os.environ.get("TEST_QUARANTINED_ONLY", "false") == "true"
-    curobo_only = os.environ.get("TEST_CUROBO_ONLY", "false") == "true"
+    Args:
+        args: Parsed command-line arguments.
 
-    isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
+    Returns:
+        ``(test_files, marker, k_expr)``; ``test_files`` are absolute paths.
 
-    # CI_MARKER env var is a separate, parallel mechanism for cross-platform
-    # jobs (arm-ci, windows-ci, ...) to reuse this orchestrator with their own
-    # markers. Deliberately NOT aliased to ISAACSIM_CI_SHORT: the isaacsim_ci
-    # filter is owned by Isaac Sim's external CI pipeline; the CI_MARKER path
-    # leaves that contract untouched.
-    ci_marker = os.environ.get("CI_MARKER", "")
+    Raises:
+        TestRunError: If the selection names nothing runnable.
+    """
+    root = testplan.REPO_ROOT
+
+    if args.job:
+        job = testplan.get_job(args.job)
+        relative = testplan.resolve(job, shard=args.shard)
+        marker, k_expr = job.marker or "", job.k_expr
+    else:
+        paths = args.paths or (["source", "scripts"] if args.all else None)
+        if not paths:
+            raise TestRunError("nothing selected: pass --job, --all, or one or more paths", 2)
+        job = testplan.Job(name="ad-hoc", title="ad-hoc", workflow="", paths=tuple(paths))
+        relative = testplan.resolve(job)
+        marker, k_expr = "", None
+
+    # ISAACSIM_CI_SHORT is Isaac Sim's external pipeline asking for its own subset. It is a
+    # separate contract from the plan, so it narrows whatever the job selected rather than
+    # replacing it, and the job's own marker wins when both are present -- `-m` takes one
+    # expression.
+    if os.environ.get("ISAACSIM_CI_SHORT", "false") == "true":
+        relative = [
+            path for path in relative if "isaacsim_ci" in module_markers((root / path).read_text(errors="replace"))
+        ]
+        marker = marker or "isaacsim_ci"
+
+    if args.k_expr is not None:
+        k_expr = args.k_expr
+
+    test_files = [str(root / path) for path in relative]
+    if not test_files:
+        _write_empty_report()
+        raise TestRunError(f"no test files selected for {args.job or 'the given paths'}", 0)
+    return test_files, marker, k_expr
+
+
+def run(args) -> int:
+    """Resolve the selection, run it, and report.
+
+    Args:
+        args: Parsed command-line arguments.
+
+    Returns:
+        The process exit code; see :data:`EXIT_CODE_LABELS`.
+
+    Raises:
+        TestRunError: If the run could not be set up.
+    """
+    workspace_root = str(testplan.REPO_ROOT)
+    test_files, effective_marker, k_expr = _resolve_selection(args)
     test_node_ids_by_file = _collect_test_node_ids_by_file(workspace_root)
-
-    # Parse include files list (comma-separated paths)
-    include_files = set()
-    if include_files_str:
-        for f in include_files_str.split(","):
-            f = f.strip()
-            if f:
-                include_files.add(os.path.basename(f))
-    include_files.update(os.path.basename(path) for path in test_node_ids_by_file)
-
-    # Also try to get from pytest config
-    if hasattr(session.config, "option") and hasattr(session.config.option, "filter_pattern"):
-        filter_pattern = filter_pattern or getattr(session.config.option, "filter_pattern", "")
-    if hasattr(session.config, "option") and hasattr(session.config.option, "exclude_pattern"):
-        exclude_pattern = exclude_pattern or getattr(session.config.option, "exclude_pattern", "")
-
-    logger.debug("=" * 50)
-    logger.debug("CONFTEST.PY DEBUG INFO")
-    logger.debug("=" * 50)
-    logger.debug(f"Filter pattern: '{filter_pattern}'")
-    logger.debug(f"Exclude pattern: '{exclude_pattern}'")
-    logger.debug(f"Include files: {include_files if include_files else 'none'}")
-    logger.debug(f"Test node IDs: {sum(len(node_ids) for node_ids in test_node_ids_by_file.values())}")
-    logger.debug(f"Quarantined-only mode: {quarantined_only}")
-    logger.debug(f"Curobo-only mode: {curobo_only}")
-    logger.debug(f"TEST_FILTER_PATTERN env var: '{os.environ.get('TEST_FILTER_PATTERN', 'NOT_SET')}'")
-    logger.debug(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
-    logger.debug(f"TEST_INCLUDE_FILES env var: '{os.environ.get('TEST_INCLUDE_FILES', 'NOT_SET')}'")
-    logger.debug(f"TEST_NODE_IDS env var: '{'SET' if os.environ.get('TEST_NODE_IDS') else 'NOT_SET'}'")
-    logger.debug(f"TEST_NODE_IDS_FILE env var: '{os.environ.get('TEST_NODE_IDS_FILE', 'NOT_SET')}'")
-    logger.debug(f"TEST_NODE_IDS_KEY env var: '{os.environ.get('TEST_NODE_IDS_KEY', 'NOT_SET')}'")
-    logger.debug(f"TEST_QUARANTINED_ONLY env var: '{os.environ.get('TEST_QUARANTINED_ONLY', 'NOT_SET')}'")
-    logger.debug(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
-    logger.debug("=" * 50)
-
-    # Get all test files in the source directories
-    test_files = _collect_test_files(
-        source_dirs,
-        filter_pattern,
-        exclude_pattern,
-        include_files,
-        quarantined_only,
-        curobo_only,
-    )
-
-    if isaacsim_ci:
-        new_test_files = []
-        for test_file in test_files:
-            with open(test_file) as f:
-                if "@pytest.mark.isaacsim_ci" in f.read():
-                    new_test_files.append(test_file)
-        test_files = new_test_files
-
-    if ci_marker:
-        # Match both `@pytest.mark.<marker>` (per-function) and
-        # `pytestmark = pytest.mark.<marker>` / `pytestmark = [..., pytest.mark.<marker>, ...]`
-        # (module-level) by looking for the common `pytest.mark.<marker>` substring.
-        marker_token = f"pytest.mark.{ci_marker}"
-        new_test_files = []
-        for test_file in test_files:
-            try:
-                with open(test_file) as f:
-                    if marker_token in f.read():
-                        new_test_files.append(test_file)
-            except OSError as exc:
-                raise RuntimeError(
-                    f"ci_marker post-scan could not read {test_file}; refusing to"
-                    f" silently drop a potentially marker-tagged file"
-                ) from exc
-        test_files = new_test_files
 
     if test_node_ids_by_file:
         configured_files = set(test_node_ids_by_file)
         test_files = [test_file for test_file in test_files if os.path.normpath(test_file) in configured_files]
         missing_files = sorted(configured_files - {os.path.normpath(test_file) for test_file in test_files})
         if missing_files:
-            pytest.exit(f"Configured test node ID files were not collected: {missing_files}", returncode=1)
+            raise TestRunError(f"Configured test node ID files were not collected: {missing_files}", 1)
 
-    if not test_files:
-        if quarantined_only:
-            logger.info("No quarantined tests configured — nothing to run.")
-            _write_empty_report()
-            pytest.exit("No quarantined tests configured", returncode=0)
-        if filter_pattern:
-            logger.info(f"No test files found matching filter pattern '{filter_pattern}' — nothing to run.")
-            _write_empty_report()
-            pytest.exit("No test files found for filter", returncode=0)
-        logger.warning("No test files found in source directory")
-        pytest.exit("No test files found", returncode=1)
+    if k_expr:
+        os.environ["TEST_K_EXPR"] = k_expr
 
-    logger.info(f"Found {len(test_files)} test files after filtering")
+    logger.info(f"Found {len(test_files)} test files")
     for test_file in test_files:
         node_ids = test_node_ids_by_file.get(os.path.normpath(test_file), []) if test_node_ids_by_file else []
         suffix = f" ({', '.join(node_ids)})" if node_ids else ""
-        logger.info(f"  - {test_file}{suffix}")
+        logger.info(f"  - {os.path.relpath(test_file, workspace_root)}{suffix}")
 
-    # Run all tests individually. CI_MARKER takes precedence when both env
-    # vars are set; falls back to "isaacsim_ci" when only ISAACSIM_CI_SHORT
-    # is set. The pytest -m flag only accepts one expression.
-    effective_marker = ci_marker or ("isaacsim_ci" if isaacsim_ci else "")
+    # Files that declare a launch marker share one Kit app when they land in the same process,
+    # so group them and pay startup once per group instead of once per file. Unmarked files --
+    # still most of the suite -- keep a process each. Disabled by ISAACLAB_TEST_BATCH_KIT=0, and
+    # under the work queue, which hands out files one at a time across containers and so cannot
+    # offer coherent groups.
+    batched_files, batch_results = [], ([], {}, [])
+    if batching_enabled() and not os.environ.get("ISAACLAB_TEST_QUEUE"):
+        sources = {}
+        for path in test_files:
+            try:
+                with open(path) as fh:
+                    sources[path] = fh.read()
+            except OSError:
+                pass  # left out of `sources`, which group_test_files treats as unbatchable
+        batches = group_test_files(
+            test_files,
+            sources,
+            unbatchable=_batching_exclusions(test_files, test_node_ids_by_file, sources),
+            max_size=batch_size(),
+        )
+        multi = [b for b in batches if b.is_batched]
+        if multi:
+            batched_files = [f for b in multi for f in b.files]
+            logger.info(
+                f"⚡ Kit batching: {len(batched_files)} of {len(test_files)} files grouped into"
+                f" {len(multi)} process(es); the rest run individually"
+            )
+            failed, status, reports, leftovers = run_batched_tests(multi, workspace_root, effective_marker)
+            batch_results = (failed, status, reports)
+            # Files a batch never reached fall back to the per-file path, so batching can
+            # never do worse than the behaviour it replaces.
+            batched_files = [f for f in batched_files if f not in leftovers]
+
+    remaining = [f for f in test_files if f not in batched_files]
     failed_tests, test_status, xml_reports = run_individual_tests(
-        test_files, workspace_root, effective_marker, test_node_ids_by_file
+        remaining, workspace_root, effective_marker, test_node_ids_by_file
     )
+    failed_tests = batch_results[0] + failed_tests
+    test_status = {**batch_results[1], **test_status}
+    xml_reports = batch_results[2] + xml_reports
 
     # In work-queue mode this container ran only the files it claimed; report on those.
     if os.environ.get("ISAACLAB_TEST_QUEUE"):
@@ -1767,5 +1845,64 @@ def pytest_sessionstart(session):
     # Print summary to console and log file
     logger.info(summary_str)
 
-    # Exit pytest after custom execution to prevent normal pytest from overwriting our report
-    pytest.exit("Custom test execution completed", returncode=exit_code)
+    return exit_code
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the command-line interface."""
+    parser = argparse.ArgumentParser(
+        prog="run_tests.py",
+        description=__doc__.splitlines()[0],
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "examples:\n"
+            "  python tools/run_tests.py --list-jobs\n"
+            "  python tools/run_tests.py --job isaaclab-core --shard 0\n"
+            "  python tools/run_tests.py source/isaaclab/test/sim\n"
+            "  python tools/run_tests.py --all\n"
+        ),
+    )
+    what = parser.add_mutually_exclusive_group()
+    what.add_argument("--job", help="run a job from tools/test_plan.toml")
+    what.add_argument("--all", action="store_true", help="run every test file under source/ and scripts/")
+    parser.add_argument("paths", nargs="*", help="directories to walk for test_*.py")
+    parser.add_argument("--shard", type=int, help="which shard of a sharded job to run, 0-based")
+    parser.add_argument("-k", dest="k_expr", help="pytest -k expression; overrides the job's own")
+    parser.add_argument("--list-jobs", action="store_true", help="list the jobs in the test plan and exit")
+    parser.add_argument("--list-files", action="store_true", help="print the resolved file list and exit")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Entry point.
+
+    Args:
+        argv: Command-line arguments; defaults to ``sys.argv[1:]``.
+
+    Returns:
+        The process exit code.
+    """
+    args = _build_parser().parse_args(argv)
+
+    if args.list_jobs:
+        rows = PrettyTable(["job", "workflow", "shards", "files"])
+        rows.align = "l"
+        for job in testplan.load_plan():
+            rows.add_row([job.name, job.workflow, job.shards or 1, len(testplan.resolve(job))])
+        print(rows)
+        return 0
+
+    try:
+        if args.list_files:
+            test_files, _, _ = _resolve_selection(args)
+            print("\n".join(os.path.relpath(path, testplan.REPO_ROOT) for path in test_files))
+            return 0
+        return run(args)
+    except TestRunError as exc:
+        level = logger.info if exc.returncode == 0 else logger.error
+        level(str(exc))
+        return exc.returncode
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

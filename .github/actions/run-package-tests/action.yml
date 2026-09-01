@@ -27,44 +27,21 @@ inputs:
     description: 'ECR cache tag'
     default: 'cache-base'
     required: false
-  filter-pattern:
-    description: >-
-      Pattern to filter test files (e.g., isaaclab_tasks); test files whose path
-      contains this pattern are included. Only one pattern can be used at a time,
-      no comma-separated substrings allowed. Also supports the legacy "not <pattern>"
-      form for exclude-only jobs.
-    default: ''
-    required: false
-  exclude-pattern:
-    description: >-
-      Comma-separated substrings; test files whose path contains any entry are
-      skipped. Combines with filter-pattern (include + exclude).
-    default: ''
-    required: false
   test-k-expr:
     description: >-
       Global pytest -k expression applied inside every per-file pytest run
-      spawned by tools/conftest.py (combined with device-split selectors).
+      spawned by tools/run_tests.py (combined with device-split selectors).
     default: ''
     required: false
-  shard-index:
-    description: 'Zero-based shard index'
+  job:
+    description: >-
+      Name of a job in tools/test_plan.toml. The plan decides which files the job covers;
+      tools/run_tests.py runs them. Leave empty only when test-path names a file to run
+      directly through pytest.
     default: ''
     required: false
-  shard-count:
-    description: 'Total number of shards'
-    default: ''
-    required: false
-  curobo-only:
-    description: 'Run only cuRobo and SkillGen tests'
-    default: 'false'
-    required: false
-  quarantined-only:
-    description: 'Run only quarantined tests'
-    default: 'false'
-    required: false
-  include-files:
-    description: 'Comma-separated list of specific test files to include'
+  shard:
+    description: 'Which shard of a sharded job to run, 0-based. Empty for an unsharded job.'
     default: ''
     required: false
   test-node-ids-file:
@@ -301,14 +278,9 @@ runs:
         container-name: "${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}"
         image-tag: ${{ inputs.image-tag }}
         pytest-options: ${{ inputs.pytest-options }}
-        filter-pattern: ${{ inputs.filter-pattern }}
-        exclude-pattern: ${{ inputs.exclude-pattern }}
+        job: ${{ inputs.job }}
+        shard: ${{ inputs.shard }}
         test-k-expr: ${{ inputs.test-k-expr }}
-        shard-index: ${{ inputs.shard-index }}
-        shard-count: ${{ inputs.shard-count }}
-        curobo-only: ${{ inputs.curobo-only }}
-        quarantined-only: ${{ inputs.quarantined-only }}
-        include-files: ${{ inputs.include-files }}
         test-node-ids-file: ${{ inputs.test-node-ids-file }}
         test-node-ids-key: ${{ inputs.test-node-ids-key }}
         volume-mount-source: ${{ github.workspace }}

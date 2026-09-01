@@ -60,7 +60,6 @@ jobs:
         # Files are listed explicitly rather than collected from tools/: test_settings.py is a
         # configuration module, not a test, and tools/test/ needs the full Isaac Lab install.
         #
-        # --noconftest keeps tools/conftest.py out of the session. That file is the CI test
-        # orchestrator - its pytest_sessionstart scans source/ and scripts/ and runs the whole
-        # suite, so loading it here would ignore the files named below.
-        run: python3 -m pytest tools/test_crash_journal.py tools/test_device_split.py -v --noconftest
+        # The runner is tools/run_tests.py, an ordinary script, so an ordinary pytest run
+        # over these files no longer has to defend itself against a conftest that hijacks it.
+        run: python3 -m pytest tools/test_crash_journal.py tools/test_device_split.py -v

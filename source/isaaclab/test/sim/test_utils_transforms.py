@@ -3,15 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 import math
 
 import numpy as np
@@ -23,7 +14,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.kit, pytest.mark.integration]
 
 
 @pytest.fixture(autouse=True)

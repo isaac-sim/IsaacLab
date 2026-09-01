@@ -5,7 +5,7 @@
 
 """pytest plugin: select which tests a non-default GPU shard runs.
 
-Loaded only by the multi-GPU lane: ``tools/conftest.py`` injects it via
+Loaded only by the multi-GPU lane: ``tools/run_tests.py`` injects it via
 ``-p mgpu_shard_select`` into each per-file pytest subprocess (and prepends this
 directory to ``PYTHONPATH`` so it is importable). It lives next to the lane
 scripts rather than as a repo-root ``conftest.py`` so it only affects the lane.
@@ -86,7 +86,7 @@ def pytest_collection_modifyitems(config, items):
 def pytest_sessionfinish(session, exitstatus):
     # A file whose tests are all out of scope deselects to zero, so pytest exits
     # NO_TESTS_COLLECTED (5). The lane orchestrator treats any non-zero per-file
-    # exit as a failure (tools/conftest.py), so report "nothing in scope for this
+    # exit as a failure (tools/run_tests.py), so report "nothing in scope for this
     # file" as success rather than a false failure.
     if _shard_mask() is not None and exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED:
         session.exitstatus = pytest.ExitCode.OK

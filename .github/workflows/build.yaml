@@ -27,12 +27,9 @@
 #        if: false  # TEMP: Disabled for debugging
 #
 # 2. RUN ONLY SPECIFIC TEST FILES (within a job):
-#    Add `include-files:` parameter to run-package-tests action
-#    Example:
-#      - uses: ./.github/actions/run-package-tests
-#        with:
-#          ...
-#          include-files: "test_rigid_object_collection.py"  # Comma-separated
+#    Edit the job's entry in tools/test_plan.toml -- `files = [...]` limits it to those
+#    basenames -- then run `python tools/generate_workflows.py` if the job is generated.
+#    Locally the same selection is `python tools/run_tests.py --job <name>`.
 #
 # 3. SKIP CONCURRENCY WAIT (run immediately without waiting for other runs):
 #    Comment out the concurrency block:
@@ -217,7 +214,9 @@ jobs:
   #endregion
 
   #region test jobs
-  test-isaaclab-tasks:
+  # >>> generated from tools/test_plan.toml -- edit the plan, then run tools/generate_workflows.py
+
+  test-isaaclab-tasks-1:
     name: isaaclab_tasks [1/3]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
@@ -236,11 +235,9 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
-        exclude-pattern: "test_rendering_,test_video_recording.py"
+        job: isaaclab-tasks
+        shard: "0"
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
-        shard-index: "0"
-        shard-count: "3"
         warp-cache: restore
         container-name: isaac-lab-tasks-1-test
 
@@ -263,11 +260,9 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
-        exclude-pattern: "test_rendering_,test_video_recording.py"
+        job: isaaclab-tasks
+        shard: "1"
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
-        shard-index: "1"
-        shard-count: "3"
         warp-cache: restore
         container-name: isaac-lab-tasks-2-test
 
@@ -290,15 +285,13 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
-        exclude-pattern: "test_rendering_,test_video_recording.py"
+        job: isaaclab-tasks
+        shard: "2"
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
-        shard-index: "2"
-        shard-count: "3"
         warp-cache: restore
         container-name: isaac-lab-tasks-3-test
 
-  test-isaaclab-core:
+  test-isaaclab-core-1:
     name: isaaclab (core) [1/3]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
@@ -316,9 +309,8 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "not isaaclab_"
-        shard-index: "0"
-        shard-count: "3"
+        job: isaaclab-core
+        shard: "0"
         warp-cache: restore
         container-name: isaac-lab-core-1-test
 
@@ -340,9 +332,8 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "not isaaclab_"
-        shard-index: "1"
-        shard-count: "3"
+        job: isaaclab-core
+        shard: "1"
         warp-cache: restore
         container-name: isaac-lab-core-2-test
 
@@ -364,11 +355,205 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "not isaaclab_"
-        shard-index: "2"
-        shard-count: "3"
+        job: isaaclab-core
+        shard: "2"
         warp-cache: restore
         container-name: isaac-lab-core-3-test
+
+  test-isaaclab-rl:
+    name: isaaclab_rl
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        job: isaaclab-rl
+        extra-pip-packages: "leapp"
+        container-name: isaac-lab-rl-test
+
+  test-isaaclab-mimic:
+    name: isaaclab_mimic
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        job: isaaclab-mimic
+        container-name: isaac-lab-mimic-test
+
+  test-isaaclab-contrib:
+    name: isaaclab_contrib
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        job: isaaclab-contrib
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
+        container-name: isaac-lab-contrib-test
+
+  test-isaaclab-teleop:
+    name: isaaclab_teleop
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        job: isaaclab-teleop
+        container-name: isaac-lab-teleop-test
+
+  test-isaaclab-visualizers:
+    name: isaaclab_visualizers
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        job: isaaclab-visualizers
+        container-name: isaac-lab-visualizers-test
+
+  test-isaaclab-assets:
+    name: isaaclab_assets
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        job: isaaclab-assets
+        container-name: isaac-lab-assets-test
+
+  test-isaaclab-experimental:
+    name: isaaclab_experimental
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        job: isaaclab-experimental
+        container-name: isaac-lab-experimental-test
+
+  test-isaaclab-newton:
+    name: isaaclab_newton
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        job: isaaclab-newton
+        warp-cache: restore
+        container-name: isaac-lab-newton-test
+
+  test-isaaclab-physx:
+    name: isaaclab_physx
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        job: isaaclab-physx
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
+        container-name: isaac-lab-physx-test
+
+  # <<< end generated jobs
 
   # Kit and non-Kit are written out rather than expressed as a matrix: these job
   # names are required status checks, and a skipped matrix job publishes its
@@ -392,9 +577,9 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        job: standalone-demos-kit
         # deformables.py tetrahedralizes its volume meshes at startup
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
-        include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
         standalone-script-runtime-group: kit
@@ -423,210 +608,17 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        job: standalone-demos-non-kit
         # deformables.py tetrahedralizes its volume meshes at startup
         extra-pip-packages: >-
           pytetwild[all]>=0.3.0,<0.4
           ${{ steps.ov_pins.outputs.ovphysx }}
-        include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
         standalone-script-runtime-group: non-kit
         result-file: "test-standalone-demos-non-kit-report.xml"
         container-name: isaac-lab-standalone-demos-non-kit-test
         omni-github-test-type: standalone-demo
-
-  test-isaaclab-rl:
-    name: isaaclab_rl
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_rl"
-        extra-pip-packages: "leapp"
-        container-name: isaac-lab-rl-test
-
-  test-isaaclab-mimic:
-    name: isaaclab_mimic
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_mimic"
-        container-name: isaac-lab-mimic-test
-
-  test-isaaclab-contrib:
-    name: isaaclab_contrib
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_contrib"
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
-        container-name: isaac-lab-contrib-test
-
-  test-isaaclab-teleop:
-    name: isaaclab_teleop
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_teleop"
-        container-name: isaac-lab-teleop-test
-
-  test-isaaclab-visualizers:
-    name: isaaclab_visualizers
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_visualizers"
-        container-name: isaac-lab-visualizers-test
-
-  test-isaaclab-assets:
-    name: isaaclab_assets
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_assets"
-        container-name: isaac-lab-assets-test
-
-  test-isaaclab-experimental:
-    name: isaaclab_experimental
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_experimental"
-        container-name: isaac-lab-experimental-test
-
-  test-isaaclab-newton:
-    name: isaaclab_newton
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_newton"
-        warp-cache: restore
-        container-name: isaac-lab-newton-test
-
-  test-isaaclab-physx:
-    name: isaaclab_physx
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 180
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_physx"
-        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
-        container-name: isaac-lab-physx-test
 
   test-isaaclab-ov:
     name: isaaclab_ov
@@ -651,7 +643,7 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_ov"
+        job: isaaclab-ov
         # Volume deformable tests tetrahedralize their meshes at startup.
         extra-pip-packages: pytetwild[all]>=0.3.0,<0.4 ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
@@ -703,9 +695,9 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-curobo
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        job: curobo
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
-        include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
         container-name: isaac-lab-curobo-test
 
     # Folded from the former standalone verify-curobo-non-root job: reuses
@@ -753,9 +745,9 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-curobo
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        job: contrib-environments
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
-        include-files: "test_generate_dataset_skillgen.py,test_contrib_environments.py"
         container-name: isaac-lab-contrib-environments-test
 
   test-record-video:
@@ -777,8 +769,7 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
-        include-files: "test_video_recording.py"
+        job: record-video
         extra-uv-packages: "moviepy>=1.0.3,<2.0.0.dev0 decorator<5"
         container-name: isaac-lab-record-video-test
         omni-github-test-type: video-e2e
@@ -800,17 +791,8 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
+        job: rendering-correctness
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
-        include-files: >-
-          test_rendering_cartpole.py,
-          test_rendering_lift_kuka_hetero.py,
-          test_rendering_lift_kuka_homo.py,
-          test_rendering_franka_cloth.py,
-          test_rendering_franka_soft.py,
-          test_rendering_franka_cable.py,
-          test_rendering_registered_tasks.py,
-          test_rendering_shadow_hand.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
         warp-cache: restore
@@ -844,21 +826,12 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
+        job: rendering-correctness-kitless-legacy
         extra-pip-packages: >-
           pytetwild[all]>=0.3.0,<0.4
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
-        include-files: >-
-          test_rendering_cartpole_kitless.py,
-          test_rendering_lift_kuka_hetero_kitless.py,
-          test_rendering_lift_kuka_homo_kitless.py,
-          test_rendering_franka_cloth_kitless.py,
-          test_rendering_franka_soft_kitless.py,
-          test_rendering_franka_cable_kitless.py,
-          test_rendering_shadow_hand_kitless.py
-        test-k-expr: legacy
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
         warp-cache: restore
@@ -890,21 +863,12 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
+        job: rendering-correctness-kitless-ovstage
         extra-pip-packages: >-
           pytetwild[all]>=0.3.0,<0.4
           ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
-        include-files: >-
-          test_rendering_cartpole_kitless.py,
-          test_rendering_lift_kuka_hetero_kitless.py,
-          test_rendering_lift_kuka_homo_kitless.py,
-          test_rendering_franka_cloth_kitless.py,
-          test_rendering_franka_soft_kitless.py,
-          test_rendering_franka_cable_kitless.py,
-          test_rendering_shadow_hand_kitless.py
-        test-k-expr: ovstage
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
         container-name: "isaac-lab-rendering-correctness-kitless-ovstage-test"
@@ -948,17 +912,13 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
+        job: warp-cache-warm
         # Warm every supported rigid core environment on Newton. MJWarp
         # specializes kernels per model config, so a small representative task
         # set leaves most of the cache to be compiled again by each PR test
         # shard. The multi-agent suite supplies Handover.
-        include-files: >-
-          test_environments_newton.py,
-          test_multi_agent_environments.py
         # Deformable tasks need optional dependencies that are not installed in
         # this image.
-        test-k-expr: "test_environments and not (Soft or Cloth or Cable)"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-warp-cache-warm
         omni-github-test-type: warp-cache-warm

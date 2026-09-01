@@ -3,7 +3,7 @@
 #
 #   1. ``pythonpath = ["."]`` adds ``tools/skills/`` to ``sys.path``,
 #      making ``import cli`` work from the test files without any shim.
-#   2. ``tools/conftest.py`` sits above rootdir and is therefore not loaded.
+#   2. ``tools/run_tests.py`` sits above rootdir and is therefore not loaded.
 #
 # Run with: ``uv run python -m pytest tools/skills/``
 [tool.pytest.ini_options]

@@ -123,6 +123,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ matrix.isaacsim_version }}
+        job: isaaclab-tasks-compat
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
@@ -134,7 +135,6 @@ jobs:
         container-name: "isaac-lab-tasks-compat-test-$$"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
-        filter-pattern: "isaaclab_tasks"
         extra-pip-packages: ${{ format('{0} {1}', steps.ov_pins.outputs.ovphysx, steps.ov_pins.outputs.ovrtx) }}
 
     - name: Copy All Test Results from IsaacLab Tasks Container
@@ -183,6 +183,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ matrix.isaacsim_version }}
+        job: general-compat
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
@@ -194,7 +195,6 @@ jobs:
         container-name: "isaac-lab-general-compat-test-$$"
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
-        filter-pattern: "not isaaclab_tasks"
 
     - name: Copy All Test Results from General Tests Container
       run: |

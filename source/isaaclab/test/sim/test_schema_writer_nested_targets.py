@@ -3,15 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 import os
 
 import pytest
@@ -23,7 +14,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.kit, pytest.mark.integration]
 
 
 LINK_REL_PATHS = ("link1", "link2", "link2/link3")

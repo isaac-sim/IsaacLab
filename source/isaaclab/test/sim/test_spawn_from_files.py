@@ -3,15 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.app import AppLauncher
-
-"""Launch Isaac Sim Simulator first."""
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 import pytest
 
 import omni.kit.app
@@ -22,7 +13,7 @@ from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.kit, pytest.mark.integration]
 
 
 @pytest.fixture

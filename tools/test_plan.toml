@@ -1,0 +1,280 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# The test plan: one entry per CI job, and the single source of truth for what any run
+# covers. `tools/run_tests.py` executes a job from here; `tools/generate_workflows.py`
+# renders the workflow YAML from the same entries, so a job cannot exist in CI without
+# being described here. See tools/testplan.py for the field semantics.
+#
+# Selection fields:
+#   paths    directories to walk for test_*.py (required)
+#   exclude  substrings; a file whose repo-relative path contains any of them is dropped
+#   files    basenames; when set, only these files run, and they override TESTS_TO_SKIP
+#   shards   split the resolved list across N jobs, round-robin by sorted position
+#   pool     "quarantined" or "curobo" selects that list from tools/test_settings.py
+#            instead of walking `paths`, and bypasses TESTS_TO_SKIP
+#
+# Execution fields (k-expr, marker) narrow within a file rather than choosing files.
+
+# ---------------------------------------------------------------------------
+# build.yaml -- the per-package lanes that run on every PR
+# ---------------------------------------------------------------------------
+
+[[job]]
+name = "isaaclab-tasks"
+title = "isaaclab_tasks"
+workflow = "build"
+paths = ["source/isaaclab_tasks"]
+exclude = ["test_rendering_", "test_video_recording.py"]
+shards = 3
+container-name = "isaac-lab-tasks-test"
+warp-cache = "restore"
+generate = true
+continue-on-error = true
+extra-pip-packages = "pytetwild[all]>=0.3.0,<0.4"
+
+[[job]]
+name = "isaaclab-core"
+title = "isaaclab (core)"
+workflow = "build"
+# Everything that is not a source/isaaclab_* package: the core library plus the
+# repo scripts. Walking the directories rather than matching "not isaaclab_" as a
+# substring is what keeps `source/isaaclab` from also selecting `source/isaaclab_rl`.
+paths = ["source/isaaclab", "scripts"]
+shards = 3
+container-name = "isaac-lab-core-test"
+warp-cache = "restore"
+generate = true
+
+[[job]]
+name = "isaaclab-rl"
+title = "isaaclab_rl"
+workflow = "build"
+paths = ["source/isaaclab_rl"]
+container-name = "isaac-lab-rl-test"
+generate = true
+extra-pip-packages = "leapp"
+
+[[job]]
+name = "isaaclab-mimic"
+title = "isaaclab_mimic"
+workflow = "build"
+paths = ["source/isaaclab_mimic"]
+container-name = "isaac-lab-mimic-test"
+generate = true
+
+[[job]]
+name = "isaaclab-contrib"
+title = "isaaclab_contrib"
+workflow = "build"
+paths = ["source/isaaclab_contrib"]
+container-name = "isaac-lab-contrib-test"
+generate = true
+extra-pip-packages = "pytetwild[all]>=0.3.0,<0.4"
+
+[[job]]
+name = "isaaclab-teleop"
+title = "isaaclab_teleop"
+workflow = "build"
+paths = ["source/isaaclab_teleop"]
+container-name = "isaac-lab-teleop-test"
+generate = true
+
+[[job]]
+name = "isaaclab-visualizers"
+title = "isaaclab_visualizers"
+workflow = "build"
+paths = ["source/isaaclab_visualizers"]
+container-name = "isaac-lab-visualizers-test"
+generate = true
+
+[[job]]
+name = "isaaclab-assets"
+title = "isaaclab_assets"
+workflow = "build"
+paths = ["source/isaaclab_assets"]
+container-name = "isaac-lab-assets-test"
+generate = true
+
+[[job]]
+name = "isaaclab-experimental"
+title = "isaaclab_experimental"
+workflow = "build"
+paths = ["source/isaaclab_experimental"]
+container-name = "isaac-lab-experimental-test"
+generate = true
+
+[[job]]
+name = "isaaclab-newton"
+title = "isaaclab_newton"
+workflow = "build"
+paths = ["source/isaaclab_newton"]
+container-name = "isaac-lab-newton-test"
+generate = true
+warp-cache = "restore"
+
+[[job]]
+name = "isaaclab-physx"
+title = "isaaclab_physx"
+workflow = "build"
+paths = ["source/isaaclab_physx"]
+container-name = "isaac-lab-physx-test"
+generate = true
+extra-pip-packages = "pytetwild[all]>=0.3.0,<0.4"
+
+[[job]]
+name = "isaaclab-ov"
+title = "isaaclab_ov"
+workflow = "build"
+paths = ["source/isaaclab_ov"]
+container-name = "isaac-lab-ov-test"
+
+# ---------------------------------------------------------------------------
+# build.yaml -- targeted lanes selecting individual files
+# ---------------------------------------------------------------------------
+
+[[job]]
+name = "standalone-demos-kit"
+title = "standalone demos (headless, Kit)"
+workflow = "build"
+paths = ["source", "scripts"]
+files = ["test_standalone_scripts.py"]
+container-name = "isaac-lab-standalone-kit-test"
+
+[[job]]
+name = "standalone-demos-non-kit"
+title = "standalone demos (headless, non-Kit)"
+workflow = "build"
+paths = ["source", "scripts"]
+files = ["test_standalone_scripts.py"]
+container-name = "isaac-lab-standalone-non-kit-test"
+
+[[job]]
+name = "curobo"
+title = "test-curobo"
+workflow = "build"
+paths = ["source", "scripts"]
+files = ["test_curobo_planner_franka.py", "test_curobo_planner_cube_stack.py", "test_pink_ik.py"]
+container-name = "isaac-lab-curobo-test"
+
+[[job]]
+name = "contrib-environments"
+title = "test-contrib-environments"
+workflow = "build"
+paths = ["source", "scripts"]
+files = ["test_generate_dataset_skillgen.py", "test_contrib_environments.py"]
+container-name = "isaac-lab-contrib-env-test"
+
+[[job]]
+name = "record-video"
+title = "record-video"
+workflow = "build"
+paths = ["source/isaaclab_tasks"]
+files = ["test_video_recording.py"]
+container-name = "isaac-lab-record-video-test"
+
+[[job]]
+name = "rendering-correctness"
+title = "rendering-correctness"
+workflow = "build"
+paths = ["source/isaaclab_tasks"]
+files = [
+    "test_rendering_cartpole.py",
+    "test_rendering_lift_kuka_hetero.py",
+    "test_rendering_lift_kuka_homo.py",
+    "test_rendering_franka_cloth.py",
+    "test_rendering_franka_soft.py",
+    "test_rendering_franka_cable.py",
+    "test_rendering_registered_tasks.py",
+    "test_rendering_shadow_hand.py",
+]
+node-ids-key = "rendering-correctness"
+container-name = "isaac-lab-rendering-test"
+
+[[job]]
+name = "rendering-correctness-kitless-legacy"
+title = "rendering-correctness-kitless (legacy)"
+workflow = "build"
+paths = ["source/isaaclab_tasks"]
+files = [
+    "test_rendering_cartpole_kitless.py",
+    "test_rendering_lift_kuka_hetero_kitless.py",
+    "test_rendering_lift_kuka_homo_kitless.py",
+    "test_rendering_franka_cloth_kitless.py",
+    "test_rendering_franka_soft_kitless.py",
+    "test_rendering_franka_cable_kitless.py",
+    "test_rendering_shadow_hand_kitless.py",
+]
+node-ids-key = "rendering-correctness-kitless-legacy"
+k-expr = "legacy"
+container-name = "isaac-lab-rendering-kitless-legacy-test"
+
+[[job]]
+name = "rendering-correctness-kitless-ovstage"
+title = "rendering-correctness-kitless (ovstage)"
+workflow = "build"
+paths = ["source/isaaclab_tasks"]
+files = [
+    "test_rendering_cartpole_kitless.py",
+    "test_rendering_lift_kuka_hetero_kitless.py",
+    "test_rendering_lift_kuka_homo_kitless.py",
+    "test_rendering_franka_cloth_kitless.py",
+    "test_rendering_franka_soft_kitless.py",
+    "test_rendering_franka_cable_kitless.py",
+    "test_rendering_shadow_hand_kitless.py",
+]
+node-ids-key = "rendering-correctness-kitless-ovstage"
+k-expr = "ovstage"
+container-name = "isaac-lab-rendering-kitless-ovstage-test"
+
+[[job]]
+name = "warp-cache-warm"
+title = "warp-cache-warm"
+workflow = "build"
+paths = ["source/isaaclab_tasks"]
+files = ["test_environments_newton.py", "test_multi_agent_environments.py"]
+k-expr = "test_environments and not (Soft or Cloth or Cable)"
+container-name = "isaac-lab-warp-warm"
+
+# ---------------------------------------------------------------------------
+# daily-compatibility.yml
+# ---------------------------------------------------------------------------
+
+[[job]]
+name = "isaaclab-tasks-compat"
+title = "test-isaaclab-tasks-compat"
+workflow = "daily-compatibility"
+paths = ["source/isaaclab_tasks"]
+container-name = "isaac-lab-tasks-compat-test"
+
+[[job]]
+name = "general-compat"
+title = "test-general-compat"
+workflow = "daily-compatibility"
+paths = ["source", "scripts"]
+exclude = ["isaaclab_tasks"]
+container-name = "isaac-lab-general-compat-test"
+
+# ---------------------------------------------------------------------------
+# arm-ci.yml -- one lane, split by -k so the ovphysx tests run separately
+# ---------------------------------------------------------------------------
+
+[[job]]
+name = "arm-ci"
+title = "Build & Test"
+workflow = "arm-ci"
+paths = ["source", "scripts"]
+marker = "arm_ci"
+k-expr = "not ovphysx"
+container-name = "isaac-lab-arm-test"
+
+[[job]]
+name = "arm-ci-ovphysx"
+title = "Build & Test"
+workflow = "arm-ci"
+paths = ["source", "scripts"]
+marker = "arm_ci"
+k-expr = "ovphysx"
+container-name = "isaac-lab-arm-ovphysx-test"

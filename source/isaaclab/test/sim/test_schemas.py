@@ -3,15 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 import math
 import warnings
 
@@ -45,7 +36,7 @@ from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg, spawn_rigi
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.string import to_camel_case
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.kit, pytest.mark.integration]
 
 
 @pytest.fixture

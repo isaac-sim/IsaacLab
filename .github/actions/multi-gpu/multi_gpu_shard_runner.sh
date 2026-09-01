@@ -103,10 +103,7 @@ for ((cuda = 1; cuda < DEV_COUNT; cuda++)); do  # C-style loop; start at 1 to sk
     # full $shard_log under a collapsible ``::group::shard cuda:N log``.
     # (tee = full output to the log file; stdbuf -oL = flush per line so the
     # filtered grep/sed stream appears live, not in delayed chunks.)
-    ./isaaclab.sh -p -m pytest \
-      --ignore=tools/conftest.py \
-      --ignore=source/isaaclab/test/install_ci \
-      tools -v 2>&1 \
+    ./isaaclab.sh -p tools/run_tests.py --all 2>&1 \
       | tee "$shard_log" \
       | stdbuf -oL grep -aE \
           '🚀|^source/.*::.* (PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)|^(Total|Passing|Failing|Crashed|Startup Hang|Timeout|Total Wall Time|Total Test Time|Passing Percentage):|^~~~~|^=+ |^E +|^ +File |Traceback|^FAILED|^ERROR ' \

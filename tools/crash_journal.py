@@ -7,7 +7,7 @@
 
 pytest writes its JUnit XML once, in ``pytest_sessionfinish``. A run killed before that point —
 a Kit shutdown crash, an OOM kill, a hard timeout — leaves no report at all, even though every
-test verdict was already printed to stdout. ``tools/conftest.py`` used to answer that by
+test verdict was already printed to stdout. ``tools/run_tests.py`` used to answer that by
 synthesizing a single ``test_execution`` error, which discarded which tests passed, which failed,
 and which one was in flight when the process died.
 

@@ -184,8 +184,7 @@ jobs:
         container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
-        test-k-expr: not ovphysx
-        ci-marker: arm_ci
+        job: arm-ci
         volume-mount-source: ${{ github.workspace }}
 
     - name: Run arm_ci OVPhysX marker tests
@@ -196,8 +195,7 @@ jobs:
         container-name: isaac-lab-arm-ci-ovphysx-${{ github.run_id }}-${{ github.run_attempt }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
-        test-k-expr: ovphysx
-        ci-marker: arm_ci
+        job: arm-ci-ovphysx
         volume-mount-source: ${{ github.workspace }}
 
 
