@@ -43,7 +43,7 @@ A comment that reads well is not evidence that its claims are true. Verify every
 
 ## URL Traps
 
-- `github.com/isaac-sim/IsaacLab/blob/main/...` **404s** for anything under `source/isaaclab_newton/`, `source/isaaclab_ov/`, `source/isaaclab_ovphysx/` or `isaaclab_contrib` — those packages are not on `main`. Use `blob/develop/...`, or cite the path in backticks with no link.
+- `github.com/isaac-sim/IsaacLab/blob/main/...` **404s** for anything under `source/isaaclab_newton/`, `source/isaaclab_ov/` or `source/isaaclab_contrib/` — those packages are not on `main`. Use `blob/develop/...`, or cite the path in backticks with no link. Package layout shifts over time (e.g. `isaaclab_ovphysx` was merged into `isaaclab_ov`), so verify the path exists on the ref you link.
 - `isaac-sim.github.io/IsaacLab/main/...` is the stale 2.x docs build. Use `release/3.0.0/...`, and confirm the anchor still exists — several 2.x anchors were removed in the 3.x reorganisation.
 
 ## Do Not Close
