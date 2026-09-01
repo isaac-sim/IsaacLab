@@ -11,7 +11,7 @@ The teapot is a hollow, double-walled shell, so the fluid is seeded in its enclo
 .. code-block:: bash
 
     # Fast Newton visualizer (the default):
-    uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer newton
+    uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer newton_gl
     # The translucent water material needs the RTX/Kit visualizer:
     uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer kit
     # Fuller / coarser (faster) fill:
@@ -32,9 +32,13 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 
 DEFAULT_VOXEL_SIZE = 0.003
-DEFAULT_PARTICLES_PER_CELL = 1.2
+DEFAULT_PARTICLES_PER_VOXEL_AXIS = 2.0
 DEFAULT_FILL_LEVEL = 0.70
 DEFAULT_MIN_RAY_HITS = 5
+DEFAULT_ISLAND_USD = (
+    f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Kitchen/Counters/Island_A01/sm_fixture_island_a01_01.usd"
+)
+DEFAULT_BOWL_USD = f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Kitchen/Dishware/Bowl_G01/sm_kitchenware_bowl_g01_01.usd"
 
 
 def _positive_finite_float(value: str) -> float:
@@ -57,8 +61,8 @@ parser = argparse.ArgumentParser(description="Newton implicit MPM teapot-fill de
 parser.add_argument(
     "--max_steps",
     type=int,
-    default=3000,
-    help="Stop after this many frames; negative runs forever.",
+    default=6000,
+    help="Stop after this many simulation steps; negative runs forever.",
 )
 parser.add_argument(
     "--voxel_size",
@@ -81,7 +85,7 @@ parser.add_argument(
     default=None,
     help=(
         "Particle spacing used to sample the cavity volume [m]."
-        f" Defaults to voxel_size / {DEFAULT_PARTICLES_PER_CELL:g}."
+        f" Defaults to voxel_size / {DEFAULT_PARTICLES_PER_VOXEL_AXIS:g}."
     ),
 )
 parser.add_argument(
@@ -109,15 +113,30 @@ parser.add_argument(
     default=f"{ISAAC_NUCLEUS_DIR}/Props/Teapot/utah_teapot.usdc",
     help="USD asset used as the pouring container (rigid collider).",
 )
+parser.add_argument(
+    "--island_usd",
+    type=str,
+    default=DEFAULT_ISLAND_USD,
+    help="Optional Kit kitchen-island visual. An empty or unavailable path uses the procedural table.",
+)
+parser.add_argument(
+    "--bowl_usd",
+    type=str,
+    default=DEFAULT_BOWL_USD,
+    help="Optional Kit catch-bowl visual. An empty or unavailable path uses the procedural bowl.",
+)
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 
 
-# Update the kinematic spout at 400 Hz; its per-step displacement must remain inside the MPM contact band.
-FPS = 400
+# Use one 1.25 ms solver step per outer loop iteration and retain the original 400 Hz render cadence.
+SIMULATION_HZ = 800
+RENDER_INTERVAL = 2
 VOXEL_SIZE = args_cli.voxel_size
-FILL_SPACING = args_cli.fill_spacing if args_cli.fill_spacing is not None else VOXEL_SIZE / DEFAULT_PARTICLES_PER_CELL
+FILL_SPACING = (
+    args_cli.fill_spacing if args_cli.fill_spacing is not None else VOXEL_SIZE / DEFAULT_PARTICLES_PER_VOXEL_AXIS
+)
 FILL_LEVEL = args_cli.fill_level
 MIN_RAY_HITS = args_cli.min_ray_hits
 
@@ -125,7 +144,7 @@ MIN_RAY_HITS = args_cli.min_ray_hits
 GRID_TYPE = args_cli.grid_type
 GRID_PADDING = 0 if GRID_TYPE == "sparse" else 64
 MAX_ACTIVE_CELL_COUNT = (1 << 16) if GRID_TYPE == "sparse" else (1 << 18)
-MPM_SUBSTEPS = 2
+MPM_SUBSTEPS = 1
 
 PARTICLE_DENSITY = 1000.0
 FILL_JITTER = 0.2
@@ -134,8 +153,7 @@ PARTICLE_RADIUS = 0.5 * FILL_SPACING
 PARTICLE_MASS = FILL_SPACING**3 * PARTICLE_DENSITY
 
 COLLIDER_MARGIN = 0.5 * VOXEL_SIZE
-CONTAINER_MARGIN = 0.00125
-PARTICLE_SURFACE_CLEARANCE = CONTAINER_MARGIN + 0.5 * FILL_SPACING
+PARTICLE_SURFACE_CLEARANCE = COLLIDER_MARGIN + PARTICLE_RADIUS
 CONTAINER_FRICTION = 0.0
 BOWL_FRICTION = 0.20
 TABLE_FRICTION = 0.5
@@ -146,23 +164,29 @@ POUR_ANGLE = math.radians(65.0)
 CONTAINER_LIFT_HEIGHT = 0.24
 CONTAINER_LIFT_TIME = 3.0
 
-TABLE_TOP_Z = 0.255
-TABLE_HALF_EXTENTS = (0.255, 0.165, 0.009)
-BOWL_BASE_POS = (0.066, 0.0, TABLE_TOP_Z + 0.006)
-BOWL_HEIGHT = 0.039
-CONTAINER_BASE_POS = (-0.105, 0.0, BOWL_BASE_POS[2] + BOWL_HEIGHT + 0.115)
+TABLE_TOP_Z = 0.90041
+TABLE_HALF_EXTENTS = (0.31565, 0.62045, 0.009)
+TABLE_ORIENTATION = (0.0, 0.0, -math.sin(0.25 * math.pi), math.cos(0.25 * math.pi))
+BOWL_SCALE = 1.0
+# Proxy dimensions measured from the default Bowl_G01 visual asset.
+BOWL_LOCAL_Z_MIN = 0.000001783
+BOWL_LOCAL_Z_MAX = 0.043571252
+BOWL_INNER_BOTTOM_RADIUS = 0.0254
+BOWL_INNER_TOP_RADIUS = 0.0508
+BOWL_OUTER_BOTTOM_RADIUS = 0.0301
+BOWL_OUTER_TOP_RADIUS = 0.0526
+BOWL_BOTTOM_THICKNESS = 0.0049
+BOWL_BASE_POS = (0.106, 0.0, TABLE_TOP_Z - BOWL_SCALE * BOWL_LOCAL_Z_MIN)
+BOWL_WORLD_TOP_Z = BOWL_BASE_POS[2] + BOWL_SCALE * BOWL_LOCAL_Z_MAX
+CONTAINER_BASE_POS = (-0.105, 0.0, BOWL_WORLD_TOP_Z + 0.115)
 
-BOWL_INNER_BOTTOM_RADIUS = 0.0135
-BOWL_INNER_TOP_RADIUS = 0.057
-BOWL_WALL_THICKNESS = 0.0075
-BOWL_BOTTOM_THICKNESS = 0.0075
-BOWL_COLOR = (1.0, 1.0, 1.0)
 CONTAINER_COLOR = (0.70, 0.35, 0.16)
 TABLE_COLOR = (0.48, 0.38, 0.26)
+BOWL_COLOR = (1.0, 1.0, 1.0)
 WATER_COLOR = (0.12, 0.35, 0.78)
 
-CAMERA_EYE = (0.0, -0.54, 0.64)
-CAMERA_TARGET = (-0.01, 0.0, 0.30)
+CAMERA_EYE = (0.0, -1.45, 1.35)
+CAMERA_TARGET = (-0.01, 0.0, TABLE_TOP_Z + 0.07)
 
 
 def create_visualizer_cfgs():
@@ -216,13 +240,11 @@ def container_pose_at_time(
     return pos, quat_y(angle), twist
 
 
-def create_demo_bowl_mesh(num_segments: int = 96) -> tuple[np.ndarray, np.ndarray]:
-    """Build one local-space open bowl mesh used by the catch-bowl collider."""
+def create_bowl_collider_mesh(num_segments: int = 96) -> tuple[np.ndarray, np.ndarray]:
+    """Build a lightweight local-space collision proxy matching the visual bowl."""
     theta = np.linspace(0.0, 2.0 * math.pi, num_segments, endpoint=False)
     cos_t = np.cos(theta)
     sin_t = np.sin(theta)
-    outer_bottom_radius = BOWL_INNER_BOTTOM_RADIUS + BOWL_WALL_THICKNESS
-    outer_top_radius = BOWL_INNER_TOP_RADIUS + BOWL_WALL_THICKNESS
 
     def ring(radius: float, z: float) -> np.ndarray:
         return np.column_stack([radius * cos_t, radius * sin_t, np.full(num_segments, z)])
@@ -230,10 +252,10 @@ def create_demo_bowl_mesh(num_segments: int = 96) -> tuple[np.ndarray, np.ndarra
     vertices = np.vstack(
         [
             ring(BOWL_INNER_BOTTOM_RADIUS, BOWL_BOTTOM_THICKNESS),
-            ring(BOWL_INNER_TOP_RADIUS, BOWL_HEIGHT),
-            ring(outer_top_radius, BOWL_HEIGHT),
-            ring(outer_bottom_radius, 0.0),
-            np.array([[0.0, 0.0, BOWL_BOTTOM_THICKNESS], [0.0, 0.0, 0.0]], dtype=np.float32),
+            ring(BOWL_INNER_TOP_RADIUS, BOWL_LOCAL_Z_MAX),
+            ring(BOWL_OUTER_TOP_RADIUS, BOWL_LOCAL_Z_MAX),
+            ring(BOWL_OUTER_BOTTOM_RADIUS, BOWL_LOCAL_Z_MIN),
+            np.array([[0.0, 0.0, BOWL_BOTTOM_THICKNESS], [0.0, 0.0, BOWL_LOCAL_Z_MIN]], dtype=np.float32),
         ]
     ).astype(np.float32)
 
@@ -262,6 +284,8 @@ def spawn_demo_mesh(
     **kwargs,
 ):
     """Spawn an exact triangle mesh with standard Isaac Lab rigid/collision schemas."""
+    from pxr import UsdGeom
+
     from isaaclab.sim import schemas
     from isaaclab.sim.utils import bind_physics_material, bind_visual_material, create_prim, get_current_stage
 
@@ -284,6 +308,8 @@ def spawn_demo_mesh(
         },
         stage=stage,
     )
+    if not cfg.visible:
+        UsdGeom.Imageable(stage.GetPrimAtPath(mesh_prim_path)).MakeInvisible()
 
     if cfg.collision_props is not None:
         schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
@@ -309,23 +335,23 @@ def spawn_demo_mesh(
     return stage.GetPrimAtPath(prim_path)
 
 
-def load_container_mesh(usd_path: str) -> tuple[np.ndarray, np.ndarray]:
-    """Read the container USD and return its triangulated geometry in the asset's local frame.
+def load_asset_mesh(usd_path: str) -> tuple[np.ndarray, np.ndarray]:
+    """Read a USD asset and return its triangulated geometry in the asset's local frame.
 
-    Meshes are concatenated, transformed into the asset frame, and fan-triangulated so sampled
-    particles align with the rigid teapot collider.
+    Meshes, including instance proxies, are concatenated, transformed into the asset frame, and
+    fan-triangulated so visual assets and their exact MPM colliders align.
     """
     from pxr import Usd, UsdGeom
 
     stage = Usd.Stage.Open(usd_path)
     if stage is None:
-        raise RuntimeError(f"Could not open container USD for cavity sampling: {usd_path}")
+        raise RuntimeError(f"Could not open USD asset: {usd_path}")
 
     xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
     vertices_list: list[np.ndarray] = []
     triangles_list: list[np.ndarray] = []
     vertex_offset = 0
-    for prim in stage.Traverse():
+    for prim in Usd.PrimRange.Stage(stage, Usd.TraverseInstanceProxies()):
         if not prim.IsA(UsdGeom.Mesh):
             continue
         mesh = UsdGeom.Mesh(prim)
@@ -362,7 +388,7 @@ def load_container_mesh(usd_path: str) -> tuple[np.ndarray, np.ndarray]:
         vertex_offset += points.shape[0]
 
     if not vertices_list:
-        raise RuntimeError(f"No meshes found in container USD for cavity sampling: {usd_path}")
+        raise RuntimeError(f"No meshes found in USD asset: {usd_path}")
     return np.concatenate(vertices_list), np.concatenate(triangles_list).astype(np.int32)
 
 
@@ -388,6 +414,17 @@ def create_fluid_particles(vertices: np.ndarray, faces: np.ndarray) -> tuple[np.
     return points.astype(np.float32, copy=False), PARTICLE_RADIUS, PARTICLE_MASS
 
 
+def retrieve_optional_visual_asset(path: str, label: str) -> str | None:
+    """Resolve an optional presentation asset, falling back to procedural geometry."""
+    if not path:
+        return None
+    try:
+        return retrieve_file_path(path)
+    except (FileNotFoundError, RuntimeError) as exc:
+        print(f"[WARN]: Could not load optional {label} visual ({exc}); using procedural geometry.", flush=True)
+        return None
+
+
 def create_sim_cfg():
     """Create the Isaac Lab simulation config using the MPM manager."""
     from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg
@@ -395,7 +432,7 @@ def create_sim_cfg():
     import isaaclab.sim as sim_utils
 
     return sim_utils.SimulationCfg(
-        dt=1.0 / FPS,
+        dt=1.0 / SIMULATION_HZ,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
         visualizer_cfgs=create_visualizer_cfgs(),
@@ -416,24 +453,14 @@ def create_sim_cfg():
                 # Grid contact avoids impulses from projecting particles out of colliders.
                 project_outside_colliders=False,
             ),
-            # Resolve the material at 800 Hz while refreshing the kinematic collider at 400 Hz.
+            # The outer 800 Hz step is already the desired MPM collision interval.
             num_substeps=MPM_SUBSTEPS,
             use_cuda_graph=not args_cli.disable_cuda_graph,
         ),
     )
 
 
-def preview_material(color):
-    """Return a preview-surface material for Kit runs; Kit-less runs spawn no USD materials."""
-    if "kit" not in (args_cli.visualizer or []):
-        return None
-
-    import isaaclab.sim as sim_utils
-
-    return sim_utils.PreviewSurfaceCfg(diffuse_color=color)
-
-
-def create_scene_cfg():
+def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str | None):
     """Create the teapot-fill scene using declarative Isaac Lab assets."""
     from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
@@ -445,9 +472,9 @@ def create_scene_cfg():
     from isaaclab.utils.configclass import configclass
 
     container_pos, container_rot, _ = container_pose_at_time(0.0)
-    container_vertices, container_faces = load_container_mesh(args_cli.container_usd)
+    container_vertices, container_faces = load_asset_mesh(container_usd)
     fluid_points, particle_radius, particle_mass = create_fluid_particles(container_vertices, container_faces)
-    bowl_vertices, bowl_faces = create_demo_bowl_mesh()
+    bowl_vertices, bowl_faces = create_bowl_collider_mesh()
 
     @configclass
     class DemoMeshCfg(sim_utils.MeshCfg):
@@ -458,12 +485,43 @@ def create_scene_cfg():
         faces: list[list[int]] = MISSING
         mesh_collision_props: sim_utils.NewtonMeshCollisionPropertiesCfg | None = None
 
+    island_cfg = None
+    if island_usd is not None:
+        island_cfg = AssetBaseCfg(
+            prim_path="/World/Island",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=island_usd,
+                variants={"Physics": "none"},
+                make_uninstanceable=True,
+                rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(rigid_body_enabled=False),
+                collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=False),
+            ),
+            init_state=AssetBaseCfg.InitialStateCfg(rot=TABLE_ORIENTATION),
+        )
+
+    bowl_visual_cfg = None
+    if bowl_usd is not None:
+        bowl_visual_cfg = AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/CatchBowlVisual",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=bowl_usd,
+                scale=(BOWL_SCALE,) * 3,
+                variants={"Physics": "none"},
+                make_uninstanceable=True,
+                rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(rigid_body_enabled=False),
+                collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=False),
+            ),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_BASE_POS),
+        )
+
     @configclass
     class TeapotFillSceneCfg(InteractiveSceneCfg):
         """Scene containing MPM colliders and one MPM fluid object sampled inside the teapot."""
 
-        table = AssetBaseCfg(
-            prim_path="{ENV_REGEX_NS}/Table",
+        island: AssetBaseCfg | None = island_cfg
+
+        tabletop_collider = AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/TabletopCollider",
             spawn=sim_utils.CuboidCfg(
                 size=(2.0 * TABLE_HALF_EXTENTS[0], 2.0 * TABLE_HALF_EXTENTS[1], 2.0 * TABLE_HALF_EXTENTS[2]),
                 collision_props=sim_utils.NewtonCollisionPropertiesCfg(
@@ -475,18 +533,24 @@ def create_scene_cfg():
                     dynamic_friction=TABLE_FRICTION,
                 ),
                 physics_material_path="physicsMaterial",
-                visual_material=preview_material(TABLE_COLOR),
+                visible=island_usd is None,
+                visual_material=(
+                    sim_utils.PreviewSurfaceCfg(diffuse_color=TABLE_COLOR) if island_usd is None else None
+                ),
                 visual_material_path="visualMaterial",
             ),
             init_state=AssetBaseCfg.InitialStateCfg(
                 pos=(0.0, 0.0, TABLE_TOP_Z - TABLE_HALF_EXTENTS[2]),
+                rot=TABLE_ORIENTATION,
             ),
         )
 
-        catch_bowl = AssetBaseCfg(
-            prim_path="{ENV_REGEX_NS}/CatchBowl",
+        catch_bowl_visual: AssetBaseCfg | None = bowl_visual_cfg
+
+        catch_bowl_collider = AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/CatchBowlCollider",
             spawn=DemoMeshCfg(
-                vertices=bowl_vertices.tolist(),
+                vertices=(BOWL_SCALE * bowl_vertices).tolist(),
                 faces=bowl_faces.tolist(),
                 collision_props=sim_utils.NewtonCollisionPropertiesCfg(
                     collision_enabled=True,
@@ -498,7 +562,8 @@ def create_scene_cfg():
                     dynamic_friction=BOWL_FRICTION,
                 ),
                 physics_material_path="physicsMaterial",
-                visual_material=preview_material(BOWL_COLOR),
+                visible=bowl_usd is None,
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=BOWL_COLOR) if bowl_usd is None else None,
                 visual_material_path="visualMaterial",
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_BASE_POS),
@@ -521,7 +586,7 @@ def create_scene_cfg():
                 ),
                 collision_props=sim_utils.NewtonCollisionPropertiesCfg(
                     collision_enabled=True,
-                    contact_margin=CONTAINER_MARGIN,
+                    contact_margin=COLLIDER_MARGIN,
                 ),
                 mesh_collision_props=sim_utils.NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="none"),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
@@ -529,7 +594,7 @@ def create_scene_cfg():
                     dynamic_friction=CONTAINER_FRICTION,
                 ),
                 physics_material_path="physicsMaterial",
-                visual_material=preview_material(CONTAINER_COLOR),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=CONTAINER_COLOR),
                 visual_material_path="visualMaterial",
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=container_pos, rot=container_rot),
@@ -549,10 +614,10 @@ def create_scene_cfg():
                     tensile_yield_ratio=5.0,
                 ),
                 visual_color=WATER_COLOR,
-                visual_material=sim_utils.GlassMdlCfg(
-                    glass_color=WATER_COLOR,
-                    glass_ior=1.333,
-                    thin_walled=False,
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=WATER_COLOR,
+                    roughness=0.1,
+                    opacity=0.7,
                 ),
             ),
             init_state=MPMObjectCfg.InitialStateCfg(pos=container_pos),
@@ -560,7 +625,7 @@ def create_scene_cfg():
 
         ground = AssetBaseCfg(
             prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(size=(12.0, 12.0), color=(0.30, 0.30, 0.30)),
+            spawn=sim_utils.GroundPlaneCfg(size=(20.0, 20.0), color=(0.30, 0.30, 0.30)),
         )
 
         dome_light = AssetBaseCfg(
@@ -599,11 +664,11 @@ def run_simulator(sim, scene) -> None:
     container = scene["container"]
     count = 0
     while keep_running(sim, count):
-        write_container_state(container, count / FPS)
+        write_container_state(container, count / SIMULATION_HZ)
         scene.write_data_to_sim()
         sim.step(render=False)
         scene.update(sim_dt)
-        if sim.is_rendering:
+        if sim.is_rendering and count % RENDER_INTERVAL == 0:
             sim.render()
         count += 1
 
@@ -622,13 +687,18 @@ def main() -> None:
 
         # Resolve after launching so Kit runs never import USD modules before
         # AppLauncher; Newton-only runs still use standalone omni.client.
-        args_cli.container_usd = retrieve_file_path(args_cli.container_usd)
+        container_usd = retrieve_file_path(args_cli.container_usd)
+        if "kit" in (args_cli.visualizer or []):
+            island_usd = retrieve_optional_visual_asset(args_cli.island_usd, "kitchen island")
+            bowl_usd = retrieve_optional_visual_asset(args_cli.bowl_usd, "catch bowl")
+        else:
+            island_usd = bowl_usd = None
 
         import isaaclab.sim as sim_utils
         from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
-        scene = InteractiveScene(create_scene_cfg())
+        scene = InteractiveScene(create_scene_cfg(container_usd, island_usd, bowl_usd))
         sim.reset()
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
 

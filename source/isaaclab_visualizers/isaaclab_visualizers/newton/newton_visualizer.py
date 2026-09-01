@@ -12,7 +12,7 @@ import logging
 import math
 import os
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np  # noqa: F401 — used in type hints and colorization helpers
 import torch
@@ -151,6 +151,30 @@ class _NewtonViewerUIMixin:
     # contacts nor a ContactSensor exists in the scene, so the Show Contacts
     # checkbox can be greyed out in the UI.
     _contacts_available: bool = True
+
+    CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
+    """Factor applied to :attr:`camera_speed` while the speed-boost modifier is held."""
+
+    def _is_camera_speed_boost_active(self) -> bool:
+        """Return whether the camera speed-boost modifier (Left/Right Shift) is held."""
+        import pyglet
+
+        return bool(self.is_key_down(pyglet.window.key.LSHIFT) or self.is_key_down(pyglet.window.key.RSHIFT))
+
+    @property
+    def camera_speed(self) -> float:
+        """Keyboard camera translation speed [m/s], doubled while Shift is held."""
+        base_speed = self._camera_speed
+        if self._is_camera_speed_boost_active():
+            return base_speed * self.CAMERA_SPEED_BOOST_MULTIPLIER
+        return base_speed
+
+    @camera_speed.setter
+    def camera_speed(self, value: float) -> None:
+        value = float(value)
+        if not math.isfinite(value) or value < 0.0:
+            raise ValueError("camera_speed must be finite and nonnegative")
+        self._camera_speed = value
 
     def _register_isaaclab_ui_callbacks(self) -> None:
         """Register model-dependent Isaac Lab viewer controls."""
@@ -434,6 +458,7 @@ class _NewtonViewerUIMixin:
                 imgui.text("Controls:")
                 imgui.pop_style_color()
                 imgui.text("WASD - Move camera")
+                imgui.text("Shift + WASD - Move camera 2x speed")
                 imgui.text("QE - Pan up/down")
                 imgui.text("Left Click - Look around")
                 imgui.text("Right Click - Pick and drag objects")
@@ -583,13 +608,22 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         no existing Isaac Lab use case is affected by this constraint.
     """
 
-    def __init__(self, *args, metadata: dict | None = None, update_frequency: int = 1, **kwargs):
+    def __init__(
+        self,
+        *args,
+        metadata: dict | None = None,
+        update_frequency: int = 1,
+        render_settings: dict[str, Any] | None = None,
+        **kwargs,
+    ):
         """Initialize Newton RTX viewer wrapper state.
 
         Args:
             *args: Positional arguments forwarded to ``ViewerRTX``.
             metadata: Optional metadata shown in viewer panels.
             update_frequency: Viewer refresh cadence in simulation frames.
+            render_settings: Extra RTX attributes to author on the render product. See
+                :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`.
             **kwargs: Keyword arguments forwarded to ``ViewerRTX``.
         """
         # Patch environment so OVRTX's CRenderApiLibLoader can find libovrtx.dylib.so.
@@ -610,6 +644,11 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
                     os.environ["LD_LIBRARY_PATH"] = _extra + (os.pathsep + _ld if _ld else "")
                 os.environ.setdefault("OMNI_USD_PLUGINS_BASE_PATH", str(_bin))
 
+        # Assigned before super().__init__(): ViewerRTX reaches
+        # _add_camera_lights_and_render_product() during initialization, and the override reads
+        # this. Copied so a caller's dict cannot mutate the viewer's settings afterwards.
+        self._render_settings = dict(render_settings or {})
+
         super().__init__(*args, **kwargs)
         self._paused_training = False
         self._paused_rendering = False
@@ -629,6 +668,24 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # exist.  Register the training controls now (they are buffered by ViewerRTX until
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
+
+    def _add_camera_lights_and_render_product(self) -> None:
+        """Author the configured RTX attributes onto the render product.
+
+        Runs here because ``_init_ovrtx`` exports the stage right after this call and the renderer
+        reads that export, so later edits are ignored.
+        """
+        super()._add_camera_lights_and_render_product()
+        if not self._render_settings:
+            return
+        from pxr import Sdf
+
+        prim = self.stage.GetPrimAtPath(self._render_product_path)
+        for name, (type_name, value) in self._render_settings.items():
+            value_type = getattr(Sdf.ValueTypeNames, type_name, None)
+            if value_type is None:
+                raise ValueError(f"Render setting {name!r} names unknown USD type {type_name!r}.")
+            prim.CreateAttribute(name, value_type).Set(value)
 
     def get_frame(self) -> np.ndarray:
         """Return the latest OVRTX LDR framebuffer as contiguous RGB pixels."""
@@ -869,6 +926,11 @@ class NewtonVisualizer(BaseVisualizer):
     Do not instantiate this class directly; use :class:`NewtonGLVisualizer` or
     :class:`NewtonRTXVisualizer`.
     """
+
+    @property
+    def visual_material_writer(self):
+        """Return the shared Newton model color-writer factory."""
+        return NewtonManager.create_visual_material_writer
 
     class _ViewerPickingBinding:
         """Stable Newton-manager callback for viewer picking.
@@ -1535,7 +1597,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
     feature set: streaming camera panel, particle color override, live scalar and array
     plots (via Newton's ImGui sidebar), and :meth:`render_rgb_array` support.
 
-    Use :class:`NewtonGLVisualizerCfg` (factory type ``"newton"``) to select this backend.
+    Use :class:`NewtonGLVisualizerCfg` (selector ``"newton_gl"``) to select this backend.
     """
 
     def __init__(self, cfg: NewtonGLVisualizerCfg):
@@ -2049,7 +2111,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
     The ImGui sidebar (training pause, rendering pause, update-frequency slider,
     physics backend label) is fully supported via ``register_ui_callback``.
 
-    Use :class:`NewtonRTXVisualizerCfg` (factory type ``"newton_rtx"``) to select this backend.
+    Use :class:`NewtonRTXVisualizerCfg` (selector ``"newton_rtx"``) to select this backend.
 
     ``render_rgb_array()`` reads back the path-traced LDR render product directly.
     The tiled camera panel remains disabled because ``ViewerRTX.log_image`` has no
@@ -2083,6 +2145,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
             environment=self.cfg.rtx_environment,
+            render_settings=self.cfg.render_settings,
         )
 
     def _apply_camera_pose(

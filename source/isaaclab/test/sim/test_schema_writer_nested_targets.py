@@ -21,7 +21,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.sim.schemas import MassCfg
+from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 
 pytestmark = pytest.mark.integration
 
@@ -351,3 +351,110 @@ def test_rigid_body_fragments_empty_list_authors_nothing():
     prim = stage.GetPrimAtPath("/World/Bare")
     assert result is True
     assert not prim.HasAPI(UsdPhysics.RigidBodyAPI)
+
+
+def _author_child_root_robot_usd(path: str) -> None:
+    """Author a robot whose articulation root sits on a child link, as ANYmal-style assets do."""
+    stage = Usd.Stage.CreateNew(path)
+    robot = UsdGeom.Xform.Define(stage, "/Robot")
+    base = UsdGeom.Xform.Define(stage, "/Robot/base").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(base)
+    UsdPhysics.ArticulationRootAPI.Apply(base)
+    stage.SetDefaultPrim(robot.GetPrim())
+    stage.Save()
+
+
+def test_empty_articulation_fragments_still_fix_the_root_link(tmp_path):
+    """``articulation_props=[]`` with ``fix_root_link`` must still reach a root on a child prim.
+
+    An empty fragment list carries no targeting intent, so the spawner has to fall through to the
+    topology-only path, which sweeps the spawn prim's subtree. Treating it as an anchor-targeted
+    entry instead pins the expression to the spawn prim, which carries no root API, so nothing is
+    authored and the world joint is never created.
+    """
+    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+
+    usd_path = os.path.join(tmp_path, "child_root_robot.usda")
+    _author_child_root_robot_usd(usd_path)
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    cfg = UsdFileCfg(usd_path=usd_path, articulation_props=[], fix_root_link=True)
+    _spawn_from_usd_file("/World/Robot", usd_path, cfg)
+
+    stage = sim_utils.get_current_stage()
+    assert sim_utils.find_global_fixed_joint_prim("/World/Robot", stage=stage) is not None
+
+
+def test_bare_fragment_on_usd_asset_reaches_nested_bodies(tmp_path):
+    """A bare fragment on a USD asset must keep the reach the legacy nested writer had.
+
+    Task configurations pass ``rigid_props=UsdPhysicsRigidBodyCfg(...)`` directly on a
+    ``UsdFileCfg``. The bodies live beneath the spawn prim, so pinning the convenience form to the
+    spawn prim authors nothing and the asset reaches the backend without a rigid body.
+    """
+    stage = _spawn_robot(
+        tmp_path,
+        "/World/Robot",
+        rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=5.0),
+        mass_props=MassCfg(mass=2.0),
+    )
+
+    for link_rel_path in LINK_REL_PATHS:
+        link = stage.GetPrimAtPath(f"/World/Robot/{link_rel_path}")
+        assert abs(link.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() - 5.0) < 1e-6
+        assert abs(link.GetAttribute("physics:mass").Get() - 2.0) < 1e-6
+
+
+def _author_prop_usd(path: str) -> None:
+    """Author a rigid prop that carries no physics schemas, as authored art assets usually do.
+
+    Task configurations point ``UsdFileCfg`` at meshes like this and rely on the spawner to turn
+    the asset into a single rigid body, so nothing in the subtree carries ``RigidBodyAPI``,
+    ``CollisionAPI``, or ``MassAPI``.
+    """
+    stage = Usd.Stage.CreateNew(path)
+    prop = UsdGeom.Xform.Define(stage, "/Prop")
+    UsdGeom.Cube.Define(stage, "/Prop/geometry")
+    stage.SetDefaultPrim(prop.GetPrim())
+    stage.Save()
+
+
+def _spawn_prop(tmp_path, prim_path: str, **cfg_kwargs):
+    """Author the schema-free prop asset and spawn it through the production USD spawn path."""
+    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+
+    usd_path = os.path.join(tmp_path, "prop.usda")
+    _author_prop_usd(usd_path)
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    cfg = UsdFileCfg(usd_path=usd_path, **cfg_kwargs)
+    _spawn_from_usd_file(prim_path, usd_path, cfg)
+    return sim_utils.get_current_stage()
+
+
+def test_bare_fragment_makes_a_schema_free_asset_a_single_rigid_body(tmp_path):
+    """A bare fragment on an asset that carries no physics schema must author the spawn prim.
+
+    Art assets ship without physics APIs, so there is nothing in the subtree to modify. The
+    convenience form has to fall back to making the spawn prim itself the body, otherwise the
+    asset reaches the backend with no rigid body at all.
+    """
+    stage = _spawn_prop(
+        tmp_path,
+        "/World/Prop",
+        rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+        mass_props=MassCfg(mass=0.05),
+        collision_props=UsdPhysicsCollisionCfg(collision_enabled=True),
+    )
+
+    prop = stage.GetPrimAtPath("/World/Prop")
+    assert prop.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert prop.HasAPI(UsdPhysics.MassAPI)
+    assert prop.HasAPI(UsdPhysics.CollisionAPI)
+    assert prop.GetAttribute("physics:rigidBodyEnabled").Get() is True
+    assert abs(prop.GetAttribute("physics:mass").Get() - 0.05) < 1e-6
+    assert prop.GetAttribute("physics:collisionEnabled").Get() is True
+    # the geometry below the spawn prim must not become a second, nested body
+    assert not stage.GetPrimAtPath("/World/Prop/geometry").HasAPI(UsdPhysics.RigidBodyAPI)

@@ -6,8 +6,10 @@
 import os
 import platform
 import shutil
+import site
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import IO, Any
 
@@ -196,6 +198,8 @@ def run_command(
     check: bool = True,
     stdout: int | IO[str] | None = None,
     stderr: int | IO[str] | None = None,
+    retry_attempts: int = 1,
+    retry_delay_seconds: float = 3.0,
     **kwargs: Any,
 ) -> subprocess.CompletedProcess[Any]:
     """Run a command in a subprocess.
@@ -208,11 +212,18 @@ def run_command(
         check: Whether to raise on non-zero exit code.
         stdout: Standard output stream or redirection target.
         stderr: Standard error stream or redirection target.
+        retry_attempts: Total number of attempts for a failed command.
+        retry_delay_seconds: Delay between attempts [s].
         **kwargs: Additional keyword arguments forwarded to ``subprocess.run``.
 
     Returns:
         Result object returned by ``subprocess.run``.
     """
+
+    if retry_attempts < 1:
+        raise ValueError("retry_attempts must be at least 1")
+    if retry_delay_seconds < 0:
+        raise ValueError("retry_delay_seconds must be non-negative")
 
     if cwd is None:
         cwd = ISAACLAB_ROOT
@@ -228,22 +239,39 @@ def run_command(
     if isinstance(cmd, (list, tuple)) and is_windows():
         cmd = _escape_for_cmd_exe(cmd)
 
-    try:
-        return subprocess.run(
-            cmd,
-            cwd=cwd,
-            env=env,
-            shell=shell,
-            check=check,
-            stdout=stdout,
-            stderr=stderr,
-            **kwargs,
+    for attempt in range(1, retry_attempts + 1):
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=cwd,
+                env=env,
+                shell=shell,
+                check=check,
+                stdout=stdout,
+                stderr=stderr,
+                **kwargs,
+            )
+        except subprocess.CalledProcessError as error:
+            returncode = error.returncode
+            result = None
+        except KeyboardInterrupt:
+            sys.exit(130)
+        else:
+            returncode = result.returncode
+
+        if returncode == 0 or attempt == retry_attempts:
+            if result is not None:
+                return result
+            print_error(f'Command failed with code {returncode}: "{command_str}"')
+            sys.exit(returncode)
+
+        print_warning(
+            f"Command failed with code {returncode}; retrying in {retry_delay_seconds:g} seconds "
+            f'(attempt {attempt + 1}/{retry_attempts}): "{command_str}"'
         )
-    except subprocess.CalledProcessError as e:
-        print_error(f'Command failed with code {e.returncode}: "{command_str}"')
-        sys.exit(e.returncode)
-    except KeyboardInterrupt:
-        sys.exit(130)
+        time.sleep(retry_delay_seconds)
+
+    raise AssertionError("unreachable")
 
 
 def _is_virtualenv_python(python_exe: str | Path) -> bool:
@@ -570,7 +598,37 @@ def run_python_command(
         [subprocess.CompletedProcess] Result returned by ``subprocess.run``.
     """
 
-    cmd = [extract_python_exe()]
+    python_exe = extract_python_exe()
+    cmd = [python_exe]
+
+    # A source build linked at ``_isaac_sim`` must load its live Kit and extension paths, but the
+    # dependencies managed by uv should still come from the active environment. Isaac Sim's Python
+    # launcher supports exactly this combination through its ``PYTHONEXE`` override. The shell
+    # wrappers already configure ``ISAAC_PATH`` before starting this CLI, so only direct invocations
+    # such as ``uv run isaaclab train`` need to delegate through the launcher here.
+    command_env = os.environ if env is None else env
+    configured_isaac_path = command_env.get("ISAAC_PATH")
+    local_sim = DEFAULT_ISAAC_SIM_PATH
+    python_launcher = local_sim / ("python.bat" if is_windows() else "python.sh")
+    isaac_env_active = (
+        configured_isaac_path is not None and Path(configured_isaac_path).resolve() == local_sim.resolve()
+    )
+    if local_sim.is_dir() and python_launcher.is_file() and not isaac_env_active:
+        env = dict(command_env)
+        env["PYTHONEXE"] = python_exe
+        source_paths = [
+            local_sim / "python_packages",
+            local_sim / "exts" / "isaacsim.simulation_app",
+            local_sim / "kit" / "kernel" / "py",
+            local_sim / "kit" / "plugins" / "bindings-python",
+            Path(site.getsitepackages()[0]),
+        ]
+        existing_pythonpath = env.get("PYTHONPATH")
+        python_paths = [str(path) for path in source_paths if path.is_dir()]
+        if existing_pythonpath:
+            python_paths.append(existing_pythonpath)
+        env["PYTHONPATH"] = os.pathsep.join(python_paths)
+        cmd = [str(python_launcher)]
 
     if is_module:
         cmd.append("-m")

@@ -103,7 +103,7 @@ Configuring fragments on spawners
 Spawner configurations (:class:`~isaaclab.sim.spawners.from_files.UsdFileCfg`,
 :class:`~isaaclab.sim.spawners.shapes.CuboidCfg`, ...) expose one field per family.
 Each field accepts either a mapping from target pattern to a list of fragments, a bare
-fragment or list of fragments (shorthand for ``{"": [...]}``, the anchor prim itself), a
+fragment or list of fragments (see the shorthand below), a
 single legacy dataclass cfg (e.g.
 :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg` or a backend ``*PropertiesCfg``, routed
 to the legacy writers), or ``None``.
@@ -119,6 +119,14 @@ it changes nothing — except under ``create_if_missing``, where ``"(/.*)?"`` wo
 apply the API to the anchor itself. Reach for ``"(/.*)?"`` only when the anchor is
 genuinely a target too. Entries apply in insertion order, so when two patterns match the
 same prim, fragments from later entries override attributes authored by earlier ones.
+
+The bare fragment (or list of fragments) shorthand skips the mapping when a rule needs no
+targeting of its own. On the shape and mesh spawners it targets the anchor prim, the only
+prim those spawners author. On the file spawners it targets the spawn prim together with
+its descendants, so it reaches the schema carriers wherever the asset puts them; and when
+the subtree carries no prim with the family's defining API at all — the usual shape of an
+art asset shipped without physics schemas — the file spawners apply that API to the spawn
+prim and author there, turning the asset into a single body.
 
 A robot spawned from USD, with a broad rule and a narrowing override:
 

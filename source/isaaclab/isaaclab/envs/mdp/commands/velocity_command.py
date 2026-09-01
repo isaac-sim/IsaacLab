@@ -233,8 +233,19 @@ class UniformVelocityCommand(CommandTerm):
             self.robot.data.root_lin_vel_b.torch[:, :2]
         )
         # display markers
-        self.goal_vel_visualizer.visualize(base_pos_w, vel_des_arrow_quat, vel_des_arrow_scale)
-        self.current_vel_visualizer.visualize(base_pos_w, vel_arrow_quat, vel_arrow_scale)
+        environment_ids = self._env.scene._ALL_INDICES
+        self.goal_vel_visualizer.visualize(
+            base_pos_w,
+            vel_des_arrow_quat,
+            vel_des_arrow_scale,
+            environment_ids=environment_ids,
+        )
+        self.current_vel_visualizer.visualize(
+            base_pos_w,
+            vel_arrow_quat,
+            vel_arrow_scale,
+            environment_ids=environment_ids,
+        )
 
     """
     Internal helpers.

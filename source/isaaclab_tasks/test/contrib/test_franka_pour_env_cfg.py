@@ -7,34 +7,19 @@
 
 import pytest
 
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
 from isaaclab_tasks.contrib.franka_pour import pour_env
+from isaaclab_tasks.contrib.franka_pour.geometry import SOURCE_CUP_GEOMETRY
+from isaaclab_tasks.contrib.franka_pour.media import media_particle_count
 from isaaclab_tasks.contrib.franka_pour.pour_env_cfg import (
+    _MEDIA_FILL_RESOLUTION,
+    FRANKA_POUR_ROBOT_ASSET_ID,
     FrankaPourResetDatasetEnvCfg,
     _configure_mpm_capacities,
     _reset_dataset_task_contract,
     _resolve_pour_solver_tree,
 )
-
-_RESET_CONTRACT_FIELDS = {
-    "robot_asset",
-    "robot_physics_payload_sha256",
-    "source_box_half",
-    "source_mouth_height",
-    "target_box_half",
-    "target_rim_height",
-    "cup_grasp_tcp_quat_c",
-    "cup_grasp_height",
-    "tcp_body_name",
-    "tcp_offset_pos",
-    "tcp_offset_rot",
-    "gripper_open_pos",
-    "gripper_grasp_reset_target",
-    "gripper_contact_min_deflection",
-    "collider_margin",
-    "mpm_collider_margin",
-    "particle_count",
-    "particle_spacing",
-}
 
 
 def test_reset_dataset_path_is_repo_relative_and_missing_error_is_actionable(monkeypatch, tmp_path):
@@ -56,18 +41,38 @@ def test_reset_dataset_path_is_repo_relative_and_missing_error_is_actionable(mon
     assert "uv run python scripts/tools/generate_franka_pour_reset_dataset.py --device cuda:0" in message
 
 
-def test_config_is_fully_authored_once_with_compact_reset_contract():
-    """Scene assets exist immediately and expose only reset-state compatibility fields."""
+def test_source_fill_level_controls_height_and_particle_count():
+    """The fill setting raises the free surface and is resolved after command-line overrides."""
     cfg = FrankaPourResetDatasetEnvCfg()
+    media = cfg.scene.media
 
-    assert not hasattr(cfg, "finalize")
-    assert cfg.scene.source_cup is not None
-    assert cfg.scene.target_cup is not None
-    assert cfg.scene.media is not None
-    assert cfg.reset_dataset_content_sha256 is None
-    task_contract = _reset_dataset_task_contract(cfg)
-    assert task_contract["particle_count"] == 245
-    assert set(task_contract) == _RESET_CONTRACT_FIELDS
+    assert media_particle_count(media) == 7 * 7 * 15
+
+    cfg.source_fill_level = 0.50
+    cfg.scene.num_envs = 1
+    _configure_mpm_capacities(cfg)
+
+    assert cfg.scene.media is media
+    assert media_particle_count(media) == 7 * 7 * 11
+    requested_waterline = SOURCE_CUP_GEOMETRY.bottom_thickness + 0.50 * SOURCE_CUP_GEOMETRY.cavity_depth
+    assert float(media.spawn.upper[2]) == pytest.approx(
+        requested_waterline,
+        abs=0.5 * _MEDIA_FILL_RESOLUTION + 1.0e-9,
+    )
+
+    cfg.source_fill_level = 1.0
+    _configure_mpm_capacities(cfg)
+    assert media_particle_count(media) == 7 * 7 * 21
+
+
+@pytest.mark.parametrize("fill_level", [0.0, -0.1, 1.1, float("nan")])
+def test_source_fill_level_rejects_empty_or_out_of_range_tasks(fill_level):
+    """A pouring episode needs a finite, non-empty fill no higher than the cup."""
+    cfg = FrankaPourResetDatasetEnvCfg()
+    cfg.source_fill_level = fill_level
+
+    with pytest.raises(ValueError, match="source_fill_level must lie in \\(0, 1\\]"):
+        cfg.validate()
 
 
 def test_nested_overrides_are_authoritative_without_rebuilding_assets():
@@ -91,10 +96,21 @@ def test_nested_overrides_are_authoritative_without_rebuilding_assets():
     assert cfg.scene.media is media
     assert _resolve_pour_solver_tree(cfg) == solver
     assert tuple(cfg.scene.source_cup.init_state.pos) == (0.6, 0.0, 0.0)
+    assert tuple(cfg.scene.media.init_state.pos) == tuple(cfg.scene.source_cup.init_state.pos)
+    assert tuple(cfg.scene.media.init_state.rot) == tuple(cfg.scene.source_cup.init_state.rot)
     assert cfg.sim.physics.num_substeps == 5
     assert solver.media_solver.max_iterations == 17
     assert not cfg.sim.physics.use_cuda_graph
     assert _reset_dataset_task_contract(cfg) == reset_contract
+
+
+def test_reset_dataset_contract_stores_root_relative_robot_asset_path():
+    """Reset artifacts identify the robot independently of the configured asset root."""
+    cfg = FrankaPourResetDatasetEnvCfg()
+
+    robot_asset = _reset_dataset_task_contract(cfg)["robot_asset"]
+    assert robot_asset == "Robots/FrankaEmika/franka_panda.usda"
+    assert f"{ISAACLAB_NUCLEUS_DIR}/{robot_asset}" == FRANKA_POUR_ROBOT_ASSET_ID
 
 
 def test_capacity_resolution_only_updates_world_dependent_solver_limits():
@@ -107,13 +123,18 @@ def test_capacity_resolution_only_updates_world_dependent_solver_limits():
 
     cfg.scene.num_envs = 1
     _configure_mpm_capacities(cfg)
-    assert (solver.max_active_cell_count, solver.max_leaf_node_count) == (512, -1)
-    assert (solver.max_lower_node_count, solver.max_upper_node_count) == (32, 32)
+    assert solver.max_active_cell_count == 1024
+    assert (solver.max_leaf_node_count, solver.max_lower_node_count, solver.max_upper_node_count) == (-1, -1, -1)
 
     cfg.scene.num_envs = 7
     _configure_mpm_capacities(cfg)
-    assert (solver.max_active_cell_count, solver.max_leaf_node_count) == (3584, -1)
-    assert (solver.max_lower_node_count, solver.max_upper_node_count) == (224, 32)
+    assert solver.max_active_cell_count == 7168
+    assert (solver.max_leaf_node_count, solver.max_lower_node_count, solver.max_upper_node_count) == (-1, -1, -1)
+
+    cfg.mpm_cell_cap_override = 16
+    _configure_mpm_capacities(cfg)
+    assert solver.max_active_cell_count == 16
+    assert (solver.max_leaf_node_count, solver.max_lower_node_count, solver.max_upper_node_count) == (-1, -1, -1)
     assert cfg.scene.source_cup is source_cup
     assert cfg.scene.target_cup is target_cup
     assert cfg.scene.media is media

@@ -86,6 +86,7 @@ class PhysicsManager(ABC):
     _sim_time: ClassVar[float] = 0.0
     _callbacks: ClassVar[dict[int, tuple[Any, Callable, int, str | None, Any]]] = {}
     _callback_id: ClassVar[int] = 0
+    views: ClassVar[dict[tuple[type, str], Any]] = {}
 
     @classmethod
     def _prepare_stage_creation(cls) -> None:
@@ -491,6 +492,7 @@ class PhysicsManager(ABC):
             cls.clear_callbacks()
         finally:
             if is_active_manager:
+                PhysicsManager.views.clear()
                 PhysicsManager._sim = None
                 PhysicsManager._cfg = None
                 PhysicsManager._sim_time = 0.0

@@ -286,6 +286,7 @@ Materials
 
     VisualMaterialCfg
     PreviewSurfaceCfg
+    PbrMdlCfg
     MdlFileCfg
     GlassMdlCfg
     PhysicsMaterialCfg
@@ -312,6 +313,10 @@ Visual Materials
 .. autofunction:: spawn_preview_surface
 
 .. autoclass:: PreviewSurfaceCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: PbrMdlCfg
     :members:
     :exclude-members: __init__, func
 

@@ -31,6 +31,8 @@ class NewtonMJWarpManager(NewtonManager):
     :attr:`NewtonCfg.debug_mode` is enabled.
     """
 
+    _builder_attribute_solvers = (SolverMuJoCo,)
+
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:
         """Construct the configured MuJoCo Warp solver."""

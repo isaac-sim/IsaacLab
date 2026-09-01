@@ -31,16 +31,19 @@ def props_expr(prim_path: str, pattern: str) -> str:
     return f"{prim_path}{pattern}"
 
 
-def fragment_mapping(value) -> dict | None:
+def fragment_mapping(value, default_pattern: str = "") -> dict | None:
     """Normalize a fragment spawner-configuration value to a target-pattern mapping.
 
-    The mapping form (``{pattern: [fragment, ...]}``) is the general spelling. As a convenience,
-    a bare fragment or a sequence of fragments is accepted for the common case of authoring on
-    the anchor prim itself, and is read as ``{"": [...]}``. Legacy dataclass configurations are
-    reported as ``None`` so callers route them to the legacy writers.
+    The mapping form (``{pattern: [fragment, ...]}``) is the general spelling. As a convenience, a
+    bare fragment or a sequence of fragments is accepted and read as ``{default_pattern: [...]}``.
+    The caller picks that default so the convenience form keeps the reach the legacy writers had:
+    the file spawners tune a prim together with its subtree, while the shape, mesh, and converter
+    spawners author the one prim they just created. Legacy dataclass configurations are reported
+    as ``None`` so callers route them to the legacy writers.
 
     Args:
         value: The value of a fragment spawner-configuration field.
+        default_pattern: The target pattern to use for the bare fragment (or sequence) form.
 
     Returns:
         The equivalent target-pattern mapping, or None when the value is a legacy configuration.
@@ -50,33 +53,81 @@ def fragment_mapping(value) -> dict | None:
     if isinstance(value, dict):
         return value
     if isinstance(value, SchemaFragment):
-        return {"": [value]}
+        return {default_pattern: [value]}
     if isinstance(value, (list, tuple)) and all(isinstance(item, SchemaFragment) for item in value):
-        return {"": list(value)}
+        # an empty sequence carries no fragments and no targeting intent, so it maps to an empty
+        # mapping rather than a targeted entry with nothing to author
+        return {default_pattern: list(value)} if value else {}
     return None
 
 
-def resolve_deformable_slot(cfg) -> tuple[str, dict] | None:
+def bare_fragments(value) -> bool:
+    """Report whether a fragment spawner-configuration value uses the convenience form.
+
+    The convenience form is a bare fragment or a sequence of fragments, i.e. everything
+    :func:`fragment_mapping` normalizes onto its default pattern. It carries no targeting
+    intent of its own, so callers may widen or narrow the target set on the user's behalf.
+
+    Args:
+        value: The value of a fragment spawner-configuration field.
+
+    Returns:
+        True when the value is a bare fragment or a sequence of fragments.
+    """
+    from isaaclab.sim.schemas.schemas_cfg import SchemaFragment  # noqa: PLC0415
+
+    if isinstance(value, SchemaFragment):
+        return True
+    return isinstance(value, (list, tuple)) and all(isinstance(item, SchemaFragment) for item in value)
+
+
+def subtree_carries_api(prim_path: str, api_type, stage) -> bool:
+    """Report whether a prim or any of its descendants carries a USD API schema.
+
+    Args:
+        prim_path: The absolute path of the prim rooted at the searched subtree.
+        api_type: The USD API schema type to look for (e.g. ``UsdPhysics.RigidBodyAPI``).
+        stage: The stage containing the prim.
+
+    Returns:
+        True when the prim itself or a prim beneath it carries the API schema.
+    """
+    from pxr import Usd  # noqa: PLC0415
+
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        return False
+    for candidate in Usd.PrimRange(prim, Usd.TraverseInstanceProxies(Usd.PrimAllPrimsPredicate)):
+        if candidate.HasAPI(api_type):
+            return True
+    return False
+
+
+def resolve_deformable_slot(cfg, default_pattern: str = "") -> tuple[str, dict] | None:
     """Pick the active deformable slot on a spawner cfg.
 
-    Returns ``("volume" | "surface", mapping)`` for the new slots, normalized through
-    :func:`fragment_mapping`, or None when neither is set. Raises when more than one of the new
-    slots and the legacy ``deformable_props`` is set.
+    Deformable bodies come in two flavours that share no attributes, so a spawner exposes one
+    slot per flavour and at most one may be set. The legacy ``deformable_props`` field counts as
+    a third, mutually exclusive spelling.
 
     Args:
         cfg: The spawner configuration to inspect.
+        default_pattern: The target pattern to use for the bare fragment (or sequence) form,
+            forwarded to :func:`fragment_mapping`.
 
     Returns:
-        The active slot as a ``(kind, mapping)`` pair, or None when no dict slot is set.
+        The active slot as a ``(kind, mapping)`` pair where ``kind`` is ``"volume"`` or
+        ``"surface"``, or None when neither fragment slot is set.
 
     Raises:
-        ValueError: If more than one deformable slot (including the legacy ``deformable_props``) is set.
+        ValueError: If more than one deformable slot (including the legacy ``deformable_props``)
+            is set.
     """
     slots = [
         ("volume", getattr(cfg, "volume_deformable_props", None)),
         ("surface", getattr(cfg, "surface_deformable_props", None)),
     ]
-    active = [(kind, fragment_mapping(value)) for kind, value in slots if value is not None]
+    active = [(kind, fragment_mapping(value, default_pattern)) for kind, value in slots if value is not None]
     legacy = getattr(cfg, "deformable_props", None)
     if len(active) + (legacy is not None) > 1:
         raise ValueError(

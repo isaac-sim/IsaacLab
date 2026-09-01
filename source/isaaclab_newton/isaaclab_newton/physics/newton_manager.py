@@ -71,6 +71,7 @@ from newton import (
     State,
     eval_fk,
 )
+from newton.selection import ArticulationView
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
@@ -88,7 +89,7 @@ from isaaclab.scene_data.deformable_vis_remap import (
 )
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob
+from isaaclab.sim.utils.queries import has_deformable_curve_api
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
@@ -106,10 +107,26 @@ from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg, NewtonShapeCfg
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
 from isaaclab_newton.physics.visualization_deformables import populate_shadow_deformable_registry
 from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
+from isaaclab_newton.renderers.visual_material import (
+    VisualMaterialWriter,
+    VisualShapeColorWriter,
+    import_builder_visual_material_paths,
+)
 
 if TYPE_CHECKING:
-    from isaaclab_newton.actuators import NewtonActuatorAdapter
+    from isaaclab.actuators.newton import NewtonActuatorAdapter
+    from isaaclab.assets import BaseArticulation
+    from isaaclab.renderers.base_renderer import VisualMaterialBatch
+
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
+
+
+def _compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | None:
+    """Compile selector expressions for Newton's full label matching."""
+    if not expr:
+        return None
+    return re.compile("|".join((expr,) if isinstance(expr, str) else expr))
+
 
 logger = logging.getLogger(__name__)
 
@@ -461,7 +478,7 @@ class NewtonManager(PhysicsManager):
     _sensor_state: State | None = None
     _sensor_state_dirty: bool = True
     _sensor_graph_capture_failed: bool = False
-    _sensor_bvh_has_collision_shapes: bool = False  # set once a ray-cast sensor widens the shape BVH
+    _sensor_bvh_shape_flags: ShapeFlags = ShapeFlags.VISIBLE
 
     # USD/Fabric sync
     _newton_stage_path = None
@@ -509,9 +526,9 @@ class NewtonManager(PhysicsManager):
     _shadow_deformable_remap_batches: list | None = None
     _shadow_deformable_copy_batch: tuple | None = None
     _shadow_deformable_batch_sync_key: tuple | None = None
+    _visualization_stop_callback: CallbackHandle | None = None
 
-    # Views list for assets to register their views
-    _views: list = []
+    _builder_attribute_solvers: tuple[type[SolverBase], ...] = ()
     _mpm_object_registry: list = []
 
     # CL: Cloning / Replication logic
@@ -801,7 +818,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def sync_particles_to_usd(cls) -> None:
-        """Write Newton particle positions to USD/Fabric for Kit viewport rendering.
+        """Write Newton particle positions to USD/Fabric for USD-stage rendering.
 
         Two prim families are synced from ``state_0.particle_q``:
 
@@ -1070,15 +1087,8 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def get_physics_sim_view(cls) -> list:
-        """Get the list of registered views.
-
-        Assets can append their views to this list, and sensors can access them.
-        Returns a list that callers can append to.
-
-        Returns:
-            List of registered views (e.g., NewtonArticulationView instances).
-        """
-        return cls._views
+        """Return the registered articulation views."""
+        return [view for (manager, _), view in cls.views.items() if manager is NewtonManager]
 
     @classmethod
     def is_fabric_enabled(cls) -> bool:
@@ -1088,6 +1098,10 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def clear(cls):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
+        callback = NewtonManager._visualization_stop_callback
+        NewtonManager._visualization_stop_callback = None
+        if callback is not None:
+            callback.deregister()
         NewtonManager._use_fabric_gpu_hierarchy = None
         NewtonManager._newton_fabric_ready = False
         NewtonManager._builder = None
@@ -1130,7 +1144,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._sensor_state = None
         NewtonManager._sensor_state_dirty = True
         NewtonManager._sensor_graph_capture_failed = False
-        NewtonManager._sensor_bvh_has_collision_shapes = False
+        NewtonManager._sensor_bvh_shape_flags = ShapeFlags.VISIBLE
         NewtonManager._newton_stage_path = None
         NewtonManager._usdrt_stage = None
         NewtonManager._transforms_dirty = False
@@ -1164,7 +1178,8 @@ class NewtonManager(PhysicsManager):
         NewtonManager._cl_protos = {}
         NewtonManager._pending_extended_state_attributes = set()
         NewtonManager._pending_extended_contact_attributes = set()
-        NewtonManager._views = []
+        for key in [key for key in NewtonManager.views if key[0] is NewtonManager]:
+            del NewtonManager.views[key]
         cls._solver_specific_clear()
 
     @classmethod
@@ -1199,6 +1214,7 @@ class NewtonManager(PhysicsManager):
             mesh_constructor=cfg.bvh_constructor_geometry if isinstance(cfg, NewtonCfg) else None,
             gaussian_constructor=cfg.bvh_constructor_gaussian if isinstance(cfg, NewtonCfg) else None,
             shape_constructor=cfg.bvh_constructor_scene if isinstance(cfg, NewtonCfg) else None,
+            shape_flags=cls._sensor_bvh_shape_flags,
         )
 
         cls._register_builder_attributes(builder)
@@ -1208,17 +1224,9 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
-        """Subclass hook to register solver-specific custom attributes on *builder*.
-
-        Override in solver subclasses (e.g. :class:`NewtonMPMManager`) that need
-        Newton-side particle, shape, or body custom attributes registered before
-        the builder is finalized. The default implementation is a no-op so
-        solvers without custom attributes do not need to override it.
-
-        Implementations should be **idempotent** — the same builder may be
-        passed multiple times across :meth:`create_builder`,
-        :meth:`instantiate_builder_from_stage`, and :meth:`start_simulation`.
-        """
+        """Register custom attributes required by the active solver."""
+        for solver_cls in cls._builder_attribute_solvers:
+            solver_cls.register_custom_attributes(builder)
 
     @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
@@ -1665,42 +1673,11 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _initialize_fabric_cable_prims(cls, stage, fabric_hierarchy, usdrt) -> None:
         """Initialize Fabric curve tags and packed Newton segment mappings."""
-        usd_stage = get_current_stage()
-        cable_shapes: dict[str, dict[int, int]] = {}
-        for shape_id, label in enumerate(cls._model.shape_label):
-            if label is None:
-                continue
-            prim_path, separator, suffix = label.rpartition("_edge_capsule_")
-            if not separator or not suffix.isdigit():
-                continue
-            segment = int(suffix)
-            segments = cable_shapes.setdefault(prim_path, {})
-            if segment in segments:
-                raise RuntimeError(f"Cable visualization requires one Newton shape labeled {label}.")
-            segments[segment] = shape_id
+        cable_shapes = cls.collect_cable_segment_shape_ids()
 
         shape_ids: list[int] = []
-        for prim_path, segments in cable_shapes.items():
-            usd_prim = usd_stage.GetPrimAtPath(prim_path)
-            if not usd_prim.IsValid() or not usd_prim.IsA(UsdGeom.BasisCurves):
-                continue
-            if not has_deformable_curve_api(usd_prim):
-                continue
-
-            curve = UsdGeom.BasisCurves(usd_prim)
-            counts = curve.GetCurveVertexCountsAttr().Get()
-            if (
-                len(counts) != 1
-                or int(counts[0]) < 2
-                or curve.GetTypeAttr().Get() != UsdGeom.Tokens.linear
-                or curve.GetWrapAttr().Get() == UsdGeom.Tokens.periodic
-            ):
-                continue
-
-            segment_count = int(counts[0]) - 1
-            if set(segments) != set(range(segment_count)):
-                raise RuntimeError(f"Cable visualization requires {segment_count} ordered segment shapes.")
-            segment_shape_ids = [segments[segment] for segment in range(segment_count)]
+        for prim_path, segment_shape_ids in cable_shapes.items():
+            segment_count = len(segment_shape_ids)
             prim = stage.GetPrimAtPath(prim_path)
             prim.GetAttribute("points").Set(usdrt.Vt.Vec3fArray(segment_count + 1))
             usdrt.Rt.Xformable(prim).SetWorldXformFromUsd()
@@ -1727,6 +1704,103 @@ class NewtonManager(PhysicsManager):
         )
         fabric_hierarchy.update_world_xforms()
 
+    @classmethod
+    def collect_cable_segment_shape_ids(cls) -> dict[str, list[int]]:
+        """Map each renderable cable prim path to its ordered Newton segment shape ids.
+
+        Concrete destination paths and segment order come from Newton ``shape_label`` values
+        ``{curve}_edge_capsule_{N}``. Each returned id is the index of that capsule in Newton's
+        shape arrays after finalization (``shape_body``, ``shape_transform``, ``shape_scale``, …),
+        not the ``_edge_capsule_N`` suffix. Example:
+        ``{"/World/envs/env_0/Cable/geometry/mesh": [42, 43, 44]}`` means segments ``0..2`` came
+        from labels ``.../mesh_edge_capsule_0``, ``_1``, ``_2``, and Newton assigned those shapes
+        indices ``42..44`` after earlier scene shapes.
+
+        When the labeled prim exists on the host USD stage, topology is validated against that
+        ``BasisCurves`` prim. Kit-less replicated destinations often exist only in the render
+        backend; for those paths topology is validated against a source prototype via the active
+        clone plan.
+
+        Returns:
+            Concrete cable prim paths mapped to ordered Newton segment shape ids.
+        """
+        if cls._model is None:
+            return {}
+
+        cable_shapes: dict[str, dict[int, int]] = {}
+        for shape_id, label in enumerate(cls._model.shape_label):
+            if label is None:
+                continue
+            prim_path, separator, suffix = label.rpartition("_edge_capsule_")
+            if not separator or not suffix.isdigit():
+                continue
+            segment = int(suffix)
+            segments = cable_shapes.setdefault(prim_path, {})
+            if segment in segments:
+                raise RuntimeError(f"Cable visualization requires one Newton shape labeled {label}.")
+            segments[segment] = shape_id
+
+        stage = get_current_stage()
+
+        sim = SimulationContext.instance()
+        clone_plan = sim.get_clone_plan() if sim is not None else None
+
+        # Filter label groups into renderable ordered shape-id lists. Validate topology on the host
+        # destination when present; otherwise use the clone-plan source prototype. Skip unsupported
+        # topology (non-linear / periodic / bad counts); require segment labels to match the curve.
+        ordered: dict[str, list[int]] = {}
+        for prim_path, segments in cable_shapes.items():
+            prim = stage.GetPrimAtPath(prim_path)
+            validation_prim = prim
+
+            # If destination is missing on host USD: validate topology against the clone source prototype.
+            if not prim.IsValid() and clone_plan is not None:
+                from isaaclab.cloner.query import path_to_source  # noqa: PLC0415
+
+                resolved = path_to_source(clone_plan, prim_path)
+                if resolved is not None:
+                    source_path, _, asset_suffix = resolved
+                    validation_prim = stage.GetPrimAtPath(source_path + asset_suffix)
+
+            if not (
+                validation_prim.IsValid()
+                and validation_prim.IsA(UsdGeom.BasisCurves)
+                and has_deformable_curve_api(validation_prim)
+            ):
+                logger.debug(
+                    "Skipping cable '%s': validation prim '%s' is missing, not BasisCurves, or lacks"
+                    " DeformableCurveAPI.",
+                    prim_path,
+                    validation_prim.GetPath().pathString if validation_prim.IsValid() else "<invalid>",
+                )
+                continue
+
+            curve = UsdGeom.BasisCurves(validation_prim)
+            counts = curve.GetCurveVertexCountsAttr().Get()
+            if (
+                len(counts) != 1
+                or int(counts[0]) < 2
+                or curve.GetTypeAttr().Get() != UsdGeom.Tokens.linear
+                or curve.GetWrapAttr().Get() == UsdGeom.Tokens.periodic
+            ):
+                logger.debug(
+                    "Skipping cable '%s': unsupported BasisCurves topology (vertex_counts=%s, type=%s, wrap=%s).",
+                    prim_path,
+                    counts,
+                    curve.GetTypeAttr().Get(),
+                    curve.GetWrapAttr().Get(),
+                )
+                continue
+
+            segment_count = int(counts[0]) - 1
+            if set(segments) != set(range(segment_count)):
+                raise RuntimeError(
+                    f"Cable visualization for '{prim_path}' requires {segment_count} ordered segment shapes."
+                )
+            ordered[prim_path] = [segments[segment] for segment in range(segment_count)]
+
+        return ordered
+
     @staticmethod
     def _initialize_fabric_particle_prims(stage, fabric_hierarchy, usdrt, prim_paths: Iterable[str]) -> None:
         """Initialize Fabric world matrices for point prims used by particle sync."""
@@ -1740,7 +1814,9 @@ class NewtonManager(PhysicsManager):
             fabric_hierarchy.update_world_xforms()
 
     @classmethod
-    def _inject_terrain_heightfields(cls, stage: Usd.Stage, builder: ModelBuilder) -> list[str]:
+    def _inject_terrain_heightfields(
+        cls, stage: Usd.Stage, builder: ModelBuilder, *, root_paths: Sequence[str]
+    ) -> list[str]:
         """Replace height-field-tagged terrain colliders with Newton heightfields.
 
         Scans the stage for prims carrying the ``newton:heightfield:resolution``
@@ -1758,13 +1834,14 @@ class NewtonManager(PhysicsManager):
         Args:
             stage: The USD stage being imported.
             builder: The Newton model builder receiving the heightfield shapes.
+            root_paths: Concrete subtree roots to scan.
 
         Returns:
             Prim paths of terrain colliders that were converted to heightfields.
         """
         ignore_paths: list[str] = []
         xform_cache = UsdGeom.XformCache()
-        for prim in stage.Traverse():
+        for prim in (prim for root_path in root_paths for prim in Usd.PrimRange(stage.GetPrimAtPath(root_path))):
             attr = prim.GetAttribute("newton:heightfield:resolution")
             if not attr or not attr.HasAuthoredValue():
                 continue
@@ -1845,7 +1922,7 @@ class NewtonManager(PhysicsManager):
         # ordering arguments are ever passed here, update the resolver
         # constants in lockstep or MJWarp resolution will silently diverge
         # from the live backend.
-        hf_ignore_paths = cls._inject_terrain_heightfields(stage, builder)
+        hf_ignore_paths = cls._inject_terrain_heightfields(stage, builder, root_paths=("/",))
         solver_ignore_paths = cls._get_usd_import_ignore_paths()
 
         if not env_paths:
@@ -1855,6 +1932,7 @@ class NewtonManager(PhysicsManager):
             )
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
+            import_builder_visual_material_paths(builder, stage)
             NewtonManager._world_xforms = [wp.transform()]
             for hook in cls._per_world_builder_hooks:
                 hook(builder, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
@@ -1865,6 +1943,7 @@ class NewtonManager(PhysicsManager):
             import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
+            import_builder_visual_material_paths(builder, stage)
 
             _, proto_path = env_paths[0]
             source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
@@ -1878,6 +1957,7 @@ class NewtonManager(PhysicsManager):
                 source_builders[proto_path], stage, import_result["path_shape_map"]
             )
             replace_newton_builder_shape_colors(source_builders[proto_path], stage)
+            import_builder_visual_material_paths(source_builders[proto_path], stage)
             cls._cl_protos = source_builders
 
             global_site_indices, source_site_indices, env_root_sites = cls._cl_inject_sites(builder, source_builders)
@@ -2167,17 +2247,10 @@ class NewtonManager(PhysicsManager):
         cls._eval_fk(None, None)
         cls._mark_transforms_dirty()
 
-        # Skip the initial graph capture when the Newton actuator fast path is
-        # active. Capturing here would use ``cls._decimation`` (still its default
-        # of 1, because the env's ``set_decimation`` hasn't run yet); a second
-        # capture from ``set_decimation`` then triggers an illegal-memory-access
-        # CUDA fault inside the captured ``_simulate_full`` graph (back-to-back
-        # captures of the contact + actuator pipeline don't survive re-capture
-        # — root cause is in Newton's collision/actuator buffer handling, not
-        # Lab code). For non-Newton-actuator paths this branch is unaffected:
-        # ``set_decimation`` is a no-op for them (``_is_all_graphable`` is False),
-        # so we still need the start-time capture below.
-        if not cls._use_newton_actuators_active:
+        # Fully graphable Newton actuators defer capture until ``set_decimation``
+        # provides the environment's final decimation value. Other paths capture
+        # the solver here; non-graphable actuators otherwise leave it eager.
+        if not cls._is_all_graphable():
             cls._capture_or_defer_graph()
 
     @classmethod
@@ -2472,6 +2545,27 @@ class NewtonManager(PhysicsManager):
 
     # State accessors (used extensively by articulation/rigid object data)
     @classmethod
+    def create_visual_material_writer(cls, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
+        """Compile material-to-shape addresses for the active Newton model."""
+        return VisualMaterialWriter(cls.get_model(), batches)
+
+    @classmethod
+    def create_visual_shape_color_writer(
+        cls, asset: BaseArticulation, body_names: tuple[str, ...]
+    ) -> VisualShapeColorWriter:
+        """Compile selected articulation-body shape addresses for the active Newton model."""
+        model = cls.get_model()
+        view = asset.root_view
+        if not isinstance(view, ArticulationView):
+            root_expr = asset.cfg.prim_path
+            root_expr += (
+                "(?:/.*)?" if asset.cfg.articulation_root_prim_path is None else asset.cfg.articulation_root_prim_path
+            )
+            prim_paths = [path for path in model.articulation_label if re.fullmatch(root_expr, path)]
+            view = ArticulationView(model, prim_paths, verbose=False)
+        return VisualShapeColorWriter(model, view, body_names)
+
+    @classmethod
     def get_model(cls) -> Model:
         """Get the Newton model.
 
@@ -2512,19 +2606,12 @@ class NewtonManager(PhysicsManager):
         return cls._contacts
 
     @classmethod
-    def _register_sensor_task(
-        cls, name: str, update_fn: Callable[[], None], *, include_collision_shapes: bool = False
-    ) -> None:
+    def _register_sensor_task(cls, name: str, update_fn: Callable[[], None]) -> None:
         """Register a graph-capturable scene-query task.
 
         Args:
             name: Unique task name.
             update_fn: Graph-capturable callable run by :meth:`_update_sensor_tasks`.
-            include_collision_shapes: Whether the task must see collision-only
-                geometry. Newton builds the shape BVH over visible shapes, which is
-                what renderers want; the first ray-cast sensor rebuilds it with
-                collision shapes added, since those must be hit even when they carry
-                no visual representation.
         """
         if name in cls._sensor_tasks:
             raise ValueError(f"Newton sensor task '{name}' is already registered.")
@@ -2532,12 +2619,8 @@ class NewtonManager(PhysicsManager):
         state = cls.get_state_0()
         if model is None or state is None:
             raise RuntimeError("Registering a Newton sensor task requires an initialized model and state.")
-        if model.shape_count > 0:
-            if include_collision_shapes and not cls._sensor_bvh_has_collision_shapes:
-                model.bvh_build_shapes(state, shape_flags=ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES)
-                NewtonManager._sensor_bvh_has_collision_shapes = True
-            elif model.bvh_shapes is None:
-                model.bvh_build_shapes(state)
+        if model.shape_count > 0 and model.bvh_shapes is None:
+            model.bvh_build_shapes(state)
         if model.particle_count > 0 and model.bvh_particles is None:
             model.bvh_build_particles(state)
         cls._sensor_tasks[name] = update_fn
@@ -2772,6 +2855,12 @@ class NewtonManager(PhysicsManager):
             cls._model.num_envs = cls._num_envs
             NewtonManager._deformable_registry = []
             populate_shadow_deformable_registry(cls, registry_groups)
+            NewtonManager._visualization_stop_callback = sim.physics_manager.register_callback(
+                lambda _payload: NewtonManager.clear(),
+                PhysicsEvent.STOP,
+                name="newton_visualization_state",
+                wrap_weak_ref=False,
+            )
 
         except Exception:
             logger.exception(
@@ -3174,7 +3263,7 @@ class NewtonManager(PhysicsManager):
             return
         if cls._model is None or not cls._model.actuators:
             return
-        from isaaclab_newton.actuators import NewtonActuatorAdapter  # noqa: PLC0415
+        from isaaclab.actuators.newton import NewtonActuatorAdapter  # noqa: PLC0415
 
         dofs_per_env = cls._model.joint_dof_count // cls._num_envs
         NewtonManager._adapter = NewtonActuatorAdapter(
@@ -3286,8 +3375,9 @@ class NewtonManager(PhysicsManager):
     ) -> tuple[str | list[str] | None, str | list[str] | None, str | list[str] | None, str | list[str] | None]:
         """Add a contact sensor for reporting contacts between bodies/shapes.
 
-        Converts Isaac Lab pattern conventions (``.*`` regex, full USD paths) to
-        fnmatch globs and delegates to :class:`newton.sensors.SensorContact`.
+        Compiles the Isaac Lab regular expressions and delegates to
+        :class:`newton.sensors.SensorContact`, which full-matches compiled patterns
+        against model labels.
 
         Args:
             body_names_expr: Expression for body names to sense.
@@ -3315,31 +3405,6 @@ class NewtonManager(PhysicsManager):
         def _hashable_key(x):
             return tuple(x) if isinstance(x, list) else x
 
-        def _to_fnmatch(expr: str | list[str] | None) -> str | list[str] | None:
-            """Convert Isaac Lab regex expressions (``.*``) to fnmatch glob (``*``)."""
-            if expr is None:
-                return None
-            if isinstance(expr, str):
-                return path_expr_to_glob(expr)
-            return [path_expr_to_glob(p) for p in expr]
-
-        def _normalize_for_labels(expr: str | list[str] | None, labels: list[str]) -> str | list[str] | None:
-            """Strip leading path components from *expr* when labels are bare names.
-
-            Model labels may be full USD paths (``/World/envs/env_0/Robot/base``) or bare
-            names (``base``).  When the labels are bare names but the user expression
-            contains slashes, we strip everything up to the last ``/``.
-            """
-            if expr is None or not labels:
-                return expr
-            label_has_paths = any("/" in lbl for lbl in labels)
-            items = [expr] if isinstance(expr, str) else list(expr)
-            expr_uses_paths = any("/" in p for p in items)
-            if label_has_paths or not expr_uses_paths:
-                return expr
-            normalized = [p.rsplit("/", 1)[-1] for p in items]
-            return normalized[0] if isinstance(expr, str) else normalized
-
         sensor_key = (
             _hashable_key(body_names_expr),
             _hashable_key(shape_names_expr),
@@ -3347,16 +3412,13 @@ class NewtonManager(PhysicsManager):
             _hashable_key(contact_partners_shape_expr),
         )
 
-        body_labels = list(cls._model.body_label)
-        shape_labels = list(cls._model.shape_label)
-
         with Timer(name="newton_contact_sensor", msg="Contact sensor construction took:"):
             sensor = NewtonContactSensor(
                 cls._model,
-                sensing_obj_bodies=_normalize_for_labels(_to_fnmatch(body_names_expr), body_labels),
-                sensing_obj_shapes=_normalize_for_labels(_to_fnmatch(shape_names_expr), shape_labels),
-                counterpart_bodies=_normalize_for_labels(_to_fnmatch(contact_partners_body_expr), body_labels),
-                counterpart_shapes=_normalize_for_labels(_to_fnmatch(contact_partners_shape_expr), shape_labels),
+                sensing_bodies=_compile_label_pattern(body_names_expr),
+                sensing_shapes=_compile_label_pattern(shape_names_expr),
+                counterpart_bodies=_compile_label_pattern(contact_partners_body_expr),
+                counterpart_shapes=_compile_label_pattern(contact_partners_shape_expr),
                 measure_total=True,
                 verbose=verbose,
             )

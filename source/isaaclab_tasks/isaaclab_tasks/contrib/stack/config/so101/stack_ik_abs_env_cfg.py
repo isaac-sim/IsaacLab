@@ -218,7 +218,7 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
         # cube and ejecting it. The Franka panda_hand (effort 200 N, stiffness 2e3) is a *prismatic*
         # finger pair, so its gains do not transfer to this *revolute* jaw [N·m, rad]; instead we
         # behavior-match by capping the closing speed and grip torque so it closes gently and holds
-        # without penetrating. ``effort_limit_sim`` is the "strength" knob and ``velocity_limit_sim``
+        # without penetrating. ``joint_effort_limit`` is the "strength" knob and ``joint_velocity_limit``
         # the "speed" knob; stiffness/damping keep the asset defaults. Tune in-sim (lower effort if
         # it still pushes through; raise it if the cube drops).
         self.scene.robot = SO101_HIGH_PD_CFG.replace(
@@ -228,8 +228,8 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
                 "arm": SO101_HIGH_PD_CFG.actuators["arm"],
                 "gripper": ImplicitActuatorCfg(
                     joint_names_expr=["gripper"],
-                    effort_limit_sim=1.0,  # was 10.0 -- cap grip torque so it can't push through
-                    velocity_limit_sim=2.0,  # was 10.0 -- close gently instead of snapping shut
+                    joint_effort_limit=1.0,  # was 10.0 -- cap grip torque so it can't push through
+                    joint_velocity_limit=2.0,  # was 10.0 -- close gently instead of snapping shut
                     stiffness=17.8,
                     damping=0.60,
                 ),

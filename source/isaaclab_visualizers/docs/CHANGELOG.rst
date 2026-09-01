@@ -1,6 +1,62 @@
 Changelog
 ---------
 
+1.10.0 (2026-09-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`, which authors arbitrary RTX
+  attributes onto the OVRTX render product as ``{name: (usd_type_name, value)}``. ``ViewerRTX`` hard-codes its render
+  product and exports the stage before the renderer reads it, so these are applied in the only window that reaches the
+  renderer. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's quality convergence
+  loop, which ``ViewerRTX`` otherwise disables to keep interactive latency down.
+
+
+1.9.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to every concrete visualizer config through its ``class_type`` field.
+
+
+1.8.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added renderer-owned visual-material writers to the Kit and Newton visualizers.
+
+
+1.7.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a camera speed-boost mode to the Newton GL and RTX visualizers: holding
+  Shift while flying the free camera with WASD doubles the camera translation
+  speed, matching the Kit visualizer's speed-up behavior.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_visualizers.kit.KitVisualizer` to leave its viewport
+  camera unpartitioned when AppLauncher enables the all-environment spectator
+  view. Otherwise, the viewport camera is assigned to the first visible
+  environment.
+
+Fixed
+^^^^^
+
+* Fixed global Kit/USD visualization-marker instances appearing across tiled
+  environments when per-instance environment IDs are provided.
+
+
 1.6.0 (2026-08-14)
 ~~~~~~~~~~~~~~~~~~
 

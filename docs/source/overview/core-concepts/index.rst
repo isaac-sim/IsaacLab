@@ -12,7 +12,6 @@ This section we introduce core concepts in Isaac Lab.
   schema_cfgs
   schema_fragments
   task_workflows
-  actuators
   sensors/index.rst
   renderers
   motion_generators

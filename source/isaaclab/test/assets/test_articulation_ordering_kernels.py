@@ -10,12 +10,12 @@ import pytest
 import warp as wp
 
 from isaaclab.assets.articulation.ordering_kernels import (
+    launch_reorder_joint_targets_user_to_backend,
     reorder_2d_backend_to_user,
     reorder_2d_user_to_backend,
     reorder_3d_backend_to_user,
     reorder_body_state_backend_to_user,
     reorder_joint_state_backend_to_user,
-    reorder_joint_targets_user_to_backend,
     write_2d_user_to_backend_with_indices,
     write_2d_user_to_backend_with_mask,
     write_3d_user_to_backend_with_indices,
@@ -176,7 +176,7 @@ def test_reorder_joint_targets_user_to_backend_writes_only_flagged_outputs(
     write_vel: bool,
     write_act: bool,
 ) -> None:
-    """Fuse the write-path target reorders, honoring per-output flags over a non-trivial permutation."""
+    """Write only enabled targets in backend joint order."""
     user_effort_np = np.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32)
     user_pos_np = user_effort_np + 10.0
     user_vel_np = user_effort_np + 20.0
@@ -198,11 +198,19 @@ def test_reorder_joint_targets_user_to_backend_writes_only_flagged_outputs(
     backend_vel = wp.array(vel_sentinel, dtype=wp.float32, device="cpu")
     backend_act = wp.array(act_sentinel, dtype=wp.float32, device="cpu")
 
-    wp.launch(
-        reorder_joint_targets_user_to_backend,
-        dim=(user_effort_np.shape[0], user_effort_np.shape[1]),
-        inputs=[user_effort, user_pos, user_vel, backend_to_user, write_effort, write_pos, write_vel, write_act],
-        outputs=[backend_effort, backend_pos, backend_vel, backend_act],
+    launch_reorder_joint_targets_user_to_backend(
+        user_effort=user_effort,
+        user_pos_target=user_pos,
+        user_vel_target=user_vel,
+        backend_to_user=backend_to_user,
+        write_effort=write_effort,
+        write_pos_target=write_pos,
+        write_vel_target=write_vel,
+        write_joint_act=write_act,
+        backend_effort=backend_effort,
+        backend_pos_target=backend_pos,
+        backend_vel_target=backend_vel,
+        backend_joint_act=backend_act,
         device="cpu",
     )
 
