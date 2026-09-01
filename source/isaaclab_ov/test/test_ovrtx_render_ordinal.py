@@ -24,6 +24,8 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
+    from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
     from isaaclab_ov.renderers.ovrtx_renderer_strategies import _AsyncRenderStrategy, _SyncRenderStrategy
 
 
@@ -104,3 +106,42 @@ def test_async_strategy_forwards_each_frame_ordinal():
         _render(strategy, renderer, ordinal)
 
     assert renderer.ordinals == [3, 4, 5]
+
+
+def test_ovstage_ordinal_advances_when_consumption_fails():
+    """A failed product consumption must not leave the ordinal at the barred write floor.
+
+    ``advance_write_floor`` runs before the step and bars writes at the current ordinal. A stale
+    ordinal would reject every later scene write from a caller that catches the render error and
+    keeps stepping.
+    """
+
+    class _Completion:
+        def wait(self) -> None:
+            return None
+
+    class _Stage:
+        def advance_write_floor(self, **_kwargs) -> _Completion:
+            return _Completion()
+
+    renderer = OVRTXRenderer.__new__(OVRTXRenderer)
+    renderer.cfg = OVRTXRendererCfg()
+    renderer._initialized_scene = True
+    renderer._use_ovstage = True
+    renderer._renderer = _RecordingRenderer(attached=True)
+    renderer._render_product_paths = ["/product"]
+    renderer._visual_material_writer_ref = None
+    renderer._stage = _Stage()
+    renderer._current_ordinal = 7
+    renderer._strategy = _SyncRenderStrategy()
+
+    def _failing_consume(render_data, products):
+        raise RuntimeError("extraction failed")
+
+    renderer._consume_products = _failing_consume
+
+    with pytest.raises(RuntimeError, match="extraction failed"):
+        renderer._render_ovstage(object())
+
+    assert renderer._renderer.ordinals == [7]
+    assert renderer._current_ordinal == 8

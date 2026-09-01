@@ -243,7 +243,7 @@ def test_staged_buffers_are_double_buffered_per_frame(timeline, camera_first):
 
 
 def test_cleanup_survives_failed_slot_writes(strategy, timeline):
-    """A failed binding write at teardown must log and continue, not raise out of the renderer's close()."""
+    """A failed binding write at teardown must not raise. It must finish draining and report the failure."""
     renderer = _FakeRenderer(timeline)
     consumed: list[int] = []
     _render(strategy, renderer, 0, consumed)
@@ -258,9 +258,10 @@ def test_cleanup_survives_failed_slot_writes(strategy, timeline):
             camera_transforms=None, camera_quats=None, object_transforms=None, write_ops=[_FailingWriteOp()]
         )
     )
-    strategy.cleanup()
+    errors = strategy.cleanup()
 
     assert consumed == [0, 1]
+    assert len(errors) == 1
 
 
 def test_sync_strategy_needs_no_barrier(timeline):

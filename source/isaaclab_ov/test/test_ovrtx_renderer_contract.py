@@ -699,29 +699,47 @@ def test_ovrtx_close_is_idempotent():
     assert events == []
 
 
-def _make_camera_spec(prim_path: str, width: int = 16, height: int = 8):
+def _make_camera_spec(prim_path: str, width: int = 16, height: int = 8, data_types=None, isp_cfg=None):
     return types.SimpleNamespace(
         device="cuda:0",
         camera_prim_paths=[prim_path],
         num_instances=2,
-        cfg=types.SimpleNamespace(width=width, height=height, data_types=["rgb"], isp_cfg=None),
+        cfg=types.SimpleNamespace(width=width, height=height, data_types=data_types or ["rgb"], isp_cfg=isp_cfg),
     )
 
 
-def test_create_render_data_warns_on_second_camera_spec(caplog: pytest.LogCaptureFixture):
-    """The scene is built from the first camera's spec; a different later spec must warn, since that
-    camera silently receives the first camera's images (e.g. equal RendererCfgs deduped onto one
-    renderer by RenderContext.get_renderer)."""
+_CAMERA_PATH = "/World/envs/env_0/Camera"
+
+
+@pytest.mark.parametrize(
+    ("first_spec_kwargs", "second_spec_kwargs", "expect_warning"),
+    [
+        pytest.param({}, {"prim_path": "/World/envs/env_0/Robot/palm_link/Camera"}, True, id="different-camera-path"),
+        pytest.param({}, {}, False, id="identical-spec"),
+        pytest.param({"isp_cfg": object()}, {}, True, id="isp-adds-hdr-output"),
+        pytest.param(
+            {"isp_cfg": object()},
+            {"data_types": ["rgb", "rgb_hdr"]},
+            False,
+            id="equivalent-normalized-data-types",
+        ),
+    ],
+)
+def test_create_render_data_warns_on_second_camera_spec(
+    first_spec_kwargs, second_spec_kwargs, expect_warning, caplog: pytest.LogCaptureFixture
+):
+    """The scene is built from the first camera's spec. A later spec that builds a different scene
+    must warn, because that camera silently receives the first camera's images. A later spec that
+    builds the same scene must stay silent, including through data-type normalization. An ISP adds
+    the ``rgb_hdr`` output during scene initialization, so it takes part in the comparison.
+    """
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
-    first_spec = _make_camera_spec("/World/envs/env_0/Camera")
+    first_spec = _make_camera_spec(_CAMERA_PATH, **first_spec_kwargs)
     renderer._initialized_spec_summary = ovrtx_renderer_module._camera_spec_summary(first_spec)
 
     with caplog.at_level("WARNING"):
-        renderer.create_render_data(_make_camera_spec("/World/envs/env_0/Robot/palm_link/Camera"))
-    assert any("one camera spec per instance" in record.message for record in caplog.records)
+        renderer.create_render_data(_make_camera_spec(**{"prim_path": _CAMERA_PATH, **second_spec_kwargs}))
 
-    caplog.clear()
-    with caplog.at_level("WARNING"):
-        renderer.create_render_data(_make_camera_spec("/World/envs/env_0/Camera"))
-    assert not caplog.records
+    warned = any("one camera spec per instance" in record.message for record in caplog.records)
+    assert warned is expect_warning

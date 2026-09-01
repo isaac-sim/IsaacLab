@@ -111,8 +111,13 @@ class _RenderStrategy(ABC):
         staging buffers override it.
         """
 
-    def cleanup(self) -> None:
-        """Flush in-flight work and release staging resources. The default does nothing."""
+    def cleanup(self) -> list[Exception]:
+        """Flush in-flight work and release staging resources, returning collected failures.
+
+        The method must not raise. The caller re-raises after its own teardown has finished. The
+        default does nothing and returns no failures.
+        """
+        return []
 
     def settle_before_scene_write(self) -> None:
         """Drain in-flight renders that could observe a scene mutation issued after them.
@@ -244,9 +249,11 @@ class _AsyncRenderStrategy(_RenderStrategy):
     :attr:`~isaaclab.renderers.RendererCfg.async_rendering` is enabled, so rendering overlaps the
     next step's simulation and Python work and camera outputs are one step stale.
 
-    Transform writes always use two slots, independent of queue depth. A ``DataAccess.ASYNC`` write
-    copies the data into OVRTX's own storage, so OVRTX reads a buffer only until its write op
-    completes. A buffer is safe to recycle once its write has drained.
+    Transform writes always use two slots, independent of queue depth. Completion of a
+    ``DataAccess.ASYNC`` write op is stream-scoped: it plants a fence in the CUDA stream the write
+    named, and only work on that stream is ordered after OVRTX's read. Slot refills run on the
+    device's current Warp stream, which is also the stream every write names, so the fence covers
+    them. A refill from any other stream would race the read.
     """
 
     # See :meth:`_create_slots` for why two is always enough.
@@ -288,10 +295,14 @@ class _AsyncRenderStrategy(_RenderStrategy):
         """Queue a render op, drain the oldest render when the ring is full, and advance the staging slot."""
         entry = _AsyncRenderEntry(op, render_data, consume_products)
         self._ring.append(entry)
-        if len(self._ring) >= self._render_queue_depth:
-            self._try_drain_one()
-        if self._slots:
-            self._advance_slot()
+        try:
+            if len(self._ring) >= self._render_queue_depth:
+                self._try_drain_one()
+        finally:
+            # Advance even when the drain raises. A caller that catches the error and keeps
+            # stepping must not stage the next frame into the slot of the render just submitted.
+            if self._slots:
+                self._advance_slot()
         return entry
 
     def initialize(self, num_envs: int) -> None:
@@ -323,8 +334,8 @@ class _AsyncRenderStrategy(_RenderStrategy):
         # Two slots suffice at any render depth: the frame being assembled stages into one slot
         # while the other still backs the frame in flight. :meth:`_advance_slot` waits out the
         # incoming slot's writes, which were submitted before the render that has just drained and
-        # are therefore already complete. OVRTX copies the buffer into its own storage before that
-        # write op completes.
+        # are therefore already complete. Completion is a fence in the writes' CUDA stream, and the
+        # refill kernels run on that same stream, so they cannot pass OVRTX's read.
         assert self._warp_device is not None
         for _ in range(self._NUM_SLOTS):
             self._slots.append(
@@ -436,23 +447,29 @@ class _AsyncRenderStrategy(_RenderStrategy):
         """Complete the oldest queued render and deliver it. Returns False when nothing was queued."""
         return bool(self._ring) and self._ring.popleft().deliver()
 
-    def cleanup(self) -> None:
+    def cleanup(self) -> list[Exception]:
         """Drain all queued renders best-effort and drop staging slots.
 
-        Each render delivers into the buffers it was submitted with. See :meth:`_RenderStrategy.cleanup`.
+        Each render delivers into the buffers it was submitted with. Failures are collected, not
+        raised. One bad op must not block draining the rest or tearing the renderer down, but a
+        failed final frame must not exit the run silently either. The caller re-raises after it
+        has released its backend resources. See :meth:`_RenderStrategy.cleanup`.
         """
-        # Log and continue: one bad op must not block draining the rest or tearing the renderer down.
+        errors: list[Exception] = []
         while self._has_pending_ops():
             try:
                 self._try_drain_one()
             except Exception as e:
                 logger.warning("Error draining OVRTX async render op: %s", e, exc_info=True)
+                errors.append(e)
 
-        # Same best-effort rule for the slots' binding writes: ``wait_for_writes`` clears a slot's
-        # ops even on failure, so the reset below cannot raise out of the renderer's teardown.
+        # Same collect-and-continue rule for the slots' binding writes. ``wait_for_writes`` clears
+        # a slot's ops even on failure, so the reset below cannot raise out of the teardown.
         for slot in self._slots:
             try:
                 slot.wait_for_writes()
             except Exception as e:
                 logger.warning("Error completing OVRTX async binding write during cleanup: %s", e, exc_info=True)
+                errors.append(e)
         self._reset_slots(0)
+        return errors
