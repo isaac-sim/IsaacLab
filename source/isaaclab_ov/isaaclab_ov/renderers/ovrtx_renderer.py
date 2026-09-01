@@ -85,6 +85,7 @@ from .ovrtx_annotator_utils import (
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
+from .ovrtx_compat import RENDER_VAR_FRAME_KEYS
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     compute_cable_points_world_kernel,
@@ -109,10 +110,26 @@ if TYPE_CHECKING:
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
-# Maps depth render-var sources to compatible output buffers.
+# ``frame.render_vars`` keys of the render vars read below. Baked at import from the installed
+# OVRTX version, which decides whether frames are keyed by source name or RenderVar prim path.
+_LDR_COLOR_VAR = RENDER_VAR_FRAME_KEYS["LdrColor"]
+_HDR_COLOR_VAR = RENDER_VAR_FRAME_KEYS["HdrColor"]
+_ALBEDO_VAR = RENDER_VAR_FRAME_KEYS["DiffuseAlbedoSD"]
+_NORMALS_VAR = RENDER_VAR_FRAME_KEYS["NormalSD"]
+_MOTION_VECTORS_VAR = RENDER_VAR_FRAME_KEYS["TargetMotionSD"]
+_SEMANTIC_SEGMENTATION_VAR = RENDER_VAR_FRAME_KEYS["SemanticSegmentation"]
+_INSTANCE_SEGMENTATION_VAR = RENDER_VAR_FRAME_KEYS["NonStableInstanceSegmentation"]
+_SEMANTIC_ID_MAP_VAR = RENDER_VAR_FRAME_KEYS["SemanticIdMap"]
+_STABLE_ID_MAP_VAR = RENDER_VAR_FRAME_KEYS["StableIdMap"]
+_STABLE_ID_SEMANTIC_ID_MAP_VAR = RENDER_VAR_FRAME_KEYS["StableIdSemanticIdMap"]
+
+# Map render vars needed to decode the instance-segmentation info dicts.
+_INSTANCE_SEGMENTATION_MAP_VARS = (_STABLE_ID_SEMANTIC_ID_MAP_VAR, _STABLE_ID_MAP_VAR, _SEMANTIC_ID_MAP_VAR)
+
+# Maps depth render vars to compatible output buffers.
 _DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
-    "DistanceToImagePlaneSD": ("depth", "distance_to_image_plane"),
-    "DistanceToCameraSD": ("distance_to_camera",),
+    RENDER_VAR_FRAME_KEYS["DistanceToImagePlaneSD"]: ("depth", "distance_to_image_plane"),
+    RENDER_VAR_FRAME_KEYS["DistanceToCameraSD"]: ("distance_to_camera",),
 }
 
 # The resolved integer value is assigned to the ``omni:rtx:minimal:mode`` attribute of the render product.
@@ -1136,7 +1153,7 @@ class OVRTXRenderer(BaseRenderer):
         ``with`` block -- the mapping is released on exit.
 
         Args:
-            render_var: OVRTX ``RenderVarOutput`` to map (``frame.render_vars[name]``).
+            render_var: OVRTX ``RenderVarOutput`` to map (looked up from ``frame.render_vars``).
 
         Yields:
             The render var's contents as a Warp array, valid for the duration of the context.
@@ -1153,7 +1170,7 @@ class OVRTXRenderer(BaseRenderer):
         render_data: OVRTXRenderData,
         frame,
         output_buffers: dict,
-        render_var_name: str,
+        render_var_key: str,
         buffer_key: str,
         colorize: bool,
     ) -> None:
@@ -1167,14 +1184,15 @@ class OVRTXRenderer(BaseRenderer):
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
             output_buffers: Destination warp buffers, keyed by data type.
-            render_var_name: Name of the OVRTX render var to read.
+            render_var_key: ``frame.render_vars`` key of the OVRTX render var to read.
             buffer_key: Data type key into ``output_buffers``.
             colorize: If True, IDs are mapped to RGBA colors; otherwise raw uint32 IDs are copied.
         """
-        if render_var_name not in frame.render_vars or buffer_key not in output_buffers:
+        render_var = frame.render_vars.get(render_var_key)
+        if render_var is None or buffer_key not in output_buffers:
             return
 
-        with self._map_render_var_to_dlpack(frame.render_vars[render_var_name]) as tiled_data:
+        with self._map_render_var_to_dlpack(render_var) as tiled_data:
             if tiled_data.dtype != wp.uint32:
                 return
 
@@ -1211,10 +1229,11 @@ class OVRTXRenderer(BaseRenderer):
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
         """
-        if "SemanticIdMap" not in frame.render_vars:
+        semantic_id_map = frame.render_vars.get(_SEMANTIC_ID_MAP_VAR)
+        if semantic_id_map is None:
             return
 
-        with frame.render_vars["SemanticIdMap"].map(device=Device.CPU) as mapping:
+        with semantic_id_map.map(device=Device.CPU) as mapping:
             labels_by_id = decode_semantic_id_map(np.from_dlpack(mapping))
 
         render_data.renderer_info["semantic_segmentation"] = {
@@ -1247,19 +1266,19 @@ class OVRTXRenderer(BaseRenderer):
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
         """
-        required_vars = ("StableIdSemanticIdMap", "StableIdMap", "SemanticIdMap")
-        missing = [v for v in required_vars if v not in frame.render_vars]
+        resolved = {key: frame.render_vars.get(key) for key in _INSTANCE_SEGMENTATION_MAP_VARS}
+        missing = [key for key, render_var in resolved.items() if render_var is None]
         if missing:
             raise RuntimeError(
                 f"instance_segmentation was requested but the following render vars are missing from the "
                 f"OVRTX frame: {missing}. Available vars: {list(frame.render_vars.keys())}"
             )
 
-        with frame.render_vars["StableIdSemanticIdMap"].map(device=Device.CPU) as mapping:
+        with resolved[_STABLE_ID_SEMANTIC_ID_MAP_VAR].map(device=Device.CPU) as mapping:
             stable_id_semantic_id_map = decode_stable_id_semantic_id_map(np.from_dlpack(mapping))
-        with frame.render_vars["StableIdMap"].map(device=Device.CPU) as mapping:
+        with resolved[_STABLE_ID_MAP_VAR].map(device=Device.CPU) as mapping:
             stable_id_to_path = decode_stable_id_map(np.from_dlpack(mapping))
-        with frame.render_vars["SemanticIdMap"].map(device=Device.CPU) as mapping:
+        with resolved[_SEMANTIC_ID_MAP_VAR].map(device=Device.CPU) as mapping:
             semantic_id_to_labels = decode_semantic_id_map(np.from_dlpack(mapping))
 
         id_to_labels, id_to_semantics = build_instance_id_to_labels_and_semantics(
@@ -1384,7 +1403,8 @@ class OVRTXRenderer(BaseRenderer):
         # is available, so without this a missing SemanticIdMap on a later frame would leave a stale mapping.
         render_data.renderer_info.clear()
 
-        if "LdrColor" in frame.render_vars:
+        ldr_color = frame.render_vars.get(_LDR_COLOR_VAR)
+        if ldr_color is not None:
             buffer_key = None
 
             if render_data.ppisp_pipeline is None and "rgba" in output_buffers:
@@ -1398,27 +1418,30 @@ class OVRTXRenderer(BaseRenderer):
                         break
 
             if buffer_key is not None:
-                with self._map_render_var_to_dlpack(frame.render_vars["LdrColor"]) as tiled_data:
+                with self._map_render_var_to_dlpack(ldr_color) as tiled_data:
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
         for depth_var, buffer_keys in _DEPTH_VAR_BUFFER_KEYS.items():
-            if depth_var not in frame.render_vars:
+            depth_render_var = frame.render_vars.get(depth_var)
+            if depth_render_var is None:
                 continue
             if not any(buffer_key in output_buffers for buffer_key in buffer_keys):
                 continue
-            with self._map_render_var_to_dlpack(frame.render_vars[depth_var]) as tiled_depth_data:
+            with self._map_render_var_to_dlpack(depth_render_var) as tiled_depth_data:
                 if tiled_depth_data.dtype == wp.uint32:
                     tiled_depth_data = wp.from_torch(
                         wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32
                     )
                 self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers, buffer_keys)
 
-        if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in output_buffers:
-            with self._map_render_var_to_dlpack(frame.render_vars["DiffuseAlbedoSD"]) as tiled_albedo_data:
+        albedo_var = frame.render_vars.get(_ALBEDO_VAR)
+        if albedo_var is not None and "albedo" in output_buffers:
+            with self._map_render_var_to_dlpack(albedo_var) as tiled_albedo_data:
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
-        if "HdrColor" in frame.render_vars and "rgb_hdr" in output_buffers:
-            with self._map_render_var_to_dlpack(frame.render_vars["HdrColor"]) as tiled_hdr_data:
+        hdr_color = frame.render_vars.get(_HDR_COLOR_VAR)
+        if hdr_color is not None and "rgb_hdr" in output_buffers:
+            with self._map_render_var_to_dlpack(hdr_color) as tiled_hdr_data:
                 tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
                 self._extract_hdr_color_tiles(render_data, tiled_hdr_data, output_buffers)
 
@@ -1426,7 +1449,7 @@ class OVRTXRenderer(BaseRenderer):
             render_data,
             frame,
             output_buffers,
-            "SemanticSegmentation",
+            _SEMANTIC_SEGMENTATION_VAR,
             "semantic_segmentation",
             self.cfg.colorize_semantic_segmentation,
         )
@@ -1438,7 +1461,7 @@ class OVRTXRenderer(BaseRenderer):
             render_data,
             frame,
             output_buffers,
-            "NonStableInstanceSegmentation",
+            _INSTANCE_SEGMENTATION_VAR,
             "instance_segmentation",
             self.cfg.colorize_instance_segmentation,
         )
@@ -1447,15 +1470,17 @@ class OVRTXRenderer(BaseRenderer):
         if "instance_segmentation" in output_buffers:
             self._process_instance_segmentation_maps(render_data, frame)
 
-        if "NormalSD" in frame.render_vars and "normals" in output_buffers:
-            with self._map_render_var_to_dlpack(frame.render_vars["NormalSD"]) as tiled_normals_data:
+        normals_var = frame.render_vars.get(_NORMALS_VAR)
+        if normals_var is not None and "normals" in output_buffers:
+            with self._map_render_var_to_dlpack(normals_var) as tiled_normals_data:
                 self._launch_extract_all_tiles(render_data, tiled_normals_data, output_buffers["normals"])
 
         # For motion vectors, extract only the first two (u, v) channels from the tiled buffer.
         # Note: mirrors the Isaac RTX renderer's handling of the "TargetMotionSD" AOV
         # (check: https://github.com/isaac-sim/IsaacLab/issues/2003).
-        if "TargetMotionSD" in frame.render_vars and "motion_vectors" in output_buffers:
-            with self._map_render_var_to_dlpack(frame.render_vars["TargetMotionSD"]) as tiled_motion_vectors_data:
+        motion_var = frame.render_vars.get(_MOTION_VECTORS_VAR)
+        if motion_var is not None and "motion_vectors" in output_buffers:
+            with self._map_render_var_to_dlpack(motion_var) as tiled_motion_vectors_data:
                 self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
 
     def _render_legacy(self, render_data: OVRTXRenderData) -> None:
