@@ -86,7 +86,7 @@ dependencies = [
     "onnxscript>=0.5",
     # ----- newton (default physics engine) -----
     # Loose bound so the wheel co-resolves with isaacsim's newton[sim]==1.2.0 pin; the
-    # exact git commit is forced via [tool.uv].override-dependencies (uv sync only).
+    # exact PyPI release is forced via [tool.uv].override-dependencies (uv sync only).
     "newton[sim]>=1.2.0",
     # Import and mesh-processing packages used by Newton, including the ones that honoring
     # USD-authored ``physics:approximation`` requires. Keep these explicit instead of selecting
@@ -162,12 +162,13 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
 
-ov = ["ovphysx==0.5.10", "ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
-ovphysx = ["ovphysx==0.5.10", "ovstage==0.1.1.355824"]
+ov = ["ovphysx==0.5.11", "ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
+ovphysx = ["ovphysx==0.5.11", "ovstage==0.1.1.355824"]
 ovrtx = ["ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
 
 mimic = [
     "isaaclab-mimic",
+    "isaaclab-teleop",
     "ipywidgets>=8.1.5",
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
@@ -208,10 +209,9 @@ usd_exchange = "2.3.0"
 torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
-ovphysx = "0.5.10"
+ovphysx = "0.5.11"
 ovrtx = "0.4.1.364340"
 ovstage = "0.1.1.355824"
-newton = "release-1.5"
 warp = "1.16.0"
 
 [tool.ruff]
@@ -396,7 +396,7 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.11.0",
     "mujoco-warp~=3.11.0",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@release-1.5",
+    "newton[sim]==1.5.1",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.1",
     "torch==2.11.0",
