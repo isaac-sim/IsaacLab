@@ -236,10 +236,9 @@ def retrieve_git_asset_path(
     """Return a local path for an asset stored in a git repository.
 
     Remote repositories are cached under :data:`GIT_ASSET_CACHE_DIR`. If the requested
-    asset is already cached, it is returned without running git. Otherwise, access to the
-    checkout is serialized and an existing checkout is updated before the asset is reported
-    as missing. New checkouts are published atomically so an interrupted clone cannot leave
-    an incomplete cache at the final path.
+    asset is already cached, it is returned without running git. Cache population is
+    serialized, and new checkouts are published atomically so an interrupted clone cannot
+    leave an incomplete cache at the final path.
 
     Args:
         git_path: Git repository URL, SSH path, or existing local checkout directory.
@@ -263,27 +262,20 @@ def retrieve_git_asset_path(
         if not force_update and os.path.exists(source_path):
             return source_path
 
-    git_asset_dir = _get_git_asset_dir(git_path, cache_dir, force_update, required_local_path=local_path)
+    git_asset_dir = _get_git_asset_dir(git_path, cache_dir, force_update)
     source_path = _resolve_git_asset_source_path(local_path, git_asset_dir)
     if not os.path.exists(source_path):
         raise FileNotFoundError(f"Unable to find git asset: {source_path}")
     return source_path
 
 
-def _get_git_asset_dir(
-    git_path: str,
-    cache_dir: str | None = None,
-    force_update: bool = False,
-    required_local_path: str | None = None,
-) -> str:
+def _get_git_asset_dir(git_path: str, cache_dir: str | None = None, force_update: bool = False) -> str:
     """Return a local checkout for a git asset repository.
 
     Args:
         git_path: Git repository URL, SSH path, or existing local checkout directory.
         cache_dir: Directory where remote repositories are cached.
         force_update: Whether to update an existing checkout.
-        required_local_path: Asset path that must exist in a remote checkout. When it is missing,
-            an existing checkout is updated and recovered before returning.
 
     Returns:
         Path to a local repository checkout.
@@ -301,61 +293,23 @@ def _get_git_asset_dir(
         return git_asset_dir
 
     git_asset_dir = _get_git_asset_cache_dir(git_path, cache_dir)
-    required_source_path = (
-        _resolve_git_asset_source_path(required_local_path, git_asset_dir) if required_local_path is not None else None
-    )
-
     with FileLock(git_asset_dir + ".lock"):
-        has_checkout = os.path.isdir(os.path.join(git_asset_dir, ".git"))
-        asset_is_missing = required_source_path is not None and not os.path.exists(required_source_path)
-
-        if has_checkout:
-            if force_update or asset_is_missing:
-                try:
-                    _run_git_command(["git", "-C", git_asset_dir, "pull", "--ff-only"])
-                except RuntimeError:
-                    _clone_git_asset_repo(git_path, git_asset_dir)
-            if required_source_path is not None and not os.path.exists(required_source_path):
-                # A clone interrupted during checkout can have a valid HEAD but still lack
-                # working-tree files. Restore the checkout without downloading the repository again.
-                try:
-                    _run_git_command(["git", "-C", git_asset_dir, "checkout", "HEAD", "--", "."])
-                except RuntimeError:
-                    _clone_git_asset_repo(git_path, git_asset_dir)
+        if os.path.isdir(os.path.join(git_asset_dir, ".git")):
+            if force_update:
+                _run_git_command(["git", "-C", git_asset_dir, "pull", "--ff-only"])
+        elif os.path.exists(git_asset_dir):
+            raise RuntimeError(f"Git asset cache exists but is not a git repository: {git_asset_dir}")
         else:
-            _clone_git_asset_repo(git_path, git_asset_dir)
+            os.makedirs(os.path.dirname(git_asset_dir), exist_ok=True)
+            temporary_path = git_asset_dir + ".partial"
+            shutil.rmtree(temporary_path, ignore_errors=True)
+            try:
+                _run_git_command(["git", "clone", "--depth", "1", git_path, temporary_path])
+                os.replace(temporary_path, git_asset_dir)
+            finally:
+                shutil.rmtree(temporary_path, ignore_errors=True)
 
     return git_asset_dir
-
-
-def _clone_git_asset_repo(git_path: str, git_asset_dir: str) -> None:
-    """Clone a remote asset repository and atomically publish its checkout.
-
-    The caller must serialize access to :paramref:`git_asset_dir`. The existing cache is
-    preserved until the replacement clone completes successfully.
-
-    Args:
-        git_path: Git repository URL or SSH path.
-        git_asset_dir: Final cache directory for the checkout.
-    """
-    os.makedirs(os.path.dirname(git_asset_dir), exist_ok=True)
-    temporary_path = git_asset_dir + ".partial"
-    _remove_git_asset_cache_path(temporary_path)
-    try:
-        _run_git_command(["git", "clone", "--depth", "1", git_path, temporary_path])
-        _remove_git_asset_cache_path(git_asset_dir)
-        os.replace(temporary_path, git_asset_dir)
-    finally:
-        _remove_git_asset_cache_path(temporary_path)
-
-
-def _remove_git_asset_cache_path(path: str) -> None:
-    """Remove a managed Git asset cache path if it exists."""
-    if os.path.isdir(path) and not os.path.islink(path):
-        shutil.rmtree(path)
-    else:
-        with contextlib.suppress(FileNotFoundError):
-            os.remove(path)
 
 
 def _get_git_asset_cache_dir(git_path: str, cache_dir: str | None = None) -> str:
