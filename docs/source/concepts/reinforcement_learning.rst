@@ -160,16 +160,40 @@ For example, play the best local checkpoint and record a short video:
    uv run --extra video isaaclab play --rl_library rsl_rl \
        --task Isaac-Cartpole --checkpoint best --video --video_length 200
 
-Published checkpoints are available for selected core tasks and backend
-combinations. If ``--checkpoint pretrained`` is unavailable for a task, train
-the policy locally and use ``latest`` or an explicit path.
-
 .. hint::
 
    ``play`` applies the environment config's ``play_mode()`` method: it caps the
    scene at 50 environments and disables observation noise or corruption,
    depending on the workflow. Override that method on a task config to customize
    playback.
+
+.. _pretrained-checkpoints:
+
+Pretrained checkpoints
+~~~~~~~~~~~~~~~~~~~~~~
+
+Published pretrained checkpoints are available only for supported core tasks,
+and availability may vary by RL library and backend combination. Other
+registered tasks, including contributed tasks, are not covered by the
+published checkpoint set.
+
+Pass ``--checkpoint pretrained`` to load the published policy matching the
+resolved task configuration. The selector does not guarantee that an artifact
+exists for every registered task: if the matching artifact has not been
+published, the command reports that it is unavailable and exits. In that case,
+train the task locally and use ``latest`` or an explicit checkpoint path.
+
+Maintainers can generate the preferred core-task checkpoint matrix with
+``scripts/tools/train_and_publish_checkpoints.py``. Use ``--list --all --core``
+to list the tasks and backend combinations targeted for publication by the
+current source tree. This matrix is not a live check of the remote asset store;
+a listed combination becomes usable with ``--checkpoint pretrained`` only
+after its checkpoint has been uploaded.
+
+.. code-block:: bash
+
+   uv run python scripts/tools/train_and_publish_checkpoints.py \
+       --list --all --core
 
 Resume training
 ~~~~~~~~~~~~~~~

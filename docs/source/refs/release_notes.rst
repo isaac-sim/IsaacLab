@@ -2175,7 +2175,7 @@ New Features
 * Adds the direct workflow Allegro hand environment by @kellyguo11
 * Adds video recording to the play scripts in RL workflows by @j3soon
 * Adds comparison tables for the supported RL libraries
-  `here <https://isaac-sim.github.io/IsaacLab/main/source/concepts/reinforcement_learning.html>`__ by @kellyguo11
+  :doc:`here </source/concepts/reinforcement_learning>` by @kellyguo11
 * Add APIs for deformable asset by @masoudmoghani
 * Adds support for MJCF converter by @qqqwan
 * Adds a function to define camera configs through intrinsic matrix by @pascal-roth
