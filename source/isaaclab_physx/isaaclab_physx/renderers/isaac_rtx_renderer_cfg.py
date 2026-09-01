@@ -59,15 +59,24 @@ class IsaacRtxRendererGlobalSettingsCfg:
 
     .. warning::
 
-        This has no effect on the rendered image with the RTX version shipped by Isaac Sim 6.0.
-        It writes ``/rtx/shadows/enabled``, which RTX registers but no render mode reads: the
-        path-traced modes always cast shadows, and RTX Minimal exposes no shadow switch at all.
-        Setting this to ``False`` leaves every camera output unchanged, so shadows cannot
-        currently be turned off on this backend.
+        This has no effect on the rendered image with the RTX version shipped by Isaac Sim 6.0:
+        setting it to ``False`` leaves every camera output byte-identical.
 
-        :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.enable_shadows` does work, because the
-        ``ovrtx`` runtime carries a newer RTX whose Minimal mode has an
-        ``omni:rtx:minimal:castShadows`` switch.
+        It writes ``/rtx/shadows/enabled``, the shadow switch of the ``RaytracedLighting``
+        pipeline. That pipeline is no longer selectable -- requesting it reverts the render mode
+        to ``RealTimePathTracing`` -- and none of the three that remain read the setting:
+        ``RealTimePathTracing`` and ``PathTracing`` always cast shadows, and ``Minimal`` uses
+        ``omni:rtx:minimal:castShadows``, which this RTX version does not define.
+
+        Nothing above the renderer misbehaves, which is why this is easy to miss: the setting is
+        registered, mapped to ``OmniRtxDebugSettingsAPI_1.omni:rtx:shadows:enabled``, and reads
+        back the assigned value. Only its consumer is gone. Per-light ``UsdLux`` ``ShadowAPI``
+        (``inputs:shadow:enable``) is ignored for the same reason.
+
+        For a shadow-free output today, request the ``albedo`` data type, which is unlit, or light
+        the scene with ambient only (:attr:`ambient_light_intensity`) so nothing casts a shadow.
+        :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.enable_shadows` also works, because the
+        ``ovrtx`` runtime carries a newer RTX whose Minimal mode defines ``castShadows``.
     """
 
     enable_ambient_occlusion: bool | None = None
