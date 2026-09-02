@@ -9,7 +9,7 @@ from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.markers import VisualizationMarkersCfg
@@ -190,6 +190,10 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
 
     # in-hand object
     object_cfg: RigidObjectCfg = BALL_CFG
+    ground_cfg: AssetBaseCfg = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+    light_cfg: AssetBaseCfg = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
     # goal object
     goal_object_cfg: VisualizationMarkersCfg = GOAL_MARKER_CFG
     # scene

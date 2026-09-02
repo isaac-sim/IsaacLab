@@ -23,38 +23,18 @@ if TYPE_CHECKING:
     from .clone_plan import ClonePlan
 
 
-REPLICATION_QUEUE: list[Any] = []
-"""Constructed cfgs consumed by post-construction :func:`clone_plan_from_env_0` workflows.
-
-Cfg-first :class:`ReplicateSession` planning does not read the queue. Dispatch clears it
-without deriving any backend mapping from it.
-"""
-
-
-def queue_replication(cfg: Any) -> None:
-    """Register a constructed cfg when no clone plan is active.
-
-    Args:
-        cfg: Asset cfg with resolved ``prim_path``.
-    """
-    if (sim := SimulationContext.instance()) is None or sim.get_clone_plan() is None:
-        REPLICATION_QUEUE.append(cfg)
-
-
 def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     """Publish and dispatch a fully routed clone plan.
 
     Planning derives routing from the input cfgs; dispatch does not rediscover or reshape that mapping.
     Every context is owned by the active :class:`~isaaclab.sim.SimulationContext` and receives
-    only ``plan``. The queue is cleared up front, so a backend failure cannot leak stale entries
-    into the next lifecycle.
+    only ``plan``.
 
     Args:
         plan: Replication layout to dispatch.
         replicate_physics: Whether physics replication clones each environment. If False,
             cloning is USD-only; an asset whose contexts are all physics-based is not cloned.
     """
-    REPLICATION_QUEUE.clear()
     sim = SimulationContext.instance()
     if sim is None:
         raise RuntimeError("Clone-plan replication requires an active SimulationContext.")
@@ -143,9 +123,8 @@ class ReplicateSession:
             assert self._plan is not None
             replicate(self._plan, replicate_physics=self._replicate_physics)
         else:
-            # Drop cfgs registered before the failure so the next session is clean.
-            REPLICATION_QUEUE.clear()
-            if (sim := SimulationContext.instance()) is not None and sim.get_clone_plan() is self._plan:
+            sim = SimulationContext.instance()
+            if sim is not None and sim.get_clone_plan() is self._plan:
                 sim.set_clone_plan(None)
 
     @property

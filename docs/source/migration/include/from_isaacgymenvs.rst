@@ -231,31 +231,37 @@ adding any other optional objects into the scene, such as lights.
 |.. code-block:: python                                                        |.. code-block:: python                                                  |
 |                                                                              |                                                                        |
 |   def create_sim(self):                                                      |   def _setup_scene(self):                                              |
-|     # set the up axis to be z-up                                             |     self.cartpole = Articulation(self.cfg.robot_cfg)                   |
-|     self.up_axis = self.cfg["sim"]["up_axis"]                                |     # add ground plane                                                 |
-|                                                                              |     spawn_ground_plane(                                                |
-|                                                                              |         prim_path="/World/ground", cfg=GroundPlaneCfg())               |
-|     self.sim = super().create_sim(self.device_id, self.graphics_device_id,   |     # create and apply a clone plan                                    |
-|                                     self.physics_engine, self.sim_params)    |     plan = cloner.clone_plan_from_env_0(..., global_paths=...)         |
-|     self._create_ground_plane()                                              |     cloner.replicate(plan)                                             |
-|     self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'],          |     # add articulation to scene                                        |
-|                         int(np.sqrt(self.num_envs)))                         |     self.scene.articulations["cartpole"] = self.cartpole               |
-|                                                                              |     # add lights                                                       |
-|                                                                              |     light_cfg = sim_utils.DomeLightCfg(intensity=2000.0)               |
-|                                                                              |     light_cfg.func("/World/Light", light_cfg)                          |
+|     # set the up axis to be z-up                                             |     ground_cfg = self.cfg.ground_cfg                                   |
+|     self.up_axis = self.cfg["sim"]["up_axis"]                                |                                                                        |
+|                                                                              |     asset_cfgs = (self.cfg.robot_cfg, ground_cfg)                      |
+|                                                                              |     plan = cloner.clone_plan_from_env_0(                               |
+|     self.sim = super().create_sim(self.device_id, self.graphics_device_id,   |         self.cfg.scene.clone_cfg, asset_cfgs,                          |
+|                                     self.physics_engine, self.sim_params)    |         self.cfg.scene.num_envs, self.cfg.scene.env_spacing)           |
+|     self._create_ground_plane()                                              |     self.cartpole = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)  |
+|     self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'],          |     ground_cfg.spawn.func(                                             |
+|                         int(np.sqrt(self.num_envs)))                         |         ground_cfg.spawn.spawn_path, ground_cfg.spawn)                 |
+|                                                                              |     cloner.replicate(plan, replicate_physics=                          |
+|                                                                              |         self.cfg.scene.replicate_physics)                              |
+|                                                                              |     self.scene.articulations["cartpole"] = self.cartpole               |
+|                                                                              |                                                                        |
+|                                                                              |                                                                        |
 +------------------------------------------------------------------------------+------------------------------------------------------------------------+
 
 
 **Ground Plane**
 
-For a simple plane, spawn the ground directly in ``_setup_scene()``:
+For a simple plane, declare the ground in the task config, include it in the flat asset manifest, and spawn it in
+``_setup_scene()``:
 
 .. code-block:: python
 
-   from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
+   from isaaclab.assets import AssetBaseCfg
+   from isaaclab.sim.spawners.from_files import GroundPlaneCfg
+
+   ground_cfg: AssetBaseCfg = AssetBaseCfg(prim_path="/World/ground", spawn=GroundPlaneCfg())
 
    def _setup_scene(self):
-       spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
+       self.cfg.ground_cfg.spawn.func(self.cfg.ground_cfg.spawn.spawn_path, self.cfg.ground_cfg.spawn)
 
 Use :class:`~terrains.TerrainImporterCfg` instead when the task needs generated or imported terrain rather than a
 single plane.
@@ -286,7 +292,7 @@ and backend-specific schema classes from :mod:`isaaclab_physx.sim.schemas` or
 mapping. Joint properties are specified in the ``actuators`` dictionary, for example with
 :class:`~actuators.ImplicitActuatorCfg`. Joints with the same properties can be grouped using regular expressions.
 
-Actors are added to the scene by simply calling ``self.cartpole = Articulation(self.cfg.robot_cfg)``,
+Actors are added to the scene by calling ``self.cartpole = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)``,
 where ``self.cfg.robot_cfg`` is an :class:`~assets.ArticulationCfg` object. Once initialized, they should also
 be added to the :class:`~scene.InteractiveScene` by calling ``self.scene.articulations["cartpole"] = self.cartpole``
 so that the :class:`~scene.InteractiveScene` can traverse through actors in the scene for writing values to the
@@ -352,22 +358,25 @@ Isaac Lab provides :mod:`isaaclab.cloner` for replication during the scene creat
 In IsaacGymEnvs, scenes had to be created by looping through the number of environments.
 Within each iteration, actors were added to each environment and their handles had to be cached.
 Isaac Lab eliminates the need for that loop by building one source environment and applying a clone plan.
-The scene creation process is as follow:
+The scene creation process is as follows:
 
-#. Construct a single environment (what the scene would look like if number of environments = 1)
-#. Create a plan with :func:`isaaclab.cloner.clone_plan_from_env_0` and apply it with
-   :func:`isaaclab.cloner.replicate`
-#. Call ``filter_collisions()`` for PhysX environments when collision filtering is required
+#. Declare the flat asset and sensor configuration manifest.
+#. Build and publish a plan with :func:`isaaclab.cloner.clone_plan_from_env_0`.
+#. Construct the env_0 prototypes from those configurations.
+#. Apply the plan with :func:`isaaclab.cloner.replicate`.
+#. Call ``filter_collisions()`` for PhysX environments when collision filtering is required.
 
 
 .. code-block:: python
 
-   self.cartpole = Articulation(self.cfg.robot_cfg)
-
-   src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-   positions = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-   plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, positions)
-   cloner.replicate(plan)
+   asset_cfgs = (self.cfg.robot_cfg, self.cfg.ground_cfg, self.cfg.light_cfg)
+   plan = cloner.clone_plan_from_env_0(
+       self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
+   )
+   self.cartpole = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
+   for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
+       cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn)
+   cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
 
    if "physx" in self.scene.physics_backend:
        self.scene.filter_collisions(global_prim_paths=[])
@@ -662,29 +671,34 @@ the need to set simulation parameters for actors in the task implementation.
 |.. code-block:: python                                                  |.. code-block:: python                                               |
 |                                                                        |                                                                     |
 | def create_sim(self):                                                  | def _setup_scene(self):                                             |
-|     # set the up axis to be z-up given that assets are y-up by default |     self.cartpole = Articulation(self.cfg.robot_cfg)                |
-|     self.up_axis = self.cfg["sim"]["up_axis"]                          |     # add ground plane                                              |
-|                                                                        |     spawn_ground_plane(prim_path="/World/ground",                   |
-|     self.sim = super().create_sim(self.device_id,                      |         cfg=GroundPlaneCfg())                                       |
-|         self.graphics_device_id, self.physics_engine,                  |     src, dest = "/World/envs/env_0", "/World/envs/env_{}"           |
-|         self.sim_params)                                               |     positions = cloner.grid_transforms(                             |
-|     self._create_ground_plane()                                        |         self.scene.num_envs, self.scene.cfg.env_spacing)[0]         |
-|     self._create_envs(self.num_envs,                                   |                                                                     |
-|         self.cfg["env"]['envSpacing'],                                 |     global_paths = ("/World/ground",)                               |
-|         int(np.sqrt(self.num_envs)))                                   |     plan = cloner.clone_plan_from_env_0(                            |
-|                                                                        |         src, dest, self.scene.num_envs, positions,                  |
-|                                                                        |         global_paths=global_paths)                                  |
-|                                                                        |     cloner.replicate(plan)                                          |
-| def _create_ground_plane(self):                                        |     if "physx" in self.scene.physics_backend:                       |
-|     plane_params = gymapi.PlaneParams()                                |         self.scene.filter_collisions(global_prim_paths=[])          |
-|     # set the normal force to be z dimension                           |     self.scene.articulations["cartpole"] = self.cartpole            |
-|     plane_params.normal = (gymapi.Vec3(0.0, 0.0, 1.0)                  |     light_cfg = sim_utils.DistantLightCfg(                          |
-|         if self.up_axis == 'z'                                         |         intensity=2000.0, color=(1.0, 1.0, 1.0))                    |
-|         else gymapi.Vec3(0.0, 1.0, 0.0))                               |     light_cfg.func("/World/Light", light_cfg)                       |
+|     # set the up axis to be z-up given that assets are y-up by default |     asset_cfgs = (self.cfg.robot_cfg, self.cfg.ground_cfg,          |
+|     self.up_axis = self.cfg["sim"]["up_axis"]                          |         self.cfg.light_cfg)                                         |
+|                                                                        |     plan = cloner.clone_plan_from_env_0(                            |
+|     self.sim = super().create_sim(self.device_id,                      |         self.cfg.scene.clone_cfg, asset_cfgs,                       |
+|         self.graphics_device_id, self.physics_engine,                  |         self.cfg.scene.num_envs, self.cfg.scene.env_spacing)        |
+|         self.sim_params)                                               |     self.cartpole = self.cfg.robot_cfg.class_type(                  |
+|     self._create_ground_plane()                                        |         self.cfg.robot_cfg)                                         |
+|     self._create_envs(self.num_envs,                                   |     self.cfg.ground_cfg.spawn.func(                                 |
+|         self.cfg["env"]['envSpacing'],                                 |         self.cfg.ground_cfg.spawn.spawn_path,                       |
+|         int(np.sqrt(self.num_envs)))                                   |         self.cfg.ground_cfg.spawn)                                  |
+|                                                                        |     self.cfg.light_cfg.spawn.func(                                  |
+|                                                                        |         self.cfg.light_cfg.spawn.spawn_path,                        |
+| def _create_ground_plane(self):                                        |         self.cfg.light_cfg.spawn)                                   |
+|     plane_params = gymapi.PlaneParams()                                |     cloner.replicate(plan, replicate_physics=                       |
+|                                                                        |         self.cfg.scene.replicate_physics)                           |
+|     # set the normal force to be z dimension                           |     if "physx" in self.scene.physics_backend:                       |
+|     plane_params.normal = (gymapi.Vec3(0.0, 0.0, 1.0)                  |         self.scene.filter_collisions(global_prim_paths=[])          |
+|         if self.up_axis == 'z'                                         |     self.scene.articulations["cartpole"] = self.cartpole            |
+|         else gymapi.Vec3(0.0, 1.0, 0.0))                               |                                                                     |
 |     self.gym.add_ground(self.sim, plane_params)                        |                                                                     |
+|                                                                        |                                                                     |
 |                                                                        | # In CartpoleEnvCfg:                                                |
 | def _create_envs(self, num_envs, spacing, num_per_row):                | robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(                  |
 |     # define plane on which environments are initialized               |     prim_path="{ENV_REGEX_NS}/Robot")                               |
+|                                                                        | ground_cfg: AssetBaseCfg = AssetBaseCfg(                            |
+|                                                                        |     prim_path="/World/ground", spawn=GroundPlaneCfg())              |
+|                                                                        | light_cfg: AssetBaseCfg = AssetBaseCfg(                             |
+|                                                                        |     prim_path="/World/Light", spawn=DistantLightCfg())              |
 |     lower = (gymapi.Vec3(0.5 * -spacing, -spacing, 0.0)                | scene: InteractiveSceneCfg = InteractiveSceneCfg(                   |
 |         if self.up_axis == 'z'                                         |     num_envs=4096,                                                  |
 |         else gymapi.Vec3(0.5 * -spacing, 0.0, -spacing))               |     env_spacing=4.0,                                                |

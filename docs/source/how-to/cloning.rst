@@ -217,9 +217,9 @@ them is purely about ergonomics:
   :class:`~isaaclab.scene.InteractiveScene` runs under the hood. Reach for it
   when you want the lifecycle hidden and you are authoring assets through a
   scene config.
-* The second is a one-shot shortcut for the case where every env is just a copy
-  of env_0. Reach for it in :class:`~isaaclab.envs.DirectRLEnv` and standalone
-  scripts that hand-build the env-0 prototype prim by prim.
+* The second is a cfg-first shortcut for the case where every env is one copy
+  of env_0. Reach for it in :class:`~isaaclab.envs.DirectRLEnv` and homogeneous
+  standalone workflows.
 
 ``ReplicateSession``
 ~~~~~~~~~~~~~~~~~~~~
@@ -257,30 +257,29 @@ When envs need to differ across the population, use
 ``clone_plan_from_env_0`` + ``replicate``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Shortcut for the case where every env is just a copy of env_0.
-:func:`~isaaclab.cloner.clone_plan_from_env_0` builds the single-source plan in
-one line by pointing at the prototype, and :func:`~isaaclab.cloner.replicate`
-finishes the setup. This is the pattern most :class:`~isaaclab.envs.DirectRLEnv`
-subclasses use — they author the env-0 prototype prim by prim in
-``_setup_scene`` and end the method with this sequence:
+Shortcut for the case where every env is one copy of env_0. Pass the declared
+:class:`~isaaclab.cloner.CloneCfg` and a flat tuple of asset and sensor cfgs;
+:func:`~isaaclab.cloner.clone_plan_from_env_0` publishes the plan and assigns
+their prototype spawn paths before construction. This is the pattern used by
+homogeneous :class:`~isaaclab.envs.DirectRLEnv` subclasses:
 
 .. code-block:: python
 
     def _setup_scene(self):
-        self.cartpole = Articulation(self.cfg.robot_cfg)
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        # ... any other assets ...
-
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
+        asset_cfgs = (self.cfg.robot_cfg, self.cfg.ground_cfg, self.cfg.light_cfg)
+        plan = cloner.clone_plan_from_env_0(
+            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
+        )
+        self.cartpole = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
+        self.cfg.ground_cfg.spawn.func(self.cfg.ground_cfg.spawn.spawn_path, self.cfg.ground_cfg.spawn)
+        self.cfg.light_cfg.spawn.func(self.cfg.light_cfg.spawn.spawn_path, self.cfg.light_cfg.spawn)
+        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
 
 Every env receives the same prototype. When envs need to differ, declare their
 assets on :class:`~isaaclab.scene.InteractiveSceneCfg` so the scene owns the
-session-backed lifecycle. Hand-built scenes must pass every shared asset root in
-``global_paths``; use ``()`` when there are none.
+session-backed lifecycle. The tuple is deliberately flat: the cloner does not
+inspect a task or scene cfg tree, and ``None`` is allowed for an optional
+declared participant.
 
 
 Under the Hood
@@ -313,10 +312,8 @@ execution contract:
     for context_type in plan.context_rows:
         simulation_backends[context_type].replicate(plan)
 
-The cfg-first lifecycle publishes before ``construct_prototypes()``. The direct
-single-source workflow remains post-construction and is published by
-:func:`~isaaclab.cloner.replicate` immediately before dispatch. In either form,
-each maintained lifecycle passes that exact object to every backend.
+Every cfg-first lifecycle publishes before ``construct_prototypes()``. The
+simulation accepts one plan and each backend receives that exact object.
 
 USD runs before native physics contexts so the destination topology exists when
 they consume it. No fallback context is constructed during dispatch.

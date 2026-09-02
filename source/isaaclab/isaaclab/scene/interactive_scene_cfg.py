@@ -142,7 +142,7 @@ class InteractiveSceneCfg:
     clone_in_fabric: bool = False
     """Deprecated legacy Fabric cloning flag. Default is False.
 
-    Queued replication no longer forwards this flag to the PhysX replicator;
+    Clone-plan replication does not forward this flag to the PhysX replicator;
     ``useFabricForReplication`` is always ``False``.
     """
 

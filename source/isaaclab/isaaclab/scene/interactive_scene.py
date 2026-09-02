@@ -108,22 +108,6 @@ class InteractiveScene:
         # access the robot based on its type
         robot = scene.articulations["robot"]
 
-    If the :class:`InteractiveSceneCfg` class does not include asset entities, the cloning process
-    can still be triggered by constructing assets directly on the stage and then calling
-    :func:`isaaclab.cloner.replicate` with a single-source :class:`~isaaclab.cloner.ClonePlan`:
-
-    .. code-block:: python
-
-        from isaaclab import cloner
-        from isaaclab.assets import Articulation
-
-        scene = InteractiveScene(cfg=InteractiveSceneCfg(num_envs=128, replicate_physics=True))
-        robot = Articulation(robot_cfg)
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, scene.num_envs, pos)
-        cloner.replicate(plan)
-
     .. note::
         It is important to note that the scene only performs common operations on the entities. For example,
         resetting the internal buffers, writing the buffers to the simulation and updating the buffers from the
@@ -908,9 +892,6 @@ class InteractiveScene:
                         translation=asset_cfg.init_state.pos,
                         orientation=asset_cfg.init_state.rot,
                     )
-                    # static assets have no asset class to queue their own replication:
-                    # queue the USD spread here so clones exist in every planned env
-                    cloner.queue_replication(asset_cfg)
                 # static assets create no view: the prims are kept exactly as cloned
                 self._extras[asset_name] = asset_cfg
             else:

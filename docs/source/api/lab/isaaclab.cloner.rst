@@ -30,7 +30,6 @@
       num_spawn_variants
       grid_transforms
       replicate
-      queue_replication
       usd_replicate
       filter_collisions
 

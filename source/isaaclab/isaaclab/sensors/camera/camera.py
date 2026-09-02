@@ -19,7 +19,6 @@ from pxr import Usd, UsdGeom, UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.app.logging_utils import force_log_level
-from isaaclab.cloner import queue_replication
 from isaaclab.renderers import BaseRenderer, CameraRenderSpec
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import to_camel_case
@@ -166,18 +165,18 @@ class Camera(SensorBase):
             if source_prim is not None and source_prim.IsValid():
                 if source_prim.HasAPI(UsdPhysics.ArticulationRootAPI) or source_prim.HasAPI(UsdPhysics.RigidBodyAPI):
                     logger.info(f" Spawning camera at '{self.cfg.prim_path}/camera'.")
-                    self.cfg.prim_path = spawn.spawn_path = f"{self.cfg.prim_path}/camera"
+                    self.cfg.prim_path = f"{self.cfg.prim_path}/camera"
+                    spawn.spawn_path = f"{probe_path}/camera"
 
             spawn_target = spawn.spawn_path or self.cfg.prim_path
             if sim_utils.find_first_matching_prim(spawn_target) is None:
                 spawn.func(spawn_target, spawn, translation=self.cfg.offset.pos, orientation=rot_offset)
             if not sim_utils.find_matching_prims(spawn_target):
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
-        queue_replication(self._source_cfg)
 
         # Every renderer backend draws the visual-only geometry, so it must survive cloning even
-        # when the run is otherwise headless. This has to happen before the replication queue is
-        # drained, which is why it is here rather than in ``_initialize_impl``.
+        # when the run is otherwise headless. This must happen before plan dispatch, which is why
+        # it is here rather than in ``_initialize_impl``.
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is not None:
             sim_ctx.require_visual_shapes()

@@ -16,7 +16,6 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import queue_replication
 from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
@@ -98,13 +97,8 @@ class AssetBase(ABC):
         """
         # check that the config is valid
         cfg.validate()
-        # expand the namespace macro before the cfg is queued, so the clone plan keys its rows
-        # by a real path expression. The scene has already done this for the assets it collects;
-        # this covers the ones a direct environment builds itself.
+        # The scene expands this for collected assets; cover direct construction too.
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
-        # register the original cfg object for cloning: the clone plan keys rows by the
-        # cfg identity the scene collected; contexts and policy resolve at replication time
-        queue_replication(cfg)
         # store inputs
         self.cfg = cfg.copy()
         # Resolve shape-check flag once: True means checks are active.

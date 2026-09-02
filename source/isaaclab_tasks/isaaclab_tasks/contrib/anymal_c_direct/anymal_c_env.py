@@ -9,11 +9,8 @@ import gymnasium as gym
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
 from isaaclab import cloner
-from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sensors import ContactSensor, RayCaster
 
 from .anymal_c_env_cfg import AnymalCFlatEnvCfg, AnymalCRoughEnvCfg
 
@@ -62,28 +59,27 @@ class AnymalCEnv(DirectRLEnv):
         self._undesired_contact_body_ids, _ = self._contact_sensor.find_sensors(".*THIGH")
 
     def _setup_scene(self):
-        self._robot = Articulation(self.cfg.robot)
-        self.scene.articulations["robot"] = self._robot
-        self._contact_sensor = ContactSensor(self.cfg.contact_sensor)
-        self.scene.sensors["contact_sensor"] = self._contact_sensor
-        if isinstance(self.cfg, AnymalCRoughEnvCfg):
-            # we add a height scanner for perceptive locomotion
-            self._height_scanner = RayCaster(self.cfg.height_scanner)
+        self.cfg.terrain.num_envs = self.cfg.scene.num_envs
+        self.cfg.terrain.env_spacing = self.cfg.scene.env_spacing
+        height_scanner_cfg = self.cfg.height_scanner if isinstance(self.cfg, AnymalCRoughEnvCfg) else None
+        asset_cfgs = (self.cfg.robot, self.cfg.contact_sensor, height_scanner_cfg, self.cfg.terrain, self.cfg.light)
+        plan = cloner.clone_plan_from_env_0(
+            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
+        )
+        self._robot = self.cfg.robot.class_type(self.cfg.robot)
+        self._contact_sensor = self.cfg.contact_sensor.class_type(self.cfg.contact_sensor)
+        if height_scanner_cfg is not None:
+            self._height_scanner = height_scanner_cfg.class_type(height_scanner_cfg)
             self.scene.sensors["height_scanner"] = self._height_scanner
-        self.cfg.terrain.num_envs = self.scene.cfg.num_envs
-        self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        global_paths = (self.cfg.terrain.prim_path,)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
+        cfg = self.cfg.light
+        cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn, cfg.init_state.pos, cfg.init_state.rot)
+        self.scene.articulations["robot"] = self._robot
+        self.scene.sensors["contact_sensor"] = self._contact_sensor
+        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
         # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
 
     def _pre_physics_step(self, actions: torch.Tensor):
         self._actions = actions.clone()

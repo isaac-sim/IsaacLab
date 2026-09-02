@@ -11,13 +11,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.sim as sim_utils
 from isaaclab import cloner
-from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
-from isaaclab.markers import VisualizationMarkers
-from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import (
     quat_conjugate,
     quat_error_magnitude,
@@ -167,8 +162,7 @@ class ReorientDirectEnv(DirectRLEnv):
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.z_unit_tensor = torch.tensor([0, 0, 1], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
 
-        # -- visualization and articulation write handles --
-        self.goal_markers = VisualizationMarkers(self.cfg.goal_object_cfg)
+        # -- articulation write handles --
         self._set_joint_pos_target = self.hand.set_joint_position_target_index
         self._write_obj_root_pose = self.object.write_root_pose_to_sim_index
         self._write_obj_root_vel = self.object.write_root_velocity_to_sim_index
@@ -176,34 +170,31 @@ class ReorientDirectEnv(DirectRLEnv):
         self._write_hand_joint_vel = self.hand.write_joint_velocity_to_sim_index
 
     def _setup_scene(self):
-        # add hand, in-hand object, and goal object
-        self.hand = Articulation(self.cfg.robot_cfg)
-        self.object: Articulation | RigidObject = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
-        self._joint_wrench_sensor = None
+        ground_cfg, light_cfg = self.cfg.ground_cfg, self.cfg.light_cfg
+        asset_cfgs = (self.cfg.robot_cfg, self.cfg.object_cfg, ground_cfg, light_cfg, self.cfg.goal_object_cfg)
         if self.cfg.asymmetric_obs:
-            self._joint_wrench_sensor = self._create_joint_wrench_sensor()
-        # add ground plane
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
+            asset_cfgs += (self.cfg.joint_wrench,)
+        plan = cloner.clone_plan_from_env_0(
+            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
+        )
+        self.hand = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
+        self.object = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
+        self._joint_wrench_sensor = (
+            self.cfg.joint_wrench.class_type(self.cfg.joint_wrench) if self.cfg.asymmetric_obs else None
+        )
+        for cfg in (ground_cfg, light_cfg):
+            spawn = cfg.spawn
+            spawn.func(spawn.spawn_path, spawn, translation=cfg.init_state.pos, orientation=cfg.init_state.rot)
+        self.goal_markers = self.cfg.goal_object_cfg.class_type(self.cfg.goal_object_cfg)
+        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
         # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=["/World/ground"])
+            self.scene.filter_collisions(global_prim_paths=[ground_cfg.prim_path])
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
         self.scene.rigid_objects["object"] = self.object
         if self._joint_wrench_sensor is not None:
             self.scene.sensors["joint_wrench"] = self._joint_wrench_sensor
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
-
-    def _create_joint_wrench_sensor(self) -> JointWrenchSensor:
-        """Create the joint-wrench sensor used for fingertip force/torque observations."""
-        return JointWrenchSensor(JointWrenchSensorCfg(prim_path=self.cfg.robot_cfg.prim_path))
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = actions.clone()

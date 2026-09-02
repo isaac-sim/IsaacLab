@@ -33,24 +33,18 @@ from collections.abc import Sequence
 
 import torch
 import warp as wp
-from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
+from isaaclab_physx.assets import SurfaceGripperCfg
 
 import carb
 import omni
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
-from isaaclab.assets import (
-    Articulation,
-    ArticulationCfg,
-    RigidObject,
-    RigidObjectCfg,
-)
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.markers import SPHERE_MARKER_CFG, VisualizationMarkers
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils import configclass
 from isaaclab.utils.math import sample_uniform
 
@@ -108,6 +102,10 @@ class PickAndPlaceEnvCfg(DirectRLEnvCfg):
         shear_force_limit=500.0,
         coaxial_force_limit=500.0,
         retry_interval=0.2,
+    )
+    ground_cfg: AssetBaseCfg = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+    light_cfg: AssetBaseCfg = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
     )
 
     # scene
@@ -221,26 +219,22 @@ class PickAndPlaceEnv(DirectRLEnv):
             self.instant_controls[:] = self._instant_key_controls["ZEROS"]
 
     def _setup_scene(self):
-        self.pick_and_place = Articulation(self.cfg.robot_cfg)
-        self.cube = RigidObject(self.cfg.cube_cfg)
-        self.gripper = SurfaceGripper(self.cfg.gripper)
-        # add ground plane
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=["/World/ground"])
-        # add articulation to scene
+        asset_cfgs = (self.cfg.robot_cfg, self.cfg.cube_cfg, self.cfg.gripper, self.cfg.ground_cfg, self.cfg.light_cfg)
+        plan = cloner.clone_plan_from_env_0(
+            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
+        )
+        for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
+            cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn, cfg.init_state.pos, cfg.init_state.rot)
+        self.pick_and_place = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
+        self.cube = self.cfg.cube_cfg.class_type(self.cfg.cube_cfg)
+        self.gripper = self.cfg.gripper.class_type(self.cfg.gripper)
         self.scene.articulations["pick_and_place"] = self.pick_and_place
         self.scene.rigid_objects["cube"] = self.cube
         self.scene.surface_grippers["gripper"] = self.gripper
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
+        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
+        # PhysX replication requires explicit collision filtering between environments.
+        if "physx" in self.scene.physics_backend:
+            self.scene.filter_collisions(global_prim_paths=["/World/ground"])
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         # Store the actions

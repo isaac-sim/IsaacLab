@@ -62,7 +62,6 @@ class SensorBase(ABC):
         # expanded it for the ones it collects
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
         # store inputs
-        self._source_cfg = cfg
         self.cfg = cfg.copy()
         # flag for whether the sensor is initialized
         self._is_initialized = False
