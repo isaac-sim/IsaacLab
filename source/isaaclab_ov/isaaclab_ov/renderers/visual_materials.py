@@ -144,8 +144,9 @@ class OVRTXVisualMaterialWriter:
         finally:
             renderer = self._renderer_ref()
             if renderer is not None:
-                # An in-flight async render may still read these bindings; drain it before the
-                # release below. Best-effort, so teardown always reaches the release.
+                # RenderContext.close() closes writers before the renderer, so an asynchronous
+                # render can still be in flight here and still read these bindings. Wait for it
+                # before the release below. Best-effort, so teardown always reaches the release.
                 try:
                     renderer._strategy.settle_before_scene_write()
                 except Exception as e:
