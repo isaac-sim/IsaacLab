@@ -89,11 +89,20 @@ class OperationalSpaceController:
         # -- task frame, in root frame, the targets and control axes are defined in
         self._task_frame_pose_b = torch.zeros(self.num_envs, 7, device=self._device)
         self._task_frame_pose_b[:, 6] = 1.0  # xyzw format: identity quat is [0, 0, 0, 1]
-        # -- Placeholders for motion/force control
+        # -- Placeholders for motion/force control. The targets stay ``None`` until commanded; once
+        # -- they are, they name the buffers below, so their identity never changes afterwards.
         self.desired_ee_pose_task = None
         self.desired_ee_pose_b = None
         self.desired_ee_wrench_task = None
         self.desired_ee_wrench_b = None
+        self._desired_ee_pose_task_buf = torch.zeros(self.num_envs, 7, device=self._device)
+        self._desired_ee_pose_b_buf = torch.zeros(self.num_envs, 7, device=self._device)
+        self._desired_ee_wrench_task_buf = torch.zeros(self.num_envs, 6, device=self._device)
+        self._desired_ee_wrench_b_buf = torch.zeros(self.num_envs, 6, device=self._device)
+        # -- damping ratio, resolved once: it is static configuration the gain schedule re-reads
+        self._motion_damping_ratio_task = torch.as_tensor(
+            self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device
+        ).reshape(1, -1)
         # -- motion control gains, per task axis
         self._motion_p_gains_task = torch.zeros(self.num_envs, 6, device=self._device)
         self._motion_p_gains_task[:] = torch.tensor(
@@ -102,11 +111,7 @@ class OperationalSpaceController:
         # -- -- zero out the axes that are not motion controlled, as keeping them non-zero will cause other axes
         # -- -- to act due to coupling
         self._motion_p_gains_task *= self._selection_axes_motion_task
-        self._motion_d_gains_task = (
-            2
-            * self._motion_p_gains_task.sqrt()
-            * torch.as_tensor(self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device).reshape(1, -1)
-        )
+        self._motion_d_gains_task = 2 * self._motion_p_gains_task.sqrt() * self._motion_damping_ratio_task
         # -- force control gains
         if self.cfg.contact_wrench_stiffness_task is not None:
             self._contact_wrench_p_gains_task = torch.zeros(self.num_envs, 6, device=self._device)
@@ -143,6 +148,8 @@ class OperationalSpaceController:
         self._num_dof = None
         # per-port Warp wrappers around the caller's tensors, keyed by port; see :meth:`_bind`
         self._warp_bindings: dict[str, tuple[torch.Tensor, wp.array]] = {}
+        # whether the measured wrench's moment half still has to be refreshed from the command
+        self._measured_moment_stale = True
 
     """
     Properties.
@@ -174,6 +181,7 @@ class OperationalSpaceController:
         self.desired_ee_pose_task = None
         self.desired_ee_wrench_b = None
         self.desired_ee_wrench_task = None
+        self._measured_moment_stale = True
 
     def set_command(
         self,
@@ -232,13 +240,7 @@ class OperationalSpaceController:
             # task space targets + stiffness
             self._task_space_target_task[:] = task_space_command.squeeze(dim=-1)
             self._motion_p_gains_task[:] = stiffness * self._selection_axes_motion_task
-            self._motion_d_gains_task[:] = (
-                2
-                * self._motion_p_gains_task.sqrt()
-                * torch.as_tensor(self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device).reshape(
-                    1, -1
-                )
-            )
+            self._motion_d_gains_task[:] = 2 * self._motion_p_gains_task.sqrt() * self._motion_damping_ratio_task
         elif self.cfg.impedance_mode == "variable":
             # split input command
             task_space_command, stiffness, damping_ratio = torch.split(command, [self.target_dim, 6, 6], dim=-1)
@@ -282,19 +284,23 @@ class OperationalSpaceController:
                 desired_ee_pos_task, desired_ee_rot_task = apply_delta_pose(
                     current_ee_pos_task, current_ee_rot_task, target
                 )
-                self.desired_ee_pose_task = torch.cat([desired_ee_pos_task, desired_ee_rot_task], dim=-1)
+                self._desired_ee_pose_task_buf[:, :3] = desired_ee_pos_task
+                self._desired_ee_pose_task_buf[:, 3:] = desired_ee_rot_task
+                self.desired_ee_pose_task = self._desired_ee_pose_task_buf
             elif command_type == "pose_abs":
                 # compute targets
-                self.desired_ee_pose_task = target.clone()
+                self._desired_ee_pose_task_buf[:] = target
+                self.desired_ee_pose_task = self._desired_ee_pose_task_buf
             elif command_type == "wrench_abs":
                 # compute targets
-                self.desired_ee_wrench_task = target.clone()
+                self._desired_ee_wrench_task_buf[:] = target
+                self.desired_ee_wrench_task = self._desired_ee_wrench_task_buf
             else:
                 raise ValueError(f"Invalid control command: {command_type}.")
 
         # Transform desired pose from task frame to root frame
         if self.desired_ee_pose_task is not None:
-            self.desired_ee_pose_b = torch.zeros_like(self.desired_ee_pose_task)
+            self.desired_ee_pose_b = self._desired_ee_pose_b_buf
             self.desired_ee_pose_b[:, :3], self.desired_ee_pose_b[:, 3:] = combine_frame_transforms(
                 current_task_frame_pose_b[:, :3],
                 current_task_frame_pose_b[:, 3:],
@@ -306,7 +312,9 @@ class OperationalSpaceController:
         if self.desired_ee_wrench_task is not None:
             # Rotation of task frame wrt root frame, converts a coordinate from task frame to root frame.
             R_task_b = matrix_from_quat(current_task_frame_pose_b[:, 3:])
-            self.desired_ee_wrench_b = torch.zeros_like(self.desired_ee_wrench_task)
+            self.desired_ee_wrench_b = self._desired_ee_wrench_b_buf
+            # the measured wrench's moment half mirrors this command, so it needs one refresh
+            self._measured_moment_stale = True
             self.desired_ee_wrench_b[:, :3] = (R_task_b @ self.desired_ee_wrench_task[:, :3].unsqueeze(-1)).squeeze(-1)
             self.desired_ee_wrench_b[:, 3:] = (R_task_b @ self.desired_ee_wrench_task[:, 3:].unsqueeze(-1)).squeeze(
                 -1
@@ -446,14 +454,20 @@ class OperationalSpaceController:
                     "desired_wrench", self.desired_ee_wrench_b, dtype=wp.spatial_vector
                 )
                 if self._wrench_feedback:
-                    # only the force component is measured, so the moment stays open loop: feeding
-                    # the desired moment back leaves the moment half of the error at zero
                     self._measured_wrench[:, :3] = current_ee_force_b
-                    self._measured_wrench[:, 3:] = self.desired_ee_wrench_b[:, 3:]
+                    if self._measured_moment_stale:
+                        # only the force component is measured, so the moment stays open loop:
+                        # feeding the desired moment back leaves that half of the error at zero. It
+                        # mirrors the command, so it is refreshed per command rather than per step.
+                        self._measured_wrench[:, 3:] = self.desired_ee_wrench_b[:, 3:]
+                        self._measured_moment_stale = False
             else:
                 inputs.desired_wrench_world = self._zero_spatial
                 if self._wrench_feedback:
+                    # an uncommanded wrench must not leave a stale moment behind: with feedback on,
+                    # Newton would read it as ``Kp * (0 - stale)`` and drive torque from it
                     self._measured_wrench.zero_()
+                    self._measured_moment_stale = True
 
         # -- null-space posture task; the desired velocity is always zero and ``input()`` returns
         # -- that port zero-initialised, so it is never written
@@ -528,6 +542,7 @@ class OperationalSpaceController:
         self._controller_output = self._controller.output()
         self._num_dof = num_dof
         self._warp_bindings.clear()
+        self._measured_moment_stale = True  # the ports below are freshly allocated
 
         # Gains and the task frame are buffers this controller owns and updates in place, so they
         # bind once and ``set_command`` updates propagate without a per-step copy. The gain ports

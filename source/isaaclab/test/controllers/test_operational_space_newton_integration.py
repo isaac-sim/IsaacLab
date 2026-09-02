@@ -126,13 +126,11 @@ def _reference_efforts(
     return joint_efforts
 
 
-# Configurations the Newton backend reproduces exactly. Two combinations are deliberately left out
-# because Newton evaluates them differently, and the changelog records both: a de-selected motion
-# axis combined with inertial decoupling (Newton masks the commanded acceleration ahead of the
-# operational-space mass matrix, as in Khatib's generalized task specification, where this
-# controller used to mask the resulting force), and null-space control without inertial decoupling
-# (Newton then leaves the posture term as an acceleration instead of premultiplying it by the mass
-# matrix).
+# Every configuration here is reproduced exactly by the Newton backend. The two that need most care
+# are ``wrench_decoupled_partial_axes`` and ``pose_abs_nullspace``: a de-selected motion axis under
+# inertial decoupling only matches when the selection is applied after the operational-space mass
+# matrix, and the null-space projector is rank-one for a 7-DoF arm on a 6D task, so it amplifies any
+# perturbation of that matrix.
 _SCENARIOS = {
     "pose_abs": dict(target_types=["pose_abs"]),
     "pose_rel": dict(target_types=["pose_rel"]),
@@ -267,7 +265,15 @@ def test_newton_backend_matches_previous_operational_space_law(scenario_name: st
 def test_reset_clears_the_task_space_targets() -> None:
     """After a reset no target is commanded, so only gravity compensation remains."""
     generator = torch.Generator(device=_DEVICE).manual_seed(0)
-    controller, _ = _build(dict(target_types=["pose_abs", "wrench_abs"], gravity_compensation=True))
+    controller, _ = _build(
+        dict(
+            target_types=["pose_abs", "wrench_abs"],
+            gravity_compensation=True,
+            # closed-loop force control, so a stale measured wrench would surface as torque
+            contact_wrench_stiffness_task=(0.0, 0.0, 0.5, 0.0, 0.0, 0.0),
+            contact_wrench_control_axes_task=(0, 0, 1, 0, 0, 0),
+        )
+    )
 
     ee_pose_b = torch.cat([0.4 * torch.randn(_NUM_ENVS, 3, generator=generator), _random_quat(generator)], dim=-1)
     gravity = 0.5 * torch.randn(_NUM_ENVS, _NUM_DOF, generator=generator)
@@ -279,12 +285,22 @@ def test_reset_clears_the_task_space_targets() -> None:
         dim=-1,
     )
     controller.set_command(command, current_ee_pose_b=ee_pose_b)
+    # step once while commanded, so the backend exists and its measured-wrench port is populated;
+    # only then does the reset have stale state to clear
+    controller.compute(
+        jacobian_b=torch.randn(_NUM_ENVS, 6, _NUM_DOF, generator=generator),
+        current_ee_pose_b=ee_pose_b,
+        current_ee_vel_b=0.2 * torch.randn(_NUM_ENVS, 6, generator=generator),
+        current_ee_force_b=3.0 * torch.randn(_NUM_ENVS, 3, generator=generator),
+        gravity=gravity,
+    )
     controller.reset()
 
     efforts = controller.compute(
         jacobian_b=torch.randn(_NUM_ENVS, 6, _NUM_DOF, generator=generator),
         current_ee_pose_b=ee_pose_b,
         current_ee_vel_b=0.2 * torch.randn(_NUM_ENVS, 6, generator=generator),
+        current_ee_force_b=3.0 * torch.randn(_NUM_ENVS, 3, generator=generator),
         gravity=gravity,
     )
     torch.testing.assert_close(efforts, gravity, atol=1e-4, rtol=1e-4)
