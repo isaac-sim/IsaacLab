@@ -17,7 +17,9 @@ controllers should command the full pose but soft-weight the orientation rows so
 tracked exactly and orientation is best-effort (see the cube-stack IK-Abs task).
 
 Reference: https://github.com/TheRobotStudio/SO-ARM100
-Actuator gains follow the values tuned for simulation in LeIsaac.
+The default actuator parameters are authored in the USD. Multi-backend tasks select the ``physx``
+physics variant for PhysX and the SysID ``physics`` variant for Newton MJWarp. The high-PD
+configuration retains the gains previously tuned for IK tracking.
 """
 
 import isaaclab.sim as sim_utils
@@ -31,56 +33,76 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 SO101_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/RobotStudio/so101_new_calib/so101_new_calib.usd",
-        activate_contact_sensors=False,
+        usd_path=(f"{ISAAC_NUCLEUS_DIR}/Robots_Multiphysics/RobotStudio/so101_new_calib_SysID/so101_new_calib.usda"),
+        variants={"Robot": "robot", "Sensor": "sensors", "Physics": "physics"},
+        activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
-            max_depenetration_velocity=5.0,
+            max_depenetration_velocity=1.0,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True,
+            enabled_self_collisions=False,
             solver_position_iteration_count=8,
             solver_velocity_iteration_count=0,
-            fix_root_link=True,
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
-            "shoulder_pan": 0.0,
-            "shoulder_lift": 0.0,
-            "elbow_flex": 0.0,
-            "wrist_flex": 0.0,
-            "wrist_roll": 0.0,
-            "gripper": 0.0,
+            "shoulder_pan": -0.1221070742,
+            "shoulder_lift": -0.9066845838,
+            "elbow_flex": 0.1900876486,
+            "wrist_flex": 1.4797928525,
+            "wrist_roll": -0.8044013083,
+            "gripper": 0.2555162024919699,
         },
     ),
     actuators={
-        "arm": ImplicitActuatorCfg(
-            joint_names_expr=["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"],
-            joint_effort_limit=10.0,
-            joint_velocity_limit=10.0,
-            stiffness=17.8,
-            damping=0.60,
-        ),
-        "gripper": ImplicitActuatorCfg(
-            joint_names_expr=["gripper"],
-            joint_effort_limit=10.0,
-            joint_velocity_limit=10.0,
-            stiffness=17.8,
-            damping=0.60,
+        "usd": ImplicitActuatorCfg(
+            joint_names_expr=[".*"],
+            stiffness=None,
+            damping=None,
+            armature=None,
+            friction=None,
+            dynamic_friction=None,
+            viscous_friction=None,
+            effort_limit=None,
+            velocity_limit=None,
+            effort_limit_sim=None,
+            velocity_limit_sim=None,
         ),
     },
-    soft_joint_pos_limit_factor=1.0,
+    soft_joint_pos_limit_factor=0.98,
 )
-"""Configuration of the SO-101 follower arm with implicit actuators."""
+"""Configuration of the SO-101 follower arm using the USD-authored actuator parameters.
+
+This standalone asset configuration selects the SysID ``physics`` USD variant for the default
+Newton MJWarp backend. Preset-aware multi-backend tasks select ``physx`` when using PhysX.
+"""
 
 
 SO101_HIGH_PD_CFG = SO101_CFG.copy()
 SO101_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
-SO101_HIGH_PD_CFG.actuators["arm"].stiffness = 400.0
-SO101_HIGH_PD_CFG.actuators["arm"].damping = 80.0
+SO101_HIGH_PD_CFG.actuators = {
+    "arm": ImplicitActuatorCfg(
+        joint_names_expr=["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"],
+        joint_effort_limit=10.0,
+        joint_velocity_limit=10.0,
+        stiffness=400.0,
+        damping=80.0,
+    ),
+    "gripper": ImplicitActuatorCfg(
+        joint_names_expr=["gripper"],
+        joint_effort_limit=10.0,
+        joint_velocity_limit=10.0,
+        stiffness=17.8,
+        damping=0.60,
+    ),
+}
+SO101_HIGH_PD_CFG.soft_joint_pos_limit_factor = 1.0
 """Configuration of the SO-101 follower arm with stiffer PD control.
 
 This configuration is useful for task-space control using differential IK, where the
-default low-stiffness gains track end-effector targets poorly.
+USD-authored SysID gains may track end-effector targets less tightly. Its actuator gains,
+limits, gravity setting, and soft joint position limit factor match the previous high-PD
+configuration.
 """
