@@ -186,20 +186,14 @@ def ovrtx_use_ovstage_enabled() -> bool:
 def _resolve_render_strategy(cfg: OVRTXRendererCfg, use_ovstage: bool = False) -> _RenderStrategy:
     """Return the asynchronous strategy when ``cfg`` enables it, else the synchronous one.
 
-    The ovstage path always renders synchronously for now. Renders read the stage's single
-    committed snapshot in place, so every scene write would first have to wait for the render in
-    flight. That wait removes most of the overlap, and benchmarks measured no gain. A follow-up
-    pull request enables it. The follow-up must add those write barriers before every ovstage
-    write, including material publishes and the write-floor advance.
-
+    The ovstage path does not support asynchronous rendering yet and always renders synchronously.
     The legacy path pipelines exactly one frame deep.
     """
     strategy = _AsyncRenderStrategy.try_create(cfg)
     if strategy is not None and use_ovstage:
         logger.warning(
-            "Asynchronous rendering is not supported on the OVRTX ovstage path yet; rendering"
-            " synchronously. Use the legacy stage path (unset ISAAC_LAB_OVRTX_USE_OVSTAGE) to"
-            " pipeline renders."
+            "Asynchronous rendering is not supported on the OVRTX ovstage path yet. Rendering"
+            " synchronously. Unset ISAAC_LAB_OVRTX_USE_OVSTAGE to pipeline renders."
         )
         return _SyncRenderStrategy()
     return strategy or _SyncRenderStrategy()
@@ -657,7 +651,6 @@ class OVRTXRenderer(BaseRenderer):
 
         Their per-frame blocking writes queue behind the in-flight render on the OVRTX op thread.
         The host then stalls until that render completes, so the pipelining gain is largely lost.
-        The follow-up that stages these writes through the render strategy removes this limit.
         """
         if not isinstance(self._strategy, _AsyncRenderStrategy):
             return
