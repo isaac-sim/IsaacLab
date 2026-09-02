@@ -1344,8 +1344,7 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
             cold_cache_applied = True
             logger.info(f"⏱️  Adding {COLD_CACHE_BUFFER}s cold-cache buffer (timeout now {timeout}s)")
 
-        extra = COLD_CACHE_BUFFER if is_cold_cache_test else 0
-        startup_deadline = min(timeout, STARTUP_DEADLINE + extra)
+        startup_deadline = _resolve_startup_deadline(file_name, timeout, is_cold_cache_test)
 
         pytest_targets = test_node_ids_by_file.get(os.path.normpath(test_file), [str(test_file)])
 
@@ -1399,6 +1398,13 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
     logger.info("~~~~~~~~~~~~ Finished running all tests")
 
     return failed_tests, test_status, xml_reports
+
+
+def _resolve_startup_deadline(file_name: str, timeout: int, is_cold_cache_test: bool) -> int:
+    """Resolve the startup deadline for one independently launched test file."""
+    base_deadline = test_settings.PER_TEST_STARTUP_TIMEOUTS.get(file_name, STARTUP_DEADLINE)
+    cold_cache_extra = COLD_CACHE_BUFFER if is_cold_cache_test else 0
+    return min(timeout, base_deadline + cold_cache_extra)
 
 
 def _collect_test_files(

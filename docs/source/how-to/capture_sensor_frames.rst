@@ -214,7 +214,7 @@ See also
 --------
 
 * :doc:`/source/features/record_video` - record a perspective viewport clip with ``--video``
-* :doc:`/source/overview/reinforcement-learning/rl_existing_scripts` - training entrypoints that
+* :doc:`/source/concepts/reinforcement_learning` - training entrypoints that
   expose the capture flags
 * :doc:`/source/concepts/visualization` - visualizers and rendering during training
 * :doc:`/source/overview/core-concepts/sensors/camera` - camera sensors and annotator data types

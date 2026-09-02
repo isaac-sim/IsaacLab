@@ -104,6 +104,7 @@ Table of Contents
    source/concepts/coupled_solvers
    source/concepts/scene_data_providers
    source/concepts/visualization
+   source/concepts/reinforcement_learning
 
 
 .. toctree::
@@ -126,7 +127,6 @@ Table of Contents
 
 
    source/overview/core-concepts/index
-   source/overview/reinforcement-learning/index
    source/overview/imitation-learning/index
    source/overview/showroom
 
