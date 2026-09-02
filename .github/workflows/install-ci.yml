@@ -134,6 +134,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          lfs: true
       - name: Show Collected Tests
         uses: ./.github/actions/install-ci-collect
         with:
@@ -153,6 +155,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          lfs: true
       - name: Show Collected Tests
         uses: ./.github/actions/install-ci-collect
         with:
