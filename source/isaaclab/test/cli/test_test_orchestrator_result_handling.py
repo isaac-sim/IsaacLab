@@ -707,3 +707,15 @@ def test_hang_dump_plugin_is_inert_without_signal_support(monkeypatch) -> None:
     assert hang_dump.is_supported() is False
     assert hang_dump.register() is False
     hang_dump.pytest_configure(config=None)  # must not raise
+
+
+def test_external_git_asset_tests_receive_extended_startup_deadline():
+    """Environment discovery must allow a cold external Git asset clone to complete."""
+    orchestrator = _load_orchestrator_module()
+
+    startup_deadline = orchestrator._resolve_startup_deadline(
+        "test_environments_isaacsim_physx.py", timeout=10000, is_cold_cache_test=False
+    )
+
+    assert startup_deadline == orchestrator.test_settings.GIT_ASSET_STARTUP_TIMEOUT
+    assert orchestrator._resolve_startup_deadline("test_sample.py", timeout=10000, is_cold_cache_test=False) == 120
