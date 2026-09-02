@@ -38,6 +38,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          # Keyed on this workflow file, not pyproject.toml: the pip cache key is
+          # otherwise identical across every 3.12 ubuntu job here, so they collide
+          # and all but the first fail to save. Hashing the workflow also ties
+          # invalidation to the install list below rather than to unrelated
+          # dependency churn.
+          cache-dependency-path: .github/workflows/tools-tests.yml
 
       # These tests only need pytest, junitparser (imported by tools/crash_journal.py) and
       # flaky, so they run without an Isaac Sim install or a full project sync. flaky drives the

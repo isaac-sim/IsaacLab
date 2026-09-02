@@ -115,7 +115,7 @@ After the minor modification has been done, and similar to the previous tutorial
 
       .. code-block:: bash
 
-        uv run isaaclab train --rl_library rl_games --task Isaac-H1-Direct-v0
+        uv run --extra rl-games isaaclab train --rl_library rl_games --task Isaac-H1-Direct-v0
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -133,7 +133,7 @@ where you started the simulation.
 
       .. code-block:: bash
 
-        uv run isaaclab play --rl_library rl_games --task Isaac-H1-Direct-v0 --num_envs 64 --viz kit
+        uv run --extra rl-games isaaclab play --rl_library rl_games --task Isaac-H1-Direct-v0 --num_envs 64 --viz kit
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 

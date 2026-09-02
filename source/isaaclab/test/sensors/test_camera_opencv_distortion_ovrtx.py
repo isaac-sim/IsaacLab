@@ -158,7 +158,6 @@ def _render_grid(distortion: OpenCvDistortionCfg, device: str) -> tuple[np.ndarr
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
 @_SKIP_MISSING_OVRTX
 def test_opencv_distortion_changes_ovrtx_render(device):
     """OVRTX must render the distorted and zero-coefficient cameras meaningfully differently."""
@@ -175,7 +174,6 @@ def test_opencv_distortion_changes_ovrtx_render(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
 @_SKIP_MISSING_OVRTX
 def test_opencv_distortion_intrinsics_match_authored_ovrtx(device):
     """The OVRTX camera reports intrinsics matching the authored, non-square, off-center calibration."""
@@ -191,7 +189,6 @@ def test_opencv_distortion_intrinsics_match_authored_ovrtx(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
 @_SKIP_MISSING_OVRTX
 def test_opencv_fisheye_distortion_renders_through_ovrtx(device):
     """OVRTX honors the OpenCV fisheye schema: its render differs meaningfully from the pinhole projection.

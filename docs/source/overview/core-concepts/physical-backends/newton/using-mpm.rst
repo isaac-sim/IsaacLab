@@ -21,7 +21,8 @@ training needs no artifact setup:
 
 .. code-block:: bash
 
-   uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour --num_envs 2048 --device cuda:0
+   uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
+     --num_envs 2048 --device cuda:0
 
 The checked-in generator remains the executable reference for reproducing or
 customizing the distribution. It takes about two minutes on an L40S-class GPU
@@ -30,12 +31,28 @@ and writes a local artifact that can be selected explicitly:
 .. code-block:: bash
 
    uv run python scripts/tools/generate_franka_pour_reset_dataset.py --device cuda:0
-   uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour --num_envs 2048 --device cuda:0 env.reset_dataset_path=datasets/franka_pour/reset_dataset.pt
+   uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
+     --num_envs 2048 --device cuda:0 \
+     env.reset_dataset_path=datasets/franka_pour/reset_dataset.pt
 
 The task validates the payload's stored content digest automatically. Setting
 ``ISAACSIM_ASSET_ROOT`` redirects the canonical artifact to a compatible local
 or self-hosted asset tree. Digest pinning remains available for custom
 reproducible experiments.
+
+The source uses a non-colliding analytic fill volume whose height is controlled
+by ``env.source_fill_level`` in ``(0, 1]``. The default ``0.70`` produces a
+735-particle jittered lattice up to roughly 70% of the cup height.
+``env.pour_target_frac`` independently controls the fraction of that live
+payload that must reach the receiver.
+
+Play a checkpoint in Kit with the canonical task configuration; no external
+callback or particle override is required:
+
+.. code-block:: bash
+
+   uv run isaaclab play --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
+     --checkpoint /path/to/model.pt --num_envs 1 --device cuda:0 --visualizer kit
 
 
 Minimal Setup
@@ -61,7 +78,6 @@ other declarative asset.
                 voxel_size=voxel_size,
                 max_iterations=100,
                 tolerance=1.0e-4,
-                project_outside_colliders=True,
             ),
             num_substeps=2,
         ),
@@ -79,10 +95,12 @@ other declarative asset.
     )
 
 Tune the particle material separately through
-:class:`~isaaclab_newton.sim.MPMParticleMaterialCfg`. Enable
-``project_outside_colliders`` for contact scenes when particles otherwise drift
-inside colliders; leave it disabled in collider-free scenes to avoid the extra
-projection pass.
+:class:`~isaaclab_newton.sim.MPMParticleMaterialCfg`. The implicit solve already
+resolves collider contact. ``project_outside_colliders`` adds a hard post-step
+correction for particles that remain inside colliders; use it only when that
+geometric correction is intentional, and not as a substitute for valid initial
+states, collision geometry, or a stable timestep. Coupled MPM entries do not
+support this manager-level projection pass.
 
 
 Tune Resolution, Time, Then Convergence

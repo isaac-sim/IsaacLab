@@ -37,10 +37,11 @@ if TYPE_CHECKING:
 
 def _row_env_ids(plan: ClonePlan, row: int) -> tuple[int, ...]:
     """Env ids populated from a plan row: the plan's env ids at the row's ``True`` columns."""
-    columns = plan.clone_mask[row].nonzero(as_tuple=False).flatten().tolist()
+    columns = plan.clone_mask[row].nonzero(as_tuple=False).flatten()
     if plan.env_ids is None:
-        return tuple(int(column) for column in columns)
-    return tuple(int(plan.env_ids[column]) for column in columns)
+        return tuple(columns.tolist())
+    columns = columns.to(plan.env_ids.device)
+    return tuple(plan.env_ids[columns].tolist())
 
 
 def _column_for_env_id(plan: ClonePlan, env_id: int) -> int | None:
@@ -82,7 +83,7 @@ def _clone_rows(plan: ClonePlan, path_expr: str, *, populated_only: bool) -> lis
     for row, template in enumerate(plan.destinations):
         if "{}" not in template:
             continue
-        if populated_only and not _row_env_ids(plan, row):
+        if populated_only and not plan.clone_mask[row].any():
             continue
         matched = pth.match(path_expr, template)
         if matched is None:

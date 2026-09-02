@@ -118,7 +118,7 @@ Launch *N* workers, where *n* indicates each worker index:
       .. code-block:: bash
 
          # Run this once per worker (n = 0..N-1), all pointing to the same directory/workspace
-         uv run isaaclab train --rl_library rl_games \
+         uv run --extra rl-games isaaclab train --rl_library rl_games \
            --seed=<n> \
            --task=Isaac-Reorient-Cube-Shadow-Direct \
            --num_envs=8192 \
