@@ -344,12 +344,21 @@ def test_ensure_visualization_model_clears_shape_collision_filter_pairs_before_f
     _set_sim_context(monkeypatch, nm)
     monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
 
-    builder = _make_finalize_builder(body_count=3)
+    builder = _make_finalize_builder(body_count=3, finalize=False)
     builder.shape_collision_filter_pairs = [(0, 1), (0, 2)]
+
+    filter_pairs_at_finalize: list[list[tuple[int, int]]] = []
+
+    def _finalize(device):
+        filter_pairs_at_finalize.append(builder.shape_collision_filter_pairs)
+        return SimpleNamespace(state=lambda: SimpleNamespace(body_q=None))
+
+    builder.finalize = _finalize
     monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: (builder, ([], [])))
 
     NewtonManager._ensure_visualization_model()
 
+    assert filter_pairs_at_finalize == [[]]
     assert builder.shape_collision_filter_pairs == []
 
 
