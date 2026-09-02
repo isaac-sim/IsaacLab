@@ -26,8 +26,7 @@ ManagerBasedRLEnv = None
 retrieve_file_path = None
 patch_env_for_export = None
 ensure_env_spec_id = None
-get_pretrained_checkpoint_backend_names = None
-get_published_pretrained_checkpoint = None
+get_published_pretrained_checkpoint_for_env = None
 get_checkpoint_path = None
 resolve_checkpoint_selector = None
 load_from_pkl = None
@@ -53,8 +52,7 @@ def _load_runtime_dependencies() -> None:
     """Import runtime dependencies after Isaac Sim has been launched."""
     global _RUNTIME_IMPORTS_LOADED
     global CHECKPOINT_SELECTORS, ManagerBasedRLEnv, PPO, RecurrentPPO, annotate, gym, leapp
-    global ensure_env_spec_id, get_checkpoint_path, get_pretrained_checkpoint_backend_names
-    global get_published_pretrained_checkpoint
+    global ensure_env_spec_id, get_checkpoint_path, get_published_pretrained_checkpoint_for_env
     global load_from_pkl, load_from_zip_file, patch_env_for_export, resolve_checkpoint_selector, retrieve_file_path
     global state_dict_from_sequence, state_sequence_from_registered, torch
 
@@ -90,10 +88,7 @@ def _load_runtime_dependencies() -> None:
         resolve_checkpoint_selector as resolve_checkpoint_selector_fn,
     )
     from isaaclab_rl.utils.pretrained_checkpoint import (
-        get_pretrained_checkpoint_backend_names as get_pretrained_checkpoint_backend_names_fn,
-    )
-    from isaaclab_rl.utils.pretrained_checkpoint import (
-        get_published_pretrained_checkpoint as get_published_pretrained_checkpoint_fn,
+        get_published_pretrained_checkpoint_for_env as get_published_pretrained_checkpoint_for_env_fn,
     )
 
     __import__("isaaclab_tasks")
@@ -117,8 +112,7 @@ def _load_runtime_dependencies() -> None:
     retrieve_file_path = retrieve_file_path_fn
     patch_env_for_export = patch_env_for_export_fn
     ensure_env_spec_id = ensure_env_spec_id_fn
-    get_pretrained_checkpoint_backend_names = get_pretrained_checkpoint_backend_names_fn
-    get_published_pretrained_checkpoint = get_published_pretrained_checkpoint_fn
+    get_published_pretrained_checkpoint_for_env = get_published_pretrained_checkpoint_for_env_fn
     get_checkpoint_path = get_checkpoint_path_fn
     resolve_checkpoint_selector = resolve_checkpoint_selector_fn
     load_from_pkl = load_from_pkl_fn
@@ -230,8 +224,7 @@ def _load_agent(checkpoint_path: str, device: str):
 def _resolve_checkpoint(args_cli: argparse.Namespace, task_name: str, env_cfg) -> str | None:
     """Resolve the SB3 checkpoint selected by the export arguments."""
     if args_cli.checkpoint == "pretrained":
-        backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
-        return get_published_pretrained_checkpoint("sb3", task_name, *backend_names)
+        return get_published_pretrained_checkpoint_for_env("sb3", task_name, env_cfg, args_cli.agent)
 
     log_root_path = os.path.abspath(os.path.join("logs", "sb3", task_name))
     if args_cli.checkpoint in CHECKPOINT_SELECTORS:

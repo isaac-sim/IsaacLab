@@ -44,6 +44,28 @@ from isaaclab.utils.configclass import configclass
 from .preset_target import PresetTarget
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
+_PRESET_SELECTION_ATTR = "_isaaclab_preset_selection"
+
+
+def get_preset_selection(cfg) -> tuple[str, ...]:
+    """Return canonical preset names recorded on a resolved configuration.
+
+    Configurations resolved before selection tracking was introduced, or by
+    code that does not use this module, return an empty selection.
+
+    Args:
+        cfg: Resolved configuration object.
+
+    Returns:
+        Selected preset names. Implicit ``default`` alternatives are omitted.
+    """
+    return getattr(cfg, _PRESET_SELECTION_ATTR, ())
+
+
+def _record_preset_selection(cfg, selected: set[str]) -> None:
+    """Attach immutable preset-selection metadata when the root supports attributes."""
+    if not isinstance(cfg, (Mapping, list)):
+        setattr(cfg, _PRESET_SELECTION_ATTR, tuple(sorted(selected)))
 
 
 def _user_stacklevel() -> int:
@@ -281,6 +303,7 @@ def _pick_alternative(
     path: str = "",
     explicit_name: str | None = None,
     consumed_selected: set[str] | None = None,
+    resolved_selected: set[str] | None = None,
     typed_hits: dict[str, set[PresetTarget]] | None = None,
 ):
     """Choose the best alternative from a PresetCfg.
@@ -296,6 +319,8 @@ def _pick_alternative(
     if explicit_name is not None:
         explicit_name = _normalize_preset_name(explicit_name, field_names)
         if explicit_name in fields:
+            if resolved_selected is not None and explicit_name != "default":
+                resolved_selected.add(explicit_name)
             return fields[explicit_name]
         avail = list(fields)
         hint = ""
@@ -317,6 +342,8 @@ def _pick_alternative(
         if consumed_selected is not None:
             consumed_selected.add(raw_name)
             consumed_selected.add(name)
+        if resolved_selected is not None:
+            resolved_selected.add(name)
         if typed_hits is not None:
             # record which typed targets (physics/renderer) this name landed on
             targets = {target for target in PresetTarget if target.base_classes and target.matches(val)}
@@ -347,6 +374,7 @@ def _resolve_active_presets(
     *,
     strict_explicit: bool = True,
     consumed_selected: set[str] | None = None,
+    resolved_selected: set[str] | None = None,
     typed_hits: dict[str, set[PresetTarget]] | None = None,
     consumed_explicit: set[str] | None = None,
 ):
@@ -374,6 +402,7 @@ def _resolve_active_presets(
                 path=path,
                 explicit_name=explicit.get(path),
                 consumed_selected=consumed_selected,
+                resolved_selected=resolved_selected,
                 typed_hits=typed_hits,
             )
         return val
@@ -430,7 +459,10 @@ def resolve_presets(cfg, selected=()):
         The resolved ``cfg`` (possibly a different object if the root itself
         was a PresetCfg).
     """
-    return _resolve_active_presets(cfg, selected)
+    resolved_selected = set(get_preset_selection(cfg))
+    cfg = _resolve_active_presets(cfg, selected, resolved_selected=resolved_selected)
+    _record_preset_selection(cfg, resolved_selected)
+    return cfg
 
 
 # ============================================================================
@@ -643,6 +675,7 @@ def register_task(
 
     explicit = {key: val for key, val, _arg in override_items}
     consumed_presets: set[str] = set()
+    resolved_presets: set[str] = set()
     typed_hits: dict[str, set[PresetTarget]] = {}
     consumed_explicit: set[str] = set()
     env_explicit = {path: name for path, name in explicit.items() if path == "env" or path.startswith("env.")}
@@ -654,6 +687,7 @@ def register_task(
         root_path="env",
         strict_explicit=False,
         consumed_selected=consumed_presets,
+        resolved_selected=resolved_presets,
         typed_hits=typed_hits,
         consumed_explicit=consumed_explicit,
     )
@@ -665,6 +699,7 @@ def register_task(
             root_path="agent",
             strict_explicit=False,
             consumed_selected=consumed_presets,
+            resolved_selected=resolved_presets,
             typed_hits=typed_hits,
             consumed_explicit=consumed_explicit,
         )
@@ -692,6 +727,12 @@ def register_task(
 
     # Typed selectors (physics=/renderer=) must have landed on a cfg of their type
     _validate_typed_presets(requested_targets, typed_hits)
+
+    # Keep the resolved choice names with both configs. Consumers such as
+    # checkpoint routing can use the same selection without reparsing argv.
+    _record_preset_selection(env_cfg, resolved_presets)
+    if agent_cfg is not None:
+        _record_preset_selection(agent_cfg, resolved_presets)
 
     # apply play-mode overrides after preset resolution so they act on the resolved
     # config, and before scalar overrides so explicit user values still win

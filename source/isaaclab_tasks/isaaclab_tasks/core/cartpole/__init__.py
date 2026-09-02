@@ -53,6 +53,9 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraDirectPPORunnerCfg",
         "default_agent": "rsl_rl",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_camera_ppo_cfg.yaml",
+        "pretrained_checkpoint_cfg_entry_point": (
+            f"{agents.__name__}.pretrained_checkpoint_cfg:cartpole_camera_direct_pretrained_checkpoint_cfg"
+        ),
     },
 )
 
@@ -96,5 +99,8 @@ gym.register(
             "rsl_rl_cfg_entry_point": _RAW_CAMERA_PRESETS,
             "rsl_rl_feature_cfg_entry_point": ("resnet18", "theia_tiny"),
         },
+        "pretrained_checkpoint_cfg_entry_point": (
+            f"{agents.__name__}.pretrained_checkpoint_cfg:cartpole_camera_manager_pretrained_checkpoint_cfg"
+        ),
     },
 )

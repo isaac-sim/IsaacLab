@@ -17,7 +17,7 @@ checkpoints are collected into one subdirectory per RL library:
     └── skrl/
 
 Each checkpoint is named
-``<task_name>_<physics_backend>_<render_backend>_<rl_library><extension>``.
+``<task_name>[_<variant>]_<physics_backend>_<render_backend>_<rl_library><extension>``.
 State-only tasks use ``none`` as the render backend because their policies do
 not depend on rendering. This workflow targets core tasks only; other
 registered tasks do not receive published checkpoints from this matrix. The
@@ -27,7 +27,7 @@ Examples:
 
 .. code-block:: shell
 
-    # List the preferred core-task training matrix.
+    # List the declared core-task training matrix.
     uv run python scripts/tools/train_and_publish_checkpoints.py \
         --list --all --core
 
@@ -82,6 +82,7 @@ from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab_rl.utils.pretrained_checkpoint import (
     WORKFLOW_EXPERIMENT_NAME_VARIABLE,
     WORKFLOWS,
+    PretrainedCheckpointCfg,
     get_latest_job_run_path,
     get_pretrained_checkpoint_backend_names,
     get_pretrained_checkpoint_filename,
@@ -89,6 +90,7 @@ from isaaclab_rl.utils.pretrained_checkpoint import (
     get_pretrained_checkpoint_publish_path,
     get_pretrained_checkpoint_review,
     get_pretrained_checkpoint_review_path,
+    get_pretrained_checkpoint_set_cfg,
     has_pretrained_checkpoint_job_finished,
     has_pretrained_checkpoint_job_run,
     has_pretrained_checkpoints_asset_root_dir,
@@ -113,6 +115,9 @@ class CheckpointJob:
     render_backend: str | None = None
     physics_selector: str | None = None
     render_selector: str | None = None
+    checkpoint_variant: str | None = None
+    preset_selectors: tuple[str, ...] = ()
+    smoke_num_envs: int | None = None
     agent: str | None = None
     algorithm: str | None = None
 
@@ -121,7 +126,17 @@ class CheckpointJob:
         """Return the stable human-readable job identifier."""
         if self.physics_backend is None:
             return f"{self.workflow}:{self.task_name}"
-        return f"{self.workflow}:{self.task_name}:{self.physics_backend}:{self.render_backend}"
+        parts = [self.workflow, self.task_name, self.physics_backend, self.render_backend]
+        if self.checkpoint_variant is not None:
+            parts.append(self.checkpoint_variant)
+        return ":".join(parts)
+
+    @property
+    def artifact_task_name(self) -> str:
+        """Return the task component used in checkpoint files and log directories."""
+        if self.checkpoint_variant is None:
+            return self.task_name
+        return f"{self.task_name}_{self.checkpoint_variant}"
 
     @property
     def experiment_name(self) -> str:
@@ -130,7 +145,7 @@ class CheckpointJob:
             return self.task_name
         filename = get_pretrained_checkpoint_filename(
             self.workflow,
-            self.task_name,
+            self.artifact_task_name,
             self.physics_backend,
             self.render_backend,
         )
@@ -145,6 +160,8 @@ class CheckpointJob:
             args.append(f"physics={self.physics_selector}")
         if self.render_selector is not None:
             args.append(f"renderer={self.render_selector}")
+        if self.preset_selectors:
+            args.append(f"presets={','.join(self.preset_selectors)}")
         return args
 
 
@@ -248,6 +265,19 @@ def _select_workflow(task_spec: gym.EnvSpec, env_cfg) -> tuple[str, str | None, 
     raise ValueError(f"Task {task_spec.id!r} has neither an RSL-RL nor an RL-Games config")
 
 
+def _select_checkpoint_cfgs(task_spec: gym.EnvSpec, env_cfg) -> list[PretrainedCheckpointCfg]:
+    """Return declared checkpoints or the task's implicit preferred default."""
+    checkpoint_set = (
+        get_pretrained_checkpoint_set_cfg(task_spec.id)
+        if "pretrained_checkpoint_cfg_entry_point" in task_spec.kwargs
+        else None
+    )
+    if checkpoint_set is not None:
+        return list(checkpoint_set.checkpoints)
+    preferred_workflow, agent, algorithm = _select_workflow(task_spec, env_cfg)
+    return [PretrainedCheckpointCfg(workflow=preferred_workflow, agent=agent, algorithm=algorithm)]
+
+
 def _select_physics_variants(
     task_name: str,
     variants: list[str],
@@ -317,7 +347,7 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
         physics_variants = preset_map.get(PresetTarget.PHYSICS, [])
         render_variants = preset_map.get(PresetTarget.RENDERER, [])
         env_cfg = parse_env_cfg(task_spec.id)
-        workflow, agent, algorithm = _select_workflow(task_spec, env_cfg)
+        checkpoint_cfgs = _select_checkpoint_cfgs(task_spec, env_cfg)
         default_physics = None
         if not physics_variants:
             default_physics, _ = get_pretrained_checkpoint_backend_names(env_cfg)
@@ -329,20 +359,26 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
             physics_backends,
         )
         render_selections = _select_render_variants(render_variants, render_backends)
-        for physics_backend, physics_selector in physics_selections:
-            for render_backend, render_selector in render_selections:
-                jobs.append(
-                    CheckpointJob(
-                        workflow=workflow,
-                        task_name=task_spec.id,
-                        physics_backend=physics_backend,
-                        render_backend=render_backend,
-                        physics_selector=physics_selector,
-                        render_selector=render_selector,
-                        agent=agent,
-                        algorithm=algorithm,
+        for checkpoint_cfg in checkpoint_cfgs:
+            for physics_backend, physics_selector in physics_selections:
+                for render_backend, render_selector in render_selections:
+                    if not checkpoint_cfg.supports_backends(physics_backend, render_backend):
+                        continue
+                    jobs.append(
+                        CheckpointJob(
+                            workflow=checkpoint_cfg.workflow,
+                            task_name=task_spec.id,
+                            physics_backend=physics_backend,
+                            render_backend=render_backend,
+                            physics_selector=physics_selector,
+                            render_selector=render_selector,
+                            checkpoint_variant=checkpoint_cfg.variant,
+                            preset_selectors=checkpoint_cfg.presets,
+                            smoke_num_envs=checkpoint_cfg.smoke_num_envs,
+                            agent=checkpoint_cfg.agent,
+                            algorithm=checkpoint_cfg.algorithm,
+                        )
                     )
-                )
     return jobs
 
 
@@ -392,7 +428,7 @@ def _training_command(job: CheckpointJob, args: argparse.Namespace, smoke: bool)
         command.append(f"{experiment_variable}={experiment_name}")
 
     if smoke:
-        command.extend(["--max_iterations", "1", "--num_envs", str(args.num_envs or 4)])
+        command.extend(["--max_iterations", "1", "--num_envs", str(args.num_envs or job.smoke_num_envs or 4)])
     else:
         if args.max_iterations is not None:
             command.extend(["--max_iterations", str(args.max_iterations)])
@@ -448,7 +484,7 @@ def _has_training_job_completed(job: CheckpointJob) -> bool:
     """Return whether the latest run exited successfully with a checkpoint."""
     run_path = get_latest_job_run_path(
         job.workflow,
-        job.task_name,
+        job.artifact_task_name,
         job.physics_backend,
         job.render_backend,
     )
@@ -456,7 +492,7 @@ def _has_training_job_completed(job: CheckpointJob) -> bool:
         return False
     return has_pretrained_checkpoint_job_finished(
         job.workflow,
-        job.task_name,
+        job.artifact_task_name,
         job.physics_backend,
         job.render_backend,
     )
@@ -466,7 +502,7 @@ def _mark_training_job_completed(job: CheckpointJob) -> None:
     """Record that the latest training subprocess exited successfully."""
     run_path = get_latest_job_run_path(
         job.workflow,
-        job.task_name,
+        job.artifact_task_name,
         job.physics_backend,
         job.render_backend,
     )
@@ -491,7 +527,7 @@ def train_job(job: CheckpointJob, args: argparse.Namespace, smoke: bool = False)
         return True
     if not has_pretrained_checkpoint_job_finished(
         job.workflow,
-        job.task_name,
+        job.artifact_task_name,
         job.physics_backend,
         job.render_backend,
     ):
@@ -510,7 +546,7 @@ def collect_pretrained_checkpoint(job: CheckpointJob, output_dir: str, dry_run: 
 
     source_path = get_pretrained_checkpoint_path(
         job.workflow,
-        job.task_name,
+        job.artifact_task_name,
         job.physics_backend,
         job.render_backend,
     )
@@ -528,7 +564,7 @@ def review_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) -
     """Play and interactively review one checkpoint."""
     if not has_pretrained_checkpoint_job_run(
         job.workflow,
-        job.task_name,
+        job.artifact_task_name,
         job.physics_backend,
         job.render_backend,
     ):
@@ -536,7 +572,7 @@ def review_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) -
         return False
     if not has_pretrained_checkpoint_job_finished(
         job.workflow,
-        job.task_name,
+        job.artifact_task_name,
         job.physics_backend,
         job.render_backend,
     ):
@@ -545,7 +581,7 @@ def review_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) -
 
     review = get_pretrained_checkpoint_review(
         job.workflow,
-        job.task_name,
+        job.artifact_task_name,
         job.physics_backend,
         job.render_backend,
     )
@@ -555,7 +591,7 @@ def review_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) -
 
     checkpoint_path = get_pretrained_checkpoint_path(
         job.workflow,
-        job.task_name,
+        job.artifact_task_name,
         job.physics_backend,
         job.render_backend,
     )
@@ -578,7 +614,7 @@ def review_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) -
 
     review_path = get_pretrained_checkpoint_review_path(
         job.workflow,
-        job.task_name,
+        job.artifact_task_name,
         job.physics_backend,
         job.render_backend,
     )
@@ -601,7 +637,7 @@ def publish_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) 
     if not args.force_publish:
         review = get_pretrained_checkpoint_review(
             job.workflow,
-            job.task_name,
+            job.artifact_task_name,
             job.physics_backend,
             job.render_backend,
         )
@@ -612,14 +648,14 @@ def publish_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) 
     if args.publish_root is None:
         publish_path = get_pretrained_checkpoint_publish_path(
             job.workflow,
-            job.task_name,
+            job.artifact_task_name,
             job.physics_backend,
             job.render_backend,
         )
     else:
         filename = get_pretrained_checkpoint_filename(
             job.workflow,
-            job.task_name,
+            job.artifact_task_name,
             job.physics_backend,
             job.render_backend,
         )
@@ -642,7 +678,7 @@ def _summary_row(job: CheckpointJob, output_dir: str) -> list[str | bool]:
     """Return one CSV summary row."""
     has_run = has_pretrained_checkpoint_job_run(
         job.workflow,
-        job.task_name,
+        job.artifact_task_name,
         job.physics_backend,
         job.render_backend,
     )
@@ -654,7 +690,7 @@ def _summary_row(job: CheckpointJob, output_dir: str) -> list[str | bool]:
     collected_path = _get_collected_checkpoint_path(job, output_dir)
     review = get_pretrained_checkpoint_review(
         job.workflow,
-        job.task_name,
+        job.artifact_task_name,
         job.physics_backend,
         job.render_backend,
     )
@@ -663,6 +699,8 @@ def _summary_row(job: CheckpointJob, output_dir: str) -> list[str | bool]:
         job.task_name,
         job.physics_backend or "",
         job.render_backend or "",
+        job.checkpoint_variant or "",
+        ",".join(job.preset_selectors),
         job.physics_selector or "",
         job.render_selector or "",
         has_run,
@@ -676,7 +714,7 @@ def _get_collected_checkpoint_path(job: CheckpointJob, output_dir: str) -> str:
     """Return the absolute path of a checkpoint in the collection directory."""
     filename = get_pretrained_checkpoint_filename(
         job.workflow,
-        job.task_name,
+        job.artifact_task_name,
         job.physics_backend,
         job.render_backend,
     )
@@ -716,6 +754,8 @@ def main(argv: list[str] | None = None) -> int:
                 "Task",
                 "Physics",
                 "Renderer",
+                "Variant",
+                "Preset selectors",
                 "Physics selector",
                 "Renderer selector",
                 "Ran",

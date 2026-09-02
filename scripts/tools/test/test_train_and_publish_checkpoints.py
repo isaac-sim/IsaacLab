@@ -11,6 +11,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from isaaclab_rl.utils.pretrained_checkpoint import PretrainedCheckpointCfg, PretrainedCheckpointSetCfg
+
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
 from scripts.tools.train_and_publish_checkpoints import (
@@ -48,6 +50,55 @@ def test_build_core_jobs_skips_unsupported_preset_without_normalizing_default(
     args = Namespace(physics_backends="physx,newtonmjwarp", render_backends="rtx,newton")
 
     assert _build_core_jobs(args) == []
+
+
+def test_build_core_jobs_adds_declared_workflow_and_checkpoint_variants(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A task can add compatible non-default workflow and policy-variant jobs."""
+    task_spec = SimpleNamespace(
+        id="Isaac-Cartpole-Camera-Direct",
+        kwargs={
+            "env_cfg_entry_point": "isaaclab_tasks.core.cartpole:CartpoleCameraEnvCfg",
+            "rsl_rl_cfg_entry_point": "isaaclab_tasks.core.cartpole:RslRlCfg",
+            "rl_games_cfg_entry_point": "isaaclab_tasks.core.cartpole:RlGamesCfg",
+            "pretrained_checkpoint_cfg_entry_point": "isaaclab_tasks.core.cartpole:CheckpointCfg",
+        },
+    )
+    monkeypatch.setattr("scripts.tools.train_and_publish_checkpoints.gym.registry", {task_spec.id: task_spec})
+    monkeypatch.setattr("scripts.tools.train_and_publish_checkpoints.parse_env_cfg", lambda _: object())
+    monkeypatch.setattr(
+        "scripts.tools.train_and_publish_checkpoints.enumerate_task_presets",
+        lambda _: {
+            PresetTarget.PHYSICS: ["isaacsim_physx"],
+            PresetTarget.RENDERER: ["isaacsim_rtx"],
+        },
+    )
+    monkeypatch.setattr(
+        "scripts.tools.train_and_publish_checkpoints.get_pretrained_checkpoint_set_cfg",
+        lambda _: PretrainedCheckpointSetCfg(
+            policy_presets=("depth", "rgb"),
+            checkpoints=(
+                PretrainedCheckpointCfg(workflow="rsl_rl", preset_aliases=(("rgb",),)),
+                PretrainedCheckpointCfg(workflow="rl_games", preset_aliases=(("rgb",),)),
+                PretrainedCheckpointCfg(workflow="rl_games", presets=("depth",), variant="depth", smoke_num_envs=32),
+            ),
+        ),
+    )
+    args = Namespace(physics_backends="physx", render_backends="rtx")
+
+    jobs = _build_core_jobs(args)
+
+    assert [(job.workflow, job.checkpoint_variant, job.preset_selectors) for job in jobs] == [
+        ("rsl_rl", None, ()),
+        ("rl_games", None, ()),
+        ("rl_games", "depth", ("depth",)),
+    ]
+    assert jobs[-1].job_id == "rl_games:Isaac-Cartpole-Camera-Direct:physx:rtx:depth"
+    assert jobs[-1].experiment_name == "Isaac-Cartpole-Camera-Direct_depth_physx_rtx_rl_games"
+    assert jobs[-1].smoke_num_envs == 32
+    smoke_command = _training_command(jobs[-1], Namespace(max_iterations=None, num_envs=None), smoke=True)
+    assert smoke_command[smoke_command.index("--num_envs") + 1] == "32"
 
 
 def test_job_commands_use_uv_run_isaaclab() -> None:

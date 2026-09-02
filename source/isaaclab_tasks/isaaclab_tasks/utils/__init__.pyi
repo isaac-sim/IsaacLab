@@ -9,6 +9,7 @@ __all__ = [
     "load_cfg_from_registry",
     "parse_env_cfg",
     "PresetCfg",
+    "get_preset_selection",
     "preset",
     "resolve_task_config",
     "hydra_task_config",
@@ -18,7 +19,7 @@ __all__ = [
     "SuccessMonitorCfg",
 ]
 
-from .hydra import PresetCfg, preset, hydra_task_config, resolve_task_config, resolve_presets
+from .hydra import PresetCfg, get_preset_selection, preset, hydra_task_config, resolve_task_config, resolve_presets
 from .importer import import_packages
 from .parse_cfg import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 from .preset_cli import setup_preset_cli
