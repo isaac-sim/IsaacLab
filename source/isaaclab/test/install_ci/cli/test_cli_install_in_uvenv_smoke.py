@@ -90,7 +90,7 @@ class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
 
         ``newton`` is an extra feature selector: it reinstalls the already-present
         core packages (``isaaclab_newton``, ``isaaclab_physx``, ``isaaclab_visualizers``)
-        with their newton extras, pulling in the ``newton[sim]`` git dependency.
+        with their newton extras, pulling in the pinned ``newton[sim]`` release.
         """
 
         try:

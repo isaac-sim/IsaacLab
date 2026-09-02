@@ -70,7 +70,7 @@ def run_benchmark_request(request: BenchmarkRequest) -> BenchmarkResult:
 def run_benchmark_cli(argv: list[str] | None = None) -> int:
     """Run a runtime, startup, training, or play benchmark from CLI arguments.
 
-    Appending ``-multigpu`` to a workflow name runs it across several GPUs; see
+    Appending ``_multigpu`` to a workflow name runs it across several GPUs; see
     :mod:`isaaclab.benchmark.entrypoints.multigpu`.
     """
     from .entrypoints import multigpu
@@ -79,13 +79,26 @@ def run_benchmark_cli(argv: list[str] | None = None) -> int:
         argv = sys.argv[1:]
     argv = _fuse_kit_args(argv)
     multigpu_workflows = tuple(f"{name}{multigpu.MULTIGPU_SUFFIX}" for name in multigpu.MULTIGPU_WORKFLOWS)
+    legacy_multigpu_workflows = tuple(
+        f"{name}{multigpu.LEGACY_MULTIGPU_SUFFIX}" for name in multigpu.MULTIGPU_WORKFLOWS
+    )
     parser = argparse.ArgumentParser(description="Run an Isaac Lab benchmark.")
-    parser.add_argument("workflow", choices=(*WORKFLOW_MODULES, *_RL_WORKFLOW_MODULES, *multigpu_workflows))
+    parser.add_argument(
+        "workflow",
+        choices=(*WORKFLOW_MODULES, *_RL_WORKFLOW_MODULES, *multigpu_workflows, *legacy_multigpu_workflows),
+    )
     if not argv or argv[0] in ("-h", "--help"):
         parser.parse_args(argv)
     selected = parser.parse_args(argv[:1])
     if selected.workflow in multigpu_workflows:
         workflow = selected.workflow[: -len(multigpu.MULTIGPU_SUFFIX)]
+        return multigpu.run_multigpu_benchmark_cli(workflow, argv[1:])
+    if selected.workflow in legacy_multigpu_workflows:
+        workflow = selected.workflow[: -len(multigpu.LEGACY_MULTIGPU_SUFFIX)]
+        print(
+            f"'{selected.workflow}' is deprecated. Use '{workflow}{multigpu.MULTIGPU_SUFFIX}' instead.",
+            file=sys.stderr,
+        )
         return multigpu.run_multigpu_benchmark_cli(workflow, argv[1:])
     if selected.workflow in _RL_WORKFLOW_MODULES:
         return _run_rl_cli(selected.workflow, argv[1:])

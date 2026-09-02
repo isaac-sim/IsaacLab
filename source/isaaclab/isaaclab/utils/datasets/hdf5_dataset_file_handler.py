@@ -99,6 +99,8 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
     def add_env_args(self, env_args: dict):
         """Add environment arguments to the dataset."""
         self._raise_if_not_initialized()
+        stored_env_args = self._hdf5_data_group.attrs.get("env_args")
+        self._env_args = json.loads(stored_env_args) if stored_env_args is not None else {}
         self._env_args.update(env_args)
         self._hdf5_data_group.attrs["env_args"] = json.dumps(self._env_args)
 
