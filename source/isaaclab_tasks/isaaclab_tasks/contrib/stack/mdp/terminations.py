@@ -39,15 +39,8 @@ def cubes_stacked(
     """Whether the cubes are stacked, released, and at rest.
 
     Args:
-        max_lin_vel: Speed [m/s] below which a cube counts as at rest. The position checks below
-            describe an instantaneous configuration, and a cube dropped above its target passes
-            through that configuration on the way down -- without this, the drop is scored as a
-            successful stack. Pass None to skip the check.
-
-            The default leaves room for the contact solver's residual jitter, which keeps a settled
-            cube from ever reading exactly zero: over a sample of 91 sound generated demos, cubes
-            resting on the stack read a median 0.013 [m/s] and peaked at 0.034 [m/s], while a cube
-            caught mid-fall read a median 0.10 [m/s].
+        max_lin_vel: Speed [m/s] below which a cube counts as at rest, so that a cube passing through the
+            stacked configuration mid-fall is not scored as success. ``None`` disables the check.
     """
     robot: Articulation = env.scene[robot_cfg.name]
     cube_1: RigidObject = env.scene[cube_1_cfg.name]
@@ -107,14 +100,9 @@ def cubes_stacked(
         else:
             raise ValueError("No gripper_joint_names found in environment config")
 
-    # The position checks above are satisfied by a cube falling past its target as well as by one
-    # resting on it, so require the cubes to have settled before calling the stack complete.
+    # A cube falling past its target also satisfies the position checks, so require every cube to have settled.
     if max_lin_vel is not None:
-        cubes = [cube_1, cube_2]
-        if cube_3_cfg is not None:
-            cubes.append(env.scene[cube_3_cfg.name])
-        for cube in cubes:
-            at_rest = torch.linalg.norm(cube.data.root_lin_vel_w.torch, dim=1) < max_lin_vel
-            stacked = torch.logical_and(at_rest, stacked)
+        for cube in [cube_1, cube_2] + ([env.scene[cube_3_cfg.name]] if cube_3_cfg is not None else []):
+            stacked &= torch.linalg.norm(cube.data.root_lin_vel_w.torch, dim=1) < max_lin_vel
 
     return stacked
