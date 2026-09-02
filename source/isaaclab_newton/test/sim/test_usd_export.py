@@ -465,3 +465,122 @@ def test_exported_stage_preserves_source_prim_paths(source_stage, tmp_path):
     exported = Usd.Stage.Open(str(out))
     for path in stage_info["path_body_map"]:
         assert exported.GetPrimAtPath(path).IsValid(), f"source prim path {path} missing from export"
+
+
+def _replicate(source_path: str, offsets: tuple[float, ...]) -> tuple[newton.Model, dict]:
+    """Clone ``source_path`` into one world per offset, as the Isaac Lab cloner does.
+
+    Mirrors ``isaaclab_newton.cloner.newton_clone_utils``, which replicates a prototype builder
+    across worlds. Every world shares the source asset's prim paths, so only the world offsets
+    distinguish them.
+    """
+    prototype = newton.ModelBuilder()
+    stage_info = prototype.add_usd(str(source_path))
+    xforms = np.zeros((len(offsets), 7), dtype=np.float32)
+    xforms[:, 6] = 1.0
+    xforms[:, 0] = offsets
+    builder = newton.ModelBuilder()
+    builder.replicate(prototype, len(offsets), xforms=xforms)
+    return builder.finalize(), stage_info
+
+
+def test_each_cloned_world_round_trips_its_own_state(source_stage, tmp_path):
+    """A cloned model exports the selected world, carrying that world's state and no other's.
+
+    Isaac Lab always clones the scene across environments, so the model holds several worlds that
+    share one set of prim paths. Exporting must select one rather than emit the source paths while
+    reading whichever indices happen to come first.
+    """
+    offsets = (0.0, 2.0, 4.0)
+    model, stage_info = _replicate(source_stage, offsets)
+    assert model.world_count == len(offsets), "fixture failed to build one world per offset"
+
+    world_starts = model.body_world_start.numpy()
+    for world, offset in enumerate(offsets):
+        out = tmp_path / f"world_{world}.usda"
+        export_model_to_usd(model, str(out), stage_info=stage_info, world=world)
+
+        reimported, _ = _load(out)
+        assert reimported.body_count == len(stage_info["path_body_map"]), (
+            f"world {world} exported {reimported.body_count} bodies, expected"
+            f" {len(stage_info['path_body_map'])}: the export dropped or duplicated bodies"
+        )
+        expected = model.body_q.numpy()[world_starts[world]]
+        np.testing.assert_allclose(reimported.body_q.numpy()[0], expected, rtol=1e-5, atol=1e-6)
+        assert abs(reimported.body_q.numpy()[0][0] - offset) < 1e-5, (
+            f"world {world} carries the placement of a different world"
+        )
+
+
+def test_export_rejects_a_world_outside_the_model(source_stage, tmp_path):
+    """Selecting a world the model does not have fails instead of exporting an empty stage."""
+    model, stage_info = _replicate(source_stage, (0.0, 2.0))
+    with pytest.raises(ValueError, match="out of range"):
+        export_model_to_usd(model, str(tmp_path / "out.usda"), stage_info=stage_info, world=2)
+
+
+def test_export_rejects_provenance_that_misses_entities(source_stage, tmp_path):
+    """Prim paths covering fewer bodies than the world holds fail rather than exporting a subset.
+
+    Without this the export silently describes part of the scene, and the shortfall is invisible
+    until the reimported stage is compared against the model it came from.
+    """
+    model, stage_info = _load(source_stage)
+    partial = dict(stage_info)
+    partial["path_body_map"] = dict(list(stage_info["path_body_map"].items())[:1])
+    with pytest.raises(ValueError, match="silently drop"):
+        export_model_to_usd(model, str(tmp_path / "out.usda"), stage_info=partial)
+
+
+def test_ground_plane_round_trips(tmp_path):
+    """A finite ground plane survives export and reimport with its extent and orientation.
+
+    Every Isaac Lab task spawns one, so a plane the exporter cannot author would fail the export of
+    every real scene rather than an exotic one.
+    """
+    source = tmp_path / "ground.usda"
+    stage = Usd.Stage.CreateNew(str(source))
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    UsdPhysics.Scene.Define(stage, "/World/physicsScene")
+    plane = UsdGeom.Plane.Define(stage, "/World/ground")
+    plane.GetAxisAttr().Set(UsdGeom.Tokens.z)
+    plane.GetWidthAttr().Set(100.0)
+    plane.GetLengthAttr().Set(60.0)
+    UsdPhysics.CollisionAPI.Apply(plane.GetPrim())
+    stage.GetRootLayer().Save()
+
+    m1, stage_info = _load(source)
+    assert m1.shape_count == 1 and newton.GeoType(int(m1.shape_type.numpy()[0])) is newton.GeoType.PLANE, (
+        "fixture did not import as a plane; the test would be vacuous"
+    )
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+
+    m2, _ = _load(out)
+    assert m2.shape_count == 1
+    assert newton.GeoType(int(m2.shape_type.numpy()[0])) is newton.GeoType.PLANE
+    np.testing.assert_allclose(m2.shape_scale.numpy()[0], m1.shape_scale.numpy()[0], rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(m2.shape_transform.numpy()[0], m1.shape_transform.numpy()[0], rtol=1e-6, atol=1e-6)
+
+
+def test_sites_are_not_counted_against_the_asset(source_stage, tmp_path):
+    """A cloner-added site has no prim and must not trip the provenance guard.
+
+    Isaac Lab adds one site per sensor frame after importing the asset. They are shapes in the model
+    but describe nothing USD can hold, so the export must skip them rather than refuse the scene.
+    """
+    builder = newton.ModelBuilder()
+    stage_info = builder.add_usd(str(source_stage))
+    builder.add_site(body=0, label="imu_frame")
+    model = builder.finalize()
+    assert model.shape_count == len(_canonical_paths_count(stage_info)) + 1, "fixture failed to add a site"
+
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(model, str(out), stage_info=stage_info)
+    reimported, _ = _load(out)
+    assert reimported.shape_count == model.shape_count - 1, "the site was exported as geometry"
+
+
+def _canonical_paths_count(stage_info) -> set[int]:
+    return set(stage_info["path_shape_map"].values())

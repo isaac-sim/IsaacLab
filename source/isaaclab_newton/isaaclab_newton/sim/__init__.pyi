@@ -13,6 +13,7 @@ __all__ = [
     "MPMParticleMaterialCfg",
     "MPMParticleSpawnerCfg",
     "MPMPointsCfg",
+    "export_model_to_usd",
     "schemas",
     "spawners",
     "views",
@@ -27,3 +28,4 @@ from .spawners.materials import (
     NewtonSurfaceDeformableBodyMaterialCfg,
 )
 from .spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg, MPMParticleSpawnerCfg, MPMPointsCfg
+from .usd_export import export_model_to_usd
