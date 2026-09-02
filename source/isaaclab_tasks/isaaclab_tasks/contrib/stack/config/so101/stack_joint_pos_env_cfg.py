@@ -64,6 +64,8 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        # Expand the USD-authored actuator defaults to every Newton articulation clone.
+        self.scene.replicate_physics = True
         self.sim.physics.newton_mjwarp.solver_cfg.nconmax = 600
         self.sim.physics = preset(
             default=self.sim.physics.newton_mjwarp,
