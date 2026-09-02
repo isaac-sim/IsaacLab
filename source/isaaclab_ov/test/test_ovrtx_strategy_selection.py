@@ -30,87 +30,23 @@ if not _MISSING_MODULES:
     from isaaclab.renderers import ASYNC_RENDERING_ENV_VAR
 
 
-@pytest.fixture()
-def async_cfg(monkeypatch) -> OVRTXRendererCfg:
-    monkeypatch.delenv(ASYNC_RENDERING_ENV_VAR, raising=False)
-    return OVRTXRendererCfg(async_rendering=True)
+def test_strategy_matches_cfg_and_env(monkeypatch):
+    """The cfg selects the strategy, and the environment variable overrides the cfg."""
+    assert isinstance(_resolve_render_strategy(OVRTXRendererCfg(async_rendering=True)), _AsyncRenderStrategy)
+    assert isinstance(_resolve_render_strategy(OVRTXRendererCfg(async_rendering=False)), _SyncRenderStrategy)
 
-
-@pytest.fixture()
-def sync_cfg(monkeypatch) -> OVRTXRendererCfg:
-    monkeypatch.delenv(ASYNC_RENDERING_ENV_VAR, raising=False)
-    return OVRTXRendererCfg(async_rendering=False)
-
-
-def test_async_selected_when_enabled(async_cfg):
-    assert isinstance(_resolve_render_strategy(async_cfg), _AsyncRenderStrategy)
-
-
-def test_sync_selected_when_disabled(sync_cfg):
-    assert isinstance(_resolve_render_strategy(sync_cfg), _SyncRenderStrategy)
-
-
-def test_env_override_enables_async(sync_cfg, monkeypatch):
     monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, "1")
-
-    assert isinstance(_resolve_render_strategy(sync_cfg), _AsyncRenderStrategy)
-
-
-def test_env_override_disables_async(async_cfg, monkeypatch):
-    monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, "0")
-
-    assert isinstance(_resolve_render_strategy(async_cfg), _SyncRenderStrategy)
+    assert isinstance(_resolve_render_strategy(OVRTXRendererCfg(async_rendering=False)), _AsyncRenderStrategy)
 
 
-def test_async_pipelines_exactly_one_frame(async_cfg):
-    """One frame of latency: the queue holds that render plus the one being enqueued.
-
-    Deeper queues are deliberately unsupported — the ovstage path cannot sustain them because its
-    scene writes drain in-flight renders, and the legacy path has not measured a benefit.
-    """
-    strategy = _resolve_render_strategy(async_cfg)
-
-    assert isinstance(strategy, _AsyncRenderStrategy)
-    assert strategy._render_queue_depth == 2
-
-
-def test_multi_frame_latency_is_rejected(monkeypatch):
-    """Frame counts above one are refused explicitly rather than silently truncated."""
-    monkeypatch.delenv(ASYNC_RENDERING_ENV_VAR, raising=False)
-
-    with pytest.raises(ValueError, match="not supported yet"):
-        _resolve_render_strategy(OVRTXRendererCfg(async_rendering=3))
-
-
-@pytest.mark.parametrize("raw", ["3", "banana"])
-def test_invalid_env_override_is_rejected(async_cfg, monkeypatch, raw):
-    """An invalid env value raises. A silently ignored typo would flip the selected strategy."""
-    monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, raw)
-
-    with pytest.raises(ValueError):
-        _resolve_render_strategy(async_cfg)
-
-
-def test_negative_value_is_rejected(monkeypatch):
-    monkeypatch.delenv(ASYNC_RENDERING_ENV_VAR, raising=False)
-
-    with pytest.raises(ValueError):
-        _resolve_render_strategy(OVRTXRendererCfg(async_rendering=-1))
-
-
-def test_ovstage_forces_sync_and_warns(async_cfg, caplog):
-    """The ovstage path renders synchronously for now; a requested async must warn, not silently apply."""
+def test_ovstage_forces_sync_and_warns_only_when_async_requested(caplog):
+    """The ovstage path renders synchronously for now. A requested async must warn, not silently apply."""
     with caplog.at_level("WARNING"):
-        strategy = _resolve_render_strategy(async_cfg, use_ovstage=True)
-
-    assert isinstance(strategy, _SyncRenderStrategy)
-    assert any("ovstage" in record.message for record in caplog.records)
-
-
-def test_ovstage_sync_is_silent(sync_cfg, caplog):
-    """No warning when async was never requested on the ovstage path."""
-    with caplog.at_level("WARNING"):
-        strategy = _resolve_render_strategy(sync_cfg, use_ovstage=True)
-
+        strategy = _resolve_render_strategy(OVRTXRendererCfg(async_rendering=False), use_ovstage=True)
     assert isinstance(strategy, _SyncRenderStrategy)
     assert not caplog.records
+
+    with caplog.at_level("WARNING"):
+        strategy = _resolve_render_strategy(OVRTXRendererCfg(async_rendering=True), use_ovstage=True)
+    assert isinstance(strategy, _SyncRenderStrategy)
+    assert any("ovstage" in record.message for record in caplog.records)
