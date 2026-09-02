@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import logging
 import math
 from collections.abc import Callable, Iterable
@@ -218,6 +219,48 @@ def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
             safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
 
 
+def _strip_fragment_fields(cfg: schemas_cfg.SchemaFragment) -> dict[str, object]:
+    """Collect a fragment's non-``None`` data fields, excluding the ``func`` plumbing field.
+
+    Args:
+        cfg: The fragment instance to read fields from.
+
+    Returns:
+        A mapping of set field names to their values, ready to author as USD attributes.
+    """
+    return {
+        f.name: getattr(cfg, f.name)
+        for f in dataclasses.fields(cfg)
+        if f.name != "func" and getattr(cfg, f.name) is not None
+    }
+
+
+def _apply_multiple_apply(cfg: schemas_cfg.SchemaFragment, prim: Usd.Prim, schema_name: str) -> bool:
+    """Write a fragment across every applied instance of one multiple-apply schema.
+
+    A multiple-apply schema is applied per instance (``<Schema>:<instance>``) and owns a property
+    namespace that is not derivable from its class name, so each attribute name comes from USD
+    rather than from string concatenation.
+
+    Args:
+        cfg: The fragment whose set fields are written.
+        prim: The prim carrying the schema instances.
+        schema_name: The multiple-apply schema the fragment configures.
+
+    Returns:
+        True if at least one instance was written, False if the prim declares none.
+    """
+    instances = resolve_applied_schema_instances(prim.GetAppliedSchemas(), schema_name)
+    if not instances:
+        return False
+    values = _strip_fragment_fields(cfg)
+    for instance_name in instances:
+        for attr_name, value in values.items():
+            attribute = multiple_apply_property_name(schema_name, instance_name, to_camel_case(attr_name, "cC"))
+            safe_set_attribute_on_usd_prim(prim, attribute, value, camel_case=False)
+    return True
+
+
 def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     """Default fragment applier: apply the fragment's schema and write its namespaced attrs.
 
@@ -226,6 +269,11 @@ def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd
     fragment owns an applied schema, it is applied (once). Each non-``None`` dataclass field is
     written as ``<namespace>:<camelCase(field)>``; the ``func`` field is skipped. ``None`` fields
     are left unchanged on the prim (partial update).
+
+    A fragment declaring :attr:`~isaaclab.sim.schemas.SchemaFragment._usd_multi_apply_schema`
+    takes the multiple-apply path instead: every instance of that schema already applied to the
+    prim is tuned, and USD supplies each attribute name. Such a fragment applies no schema -- the
+    instances are authored in the source asset.
 
     Args:
         cfg: The fragment instance carrying ``_usd_namespace`` / ``_usd_applied_schema`` metadata.
@@ -244,6 +292,9 @@ def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
     namespace = type(cfg)._usd_namespace
     applied = type(cfg)._usd_applied_schema
+    multi_apply = type(cfg)._usd_multi_apply_schema
+    if multi_apply is not None:
+        return _apply_multiple_apply(cfg, prim, multi_apply)
     # every fragment field is a namespaced USD attribute, so a namespace is required
     if namespace is None:
         raise ValueError(
@@ -1629,6 +1680,83 @@ Fixed tendon properties.
 """
 
 
+def resolve_applied_schema_instances(applied_schemas, schema_name: str) -> list[str]:
+    """Return the instance names of a multi-apply schema applied to a prim.
+
+    A multi-apply schema is applied as ``<SchemaName>:<instance>``, and the instance -- not the
+    prim it sits on -- is the entity's identity. Fixed tendons are the motivating case: naming one
+    after the joint prim carrying its root gives the same tendon a different name on each physics
+    engine, and collapses several tendons on one prim into a single entry.
+
+    Args:
+        applied_schemas: The prim's applied API schemas, as returned by ``GetAppliedSchemas()``.
+        schema_name: The multi-apply schema to match, without an instance (e.g.
+            ``"PhysxTendonAxisRootAPI"``).
+
+    Returns:
+        The instance names, in the order the prim declares them. Empty if the schema is not applied.
+    """
+    prefix = f"{schema_name}:"
+    return [str(name).removeprefix(prefix) for name in applied_schemas if str(name).startswith(prefix)]
+
+
+@functools.cache
+def _multiple_apply_templates(schema_name: str) -> dict[str, str]:
+    """Base property name to name template for a multiple-apply schema.
+
+    Cached: the registry's answer is fixed once the schema's plugin is registered, and backends
+    register theirs before stage creation.
+
+    Raises:
+        LookupError: If the schema is not registered.
+        ValueError: If it is registered but is not multiple-apply.
+    """
+    registry = Usd.SchemaRegistry()
+    definition = registry.FindAppliedAPIPrimDefinition(schema_name)
+    if definition is None:
+        raise LookupError(
+            f"USD schema '{schema_name}' is not registered. Backends register their schema plugins"
+            " before stage creation, so this means the schema does not belong to the active backend."
+        )
+    if not registry.IsMultipleApplyAPISchema(schema_name):
+        raise ValueError(
+            f"'{schema_name}' is registered but is not a multiple-apply schema. Single-apply schemas"
+            " resolve their namespace through the cfg class's '_usd_namespace'."
+        )
+    return {
+        template.rsplit(":", 1)[-1]: template
+        for template in definition.GetPropertyNames()
+        if "__INSTANCE_NAME__" in template
+    }
+
+
+def multiple_apply_property_name(schema_name: str, instance_name: str, property_name: str) -> str:
+    """Return the attribute name a multiple-apply schema writes for one property of one instance.
+
+    A multiple-apply schema declares a property namespace prefix that is independent of its class
+    name and may be shared with sibling schemas -- ``PhysicsDriveAPI`` writes under ``drive:``, and
+    both ``PhysxTendonAxisAPI`` and ``PhysxTendonAxisRootAPI`` under ``physxTendon:``. The instance
+    is not always the last namespace either: ``PhysicsDriveAPI`` writes
+    ``drive:<instance>:physics:damping``. Neither side can be spelled from the schema name, so USD
+    reports the whole template and only the instance is substituted.
+
+    Args:
+        schema_name: The multiple-apply schema, without an instance (e.g. ``"PhysicsDriveAPI"``).
+        instance_name: The instance to substitute (e.g. ``"angular"``).
+        property_name: The schema's base property name (e.g. ``"damping"``).
+
+    Returns:
+        The instanced attribute name, e.g. ``"drive:angular:physics:damping"``.
+
+    Raises:
+        LookupError: If the schema is not registered.
+        ValueError: If it is registered but is not multiple-apply.
+        KeyError: If the schema declares no such property.
+    """
+    template = _multiple_apply_templates(schema_name)[property_name]
+    return Usd.SchemaRegistry.MakeMultipleApplyNameInstance(template, instance_name)
+
+
 def _is_fixed_tendon_target(prim: Usd.Prim) -> bool:
     """Whether a prim carries a fixed-tendon representation (PhysX multi-apply instance or MjcTendon prim)."""
     if prim.GetTypeName() == "MjcTendon":
@@ -1743,20 +1871,26 @@ def modify_fixed_tendon_properties(
     if not any("PhysxTendonAxisRootAPI" in s for s in applied_schemas) and prim_type != "MjcTendon":
         return False
 
+    # The PhysX branch resolves its property namespace through USD; only the ``mjc:`` branch below
+    # still spells one, because ``MjcTendon`` is a prim type rather than a multiple-apply schema and
+    # has no instance to resolve. Fragments take neither path: they declare their schema through
+    # ``SchemaFragment._usd_multi_apply_schema`` and the generic applier writes them.
     # resolve all available instances of the schema since it is multi-instance
     cfg = cfg.to_dict()
     if prim_type != "MjcTendon":
         for schema_name in applied_schemas:
             if "PhysxTendonAxisRootAPI" not in schema_name:
                 continue
-            # set into PhysX API by attribute prefix schema_name: (e.g. PhysxTendonAxisRootAPI:default:stiffness)
+            # multi-apply schemas are always "<Schema>:<instance>"; skip anything else rather than
+            # assuming a separator.
+            base_schema, sep, instance_name = schema_name.partition(":")
+            if not sep:
+                continue
+            # The property namespace prefix is declared by the schema, not derived from its name,
+            # so ask USD rather than spelling it.
             for attr_name, value in cfg.items():
-                safe_set_attribute_on_usd_prim(
-                    tendon_prim,
-                    f"{schema_name}:{to_camel_case(attr_name, 'cC')}",
-                    value,
-                    camel_case=False,
-                )
+                attribute = multiple_apply_property_name(base_schema, instance_name, to_camel_case(attr_name, "cC"))
+                safe_set_attribute_on_usd_prim(tendon_prim, attribute, value, camel_case=False)
     else:
         # NOTE: ``mjc:*`` branch (``MjcTendon`` prim) kept inline; future split candidate into isaaclab_newton.
         # only stiffness and damping in the cfg map to mjc attributes
@@ -1880,13 +2014,16 @@ def modify_spatial_tendon_properties(
     for schema_name in applied_schemas:
         if "PhysxTendonAttachmentRootAPI" not in schema_name and "PhysxTendonAttachmentLeafAPI" not in schema_name:
             continue
+        # multi-apply schemas are always "<Schema>:<instance>"; skip anything else rather than
+        # assuming a separator.
+        base_schema, sep, instance_name = schema_name.partition(":")
+        if not sep:
+            continue
+        # The property namespace prefix is declared by the schema, not derived from its name,
+        # so ask USD rather than spelling it.
         for attr_name, value in cfg.items():
-            safe_set_attribute_on_usd_prim(
-                tendon_prim,
-                f"{schema_name}:{to_camel_case(attr_name, 'cC')}",
-                value,
-                camel_case=False,
-            )
+            attribute = multiple_apply_property_name(base_schema, instance_name, to_camel_case(attr_name, "cC"))
+            safe_set_attribute_on_usd_prim(tendon_prim, attribute, value, camel_case=False)
     # success
     return True
 

@@ -118,6 +118,12 @@ class SchemaFragment:
     non-``None`` field as ``<namespace>:<camelCase(field)>``. Irregular APIs override
     :attr:`func` with a custom applier.
 
+    A multiple-apply schema is declared through :attr:`_usd_multi_apply_schema` instead of
+    :attr:`_usd_namespace`: it is applied per instance (``<Schema>:<instance>``), the instance is
+    part of the attribute name, and the property namespace belongs to the schema rather than to
+    its class name. The generic applier writes every instance the prim declares, asking USD for
+    each attribute name, so no namespace is spelled by hand.
+
     .. note::
         A fragment present in a spawner slot means its schema is applied. ``None`` fields are
         left unchanged on the prim (partial update).
@@ -135,6 +141,7 @@ class SchemaFragment:
     # -- Class metadata (not dataclass fields) --
     _usd_namespace: ClassVar[str | None] = None
     _usd_applied_schema: ClassVar[str | None] = None
+    _usd_multi_apply_schema: ClassVar[str | None] = None
 
     func: Callable | str = "isaaclab.sim.schemas:apply_namespaced"
     """Callable (or its ``module:attr`` import string) that applies this fragment to a prim.

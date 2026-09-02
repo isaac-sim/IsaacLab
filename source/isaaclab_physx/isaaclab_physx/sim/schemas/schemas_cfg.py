@@ -1263,22 +1263,19 @@ class PhysxFixedTendonCfg(FixedTendonFragment):
     A fixed-tendon fragment (see :class:`~isaaclab.sim.schemas.FixedTendonFragment`) for the
     PhysX fixed-tendon schema. Unlike single-namespace fragments, this is a *tune-not-apply*
     fragment: the multi-instance ``PhysxTendonAxisRootAPI:<inst>`` schemas already exist on the
-    prim (authored in the source asset), so the fragment overrides
-    :attr:`~isaaclab.sim.schemas.SchemaFragment.func` with :func:`apply_fixed_tendon`, which
-    descends the prim subtree and tunes every existing ``PhysxTendonAxisRootAPI:<inst>`` instance
-    directly.
+    prim (authored in the source asset), so the fragment declares them through
+    :attr:`~isaaclab.sim.schemas.SchemaFragment._usd_multi_apply_schema` and the generic applier
+    tunes every existing instance.
 
     Dispatched via :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`.
 
     .. _PhysxTendonAxisRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_root_a_p_i.html
     """
 
-    # Not namespace-driven: the custom applier matches the multi-instance schema explicitly, so
-    # ``_usd_namespace`` stays ``None`` -- this also guards against accidentally routing the fragment
-    # through the generic ``apply_namespaced`` (which would raise on a missing namespace).
-    _usd_namespace: ClassVar[str | None] = None
-    # override ``func``: writer iterates multi-instance ``PhysxTendonAxisRootAPI`` schemas; ``apply_namespaced`` cannot.
-    func: Callable | str = "isaaclab_physx.sim.schemas:apply_fixed_tendon"
+    # Multiple-apply: the fields below are the tendon's own dynamics, which the root schema
+    # declares once per tendon. The generic applier resolves each instance and asks USD for the
+    # attribute names, so no property namespace is spelled here.
+    _usd_multi_apply_schema: ClassVar[str | None] = "PhysxTendonAxisRootAPI"
 
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""
@@ -1309,25 +1306,21 @@ class PhysxSpatialTendonCfg(SpatialTendonFragment):
 
     A spatial-tendon fragment (see :class:`~isaaclab.sim.schemas.SpatialTendonFragment`) for the
     PhysX spatial-tendon schema. Unlike single-namespace fragments, this is a *tune-not-apply*
-    fragment: the multi-instance ``PhysxTendonAttachmentRootAPI:<inst>`` /
-    ``PhysxTendonAttachmentLeafAPI:<inst>`` schemas already exist on the prim (authored in the
-    source asset), so the fragment overrides
-    :attr:`~isaaclab.sim.schemas.SchemaFragment.func` with :func:`apply_spatial_tendon`, which
-    descends the prim subtree and tunes every existing ``PhysxTendonAttachmentRootAPI:<inst>`` /
-    ``PhysxTendonAttachmentLeafAPI:<inst>`` instance directly.
+    fragment: the multi-instance ``PhysxTendonAttachmentRootAPI:<inst>`` schemas already exist on
+    the prim (authored in the source asset), so the fragment declares them through
+    :attr:`~isaaclab.sim.schemas.SchemaFragment._usd_multi_apply_schema` and the generic applier
+    tunes every existing instance. Only the attachment root is tuned: the fields below are the
+    tendon's dynamics, which leaf and intermediate attachments do not declare.
 
     Dispatched via :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`.
 
     .. _PhysxTendonAttachmentRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_root_a_p_i.html
     """
 
-    # Not namespace-driven: the custom applier matches the multi-instance schemas explicitly, so
-    # ``_usd_namespace`` stays ``None`` -- this also guards against accidentally routing the fragment
-    # through the generic ``apply_namespaced`` (which would raise on a missing namespace).
-    _usd_namespace: ClassVar[str | None] = None
-    # override ``func``: writer iterates multi-instance ``PhysxTendonAttachment{Root,Leaf}API``
-    # schemas, which the generic ``apply_namespaced`` cannot.
-    func: Callable | str = "isaaclab_physx.sim.schemas:apply_spatial_tendon"
+    # Multiple-apply: the fields below are the tendon's own dynamics, declared by the attachment
+    # root. Leaf and intermediate attachments declare only per-element geometry and limits, so
+    # they are not this fragment's schema.
+    _usd_multi_apply_schema: ClassVar[str | None] = "PhysxTendonAttachmentRootAPI"
 
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""

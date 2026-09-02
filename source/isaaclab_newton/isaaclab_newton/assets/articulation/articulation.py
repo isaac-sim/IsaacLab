@@ -40,6 +40,7 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .actuator_control import NewtonActuatorControl
 from .articulation_data import ArticulationData
+from .mjc_tendon_control import MjcTendonControl
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
@@ -203,6 +204,14 @@ class Articulation(BaseArticulation):
     The keys are the actuator names and the values are the actuator instances. The actuator instances
     are initialized based on the actuator configurations specified in the :attr:`ArticulationCfg.actuators`
     attribute. They are used to compute the joint commands during the :meth:`write_data_to_sim` function.
+    """
+
+    _mjc_tendon_control: MjcTendonControl | None = None
+    """MuJoCo tendon control adapter, or ``None`` when this articulation drives no tendon.
+
+    Defaulted on the class because :meth:`write_data_to_sim` reads it, while only
+    :meth:`_process_tendons` assigns it -- an articulation built without the full initialization
+    path never reaches that step.
     """
 
     def __init__(self, cfg: ArticulationCfg):
@@ -435,6 +444,10 @@ class Articulation(BaseArticulation):
         # submit them to the backend through the collection's control adapter.
         self.actuators.compute(SimulationManager.get_physics_dt())
         self.actuators.submit_commands()
+
+        # Tendon targets share the per-step write because MuJoCo exposes their controls outside the articulation view.
+        if self._mjc_tendon_control is not None:
+            self._mjc_tendon_control.write_data_to_sim(SimulationManager.get_control())
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -2910,6 +2923,37 @@ class Articulation(BaseArticulation):
         """
         raise NotImplementedError()
 
+    def set_fixed_tendon_position_target_index(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Command the tendon's length through MuJoCo's native tendon actuator.
+
+        MuJoCo's tendon spring has a fixed setpoint, so the command goes to the actuator whose
+        transmission is the tendon rather than to the tendon itself.
+
+        This function does not apply the target to the simulation. It only fills the buffer with
+        the desired value, which reaches ``mujoco.ctrl`` from :meth:`write_data_to_sim`.
+
+        .. note::
+            This method expects partial data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (len(env_ids), len(fixed_tendon_ids)).
+            fixed_tendon_ids: The tendon indices to command. Defaults to None (all fixed tendons).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        if self._mjc_tendon_control is None:
+            raise RuntimeError(
+                "This articulation has no MuJoCo tendon actuator, so its tendons cannot be"
+                " commanded. The asset must author an actuator whose transmission is the tendon."
+            )
+        self._mjc_tendon_control.set_position_target(target=target, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+
     def set_fixed_tendon_offset_index(
         self,
         *,
@@ -2936,6 +2980,36 @@ class Articulation(BaseArticulation):
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
+
+    def set_fixed_tendon_position_target_mask(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Command the target length of fixed tendons using masks.
+
+        Same control input as :meth:`set_fixed_tendon_position_target_index`, selecting the tendons
+        and environments by mask instead of by index.
+
+        .. note::
+            This method expects full data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are commanded.
+            env_mask: Environment mask. If None, then all the instances are commanded.
+        """
+        if self._mjc_tendon_control is None:
+            raise RuntimeError(
+                "This articulation has no MuJoCo tendon actuator, so its tendons cannot be"
+                " commanded. The asset must author an actuator whose transmission is the tendon."
+            )
+        self._mjc_tendon_control.set_position_target_mask(
+            target=target, fixed_tendon_mask=fixed_tendon_mask, env_mask=env_mask
+        )
 
     def set_fixed_tendon_offset_mask(
         self,
@@ -3463,12 +3537,14 @@ class Articulation(BaseArticulation):
 
     def _process_tendons(self):
         """Process fixed and spatial tendons."""
+        self._mjc_tendon_control = None
         if self._root_view.tendon_count > 0:
             tendon_types = wp.to_torch(
                 self._root_view.get_attribute("mujoco.tendon_type", SimulationManager.get_model())
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")
+            self._mjc_tendon_control = MjcTendonControl.create(self, SimulationManager.get_model())
 
     """
     Internal helpers -- Debugging.
