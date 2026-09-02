@@ -1829,6 +1829,9 @@ class OVRTXRenderer(BaseRenderer):
         """
         if render_data is None:
             return
+        # A queued asynchronous frame may still target these buffers. Disown it explicitly, so its
+        # delivery skips the released camera instead of writing into cleared dictionaries.
+        self._strategy.release_render_data(render_data)
         render_data.warp_buffers.clear()
         render_data.renderer_info.clear()
         render_data.ppisp_pipeline = None

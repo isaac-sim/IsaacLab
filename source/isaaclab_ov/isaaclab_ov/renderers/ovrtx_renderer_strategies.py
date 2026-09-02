@@ -119,6 +119,13 @@ class _RenderStrategy(ABC):
         """
         return []
 
+    def release_render_data(self, render_data: OVRTXRenderData) -> None:
+        """Disown ``render_data`` in any queued work, keeping the work itself alive.
+
+        Called when a camera releases its render data while the shared strategy may still hold a
+        queued frame for it. The default does nothing.
+        """
+
     def settle_before_scene_write(self) -> None:
         """Drain in-flight renders that could observe a scene mutation issued after them.
 
@@ -446,6 +453,16 @@ class _AsyncRenderStrategy(_RenderStrategy):
     def _try_drain_one(self) -> bool:
         """Complete the oldest queued render and deliver it. Returns False when nothing was queued."""
         return bool(self._ring) and self._ring.popleft().deliver()
+
+    def release_render_data(self, render_data: OVRTXRenderData) -> None:
+        """Disown ``render_data`` in queued frames. See :meth:`_RenderStrategy.release_render_data`.
+
+        The frames' ops stay queued and are still waited on. Delivery then skips the released
+        camera, instead of depending on its cleared buffers making consumption a no-op.
+        """
+        for entry in self._ring:
+            if entry.render_data is render_data:
+                entry.render_data = None
 
     def cleanup(self) -> list[Exception]:
         """Drain all queued renders best-effort and drop staging slots.
