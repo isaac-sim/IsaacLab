@@ -54,6 +54,8 @@ class FixedTendonPositionActionCfg(ActionTermCfg):
 
     tendon_names: list[str] = MISSING
     """Fixed tendon names or regular expressions the motors drive, in action order."""
+    preserve_order: bool = False
+    """Whether to preserve the order of the tendon names in the action output. Defaults to False."""
 
     scale: float = 1.0
     """Scale mapping an action onto the tendon's commandable span. Defaults to 1.0."""

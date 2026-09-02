@@ -7,18 +7,24 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.assets.articulation import BaseArticulation
+import isaaclab.utils.string as string_utils
+from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
     from . import actions_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 class FixedTendonPositionAction(ActionTerm):
@@ -39,8 +45,10 @@ class FixedTendonPositionAction(ActionTerm):
     """The scaling factor applied to the input action."""
     _offset: torch.Tensor | float
     """The offset applied to the input action."""
+    _clip: torch.Tensor
+    """The clip applied to the processed action."""
 
-    _asset: BaseArticulation
+    _asset: Articulation
     """The articulation asset on which the term is applied."""
 
     def __init__(self, cfg: actions_cfg.FixedTendonPositionActionCfg, env: ManagerBasedEnv):
@@ -49,16 +57,31 @@ class FixedTendonPositionAction(ActionTerm):
         # Resolve as a proxy and keep the torch view: a plain list would be converted to a fresh
         # device array on every apply_actions, which is a per-step allocation on the control path.
         tendon_ids, self._tendon_names = self._asset.find_fixed_tendons(
-            cfg.tendon_names, preserve_order=True, as_proxy=True
+            cfg.tendon_names, preserve_order=cfg.preserve_order, as_proxy=True
         )
         self._num_tendons = len(tendon_ids)
         self._tendon_ids = tendon_ids.torch
+        # log the resolved tendon names for debugging
+        logger.info(
+            f"Resolved tendon names for the action term {self.__class__.__name__}:"
+            f" {self._tendon_names} [{self._tendon_ids}]"
+        )
 
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self._raw_actions)
 
         self._scale = cfg.scale
         self._offset = cfg.offset
+        # parse clip
+        if cfg.clip is not None:
+            if isinstance(cfg.clip, dict):
+                self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
+                    self.num_envs, self.action_dim, 1
+                )
+                index_list, _, value_list = string_utils.resolve_matching_names_values(cfg.clip, self._tendon_names)
+                self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
+            else:
+                raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
 
     """
     Properties.
@@ -76,16 +99,39 @@ class FixedTendonPositionAction(ActionTerm):
     def processed_actions(self) -> torch.Tensor:
         return self._processed_actions
 
+    @property
+    def IO_descriptor(self) -> GenericActionIODescriptor:
+        """The IO descriptor of the action term.
+
+        Adds the tendon names, scale, offset and clip to the base descriptor.
+
+        Returns:
+            The IO descriptor of the action term.
+        """
+        super().IO_descriptor
+        self._IO_descriptor.shape = (self.action_dim,)
+        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
+        self._IO_descriptor.action_type = "FixedTendonPositionAction"
+        self._IO_descriptor.tendon_names = self._tendon_names
+        self._IO_descriptor.scale = self._scale
+        self._IO_descriptor.offset = self._offset
+        self._IO_descriptor.clip = self._clip[0].detach().cpu().numpy().tolist() if self.cfg.clip is not None else None
+        return self._IO_descriptor
+
     """
     Operations.
     """
 
     def process_actions(self, actions: torch.Tensor):
         self._raw_actions[:] = actions
-        # Clip to [-1, 1] before mapping onto the tendon's span, exactly as the joint terms do.
-        # A policy samples from an unbounded Gaussian, so early actions reach well past 1; without
-        # this the command leaves the tendon's reachable range entirely and yanks the fingers.
+        # The raw action is clamped to [-1, 1] so scale and offset alone define the commanded span; a
+        # Gaussian policy samples well past 1 early on, which would yank the fingers out of range.
+        # Joint terms instead clip the processed action through ``cfg.clip``, honoured here as well.
         self._processed_actions[:] = self._raw_actions.clamp(-1.0, 1.0) * self._scale + self._offset
+        if self.cfg.clip is not None:
+            self._processed_actions[:] = torch.clamp(
+                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
+            )
 
     def apply_actions(self):
         # The target is the tendon's own length coordinate. For one command to mean the same thing
