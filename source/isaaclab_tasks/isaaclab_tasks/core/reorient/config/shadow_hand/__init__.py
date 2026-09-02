@@ -17,7 +17,7 @@ from isaaclab_tasks.core.reorient.config.shadow_hand import agents
 
 gym.register(
     id="Isaac-Reorient-Cube-Shadow-Direct",
-    entry_point="isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env:ShadowHandDirectEnv",
+    entry_point=f"{__name__}.shadow_hand_direct_env:ShadowHandDirectEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.shadow_hand_direct_env_cfg:ShadowHandEnvCfg",

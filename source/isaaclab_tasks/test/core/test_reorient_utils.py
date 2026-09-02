@@ -140,3 +140,33 @@ def test_success_tracker_keeps_the_first_reach_after_an_explicit_reset():
     tracker.clear(slice(None), skip_next_update=torch.zeros(2, dtype=torch.bool))
 
     assert torch.equal(tracker.earned(torch.ones(2, dtype=torch.bool)), torch.ones(2, dtype=torch.bool))
+
+
+class _FakeHand:
+    """Articulation stand-in exposing only the tendon lookup the helper uses."""
+
+    def __init__(self, names):
+        self._names = names
+
+    def find_fixed_tendons(self, name_keys, preserve_order=False):
+        indices = [self._names.index(name) for name in name_keys if name in self._names]
+        return indices, [self._names[i] for i in indices]
+
+
+def test_resolve_actuated_tendons_returns_indices_in_action_order_and_limit_tensors():
+    hand = _FakeHand(["rh_FFJ0", "rh_MFJ0", "rh_RFJ0", "rh_LFJ0"])
+
+    indices, lower, upper = reorient_utils.resolve_actuated_tendons(
+        hand, ["rh_LFJ0", "rh_FFJ0"], num_envs=3, device="cpu", position_limits=(0.0, 2.0)
+    )
+
+    assert indices == [3, 0]
+    assert torch.equal(lower, torch.zeros(3, 2))
+    assert torch.equal(upper, torch.full((3, 2), 2.0))
+
+
+def test_resolve_actuated_tendons_rejects_a_missing_tendon():
+    hand = _FakeHand(["rh_FFJ0"])
+
+    with pytest.raises(ValueError, match="Expected 2 actuated tendons, found 1"):
+        reorient_utils.resolve_actuated_tendons(hand, ["rh_FFJ0", "rh_LFJ0"], 1, "cpu", (0.0, 1.0))
