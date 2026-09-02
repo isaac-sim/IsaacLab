@@ -34,6 +34,7 @@ from isaaclab.sim.schemas import resolve_applied_schema_instances
 from isaaclab.utils.buffers import TimestampedBufferWarp
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import kernels as warp_kernels
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ov import tensor_types as TT
@@ -271,11 +272,9 @@ class Articulation(BaseArticulation):
         self.actuators.compute(OvPhysxManager.get_physics_dt())
         self.actuators.submit_commands()
 
-        # Fixed-tendon offsets ride the same per-step write as joint targets. A tendon target is
-        # applied as a tendon PROPERTY, so it needs the property write to take effect; doing that
-        # from the action term would make it the only sim write outside this step.
+        # tendon targets are applied as the offset property, so they ride the same per-step write as joint targets
         if self.num_fixed_tendons > 0:
-            self.write_fixed_tendon_properties_to_sim_index()
+            self.write_fixed_tendon_properties_to_sim_mask()
 
     def update(self, dt: float) -> None:
         """Updates the simulation data.
@@ -3165,8 +3164,10 @@ class Articulation(BaseArticulation):
         OVPhysX carries the same tendon model as PhysX, where the schema documents ``offset`` as the
         value "added to the accumulated length ... allows the application to actuate the tendon by
         shortening or lengthening it", so the tendon rests where ``length + offset == rest_length``.
-        The offset that realizes a target length is therefore ``rest_length - target``; negating the
-        target alone is only correct while the rest length is zero.
+        The offset that realizes a target length is therefore ``rest_length - target``.
+
+        This function does not apply the target to the simulation. It only fills the offset buffer,
+        which :meth:`write_data_to_sim` pushes with the other tendon properties.
 
         .. note::
             This method expects partial data.
@@ -3177,68 +3178,28 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids: The tendon indices to command. Defaults to None (all fixed tendons).
             env_ids: The environment indices to command. Defaults to None (all environments).
         """
-        env_index = self._resolve_env_ids(env_ids)
-        tendon_index = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        if isinstance(env_index, wp.array):
-            env_index = wp.to_torch(env_index)
-        if isinstance(tendon_index, wp.array):
-            tendon_index = wp.to_torch(tendon_index)
-        # Indexed on the buffer's own device: OVPhysX may stage it off the articulation's.
-        rest = self.data.fixed_tendon_rest_length.torch
-        rest_length = rest[env_index.to(rest.device).unsqueeze(1), tendon_index.to(rest.device).unsqueeze(0)].to(
-            self.device
-        )
-        if isinstance(target, wp.array):
-            target = wp.to_torch(target)
-        offset = rest_length - target
-        # Buffer only. The offset reaches the simulation from ``write_data_to_sim``, the same shared
-        # step that flushes joint targets. ``set_fixed_tendon_offset_index`` writes immediately,
-        # which is right for a property edit but wrong for a per-step command: it would make this
-        # the only sim write outside that step.
-        self._stage_fixed_tendon_offset_index(offset=offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
-
-    def _stage_fixed_tendon_offset_index(
-        self,
-        *,
-        offset: float | torch.Tensor | wp.array,
-        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-    ) -> tuple[wp.array, wp.array] | None:
-        """Scatter fixed-tendon offsets into the cached buffer without touching the simulation.
-
-        Named ``_stage_`` rather than ``_buffer_`` because this class already spends *buffer* on
-        allocation (:meth:`_create_buffers`) and ``_push_`` on the write itself
-        (:meth:`_push_joint_property`); staging is the step between them.
-
-        This exists because the two callers need different halves of the same work.
-        :meth:`set_fixed_tendon_offset_index` is a property setter and writes eagerly, as every
-        property setter in this class does. :meth:`set_fixed_tendon_position_target_index` is a
-        per-step command, so it must leave the write to :meth:`write_data_to_sim` alongside the
-        joint targets rather than write once per decimation sub-step.
-
-        Returns:
-            The resolved ``(env_ids, sim_env_ids)`` pair the eager caller needs to push the buffer,
-            or ``None`` when the selection is empty and there is nothing to write.
-
-        Returns:
-            The resolved ``(env_ids, sim_env_ids)``, or ``None`` when the selection is empty.
-        """
         env_ids = self._resolve_env_ids(env_ids)
         tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
         shape = (env_ids.shape[0], tendon_ids.shape[0])
-        offset = self._broadcast_scalar_to_2d(offset, shape)
-        self.assert_shape_and_dtype(offset, shape, wp.float32, "offset")
+        self.assert_shape_and_dtype(target, shape, wp.float32, "target")
         if shape[0] == 0 or shape[1] == 0:
-            return None
-        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
+            return
+        # partial result lives in a view of the preallocated scratch: no allocation on the step path
+        offset = self._data._fixed_tendon_offset_scratch.flatten()[: shape[0] * shape[1]].reshape(shape)
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, tendon_ids),
+            warp_kernels.gather_subtract_2d_kernel(env_ids, tendon_ids),
             dim=shape,
-            inputs=[offset, env_ids, tendon_ids],
-            outputs=[self._data._fixed_tendon_offset.data, sim_env_ids],
+            inputs=[self.data.fixed_tendon_rest_length.warp, env_ids, tendon_ids, target],
+            outputs=[offset],
             device=self._device,
         )
-        return env_ids, sim_env_ids
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, tendon_ids),
+            dim=shape,
+            inputs=[offset, env_ids, tendon_ids],
+            outputs=[self._data._fixed_tendon_offset.data],
+            device=self._device,
+        )
 
     def set_fixed_tendon_offset_index(
         self,
@@ -3267,12 +3228,21 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids: Fixed-tendon indices. Defaults to None (all fixed tendons).
             env_ids: Environment indices. Defaults to None (all environments).
         """
-        resolved = self._stage_fixed_tendon_offset_index(
-            offset=offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids
-        )
-        if resolved is None:
+        env_ids = self._resolve_env_ids(env_ids)
+        tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        shape = (env_ids.shape[0], tendon_ids.shape[0])
+        offset = self._broadcast_scalar_to_2d(offset, shape)
+        self.assert_shape_and_dtype(offset, shape, wp.float32, "offset")
+        if shape[0] == 0 or shape[1] == 0:
             return
-        env_ids, sim_env_ids = resolved
+        sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices_and_sim_ids_kernel(env_ids, tendon_ids),
+            dim=shape,
+            inputs=[offset, env_ids, tendon_ids],
+            outputs=[self._data._fixed_tendon_offset.data, sim_env_ids],
+            device=self._device,
+        )
         self._root_view.set_attribute(
             TT.FIXED_TENDON_OFFSET,
             self._data._fixed_tendon_offset.data,
@@ -3300,10 +3270,24 @@ class Articulation(BaseArticulation):
             fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are commanded.
             env_mask: Environment mask. If None, then all the instances are commanded.
         """
-        self.set_fixed_tendon_position_target_index(
-            target=target,
-            fixed_tendon_ids=self._resolve_fixed_tendon_mask(fixed_tendon_mask),
-            env_ids=self._resolve_env_mask(env_mask),
+        env_mask_wp = self._resolve_env_mask(env_mask)
+        tendon_mask_wp = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
+        shape = (self._num_instances, self._num_fixed_tendons)
+        self.assert_shape_and_dtype(target, shape, wp.float32, "target")
+        offset = self._data._fixed_tendon_offset_scratch
+        wp.launch(
+            warp_kernels.subtract_2d,
+            dim=shape,
+            inputs=[self.data.fixed_tendon_rest_length.warp, target],
+            outputs=[offset],
+            device=self._device,
+        )
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_mask,
+            dim=shape,
+            inputs=[offset, env_mask_wp, tendon_mask_wp],
+            outputs=[self._data._fixed_tendon_offset.data],
+            device=self._device,
         )
 
     def set_fixed_tendon_offset_mask(
@@ -4153,10 +4137,7 @@ class Articulation(BaseArticulation):
                                 items = getattr(metadata, field, None)
                                 if items:
                                     schema_names.extend(str(item) for item in items)
-                        # ``GetAppliedSchemas()`` and the ``apiSchemas`` metadata report the same
-                        # prepended items, so every instance appears twice here. Left duplicated,
-                        # each tendon is named twice and ``fixed_tendon_ids=None`` then resolves
-                        # twice as many ids as the tendon buffers have columns.
+                        # GetAppliedSchemas() and the apiSchemas metadata report the same items; dedupe
                         schema_names = list(dict.fromkeys(schema_names))
                         root_instances = resolve_applied_schema_instances(schema_names, "PhysxTendonAxisRootAPI")
                         name = prim.GetPath().name

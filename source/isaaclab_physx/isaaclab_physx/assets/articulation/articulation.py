@@ -287,9 +287,7 @@ class Articulation(BaseArticulation):
         self.actuators.compute(SimulationManager.get_physics_dt())
         self.actuators.submit_commands()
 
-        # Fixed-tendon offsets ride the same per-step write as joint targets. A tendon target is
-        # applied as a tendon PROPERTY, so it needs the property write to take effect; doing that
-        # from the action term made it the only sim write outside this step.
+        # tendon targets are applied as the offset property, so they ride the same per-step write as joint targets
         if self.num_fixed_tendons > 0:
             self.write_fixed_tendon_properties_to_sim_index()
 
@@ -3223,6 +3221,7 @@ class Articulation(BaseArticulation):
         target: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ) -> None:
         """Command the tendon's length by shifting its offset.
 
@@ -3234,6 +3233,16 @@ class Articulation(BaseArticulation):
 
         This function does not apply the target to the simulation. It only fills the buffers with the
         desired values. To apply it, call the :meth:`write_data_to_sim` function.
+
+        .. note::
+            This method expects partial data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type]. Shape is
+                (len(env_ids), len(fixed_tendon_ids)) or (num_instances, num_fixed_tendons) if full_data.
+            fixed_tendon_ids: The tendon indices to command. Defaults to None (all fixed tendons).
+            env_ids: Environment indices. If None, then all indices are used.
+            full_data: Whether to expect full data. Defaults to False.
         """
         env_index = self._resolve_env_ids(env_ids)
         tendon_index = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
@@ -3241,18 +3250,20 @@ class Articulation(BaseArticulation):
             env_index = wp.to_torch(env_index)
         if isinstance(tendon_index, wp.array):
             tendon_index = wp.to_torch(tendon_index)
-        # OVPhysX routes this buffer through pinned-host staging, so it may not live on the
-        # articulation's device. Index it where it is and move only the selected slice.
+        # gather the rest lengths of the selected cells on the buffer's device
         rest = self.data.fixed_tendon_rest_length.torch
         rest_length = rest[
             env_index.long().to(rest.device).unsqueeze(1), tendon_index.long().to(rest.device).unsqueeze(0)
         ].to(self.device)
         if isinstance(target, wp.array):
             target = wp.to_torch(target)
+        if full_data:
+            # The mask form hands over full data with a subset of indices, so take the selected
+            # cells before differencing them against the gathered rest lengths.
+            self.assert_shape_and_dtype(target, (self.num_instances, self.num_fixed_tendons), wp.float32, "target")
+            target = target[env_index.long().unsqueeze(1), tendon_index.long().unsqueeze(0)]
         offset = rest_length - target
-        # Buffer only. The offset reaches the simulation from ``write_data_to_sim``, the same
-        # shared step that flushes joint targets -- writing here instead would be the only
-        # per-step write outside it. Newton's articulation already works this way.
+        # buffer only; ``write_data_to_sim`` pushes the offset with the other tendon properties
         self.set_fixed_tendon_offset_index(offset=offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
 
     def set_fixed_tendon_offset_index(
@@ -3347,6 +3358,7 @@ class Articulation(BaseArticulation):
             target=target,
             fixed_tendon_ids=self._resolve_fixed_tendon_mask(fixed_tendon_mask),
             env_ids=self._resolve_env_mask(env_mask),
+            full_data=True,
         )
 
     def set_fixed_tendon_offset_mask(
