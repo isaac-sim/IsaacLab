@@ -227,9 +227,8 @@ them is purely about ergonomics:
 ~~~~~~~~~~~~~~~~~~~~
 
 :class:`~isaaclab.cloner.ReplicateSession` is a context manager that brackets the
-whole cloning lifecycle. Entering the block builds the plan, the body is where
-you construct your assets (each one registers itself as part of its constructor),
-and exiting the block clears those constructor registrations and dispatches the plan:
+whole cloning lifecycle. Entering the block builds and publishes the plan, the body
+constructs assets at their planned source paths, and exiting dispatches that same plan:
 
 .. code-block:: python
 
@@ -260,15 +259,14 @@ When envs need to differ across the population, use
 ``make_clone_plan`` + ``replicate``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The same two phases as the session, written as separate function calls. The plan
-is built first, asset construction happens in between, and the drain runs
-explicitly at the end. The gap between the build and the drain is the point —
-that is where you can read the plan back, mutate it, log it, or otherwise
-intervene before replication actually happens:
+The same lifecycle as the session, written as separate function calls. Publish the
+plan before construction so every participant observes the same layout, then
+dispatch it after the prototypes exist:
 
 .. code-block:: python
 
     plan = cloner.make_clone_plan(cfgs, num_clones=N, env_spacing=2.0)
+    sim.set_clone_plan(plan)
     for cfg in cfgs:
         cfg.class_type(cfg)
     cloner.replicate(plan)
@@ -323,18 +321,22 @@ execution contract:
 
 :func:`~isaaclab.cloner.replicate` resolves these types through the
 :class:`~isaaclab.sim.SimulationContext` backend registry, orders them by
-``replicate_priority``, and passes the same plan to each one:
+``replicate_priority``, and passes the published plan to each one:
 
 .. code-block:: python
 
-    def replicate(plan):
-        for context_type in plan.context_rows:
-            simulation_backends[context_type].replicate(plan)
-        publish(plan)
+    simulation.set_clone_plan(plan)
+    construct_prototypes()
+    for context_type in plan.context_rows:
+        simulation_backends[context_type].replicate(plan)
+
+The cfg-first lifecycle publishes before ``construct_prototypes()``. The direct
+single-source workflow remains post-construction and is published by
+:func:`~isaaclab.cloner.replicate` immediately before dispatch. In either form,
+the simulation accepts one plan and each backend receives that exact object once.
 
 USD runs before native physics contexts so the destination topology exists when
-they consume it. No fallback context is constructed during dispatch. The plan is
-then published to the simulation context for downstream consumers.
+they consume it. No fallback context is constructed during dispatch.
 
 Collision Filtering
 -------------------

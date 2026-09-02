@@ -203,7 +203,10 @@ def make_valid_clone_combinations(
 
 
 def _context_rows(
-    cfgs: tuple[Any, ...], cfg_rows: dict[int, tuple[int, ...]], populated_rows: set[int]
+    cfgs: tuple[Any, ...],
+    cfg_rows: dict[int, tuple[int, ...]],
+    populated_rows: set[int],
+    global_paths: tuple[str, ...] = (),
 ) -> dict[type[object], tuple[int, ...]]:
     """Route plan rows to the clone contexts registered for this simulation."""
     sim = sim_utils.SimulationContext.instance()
@@ -213,7 +216,9 @@ def _context_rows(
     physics_context = sim.physics_manager.clone_context_type
     if physics_context is not None and not isinstance(physics_context, type):
         raise TypeError("PhysicsManager.clone_context_type must be a context class.")
-    rows_by_context: dict[type[object], set[int]] = {}
+    rows_by_context: dict[type[object], set[int]] = (
+        {} if physics_context is None or not global_paths else {physics_context: set()}
+    )
 
     for cfg in cfgs:
         rows = cfg_rows.get(id(cfg))
@@ -236,7 +241,7 @@ def _context_rows(
     return {
         context_type: tuple(sorted(rows & populated_rows))
         for context_type, rows in rows_by_context.items()
-        if rows & populated_rows
+        if rows & populated_rows or context_type is physics_context and bool(global_paths)
     }
 
 
@@ -313,6 +318,7 @@ def make_clone_plan(
             env_ids=env_ids,
             positions=positions,
             cfg_rows={},
+            context_rows=_context_rows(cfgs, {}, set(), global_paths),
             global_paths=global_paths,
         )
 
@@ -329,7 +335,7 @@ def make_clone_plan(
             env_ids=env_ids,
             positions=positions,
             cfg_rows=cfg_rows,
-            context_rows=_context_rows(cfgs, cfg_rows, {0}),
+            context_rows=_context_rows(cfgs, cfg_rows, {0}, global_paths),
             global_paths=global_paths,
         )
 
@@ -402,7 +408,7 @@ def make_clone_plan(
         env_ids=env_ids,
         positions=positions,
         cfg_rows=cfg_rows,
-        context_rows=_context_rows(cfgs, cfg_rows, populated_rows),
+        context_rows=_context_rows(cfgs, cfg_rows, populated_rows, global_paths),
         global_paths=global_paths,
     )
 
@@ -445,6 +451,6 @@ def clone_plan_from_env_0(
         env_ids=np.arange(num_clones, dtype=np.int64),
         positions=positions,
         cfg_rows=cfg_rows,
-        context_rows=_context_rows(queued, cfg_rows, {0}),
+        context_rows=_context_rows(queued, cfg_rows, {0}, global_paths),
         global_paths=global_paths,
     )

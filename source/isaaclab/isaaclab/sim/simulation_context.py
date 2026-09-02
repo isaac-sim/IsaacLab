@@ -193,10 +193,10 @@ class SimulationContext:
         # Set by the visualizers and renderers in use; read by the scene data provider.
         self.requires_usd_stage = False
         self.requires_newton_model = False
-        # Clone plan published by InteractiveScene after cloning. Providers (e.g. the
-        # Newton visualizer model rebuilder on a PhysX backend) consume this to derive
-        # their own backend args. None until a replication session publishes a plan.
+        # Clone plan published before cfg-owned scene construction. Constructors and
+        # backends therefore consume the same immutable layout through one lifecycle.
         self._clone_plan: ClonePlan | None = None
+        self._clone_plan_consumed: bool = False
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
         self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
@@ -686,15 +686,30 @@ class SimulationContext:
     def get_clone_plan(self) -> ClonePlan | None:
         """Return the clone plan published by the scene.
 
-        Set after replication. Consumed by scene data providers that build backend models
-        (e.g. Newton visualizer model on a PhysX backend) from the same plan the cloner used.
-        ``None`` until the scene replicates.
+        Set before cfg-owned scene construction and retained through backend replication.
+        ``None`` until a clone lifecycle begins.
         """
         return self._clone_plan
 
     def set_clone_plan(self, plan: ClonePlan | None) -> None:
-        """Set the cloner's clone plan."""
+        """Publish or clear this simulation's single clone plan.
+
+        Raises:
+            RuntimeError: If another plan is active or the current plan was consumed.
+        """
+        if self._clone_plan_consumed:
+            raise RuntimeError("A consumed clone lifecycle cannot be cleared or replaced.")
+        if plan is self._clone_plan:
+            return
+        if plan is not None and self._clone_plan is not None:
+            raise RuntimeError("A SimulationContext owns exactly one clone lifecycle.")
         self._clone_plan = plan
+        self._clone_plan_consumed = False
+
+    def _consume_clone_plan(self, plan: ClonePlan) -> None:
+        """Publish ``plan`` and atomically claim its single backend dispatch."""
+        self.set_clone_plan(plan)
+        self._clone_plan_consumed = True
 
     @property
     def visualizers(self) -> list[BaseVisualizer]:
