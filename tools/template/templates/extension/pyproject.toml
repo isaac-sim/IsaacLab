@@ -10,7 +10,7 @@ license = { text = "BSD-3-Clause" }
 authors = [{ name = "Isaac Lab Project Developers" }]
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "isaaclab[isaacsim{% for rl_library in rl_libraries %},{{ rl_library.name | replace('_', '-') }}{% endfor %}]",
+    "isaaclab{% if rl_libraries %}[{% for rl_library in rl_libraries %}{% if not loop.first %},{% endif %}{{ rl_library.name | replace('_', '-') }}{% endfor %}]{% endif %}",
 ]
 
 [project.entry-points."isaaclab.tasks"]

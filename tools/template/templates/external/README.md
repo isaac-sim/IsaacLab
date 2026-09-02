@@ -4,11 +4,25 @@ An external Isaac Lab project containing an installable Python package and Isaac
 
 ## Installation
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then create the project environment:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then create the project environment. The default
+environment uses the Newton backend and does not install Isaac Sim:
 
 ```bash
 uv sync
 ```
+
+Optional backends are available through extras. Pass the extra to each `uv run` command that needs it:
+
+```bash
+# Standalone OV PhysX
+uv run --extra ovphysx isaaclab random_agent --task <TASK_NAME> physics=ovphysx
+
+# Isaac Sim with PhysX and RTX rendering
+uv run --extra isaacsim isaaclab random_agent --task <TASK_NAME> physics=isaacsim_physx
+```
+
+The `ov` extra installs both the `ovphysx` and `ovrtx` runtimes. You can also select `ovrtx` independently when using
+Newton physics with the OVRTX renderer.
 
 Commit both `pyproject.toml` files and `uv.lock` so collaborators use the same environment.
 

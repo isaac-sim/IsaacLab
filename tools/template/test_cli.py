@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from unittest import mock
 
+import tomllib
 from rich.console import Console
 
 _TEMPLATE_DIR = Path(__file__).parent
@@ -25,6 +26,7 @@ finally:
     sys.path.pop(0)
 
 CLIHandler = _MODULE.CLIHandler
+_GENERATOR = sys.modules["generator"]
 
 
 def _handler() -> tuple[CLIHandler, io.StringIO]:
@@ -78,3 +80,32 @@ def test_text_reprompts_until_validation_succeeds():
 
     assert result == "valid_name"
     assert "Project name must be a valid identifier." in output.getvalue()
+
+
+def test_generated_project_keeps_simulator_backends_optional(tmp_path):
+    """A default generated environment must not install an optional simulator runtime."""
+    specification = {
+        "external": True,
+        "path": str(tmp_path),
+        "name": "test_project",
+        "workflows": [{"name": "manager-based", "type": "single-agent"}],
+        "rl_libraries": [{"name": "rsl_rl", "algorithms": ["ppo"]}],
+    }
+
+    with mock.patch.object(_GENERATOR, "_setup_git_repo"):
+        _GENERATOR.generate(specification)
+
+    project_dir = tmp_path / "test_project"
+    with (project_dir / "pyproject.toml").open("rb") as file:
+        development_project = tomllib.load(file)["project"]
+    with (project_dir / "source" / "test_project" / "pyproject.toml").open("rb") as file:
+        task_package = tomllib.load(file)["project"]
+
+    assert development_project["dependencies"] == ["test_project"]
+    assert development_project["optional-dependencies"] == {
+        "isaacsim": ["isaaclab[isaacsim]"],
+        "ov": ["isaaclab[ov]"],
+        "ovphysx": ["isaaclab[ovphysx]"],
+        "ovrtx": ["isaaclab[ovrtx]"],
+    }
+    assert task_package["dependencies"] == ["isaaclab[rsl-rl]"]

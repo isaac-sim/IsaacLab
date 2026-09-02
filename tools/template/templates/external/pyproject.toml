@@ -10,6 +10,12 @@ description = "Development environment for the {{ name }} Isaac Lab project."
 requires-python = ">=3.12,<3.13"
 dependencies = ["{{ name }}"]
 
+[project.optional-dependencies]
+isaacsim = ["isaaclab[isaacsim]"]
+ov = ["isaaclab[ov]"]
+ovphysx = ["isaaclab[ovphysx]"]
+ovrtx = ["isaaclab[ovrtx]"]
+
 [dependency-groups]
 dev = ["pre-commit"]
 
