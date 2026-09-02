@@ -247,21 +247,25 @@ for the lift-cube environment:
     | |lift-cube|             | |lift-cube-link|             | Pick a cube and bring it to a sampled target position with the Franka robot |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |lift-soft-franka|      | |lift-soft-franka-link|      | Pick a deformable soft body and bring it to a sampled target position with  | **physics=** ``isaacsim_physx``,        |
-    |                         |                              | the Franka robot                                                            | ``newton_mjwarp_vbd_proxy``             |
+    |                         |                              | the Franka robot                                                            | ``newton_mjwarp_vbd_proxy``,            |
+    |                         |                              |                                                                             | ``ovphysx``                             |
     |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |lift-soft-franka|      | |lift-soft-franka-cam-link|  | Camera (vision) variant of the soft-body lift task using RGB observations   | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``             |
+    |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``,            |
+    |                         |                              |                                                                             | ``ovphysx``                             |
     |                         |                              |                                                                             | **renderer=** ``isaacsim_rtx``,         |
     |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
     |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |lift-cloth-franka|     | |lift-cloth-franka-link|     | Lift a deformable cloth from a table with the Franka robot                  | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``             |
+    |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``,            |
+    |                         |                              |                                                                             | ``ovphysx``                             |
     |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |lift-cloth-franka|     | |lift-cloth-franka-cam-link| | Camera (vision) variant of the cloth lift task using RGB observations       | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``             |
+    |                         |                              |                                                                             | ``newton_mjwarp_vbd_proxy``,            |
+    |                         |                              |                                                                             | ``ovphysx``                             |
     |                         |                              |                                                                             | **renderer=** ``isaacsim_rtx``,         |
     |                         |                              |                                                                             | ``newton_renderer``, ``ovrtx``          |
     |                         |                              |                                                                             | **presets=** ``ik``, ``joint``          |
@@ -290,9 +294,11 @@ for the lift-cube environment:
     |                         |                              | with the UR10 arm and long surface gripper                                  | ``newton_mjwarp``                       |
     |                         | |short-suction-link|         | or short surface gripper (cpu only).                                        |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |cabi-franka|           | |cabi-franka-link|           | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |                                         |
+    | |cabi-franka|           | |cabi-franka-link|           | Grasp the handle of a cabinet's drawer and open it with the Franka robot    | **physics=** ``isaacsim_physx``,        |
+    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |cabi-franka|           | |franka-direct-link|         | Grasp the handle of a cabinet's drawer and open it with the Franka robot    |                                         |
+    | |cabi-franka|           | |franka-direct-link|         | Grasp the handle of a cabinet's drawer and open it with the Franka robot    | **physics=** ``isaacsim_physx``,        |
+    |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |cube-allegro|          | |cube-allegro-link|          | In-hand reorientation of a cube using Allegro hand                          | **physics=** ``isaacsim_physx``,        |
     |                         |                              |                                                                             | ``newton_mjwarp``, ``ovphysx``          |
@@ -397,14 +403,12 @@ for the lift-cube environment:
     |                         |                              |                                                                             | ``simple_shading_full_mdl64``,          |
     |                         |                              |                                                                             | ``single_camera``                       |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |galbot_stack|          | |galbot_stack-link|          | Stack three cubes (bottom to top: blue, red, green) with the left arm of    | **physics=** ``isaacsim_physx``,        |
-    |                         |                              | a Galbot humanoid robot                                                     | ``newton_mjwarp``                       |
+    | |galbot_stack|          | |galbot_stack-link|          | Stack three cubes (bottom to top: blue, red, green) with the left arm of    | **physics=** ``isaacsim_physx``         |
+    |                         |                              | a Galbot humanoid robot                                                     |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |agibot_place_mug|      | |agibot_place_mug-link|      | Pick up and place a mug upright with a Agibot A2D humanoid robot            | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_mjwarp``                       |
+    | |agibot_place_mug|      | |agibot_place_mug-link|      | Pick up and place a mug upright with a Agibot A2D humanoid robot            | **physics=** ``isaacsim_physx``         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
-    | |agibot_place_toy|      | |agibot_place_toy-link|      | Pick up and place an object in a box with a Agibot A2D humanoid robot       | **physics=** ``isaacsim_physx``,        |
-    |                         |                              |                                                                             | ``newton_mjwarp``                       |
+    | |agibot_place_toy|      | |agibot_place_toy-link|      | Pick up and place an object in a box with a Agibot A2D humanoid robot       | **physics=** ``isaacsim_physx``         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
     | |reach_openarm_bi|      | |reach_openarm_bi-link|      | Move the end-effector to sampled target poses with the OpenArm robot        |                                         |
     +-------------------------+------------------------------+-----------------------------------------------------------------------------+-----------------------------------------+
@@ -735,9 +739,9 @@ Environments based on legged locomotion tasks.
     |                              |                                              |                                                                              | ``newton_mjwarp``,           |
     |                              |                                              |                                                                              | ``ovphysx``                  |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
-    | |dr-legs|                    | |dr-legs-hold-pose-link|                     | Hold a target pose or walk with the Disney Research Legs robot               | **physics=**                 |
-    |                              |                                              |                                                                              | ``isaacsim_physx``,          |
-    |                              | |dr-legs-walk-link|                          |                                                                              | ``newton_kamino``            |
+    | |dr-legs|                    | |dr-legs-hold-pose-link|                     | Hold a target pose or walk with the Disney Research Legs robot               |                              |
+    |                              |                                              |                                                                              |                              |
+    |                              | |dr-legs-walk-link|                          |                                                                              |                              |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
     | |velocity-flat-digit|        | |velocity-flat-digit-link|                   | Track a velocity command on flat terrain with the Agility Digit robot        | **physics=**                 |
     |                              |                                              |                                                                              | ``isaacsim_physx``           |
@@ -1153,12 +1157,12 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-Cloth-Franka
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``ovphysx``
           | **presets=** ``ik``, ``joint``
     * - Isaac-Lift-Cloth-Franka-Camera
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``ovphysx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
           | **presets=** ``ik``, ``joint``
     * - Isaac-Lift-Franka
@@ -1180,22 +1184,22 @@ including disabling runtime perturbations used for training.
     * - Isaac-Lift-Soft-Franka
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``ovphysx``
           | **presets=** ``ik``, ``joint``
     * - Isaac-Lift-Soft-Franka-Camera
       - Manager Based
       - **rsl_rl** (PPO)
-      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp_vbd_proxy``, ``ovphysx``
           | **renderer=** ``isaacsim_rtx``, ``newton_renderer``, ``ovrtx``
           | **presets=** ``ik``, ``joint``
     * - Isaac-Open-Drawer-Franka-Direct
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Open-Drawer-Franka
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
-      -
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - Isaac-Pendulum-MARL-Direct
       - Direct
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
@@ -1373,15 +1377,20 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-DrLegs-HoldPose
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``
+      -
     * - IsaacContrib-DrLegs-Walk
       - Manager Based
       - **rsl_rl** (PPO)
-      - **physics=** ``isaacsim_physx``, ``newton_kamino``
+      -
     * - IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs
       - Manager Based
       -
       -
+    * - IsaacContrib-Factory-Franka
+      - Manager Based
+      - **rsl_rl** (PPO)
+      - | **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+          | **presets=** ``accumulator``, ``choice``, ``gear_mesh_large``, ``gear_mesh_medium``, ``gear_mesh_small``, ``nut_thread_m16``, ``peg_insert_12mm``, ``peg_insert_16mm``, ``peg_insert_4mm``, ``peg_insert_8mm``, ``rod_insert_12mm``, ``rod_insert_16mm``, ``rod_insert_4mm``, ``rod_insert_8mm``
     * - IsaacContrib-Factory-GearMesh-Direct
       - Direct
       - **rl_games** (PPO)
@@ -1457,11 +1466,11 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-Open-Drawer-Franka-IK-Abs
       - Manager Based
       - **rsl_rl** (PPO)
-      -
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Open-Drawer-Franka-IK-Rel
       - Manager Based
       - **rsl_rl** (PPO)
-      -
+      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``, ``ovphysx``
     * - IsaacContrib-Open-Drawer-OpenArm
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
@@ -1489,11 +1498,11 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Reach-OpenArm
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
@@ -1513,27 +1522,27 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Stack-Cube-BlueGreenRed-Franka-IK-Rel
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Stack-Cube-Franka
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Stack-Cube-Franka-IK-Abs
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Stack-Cube-Franka-IK-Rel
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint
       - Manager Based
       -
@@ -1541,7 +1550,7 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor
       - Manager Based
       -
@@ -1553,7 +1562,7 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor
       - Manager Based
       -
@@ -1572,7 +1581,7 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Stack-Cube-Instance-Randomize-Franka
       - Manager Based
       -
@@ -1584,23 +1593,23 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Stack-Cube-SO101-IK-Abs-v0
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Stack-Cube-SO101-v0
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel
       - Manager Based
       -
@@ -1608,7 +1617,7 @@ including disabling runtime perturbations used for training.
     * - IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel
       - Manager Based
       -
-      - **physics=** ``isaacsim_physx``, ``newton_mjwarp``
+      - **physics=** ``isaacsim_physx``
     * - IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
