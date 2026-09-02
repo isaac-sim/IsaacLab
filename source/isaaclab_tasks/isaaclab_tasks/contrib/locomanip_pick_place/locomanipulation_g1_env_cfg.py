@@ -482,6 +482,28 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     )
 
 
+_AGILE_POLICY_LEG_JOINT_NAMES: list[str] = [
+    "left_hip_pitch_joint",
+    "right_hip_pitch_joint",
+    "left_hip_roll_joint",
+    "right_hip_roll_joint",
+    "left_hip_yaw_joint",
+    "right_hip_yaw_joint",
+    "left_knee_joint",
+    "right_knee_joint",
+    "left_ankle_pitch_joint",
+    "right_ankle_pitch_joint",
+    "left_ankle_roll_joint",
+    "right_ankle_roll_joint",
+]
+"""Leg joints the Agile locomotion policy drives, in the order it was trained on.
+
+Listed explicitly for the same reason as :data:`AGILE_POLICY_JOINT_NAMES`: regex patterns resolve
+in articulation order, which differs between PhysX and Newton, so a regex-matched action term
+writes the policy's outputs to the wrong joints under Newton.
+"""
+
+
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
@@ -490,11 +512,7 @@ class ActionsCfg:
 
     lower_body_joint_pos = AgileBasedLowerBodyActionCfg(
         asset_name="robot",
-        joint_names=[
-            ".*_hip_.*_joint",
-            ".*_knee_joint",
-            ".*_ankle_.*_joint",
-        ],
+        joint_names=_AGILE_POLICY_LEG_JOINT_NAMES,
         policy_output_scale=0.25,
         obs_group_name="lower_body_policy",  # need to be the same name as the on in ObservationCfg
         policy_path=f"{ISAACLAB_NUCLEUS_DIR}/Policies/Agile/agile_locomotion.pt",

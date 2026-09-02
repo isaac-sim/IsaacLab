@@ -313,39 +313,52 @@ separate knob and its default is tuned for light tabletop objects.
 Validate by stepping with zero actions and comparing foot-link height against PhysX. They should
 agree to a millimetre or two.
 
-## Joint Ordering In Policy-Driven Action Terms
+## Joint Ordering: The Single Biggest Cause Of A Broken Pretrained Policy
 
-`find_joints()` returns ids in **articulation order** unless `preserve_order=True` is passed. A
-pretrained policy emits its targets in the order its config declares, so without `preserve_order`
-each target lands on whichever joint the articulation happens to list in that slot.
+`find_joints()` returns ids in **articulation order**, and the two backends do not agree on what
+that order is. Measured on the G1:
 
-PhysX often orders a robot's joints the same way the config lists them, which hides the bug
-completely; Newton groups them differently and it surfaces. This has now appeared twice in this
-repo -- once in the Pink IK hand-joint path and once in a locomotion action term -- so treat every
-`find_joints()` call that feeds ordered data as suspect:
+- **PhysX** enumerates breadth-first by tree depth:
+  `left_hip_pitch, right_hip_pitch, waist_yaw, left_hip_roll, right_hip_roll, waist_roll, ...`
+- **Newton** enumerates each limb chain depth-first:
+  `left_hip_pitch, left_hip_roll, left_hip_yaw, left_knee, left_ankle_pitch, left_ankle_roll,
+  right_hip_pitch, ...`
+
+Any term that selects joints **by regex** therefore silently permutes under Newton. A pretrained
+policy then receives a scrambled observation vector and writes its outputs to the wrong joints.
+The G1 fell over for exactly this reason, and it looked convincingly like a contact or tuning
+problem: the state stayed finite, the feet were at the right height, and the robot simply
+collapsed.
+
+**`preserve_order=True` alone does not fix this.** It reorders to *config pattern* order, which
+matches neither backend's articulation order. On the G1 it changed nothing measurable, which is a
+good way to waste an afternoon.
+
+The fix is an explicit joint-name list in the order the policy was trained on, plus
+`preserve_order=True`:
 
 ```python
-joint_ids, names = asset.find_joints(cfg.joint_names, preserve_order=True, as_proxy=True)
+AGILE_POLICY_JOINT_NAMES = ["left_hip_pitch_joint", "right_hip_pitch_joint", "waist_yaw_joint", ...]
+
+SceneEntityCfg("robot", joint_names=AGILE_POLICY_JOINT_NAMES, preserve_order=True)
+asset.find_joints(cfg.joint_names, preserve_order=True, as_proxy=True)
 ```
 
-## Known Open Issue: G1 Locomanipulation Does Not Stand Under MJWarp
+Recover the trained order by resolving the original regex list **under PhysX** and printing the
+names; that is the order the policy was trained on, because PhysX is the backend it works on.
+Writing that list back verbatim makes the resolved indices identical under PhysX, so the change is
+provably a no-op there while fixing Newton.
 
-Recorded so the next person does not re-derive it. With zero actions:
+Audit **both sides**: the action term *and* every observation term. The observation side matters
+more -- a permuted input makes the policy diverge no matter how the outputs are applied. Check
+`SceneEntityCfg(..., joint_names=[...])` in observation configs, not just action configs.
 
-| | PhysX | Newton |
-|---|---|---|
-| foot height, settled | 0.036, holds | 0.036 after the `ke` fix, then rises |
-| root height @ step 30 | 0.72, stable | 0.43 and falling |
-| `abs(qd)` max @ step 30 | 0.22 (quiet) | ~19 (flailing) |
+Measured on the G1 locomanipulation task, zero actions, 30 steps:
 
-The contact-stiffness fix corrected the foot penetration but the robot still falls. Ruled out so
-far: ground-plane friction (defaults to 0.5, so not the zero-friction trap), foot sinking, joint
-ordering in the action term (`preserve_order` applied, no change), and non-finite state (all
-values stay finite).
-
-Remaining suspects, untested: the policy's observation terms reading differently under Newton
-(projected gravity, root velocities), the `DCMotorCfg` explicit actuator model behaving
-differently, or the locomotion solver profile needing more substeps for a 200 Hz task.
+| | PhysX | Newton before | Newton after |
+|---|---|---|---|
+| root height | 0.72 | 0.43 (fell) | 0.72 |
+| `abs(qd)` max | 0.22 | 19.1 | 3.6, decaying |
 
 ## Benchmarking Without Fooling Yourself
 
@@ -400,7 +413,9 @@ Beware clamping when interpreting synthetic actions: a uniform `+1.0` on joints 
 8. In teleop, the object can be grasped, carried and released without sticking.
 9. Contact-sensor patterns match actual Newton body labels, not just USD paths.
 10. Any policy-driven action term runs under `no_grad` or detaches.
-11. Replay success at n=20 sits within a stated margin of the PhysX baseline, both measured one
+11. Every observation *and* action term feeding a pretrained policy selects joints by an
+    explicit ordered name list with `preserve_order=True`, not by regex.
+12. Replay success at n=20 sits within a stated margin of the PhysX baseline, both measured one
     process at a time with the CI timeout.
 
 ## References

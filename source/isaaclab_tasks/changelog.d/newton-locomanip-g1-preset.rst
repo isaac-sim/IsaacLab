@@ -32,3 +32,14 @@ Fixed
   ``torch.no_grad()``. Newton writes joint targets through Warp kernels, which reject a tensor
   that requires grad (``Can't get __cuda_array_interface__ on Variable that requires grad``), so
   the first ``env.step`` raised under MJWarp. PhysX writes through torch and was unaffected.
+
+* Fixed the locomanipulation lower-body policy reading and writing joints in articulation order.
+  The observation and action terms selected joints by regex, which resolves in the articulation's
+  own order, and the backends do not agree on that order: PhysX enumerates the articulation
+  breadth-first by tree depth (``left_hip_pitch, right_hip_pitch, waist_yaw, left_hip_roll, ...``)
+  while Newton enumerates each limb chain depth-first (``left_hip_pitch, left_hip_roll,
+  left_hip_yaw, left_knee, ...``). Under MJWarp the pretrained policy therefore received a permuted
+  observation and its outputs were written to the wrong joints, and the robot fell over. Both terms
+  now list their joints explicitly in the trained order and pass ``preserve_order=True``. The lists
+  reproduce PhysX's regex resolution exactly, so the resolved joint indices — and PhysX behavior —
+  are unchanged.
