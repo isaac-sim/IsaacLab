@@ -13,6 +13,7 @@ import inspect
 import os
 import re
 import warnings
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
@@ -144,7 +145,11 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
 
 
 def parse_env_cfg(
-    task_name: str, device: str = "cuda:0", num_envs: int | None = None, use_fabric: bool | None = None
+    task_name: str,
+    device: str = "cuda:0",
+    num_envs: int | None = None,
+    use_fabric: bool | None = None,
+    overrides: Sequence[str] = (),
 ) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
@@ -155,6 +160,16 @@ def parse_env_cfg(
         use_fabric: Whether to enable/disable fabric interface. If false, all read/write operations go through USD.
             This slows down the simulation but allows seeing the changes in the USD through the USD stage.
             Defaults to None, in which case it is left unchanged.
+        overrides: Hydra-style ``key=value`` overrides (e.g. ``"physics=isaacsim_physx"``) applied on top of the
+            task's registered configuration, using the same syntax as the ``physics=``/``renderer=``/``presets=``
+            selectors documented for Hydra-driven scripts. Defaults to an empty sequence, in which case the task's
+            registered defaults are used unchanged.
+
+            TODO: Only ``scripts/tutorials/03_envs/run_cartpole_rl_env.py`` currently forwards unrecognized CLI
+            arguments here (via ``parser.parse_known_args()``). Other standalone scripts that call
+            :func:`parse_env_cfg` still use strict ``parser.parse_args()`` and have no CLI way to reach this
+            parameter, so callers wanting ``physics=``/``renderer=``/``presets=`` overrides from other scripts must
+            switch them to ``parse_known_args()`` and pass the extras through, mirroring the tutorial.
 
     Returns:
         The parsed configuration object.
@@ -164,7 +179,7 @@ def parse_env_cfg(
             environment configuration.
     """
     # Compose the registered task through the same boundary used by Hydra entry points.
-    cfg, _ = resolve_task_config(task_name, None, overrides=())
+    cfg, _ = resolve_task_config(task_name, None, overrides=overrides)
 
     # check that it is not a dict
     # we assume users always use a class for the configuration
