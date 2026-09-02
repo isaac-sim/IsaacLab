@@ -189,11 +189,6 @@ COPY ../source/ ${ISAACLAB_PATH}/source/
 # Fix the line endings of the scripts the COPY above just wrote.
 RUN find ${ISAACLAB_PATH}/source -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
 
-# Install apt dependencies for extensions that declare them in their extension.toml,
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source && \
-    apt-get -y autoremove && apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
 # The workspace members install editable now that their sources are present; ``find`` fixes
 # only what this layer wrote, so overlayfs does not copy up the venv again.
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -203,11 +198,20 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     find ${VIRTUAL_ENV} \! -user isaaclab \
       -exec chown isaaclab:isaaclab {} + -exec chmod a+rwX {} +
 
+# Resolve ``isaaclab``/``python`` from the environment. Kept below the install layers, which it
+# would otherwise invalidate.
+ENV PATH="${VENV_PATH_ARG}/bin:${PATH}"
+
+# Install apt dependencies for extensions that declare them in their extension.toml.
+RUN isaaclab -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source && \
+    apt-get -y autoremove && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Isaac Sim's prebundled packages sit on PYTHONPATH ahead of the venv for launch paths that
 # never import isaaclab (``runheadless.sh``, ``isaac-sim.streaming.sh``), so its torch would
 # shadow the venv's and load a libtorch_cuda.so needing an NCCL symbol the bundled NCCL does
 # not export (nvbugs 6343978). Repoint them at the venv; the pip install path did this itself.
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -c \
+RUN isaaclab -p -c \
       "from isaaclab.cli.commands.install import _repoint_prebundle_packages; _repoint_prebundle_packages()"
 
 # uv venv/uv sync above needed Kit's interpreter as the venv base; from here on ``uv pip``
@@ -224,14 +228,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
  && find ${VIRTUAL_ENV} \! -user isaaclab \
       -exec chown isaaclab:isaaclab {} + -exec chmod a+rwX {} +
 
-# aliasing isaaclab.sh and python for convenience
+# aliasing python for convenience; ``isaaclab`` and ``tensorboard`` come from PATH
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "alias python='${ISAACLAB_PATH}/isaaclab.sh -p'" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "alias python3='${ISAACLAB_PATH}/isaaclab.sh -p'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias python='isaaclab -p'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias python3='isaaclab -p'" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "alias pip='uv pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "alias pip3='uv pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "alias tensorboard='${VIRTUAL_ENV}/bin/tensorboard'" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "export TZ=$(date +%Z)" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "shopt -s histappend" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "PROMPT_COMMAND='history -a'" >> ${DOCKER_USER_HOME}/.bashrc
@@ -273,7 +275,7 @@ RUN set -o pipefail \
  && export DOCKER_ISAACSIM_ROOT_PATH="${ISAACSIM_ROOT_PATH}" \
            DOCKER_ISAACLAB_PATH="${ISAACLAB_PATH}" \
            DOCKER_USER_HOME="${DOCKER_USER_HOME}" \
- && dirs="$(${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/docker/utils/volume_mounts.py | grep '^/')" \
+ && dirs="$(isaaclab -p ${ISAACLAB_PATH}/docker/utils/volume_mounts.py | grep '^/')" \
  && mkdir -p ${dirs} \
  && chown -R isaaclab:isaaclab ${dirs}
 
