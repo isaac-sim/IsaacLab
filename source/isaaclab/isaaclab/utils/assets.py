@@ -235,7 +235,9 @@ def retrieve_git_asset_path(
     """Return a local path for an asset stored in a git repository.
 
     Remote repositories are cached under :data:`GIT_ASSET_CACHE_DIR`. If the requested
-    asset is already cached, it is returned without running git.
+    asset is already cached, it is returned without running git. Cache population is
+    serialized, and new checkouts are published atomically so an interrupted clone cannot
+    leave an incomplete cache at the final path.
 
     Args:
         git_path: Git repository URL, SSH path, or existing local checkout directory.
@@ -290,15 +292,20 @@ def _get_git_asset_dir(git_path: str, cache_dir: str | None = None, force_update
         return git_asset_dir
 
     git_asset_dir = _get_git_asset_cache_dir(git_path, cache_dir)
-
-    if os.path.isdir(os.path.join(git_asset_dir, ".git")):
-        if force_update:
-            _run_git_command(["git", "-C", git_asset_dir, "pull", "--ff-only"])
-    elif os.path.exists(git_asset_dir):
-        raise RuntimeError(f"Git asset cache exists but is not a git repository: {git_asset_dir}")
-    else:
-        os.makedirs(os.path.dirname(git_asset_dir), exist_ok=True)
-        _run_git_command(["git", "clone", "--depth", "1", git_path, git_asset_dir])
+    with FileLock(git_asset_dir + ".lock"):
+        if os.path.isdir(os.path.join(git_asset_dir, ".git")):
+            if force_update:
+                _run_git_command(["git", "-C", git_asset_dir, "pull", "--ff-only"])
+        elif os.path.exists(git_asset_dir):
+            raise RuntimeError(f"Git asset cache exists but is not a git repository: {git_asset_dir}")
+        else:
+            cache_parent = os.path.dirname(git_asset_dir)
+            os.makedirs(cache_parent, exist_ok=True)
+            prefix = f".{os.path.basename(git_asset_dir)}."
+            with tempfile.TemporaryDirectory(prefix=prefix, dir=cache_parent) as temporary_dir:
+                temporary_path = os.path.join(temporary_dir, "checkout")
+                _run_git_command(["git", "clone", "--depth", "1", git_path, temporary_path])
+                os.replace(temporary_path, git_asset_dir)
 
     return git_asset_dir
 

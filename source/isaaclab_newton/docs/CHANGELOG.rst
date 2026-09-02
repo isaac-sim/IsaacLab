@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+5.5.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to ``NewtonWarpRendererCfg`` through its ``class_type`` field.
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab_newton.sim.schemas.apply_mujoco_fixed_tendon` to author on
+  the given prim only. Target selection, including subtree matching via prim path
+  expressions, is now owned by the core family writer
+  :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`; pass
+  ``f"{prim_path}(/.*)?"`` to it to reach descendant ``MjcTendon`` prims.
+
+
 5.4.1 (2026-08-23)
 ~~~~~~~~~~~~~~~~~~
 
