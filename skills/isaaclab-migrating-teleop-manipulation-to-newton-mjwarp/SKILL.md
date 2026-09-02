@@ -97,6 +97,36 @@ Three separate reasons this silently does nothing, each worth a debug cycle:
 
 Log how many prims you actually modified. Do not infer success from behaviour.
 
+### Colliders authored on Xforms are silently dropped
+
+An asset may author its collider as a `boundingCube` `PhysicsCollisionAPI` on an **Xform** rather
+than on mesh prims. PhysX resolves that and builds the collider; **Newton emits no shape at all**,
+so anything resting on it falls straight through. `Props/PackingTable/packing_table.usd` does this,
+and it is shared by several pick-place tasks.
+
+There is no import-time error -- the scene loads, the surface renders, and objects drop through it.
+Reproduce the bounding volume with an invisible static box whose collider is enabled only under
+`newton_mjwarp`, so PhysX keeps using the asset's own collider:
+
+```python
+packing_table_collider = AssetBaseCfg(
+    prim_path="{ENV_REGEX_NS}/PackingTableCollider",
+    init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.49705]),
+    spawn=sim_utils.CuboidCfg(
+        size=(2.4736, 0.762, 0.9941),
+        visible=False,
+        collision_props=preset(
+            default=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
+            newton_mjwarp=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+        ),
+    ),
+)
+```
+
+Offset the proxy to match the table prim's own placement -- the same asset sits at `z = 0` in the
+fixed-base pick-place scene and `z = -0.3` in the locomanipulation one. Verify by stepping with
+zero actions and watching the object's height settle rather than fall.
+
 ### Concave objects are the hard limit
 
 **MuJoCo has no concave mesh-mesh collision.** A torus, such as a steering-wheel rim, a handle or
@@ -309,13 +339,15 @@ Beware clamping when interpreting synthetic actions: a uniform `+1.0` on joints 
 1. `physics=newton_mjwarp` resolves and the model compiles.
 2. Probe confirms mass and inertia match PhysX within a few percent.
 3. Probe confirms every hand link has colliders, and that they are `MESH` not `CONVEX_MESH`.
-4. Object and robot both carry authored friction.
-5. A hard `sim.reset()` followed by a commanded motion stays finite.
-6. In teleop, the two hands' fingertips touch without visible interpenetration.
-7. In teleop, the object can be grasped, carried and released without sticking.
-8. Contact-sensor patterns match actual Newton body labels, not just USD paths.
-9. Any policy-driven action term runs under `no_grad` or detaches.
-10. Replay success at n=20 sits within a stated margin of the PhysX baseline, both measured one
+4. Objects rest on support surfaces instead of falling through them (step with zero actions and
+   watch the height settle).
+5. Object and robot both carry authored friction.
+6. A hard `sim.reset()` followed by a commanded motion stays finite.
+7. In teleop, the two hands' fingertips touch without visible interpenetration.
+8. In teleop, the object can be grasped, carried and released without sticking.
+9. Contact-sensor patterns match actual Newton body labels, not just USD paths.
+10. Any policy-driven action term runs under `no_grad` or detaches.
+11. Replay success at n=20 sits within a stated margin of the PhysX baseline, both measured one
     process at a time with the CI timeout.
 
 ## References

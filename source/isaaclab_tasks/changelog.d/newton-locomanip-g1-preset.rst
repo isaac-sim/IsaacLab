@@ -17,6 +17,10 @@ Added
     preset per backend.
   * Newton resolves an omitted friction value to zero, so the robot needed an authored contact
     material to grip at all.
+  * ``packing_table.usd`` authors its tabletop collider as a ``boundingCube``
+    ``PhysicsCollisionAPI`` on an Xform rather than on mesh prims. Newton emits no shape for it,
+    so the object fell through the table; an invisible static box reproduces the same bounding
+    volume, offset for this task's lower table placement.
 
   Unlike the fixed-base humanoid tasks, gravity stays enabled and the solver follows the
   locomotion profile: this robot walks, so its lower-body policy needs real ground contact.

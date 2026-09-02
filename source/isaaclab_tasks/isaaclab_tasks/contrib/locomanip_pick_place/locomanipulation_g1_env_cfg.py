@@ -326,6 +326,13 @@ def _newton_object_spawn() -> sim_utils.CuboidCfg:
 # below stops at ``/Robot/`` and ``[^/]*`` cannot cross a path separator, so it full-matches
 # nothing under MJWarp and sensor init fails with "No bodies matched the sensing object
 # pattern(s)". Always confirm a sensor pattern against ``model.body_label`` when porting.
+# World-space bounds of the packing table's authored collider. The table prim sits at
+# ``z = -0.3`` in this task (0.3 m lower than the fixed-base pick-place scene), so the proxy is
+# offset to match; the object's start height differs by the same 0.3 m.
+_PACKING_TABLE_COLLIDER_SIZE = (2.4736, 0.762, 0.9941)
+_PACKING_TABLE_COLLIDER_POS = (0.0, 0.55, 0.19705)
+
+
 def _hand_contact_prim_path(side: str) -> object:
     """Per-backend prim-path pattern for a hand's contact sensor."""
     return preset(
@@ -400,6 +407,26 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        ),
+    )
+
+    # ``packing_table.usd`` authors its tabletop collider as a ``boundingCube``
+    # ``PhysicsCollisionAPI`` on an Xform rather than on mesh prims. PhysX resolves that and
+    # builds the collider; Newton emits no shape for it, so anything resting on the table falls
+    # straight through. This invisible box reproduces the same bounding volume.
+    #
+    # The box is always spawned, but its collider is only enabled under ``newton_mjwarp`` so
+    # PhysX keeps colliding solely with the asset's own (correctly imported) collider.
+    packing_table_collider = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/PackingTableCollider",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=list(_PACKING_TABLE_COLLIDER_POS)),
+        spawn=sim_utils.CuboidCfg(
+            size=_PACKING_TABLE_COLLIDER_SIZE,
+            visible=False,
+            collision_props=preset(
+                default=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
+                newton_mjwarp=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+            ),
         ),
     )
 
