@@ -26,8 +26,10 @@ The path primitives are aliased ``pth`` because ``path`` is a parameter name her
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from typing import TYPE_CHECKING
+
+import torch
 
 from . import path as pth
 
@@ -35,11 +37,52 @@ if TYPE_CHECKING:
     from .clone_plan import ClonePlan
 
 
+def _is_shared_destination(destination: str) -> bool:
+    """Whether a destination names one prim shared by every environment."""
+    return "{}" not in destination
+
+
+def _populated_clone_rows(plan: ClonePlan) -> tuple[int, ...]:
+    """Return populated rows that replicate into environments, in plan order."""
+    return tuple(
+        row
+        for row, destination in enumerate(plan.destinations)
+        if not _is_shared_destination(destination) and bool(plan.clone_mask[row].any())
+    )
+
+
+def _row_populated(plan: ClonePlan, row: int) -> bool:
+    """Whether a row names a shared asset or reaches at least one environment."""
+    return _is_shared_destination(plan.destinations[row]) or bool(plan.clone_mask[row].any())
+
+
+def _clone_mapping(
+    plan: ClonePlan, rows: Sequence[int], *, whole_env: bool
+) -> tuple[tuple[str, ...], tuple[str, ...], torch.Tensor]:
+    """Project routed plan rows into the mapping consumed by one clone context."""
+    rows = tuple(rows)
+    mapping = plan.clone_mask[list(rows)]
+    populated_rows = _populated_clone_rows(plan)
+    if whole_env and rows == populated_rows and rows and bool(mapping.all()):
+        source_env = plan.env_template.format(int(plan.env_ids[0]))
+        if all(
+            pth.under(plan.sources[row], source_env)
+            and pth.under(plan.destinations[row].format(int(plan.env_ids[0])), source_env)
+            for row in rows
+        ):
+            return (source_env,), (plan.env_template,), mapping[:1]
+    return (
+        tuple(plan.sources[row] for row in rows),
+        tuple(plan.destinations[row] for row in rows),
+        mapping,
+    )
+
+
 def _row_env_ids(plan: ClonePlan, row: int) -> tuple[int, ...]:
     """Env ids populated from a plan row: the plan's env ids at the row's ``True`` columns."""
+    if _is_shared_destination(plan.destinations[row]):
+        return tuple(plan.env_ids.tolist())
     columns = plan.clone_mask[row].nonzero(as_tuple=False).flatten()
-    if plan.env_ids is None:
-        return tuple(columns.tolist())
     columns = columns.to(plan.env_ids.device)
     return tuple(plan.env_ids[columns].tolist())
 
@@ -50,17 +93,13 @@ def _column_for_env_id(plan: ClonePlan, env_id: int) -> int | None:
     Guards against out-of-range and negative ids, which plain indexing would raise on or
     silently wrap around.
     """
-    if plan.env_ids is None:
-        return env_id if 0 <= env_id < plan.clone_mask.shape[1] else None
     columns = (plan.env_ids == env_id).nonzero(as_tuple=False).flatten().tolist()
     return int(columns[0]) if columns else None
 
 
 def _source_rows(plan: ClonePlan, path: str) -> list[int]:
     """Rows whose prototype subtree owns ``path``, nearest owner only, in row order."""
-    rows = [
-        row for row, source in enumerate(plan.sources) if "{}" in plan.destinations[row] and pth.under(path, source)
-    ]
+    rows = [row for row, source in enumerate(plan.sources) if pth.under(path, source)]
     if not rows:
         return []
     nearest = max(len(plan.sources[row].rstrip("/")) for row in rows)
@@ -81,11 +120,13 @@ def _clone_rows(plan: ClonePlan, path_expr: str, *, populated_only: bool) -> lis
     """
     candidates: list[tuple[str, pth.TemplateMatch, int]] = []
     for row, template in enumerate(plan.destinations):
-        if "{}" not in template:
+        if populated_only and not _row_populated(plan, row):
             continue
-        if populated_only and not plan.clone_mask[row].any():
-            continue
-        matched = pth.match(path_expr, template)
+        if _is_shared_destination(template):
+            suffix = pth.relative_to(path_expr, template)
+            matched = None if suffix is None else pth.TemplateMatch("", suffix)
+        else:
+            matched = pth.match(path_expr, template)
         if matched is None:
             continue
         candidates.append((template, matched, row))
@@ -152,7 +193,7 @@ def path_to_clone(plan: ClonePlan, path: str, env_id: int) -> str | None:
     if column is None:
         return None
     for row in _source_rows(plan, path):
-        if bool(plan.clone_mask[row][column]):
+        if _is_shared_destination(plan.destinations[row]) or bool(plan.clone_mask[row][column]):
             return pth.rebase(path, plan.sources[row], plan.destinations[row].format(env_id))
     return None
 
@@ -196,12 +237,14 @@ def path_to_source(plan: ClonePlan, path_expr: str, env_id: int | None = None) -
     # Resolution must walk a prototype that exists on stage, so rows populating no env at all
     # are skipped rather than reported.
     if env_id is None:
-        rows = [row for row in rows if plan.clone_mask[row].any()]
+        rows = [row for row in rows if _row_populated(plan, row)]
     else:
         column = _column_for_env_id(plan, env_id)
         if column is None:
             return None
-        rows = [row for row in rows if bool(plan.clone_mask[row][column])]
+        rows = [
+            row for row in rows if _is_shared_destination(plan.destinations[row]) or bool(plan.clone_mask[row][column])
+        ]
     if not rows:
         return None
     return plan.sources[rows[0]], template.format("[^/]+"), matched.suffix

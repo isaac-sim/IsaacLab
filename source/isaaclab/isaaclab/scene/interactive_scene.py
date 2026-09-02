@@ -120,7 +120,7 @@ class InteractiveScene:
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing, device=scene.device)[0]
         plan = cloner.clone_plan_from_env_0(src, dest, scene.num_envs, scene.device, pos)
-        cloner.replicate(plan, stage=scene.stage)
+        cloner.replicate(plan)
 
     .. note::
         It is important to note that the scene only performs common operations on the entities. For example,
@@ -195,7 +195,6 @@ class InteractiveScene:
             device=self.device,
             global_paths=global_paths,
             env_template=self._env_fmt,
-            stage=self.stage,
             clone_strategy=self.cloner_cfg.clone_strategy,
             valid_set=self._clone_valid_set,
             replicate_physics=self.cloner_cfg.replicate_physics,

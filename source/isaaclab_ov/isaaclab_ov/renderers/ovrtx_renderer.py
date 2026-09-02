@@ -67,6 +67,8 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 from isaaclab.cloner import ClonePlan
+from isaaclab.cloner import path as cloner_path
+from isaaclab.cloner import query as cloner_query
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
@@ -346,7 +348,10 @@ class OVRTXRenderer(BaseRenderer):
         self._cable_points: wp.array | None = None
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
-        self._camera_rel_path: str | None = None
+        self._env_paths: tuple[str, ...] = ()
+        self._camera_paths: tuple[str, ...] = ()
+        self._camera_env_paths: tuple[str, ...] = ()
+        self._source_camera_path: str | None = None
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._clone_plan: ClonePlan | None = None
         self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
@@ -401,6 +406,7 @@ class OVRTXRenderer(BaseRenderer):
         the RTX exposure model OVRTX embeds does not compound on top of the
         ISP. Without an ISP, the camera prim's authored exposure is left alone.
         """
+        self._camera_paths = spec.camera_prim_paths
         if spec.cfg.isp_cfg is None:
             return
         try:
@@ -424,18 +430,35 @@ class OVRTXRenderer(BaseRenderer):
             return
 
         self._clone_plan = SimulationContext.instance().get_clone_plan()
-        if self._clone_plan is None or self._clone_plan.env_ids is None or self._clone_plan.positions is None:
-            raise RuntimeError("Clone plan with environment ids and positions is required when preparing OVRTX stage")
-        expected_ids = torch.arange(num_envs, device=self._clone_plan.env_ids.device)
-        if not torch.equal(self._clone_plan.env_ids, expected_ids):
-            raise RuntimeError("OVRTX requires ClonePlan environment ids ordered from zero.")
+        if self._clone_plan is None:
+            raise RuntimeError("Clone plan is required when preparing OVRTX stage")
+        if len(self._clone_plan.env_ids) != num_envs:
+            raise RuntimeError(f"OVRTX expected {num_envs} plan environments, got {len(self._clone_plan.env_ids)}.")
+        env_ids = tuple(map(int, self._clone_plan.env_ids.tolist()))
+        self._env_paths = tuple(self._clone_plan.env_template.format(env_id) for env_id in env_ids)
+        if len(self._camera_paths) != num_envs:
+            raise RuntimeError(f"OVRTX expected {num_envs} exact camera paths, got {len(self._camera_paths)}.")
+        env_paths_by_id = dict(zip(map(str, env_ids), self._env_paths, strict=True))
+        camera_matches = tuple(
+            cloner_path.match(camera_path, self._clone_plan.env_template) for camera_path in self._camera_paths
+        )
+        if any(matched is None or matched.instance not in env_paths_by_id for matched in camera_matches):
+            raise RuntimeError("Each OVRTX camera must belong to exactly one plan environment.")
+        camera_env_ids = tuple(matched.instance for matched in camera_matches if matched)
+        self._camera_env_paths = tuple(env_paths_by_id[env_id] for env_id in camera_env_ids)
+        if set(self._camera_env_paths) != set(self._env_paths):
+            raise RuntimeError("OVRTX requires exactly one camera per plan environment.")
+        source = cloner_query.path_to_source(self._clone_plan, self._camera_paths[0], int(camera_env_ids[0]))
+        if source is None:
+            raise RuntimeError(f"Clone plan does not own OVRTX camera '{self._camera_paths[0]}'.")
+        self._source_camera_path = source[0].rstrip("/") + source[2]
 
         # If temp_usd_dir is set, write the pre-ovrtx stage to a temporary file.
         if self.cfg.temp_usd_dir is not None:
             _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
 
         logger.info("Preparing stage (%d envs)...", num_envs)
-        create_scene_partition_attributes(stage, num_envs)
+        create_scene_partition_attributes(stage, dict(zip(self._camera_env_paths, self._camera_paths, strict=True)))
 
         # Composed scales must be read while the full stage is still live, before export trims it.
         self._capture_object_scales(stage)
@@ -444,7 +467,7 @@ class OVRTXRenderer(BaseRenderer):
         # backend bindings for dynamic assets retain the paths they were compiled against.
         self._exported_usd_string = export_stage_to_string(
             stage,
-            num_envs,
+            self._env_paths,
             source_paths=self._clone_plan.sources,
             keep_env_roots=not self._use_ovstage,
         )
@@ -467,18 +490,18 @@ class OVRTXRenderer(BaseRenderer):
 
         from pxr import Gf, Usd, UsdGeom
 
-        envs_prim = stage.GetPrimAtPath("/World/envs")
-        if not envs_prim.IsValid():
-            return
-
         xform_cache = UsdGeom.XformCache()
-        for prim in Usd.PrimRange(envs_prim):
-            if not prim.IsA(UsdGeom.Xformable):
+        for env_path in self._env_paths:
+            env_prim = stage.GetPrimAtPath(env_path)
+            if not env_prim.IsValid():
                 continue
-            scale = Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()
-            scale = (float(scale[0]), float(scale[1]), float(scale[2]))
-            if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
-                self._object_scales_by_path[str(prim.GetPath())] = scale
+            for prim in Usd.PrimRange(env_prim):
+                if not prim.IsA(UsdGeom.Xformable):
+                    continue
+                scale = Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()
+                scale = (float(scale[0]), float(scale[1]), float(scale[2]))
+                if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
+                    self._object_scales_by_path[str(prim.GetPath())] = scale
 
     def _create_object_scale_array(self, object_paths: list[str]) -> wp.array:
         """Build the device scale array aligned with the Newton body binding order.
@@ -523,11 +546,7 @@ class OVRTXRenderer(BaseRenderer):
         if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
             data_types = [*data_types, "rgb_hdr"]
 
-        env_0_prefix = "/World/envs/env_0/"
-        first_cam_path = spec.camera_prim_paths[0]
-        if not first_cam_path.startswith(env_0_prefix):
-            raise RuntimeError(f"Expected camera prim under '{env_0_prefix}', got '{first_cam_path}'")
-        self._camera_rel_path = spec.camera_path_relative_to_env_0
+        camera_paths = list(self._camera_paths)
 
         logger.info("Injecting camera definitions...")
 
@@ -539,8 +558,8 @@ class OVRTXRenderer(BaseRenderer):
             height=height,
             num_envs=num_envs,
             data_types=data_types,
+            camera_path=cast(str, self._source_camera_path),
             minimal_mode=_resolve_rtx_minimal_mode(data_types),
-            camera_rel_path=self._camera_rel_path,
             background_color=getattr(spec.cfg, "background_color", None),
             device_id=self._warp_device.ordinal,
             enable_shadows=self.cfg.enable_shadows,
@@ -558,10 +577,9 @@ class OVRTXRenderer(BaseRenderer):
         self._renderer.open_usd_from_string(combined_usd_string)
         logger.info("OVRTX loaded USD from string successfully")
 
-        camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
         if num_envs > 1:
             self._clone_sources_in_ovrtx()
-            self._update_scene_partitions_after_clone(num_envs)
+            self._update_scene_partitions_after_clone()
             # OVRTX 0.4 keeps the initial Fabric camera relationship after clone_usd creates the remaining
             # cameras. Rewrite it so the RenderProduct includes every camera in its tiled output.
             self._renderer.write_array_attribute(
@@ -599,13 +617,13 @@ class OVRTXRenderer(BaseRenderer):
     def _clone_sources_in_ovrtx(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
         clone_plan = self._clone_plan
-        if clone_plan is None or clone_plan.env_ids is None or clone_plan.positions is None:
-            raise RuntimeError("Clone plan with environment ids and positions is required when using OVRTX cloning")
+        if clone_plan is None:
+            raise RuntimeError("Clone plan is required when using OVRTX cloning")
 
         env_ids = clone_plan.env_ids.detach().cpu()
         clone_mask = clone_plan.clone_mask.detach().cpu()
         num_envs = len(env_ids)
-        env_prim_paths = [f"/World/envs/env_{env_id}" for env_id in env_ids.tolist()]
+        env_prim_paths = [clone_plan.env_template.format(int(env_id)) for env_id in env_ids.tolist()]
         logger.info("Cloning sources in OVRTX...")
 
         num_cloned_sources = 0
@@ -636,15 +654,15 @@ class OVRTXRenderer(BaseRenderer):
             prim_mode=PrimMode.MUST_EXIST,
         )
 
-    def _update_scene_partitions_after_clone(self, num_envs: int):
+    def _update_scene_partitions_after_clone(self):
         """Update scene partition attributes on cloned environments and cameras in OvRTX."""
+        num_envs = len(self._env_paths)
         logger.info("Writing scene partitions for %d environments...", num_envs)
-        partition_tokens = [f"env_{i}" for i in range(num_envs)]
-        env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
-        camera_prim_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
+        partition_tokens = [path.rstrip("/").rsplit("/", 1)[-1] for path in self._env_paths]
+        camera_partition_tokens = [path.rstrip("/").rsplit("/", 1)[-1] for path in self._camera_env_paths]
 
         self._renderer.write_attribute(
-            env_prim_paths,
+            self._env_paths,
             "primvars:omni:scenePartition",
             partition_tokens,
             semantic=Semantic.TOKEN_STRING,
@@ -652,12 +670,32 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Written primvars:omni:scenePartition to %d environments", num_envs)
 
         self._renderer.write_attribute(
-            camera_prim_paths,
+            self._camera_paths,
             "omni:scenePartition",
-            partition_tokens,
+            camera_partition_tokens,
             semantic=Semantic.TOKEN_STRING,
         )
         logger.info("Written omni:scenePartition to %d cameras", num_envs)
+
+    def _select_newton_objects(self, body_paths: Sequence[str]) -> tuple[list[str], list[int]]:
+        """Select plan-owned Newton bodies outside exact camera subtrees."""
+        clone_plan = self._clone_plan
+        if clone_plan is None:
+            raise RuntimeError("Clone plan is required when binding OVRTX objects.")
+        env_ids = set(clone_plan.env_ids.tolist())
+        cameras_by_env = dict(zip(self._camera_env_paths, self._camera_paths, strict=True))
+        object_paths: list[str] = []
+        newton_indices: list[int] = []
+        for index, path in enumerate(body_paths):
+            path = str(path)
+            matched = cloner_path.match(path, clone_plan.env_template)
+            if matched is None or not matched.instance.isdigit() or int(matched.instance) not in env_ids:
+                continue
+            camera_path = cameras_by_env[clone_plan.env_template.format(int(matched.instance))]
+            if not cloner_path.under(path, camera_path):
+                object_paths.append(path)
+                newton_indices.append(index)
+        return object_paths, newton_indices
 
     def _setup_xform_bindings_legacy(self):
         """Setup OVRTX bindings for scene objects to sync with Newton physics."""
@@ -681,12 +719,7 @@ class OVRTXRenderer(BaseRenderer):
             logger.info("Newton model has no body_label, skipping object bindings")
             return
 
-        object_paths = []
-        newton_indices = []
-        for idx, path in enumerate(all_body_paths):
-            if "/World/envs/" in path and self._camera_rel_path not in path and "GroundPlane" not in path:
-                object_paths.append(path)
-                newton_indices.append(idx)
+        object_paths, newton_indices = self._select_newton_objects(all_body_paths)
 
         if len(object_paths) == 0:
             logger.info("No dynamic objects found for binding")
@@ -1781,11 +1814,7 @@ class OVRTXRenderer(BaseRenderer):
         if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
             data_types = [*data_types, "rgb_hdr"]
 
-        env_0_prefix = "/World/envs/env_0/"
-        first_cam_path = spec.camera_prim_paths[0]
-        if not first_cam_path.startswith(env_0_prefix):
-            raise RuntimeError(f"Expected camera prim under '{env_0_prefix}', got '{first_cam_path}'")
-        self._camera_rel_path = spec.camera_path_relative_to_env_0
+        camera_paths = list(self._camera_paths)
 
         logger.info("Injecting camera definitions...")
 
@@ -1797,8 +1826,8 @@ class OVRTXRenderer(BaseRenderer):
             height=height,
             num_envs=num_envs,
             data_types=data_types,
+            camera_path=cast(str, self._source_camera_path),
             minimal_mode=_resolve_rtx_minimal_mode(data_types),
-            camera_rel_path=self._camera_rel_path,
             device_id=self._warp_device.ordinal,
             enable_shadows=self.cfg.enable_shadows,
         )
@@ -1826,11 +1855,9 @@ class OVRTXRenderer(BaseRenderer):
 
         if num_envs > 1:
             self._clone_sources_ovstage()
-            self._update_scene_partitions_after_clone_ovstage(num_envs)
+            self._update_scene_partitions_after_clone_ovstage()
 
         self._initialized_scene = True
-
-        camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
 
         # Re-author the RenderProduct's camera relationship after clone. ``stage.clone`` recreates the per-env
         # cameras, so the RenderProduct must be pointed at the freshly-interned camera path ids to discover every
@@ -1883,13 +1910,13 @@ class OVRTXRenderer(BaseRenderer):
     def _clone_sources_ovstage(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan` (ovstage path)."""
         clone_plan = self._clone_plan
-        if clone_plan is None or clone_plan.env_ids is None or clone_plan.positions is None:
-            raise RuntimeError("Clone plan with environment ids and positions is required when using OVRTX cloning")
+        if clone_plan is None:
+            raise RuntimeError("Clone plan is required when using OVRTX cloning")
 
         env_ids = clone_plan.env_ids.detach().cpu()
         clone_mask = clone_plan.clone_mask.detach().cpu()
         num_envs = len(env_ids)
-        env_prim_paths = [f"/World/envs/env_{env_id}" for env_id in env_ids.tolist()]
+        env_prim_paths = [clone_plan.env_template.format(int(env_id)) for env_id in env_ids.tolist()]
 
         logger.info("Cloning sources in OVRTX...")
 
@@ -1927,16 +1954,22 @@ class OVRTXRenderer(BaseRenderer):
         self._stage.release_query(env_query).wait()
         self._stage_paths.destroy_path_list(env_paths_list)
 
-    def _update_scene_partitions_after_clone_ovstage(self, num_envs: int):
+    def _update_scene_partitions_after_clone_ovstage(self):
         """Update scene partition attributes on cloned environments and cameras (ovstage path)."""
+        num_envs = len(self._env_paths)
         logger.info("Writing scene partitions for %d environments...", num_envs)
-        env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
-        camera_prim_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
         # TOKEN_ID semantic tells ovstage the uint64 values are interned string tokens, not raw integers;
-        # the renderer resolves them back to the original "env_N" strings for scene-partition lookup.
-        token_ids = np.array([self._stage_paths.intern_token(f"env_{i}") for i in range(num_envs)], dtype=np.uint64)
+        # the renderer resolves them back to the environment-root names for scene-partition lookup.
+        token_ids = np.array(
+            [self._stage_paths.intern_token(path.rstrip("/").rsplit("/", 1)[-1]) for path in self._env_paths],
+            dtype=np.uint64,
+        )
+        camera_token_ids = np.array(
+            [self._stage_paths.intern_token(path.rstrip("/").rsplit("/", 1)[-1]) for path in self._camera_env_paths],
+            dtype=np.uint64,
+        )
 
-        env_paths_list = self._stage_paths.create_path_list_from_strings(env_prim_paths)
+        env_paths_list = self._stage_paths.create_path_list_from_strings(self._env_paths)
         env_query = self._stage.query_from_path_list(env_paths_list)
         self._stage.write_attribute(
             env_query,
@@ -1950,13 +1983,13 @@ class OVRTXRenderer(BaseRenderer):
         self._stage_paths.destroy_path_list(env_paths_list)
         logger.info("Written primvars:omni:scenePartition to %d environments", num_envs)
 
-        cam_paths_list = self._stage_paths.create_path_list_from_strings(camera_prim_paths)
+        cam_paths_list = self._stage_paths.create_path_list_from_strings(self._camera_paths)
         cam_query = self._stage.query_from_path_list(cam_paths_list)
         self._stage.write_attribute(
             cam_query,
             "omni:scenePartition",
             ordinal=self._current_ordinal,
-            tensors=token_ids,
+            tensors=camera_token_ids,
             is_array=False,
             semantic=ovstage.AttributeSemantic.TOKEN_ID,
         ).wait()
@@ -1986,12 +2019,7 @@ class OVRTXRenderer(BaseRenderer):
             logger.info("Newton model has no body_label, skipping object bindings")
             return
 
-        object_paths = []
-        newton_indices = []
-        for idx, path in enumerate(all_body_paths):
-            if "/World/envs/" in path and self._camera_rel_path not in path and "GroundPlane" not in path:
-                object_paths.append(path)
-                newton_indices.append(idx)
+        object_paths, newton_indices = self._select_newton_objects(all_body_paths)
 
         if len(object_paths) == 0:
             logger.info("No dynamic objects found for binding")

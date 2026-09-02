@@ -6,6 +6,7 @@
 """Tests for OvPhysX cloning."""
 
 import math
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -13,6 +14,34 @@ from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
 
 from pxr import Gf, Usd, UsdGeom
+
+from isaaclab.cloner import ClonePlan
+
+
+def _context(stage) -> OvPhysxReplicateContext:
+    """Build a context with the manager surface used by cloning."""
+    return OvPhysxReplicateContext(SimpleNamespace(stage=stage, physics_manager=OvPhysxManager))
+
+
+def _plan(sources, destinations, env_ids, mapping, positions=None) -> ClonePlan:
+    """Build one direct context input for backend-focused tests."""
+    if positions is None:
+        positions = torch.zeros((len(env_ids), 3))
+    return ClonePlan(
+        sources=tuple(sources),
+        destinations=tuple(destinations),
+        clone_mask=mapping,
+        env_ids=env_ids,
+        positions=positions,
+        context_rows={OvPhysxReplicateContext: tuple(range(len(sources)))},
+    )
+
+
+def test_context_is_simulation_owned():
+    stage = Usd.Stage.CreateInMemory()
+    context = _context(stage)
+
+    assert context._sim.stage is stage
 
 
 def _pose_matrix(position: tuple[float, float, float], quaternion: tuple[float, float, float, float]) -> Gf.Matrix4d:
@@ -30,8 +59,6 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     half_sqrt_two = math.sqrt(0.5)
     source_half_angle_sin = 0.5
     source_half_angle_cos = math.sqrt(0.75)
-    target_half_angle_sin = math.sin(math.pi / 8.0)
-    target_half_angle_cos = math.cos(math.pi / 8.0)
     stage = Usd.Stage.CreateInMemory()
 
     source_env = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
@@ -41,29 +68,20 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
         _pose_matrix((0.0, 1.0, 2.0), (source_half_angle_sin, 0.0, 0.0, source_half_angle_cos))
     )
 
-    context = OvPhysxReplicateContext(stage)
-    context.queue_mapping(
-        sources=["/World/envs/env_0/Robot", "/World/envs/env_9/Inactive"],
-        destinations=["/World/envs/env_{}/Robot", "/World/envs/env_{}/Inactive"],
-        env_ids=torch.tensor([0, 1]),
-        mapping=torch.tensor([[True, True], [False, False]]),
-        positions=torch.tensor([[4.0, 5.0, 6.0], [10.0, 20.0, 30.0]]),
-        quaternions=torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, target_half_angle_sin, target_half_angle_cos]]),
+    context = _context(stage)
+    context.replicate(
+        _plan(
+            ["/World/envs/env_0/Robot", "/World/envs/env_9/Inactive"],
+            ["/World/envs/env_{}/Robot", "/World/envs/env_{}/Inactive"],
+            torch.tensor([0, 1]),
+            torch.tensor([[True, True], [False, False]]),
+            positions=torch.tensor([[4.0, 5.0, 6.0], [10.0, 20.0, 30.0]]),
+        )
     )
 
-    expected_orientation = torch.tensor(
-        [
-            target_half_angle_cos * source_half_angle_sin,
-            target_half_angle_sin * source_half_angle_sin,
-            target_half_angle_sin * source_half_angle_cos,
-            target_half_angle_cos * source_half_angle_cos,
-        ]
-    )
-    expected_transform = (10.0 - half_sqrt_two, 20.0 + half_sqrt_two, 32.0, *expected_orientation.tolist())
+    expected_orientation = torch.tensor([source_half_angle_sin, 0.0, 0.0, source_half_angle_cos])
+    expected_transform = (10.0, 21.0, 32.0, *expected_orientation.tolist())
 
-    context.replicate()
-
-    assert context._queue == []
     assert len(OvPhysxManager._pending_clones) == 1
     pending_source, pending_targets, pending_transforms = OvPhysxManager._pending_clones[0]
     assert pending_source == "/World/envs/env_0/Robot"
@@ -88,21 +106,23 @@ def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
     assert OvPhysxManager._pending_clones == expected_recipes
 
 
-def test_queue_mapping_rejects_invalid_source_prim():
+def test_replicate_rejects_invalid_source_prim():
     """Active clone rows require a valid source prim."""
     stage = Usd.Stage.CreateInMemory()
-    context = OvPhysxReplicateContext(stage)
+    context = _context(stage)
 
-    with pytest.raises(ValueError, match="/World/envs/env_0/Robot"):
-        context.queue_mapping(
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=torch.tensor([0, 1]),
-            mapping=torch.tensor([[True, True]]),
+    with pytest.raises(ValueError, match="/World/envs/env_0"):
+        context.replicate(
+            _plan(
+                ["/World/envs/env_0/Robot"],
+                ["/World/envs/env_{}/Robot"],
+                torch.tensor([0, 1]),
+                torch.tensor([[True, True]]),
+            )
         )
 
 
-def test_queue_mapping_rejects_invalid_source_anchor():
+def test_replicate_rejects_invalid_source_anchor():
     """Active nested clone rows require a valid source-environment anchor."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
@@ -113,51 +133,49 @@ def test_queue_mapping_rejects_invalid_source_anchor():
                 return Usd.Prim()
             return stage.GetPrimAtPath(path)
 
-    context = OvPhysxReplicateContext(StageWithoutAnchor())
+    context = _context(StageWithoutAnchor())
     with pytest.raises(ValueError, match="/World/envs/env_0"):
-        context.queue_mapping(
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=torch.tensor([0, 1]),
-            mapping=torch.tensor([[True, True]]),
+        context.replicate(
+            _plan(
+                ["/World/envs/env_0/Robot"],
+                ["/World/envs/env_{}/Robot"],
+                torch.tensor([0, 1]),
+                torch.tensor([[True, True]]),
+            )
         )
 
 
-@pytest.mark.parametrize(
-    ("name", "value"),
-    [("positions", torch.zeros((1, 3))), ("quaternions", torch.zeros((1, 4)))],
-)
-def test_queue_mapping_rejects_pose_tensor_missing_selected_environment(name, value):
+def test_replicate_rejects_pose_tensor_missing_selected_environment():
     """Provided pose tensors include every selected environment."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
-    context = OvPhysxReplicateContext(stage)
+    context = _context(stage)
 
-    with pytest.raises(ValueError, match=name):
-        context.queue_mapping(
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=torch.tensor([0, 1]),
-            mapping=torch.tensor([[True, True]]),
-            **{name: value},
+    with pytest.raises(ValueError, match="positions"):
+        context.replicate(
+            _plan(
+                ["/World/envs/env_0/Robot"],
+                ["/World/envs/env_{}/Robot"],
+                torch.tensor([0, 1]),
+                torch.tensor([[True, True]]),
+                positions=torch.zeros((1, 3)),
+            )
         )
 
 
-@pytest.mark.parametrize(
-    ("name", "value"),
-    [("positions", torch.zeros((2, 2))), ("quaternions", torch.zeros((2, 3)))],
-)
-def test_queue_mapping_rejects_malformed_pose_tensor(name, value):
+def test_replicate_rejects_malformed_pose_tensor():
     """Provided pose tensors use the documented component counts."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
-    context = OvPhysxReplicateContext(stage)
+    context = _context(stage)
 
-    with pytest.raises(ValueError, match=rf"{name} must have shape"):
-        context.queue_mapping(
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=torch.tensor([0, 1]),
-            mapping=torch.tensor([[True, True]]),
-            **{name: value},
+    with pytest.raises(ValueError, match="positions must have shape"):
+        context.replicate(
+            _plan(
+                ["/World/envs/env_0/Robot"],
+                ["/World/envs/env_{}/Robot"],
+                torch.tensor([0, 1]),
+                torch.tensor([[True, True]]),
+                positions=torch.zeros((2, 2)),
+            )
         )

@@ -738,10 +738,11 @@ def render_synthetic_gaussian_scene(
         # queued USD replication needs an explicit drain (Path B). Reuse the scene's
         # env positions so env_origins stays consistent.
         published = sim.get_clone_plan()
-        positions = published.positions if published is not None else None
+        if published is None:
+            raise RuntimeError("InteractiveScene did not publish its clone plan.")
         src, dst = "/World/envs/env_0", "/World/envs/env_{}"
-        camera_plan = cloner.clone_plan_from_env_0(src, dst, num_envs, str(sim.device), positions)
-        cloner.replicate(camera_plan, stage=sim.stage)
+        camera_plan = cloner.clone_plan_from_env_0(src, dst, num_envs, str(sim.device), published.positions)
+        cloner.replicate(camera_plan)
         sim.reset()
         for _ in range(stabilisation_steps):
             sim.step()

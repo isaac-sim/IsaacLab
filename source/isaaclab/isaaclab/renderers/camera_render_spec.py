@@ -25,8 +25,6 @@ class CameraRenderSpec:
         num_instances: Number of tiled camera instances (environments).
         camera_prim_paths: Absolute USD paths for each environment's camera prim.
         view_count: Number of camera prims (must match ``len(camera_prim_paths)``).
-        camera_path_relative_to_env_0: Camera prim path with ``/World/envs/env_0/`` prefix
-            stripped; required by OVRTX. Empty string if the first camera is not under env 0.
     """
 
     cfg: CameraCfg
@@ -34,4 +32,3 @@ class CameraRenderSpec:
     num_instances: int
     camera_prim_paths: tuple[str, ...]
     view_count: int
-    camera_path_relative_to_env_0: str

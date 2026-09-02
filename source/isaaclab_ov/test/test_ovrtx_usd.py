@@ -255,12 +255,12 @@ def test_render_product_initially_targets_only_the_resolvable_source_camera():
         height=8,
         num_envs=4,
         data_types=["rgb"],
-        camera_rel_path="Robot/head_cam",
+        camera_path="/World/scenes/scene_2/Robot/head_cam",
     )
 
     assert render_product_path == "/Render/RenderProduct"
-    assert "rel camera = [</World/envs/env_0/Robot/head_cam>]" in render_product
-    assert "/World/envs/env_1/Robot/head_cam" not in render_product
+    assert "rel camera = [</World/scenes/scene_2/Robot/head_cam>]" in render_product
+    assert "/World/scenes/scene_5/Robot/head_cam" not in render_product
     assert "uniform int2 resolution = (32, 16)" in render_product
 
 
@@ -271,6 +271,7 @@ def test_render_product_pins_device_ids_to_the_requested_cuda_device():
         height=8,
         num_envs=4,
         data_types=["rgb"],
+        camera_path="/World/envs/env_0/Camera",
         device_id=1,
     )
 
@@ -284,7 +285,9 @@ def test_render_product_pins_device_ids_to_the_requested_cuda_device():
 
 def test_render_product_omits_device_ids_when_no_device_is_given():
     """Without a device index the render product keeps OVRTX's automatic device assignment."""
-    render_product, _ = build_render_product_as_string(width=16, height=8, num_envs=4, data_types=["rgb"])
+    render_product, _ = build_render_product_as_string(
+        width=16, height=8, num_envs=4, data_types=["rgb"], camera_path="/World/envs/env_0/Camera"
+    )
 
     assert "deviceIds" not in render_product
 
@@ -390,7 +393,7 @@ def test_export_stage_keeps_all_env_content_when_all_roots_are_sources():
 
     exported = export_stage_to_string(
         stage,
-        num_envs,
+        tuple(f"/World/envs/env_{env_idx}" for env_idx in range(num_envs)),
         source_paths=tuple(f"/World/envs/env_{env_idx}" for env_idx in range(num_envs)),
     )
 
@@ -404,7 +407,7 @@ def test_export_stage_full_when_single_env():
 
     exported = export_stage_to_string(
         stage,
-        num_envs,
+        ("/World/envs/env_0",),
         source_paths=("/World/envs/env_0",),
     )
 
@@ -418,12 +421,31 @@ def test_export_stage_homogeneous_keeps_only_env0_prototype():
 
     exported = export_stage_to_string(
         stage,
-        num_envs,
+        tuple(f"/World/envs/env_{env_idx}" for env_idx in range(num_envs)),
         source_paths=("/World/envs/env_0",),
     )
 
     _assert_export_contains_env_roots_and_children(exported, [0])
     _assert_export_omits_env_children(exported, range(1, num_envs))
+
+
+def test_export_stage_trims_environment_siblings_outside_the_plan():
+    """An unrelated staged environment cannot leak geometry into the detached renderer."""
+    stage = _make_multi_env_stage(7)
+
+    exported = export_stage_to_string(
+        stage,
+        ("/World/envs/env_2", "/World/envs/env_5"),
+        source_paths=("/World/envs/env_2/Robot",),
+    )
+
+    assert 'def Xform "env_2"' in exported
+    assert 'def Xform "Robot"' in exported
+    assert 'def Xform "env_5"' in exported
+    assert 'def Xform "Object_env5_only"' not in exported
+    for env_idx in (0, 1, 3, 4, 6):
+        assert f'def Xform "env_{env_idx}"' not in exported
+        assert f'def Xform "Object_env{env_idx}_only"' not in exported
 
 
 def test_export_stage_without_keep_env_roots_trims_non_source_env_roots():
@@ -438,7 +460,7 @@ def test_export_stage_without_keep_env_roots_trims_non_source_env_roots():
 
     exported = export_stage_to_string(
         stage,
-        num_envs,
+        tuple(f"/World/envs/env_{env_idx}" for env_idx in range(num_envs)),
         source_paths=("/World/envs/env_0",),
         keep_env_roots=False,
     )
@@ -456,7 +478,7 @@ def test_export_stage_heterogeneous_keeps_multiple_sources():
 
     exported = export_stage_to_string(
         stage,
-        num_envs,
+        tuple(f"/World/envs/env_{env_idx}" for env_idx in range(num_envs)),
         source_paths=("/World/envs/env_0/Object_env0_only", "/World/envs/env_3/Object_env3_only"),
     )
 
@@ -484,7 +506,7 @@ def test_export_stage_restores_active_state():
 
     export_stage_to_string(
         stage,
-        num_envs,
+        tuple(f"/World/envs/env_{env_idx}" for env_idx in range(num_envs)),
         source_paths=("/World/envs/env_0",),
     )
 
@@ -499,7 +521,9 @@ def test_create_scene_partition_attributes_all_envs():
     num_envs = 4
     stage = _make_multi_env_stage(num_envs)
 
-    create_scene_partition_attributes(stage, num_envs)
+    env_paths = tuple(f"/World/envs/env_{env_idx}" for env_idx in range(num_envs))
+    camera_paths = tuple(f"{env_path}/Camera" for env_path in env_paths)
+    create_scene_partition_attributes(stage, dict(zip(env_paths, camera_paths, strict=True)))
 
     root_layer = stage.GetRootLayer()
     for env_idx in range(num_envs):

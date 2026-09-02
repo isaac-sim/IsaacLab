@@ -183,7 +183,7 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
 
 
 def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
-    """A cfg-driven scene forwards the right plan and stage to cloner.replicate.
+    """A cfg-driven scene forwards its plan and physics policy to cloner.replicate.
 
     Uses a test-seam fake to isolate this unit test from real backend dispatch; queue
     lifecycle is owned by :func:`replicate` itself (snapshot-and-clear) and does not
@@ -193,21 +193,20 @@ def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
 
     captured: list = []
 
-    def fake_replicate(plan, *, stage, replicate_physics=True):
-        captured.append((plan, stage, replicate_physics))
+    def fake_replicate(plan, *, replicate_physics=True):
+        captured.append((plan, replicate_physics))
 
     monkeypatch.setattr(replicate_session_module, "replicate", fake_replicate)
 
     with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
+        InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
 
     assert len(captured) == 1
-    plan, stage, replicate_physics = captured[0]
+    plan, replicate_physics = captured[0]
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
     assert plan.clone_mask.shape == (1, 4)
-    assert stage is scene.stage
     assert replicate_physics is True
 
 

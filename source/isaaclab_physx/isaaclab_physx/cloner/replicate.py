@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import torch
 
@@ -13,22 +13,18 @@ from omni.physx import get_physx_replicator_interface
 from pxr import Sdf, Usd, UsdUtils
 
 from isaaclab import cloner
+from isaaclab.cloner.query import _clone_mapping
 
-
-def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> torch.Tensor:
-    """Return the environment ids selected by a replication row."""
-    row_mask = mapping[row]
-    if row_mask.dtype != torch.bool:
-        row_mask = row_mask.to(dtype=torch.bool)
-    return env_ids[row_mask]
+if TYPE_CHECKING:
+    from isaaclab.cloner import ClonePlan
 
 
 class PhysxReplicateContext:
-    """Queue and run PhysX replication work for one stage."""
+    """Apply one clone plan through the PhysX replicator."""
 
     replicate_priority = 0
 
-    def __init__(self, stage: Usd.Stage, global_paths: tuple[str, ...] = ()):
+    def __init__(self, stage: Usd.Stage):
         """Initialize the context.
 
         Args:
@@ -41,62 +37,44 @@ class PhysxReplicateContext:
         physics_scene_prim = self.stage.GetPrimAtPath("/physicsScene")
         if physics_scene_prim.IsValid():
             physics_scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
-        self._queue: list[tuple[str, str, tuple[int, ...]]] = []
+        self._replicator = None
+        self._registered = False
 
-    def queue(self, source: str, destination: str, target_envs: Sequence[int]) -> None:
-        """Queue one PhysX source row for replication.
-
-        Args:
-            source: Source prim path.
-            destination: Destination path template with ``"{}"`` for env id.
-            target_envs: Environment ids selected for this source row.
-        """
-        self._queue.append((source, destination, tuple(int(env_id) for env_id in target_envs)))
-
-    def queue_mapping(
-        self,
-        sources: Sequence[str],
-        destinations: Sequence[str],
-        env_ids: torch.Tensor,
-        mapping: torch.Tensor,
-        *,
-        positions: torch.Tensor | None = None,
-        quaternions: torch.Tensor | None = None,
-        exclude_self_replication: bool = True,
-    ) -> None:
-        """Queue replication rows from the current flat clone mapping.
+    def replicate(self, plan: ClonePlan) -> None:
+        """Register the PhysX replicator for this context's plan rows.
 
         Args:
-            sources: Source prim paths.
-            destinations: Destination path templates with ``"{}"`` for env id.
-            env_ids: Environment indices.
-            mapping: Bool/int mask selecting envs per source.
-            positions: Optional per-environment world positions [m], unused by PhysX.
-            quaternions: Optional per-environment orientations, unused by PhysX.
-            exclude_self_replication: Whether to skip replicating a source prim onto itself
-                when it also maps to other environments.
+            plan: Replication layout shared by every clone backend.
         """
-        del positions, quaternions
+        rows = plan.context_rows[type(self)]
+        sources, destinations, mapping = _clone_mapping(plan, rows, whole_env=plan.positions.is_cuda)
+        use_env_ids = (
+            plan.positions.is_cuda
+            and sources == (plan.env_template.format(int(plan.env_ids[0])),)
+            and destinations == (plan.env_template,)
+        )
+        physx_queue: list[tuple[str, str, tuple[int, ...]]] = []
 
         if mapping.size(1) <= 1:
             return
 
+        native_rows = set(rows)
+        has_usd_only_rows = any(
+            "{}" in destination and row not in native_rows and bool(plan.clone_mask[row].any())
+            for row, destination in enumerate(plan.destinations)
+        )
+        native_paths: list[str] = []
+
         for i, src in enumerate(sources):
-            worlds = _select_env_ids(env_ids, mapping, i).tolist()
-            if exclude_self_replication:
-                matched = cloner.path.match(src, destinations[i])
-                if matched is not None and matched.instance.isdigit():
-                    filtered = [w for w in worlds if w != int(matched.instance)]
-                    worlds = filtered if filtered else worlds
-            self.queue(src, destinations[i], worlds)
-
-    def replicate(self) -> None:
-        """Register the PhysX replicator and run queued rows from ``attach_end_fn``."""
-        if not self._queue:
-            return
-
-        physx_queue = tuple(self._queue)
-        self._queue.clear()
+            worlds = plan.env_ids[mapping[i].to(dtype=torch.bool)].tolist()
+            if has_usd_only_rows:
+                native_paths.append(src)
+                native_paths.extend(destinations[i].format(int(world)) for world in worlds)
+            matched = cloner.path.match(src, destinations[i])
+            if matched is not None and matched.instance.isdigit():
+                filtered = [world for world in worlds if world != int(matched.instance)]
+                worlds = filtered if filtered else worlds
+            physx_queue.append((src, destinations[i], tuple(map(int, worlds))))
 
         # Fully-heterogeneous 1:1 layouts have every source mapped only to its own
         # environment (no cross-env replication needed). Calling rep.replicate() once
@@ -105,105 +83,42 @@ class PhysxReplicateContext:
         # PhysX-internal allocations summing to a problematic total across processes.
         # For these layouts the source prims are already in their correct env positions
         # and PhysX can parse them from the stage without any replicator registration.
-        def _is_self_only(src: str, destination: str, target_envs: tuple[int, ...]) -> bool:
-            if len(target_envs) != 1:
-                return False
-            pre, suf = cloner.path.split(destination)
-            return src == f"{pre}{target_envs[0]}{suf}"
-
-        if all(_is_self_only(src, dst, envs) for src, dst, envs in physx_queue):
+        if all(len(envs) == 1 and src == destination.format(envs[0]) for src, destination, envs in physx_queue):
             return
 
         current_worlds: list[int] = []
         current_template: str = ""
+        env_namespace = plan.env_template.rsplit("/", 1)[0] or "/"
+        excluded_paths = list(dict.fromkeys(native_paths)) if has_usd_only_rows else ["/World/template", env_namespace]
 
         def attach_fn(_stage_id: int):
-            return ["/World/template", "/World/envs"]
+            return excluded_paths
 
         def rename_fn(_replicate_path: str, i: int):
             return current_template.format(current_worlds[i])
 
         def attach_end_fn(_stage_id: int):
             nonlocal current_template
-            rep = get_physx_replicator_interface()
             for src, destination, target_envs in physx_queue:
                 current_template = destination
                 current_worlds[:] = target_envs
                 if not current_worlds:
                     continue
-                rep.replicate(
+                self._replicator.replicate(
                     _stage_id,
                     src,
                     len(current_worlds),
-                    # TODO: envIds needs to support heterogeneous setup. for now, we rely on USD collision filtering
-                    useEnvIds=False,
+                    useEnvIds=use_env_ids,
                     useFabricForReplication=False,
                 )
-            rep.unregister_replicator(_stage_id)
 
-        get_physx_replicator_interface().register_replicator(self._stage_id, attach_fn, attach_end_fn, rename_fn)
+        self._replicator = get_physx_replicator_interface()
+        self._replicator.register_replicator(self._stage_id, attach_fn, attach_end_fn, rename_fn)
+        self._registered = True
 
-
-PHYSICS_CONTEXT = PhysxReplicateContext
-"""Physics-only replication context for PhysX assets.  USD replication is added automatically
-by :func:`~isaaclab.cloner.replicate` when the asset has a spawner and Kit is available."""
-
-
-def physx_replicate(
-    stage: Usd.Stage,
-    sources: Sequence[str],  # e.g. ["/World/Template/A", "/World/Template/B"]
-    destinations: Sequence[str],  # e.g. ["/World/envs/env_{}/Robot", "/World/envs/env_{}/Object"]
-    env_ids: torch.Tensor,  # env_ids
-    mapping: torch.Tensor,  # (num_sources, num_envs) bool; True -> place sources[i] into world=j
-    positions: torch.Tensor | None = None,
-    quaternions: torch.Tensor | None = None,
-    device: str = "cpu",
-    exclude_self_replication: bool = True,
-) -> None:
-    """Replicate prims via PhysX replicator with per-row mapping.
-
-    Builds per-source destination lists from ``mapping`` and calls PhysX ``replicate``.
-    The replicator is registered for the call and then unregistered. Heterogeneous
-    rows currently use ``useEnvIds=False`` and rely on USD collision filtering.
-
-    ``attach_fn`` excludes ``/World/template`` and ``/World/envs`` so that PhysX does
-    not independently parse prims that the replicator will handle.  The source prim
-    receives its physics body as a side-effect of ``rep.replicate()`` (which always
-    parses the source internally), so every source must appear in at least one
-    ``replicate`` call.
-
-    When ``exclude_self_replication`` is True (default), each source environment is
-    removed from its own replication targets so the replicator only creates bodies at
-    non-self destinations.  If removing self would leave the world list empty (i.e. the
-    source maps only to its own environment), self is kept so that ``rep.replicate()``
-    is still called and the source prim gets its physics body.
-
-    Args:
-        stage: USD stage.
-        sources: Source prim paths (``S``).
-        destinations: Destination templates (``S``) with ``"{}"`` for env index.
-        env_ids: Environment indices (``[E]``).
-        mapping: Bool/int mask (``[S, E]``) selecting envs per source.
-        positions: Optional positions (unused, for API compatibility).
-        quaternions: Optional orientations (unused, for API compatibility).
-        device: Unused legacy argument retained for API compatibility.
-        exclude_self_replication: If True, skip replicating a source prim onto itself
-            when the source also maps to other environments.  Default is True.
-            Self-only sources always keep self so that ``rep.replicate()`` fires.
-
-    Returns:
-        None
-    """
-    del device
-
-    ctx = PhysxReplicateContext(stage)
-    ctx.queue_mapping(
-        sources,
-        destinations,
-        env_ids,
-        mapping,
-        positions=positions,
-        quaternions=quaternions,
-        exclude_self_replication=exclude_self_replication,
-    )
-    ctx.replicate()
+    def clear(self) -> None:
+        """Unregister this stage's native PhysX replicator."""
+        if self._registered:
+            self._replicator.unregister_replicator(self._stage_id)
+            self._registered = False
+            self._replicator = None

@@ -9,7 +9,7 @@ import contextlib
 import copy
 import re
 from collections.abc import Callable, Iterator, Sequence
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 
 import torch
 import warp as wp
@@ -18,6 +18,7 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
+from isaaclab.cloner.query import _clone_mapping
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
@@ -26,15 +27,12 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
     replicate_builder_mapping,
 )
-from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
 
 if TYPE_CHECKING:
-    _MappingBatch: TypeAlias = tuple[
-        tuple[str, ...], tuple[str, ...], torch.Tensor, torch.Tensor, torch.Tensor | None, torch.Tensor | None
-    ]
-else:
-    _MappingBatch = tuple
+    from isaaclab.cloner import ClonePlan
+    from isaaclab.sim import SimulationContext
 
 
 def copy_newton_clone_source(source_path: str, xform: wp.transform | None = None) -> ModelBuilder:
@@ -50,7 +48,10 @@ def copy_newton_clone_source(source_path: str, xform: wp.transform | None = None
     Raises:
         RuntimeError: If Newton replication did not retain the requested source.
     """
-    source = NewtonManager._cl_protos.get(source_path)
+    sim = PhysicsManager._sim
+    if sim is None or NewtonReplicateContext not in sim._backend_registry:
+        raise RuntimeError("Newton replication has not run for the active simulation.")
+    source = sim.physics_manager._cl_protos.get(source_path)
     if source is None:
         raise RuntimeError(f"No retained Newton clone source for {source_path!r}.")
     builder = ModelBuilder(up_axis=source.up_axis)
@@ -83,7 +84,10 @@ def newton_builder_world_hook(
     Raises:
         RuntimeError: If the callback is already registered.
     """
-    hooks = NewtonManager._per_world_builder_hooks
+    sim = PhysicsManager._sim
+    if sim is None or NewtonReplicateContext not in sim._backend_registry:
+        raise RuntimeError("Newton replication is not registered for the active simulation.")
+    hooks = sim.physics_manager._per_world_builder_hooks
     if hook in hooks:
         raise RuntimeError("Newton world-builder hook is already registered.")
     hooks.append(hook)
@@ -95,29 +99,28 @@ def newton_builder_world_hook(
 
 
 def _build_newton_builder_from_mapping(
+    sim_context: SimulationContext,
     stage: Usd.Stage,
     sources: Sequence[str],
     destinations: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
-    positions: torch.Tensor | None = None,
+    positions: torch.Tensor,
     quaternions: torch.Tensor | None = None,
     up_axis: str = "Z",
     load_visual_shapes: bool = True,
     global_paths: tuple[str, ...] = (),
 ) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder], list[tuple[str, int]]]:
     """Build a Newton model builder from clone mapping inputs and retain its source builders."""
-    if positions is None:
-        positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
     if quaternions is None:
         quaternions = torch.zeros((mapping.size(1), 4), device=mapping.device, dtype=torch.float32)
         quaternions[:, 3] = 1.0
 
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
-    manager_cls = PhysicsManager._sim.physics_manager
+    manager_cls = sim_context.physics_manager
 
     builder = manager_cls.create_builder(up_axis=up_axis)
-    import_paths = (PhysicsManager._sim.cfg.physics_prim_path, *global_paths)
+    import_paths = (sim_context.cfg.physics_prim_path, *global_paths)
     hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
     import_results = []
     for root_path in import_paths:
@@ -141,7 +144,7 @@ def _build_newton_builder_from_mapping(
     # Resolve the regex prim_path patterns to concrete env_0 paths so add_usd
     # can skip them via ignore_paths.
     deformable_patterns = tuple(
-        re.compile(entry.prim_path.replace(".*", "[^/]*")) for entry in NewtonManager._deformable_registry
+        re.compile(entry.prim_path.replace(".*", "[^/]*")) for entry in manager_cls._deformable_registry
     )
     deformable_ignore_paths = []
     if deformable_patterns:
@@ -161,7 +164,7 @@ def _build_newton_builder_from_mapping(
     )
 
     # Inject registered sites into source builders (and global sites into main builder).
-    global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
+    global_sites, source_sites, root_sites = manager_cls._cl_inject_sites(builder, source_builders)
 
     replicate_args = (builder, sources, mapping, positions, quaternions, source_builders)
     local_site_map, world_xforms, fabric_body_bindings = replicate_builder_mapping(
@@ -170,7 +173,7 @@ def _build_newton_builder_from_mapping(
         env_ids,
         source_site_indices=source_sites,
         env_root_sites=root_sites,
-        per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
+        per_world_builder_hooks=manager_cls._per_world_builder_hooks,
     )
 
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
@@ -178,193 +181,63 @@ def _build_newton_builder_from_mapping(
     return builder, stage_info, site_index_map, world_xforms, source_builders, fabric_body_bindings
 
 
-def _renderer_wants_visual_shapes() -> bool:
-    """Whether anything in this run will draw the Newton model's visual-only shapes.
-
-    Visual shapes are consumed by the viewers, offscreen ``rgb_array`` capture, and camera
-    sensors on any renderer backend. A headless training run without cameras draws none of
-    them, so importing them only costs USD parse time and memory.
-    """
-    from isaaclab.sim import SimulationContext
-
-    sim = SimulationContext.instance()
-    if sim is None:
-        return True
-    return bool(sim.is_rendering or sim.can_render_rgb_array() or sim.visual_shapes_required)
-
-
 class NewtonReplicateContext:
-    """Queue and run Newton replication work for one stage."""
+    """Build one Newton model from a clone plan."""
 
     replicate_priority = 0
 
-    def __init__(
-        self,
-        stage: Usd.Stage,
-        global_paths: tuple[str, ...] = (),
-        device: str = "cpu",
-        up_axis: str = "Z",
-        load_visual_shapes: bool | None = None,
-        commit_to_manager: bool = True,
-    ):
+    def __init__(self, sim_context: SimulationContext, *, up_axis: str = "Z"):
         """Initialize the context.
 
         Args:
-            stage: USD stage containing source assets.
-            global_paths: Shared scene-asset roots imported once outside replicated worlds.
-            device: Device used by the finalized Newton model builder.
+            sim_context: Simulation context that owns this clone backend.
             up_axis: Up axis for the Newton model builder.
-            load_visual_shapes: Whether to import visual-only geometry. If ``None``,
-                read from the active :class:`NewtonCfg`, which itself defaults to
-                importing them only when a renderer or visualizer is active.
-            commit_to_manager: Whether :meth:`replicate` should publish the builder to
-                :class:`NewtonManager`.
         """
-        self.stage = stage
-        self._global_paths = global_paths
-        self.device = device
+        self._sim = sim_context
         self.up_axis = up_axis
-        if load_visual_shapes is None:
-            from isaaclab_newton.physics import NewtonCfg
 
-            cfg = PhysicsManager._cfg
-            load_visual_shapes = cfg.load_visual_shapes if isinstance(cfg, NewtonCfg) else None
-        self.load_visual_shapes = _renderer_wants_visual_shapes() if load_visual_shapes is None else load_visual_shapes
-        self.commit_to_manager = commit_to_manager
-        self._queue: list[_MappingBatch] = []
-
-    def queue_mapping(
-        self,
-        sources: Sequence[str],
-        destinations: Sequence[str],
-        env_ids: torch.Tensor,
-        mapping: torch.Tensor,
-        *,
-        positions: torch.Tensor | None = None,
-        quaternions: torch.Tensor | None = None,
-    ) -> None:
-        """Queue replication rows from the current flat clone mapping.
+    def replicate(self, plan: ClonePlan) -> tuple[ModelBuilder, object, dict]:
+        """Build and publish the Newton model from this context's plan rows.
 
         Args:
-            sources: Source prim paths used for cloning.
-            destinations: Destination prim path templates.
-            env_ids: Environment ids for destination worlds.
-            mapping: Boolean source-to-environment mapping matrix.
-            positions: Optional per-environment world positions [m].
-            quaternions: Optional per-environment orientations in xyzw order.
+            plan: Replication layout shared by every clone backend.
+
+        Returns:
+            The populated builder, stage metadata, and injected site lookup.
+
+        Raises:
+            RuntimeError: If Newton replication is requested without an active Newton configuration.
         """
-        self._queue.append((tuple(sources), tuple(destinations), env_ids, mapping, positions, quaternions))
-
-    @staticmethod
-    def _merge_optional_tensor(
-        name: str, current: torch.Tensor | None, incoming: torch.Tensor | None
-    ) -> torch.Tensor | None:
-        """Merge optional tensors, requiring equal values when both are present."""
-        if current is None:
-            return incoming
-        if incoming is None:
-            return current
-        if current.device != incoming.device or current.shape != incoming.shape or not torch.equal(current, incoming):
-            raise ValueError(f"Queued Newton mappings must use the same {name} tensor.")
-        return current
-
-    def _merged_mapping(self) -> _MappingBatch:
-        """Merge queued mapping batches into the legacy flat mapping shape."""
-        if not self._queue:
-            raise RuntimeError("Cannot replicate without queued Newton mappings.")
-
-        sources: list[str] = []
-        destinations: list[str] = []
-        mappings: list[torch.Tensor] = []
-        env_ids = self._queue[0][2]
-        positions = self._queue[0][4]
-        quaternions = self._queue[0][5]
-
-        for (
-            queued_sources,
-            queued_destinations,
-            queued_env_ids,
-            mapping,
-            queued_positions,
-            queued_quaternions,
-        ) in self._queue:
-            if (
-                env_ids.device != queued_env_ids.device
-                or env_ids.shape != queued_env_ids.shape
-                or not torch.equal(env_ids, queued_env_ids)
-            ):
-                raise ValueError("Queued Newton mappings must use the same env_ids tensor.")
-            sources.extend(queued_sources)
-            destinations.extend(queued_destinations)
-            mappings.append(mapping)
-            positions = self._merge_optional_tensor("positions", positions, queued_positions)
-            quaternions = self._merge_optional_tensor("quaternions", quaternions, queued_quaternions)
-
-        return tuple(sources), tuple(destinations), env_ids, torch.cat(mappings, dim=0), positions, quaternions
-
-    def replicate(self) -> tuple[ModelBuilder, object, dict]:
-        """Build the Newton model builder from queued mappings and optionally publish it."""
-        sources, destinations, env_ids, mapping, positions, quaternions = self._merged_mapping()
+        sources, destinations, mapping = _clone_mapping(plan, plan.context_rows[type(self)], whole_env=True)
+        cfg = self._sim.cfg.physics
+        if not isinstance(cfg, NewtonCfg):
+            raise RuntimeError("Newton replication requires an active NewtonCfg.")
+        load_visual_shapes = cfg.load_visual_shapes
+        if load_visual_shapes is None:
+            load_visual_shapes = bool(
+                self._sim.is_rendering or self._sim.can_render_rgb_array() or self._sim.visual_shapes_required
+            )
+        global_paths = tuple(
+            source
+            for source, destination in zip(plan.sources, plan.destinations, strict=True)
+            if "{}" not in destination
+        )
         builder, stage_info, site_index_map, world_xforms, source_builders, fabric_body_bindings = (
             _build_newton_builder_from_mapping(
-                stage=self.stage,
+                sim_context=self._sim,
+                stage=self._sim.stage,
                 sources=sources,
                 destinations=destinations,
-                env_ids=env_ids,
+                env_ids=plan.env_ids,
                 mapping=mapping,
-                positions=positions,
-                quaternions=quaternions,
+                positions=plan.positions,
                 up_axis=self.up_axis,
-                load_visual_shapes=self.load_visual_shapes,
-                global_paths=self._global_paths,
+                load_visual_shapes=load_visual_shapes,
+                global_paths=global_paths,
             )
         )
-        if self.commit_to_manager:
-            NewtonManager._cl_site_index_map = site_index_map
-            NewtonManager._cl_fabric_body_bindings = fabric_body_bindings
-            NewtonManager._world_xforms = world_xforms
-            NewtonManager._cl_protos = source_builders
-            NewtonManager.set_builder(builder)
-            NewtonManager._num_envs = mapping.size(1)
-        self._queue.clear()
+        manager = self._sim.physics_manager
+        manager._publish_clone_state(
+            builder, site_index_map, fabric_body_bindings, world_xforms, source_builders, mapping.size(1)
+        )
         return builder, stage_info, site_index_map
-
-
-PHYSICS_CONTEXT = NewtonReplicateContext
-"""Physics-only replication context for Newton assets.  USD replication is added automatically
-by :func:`~isaaclab.cloner.replicate` when the asset has a spawner and Kit is available."""
-
-
-def newton_physics_replicate(
-    stage: Usd.Stage,
-    sources: Sequence[str],
-    destinations: Sequence[str],
-    env_ids: torch.Tensor,
-    mapping: torch.Tensor,
-    positions: torch.Tensor | None = None,
-    quaternions: torch.Tensor | None = None,
-    device: str = "cpu",
-    up_axis: str = "Z",
-    global_paths: tuple[str, ...] = (),
-):
-    """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping.
-
-    Args:
-        stage: USD stage containing source assets.
-        sources: Source prim paths used for cloning.
-        destinations: Destination prim path templates.
-        env_ids: Environment ids for destination worlds.
-        mapping: Boolean source-to-environment mapping matrix.
-        positions: Optional per-environment world positions.
-        quaternions: Optional per-environment orientations in xyzw order.
-        device: Device used by the finalized Newton model builder.
-        up_axis: Up axis for the Newton model builder.
-        global_paths: Shared scene-asset roots imported once. Defaults to none.
-
-    Returns:
-        Tuple of the populated Newton model builder and stage metadata.
-    """
-    ctx = NewtonReplicateContext(stage, global_paths=global_paths, device=device, up_axis=up_axis)
-    ctx.queue_mapping(sources, destinations, env_ids, mapping, positions=positions, quaternions=quaternions)
-    builder, stage_info, _site_index_map = ctx.replicate()
-    return builder, stage_info

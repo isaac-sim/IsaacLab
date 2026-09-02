@@ -39,6 +39,7 @@ from isaaclab.scene_data.deformable_discovery import (
 
 from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
+from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.stage import create_ovstage
 
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR
@@ -521,6 +522,7 @@ class OvPhysxManager(PhysicsManager):
         IsaacLab's conservative first-device policy for this process.
         """
         super().initialize(sim_context)
+        sim_context.get_or_create_backend(OvPhysxReplicateContext, sim_context, clone_role="physics")
         cls._ensure_physx_schemas_registered()
         cls._warmup_done = False
         cls._requires_full_stage = False

@@ -50,7 +50,7 @@ from flaky import flaky
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov.assets import RigidObject  # noqa: E402
-from isaaclab_ov.cloner import ovphysx_replicate  # noqa: E402
+from isaaclab_ov.cloner import OvPhysxReplicateContext  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ov.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
 
@@ -575,15 +575,8 @@ def test_nested_rigid_body_hierarchy(device, num_envs):
 
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         clone_plan = cloner.clone_plan_from_env_0(src, dest, num_envs, device, env_positions)
-        assert clone_plan.env_ids is not None
-        ovphysx_replicate(
-            stage,
-            clone_plan.sources,
-            clone_plan.destinations,
-            clone_plan.env_ids,
-            clone_plan.clone_mask,
-            positions=clone_plan.positions,
-        )
+        clone_plan.context_rows[OvPhysxReplicateContext] = (0,)
+        sim.get_or_create_backend(OvPhysxReplicateContext, sim, clone_role="physics").replicate(clone_plan)
         sim.set_clone_plan(clone_plan)
 
         contact_sensor = ContactSensor(

@@ -31,7 +31,6 @@ from isaaclab.cloner import (
     grid_transforms,
     make_clone_plan,
     queue_replication,
-    replicate,
     sequential,
     usd_replicate,
 )
@@ -98,8 +97,8 @@ def test_usd_replicate_with_positions_and_mask(sim):
     assert any(op.GetOpType() == UsdGeom.XformOp.TypeTranslate for op in ops)
 
 
-def test_usd_replicate_context_queue_and_replicate(sim):
-    """UsdReplicateContext queues copy specs and applies them on replicate."""
+def test_usd_replicate_context_consumes_plan(sim):
+    """UsdReplicateContext consumes the same plan used by every clone backend."""
     sim_utils.create_prim("/World/template", "Xform")
     sim_utils.create_prim("/World/template/A", "Xform")
     sim_utils.create_prim("/World/envs", "Xform")
@@ -108,13 +107,16 @@ def test_usd_replicate_context_queue_and_replicate(sim):
 
     stage = sim_utils.get_current_stage()
     ctx = UsdReplicateContext(stage)
-    ctx.queue_mapping(
-        sources=["/World/template/A"],
-        destinations=["/World/envs/env_{}/A"],
+    plan = ClonePlan(
+        sources=("/World/template/A",),
+        destinations=("/World/envs/env_{}/A",),
+        clone_mask=torch.ones((1, 2), dtype=torch.bool),
         env_ids=torch.tensor([0, 1], dtype=torch.long),
+        positions=torch.zeros((2, 3)),
+        context_rows={UsdReplicateContext: (0,)},
     )
     assert not stage.GetPrimAtPath("/World/envs/env_1/A").IsValid()
-    ctx.replicate()
+    ctx.replicate(plan)
 
     assert stage.GetPrimAtPath("/World/envs/env_0/A").IsValid()
     assert stage.GetPrimAtPath("/World/envs/env_1/A").IsValid()
@@ -323,8 +325,8 @@ def test_queue_replication_only_appends(sim):
     assert [cfg_a, cfg_b] == REPLICATION_QUEUE
 
 
-def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
-    """Homogeneous (single-variant) cfgs produce one source row at the env root."""
+def test_make_clone_plan_homogeneous_covers_environment_root(sim):
+    """A homogeneous plan preserves complete environment-zero coverage."""
     cube = SimpleNamespace(
         prim_path="/World/envs/env_[^/]+/Robot",
         spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
@@ -337,12 +339,12 @@ def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
         global_paths=("/World/Ground",),
     )
 
-    assert plan.sources == ("/World/envs/env_0",)
-    assert plan.destinations == ("/World/envs/env_{}",)
-    assert plan.clone_mask.shape == (1, 4)
-    assert plan.clone_mask.all()
+    assert plan.sources == ("/World/envs/env_0", "/World/Ground")
+    assert plan.destinations == ("/World/envs/env_{}", "/World/Ground")
+    assert plan.clone_mask.shape == (2, 4)
+    assert plan.clone_mask[0].all()
     assert plan.cfg_rows[id(cube)] == (0,)
-    assert plan.global_paths == ("/World/Ground",)
+    assert not plan.clone_mask[1].any()
     assert plan.env_ids.shape == (4,)
     assert plan.positions.shape == (4, 3)
     assert cube.spawn.spawn_path == "/World/envs/env_0/Robot"
@@ -421,16 +423,17 @@ def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
         "/World/envs/env_{}/Object",
         "/World/envs/env_{}/Object",
         "/World/envs/env_{}/Robot",
+        "/World/Ground",
     )
     assert plan.cfg_rows[id(multi_cfg)] == (0, 1)
     assert plan.cfg_rows[id(plain_cfg)] == (2,)
-    assert plan.global_paths == ("/World/Ground",)
+    assert not plan.clone_mask[-1].any()
     assert multi_cfg.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
     assert plain_cfg.spawn.spawn_path == "/World/envs/env_0/Robot"
 
 
-def test_make_clone_plan_records_globals_outside_replication_rows(sim):
-    """Global cfgs are named by the plan without becoming rows a backend might copy."""
+def test_make_clone_plan_records_globals_as_exact_rows(sim):
+    """Shared assets are exact zero-mask rows rather than a side channel."""
     plan = make_clone_plan(
         cfgs=[],
         num_clones=3,
@@ -439,15 +442,15 @@ def test_make_clone_plan_records_globals_outside_replication_rows(sim):
         global_paths=("/World/global/Robot", "/World/ground"),
     )
 
-    assert plan.sources == ()
-    assert plan.destinations == ()
-    assert plan.clone_mask.shape == (0, 3)
+    assert plan.sources == ("/World/global/Robot", "/World/ground")
+    assert plan.destinations == plan.sources
+    assert plan.clone_mask.shape == (2, 3)
+    assert not plan.clone_mask.any()
     assert plan.cfg_rows == {}
-    assert plan.global_paths == ("/World/global/Robot", "/World/ground")
 
 
-def test_clone_plan_from_env_0_populates_cfg_rows_and_global_paths(sim):
-    """The direct-env constructor separates replicated cfg rows from shared asset paths."""
+def test_clone_plan_from_env_0_covers_queued_cfgs_and_globals(sim):
+    """The direct-env plan covers its complete environment root and exact shared assets."""
     env_cfg_a = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot")
     env_cfg_b = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Object")
     global_cfg = SimpleNamespace(prim_path="/World/global/Light")
@@ -460,254 +463,11 @@ def test_clone_plan_from_env_0_populates_cfg_rows_and_global_paths(sim):
     pos = grid_transforms(4, 1.0, device=sim.cfg.device)[0]
     plan = cloner.clone_plan_from_env_0(src, dest, 4, sim.cfg.device, pos, global_paths=("/World/global/Light",))
 
-    assert plan.sources == ("/World/envs/env_0",)
-    assert plan.destinations == ("/World/envs/env_{}",)
-    assert plan.cfg_rows == {id(env_cfg_a): (0,), id(env_cfg_b): (0,)}
-    assert plan.global_paths == ("/World/global/Light",)
-    assert plan.clone_mask.all() and plan.clone_mask.shape == (1, 4)
+    assert plan.sources == ("/World/envs/env_0", "/World/global/Light")
+    assert plan.destinations == ("/World/envs/env_{}", "/World/global/Light")
+    assert plan.cfg_rows == {id(env_cfg_a): (0,), id(env_cfg_b): (0,), id(global_cfg): (1,)}
+    assert plan.clone_mask[0].all() and not plan.clone_mask[1].any()
     assert torch.equal(plan.env_ids, torch.arange(4, dtype=torch.long, device=sim.cfg.device))
-
-
-def test_replicate_physics_false_keeps_usd_only(sim):
-    """replicate(replicate_physics=False) drops every context except UsdReplicateContext."""
-
-    class FakePhysicsCtx:
-        replicate_priority = 0
-        instances: list["FakePhysicsCtx"] = []
-
-        def __init__(self, stage, *, global_paths):
-            FakePhysicsCtx.instances.append(self)
-
-        def queue_mapping(self, sources, destinations, env_ids, mask, *, positions=None):
-            pass
-
-        def replicate(self):
-            pass
-
-    stage = sim_utils.get_current_stage()
-    stage.DefinePrim("/World/envs/env_0/Robot", "Xform")
-    cfg = SimpleNamespace(
-        prim_path="/World/envs/env_[^/]+/Robot",
-        cloning_contexts=(UsdReplicateContext, FakePhysicsCtx),
-        spawn=None,
-    )
-    REPLICATION_QUEUE.append(cfg)
-
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot",),
-        destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool, device=sim.cfg.device),
-        env_ids=torch.arange(2, dtype=torch.long, device=sim.cfg.device),
-        positions=grid_transforms(2, 1.0, device=sim.cfg.device)[0],
-        cfg_rows={id(cfg): (0,)},
-    )
-    replicate(plan, stage=stage, replicate_physics=False)
-
-    assert FakePhysicsCtx.instances == []
-    assert stage.GetPrimAtPath("/World/envs/env_1/Robot").IsValid()
-
-
-def test_replicate_drains_queue_dispatches_and_publishes(sim):
-    """replicate(plan) drains REPLICATION_QUEUE, calls each backend once, publishes, clears."""
-
-    class FakeCtx:
-        replicate_priority = 0
-        instances: list["FakeCtx"] = []
-
-        def __init__(self, stage, *, global_paths):
-            self.stage = stage
-            self.queue_calls: list[tuple] = []
-            self.replicate_calls = 0
-            FakeCtx.instances.append(self)
-
-        def queue_mapping(self, sources, destinations, env_ids, mask, *, positions=None):
-            self.queue_calls.append((tuple(sources), tuple(destinations), mask.clone()))
-
-        def replicate(self):
-            self.replicate_calls += 1
-
-    cfg_a = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", spawn=None)
-    cfg_b = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Object", spawn=None)
-    cfg_a.cloning_contexts = (FakeCtx,)
-    cfg_b.cloning_contexts = (FakeCtx,)
-    REPLICATION_QUEUE.append(cfg_a)
-    REPLICATION_QUEUE.append(cfg_b)
-
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot", "/World/envs/env_0/Object"),
-        destinations=("/World/envs/env_{}/Robot", "/World/envs/env_{}/Object"),
-        clone_mask=torch.ones((2, 4), dtype=torch.bool, device=sim.cfg.device),
-        env_ids=torch.arange(4, dtype=torch.long, device=sim.cfg.device),
-        positions=grid_transforms(4, 1.0, device=sim.cfg.device)[0],
-        cfg_rows={id(cfg_a): (0,), id(cfg_b): (1,)},
-    )
-    sim.set_clone_plan(None)
-
-    replicate(plan, stage=sim_utils.get_current_stage())
-
-    # Exactly one FakeCtx instance is shared across both cfgs, dispatched once per backend
-    # with the union of rows the cfgs own.
-    assert len(FakeCtx.instances) == 1
-    ctx = FakeCtx.instances[0]
-    assert len(ctx.queue_calls) == 1
-    sources, _destinations, mask = ctx.queue_calls[0]
-    assert sources == ("/World/envs/env_0/Robot", "/World/envs/env_0/Object")
-    assert mask.shape == (2, 4)
-    assert ctx.replicate_calls == 1
-    assert sim.get_clone_plan() is plan
-    assert REPLICATION_QUEUE == []
-
-
-def test_replicate_dedupes_shared_rows_across_cfgs(sim):
-    """Regression: multiple cfgs sharing the same row dispatch one mapping row, not N.
-
-    In a homogeneous plan every cfg under the env root maps to row 0; without dedup, each
-    cfg would tell the backend to re-instantiate row 0 once more, multiplying the count
-    of articulations/rigids per world by the number of cfgs.
-    """
-
-    class FakeCtx:
-        replicate_priority = 0
-        instances: list["FakeCtx"] = []
-
-        def __init__(self, stage, *, global_paths):
-            self.queue_calls: list[tuple] = []
-            self.replicate_calls = 0
-            FakeCtx.instances.append(self)
-
-        def queue_mapping(self, sources, destinations, env_ids, mask, *, positions=None):
-            self.queue_calls.append((tuple(sources), tuple(destinations), mask.clone()))
-
-        def replicate(self):
-            self.replicate_calls += 1
-
-    cfgs = [SimpleNamespace(prim_path=f"/World/envs/env_[^/]+/asset_{i}", spawn=None) for i in range(5)]
-    for cfg in cfgs:
-        cfg.cloning_contexts = (FakeCtx,)
-        REPLICATION_QUEUE.append(cfg)
-
-    plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=torch.ones((1, 3), dtype=torch.bool, device=sim.cfg.device),
-        env_ids=torch.arange(3, dtype=torch.long, device=sim.cfg.device),
-        positions=grid_transforms(3, 1.0, device=sim.cfg.device)[0],
-        cfg_rows={id(cfg): (0,) for cfg in cfgs},
-    )
-
-    replicate(plan, stage=sim_utils.get_current_stage())
-
-    assert len(FakeCtx.instances) == 1
-    ctx = FakeCtx.instances[0]
-    assert len(ctx.queue_calls) == 1, "shared rows should collapse to one queue_mapping per backend"
-    sources, _destinations, mask = ctx.queue_calls[0]
-    assert sources == ("/World/envs/env_0",)
-    assert mask.shape == (1, 3)
-    assert ctx.replicate_calls == 1
-
-
-def test_replicate_runs_lower_priority_backends_first(sim):
-    """Sort order: lower replicate_priority runs first (physics before USD)."""
-
-    call_order: list[str] = []
-
-    class LowPriority:
-        replicate_priority = 0
-
-        def __init__(self, stage, *, global_paths):
-            pass
-
-        def queue_mapping(self, *args, **kwargs):
-            pass
-
-        def replicate(self):
-            call_order.append("low")
-
-    class HighPriority:
-        replicate_priority = 100
-
-        def __init__(self, stage, *, global_paths):
-            pass
-
-        def queue_mapping(self, *args, **kwargs):
-            pass
-
-        def replicate(self):
-            call_order.append("high")
-
-    cfg = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", spawn=None)
-    cfg.cloning_contexts = (HighPriority, LowPriority)
-    REPLICATION_QUEUE.append(cfg)
-
-    plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool, device=sim.cfg.device),
-        env_ids=torch.arange(2, dtype=torch.long, device=sim.cfg.device),
-        positions=None,
-        cfg_rows={id(cfg): (0,)},
-    )
-    replicate(plan, stage=sim_utils.get_current_stage())
-
-    assert call_order == ["low", "high"]
-
-
-def test_replicate_skips_cfgs_not_in_plan(sim):
-    """Cfgs absent from plan.cfg_rows are silently skipped."""
-    sentinel = MagicMock()
-    sentinel.replicate_priority = 0
-    sentinel.replicate.side_effect = lambda: None
-    sentinel_cls = MagicMock(return_value=sentinel)
-
-    excluded_cfg = SimpleNamespace(prim_path="/World/global/Skip")
-    excluded_cfg.cloning_contexts = (sentinel_cls,)
-    REPLICATION_QUEUE.append(excluded_cfg)
-
-    plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool, device=sim.cfg.device),
-        env_ids=torch.arange(2, dtype=torch.long, device=sim.cfg.device),
-        positions=None,
-        cfg_rows={},
-    )
-    replicate(plan, stage=sim_utils.get_current_stage())
-
-    sentinel_cls.assert_not_called()
-
-
-def test_replicate_clears_queue_on_backend_failure(sim):
-    """REPLICATION_QUEUE is drained even when a backend ctx raises mid-dispatch."""
-
-    class ExplodingCtx:
-        replicate_priority = 0
-
-        def __init__(self, stage, *, global_paths):
-            pass
-
-        def queue_mapping(self, *args, **kwargs):
-            pass
-
-        def replicate(self):
-            raise RuntimeError("backend boom")
-
-    cfg = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", spawn=None)
-    cfg.cloning_contexts = (ExplodingCtx,)
-    REPLICATION_QUEUE.append(cfg)
-
-    plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool, device=sim.cfg.device),
-        env_ids=torch.arange(2, dtype=torch.long, device=sim.cfg.device),
-        positions=None,
-        cfg_rows={id(cfg): (0,)},
-    )
-
-    with pytest.raises(RuntimeError, match="backend boom"):
-        replicate(plan, stage=sim_utils.get_current_stage())
-
-    assert REPLICATION_QUEUE == []
 
 
 def test_replicate_session_clears_queue_when_asset_init_fails(sim):
@@ -725,7 +485,6 @@ def test_replicate_session_clears_queue_when_asset_init_fails(sim):
             num_clones=2,
             env_spacing=1.0,
             device=sim.cfg.device,
-            stage=sim_utils.get_current_stage(),
         ):
             leaked_cfg.cloning_contexts = (sentinel_cls,)
             REPLICATION_QUEUE.append(leaked_cfg)

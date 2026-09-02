@@ -40,7 +40,7 @@ class DeformableRegistryEntry:
     """Entry in the deformable body registry.
 
     Registered by :class:`DeformableObject` during ``__init__``, consumed by
-    ``newton_physics_replicate`` inside the per-world ``begin_world``/``end_world`` loop.
+    the Newton clone context inside the per-world ``begin_world``/``end_world`` loop.
     After replication, ``particle_offsets`` and ``particles_per_body`` are filled in
     so the asset can bind to the correct particle ranges.
     """
@@ -65,7 +65,7 @@ class DeformableRegistryEntry:
     k_mu: float = 1e5
     k_lambda: float = 1e5
     k_damp: float = 0.0
-    # Filled by newton_physics_replicate:
+    # Filled by the Newton clone context:
     particle_offsets: list[int] = field(default_factory=list)
     particles_per_body: int = 0
 
@@ -869,7 +869,7 @@ class DeformableObject(BaseDeformableObject):
         if self._num_instances == 0:
             raise RuntimeError(
                 f"No deformable body instances found for '{self.cfg.prim_path}'. "
-                "Ensure newton_physics_replicate or MODEL_INIT processed the registry."
+                "Ensure clone-plan replication or MODEL_INIT processed the registry."
             )
 
         logger.info("Newton deformable object initialized at: %s", self.cfg.prim_path)

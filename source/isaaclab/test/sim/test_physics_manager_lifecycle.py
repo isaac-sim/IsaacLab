@@ -31,19 +31,25 @@ def test_backend_registry_uses_only_backend_type():
 
     context = object.__new__(SimulationContext)
     context._backend_registry = {}
+    context._backend_clone_roles = {}
     created = []
 
-    first = context.get_or_create_backend(Backend, 1)
-    same = context.get_or_create_backend(Backend, 2)
-    other_type = context.get_or_create_backend(OtherBackend, 4)
+    first = context.get_or_create_backend(Backend, 1, clone_role="physics")
+    same = context.get_or_create_backend(Backend, 2, clone_role="model")
+    other_type = context.get_or_create_backend(OtherBackend, 4, clone_role="scene")
+    same_other_type = context.get_or_create_backend(OtherBackend, 5, clone_role="model")
 
     assert same is first
-    assert other_type is not first
+    assert same_other_type is other_type is not first
     assert created == [1, 4]
     assert set(context._backend_registry) == {Backend, OtherBackend}
+    assert context._backend_clone_roles == {Backend: {"physics", "model"}, OtherBackend: {"scene", "model"}}
     assert "resource_key" not in inspect.signature(SimulationContext.get_or_create_backend).parameters
     cfg_types = (PhysicsCfg, RendererCfg, VisualizerCfg)
     assert all("resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in cfg_types)
+
+    with pytest.raises(ValueError, match="Unknown clone role"):
+        context.get_or_create_backend(Backend, clone_role="late")
 
 
 def test_service_locator_abstraction_is_removed():
@@ -226,6 +232,7 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
             OtherBackend: OtherBackend("backend_last"),
             InvalidBackend: InvalidBackend(),
         },
+        _backend_clone_roles={Backend: {"physics"}, OtherBackend: {"scene"}},
     )
     monkeypatch.setattr(SimulationContext, "_instance", context)
     monkeypatch.setattr(context_module.stage_utils, "close_stage", lambda: events.append("stage"))
@@ -253,6 +260,7 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
     ]
     assert context._visualizers == []
     assert context._backend_registry == {}
+    assert context._backend_clone_roles == {}
     assert SimulationContext.instance() is None
 
 
@@ -278,6 +286,7 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
     context._render_context = RenderContext()
     context._visualizers = []
     context._backend_registry = {}
+    context._backend_clone_roles = {}
     context_ref = weakref.ref(context)
     context_alive_during_gc = []
 

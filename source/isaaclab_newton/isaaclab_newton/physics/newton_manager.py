@@ -101,6 +101,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
     replicate_builder_mapping,
 )
+from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
@@ -567,6 +568,7 @@ class NewtonManager(PhysicsManager):
             sim_context: Parent simulation context.
         """
         super().initialize(sim_context)
+        sim_context.get_or_create_backend(NewtonReplicateContext, sim_context, clone_role="physics")
 
         # Newton-specific setup: get gravity from SimulationCfg (not physics manager cfg)
         sim = PhysicsManager._sim
@@ -1209,6 +1211,23 @@ class NewtonManager(PhysicsManager):
     def set_builder(cls, builder: ModelBuilder) -> None:
         """Set the Newton model builder."""
         NewtonManager._builder = builder
+
+    @staticmethod
+    def _publish_clone_state(
+        builder: ModelBuilder,
+        site_index_map: dict,
+        fabric_body_bindings: list[tuple[str, int]],
+        world_xforms: list[wp.transform],
+        source_builders: dict[str, ModelBuilder],
+        num_envs: int,
+    ) -> None:
+        """Publish one replicated builder and its plan-derived lookup data."""
+        NewtonManager._cl_site_index_map = site_index_map
+        NewtonManager._cl_fabric_body_bindings = fabric_body_bindings
+        NewtonManager._world_xforms = world_xforms
+        NewtonManager._cl_protos = source_builders
+        NewtonManager._builder = builder
+        NewtonManager._num_envs = num_envs
 
     @classmethod
     def create_builder(cls, up_axis: str | None = None, **kwargs) -> ModelBuilder:

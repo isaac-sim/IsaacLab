@@ -33,6 +33,7 @@ import omni.usd
 from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner import UsdReplicateContext
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
@@ -44,6 +45,8 @@ from isaaclab.scene_data.deformable_discovery import (
     resolve_deformable_vertex_count,
 )
 from isaaclab.utils.string import to_camel_case
+
+from isaaclab_physx.cloner import PhysxReplicateContext
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -424,6 +427,8 @@ class PhysxManager(PhysicsManager):
 
         super().initialize(sim_context)
         cls._stage_id = get_current_stage_id()
+        sim_context.get_or_create_backend(PhysxReplicateContext, sim_context.stage, clone_role="physics")
+        sim_context.get_or_create_backend(UsdReplicateContext, sim_context.stage, clone_role="scene")
 
         cls._setup_subscriptions()
         cls._configure_physics()

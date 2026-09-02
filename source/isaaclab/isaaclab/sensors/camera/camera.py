@@ -546,10 +546,6 @@ class Camera(SensorBase):
         # any renderer-side per-camera setup) and ``create_render_data`` consume
         # it, and the prims are already authored at this point.
         cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
-        env_0_prefix = "/World/envs/env_0/"
-        rel_under_env0 = (
-            cam_paths[0].removeprefix(env_0_prefix) if cam_paths and cam_paths[0].startswith(env_0_prefix) else ""
-        )
         device_str = self._device if isinstance(self._device, str) else str(self._device)
         render_spec = CameraRenderSpec(
             cfg=self.cfg,
@@ -557,7 +553,6 @@ class Camera(SensorBase):
             num_instances=self._num_envs,
             camera_prim_paths=cam_paths,
             view_count=self._num_envs,
-            camera_path_relative_to_env_0=rel_under_env0,
         )
 
         # Delegate per-camera USD setup to the renderer — must run **before**

@@ -85,10 +85,14 @@ component yet:
      - ``NewtonSceneDataBackend`` (in :mod:`isaaclab_newton.physics`)
      - ``OvPhysxSceneDataBackend`` (in :mod:`isaaclab_ov.physics`)
    * - Cloner
-     - :func:`~isaaclab.cloner.usd_replicate`
-     - :func:`~isaaclab_physx.cloner.physx_replicate`
-     - :func:`~isaaclab_newton.cloner.newton_physics_replicate`
-     - :func:`~isaaclab_ov.cloner.ovphysx_replicate`
+     - :class:`~isaaclab.cloner.UsdReplicateContext`
+     - :class:`~isaaclab_physx.cloner.PhysxReplicateContext`
+     - :class:`~isaaclab_newton.cloner.NewtonReplicateContext`
+     - :class:`~isaaclab_ov.cloner.OvPhysxReplicateContext`
+
+Each context consumes the same :class:`~isaaclab.cloner.ClonePlan` through
+``context.replicate(plan)``. The core cloner owns plan construction and dispatch;
+backend contexts only execute the rows routed to them.
 
 The Factory Pattern
 -------------------

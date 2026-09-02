@@ -245,6 +245,7 @@ def test_material_initialization_orders_paths_by_plan_column(monkeypatch: pytest
         destinations=("/World/envs/env_{}/Robot",) * 2,
         env_ids=torch.tensor([19, 42, 7]),
         clone_mask=torch.tensor([[True, True, False], [False, False, True]]),
+        positions=torch.zeros((3, 3)),
     )
     simulation = SimpleNamespace(get_clone_plan=lambda: plan)
     monkeypatch.setattr(
@@ -288,6 +289,7 @@ def test_material_initialization_rejects_partial_owner_row(monkeypatch: pytest.M
         destinations=("/World/envs/env_{}/Robot",),
         env_ids=torch.arange(4),
         clone_mask=torch.tensor([[True, True, False, False]]),
+        positions=torch.zeros((4, 3)),
     )
     simulation = SimpleNamespace(get_clone_plan=lambda: plan)
     monkeypatch.setattr(

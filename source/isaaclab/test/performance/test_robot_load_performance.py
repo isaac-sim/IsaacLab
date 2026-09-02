@@ -15,7 +15,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 import torch
-from isaaclab_physx.cloner import physx_replicate
+from isaaclab_physx.cloner import PhysxReplicateContext
 
 import isaaclab.sim.utils as sim_utils
 from isaaclab import cloner
@@ -63,14 +63,17 @@ def test_robot_load_performance(test_config, device):
         )
 
         # Replicate physics - mapping is (num_sources, num_envs) bool mask
-        physx_replicate(
-            stage=stage,
-            sources=[env_paths[0]],
-            destinations=["/World/Robots_{}"],
-            env_ids=torch.arange(NUM_ENVS),
-            mapping=torch.ones(1, NUM_ENVS, dtype=torch.bool),  # 1 source -> all envs
-            device=device,
+        env_ids = torch.arange(NUM_ENVS)
+        plan = cloner.ClonePlan(
+            sources=(env_paths[0],),
+            destinations=("/World/Robots_{}",),
+            clone_mask=torch.ones(1, NUM_ENVS, dtype=torch.bool),
+            env_ids=env_ids,
+            positions=positions,
+            context_rows={PhysxReplicateContext: (0,)},
+            env_template="/World/Robots_{}",
         )
+        sim.get_or_create_backend(PhysxReplicateContext, stage, clone_role="physics").replicate(plan)
 
         with Timer(f"{test_config['name']} load time for device {device}") as timer:
             robot = Articulation(test_config["robot_cfg"].replace(prim_path="/World/Robots_[^/]*/Robot"))  # noqa: F841

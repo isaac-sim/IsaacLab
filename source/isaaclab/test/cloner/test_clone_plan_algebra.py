@@ -12,6 +12,7 @@ simulator and no USD, so they live outside ``test/sim/``.
 
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -146,10 +147,13 @@ def test_path_stage_root_is_not_a_segment():
 
 
 def _plan(sources, destinations, mask) -> ClonePlan:
+    clone_mask = torch.tensor(mask, dtype=torch.bool)
     return ClonePlan(
         sources=tuple(sources),
         destinations=tuple(destinations),
-        clone_mask=torch.tensor(mask, dtype=torch.bool),
+        clone_mask=clone_mask,
+        env_ids=torch.arange(clone_mask.shape[1]),
+        positions=torch.zeros((clone_mask.shape[1], 3)),
     )
 
 
@@ -167,6 +171,8 @@ def _wide_env_id_plan() -> ClonePlan:
         sources=("/World/envs/env_0/Object", "/World/envs/env_10/Object"),
         destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
         clone_mask=mask,
+        env_ids=torch.arange(mask.shape[1]),
+        positions=torch.zeros((mask.shape[1], 3)),
     )
 
 
@@ -499,6 +505,7 @@ def test_query_translates_env_ids_through_the_plan():
         destinations=("/World/envs/env_{}/Robot",),
         clone_mask=torch.tensor([[True, True]], dtype=torch.bool),
         env_ids=torch.tensor([2, 5], dtype=torch.long),
+        positions=torch.zeros((2, 3)),
     )
     path = "/World/envs/env_2/Robot/base"
 
@@ -513,18 +520,16 @@ def test_query_translates_env_ids_through_the_plan():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is unavailable")
-def test_query_gathers_env_ids_across_devices():
-    """Environment ids can remain on CPU when the clone mask is on CUDA."""
-    plan = ClonePlan(
-        sources=("/World/envs/env_2/Robot",),
-        destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=torch.tensor([[True, False, True]], dtype=torch.bool, device="cuda"),
-        env_ids=torch.tensor([2, 5, 8], dtype=torch.long),
-    )
-    path = "/World/envs/env_2/Robot/base"
-
-    assert cloner.query.path_env_ids(plan, path) == (2, 8)
-    assert next(iter(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Robot")))[3] == (2, 8)
+def test_clone_plan_rejects_tensors_across_devices():
+    """One plan has one tensor device so every backend indexes the same relation."""
+    with pytest.raises(ValueError, match="same device"):
+        ClonePlan(
+            sources=("/World/envs/env_2/Robot",),
+            destinations=("/World/envs/env_{}/Robot",),
+            clone_mask=torch.tensor([[True, False, True]], dtype=torch.bool, device="cuda"),
+            env_ids=torch.tensor([2, 5, 8], dtype=torch.long),
+            positions=torch.zeros((3, 3), device="cuda"),
+        )
 
 
 @pytest.mark.parametrize("env_id", [-1, 4, 99])
@@ -556,9 +561,81 @@ def test_query_agrees_across_duplicate_source_rows():
         assert (cloner.query.path_to_clone(plan, path, env_id) is not None) == (env_id in reached)
 
 
-def test_env_0_plan_defaults_to_no_global_paths():
-    plan = cloner.clone_plan_from_env_0("/World/envs/env_0", "/World/envs/env_{}", 2, "cpu")
-    assert plan.global_paths == ()
+def test_env_0_plan_represents_shared_paths_as_exact_rows():
+    plan = cloner.clone_plan_from_env_0(
+        "/World/envs/env_0",
+        "/World/envs/env_{}",
+        2,
+        "cpu",
+        torch.zeros((2, 3)),
+        global_paths=("/World/Ground",),
+    )
+
+    assert plan.sources[-1] == plan.destinations[-1] == "/World/Ground"
+    assert not plan.clone_mask[-1].any()
+    assert cloner.query.path_to_source(plan, "/World/Ground/mesh") == (
+        "/World/Ground",
+        "/World/Ground",
+        "/mesh",
+    )
+    assert cloner.query.path_to_source(plan, "/World/Ground/mesh", env_id=1) == (
+        "/World/Ground",
+        "/World/Ground",
+        "/mesh",
+    )
+
+
+def test_make_clone_plan_keeps_homogeneous_environment_root():
+    """A homogeneous plan covers cfg-owned and hand-authored environment prims."""
+    cfgs = [
+        SimpleNamespace(prim_path=f"/World/envs/env_[^/]+/{name}", spawn=SimpleNamespace(), cloning_contexts=())
+        for name in ("Robot", "Object")
+    ]
+
+    plan = cloner.make_clone_plan(cfgs, 3, 1.0, "cpu")
+
+    assert plan.sources == ("/World/envs/env_0",)
+    assert plan.destinations == ("/World/envs/env_{}",)
+    assert plan.clone_mask.shape == (1, 3) and plan.clone_mask.all()
+    assert plan.cfg_rows[id(cfgs[0])] == plan.cfg_rows[id(cfgs[1])] == (0,)
+    assert tuple(cfg.spawn.spawn_path for cfg in cfgs) == (
+        "/World/envs/env_0/Robot",
+        "/World/envs/env_0/Object",
+    )
+
+
+def test_env_0_plan_maps_nested_cfg_to_parent_row():
+    """The direct workflow records nested cfg ownership without duplicating its copy row."""
+    parent = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", spawn=None, cloning_contexts=())
+    child = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot/Camera", spawn=None, cloning_contexts=())
+    cloner.REPLICATION_QUEUE.extend((child, parent))
+    try:
+        plan = cloner.clone_plan_from_env_0("/World/envs/env_0", "/World/envs/env_{}", 2, "cpu", torch.zeros((2, 3)))
+    finally:
+        cloner.REPLICATION_QUEUE.clear()
+
+    assert plan.sources == ("/World/envs/env_0",)
+    assert plan.cfg_rows[id(parent)] == plan.cfg_rows[id(child)] == (0,)
+    assert cloner.query.path_to_source(plan, "/World/envs/env_1/Table", env_id=1) == (
+        "/World/envs/env_0",
+        "/World/envs/env_[^/]+",
+        "/Table",
+    )
+
+
+def test_clone_mapping_collapses_flat_homogeneous_rows_for_whole_env_backends():
+    """A capable backend may project the flat relation to one environment-root copy."""
+    plan = _plan(
+        ("/World/envs/env_0/Robot", "/World/envs/env_0/Object"),
+        ("/World/envs/env_{}/Robot", "/World/envs/env_{}/Object"),
+        [[True, True], [True, True]],
+    )
+
+    sources, destinations, mapping = cloner.query._clone_mapping(plan, (0, 1), whole_env=True)
+
+    assert sources == ("/World/envs/env_0",)
+    assert destinations == ("/World/envs/env_{}",)
+    assert mapping.shape == (1, 2)
 
 
 def test_query_and_path_are_real_modules():
@@ -581,8 +658,83 @@ def test_cloner_imports_without_kit():
     import ``isaaclab.sim``, so this guards both against an import cycle and against pulling
     pxr in before Kit boots, which corrupts Kit's own USD runtime.
     """
-    probe = "import isaaclab.cloner, sys; print(any(n == 'pxr' or n.startswith('pxr.') for n in sys.modules))"
+    probe = (
+        "from isaaclab.cloner import ClonePlan; import sys; "
+        "print(any(n == 'pxr' or n.startswith('pxr.') for n in sys.modules))"
+    )
     result = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "False", "importing isaaclab.cloner pulled in pxr"
+    assert result.stdout.strip() == "False", "importing ClonePlan pulled in pxr"
+
+
+@pytest.mark.parametrize(
+    ("sources", "destinations", "mask", "message"),
+    [
+        (("/World/Ground",), ("/World/Ground",), [[True, False]], "empty clone mask"),
+        (("/World/Ground",), ("/World/Light",), [[False, False]], "source == destination"),
+        (("/World/A",), ("/World/envs/{}/{}",), [[True, True]], "exactly one clone slot"),
+        (("/World/A", "/World/B"), ("/World/envs/env_{}/A",), [[True, True]], "equal length"),
+    ],
+)
+def test_clone_plan_rejects_malformed_rows(sources, destinations, mask, message):
+    """Malformed relations fail at construction instead of changing query semantics."""
+    with pytest.raises(ValueError, match=message):
+        ClonePlan(
+            sources=sources,
+            destinations=destinations,
+            clone_mask=torch.tensor(mask, dtype=torch.bool),
+            env_ids=torch.arange(2),
+            positions=torch.zeros((2, 3)),
+        )
+
+
+def test_clone_plan_rejects_invalid_tensor_types_and_routes():
+    """The declared tensor and row-routing types are part of the plan contract."""
+    kwargs = dict(
+        sources=("/World/envs/env_0/A",),
+        destinations=("/World/envs/env_{}/A",),
+        positions=torch.zeros((2, 3)),
+    )
+    with pytest.raises(TypeError, match="bool tensor"):
+        ClonePlan(**kwargs, clone_mask=torch.ones((1, 2)), env_ids=torch.arange(2))
+    with pytest.raises(TypeError, match="torch.long"):
+        ClonePlan(
+            **kwargs,
+            clone_mask=torch.ones((1, 2), dtype=torch.bool),
+            env_ids=torch.arange(2, dtype=torch.int32),
+        )
+    with pytest.raises(ValueError, match="unique"):
+        ClonePlan(
+            **kwargs,
+            clone_mask=torch.ones((1, 2), dtype=torch.bool),
+            env_ids=torch.tensor([3, 3]),
+        )
+    with pytest.raises(ValueError, match="nonnegative"):
+        ClonePlan(
+            **kwargs,
+            clone_mask=torch.ones((1, 2), dtype=torch.bool),
+            env_ids=torch.tensor([-1, 3]),
+        )
+    with pytest.raises(ValueError, match="existing plan rows"):
+        ClonePlan(
+            **kwargs,
+            clone_mask=torch.ones((1, 2), dtype=torch.bool),
+            env_ids=torch.arange(2),
+            context_rows={object: (1,)},
+        )
+    with pytest.raises(ValueError, match="more than once"):
+        ClonePlan(
+            **kwargs,
+            clone_mask=torch.ones((1, 2), dtype=torch.bool),
+            env_ids=torch.arange(2),
+            context_rows={object: (0, 0)},
+        )
+    with pytest.raises(TypeError, match="positions"):
+        ClonePlan(
+            sources=kwargs["sources"],
+            destinations=kwargs["destinations"],
+            clone_mask=torch.ones((1, 2), dtype=torch.bool),
+            env_ids=torch.arange(2),
+            positions=None,
+        )
