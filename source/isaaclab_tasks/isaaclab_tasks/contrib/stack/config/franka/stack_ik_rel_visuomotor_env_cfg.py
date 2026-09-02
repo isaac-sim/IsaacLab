@@ -218,9 +218,6 @@ class FrankaCubeStackVisuomotorEnvCfg(StackEnvCfg):
         # post init of parent
         super().__post_init__()
 
-        # Limit the default camera allocation to avoid exhausting GPU memory.
-        self.scene.num_envs = 1
-
         # Set events
         self.events = EventCfg()
 

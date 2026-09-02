@@ -168,9 +168,6 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
         # post init of parent
         super().__post_init__()
 
-        # Limit the default camera allocation to avoid exhausting GPU memory.
-        self.scene.num_envs = 1
-
         # Set left and right wrist cameras for VLA policy training
         self.scene.right_wrist_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/right_arm_camera_sim_view_frame/right_camera",
