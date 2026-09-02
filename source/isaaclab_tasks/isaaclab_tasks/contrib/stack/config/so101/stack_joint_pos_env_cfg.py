@@ -64,8 +64,13 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
-        self.sim.physics.default = self.sim.physics.newton_mjwarp
         self.sim.physics.newton_mjwarp.solver_cfg.nconmax = 600
+        self.sim.physics = preset(
+            default=self.sim.physics.newton_mjwarp,
+            isaacsim_physx=self.sim.physics.isaacsim_physx,
+            physx=self.sim.physics.physx,
+            newton_mjwarp=self.sim.physics.newton_mjwarp,
+        )
 
         # Robot-neutral reset events, with the cube workspace shrunk to the SO-101's ~0.3 m reach
         # (Franka uses x in [0.4, 0.6]). The joint-randomization term holds the ``gripper`` joint

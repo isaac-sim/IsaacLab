@@ -67,6 +67,7 @@ class KeyboardAssetCfg(PresetCfg):
         spawn=MultiAssetSpawnerCfg(assets_cfg=list(TYPING_KEYBOARD_POOL.spawners_single), random_choice=False),
     )
     isaacsim_physx = default
+    physx = default
     default = newton_mjwarp
 
 

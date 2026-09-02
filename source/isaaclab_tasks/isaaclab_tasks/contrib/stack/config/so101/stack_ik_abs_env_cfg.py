@@ -221,6 +221,7 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
         # the "speed" knob; stiffness/damping keep the asset defaults. Tune in-sim (lower effort if
         # it still pushes through; raise it if the cube drops).
         self.scene.robot = self.scene.robot.replace(
+            soft_joint_pos_limit_factor=SO101_HIGH_PD_CFG.soft_joint_pos_limit_factor,
             spawn=SO101_HIGH_PD_CFG.spawn.replace(
                 variants={
                     "Robot": "robot",
