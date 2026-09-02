@@ -42,17 +42,9 @@ class RendererCfg:
     async_rendering: bool = False
     """Trade one frame of camera latency for pipelined rendering. Defaults to False (synchronous).
 
-    ``False`` renders synchronously: each render completes before the step returns. ``True``
-    pipelines rendering one frame deep, so rendering overlaps the next step's simulation and Python
-    work and camera outputs describe the simulation state from one step earlier. ``0``/``1`` are
-    accepted as shorthand, as are the usual string spellings through the environment variable;
-    frame counts above one are rejected until multi-frame latency lands.
-
-    Only the OVRTX renderer on its legacy stage path implements this; other renderers, and the
-    OVRTX ovstage path, warn and render synchronously. On ovstage each frame's scene writes must
-    drain the render still in flight (ovstage retains a single committed snapshot that renders
-    read in place), which leaves too little overlap to pay off — asynchronous ovstage rendering is
-    postponed until that is solved. Deeper queues on the legacy path are possible future work.
+    When enabled, rendering overlaps the next step's simulation and Python work, and camera
+    outputs describe the simulation state from one step earlier. Only the OVRTX renderer
+    implements this. Other renderers warn and render synchronously.
     :data:`ASYNC_RENDERING_ENV_VAR` overrides this value.
     """
 
