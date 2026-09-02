@@ -67,7 +67,7 @@ class FrankaDeformableCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 5000
     save_interval = 50
-    experiment_name = "franka_deformable_camera"
+    experiment_name = "lift_soft_camera"
     obs_groups = {
         "actor": ["policy", "proprio", "base_image"],
         "critic": ["policy", "proprio", "perception"],
@@ -90,6 +90,11 @@ class FrankaDeformableCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         activation="elu",
     )
     algorithm = ALGO_CFG.replace(num_mini_batches=8)
+
+
+@configclass
+class FrankaClothCameraPPORunnerCfg(FrankaDeformableCameraPPORunnerCfg):
+    experiment_name = "lift_cloth_camera"
 
 
 @configclass
