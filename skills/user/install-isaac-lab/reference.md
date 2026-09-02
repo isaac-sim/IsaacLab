@@ -1,5 +1,16 @@
 # Installing Isaac Lab Reference
 
+## Contents
+
+- [Preflight Detection](#preflight-detection)
+- [Express Route Mapping](#express-route-mapping)
+- [Express Flow Rules](#express-flow-rules)
+- [China Storage Profile](#china-storage-profile)
+- [Prerequisite Minimums](#prerequisite-minimums)
+- [Minimal Verification](#minimal-verification)
+- [Install-Time Failure Routing](#install-time-failure-routing)
+- [Cross-Skill Routing](#cross-skill-routing)
+
 ## Preflight Detection
 
 Read-only commands to gather routing facts on Linux; nothing changes system state:
@@ -8,6 +19,7 @@ Read-only commands to gather routing facts on Linux; nothing changes system stat
 grep PRETTY_NAME /etc/os-release && uname -m && ldd --version | head -1
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
 command -v python3.12 uv conda; free -g | head -2; df -h .
+env | grep -E '^(ISAACSIM_STORAGE_PROFILE|ISAACSIM_ASSET_ROOT)=' || true
 ```
 
 Also note existing install artifacts: `.venv/` or an env directory in the checkout, and `~/.isaaclab/install_profile.yaml`. On Windows, collect the equivalents (driver via `nvidia-smi`, Python version, free disk).
@@ -43,6 +55,27 @@ User-stated preferences override the routing and map directly:
 - Defaults: install into the current checkout, docs-default env name, docs-Recommended options. Never ask.
 - Log every executed command and its output to `~/.isaaclab/logs/install-<timestamp>.log`.
 - After success, write facts, route, and commands run to `~/.isaaclab/install_profile.yaml`.
+
+## China Storage Profile
+
+Use the China profile only when the user requests it or states that Isaac Lab will run in mainland China. Do not
+infer the profile from an IP address or other geolocation lookup.
+
+Read `docs/source/setup/installation/asset_caching_details.inc` from the checkout every time. Use its current profile
+setting and asset-availability manifest instead of copying release numbers, service endpoints, bucket names, or CDN
+URLs into the skill.
+
+- Add the documented profile environment variable to the install verification and subsequent example commands. Do
+  not edit shell startup files unless the user explicitly requests persistence.
+- If `ISAACSIM_ASSET_ROOT` is already set, explain that it takes precedence. When the user selected China storage,
+  include the platform-appropriate session-local unset command in the consolidated plan before setting the profile.
+- Before running or recommending an example that loads assets, find a manifest row for each required full relative
+  asset path. Treat a missing row as not mirrored, require an `available` status for every listed path, and use another
+  available asset or a local asset pack when needed.
+- Build asset URLs from profile-resolved Isaac Lab constants. Do not hard-code service endpoints in commands or
+  generated code.
+- Treat the normal minimal installation verification as a runtime check, not proof that every asset is available in
+  the China service.
 
 ## Prerequisite Minimums
 

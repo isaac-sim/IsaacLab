@@ -2,11 +2,13 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+import json
 import os
 import shutil
 import tempfile
 import uuid
 
+import h5py
 import pytest
 import torch
 
@@ -63,6 +65,42 @@ def test_create_dataset_file(temp_dir):
 
     # check if the dataset is created
     assert os.path.exists(dataset_file_path + ".hdf5")
+
+
+def test_add_env_args_preserves_existing_args_after_reopen(temp_dir):
+    """Test extending environment arguments after reopening a dataset."""
+    dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.create(dataset_file_path, "test_env_name")
+    dataset_file_handler.close()
+
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.open(dataset_file_path, mode="r+")
+    dataset_file_handler.add_env_args({"custom_arg": "custom_value"})
+    dataset_file_handler.close()
+
+    with h5py.File(dataset_file_path, "r") as dataset_file:
+        env_args = json.loads(dataset_file["data"].attrs["env_args"])
+
+    assert env_args == {"env_name": "test_env_name", "type": 2, "custom_arg": "custom_value"}
+
+
+def test_create_resets_env_args_when_reusing_handler(temp_dir):
+    """Test environment arguments do not leak between datasets."""
+    first_dataset_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
+    second_dataset_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.create(first_dataset_path, "first_env")
+    dataset_file_handler.add_env_args({"custom_arg": "custom_value"})
+    dataset_file_handler.close()
+
+    dataset_file_handler.create(second_dataset_path, "second_env")
+    dataset_file_handler.close()
+
+    with h5py.File(second_dataset_path, "r") as dataset_file:
+        env_args = json.loads(dataset_file["data"].attrs["env_args"])
+
+    assert env_args == {"env_name": "second_env", "type": 2}
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

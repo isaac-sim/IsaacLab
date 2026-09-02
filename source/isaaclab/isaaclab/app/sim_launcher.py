@@ -571,6 +571,11 @@ def launch_simulation(
 
     exit_code = 0
     try:
+        # The import stays after the Kit launch decision. With no selected profile this is a
+        # no-op; with one, it installs process-wide OmniClient routing before user code runs.
+        from isaaclab.utils.assets import configure_storage_profile
+
+        configure_storage_profile()
         yield physics_cfg
     except Exception:
         exit_code = 1

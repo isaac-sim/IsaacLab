@@ -470,6 +470,17 @@ run_tests() {
   elif docker cp "$container_name:/workspace/isaaclab/tests/ovrtx-logs" "$ovrtx_dir" 2>/dev/null; then
     echo "🟢 OVRTX renderer logs copied from container to $ovrtx_dir"
   fi
+
+  # Copy per-file thread stack dumps (written by tools/hang_dump.py when the runner kills a hung test).
+  # The reports carry these truncated to 10 000 chars; the whole dump is only here. Absent unless
+  # something hung, which is the normal case.
+  local hang_dir="$reports_dir/hang-dumps"
+  if [ -n "$volume_mount_source" ] && [ -d "${volume_mount_source}/tests/hang-dumps" ]; then
+    cp -r "${volume_mount_source}/tests/hang-dumps" "$hang_dir"
+    echo "🟢 Hang stack dumps copied to $hang_dir"
+  elif docker cp "$container_name:/workspace/isaaclab/tests/hang-dumps" "$hang_dir" 2>/dev/null; then
+    echo "🟢 Hang stack dumps copied from container to $hang_dir"
+  fi
   echo "::endgroup::"
 
   echo "::group::Cleanup"

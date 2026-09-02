@@ -111,6 +111,7 @@ def test_apply_articulation_root_properties_composes_namespaces():
             NewtonArticulationCfg(self_collision_enabled=True),
         ],
         stage,
+        create_if_missing=True,
     )
     prim = stage.GetPrimAtPath("/World/A3")
     assert bool(UsdPhysics.ArticulationRootAPI(prim))  # presence-gated anchor applied
@@ -141,7 +142,7 @@ def test_apply_articulation_root_properties_tunes_existing_child_root():
     UsdPhysics.ArticulationRootAPI.Apply(child)  # asset already carries its root on a child prim
 
     apply_articulation_root_properties(
-        "/World/Asset",
+        "/World/Asset(/.*)?",
         [PhysxArticulationCfg(solver_position_iteration_count=8)],
         stage,
     )
@@ -158,7 +159,7 @@ def test_apply_articulation_root_properties_tunes_existing_child_root():
 
 
 def test_apply_articulation_root_properties_processes_siblings_and_aggregates_results():
-    """Every non-nested sibling root is visited and a failing applier makes the family result False."""
+    """Every sibling root is visited and a failing applier makes the family result False."""
     from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
     from isaaclab.sim.schemas import apply_articulation_root_properties
@@ -166,7 +167,7 @@ def test_apply_articulation_root_properties_processes_siblings_and_aggregates_re
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
-    for path in ("/World/A", "/World/B", "/World/A/Nested"):
+    for path in ("/World/A", "/World/B"):
         root = _make_xform(stage, path)
         UsdPhysics.ArticulationRootAPI.Apply(root)
 
@@ -176,10 +177,62 @@ def test_apply_articulation_root_properties_processes_siblings_and_aggregates_re
         visited.append(path)
         return path != "/World/B"
 
-    result = apply_articulation_root_properties("/World", [PhysxArticulationCfg(func=record_result)], stage)
+    result = apply_articulation_root_properties("/World(/.*)?", [PhysxArticulationCfg(func=record_result)], stage)
 
     assert visited == ["/World/A", "/World/B"]
     assert result is False
+
+
+def test_apply_articulation_root_properties_warns_on_nested_roots(caplog):
+    """Nested roots matched by the expression are all authored, with a warning.
+
+    The writer trusts the expression; asset validity is the author's responsibility.
+    """
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    outer = UsdGeom.Xform.Define(stage, "/World/Bot").GetPrim()
+    inner = UsdGeom.Xform.Define(stage, "/World/Bot/base").GetPrim()
+    UsdPhysics.ArticulationRootAPI.Apply(outer)
+    UsdPhysics.ArticulationRootAPI.Apply(inner)
+
+    with caplog.at_level("WARNING"):
+        result = apply_articulation_root_properties(
+            "/World/Bot(/.*)?", [PhysxArticulationCfg(solver_position_iteration_count=8)], stage=stage
+        )
+
+    assert result is True
+    for prim in (outer, inner):
+        assert prim.GetAttribute("physxArticulation:solverPositionIterationCount").Get() == 8
+    assert "nested" in caplog.text.lower()
+
+
+def test_apply_articulation_root_properties_processes_sibling_roots_via_expression():
+    """Independent sibling articulations matched by one expression are all tuned."""
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    UsdGeom.Xform.Define(stage, "/World/Rig")
+    left = UsdGeom.Xform.Define(stage, "/World/Rig/armL").GetPrim()
+    right = UsdGeom.Xform.Define(stage, "/World/Rig/armR").GetPrim()
+    UsdPhysics.ArticulationRootAPI.Apply(left)
+    UsdPhysics.ArticulationRootAPI.Apply(right)
+
+    result = apply_articulation_root_properties(
+        "/World/Rig(/.*)?", [PhysxArticulationCfg(solver_position_iteration_count=8)], stage=stage
+    )
+
+    assert result is True
+    for prim in (left, right):
+        assert prim.GetAttribute("physxArticulation:solverPositionIterationCount").Get() == 8
 
 
 def test_apply_articulation_root_properties_does_not_duplicate_instance_proxy_root(caplog):
@@ -202,7 +255,7 @@ def test_apply_articulation_root_properties_does_not_duplicate_instance_proxy_ro
 
     with caplog.at_level("WARNING"):
         result = apply_articulation_root_properties(
-            "/World/Asset", [PhysxArticulationCfg(solver_position_iteration_count=4)], stage
+            "/World/Asset(/.*)?", [PhysxArticulationCfg(solver_position_iteration_count=4)], stage
         )
 
     assert result is False
@@ -258,7 +311,7 @@ def test_apply_articulation_root_properties_enables_existing_joint_and_relocates
     joint.CreateBody1Rel().SetTargets([root.GetPath()])
     joint.CreateJointEnabledAttr(False)
 
-    apply_articulation_root_properties("/World/ExistingJointRobot", [], stage, fix_root_link=True)
+    apply_articulation_root_properties("/World/ExistingJointRobot(/.*)?", [], stage, fix_root_link=True)
 
     joints = [prim for prim in stage.Traverse() if prim.IsA(UsdPhysics.FixedJoint)]
     assert joints == [joint.GetPrim()]
@@ -293,7 +346,7 @@ def test_apply_articulation_root_properties_creates_fixed_joint_and_reparents_ro
     assert not any(p.IsA(UsdPhysics.FixedJoint) for p in stage.Traverse())
 
     apply_articulation_root_properties(
-        "/World/Robot",
+        "/World/Robot(/.*)?",
         [PhysxArticulationCfg(articulation_enabled=True)],
         stage,
         fix_root_link=True,
@@ -371,7 +424,7 @@ def test_physx_and_newton_fragments_fix_root_link_keeps_single_root():
     UsdPhysics.ArticulationRootAPI.Apply(child)
 
     apply_articulation_root_properties(
-        "/World/Robot5",
+        "/World/Robot5(/.*)?",
         [
             PhysxArticulationCfg(solver_position_iteration_count=8),
             NewtonArticulationCfg(self_collision_enabled=True),
@@ -396,10 +449,11 @@ def test_physx_fix_root_link_migrates_preauthored_newton_root_api():
     """A pre-authored backend root API (as on URDF/MJCF-imported assets) moves with the root when
     PhysX relocates it, together with its authored attributes.
 
-    Regression: ``NewtonArticulationRootAPI`` composes ``PhysicsArticulationRootAPI``, so removing
-    only the directly applied anchor from the former root link leaves that prim an articulation root
-    through schema composition -- two roots -- with the ``newton:*`` values stranded on the wrong prim.
+    Regression: leaving the backend root API behind strands the ``newton:*`` values on the former
+    root link, and leaves that prim carrying a root API the relocation was meant to move.
     """
+    import isaaclab_newton.sim.schemas  # noqa: F401  -- registers the Newton root companion
+
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
     sim_utils.create_new_stage()
@@ -408,23 +462,24 @@ def test_physx_fix_root_link_migrates_preauthored_newton_root_api():
     _make_xform(stage, "/World/UrdfBot")
     child = _make_xform(stage, "/World/UrdfBot/base")
     UsdPhysics.RigidBodyAPI.Apply(child)
+    UsdPhysics.ArticulationRootAPI.Apply(child)
     # the asset ships with the Newton root API (and its attribute) already authored on the root link
     child.AddAppliedSchema("NewtonArticulationRootAPI")
     child.CreateAttribute("newton:selfCollisionEnabled", Sdf.ValueTypeNames.Bool).Set(True)
-    # precondition: the composed schema makes the prim an articulation root without a direct anchor
-    assert child.HasAPI(UsdPhysics.ArticulationRootAPI)
 
-    apply_articulation_root_properties("/World/UrdfBot", [], stage, fix_root_link=True)
+    apply_articulation_root_properties("/World/UrdfBot(/.*)?", [], stage, fix_root_link=True)
 
     parent = stage.GetPrimAtPath("/World/UrdfBot")
     # exactly one articulation root remains, and it is the (relocated) parent
     roots = [p for p in stage.Traverse() if p.HasAPI(UsdPhysics.ArticulationRootAPI)]
     assert len(roots) == 1 and roots[0] == parent
     # the pre-authored backend schema and its value moved with the root
-    assert "NewtonArticulationRootAPI" in parent.GetAppliedSchemas()
+    # a token schema is only visible through the prim type info, not GetAppliedSchemas()
+    assert "NewtonArticulationRootAPI" in parent.GetPrimTypeInfo().GetAppliedAPISchemas()
     assert parent.GetAttribute("newton:selfCollisionEnabled").Get() is True
-    # the former root link no longer carries the composed root API
+    # the former root link keeps neither the root anchor nor the stranded backend schema
     assert not child.HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert "NewtonArticulationRootAPI" not in child.GetPrimTypeInfo().GetAppliedAPISchemas()
 
 
 def test_physx_fix_root_link_preserves_complete_authored_property_spec():
@@ -449,7 +504,7 @@ def test_physx_fix_root_link_preserves_complete_authored_property_spec():
     source_attr.SetMetadata("documentation", "sampled sleep threshold")
     source_attr.AddConnection(driver_attr.GetPath())
 
-    apply_articulation_root_properties("/World/UsdBot", [], stage, fix_root_link=True)
+    apply_articulation_root_properties("/World/UsdBot(/.*)?", [], stage, fix_root_link=True)
 
     parent = stage.GetPrimAtPath("/World/UsdBot")
     assert parent.HasAPI(UsdPhysics.ArticulationRootAPI)
@@ -628,7 +683,7 @@ def test_newton_legacy_cfg_matches_equivalent_fragment_composition():
         stage,
     )
     apply_articulation_root_properties(
-        fragments.GetPath(),
+        fragments.GetPath().pathString,
         [
             PhysxArticulationCfg(articulation_enabled=False),
             NewtonArticulationCfg(self_collision_enabled=True),
@@ -642,7 +697,7 @@ def test_newton_legacy_cfg_matches_equivalent_fragment_composition():
 
 
 # -------------------------------------------------------------------------------------
-# end-to-end: the from-files transition bridge routes articulation_props by type
+# end-to-end: the from-files spawner routes articulation_props by type
 # -------------------------------------------------------------------------------------
 
 
@@ -657,9 +712,9 @@ def _author_articulation_usd(path: str) -> None:
     asset_stage.Save()
 
 
-@pytest.mark.parametrize("articulation_props", [None, []], ids=["none", "empty"])
+@pytest.mark.parametrize("articulation_props", [None, {}], ids=["none", "empty"])
 def test_spawn_from_usd_file_topology_only_honors_fix_root_link(tmp_path, articulation_props):
-    """None and an empty fragment collection both honor the independent topology flag."""
+    """None and an empty fragment mapping both honor the independent topology flag."""
     from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
     from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 
@@ -678,7 +733,7 @@ def test_spawn_from_usd_file_topology_only_honors_fix_root_link(tmp_path, articu
 
 
 def test_spawn_from_usd_file_applies_composed_fragment_list(tmp_path):
-    """The real FileCfg transition bridge composes backend fragments on the relocated root."""
+    """The real FileCfg fragment path composes backend fragments on the relocated root."""
     from isaaclab_newton.sim.schemas import NewtonArticulationCfg
     from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
@@ -691,10 +746,12 @@ def test_spawn_from_usd_file_applies_composed_fragment_list(tmp_path):
     _author_articulation_usd(usd_path)
     cfg = UsdFileCfg(
         usd_path=usd_path,
-        articulation_props=[
-            PhysxArticulationCfg(solver_position_iteration_count=8),
-            NewtonArticulationCfg(self_collision_enabled=True),
-        ],
+        articulation_props={
+            "(/.*)?": [
+                PhysxArticulationCfg(solver_position_iteration_count=8),
+                NewtonArticulationCfg(self_collision_enabled=True),
+            ],
+        },
         fix_root_link=True,
     )
 
@@ -722,3 +779,29 @@ def test_public_imports():
         SchemaFragment,
         apply_articulation_root_properties,
     )
+
+
+def test_apply_articulation_root_properties_creates_on_every_matched_prim():
+    """Creation applies the root API to every matched sibling prim; the expression is trusted."""
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    UsdGeom.Xform.Define(stage, "/World/Rig")
+    left = UsdGeom.Xform.Define(stage, "/World/Rig/armL").GetPrim()
+    right = UsdGeom.Xform.Define(stage, "/World/Rig/armR").GetPrim()
+
+    result = apply_articulation_root_properties(
+        "/World/Rig/.*",
+        [PhysxArticulationCfg(solver_position_iteration_count=8)],
+        stage=stage,
+        create_if_missing=True,
+    )
+
+    assert result is True
+    for prim in (left, right):
+        assert prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+        assert prim.GetAttribute("physxArticulation:solverPositionIterationCount").Get() == 8

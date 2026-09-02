@@ -45,7 +45,7 @@ Pass ``--deterministic`` to enable reproducible rendering from the app launcher.
 
       .. code-block:: bash
 
-        uv run isaaclab train --rl_library rl_games \
+        uv run --extra rl-games isaaclab train --rl_library rl_games \
           --task Isaac-Cartpole-Camera --deterministic
 
    .. tab-item:: isaaclab.sh / isaaclab.bat

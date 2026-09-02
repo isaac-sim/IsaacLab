@@ -213,10 +213,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
         rigid_body_paths: list[str] = []
         non_rigid_body_names: set[str] = set()
         for prim in stage.Traverse():
-            if prim.IsA(UsdPhysics.Joint):
-                continue
             prim_path = prim.GetPath().pathString
-            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI) and not prim.IsA(UsdPhysics.Joint):
                 rigid_body_paths.append(prim_path)
             elif re.search(r"/World/envs/env_\d+/", prim_path):
                 non_rigid_body_names.add(prim_path.rsplit("/", 1)[-1])

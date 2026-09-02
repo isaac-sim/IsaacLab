@@ -75,7 +75,7 @@ component yet:
      - :class:`~isaaclab_newton.sensors.ContactSensor`
      - :class:`~isaaclab_ov.sensors.ContactSensor`
    * - Renderer
-     - :class:`~isaaclab.renderers.Renderer`
+     - :class:`~isaaclab.renderers.BaseRenderer`
      - :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`
      - :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`
      - Not supported
@@ -122,21 +122,18 @@ All factories inherit from :class:`~isaaclab.utils.backend_utils.FactoryBase`, w
         │
         └─ Return backend-specific instance
 
-**Custom backend resolution:** Some factories override the default resolution. For example, the
-:class:`~isaaclab.renderers.Renderer` factory selects backends based on the renderer config type
-rather than the physics manager, because renderers and physics backends are independent:
+Renderers and visualizers do not use this physics factory. Their concrete configs own the
+implementation class, and their composition roots construct it with the same convention used by
+other declarative configs:
 
 .. code-block:: python
 
-    class Renderer(FactoryBase, BaseRenderer):
-        _backend_class_names = {
-            "physx": "IsaacRtxRenderer",
-            "newton": "NewtonWarpRenderer",
-            "ov": "OVRTXRenderer",
-        }
+    renderer = renderer_cfg.class_type(renderer_cfg)
+    visualizer = visualizer_cfg.class_type(visualizer_cfg)
 
-Similarly, visualizers select backends based on the ``visualizer_type`` field in their config,
-allowing any visualizer to work with any physics backend.
+The config determines the implementation independently of the physics backend. ``RenderContext``
+retains one renderer for each equal renderer config, while ``SimulationContext`` owns visualizer
+construction and initialization.
 
 Backend Selection
 -----------------

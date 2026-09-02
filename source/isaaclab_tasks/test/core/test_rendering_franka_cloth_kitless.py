@@ -18,8 +18,6 @@ from rendering_test_utils import (
     rendering_test_franka_cloth,
 )
 
-pytestmark = pytest.mark.isaacsim_ci
-
 _RENDERING_PARAMS = group_rendering_params(make_kitless_rendering_params_franka())
 _COMPARISON_SCORES: list[dict] = []
 

@@ -119,7 +119,7 @@ def test_mujoco_rigid_body_fragment_does_not_write_gravcomp_when_none():
 
 
 # -------------------------------------------------------------------------------------
-# apply_rigid_body_properties dispatch (implicit anchor + multi-namespace)
+# apply_rigid_body_properties dispatch (explicit anchor creation + multi-namespace)
 # -------------------------------------------------------------------------------------
 
 
@@ -140,17 +140,18 @@ def test_apply_rigid_body_properties_composes_namespaces():
             PhysxRigidBodyCfg(linear_damping=0.2),
             MujocoRigidBodyCfg(gravcomp=1.0),
         ],
-        stage,
+        create_if_missing=True,
+        stage=stage,
     )
     prim = stage.GetPrimAtPath("/World/B4")
-    assert bool(UsdPhysics.RigidBodyAPI(prim))  # implicit anchor applied
+    assert bool(UsdPhysics.RigidBodyAPI(prim))  # anchor created on the bare prim
     assert prim.GetAttribute("physics:rigidBodyEnabled").Get() is True
     assert abs(prim.GetAttribute("physxRigidBody:linearDamping").Get() - 0.2) < 1e-6
     assert abs(prim.GetAttribute("mjc:gravcomp").Get() - 1.0) < 1e-6
 
 
 # -------------------------------------------------------------------------------------
-# spawner slot accepts a fragment list + transition routing
+# spawner slot accepts a fragment mapping + routing by type
 # -------------------------------------------------------------------------------------
 
 
@@ -163,7 +164,7 @@ def test_spawn_shape_with_rigid_fragment_list():
     SimulationContext(SimulationCfg(dt=0.01))
     cfg = sim_utils.CuboidCfg(
         size=(1, 1, 1),
-        rigid_props=[UsdPhysicsRigidBodyCfg(rigid_body_enabled=True), PhysxRigidBodyCfg(linear_damping=0.3)],
+        rigid_props={"": [UsdPhysicsRigidBodyCfg(rigid_body_enabled=True), PhysxRigidBodyCfg(linear_damping=0.3)]},
     )
     cfg.func("/World/Cube", cfg)
     prim = sim_utils.get_current_stage().GetPrimAtPath("/World/Cube")
@@ -205,14 +206,18 @@ def test_apply_namespaced_raises_on_invalid_prim():
         apply_namespaced(UsdPhysicsRigidBodyCfg(rigid_body_enabled=True), "/World/DoesNotExist", stage)
 
 
-def test_apply_rigid_body_properties_raises_on_invalid_prim():
+def test_apply_rigid_body_properties_warns_on_unmatched_path(caplog):
     from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg, apply_rigid_body_properties
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
-    with pytest.raises(ValueError):
-        apply_rigid_body_properties("/World/DoesNotExist", [UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)], stage)
+    with caplog.at_level("WARNING"):
+        result = apply_rigid_body_properties(
+            "/World/DoesNotExist", [UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)], stage=stage
+        )
+    assert result is False
+    assert "/World/DoesNotExist" in caplog.text
 
 
 def test_apply_rigid_body_properties_aggregates_fragment_results():
@@ -226,11 +231,11 @@ def test_apply_rigid_body_properties_aggregates_fragment_results():
     # a fragment whose applier reports failure must make the aggregate return False
     failing = UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
     failing.func = lambda cfg, prim_path, stage=None: False
-    assert apply_rigid_body_properties("/World/Agg", [failing], stage) is False
+    assert apply_rigid_body_properties("/World/Agg", [failing], create_if_missing=True, stage=stage) is False
 
     # all-succeeding fragments return True
     ok = UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
-    assert apply_rigid_body_properties("/World/Agg", [ok], stage) is True
+    assert apply_rigid_body_properties("/World/Agg", [ok], stage=stage) is True
 
 
 def test_apply_namespaced_raises_without_namespace():
@@ -253,3 +258,46 @@ def test_apply_namespaced_raises_without_namespace():
     UsdPhysics.RigidBodyAPI.Apply(prim)
     with pytest.raises(ValueError):
         apply_namespaced(_NoNamespaceFragment(rigid_body_enabled=True), "/World/NoNs", stage)
+
+
+def test_fragment_mapping_normalizes_bare_fragment_and_list():
+    """A bare fragment (or list) on a spawner field is shorthand for the anchor-prim mapping."""
+    from isaaclab.sim.schemas import MassCfg, MassPropertiesCfg, UsdPhysicsRigidBodyCfg
+    from isaaclab.sim.spawners._utils import fragment_mapping
+
+    frag = UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
+    assert fragment_mapping(frag) == {"": [frag]}
+
+    a, b = MassCfg(mass=1.0), MassCfg(density=10.0)
+    assert fragment_mapping([a, b]) == {"": [a, b]}
+    assert fragment_mapping((a, b)) == {"": [a, b]}
+
+    # an explicit mapping is passed through untouched
+    mapping = {"/.*": [frag]}
+    assert fragment_mapping(mapping) is mapping
+
+    # legacy dataclass cfgs report None so callers route them to the legacy writers
+    assert fragment_mapping(MassPropertiesCfg(mass=1.0)) is None
+    assert fragment_mapping(None) is None
+
+
+def test_shape_spawner_accepts_bare_fragment_for_props():
+    """A bare fragment authors on the shape's anchor prim, exactly as ``{"": [...]}`` would."""
+    from pxr import UsdPhysics
+
+    from isaaclab.sim.schemas import MassCfg, UsdPhysicsRigidBodyCfg
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    cfg = sim_utils.CuboidCfg(
+        size=(0.1, 0.1, 0.1),
+        rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+        mass_props=MassCfg(mass=0.5),
+    )
+    cfg.func("/World/Bare", cfg)
+
+    prim = stage.GetPrimAtPath("/World/Bare")
+    assert prim.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert prim.GetAttribute("physics:rigidBodyEnabled").Get() is True
+    assert abs(prim.GetAttribute("physics:mass").Get() - 0.5) < 1e-6

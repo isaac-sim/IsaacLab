@@ -101,10 +101,6 @@ from isaaclab_tasks.utils.preset_target import PresetTarget
 
 _TRAINING_COMPLETE_FILENAME = ".pretrained_checkpoint_training_complete"
 _CORE_WORKFLOWS = ("rl_games", "rsl_rl", "skrl")
-_NEWTON_MJWARP_EXCLUSIONS = {
-    # The OSC controller destabilizes MJWarp's articulated-body dynamics.
-    "Isaac-Reach-Franka-OSC",
-}
 
 
 @dataclass(frozen=True)
@@ -255,7 +251,7 @@ def _select_workflow(task_spec: gym.EnvSpec, env_cfg) -> tuple[str, str | None, 
 def _select_physics_variants(
     task_name: str,
     variants: list[str],
-    default_backend: str,
+    default_backend: str | None,
     requested_backends: list[str],
 ) -> list[tuple[str, str | None]]:
     """Return normalized physics backends and their task preset selectors."""
@@ -270,8 +266,6 @@ def _select_physics_variants(
                     (candidate for candidate in ("newton_mjwarp", "newton_mjwarp_vbd") if candidate in variants),
                     None,
                 )
-                if task_name in _NEWTON_MJWARP_EXCLUSIONS:
-                    selector = None
             if selector is None:
                 continue
         elif backend != default_backend:
@@ -319,12 +313,14 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
         if not _is_core_task(task_spec):
             continue
 
-        env_cfg = parse_env_cfg(task_spec.id)
-        default_physics, _ = get_pretrained_checkpoint_backend_names(env_cfg)
-        workflow, agent, algorithm = _select_workflow(task_spec, env_cfg)
         preset_map = enumerate_task_presets(task_spec.id) or {}
         physics_variants = preset_map.get(PresetTarget.PHYSICS, [])
         render_variants = preset_map.get(PresetTarget.RENDERER, [])
+        env_cfg = parse_env_cfg(task_spec.id)
+        workflow, agent, algorithm = _select_workflow(task_spec, env_cfg)
+        default_physics = None
+        if not physics_variants:
+            default_physics, _ = get_pretrained_checkpoint_backend_names(env_cfg)
 
         physics_selections = _select_physics_variants(
             task_spec.id,

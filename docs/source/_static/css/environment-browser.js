@@ -91,6 +91,7 @@
             ["IsaacContrib-Lift-Cube-Franka-IK-Abs", "", "", "", "", {}, "tasks/manipulation/franka_lift.jpg"],
             ["IsaacContrib-Lift-Cube-Franka-IK-Rel", "", "", "", "", {}, "tasks/manipulation/franka_lift.jpg"],
             ["IsaacContrib-Lift-Cube-OpenArm", "rl_games,rsl_rl", "", "", "", {}, "tasks/manipulation/openarm_uni_lift.jpg"],
+            ["IsaacContrib-Multitask-Manipulation", "rsl_rl", "isaacsim_physx", "", "", {}, "tasks/manipulation/multitask_manipulation.jpg"],
             ["IsaacContrib-Navigation-3DObstacles-ARL-Robot-1", "rl_games,rsl_rl,skrl", "", "", "", {}, "tasks/drone_arl/arl_robot_1_navigation.jpg"],
             ["IsaacContrib-Navigation-Flat-AnymalC", "rsl_rl,skrl", "", "", "", {}, "tasks/navigation/anymal_c_nav.jpg"],
             ["IsaacContrib-NutPour-GR1T2-Pink-IK-Abs", "", "", "", ""],
@@ -194,6 +195,7 @@
         task: "Isaac-Cartpole",
         benchmarkWorkload: "runtime",
     };
+    const rlLibraryExtras = {rl_games: "rl-games", sb3: "sb3", skrl: "skrl", rlinf: "rlinf"};
     let benchmarkRows = [];
 
     const categoryFor = (task) => {
@@ -311,10 +313,13 @@
         if (fields.physics.value === "isaacsim_physx" || fields.renderer.value === "isaacsim_rtx") {
             extras.push("isaacsim");
         }
+        if (rlLibraryExtras[fields.rl.value]) {
+            extras.push(rlLibraryExtras[fields.rl.value]);
+        }
 
         const parts = ["uv", "run"];
-        for (const extra of extras) {
-            parts.push("--extra", extra);
+        if (extras.length) {
+            parts.push("--extra", extras.join(","));
         }
         const task = selectedTask();
         const supportsRl = task.rl.length > 0;

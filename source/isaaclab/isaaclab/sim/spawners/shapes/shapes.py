@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from pxr import Usd, UsdGeom
 
 from isaaclab.sim import schemas
+from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
 from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
 
@@ -355,11 +356,16 @@ def _spawn_geom_from_prim_type(
     if geometry_schema_func is not None:
         geometry_schema_func(mesh_prim_path, stage=stage)
     # apply collision properties
+    # fragment path: a mapping from target pattern to fragment list, applied entry by entry in
+    # insertion order; patterns anchor at the geometry prim this spawner authors, so ``""``
+    # preserves the legacy placement. Otherwise a legacy cfg routes to the legacy writer.
     if getattr(cfg, "collision_props", None) is not None:
-        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
-        coll_frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
-        if coll_frags and all(isinstance(f, schemas.SchemaFragment) for f in coll_frags):
-            schemas.apply_collision_properties(mesh_prim_path, coll_frags, stage=stage)
+        collision_props_mapping = fragment_mapping(cfg.collision_props)
+        if collision_props_mapping is not None:
+            for pattern, fragments in collision_props_mapping.items():
+                schemas.apply_collision_properties(
+                    props_expr(mesh_prim_path, pattern), fragments, create_if_missing=True, stage=stage
+                )
         else:
             schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
     # apply visual material
@@ -385,19 +391,24 @@ def _spawn_geom_from_prim_type(
 
     # note: we apply rigid properties in the end to later make the instanceable prim
     # apply mass properties
+    # fragment path: mapping entries anchor at the container prim, so ``""`` preserves the legacy
+    # placement; entries apply in insertion order. Otherwise a legacy cfg routes to the legacy writer.
     if getattr(cfg, "mass_props", None) is not None:
-        # transition shim, remove later: fragment(s) -> apply_*; legacy cfg -> define_*
-        # normalize a single fragment to a list so the convenience form routes like a list
-        mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, schemas.SchemaFragment) else cfg.mass_props
-        if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
-            schemas.apply_mass_properties(prim_path, mass_frags, stage=stage)
+        mass_props_mapping = fragment_mapping(cfg.mass_props)
+        if mass_props_mapping is not None:
+            for pattern, fragments in mass_props_mapping.items():
+                schemas.apply_mass_properties(
+                    props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
+                )
         else:
             schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
     # apply rigid body properties
     if getattr(cfg, "rigid_props", None) is not None:
-        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
-        rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
-        if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):
-            schemas.apply_rigid_body_properties(prim_path, rigid_frags, stage=stage)
+        rigid_props_mapping = fragment_mapping(cfg.rigid_props)
+        if rigid_props_mapping is not None:
+            for pattern, fragments in rigid_props_mapping.items():
+                schemas.apply_rigid_body_properties(
+                    props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
+                )
         else:
             schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)

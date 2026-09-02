@@ -9,14 +9,16 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Mapping
+from types import MappingProxyType
 
 from pxr import Sdf, Usd, UsdGeom
 
 logger = logging.getLogger(__name__)
 
 
-# Maps camera data types to render-var configs. OVRTX frame vars are keyed by source name,
-# so shared sources use one config.
+# Maps camera data types to (prim path, prim name, source name). Shared sources use one config.
+# OVRTX 0.4 keys ``frame.render_vars`` by source name; 0.5+ keys them by the RenderVar prim path.
 _RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str, str]] = {
     "rgb": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
     "rgba": ("/Render/Vars/LdrColor", "LdrColor", "LdrColor"),
@@ -52,6 +54,17 @@ _SIMPLE_SHADING_DATA_TYPES = frozenset(
 _COLOR_DATA_TYPES = frozenset({"rgb", "rgba"})
 
 _DEFAULT_RENDER_VAR = _RENDER_VAR_BY_DATA_TYPE["rgb"]
+
+# Segmentation ID-map vars are authored alongside the pixel AOVs, not as camera data types.
+_SEGMENTATION_MAP_RENDER_VARS: tuple[tuple[str, str, str], ...] = (
+    ("/Render/Vars/StableIdSemanticIdMap", "StableIdSemanticIdMap", "StableIdSemanticIdMap"),
+    ("/Render/Vars/StableIdMap", "StableIdMap", "StableIdMap"),
+    ("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"),
+)
+
+_RENDER_VAR_PRIM_PATH_BY_SOURCE: Mapping[str, str] = MappingProxyType(
+    {source: path for path, _, source in (*_RENDER_VAR_BY_DATA_TYPE.values(), *_SEGMENTATION_MAP_RENDER_VARS)}
+)
 
 
 def _validate_data_type_combination(data_types: list[str]) -> None:
@@ -131,13 +144,23 @@ def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
     # Author the ID-to-label map render vars needed to decode the segmentation info dicts.
     # instance_segmentation needs StableIdSemanticIdMap + StableIdMap to resolve each pixel to a prim path.
     if "instance_segmentation" in data_types:
-        render_vars.append(("/Render/Vars/StableIdSemanticIdMap", "StableIdSemanticIdMap", "StableIdSemanticIdMap"))
-        render_vars.append(("/Render/Vars/StableIdMap", "StableIdMap", "StableIdMap"))
+        render_vars.append(_SEGMENTATION_MAP_RENDER_VARS[0])
+        render_vars.append(_SEGMENTATION_MAP_RENDER_VARS[1])
     # SemanticIdMap resolves the semantic-ID-to-label mapping and is shared by both semantic_segmentation and
     # instance_segmentation, so it is authored once when either output is requested.
     if "semantic_segmentation" in data_types or "instance_segmentation" in data_types:
-        render_vars.append(("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"))
+        render_vars.append(_SEGMENTATION_MAP_RENDER_VARS[2])
     return render_vars
+
+
+def render_var_prim_paths_by_source() -> Mapping[str, str]:
+    """Return the authored RenderVar prim path of every OVRTX render-var source.
+
+    Returns:
+        Read-only mapping of render-var source name to the absolute path of the ``RenderVar``
+        prim this module authors for it.
+    """
+    return _RENDER_VAR_PRIM_PATH_BY_SOURCE
 
 
 def build_render_scope_usd(
@@ -151,6 +174,7 @@ def build_render_scope_usd(
     minimal_mode: int | None = None,
     render_var_configs: list[tuple[str, str, str]] | None = None,
     background_color: tuple[float, float, float] | None = None,
+    device_id: int | None = None,
 ) -> str:
     """Build the Render scope USD string (def Scope Render, RenderProduct, Vars).
 
@@ -167,11 +191,17 @@ def build_render_scope_usd(
         background_color: Solid background color as normalized RGB floats ``(r, g, b)`` in ``[0, 1]``.
             When set, the render product uses a solid color background instead of the dome light.
             When ``None``, the default dome-light background is used.
+        device_id: CUDA device index the render product is pinned to via ``deviceIds``. When ``None``,
+            OVRTX assigns the device automatically.
 
     Returns:
         The USD string for the render scope.
     """
     camera_rel_list = ", ".join([f"<{p}>" for p in camera_paths])
+    # OVRTX reads ``deviceIds`` as CUDA indices and returns render var buffers on that device. Left
+    # unauthored it picks its own device, which on a multi-GPU machine can differ from the device the
+    # consuming Warp kernels run on -- an illegal access without peer access, silent garbage with it.
+    device_ids_line = "" if device_id is None else f"\n        uint[] deviceIds = [{device_id}]"
 
     if background_color is None:
         bg_type_line = 'token omni:rtx:background:source:type = "domeLight"'
@@ -208,7 +238,7 @@ def Scope "Render"
     def RenderProduct "{render_product_name}" (
         prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
     ) {{
-        rel camera = [{camera_rel_list}]
+        rel camera = [{camera_rel_list}]{device_ids_line}
         {bg_type_line}
         float omni:rtx:rt:ambientLight:intensity = 1.0
         {render_mode_block}
@@ -240,6 +270,7 @@ def build_render_product_as_string(
     minimal_mode: int | None = None,
     camera_rel_path: str = "Camera",
     background_color: tuple[float, float, float] | None = None,
+    device_id: int | None = None,
 ) -> tuple[str, str]:
     """Build the render product USD snippet as a string.
 
@@ -258,6 +289,9 @@ def build_render_product_as_string(
         background_color: Solid background color as normalized RGB floats ``(r, g, b)`` in ``[0, 1]``.
             When set, the render product uses a solid color background instead of the dome light.
             When ``None``, the default dome-light background is used.
+        device_id: CUDA device index the render product is pinned to, so its render var buffers are
+            allocated on the same device as the Warp kernels that read them. When ``None``, OVRTX
+            assigns the device automatically.
 
     Returns:
         Tuple of (render product USD snippet as a string, absolute render product prim path).
@@ -283,6 +317,7 @@ def build_render_product_as_string(
         minimal_mode,
         render_var_configs,
         background_color,
+        device_id,
     )
     return camera_content, render_product_path
 

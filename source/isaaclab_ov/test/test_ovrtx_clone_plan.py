@@ -24,7 +24,6 @@ _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
 pytestmark = [
-    pytest.mark.isaacsim_ci,
     pytest.mark.skipif(
         bool(_MISSING_MODULES),
         reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
@@ -33,11 +32,13 @@ pytestmark = [
 
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
+    from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer, _write_file  # noqa: E402
 
     from pxr import Sdf, Usd, UsdGeom, UsdShade  # noqa: E402
 else:
     OVRTXRenderer = None
+    ovrtx_renderer_module = None
     OVRTXRendererCfg = None
     Sdf = None
     Usd = None
@@ -100,6 +101,9 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         write_attribute=lambda *args, **kwargs: None,
     )
     renderer._clone_plan = None
+    renderer._device = "cuda:0"  # __init__'s default, replaced by create_render_data(spec)
+    # create_render_data resolves this from the spec; tests that bypass it get the default.
+    renderer._warp_device = SimpleNamespace(ordinal=0)
     renderer._camera_rel_path = "Camera"
     renderer._render_product_paths = []
     renderer._exported_usd_string = None
@@ -110,7 +114,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     return renderer
 
 
-def _make_camera_render_spec(num_envs: int = 1) -> CameraRenderSpec:
+def _make_camera_render_spec(num_envs: int = 1, device: str = "cpu") -> CameraRenderSpec:
     spawn = PinholeCameraCfg(
         focal_length=24.0,
         focus_distance=400.0,
@@ -127,7 +131,7 @@ def _make_camera_render_spec(num_envs: int = 1) -> CameraRenderSpec:
     camera_paths = tuple(f"/World/envs/env_{env_idx}/Camera" for env_idx in range(num_envs))
     return CameraRenderSpec(
         cfg=cfg,
-        device="cpu",
+        device=device,
         num_instances=num_envs,
         camera_prim_paths=camera_paths,
         view_count=num_envs,
@@ -448,6 +452,33 @@ def test_initialize_from_spec_writes_combined_stage_dump(tmp_path: Path):
     assert 'def RenderProduct "RenderProduct"' in combined_text
     assert open_calls == [combined_text]
     assert renderer._exported_usd_string is None
+
+
+def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """The render product is pinned to the CUDA device whose Warp kernels read its render vars.
+
+    Without this, OVRTX picks the device itself and hands back buffers on ``cuda:0`` while the tile
+    extraction kernels launch on the simulation device.
+    """
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer.cfg.temp_usd_dir = str(tmp_path)
+    renderer._exported_usd_string = "#usda 1.0\n"
+
+    renderer._renderer.open_usd_from_string = lambda _usd_string: None
+    renderer._renderer.bind_attribute = lambda **kwargs: object()
+    renderer._renderer.write_attribute = lambda **kwargs: None
+
+    class _FakeWarpDevice:
+        ordinal = 1
+
+        def __str__(self) -> str:
+            return "cuda:1"
+
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_device", lambda device: _FakeWarpDevice())
+    renderer.create_render_data(_make_camera_render_spec(num_envs=1, device="cuda:1"))
+
+    combined_text = (tmp_path / _OVRTX_STAGE_FILE).read_text(encoding="utf-8")
+    assert "uint[] deviceIds = [1]" in combined_text
 
 
 def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():

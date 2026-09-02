@@ -84,7 +84,36 @@ def _deprioritize_prebundle_paths():
         os.environ["PYTHONPATH"] = os.pathsep.join(env_clean + env_demoted)
 
 
+def _expose_mujoco_usd_schemas():
+    """Put the MuJoCo USD schemas on OpenUSD's plugin search path."""
+    plugins = None
+    spec = find_spec("mujoco_usd_converter")
+    if spec is not None and spec.origin is not None:
+        plugins = os.path.join(os.path.dirname(spec.origin), "plugins")
+
+    # Source Isaac Sim exposes this prebundle only after Kit starts, which is too late for the
+    # schema registry. Its root is available earlier through the launcher environment.
+    if plugins is None or not os.path.isdir(plugins):
+        isaac_path = os.environ.get("ISAAC_PATH")
+        if isaac_path is None:
+            return
+        plugins = os.path.join(
+            isaac_path,
+            "exts",
+            "isaacsim.pip.newton",
+            "pip_prebundle",
+            "mujoco_usd_converter",
+            "plugins",
+        )
+    if not os.path.isdir(plugins):
+        return
+    search_path = os.environ.get("PXR_PLUGINPATH_NAME", "")
+    if plugins not in search_path.split(os.pathsep):
+        os.environ["PXR_PLUGINPATH_NAME"] = os.pathsep.join(filter(None, (search_path, plugins)))
+
+
 _deprioritize_prebundle_paths()
+_expose_mujoco_usd_schemas()
 
 
 # TODO(myurasov-nv): bootstrap_kernel() is ported from the internal GitLab wheel builder

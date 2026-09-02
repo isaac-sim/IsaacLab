@@ -16,6 +16,8 @@ The teapot is a hollow, double-walled shell, so the fluid is seeded in its enclo
     uv run python scripts/demos/mpm/teapot_fill.py --visualizer newton_gl --fluid_render_mode both
     # Photorealistic translucent water:
     uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer newton_rtx
+    # The translucent water material needs the RTX/Kit visualizer:
+    uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer kit
     # Fuller / coarser (faster) fill:
     uv run python scripts/demos/mpm/teapot_fill.py --fill_level 1.0 --fill_spacing 0.003
 """
@@ -37,10 +39,10 @@ DEFAULT_VOXEL_SIZE = 0.003
 DEFAULT_PARTICLES_PER_VOXEL_AXIS = 2.0
 DEFAULT_FILL_LEVEL = 0.70
 DEFAULT_MIN_RAY_HITS = 5
-# SimReady is a separately versioned catalog from the general Isaac asset root.
-SIMREADY_ASSET_ROOT = "https://omniverse-content-production.s3.amazonaws.com/Assets/Isaac/6.0/Isaac/SimReady"
-ISLAND_USD = f"{SIMREADY_ASSET_ROOT}/Residential/Kitchen/Counters/Island_A01/sm_fixture_island_a01_01.usd"
-BOWL_USD = f"{SIMREADY_ASSET_ROOT}/Residential/Kitchen/Dishware/Bowl_G01/sm_kitchenware_bowl_g01_01.usd"
+DEFAULT_ISLAND_USD = (
+    f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Kitchen/Counters/Island_A01/sm_fixture_island_a01_01.usd"
+)
+DEFAULT_BOWL_USD = f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Kitchen/Dishware/Bowl_G01/sm_kitchenware_bowl_g01_01.usd"
 
 
 def _positive_finite_float(value: str) -> float:
@@ -122,6 +124,18 @@ parser.add_argument(
     default=f"{ISAAC_NUCLEUS_DIR}/Props/Teapot/utah_teapot.usdc",
     help="USD asset used as the pouring container (rigid collider).",
 )
+parser.add_argument(
+    "--island_usd",
+    type=str,
+    default=DEFAULT_ISLAND_USD,
+    help="Optional Kit kitchen-island visual. An empty or unavailable path uses the procedural table.",
+)
+parser.add_argument(
+    "--bowl_usd",
+    type=str,
+    default=DEFAULT_BOWL_USD,
+    help="Optional Kit catch-bowl visual. An empty or unavailable path uses the procedural bowl.",
+)
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
@@ -167,7 +181,7 @@ TABLE_TOP_Z = 0.90041
 TABLE_HALF_EXTENTS = (0.31565, 0.62045, 0.009)
 TABLE_ORIENTATION = (0.0, 0.0, -math.sin(0.25 * math.pi), math.cos(0.25 * math.pi))
 BOWL_SCALE = 1.0
-# Proxy dimensions measured from the pinned Bowl_G01 visual asset.
+# Proxy dimensions measured from the default Bowl_G01 visual asset.
 BOWL_LOCAL_Z_MIN = 0.000001783
 BOWL_LOCAL_Z_MAX = 0.043571252
 BOWL_INNER_BOTTOM_RADIUS = 0.0254
@@ -180,6 +194,8 @@ BOWL_WORLD_TOP_Z = BOWL_BASE_POS[2] + BOWL_SCALE * BOWL_LOCAL_Z_MAX
 CONTAINER_BASE_POS = (-0.105, 0.0, BOWL_WORLD_TOP_Z + 0.115)
 
 CONTAINER_COLOR = (0.70, 0.35, 0.16)
+TABLE_COLOR = (0.48, 0.38, 0.26)
+BOWL_COLOR = (1.0, 1.0, 1.0)
 WATER_COLOR = (0.12, 0.35, 0.78)
 WATER_OPACITY = 0.35
 
@@ -517,6 +533,17 @@ def create_fluid_particles(vertices: np.ndarray, faces: np.ndarray) -> tuple[np.
     return points.astype(np.float32, copy=False), PARTICLE_RADIUS, PARTICLE_MASS
 
 
+def retrieve_optional_visual_asset(path: str, label: str) -> str | None:
+    """Resolve an optional presentation asset, falling back to procedural geometry."""
+    if not path:
+        return None
+    try:
+        return retrieve_file_path(path)
+    except (FileNotFoundError, RuntimeError) as exc:
+        print(f"[WARN]: Could not load optional {label} visual ({exc}); using procedural geometry.", flush=True)
+        return None
+
+
 def create_sim_cfg():
     """Create the Isaac Lab simulation config using the MPM manager."""
     from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg
@@ -552,7 +579,7 @@ def create_sim_cfg():
     )
 
 
-def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
+def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str | None):
     """Create the teapot-fill scene using declarative Isaac Lab assets."""
     from isaaclab_newton.assets import MPMObjectCfg
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
@@ -577,11 +604,9 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
         faces: list[list[int]] = MISSING
         mesh_collision_props: sim_utils.NewtonMeshCollisionPropertiesCfg | None = None
 
-    @configclass
-    class TeapotFillSceneCfg(InteractiveSceneCfg):
-        """Scene containing MPM colliders and one MPM fluid object sampled inside the teapot."""
-
-        island = AssetBaseCfg(
+    island_cfg = None
+    if island_usd is not None:
+        island_cfg = AssetBaseCfg(
             prim_path="/World/Island",
             spawn=sim_utils.UsdFileCfg(
                 usd_path=island_usd,
@@ -592,6 +617,27 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
             ),
             init_state=AssetBaseCfg.InitialStateCfg(rot=TABLE_ORIENTATION),
         )
+
+    bowl_visual_cfg = None
+    if bowl_usd is not None:
+        bowl_visual_cfg = AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/CatchBowlVisual",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=bowl_usd,
+                scale=(BOWL_SCALE,) * 3,
+                variants={"Physics": "none"},
+                make_uninstanceable=True,
+                rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(rigid_body_enabled=False),
+                collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=False),
+            ),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_BASE_POS),
+        )
+
+    @configclass
+    class TeapotFillSceneCfg(InteractiveSceneCfg):
+        """Scene containing MPM colliders and one MPM fluid object sampled inside the teapot."""
+
+        island: AssetBaseCfg | None = island_cfg
 
         tabletop_collider = AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/TabletopCollider",
@@ -606,7 +652,11 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
                     dynamic_friction=TABLE_FRICTION,
                 ),
                 physics_material_path="physicsMaterial",
-                visible=False,
+                visible=island_usd is None,
+                visual_material=(
+                    sim_utils.PreviewSurfaceCfg(diffuse_color=TABLE_COLOR) if island_usd is None else None
+                ),
+                visual_material_path="visualMaterial",
             ),
             init_state=AssetBaseCfg.InitialStateCfg(
                 pos=(0.0, 0.0, TABLE_TOP_Z - TABLE_HALF_EXTENTS[2]),
@@ -614,18 +664,7 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
             ),
         )
 
-        catch_bowl_visual = AssetBaseCfg(
-            prim_path="{ENV_REGEX_NS}/CatchBowlVisual",
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=bowl_usd,
-                scale=(BOWL_SCALE,) * 3,
-                variants={"Physics": "none"},
-                make_uninstanceable=True,
-                rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(rigid_body_enabled=False),
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=False),
-            ),
-            init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_BASE_POS),
-        )
+        catch_bowl_visual: AssetBaseCfg | None = bowl_visual_cfg
 
         catch_bowl_collider = AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/CatchBowlCollider",
@@ -642,7 +681,9 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
                     dynamic_friction=BOWL_FRICTION,
                 ),
                 physics_material_path="physicsMaterial",
-                visible=False,
+                visible=bowl_usd is None,
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=BOWL_COLOR) if bowl_usd is None else None,
+                visual_material_path="visualMaterial",
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_BASE_POS),
         )
@@ -768,8 +809,11 @@ def main() -> None:
         # Resolve after launching so Kit runs never import USD modules before
         # AppLauncher; Newton-only runs still use standalone omni.client.
         container_usd = retrieve_file_path(args_cli.container_usd)
-        island_usd = retrieve_file_path(ISLAND_USD)
-        bowl_usd = retrieve_file_path(BOWL_USD)
+        if "kit" in (args_cli.visualizer or []):
+            island_usd = retrieve_optional_visual_asset(args_cli.island_usd, "kitchen island")
+            bowl_usd = retrieve_optional_visual_asset(args_cli.bowl_usd, "catch bowl")
+        else:
+            island_usd = bowl_usd = None
 
         import isaaclab.sim as sim_utils
         from isaaclab.scene import InteractiveScene

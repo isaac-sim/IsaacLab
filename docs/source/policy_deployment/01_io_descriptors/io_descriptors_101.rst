@@ -103,9 +103,9 @@ This can be done by setting the ``export_io_descriptors`` flag in the command li
       .. code-block:: bash
 
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
-         uv run isaaclab train --rl_library sb3 --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
-         uv run isaaclab train --rl_library rl_games --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
-         uv run isaaclab train --rl_library skrl --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
+         uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
+         uv run --extra rl-games isaaclab train --rl_library rl_games --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
+         uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat

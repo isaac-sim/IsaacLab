@@ -21,8 +21,6 @@ from rendering_test_utils import (
 
 # no arm_ci marker: intermittently stalls the arm64 runner mid-file (renderer hang after a few
 # passing cases, killed at the per-file timeout); x86 kitless coverage remains in place
-pytestmark = [pytest.mark.isaacsim_ci]
-
 _RENDERING_PARAMS = group_rendering_params(make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS))
 _COMPARISON_SCORES: list[dict] = []
 
