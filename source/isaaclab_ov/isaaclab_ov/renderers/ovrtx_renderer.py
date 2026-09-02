@@ -2305,7 +2305,7 @@ class OVRTXRenderer(BaseRenderer):
         # ``cuda_stream`` gives producer ordering: ovstage drains the work already queued on that
         # stream before it touches the tensor. That replaces the device-wide
         # ``wp.synchronize_device()`` with stream-scoped ordering and removes the host copy; it is
-        # not a nonblocking handoff, and the wait inside the write can still block the calling thread.
+        # not a nonblocking handoff, and the ``.wait()`` below can still block the calling thread.
         # A GPU-side wait would need the event-based API instead.
         self._stage.write_attribute(
             self._object_xform_query,
@@ -2378,7 +2378,7 @@ class OVRTXRenderer(BaseRenderer):
         # Warp stream as ``cuda_stream`` gives producer ordering: ovstage drains the work already
         # queued on that stream before it touches the slices. That replaces the device-wide
         # ``wp.synchronize_device()`` with stream-scoped ordering and removes the host copy; it is
-        # not a nonblocking handoff, and the wait inside the write can still block the calling thread.
+        # not a nonblocking handoff, and the ``.wait()`` below can still block the calling thread.
         self._stage.write_attribute(
             query,
             "points",
@@ -2397,7 +2397,7 @@ class OVRTXRenderer(BaseRenderer):
         # must not read them until the kernel above has landed. Passing the producing Warp stream as
         # ``cuda_stream`` gives producer ordering: ovstage drains the work already queued on that
         # stream before it touches the slices. That keeps the handover off the host; it is not a
-        # nonblocking handoff, and the wait inside the write can still block the calling thread.
+        # nonblocking handoff, and the ``.wait()`` below can still block the calling thread.
         self._stage.write_attribute(
             self._cable_points_query,
             "points",
