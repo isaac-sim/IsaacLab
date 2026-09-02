@@ -2,6 +2,7 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+
 __all__ = [
     "MESH_APPROXIMATION_TOKENS",
     "PHYSX_MESH_COLLISION_CFGS",

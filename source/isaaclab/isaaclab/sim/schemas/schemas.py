@@ -1680,7 +1680,7 @@ Fixed tendon properties.
 """
 
 
-def resolve_applied_schema_instances(applied_schemas, schema_name: str) -> list[str]:
+def resolve_applied_schema_instances(applied_schemas: Iterable[str], schema_name: str) -> list[str]:
     """Return the instance names of a multi-apply schema applied to a prim.
 
     A multi-apply schema is applied as ``<SchemaName>:<instance>``, and the instance -- not the
@@ -1871,25 +1871,14 @@ def modify_fixed_tendon_properties(
     if not any("PhysxTendonAxisRootAPI" in s for s in applied_schemas) and prim_type != "MjcTendon":
         return False
 
-    # The PhysX branch resolves its property namespace through USD; only the ``mjc:`` branch below
-    # still spells one, because ``MjcTendon`` is a prim type rather than a multiple-apply schema and
-    # has no instance to resolve. Fragments take neither path: they declare their schema through
-    # ``SchemaFragment._usd_multi_apply_schema`` and the generic applier writes them.
-    # resolve all available instances of the schema since it is multi-instance
     cfg = cfg.to_dict()
     if prim_type != "MjcTendon":
-        for schema_name in applied_schemas:
-            if "PhysxTendonAxisRootAPI" not in schema_name:
-                continue
-            # multi-apply schemas are always "<Schema>:<instance>"; skip anything else rather than
-            # assuming a separator.
-            base_schema, sep, instance_name = schema_name.partition(":")
-            if not sep:
-                continue
-            # The property namespace prefix is declared by the schema, not derived from its name,
-            # so ask USD rather than spelling it.
+        # the property namespace is declared by the schema, so resolve it through USD per instance
+        for instance_name in resolve_applied_schema_instances(applied_schemas, "PhysxTendonAxisRootAPI"):
             for attr_name, value in cfg.items():
-                attribute = multiple_apply_property_name(base_schema, instance_name, to_camel_case(attr_name, "cC"))
+                attribute = multiple_apply_property_name(
+                    "PhysxTendonAxisRootAPI", instance_name, to_camel_case(attr_name, "cC")
+                )
                 safe_set_attribute_on_usd_prim(tendon_prim, attribute, value, camel_case=False)
     else:
         # NOTE: ``mjc:*`` branch (``MjcTendon`` prim) kept inline; future split candidate into isaaclab_newton.
@@ -2011,21 +2000,16 @@ def modify_spatial_tendon_properties(
         return False
 
     cfg = cfg.to_dict()
-    for schema_name in applied_schemas:
-        if "PhysxTendonAttachmentRootAPI" not in schema_name and "PhysxTendonAttachmentLeafAPI" not in schema_name:
-            continue
-        # multi-apply schemas are always "<Schema>:<instance>"; skip anything else rather than
-        # assuming a separator.
-        base_schema, sep, instance_name = schema_name.partition(":")
-        if not sep:
-            continue
-        # The property namespace prefix is declared by the schema, not derived from its name,
-        # so ask USD rather than spelling it.
+    wrote = False
+    # only the attachment root declares the tendon dynamics; leaf instances carry per-branch limits
+    for instance_name in resolve_applied_schema_instances(applied_schemas, "PhysxTendonAttachmentRootAPI"):
         for attr_name, value in cfg.items():
-            attribute = multiple_apply_property_name(base_schema, instance_name, to_camel_case(attr_name, "cC"))
+            attribute = multiple_apply_property_name(
+                "PhysxTendonAttachmentRootAPI", instance_name, to_camel_case(attr_name, "cC")
+            )
             safe_set_attribute_on_usd_prim(tendon_prim, attribute, value, camel_case=False)
-    # success
-    return True
+        wrote = True
+    return wrote
 
 
 """

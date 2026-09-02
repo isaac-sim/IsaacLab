@@ -6,9 +6,10 @@
 """PhysX schema-fragment appliers and compatibility wrappers.
 
 The deformable schema writers are backend-aware but remain unified in
-:mod:`isaaclab.sim.schemas`. This module additionally hosts the PhysX-specific fragment
-applier funcs that override :attr:`~isaaclab.sim.schemas.SchemaFragment.func` for the
-joint-drive and multi-instance tendon schemas, keeping the backend func out of the core package.
+:mod:`isaaclab.sim.schemas`. This module hosts the PhysX joint-drive applier, which keeps the
+backend-specific ``PhysxJointAPI`` handling out of the core package, and retains
+:func:`apply_fixed_tendon` / :func:`apply_spatial_tendon` as compatibility wrappers over
+:func:`~isaaclab.sim.schemas.apply_namespaced`.
 """
 
 from __future__ import annotations

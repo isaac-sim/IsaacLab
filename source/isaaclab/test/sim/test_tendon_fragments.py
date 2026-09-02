@@ -59,6 +59,13 @@ def _make_spatial_tendon_prim(stage, path, instance="default"):
     return prim
 
 
+def _make_spatial_tendon_leaf_prim(stage, path, instance="default"):
+    """Create a prim with a multi-instance PhysxTendonAttachmentLeafAPI applied."""
+    prim = _make_xform(stage, path)
+    PhysxSchema.PhysxTendonAttachmentLeafAPI.Apply(prim, instance)
+    return prim
+
+
 def _tendon_attr_prefix(prim, schema_substr):
     """Return the canonical PhysX property prefix for an applied tendon schema.
 
@@ -525,6 +532,34 @@ def test_legacy_and_fragment_spatial_tendon_produce_identical_attrs():
         assert abs(fragment_value - legacy_value) < 1e-6
     assert not legacy_prim.HasAttribute("PhysxTendonAttachmentRootAPI:s0:stiffness")
     assert not fragment_prim.HasAttribute("PhysxTendonAttachmentRootAPI:s0:stiffness")
+
+
+def test_legacy_spatial_tendon_skips_leaf_instances():
+    """A leaf attachment declares none of this cfg's properties, so it is skipped, not written."""
+    from isaaclab_physx.sim.schemas import PhysxSpatialTendonPropertiesCfg
+
+    from isaaclab.sim.schemas import modify_spatial_tendon_properties
+
+    stage = _new_sim()
+    # A single-attachment tendon carries both instances on one prim; a branching tendon has
+    # leaf-only prims. Both reach the writer, and neither declares stiffness/damping/offset.
+    both_prim = _make_spatial_tendon_prim(stage, "/World/rootAndLeaf", instance="s0")
+    PhysxSchema.PhysxTendonAttachmentLeafAPI.Apply(both_prim, "s0")
+    leaf_prim = _make_spatial_tendon_leaf_prim(stage, "/World/leafOnly", instance="s0")
+
+    # a root under the leaf-only prim: reached only if the leaf-only prim reports "nothing written",
+    # since ``apply_nested`` stops descending at the first prim the writer succeeds on
+    nested_root = _make_spatial_tendon_prim(stage, "/World/leafOnly/root", instance="s0")
+
+    cfg = PhysxSpatialTendonPropertiesCfg(stiffness=6.0, damping=0.2, offset=0.1)
+    for path in ("/World/rootAndLeaf", "/World/leafOnly"):
+        modify_spatial_tendon_properties(path, cfg, stage)
+
+    for suffix, expected in (("stiffness", 6.0), ("damping", 0.2), ("offset", 0.1)):
+        assert abs(both_prim.GetAttribute(f"physxTendon:s0:{suffix}").Get() - expected) < 1e-6
+        assert abs(nested_root.GetAttribute(f"physxTendon:s0:{suffix}").Get() - expected) < 1e-6
+        # the leaf-only prim declares no root property, so nothing is authored on it
+        assert not leaf_prim.GetAttribute(f"physxTendon:s0:{suffix}").IsValid()
 
 
 def test_spawn_from_file_with_empty_tendon_lists_is_noop(tmp_path):
