@@ -141,6 +141,8 @@ class OperationalSpaceController:
         # number of controlled DOFs
         self._controller = None
         self._num_dof = None
+        # per-port Warp wrappers around the caller's tensors, keyed by port; see :meth:`_bind`
+        self._warp_bindings: dict[str, tuple[torch.Tensor, wp.array]] = {}
 
     """
     Properties.
@@ -405,63 +407,64 @@ class OperationalSpaceController:
 
         inputs = self._controller_input
 
-        # -- kinematics and dynamics: bind the caller's tensors directly where the layout allows it,
-        # -- they are produced elsewhere and read unchanged, so staging them would only add a copy
-        jacobian_b = jacobian_b.contiguous()
-        inputs.jacobian_tool_world = wp.from_torch(jacobian_b)
+        # -- kinematics and dynamics: bound straight from the caller's tensors, which are produced
+        # -- elsewhere and read unchanged, so staging them would only add a copy
+        inputs.jacobian_tool_world = self._bind("jacobian", jacobian_b)
         if self.cfg.inertial_dynamics_decoupling:
-            mass_matrix = mass_matrix.contiguous()
-            inputs.mass_matrix = wp.from_torch(mass_matrix)
+            inputs.mass_matrix = self._bind("mass_matrix", mass_matrix)
         if self.cfg.gravity_compensation:
-            gravity = gravity.reshape(-1).contiguous()
-            inputs.gravity_force = wp.from_torch(gravity)
+            inputs.gravity_force = self._bind("gravity", gravity, flatten=True)
+        inputs.tool_pose_world = (
+            self._bind("tool_pose", current_ee_pose_b, dtype=wp.transform)
+            if current_ee_pose_b is not None
+            else self._identity_pose_port
+        )
+        inputs.tool_twist_world = (
+            self._bind("tool_twist", current_ee_vel_b, dtype=wp.spatial_vector)
+            if current_ee_vel_b is not None
+            else self._zero_spatial
+        )
 
-        # -- task frame: Newton's operational frame, which the targets, gains and selection axes
-        # -- are all expressed in
-        self._operational_frame_pose[:] = self._task_frame_pose_b
-
-        # -- motion control: the gains gate the term, so an uncommanded (or reset) target
-        # -- contributes nothing without the backend having to be rebuilt
-        if current_ee_pose_b is not None:
-            self._tool_pose[:] = current_ee_pose_b
-        if current_ee_vel_b is not None:
-            self._tool_twist[:] = current_ee_vel_b
+        # -- motion control: zero gains gate the term, so an uncommanded (or reset) target
+        # -- contributes nothing while the gain schedule itself stays untouched
         if self.desired_ee_pose_task is not None:
-            self._desired_tool_pose_task[:] = self.desired_ee_pose_task
-            self._motion_stiffness[:] = self._motion_p_gains_task
-            self._motion_damping[:] = self._motion_d_gains_task
+            inputs.desired_tool_pose_operational = self._bind(
+                "desired_pose", self.desired_ee_pose_task, dtype=wp.transform
+            )
+            inputs.motion_stiffness = self._motion_stiffness_port
+            inputs.motion_damping = self._motion_damping_port
         else:
-            self._desired_tool_pose_task.zero_()
-            self._desired_tool_pose_task[:, 6] = 1.0
-            self._motion_stiffness.zero_()
-            self._motion_damping.zero_()
+            inputs.desired_tool_pose_operational = self._identity_pose_port
+            inputs.motion_stiffness = self._zero_spatial
+            inputs.motion_damping = self._zero_spatial
 
         # -- contact wrench control: the desired wrench is already in root frame, which is the frame
-        # -- Newton expects it in; only the measured force is a fresh input
+        # -- Newton expects it in; only the measured wrench has to be composed here
         if self._wrench_control:
             if self.desired_ee_wrench_b is not None:
-                self._desired_wrench[:] = self.desired_ee_wrench_b
+                inputs.desired_wrench_world = self._bind(
+                    "desired_wrench", self.desired_ee_wrench_b, dtype=wp.spatial_vector
+                )
                 if self._wrench_feedback:
                     # only the force component is measured, so the moment stays open loop: feeding
                     # the desired moment back leaves the moment half of the error at zero
                     self._measured_wrench[:, :3] = current_ee_force_b
                     self._measured_wrench[:, 3:] = self.desired_ee_wrench_b[:, 3:]
             else:
-                self._desired_wrench.zero_()
+                inputs.desired_wrench_world = self._zero_spatial
                 if self._wrench_feedback:
                     self._measured_wrench.zero_()
 
         # -- null-space posture task; the desired velocity is always zero and ``input()`` returns
         # -- that port zero-initialised, so it is never written
         if self._nullspace_control:
-            current_joint_pos = current_joint_pos.reshape(-1).contiguous()
-            current_joint_vel = current_joint_vel.reshape(-1).contiguous()
-            inputs.joint_q = wp.from_torch(current_joint_pos)
-            inputs.joint_qd = wp.from_torch(current_joint_vel)
-            if nullspace_joint_pos_target is None:
-                self._nullspace_joint_pos_target.zero_()
-            else:
-                self._nullspace_joint_pos_target[:] = nullspace_joint_pos_target
+            inputs.joint_q = self._bind("joint_q", current_joint_pos, flatten=True)
+            inputs.joint_qd = self._bind("joint_qd", current_joint_vel, flatten=True)
+            inputs.joint_q_des_null = (
+                self._zero_joint
+                if nullspace_joint_pos_target is None
+                else self._bind("nullspace_target", nullspace_joint_pos_target, flatten=True)
+            )
 
         # evaluate the operational-space law on the Newton backend and return the torque view;
         # ``dt`` is unused by the law and is accepted only for API symmetry
@@ -524,25 +527,56 @@ class OperationalSpaceController:
         self._controller_input = self._controller.input()
         self._controller_output = self._controller.output()
         self._num_dof = num_dof
+        self._warp_bindings.clear()
 
-        # Views onto the controller's own ports, for the quantities authored here. The per-robot
-        # ports are small, so they are written rather than rebound; ``compute`` binds the large
-        # caller-owned tensors (Jacobian, mass matrix, gravity, joint state) straight through.
-        self._tool_pose = wp.to_torch(self._controller_input.tool_pose_world)
-        self._tool_pose[:, 6] = 1.0  # keep the port a well-formed pose until a caller supplies one
-        self._tool_twist = wp.to_torch(self._controller_input.tool_twist_world)
-        self._operational_frame_pose = wp.to_torch(self._controller_input.operational_frame_pose_world)
-        self._desired_tool_pose_task = wp.to_torch(self._controller_input.desired_tool_pose_operational)
-        self._motion_stiffness = wp.to_torch(self._controller_input.motion_stiffness)
-        self._motion_damping = wp.to_torch(self._controller_input.motion_damping)
-        if self._wrench_control:
-            self._desired_wrench = wp.to_torch(self._controller_input.desired_wrench_world)
+        # Gains and the task frame are buffers this controller owns and updates in place, so they
+        # bind once and ``set_command`` updates propagate without a per-step copy. The gain ports
+        # are kept to hand so an uncommanded target can swap in the zero stand-in below.
+        self._motion_stiffness_port = wp.from_torch(self._motion_p_gains_task, dtype=wp.spatial_vector)
+        self._motion_damping_port = wp.from_torch(self._motion_d_gains_task, dtype=wp.spatial_vector)
+        self._controller_input.operational_frame_pose_world = wp.from_torch(self._task_frame_pose_b, dtype=wp.transform)
+
+        # Stand-ins bound in place of a port whose target has not been commanded: zeros mute the
+        # term, and an identity pose keeps the pose-error kernel well formed. Newton only reads its
+        # input ports, so one zero array can back several of them.
+        self._zero_spatial = wp.zeros(num_envs, dtype=wp.spatial_vector, device=self._device)
+        self._zero_joint = wp.zeros(num_envs * num_dof, dtype=wp.float32, device=self._device)
+        identity_pose = torch.zeros(num_envs, 7, device=self._device)
+        identity_pose[:, 6] = 1.0
+        self._identity_pose = identity_pose  # keep the storage alive behind the Warp view
+        self._identity_pose_port = wp.from_torch(identity_pose, dtype=wp.transform)
+
+        # The measured wrench is the one port composed from two sources, so it is written through a
+        # view rather than bound; every other port binds a caller or controller buffer directly.
         if self._wrench_feedback:
             self._measured_wrench = wp.to_torch(self._controller_input.measured_wrench_world)
-        if self._nullspace_control:
-            self._nullspace_joint_pos_target = wp.to_torch(self._controller_input.joint_q_des_null).view(
-                num_envs, num_dof
-            )
 
         # torque output aliases the controller's flat output port, reshaped to (num_envs, num_dof)
         self._joint_efforts = wp.to_torch(self._controller_output.joint_f).view(num_envs, num_dof)
+
+    def _bind(self, key: str, tensor: torch.Tensor, dtype=None, flatten: bool = False) -> wp.array:
+        """Wrap a caller's tensor for Newton, reusing the wrapper while it keeps handing over the same one.
+
+        Callers pass persistent buffers they refill in place, so the wrapper is built once and the
+        controller reads the refilled values through it. A caller that hands over a fresh tensor
+        each step still gets a correct wrapper, just a rebuilt one. Non-contiguous tensors are never
+        cached: the wrapper would alias the throwaway copy rather than the caller's own storage.
+
+        Args:
+            key: Port identity, so one port's wrapper never satisfies another's lookup.
+            tensor: The caller's tensor.
+            dtype: Warp dtype to reinterpret the trailing dimension as, if any.
+            flatten: Whether to collapse the tensor to one dimension first.
+
+        Returns:
+            A Warp array viewing ``tensor``.
+        """
+        cached = self._warp_bindings.get(key)
+        if cached is not None and cached[0] is tensor:
+            return cached[1]
+        contiguous = tensor.contiguous()
+        source = contiguous.reshape(-1) if flatten else contiguous
+        array = wp.from_torch(source) if dtype is None else wp.from_torch(source, dtype=dtype)
+        if contiguous is tensor:
+            self._warp_bindings[key] = (tensor, array)
+        return array
