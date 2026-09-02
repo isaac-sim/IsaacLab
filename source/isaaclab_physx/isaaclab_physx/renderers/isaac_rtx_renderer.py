@@ -552,17 +552,28 @@ class IsaacRtxRenderer(BaseRenderer):
 
             # For motion vectors, use specialized kernel that reads 4 channels but only writes 2
             # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
-            if data_type == "motion_vectors":
-                tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
-
             # For normals, we only require the first three channels of the tiled buffer
             # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)
-            if data_type == "normals":
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
-            if data_type in SIMPLE_SHADING_MODES:
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
-            if data_type == str(RenderBufferKind.RGB_HDR):
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
+            trim_channels = None
+            if data_type == "motion_vectors":
+                trim_channels = 2
+            elif data_type == "normals" or data_type in SIMPLE_SHADING_MODES or data_type == str(RenderBufferKind.RGB_HDR):
+                trim_channels = 3
+
+            if trim_channels is not None:
+                # Immediately after an annotator is attached (e.g. during env creation, before the RTX
+                # renderer has warmed up), Replicator can momentarily hand back a buffer whose channel
+                # dimension is 0 instead of real image data. Warp's slice indexing rejects trimming an
+                # already-empty dimension (unlike NumPy, which allows it), so skip writing this data type
+                # for this frame rather than crashing; the next render() call will pick up valid data.
+                if tiled_data_buffer.shape[-1] < trim_channels:
+                    logger.debug(
+                        "Skipping '%s' this frame: annotator buffer not yet populated (channel dim=%d).",
+                        data_type,
+                        tiled_data_buffer.shape[-1],
+                    )
+                    continue
+                tiled_data_buffer = tiled_data_buffer[:, :, :trim_channels].contiguous()
 
             # The HDR annotator's destination is the user-visible ``output_data["rgb_hdr"]``
             # when they requested it explicitly; otherwise the renderer's internal
