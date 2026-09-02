@@ -186,16 +186,13 @@ def ovrtx_use_ovstage_enabled() -> bool:
 def _resolve_render_strategy(cfg: OVRTXRendererCfg, use_ovstage: bool = False) -> _RenderStrategy:
     """Return the asynchronous strategy when ``cfg`` enables it, else the synchronous one.
 
-    The ovstage path always renders synchronously for now. Its scene writes must drain the render
-    still in flight: ovstage retains "the latest committed snapshot only" and the default
-    ``OVRTX_ATTACH_MODE_BORROW`` attach reads it in place ("rendering may observe that publication
-    or a later one"), so a concurrent write could both tear the in-flight frame and bleed newer
-    state into it. That drain leaves so little overlap that benchmarks measure no gain over
-    synchronous rendering, so asynchronous ovstage rendering is postponed to a follow-up. The
-    follow-up must add scene-write barriers (drain in-flight renders before every ovstage write,
-    including material publishes and the write-floor advance) besides changing this selection.
+    The ovstage path always renders synchronously for now. Renders read the stage's single
+    committed snapshot in place, so every scene write would first have to wait for the render in
+    flight. That wait removes most of the overlap, and benchmarks measured no gain. A follow-up
+    pull request enables it. The follow-up must add those write barriers before every ovstage
+    write, including material publishes and the write-floor advance.
 
-    The legacy path pipelines exactly one frame deep. Deeper queues are future work.
+    The legacy path pipelines exactly one frame deep.
     """
     strategy = _AsyncRenderStrategy.try_create(cfg)
     if strategy is not None and use_ovstage:
@@ -275,11 +272,10 @@ def _resolve_rtx_minimal_mode(data_types: list[str]) -> int | None:
 
 
 def _camera_spec_summary(spec: CameraRenderSpec) -> tuple:
-    """The parts of a camera spec the initialized scene is built from, for mismatch detection.
+    """The camera spec fields that scene initialization consumes, for mismatch detection.
 
     The data types use the same normalization as scene initialization. Two specs that build the
-    same scene therefore compare equal. A spec whose ``isp_cfg`` adds the ``rgb_hdr`` output
-    compares different from one without it.
+    same scene therefore compare equal.
     """
     data_types = list(spec.cfg.data_types) if spec.cfg.data_types else ["rgb"]
     if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
@@ -1822,15 +1818,15 @@ class OVRTXRenderer(BaseRenderer):
     def cleanup(self, render_data: OVRTXRenderData | None) -> None:
         """Release the render data's buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`.
 
-        The stage queries, tensor bindings and render products this renderer holds are shared by
-        every camera that resolves to it, so releasing them here would tear the scene down while
-        the other cameras are still rendering. :meth:`close` releases them instead. The render
-        strategy is shared the same way, so its in-flight work is drained in :meth:`close` too.
+        The stage queries, tensor bindings and render products are shared by every camera that
+        resolves to this renderer. Releasing them here would tear the scene down under the other
+        cameras. :meth:`close` releases them instead. :meth:`close` also drains the shared render
+        strategy.
         """
         if render_data is None:
             return
-        # A queued asynchronous frame may still target these buffers. Disown it explicitly, so its
-        # delivery skips the released camera instead of writing into cleared dictionaries.
+        # A queued asynchronous frame may still target these buffers. Detach it, so its delivery
+        # skips the released camera instead of writing into cleared dictionaries.
         self._strategy.release_render_data(render_data)
         render_data.warp_buffers.clear()
         render_data.renderer_info.clear()
