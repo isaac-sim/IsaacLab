@@ -191,6 +191,27 @@ def test_frames_are_delivered_to_the_render_data_they_were_submitted_for(strateg
     assert delivered == [second_target]
 
 
+def test_released_render_data_is_not_delivered_into(strategy, timeline):
+    """Per-camera cleanup disowns queued frames. Their ops still drain, but nothing delivers into
+    the released buffers."""
+    renderer = _FakeRenderer(timeline)
+    camera = object()
+    delivered: list[object] = []
+
+    def consume(render_data, products):
+        delivered.append(render_data)
+
+    strategy.render(renderer, {"/P"}, 1.0 / 60.0, camera, consume, ordinal=0)
+    strategy.render(renderer, {"/P"}, 1.0 / 60.0, camera, consume, ordinal=1)
+    delivered.clear()
+
+    strategy.release_render_data(camera)
+    strategy.settle_before_scene_write()
+
+    assert delivered == []
+    assert all(op.waited for op in renderer.ops)
+
+
 class _CompletedWriteOp:
     """A binding write op that is already complete."""
 
