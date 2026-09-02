@@ -59,7 +59,7 @@ class DistributedContext:
         if "RANK" not in os.environ or "WORLD_SIZE" not in os.environ:
             raise ValueError(
                 "--distributed was requested but no distributed launcher exported RANK and WORLD_SIZE."
-                f" Launch the benchmark with `isaaclab benchmark {workflow}-multigpu`."
+                f" Launch the benchmark with `isaaclab benchmark {workflow}_multigpu`."
             )
         return cls(
             enabled=True,
@@ -164,7 +164,7 @@ def add_distributed_arg(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         default=False,
         help=(
-            "Run as one rank of a distributed launch. Set automatically by `isaaclab benchmark <workflow>-multigpu`."
+            "Run as one rank of a distributed launch. Set automatically by `isaaclab benchmark <workflow>_multigpu`."
         ),
     )
 
