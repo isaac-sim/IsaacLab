@@ -47,7 +47,9 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 # launch omniverse app
-app_launcher = AppLauncher(args_cli)
+# Policy rollouts run camera-observation tasks and require an RTX renderer. Request
+# rendering support here so callers do not need a legacy CLI flag.
+app_launcher = AppLauncher(args_cli, enable_cameras=True)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
