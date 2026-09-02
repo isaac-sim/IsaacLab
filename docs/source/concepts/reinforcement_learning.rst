@@ -36,9 +36,9 @@ The ``train`` and ``play`` commands work across the supported RL libraries.
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/rl_progression_learning_anymald.gif
    :width: 100%
    :align: center
-   :alt: Anymal-D locomotion at RSL-RL training iterations 0, 100, and 299
+   :alt: ANYmal-D locomotion at RSL-RL training iterations 0, 100, and 299
 
-   The same Anymal-D experiment at three checkpoints during training.
+   An ANYmal-D locomotion policy at three checkpoints during training.
 
 .. _choose-an-rl-library:
 
@@ -59,8 +59,8 @@ features your experiment needs, not on a single throughput result.
      - Installation
    * - **RSL-RL**
      - Most GPU-parallel locomotion and manipulation tasks
-     - PPO, recurrent and CNN policies, symmetry augmentation, random network
-       distillation, teacher-student distillation, and distributed training
+     - PPO, teacher-student distillation, symmetry augmentation, random network
+       distillation, and recurrent and CNN-based policies
      - Included by default
    * - **skrl**
      - JAX workflows or explicit multi-agent training
