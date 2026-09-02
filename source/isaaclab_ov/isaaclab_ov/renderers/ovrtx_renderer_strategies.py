@@ -52,11 +52,10 @@ _RENDER_DELTA_TIME = 1.0 / 60.0
 
 
 class _AsyncRenderEntry:
-    """An in-flight render step together with the destination its products belong to.
+    """One queued render step and the camera data that receives its output.
 
-    The entry carries its own ``render_data`` and consumer so a drain triggered from an unrelated call
-    site -- a scene write, or teardown -- still delivers the frame to the buffers the step was
-    submitted for.
+    The entry stores its own destination. Any caller can therefore drain the queue, and the frame
+    still arrives in the buffers it was rendered for.
     """
 
     def __init__(
@@ -70,7 +69,7 @@ class _AsyncRenderEntry:
         self.consume_products = consume_products
 
     def deliver(self) -> bool:
-        """Wait for the step, then hand its products to the destination it was submitted for."""
+        """Wait for the render, then deliver its products to the stored destination."""
         products = self.op.wait().fetch()
         if products is None:
             return False
@@ -80,12 +79,11 @@ class _AsyncRenderEntry:
 
 
 class _RenderStrategy(ABC):
-    """Strategy for how the OVRTX renderer stages transforms and dispatches render steps.
+    """Decides how the OVRTX renderer stages transforms and runs render steps.
 
-    Two concrete strategies exist: :class:`_SyncRenderStrategy` steps OVRTX and consumes its products
-    inline, while :class:`_AsyncRenderStrategy` pipelines steps and double-buffers transform staging.
-    The renderer drives whichever it holds through this neutral interface, so its call sites carry no
-    ``sync``/``async`` branching. Slot/queue vocabulary stays private to :class:`_AsyncRenderStrategy`.
+    :class:`_SyncRenderStrategy` renders and reads back within one call.
+    :class:`_AsyncRenderStrategy` queues renders and reads them back one frame later. The renderer
+    drives either one through this interface and never branches on the mode.
     """
 
     def __init__(self) -> None:
@@ -97,62 +95,62 @@ class _RenderStrategy(ABC):
 
     @property
     def _cuda_stream(self) -> int:
-        """The device's current Warp CUDA stream, which OVRTX orders its reads against.
+        """The device's current Warp CUDA stream. OVRTX orders its reads against this stream.
 
-        Read at use time from the cached device, never cached itself: the current stream can
-        legitimately change (e.g. CUDA graph capture), the device cannot.
+        Always read this at use time. The current stream can change, for example during CUDA graph
+        capture. The device cannot.
         """
         return self._warp_device.stream.cuda_stream
 
     def initialize(self, num_envs: int) -> None:
         """Prepare per-scene staging resources for ``num_envs`` environments.
 
-        Called once the scene is (re)initialized. The default does nothing; strategies that own
-        staging buffers override it.
+        The renderer calls this once per scene initialization. The default does nothing.
         """
 
     def cleanup(self) -> list[Exception]:
-        """Flush in-flight work and release staging resources, returning collected failures.
+        """Finish all queued work, release staging resources, and return the collected failures.
 
-        The method must not raise. The caller re-raises after its own teardown has finished. The
-        default does nothing and returns no failures.
+        This method must not raise. The caller re-raises the failures after its own teardown is
+        done. The default does nothing.
         """
         return []
 
     def release_render_data(self, render_data: OVRTXRenderData) -> None:
-        """Disown ``render_data`` in any queued work, keeping the work itself alive.
+        """Stop delivering queued frames into ``render_data``.
 
-        Called when a camera releases its render data while the shared strategy may still hold a
-        queued frame for it. The default does nothing.
+        A camera calls this when it releases its buffers. Queued renders still complete, but they
+        no longer deliver into the released buffers. The default does nothing.
         """
 
     def settle_before_scene_write(self) -> None:
-        """Drain in-flight renders that could observe a scene mutation issued after them.
+        """Wait until no render is in flight. Call this before writing to the scene.
 
-        Backends whose writes land in storage the renderer reads in place call this before mutating the
-        scene. The default does nothing; strategies holding in-flight renders override it.
+        A queued render may read scene storage while it runs. A scene write during that read can
+        corrupt the frame. The default does nothing.
         """
 
     @abstractmethod
     def stage_object_transforms(
         self, binding: Any, num_rows: int, buffer: wp.array
     ) -> AbstractContextManager[wp.array]:
-        """Yield a ``mat44d`` buffer of ``num_rows`` object transforms for the caller's kernel to fill.
+        """Provide a ``mat44d`` buffer for ``num_rows`` object transforms.
 
-        ``buffer`` is the caller's persistent staging array; a strategy that owns its own buffers may
-        yield one of those instead. The yielded buffer is published to ``binding`` when the context
-        exits without error. The caller must enqueue its fill work on the device's current Warp stream
-        (the default for ``wp.launch``/``wp.copy``): publication orders OVRTX's read of the buffer
-        against that stream, so the fill needs no explicit stream handoff of its own.
+        Use as a context manager and fill the yielded buffer inside the block. On a clean exit, the
+        strategy writes the buffer to ``binding``. ``buffer`` is the caller's persistent staging
+        array. A strategy may yield its own buffer instead.
+
+        Enqueue the fill kernels on the device's current Warp stream, the default for ``wp.launch``
+        and ``wp.copy``. The write orders OVRTX's read against that stream.
         """
 
     @abstractmethod
     def stage_camera_transforms(self, binding: Any, num_rows: int) -> AbstractContextManager[tuple[wp.array, wp.array]]:
-        """Yield ``(quats, transforms)`` staging buffers for ``num_rows`` cameras.
+        """Provide ``(quats, transforms)`` staging buffers for ``num_rows`` cameras.
 
-        ``quats`` is a ``quatf`` scratch buffer and ``transforms`` is the ``mat44d`` destination; the
-        latter is published to ``binding`` when the context exits without error. The same
-        current-Warp-stream contract as :meth:`stage_object_transforms` applies.
+        Use as a context manager. ``quats`` is ``quatf`` scratch space. On a clean exit, the
+        strategy writes the ``mat44d`` ``transforms`` buffer to ``binding``. The Warp-stream rule
+        of :meth:`stage_object_transforms` applies here too.
         """
 
     @abstractmethod
@@ -165,20 +163,19 @@ class _RenderStrategy(ABC):
         consume_products: _RenderProductConsumer,
         ordinal: int | None = None,
     ) -> None:
-        """Step ``renderer`` for one frame and consume its products, immediately or deferred.
+        """Render one frame and deliver its products, either now or later.
 
-        ``ordinal`` is the minimum committed ovstage publication the step must observe. It is required
-        while an ovstage is attached to ``renderer`` and rejected otherwise, so the caller passes the
-        value matching its scene-ownership path.
+        ``ordinal`` names the ovstage publication the render must observe. Pass it while an ovstage
+        is attached to ``renderer``. Pass ``None`` otherwise.
         """
 
 
 class _SyncRenderStrategy(_RenderStrategy):
-    """Blocking strategy: transform writes go straight to OVRTX and each step is consumed inline.
+    """Renders within the call: transforms go straight to OVRTX, and each step is read back inline.
 
-    Publication uses a blocking ``write()``, so the staged buffer stays valid until OVRTX has read it.
-    ``DataAccess.ASYNC`` plus the producing Warp stream lets OVRTX read in place and wait on-GPU for
-    the fill kernel; ``SYNC`` is rejected for GPU buffers.
+    Publication uses the blocking ``write()``, so a staged buffer stays valid until OVRTX has read
+    it. ``DataAccess.ASYNC`` with the producing Warp stream lets OVRTX read GPU buffers in place.
+    OVRTX rejects ``SYNC`` for GPU buffers.
     """
 
     @contextmanager
@@ -225,19 +222,16 @@ class _AsyncRenderSlot:
     write_ops: list[Operation]
 
     def record_write(self, binding: Any, data: wp.array, cuda_stream: int) -> None:
-        """Issue an async binding write and record its op so it can be drained before reuse.
+        """Write ``data`` to ``binding`` asynchronously and remember the write op.
 
-        ``cuda_stream`` is the Warp stream the staging kernel that filled ``data`` ran on. OVRTX
-        synchronizes with it before reading ``data`` (today a host-side wait on its operation
-        thread, off this Python thread), so the ``DataAccess.ASYNC`` read never observes a partially
-        written transform buffer. Its API contract requires this handoff for GPU data; without it,
-        ordering would rest on OVRTX committing via the legacy default CUDA stream, an
-        implementation detail that happens to serialize with Warp's blocking streams today.
+        ``cuda_stream`` is the Warp stream that filled ``data``. OVRTX waits on that stream before
+        it reads ``data``, so the read never sees a half-written buffer. The OVRTX API requires
+        this stream handoff for GPU data.
         """
         self.write_ops.append(binding.write_async(data, data_access=DataAccess.ASYNC, cuda_stream=cuda_stream))
 
     def wait_for_writes(self) -> None:
-        """Block until this slot's outstanding async writes drain, so its buffers are safe to reuse."""
+        """Wait until this slot's async writes are done, so its buffers are safe to reuse."""
         if not self.write_ops:
             return
         try:
@@ -250,35 +244,30 @@ class _AsyncRenderSlot:
 
 
 class _AsyncRenderStrategy(_RenderStrategy):
-    """Pipelined strategy: steps are queued and consumed later, with double-buffered staging.
+    """Queues render steps and reads them back one frame later, with double-buffered staging.
 
-    The queue sustains one frame of camera latency when
-    :attr:`~isaaclab.renderers.RendererCfg.async_rendering` is enabled, so rendering overlaps the
-    next step's simulation and Python work and camera outputs are one step stale.
+    Rendering then overlaps the next step's simulation and Python work. Camera outputs are one
+    step stale.
 
-    Transform writes always use two slots, independent of queue depth. Completion of a
-    ``DataAccess.ASYNC`` write op is stream-scoped: it plants a fence in the CUDA stream the write
-    named, and only work on that stream is ordered after OVRTX's read. Slot refills run on the
-    device's current Warp stream, which is also the stream every write names, so the fence covers
-    them. A refill from any other stream would race the read.
+    Transform staging always uses two slots. A finished write op is only a fence in the CUDA
+    stream the write named. Work on other streams is not ordered after OVRTX's read. Slot refills
+    are safe because they run on the same stream that every write names. A refill from any other
+    stream would race the read.
     """
 
     # See :meth:`_create_slots` for why two is always enough.
     _NUM_SLOTS = 2
 
-    # One frame of camera latency; the ring holds one more render because a frame is drained only
-    # after the next one is enqueued. Deeper queues are deliberately unsupported for now: the
-    # ovstage path cannot sustain them (its scene writes drain in-flight renders), and the legacy
-    # path has not measured a benefit that would justify the extra review surface.
+    # One frame of camera latency. The ring holds one more render because a frame is drained only
+    # after the next one is enqueued. Deeper queues measured no benefit, so they stay unsupported.
     _LATENCY_FRAMES = 1
 
     @classmethod
     def try_create(cls, cfg: OVRTXRendererCfg) -> _AsyncRenderStrategy | None:
-        """Create an :class:`_AsyncRenderStrategy` when async rendering is enabled, else return ``None``.
+        """Create the strategy when async rendering is enabled. Return ``None`` otherwise.
 
-        The flag comes from :attr:`~isaaclab.renderers.RendererCfg.async_rendering`, with
-        :data:`~isaaclab.renderers.ASYNC_RENDERING_ENV_VAR` taking precedence so golden-image tests
-        can exercise the async path without editing task configs.
+        :func:`~isaaclab.renderers.resolve_async_rendering_enabled` reads the flag from the
+        configuration and the environment variable.
         """
         return cls() if resolve_async_rendering_enabled(cfg) else None
 
@@ -320,13 +309,14 @@ class _AsyncRenderStrategy(_RenderStrategy):
         self._reset_slots(num_envs)
 
     def _reset_slots(self, num_envs: int) -> None:
-        """Drain queued renders and staging slots, then drop them; record the camera count for future slot builds.
+        """Finish all queued work, then drop the staging slots.
 
-        ``num_envs == 0`` means the renderer is unbinding, so slots are simply cleared.
+        ``num_envs`` is the camera count for future slot builds. ``0`` means the renderer is
+        unbinding.
         """
-        # Deliver queued renders rather than dropping them: each op is its buffer's only keepalive,
-        # and a re-initialize must not discard a frame still executing. No-op from cleanup(), which
-        # drains the ring (best-effort) before calling here.
+        # Deliver queued renders rather than dropping them. Each op is its buffer's only keepalive,
+        # and a re-initialize must not discard a frame that is still executing. This is a no-op
+        # from cleanup(), which drains the ring first.
         self.settle_before_scene_write()
         for slot in self._slots:
             slot.wait_for_writes()
@@ -338,11 +328,10 @@ class _AsyncRenderStrategy(_RenderStrategy):
         self._ring.clear()
 
     def _create_slots(self) -> None:
-        # Two slots suffice at any render depth: the frame being assembled stages into one slot
-        # while the other still backs the frame in flight. :meth:`_advance_slot` waits out the
-        # incoming slot's writes, which were submitted before the render that has just drained and
-        # are therefore already complete. Completion is a fence in the writes' CUDA stream, and the
-        # refill kernels run on that same stream, so they cannot pass OVRTX's read.
+        # Two slots suffice at any render depth. The frame being assembled stages into one slot.
+        # The other slot still backs the frame in flight. :meth:`_advance_slot` waits out the
+        # incoming slot's writes. Those writes were submitted before the render that has just
+        # drained, so they are already complete.
         assert self._warp_device is not None
         for _ in range(self._NUM_SLOTS):
             self._slots.append(
@@ -355,11 +344,10 @@ class _AsyncRenderStrategy(_RenderStrategy):
             )
 
     def _staging_slot(self) -> _AsyncRenderSlot:
-        """The slot receiving this frame's staged transforms, whatever order the stagers run in.
+        """The slot that receives this frame's staged transforms, in any staging order.
 
-        The slot pool is built on first use (device and camera count are known by then). After
-        that, the only lifecycle event is :meth:`_advance_slot` when the frame's render is
-        enqueued; staging calls never rotate slots themselves.
+        The slot pool is built on first use, when the device and camera count are known. After
+        that, only :meth:`_advance_slot` rotates slots. Staging calls never rotate them.
         """
         if not self._slots:
             self._create_slots()
@@ -368,11 +356,10 @@ class _AsyncRenderStrategy(_RenderStrategy):
         return self._current_slot
 
     def _advance_slot(self) -> None:
-        """Rotate to the next staging slot, called once per frame when its render is enqueued.
+        """Rotate to the next staging slot. Runs once per frame, when its render is enqueued.
 
-        The incoming slot's outstanding writes belong to the frame whose render was drained just
-        before this call, so the wait completes immediately in steady state; it can only block on
-        a write op that outlived its own render.
+        The incoming slot's writes belong to the frame that was drained just before this call.
+        The wait therefore completes immediately in steady state.
         """
         self._slot_index = (self._slot_index + 1) % len(self._slots)
         slot = self._slots[self._slot_index]
@@ -385,11 +372,11 @@ class _AsyncRenderStrategy(_RenderStrategy):
 
     @contextmanager
     def stage_object_transforms(self, binding: Any, num_rows: int, buffer: wp.array) -> Iterator[wp.array]:
-        """Stage object transforms into the frame's slot; publish them on exit.
+        """Stage object transforms into the frame's slot and write them to ``binding`` on exit.
 
-        See :meth:`_RenderStrategy.stage_object_transforms`. ``buffer`` is unused because a
-        pipelined frame cannot share one array with the frame still in flight; the slot provides
-        the double-buffered replacement.
+        See :meth:`_RenderStrategy.stage_object_transforms`. ``buffer`` is unused. A pipelined
+        frame cannot share one array with the frame still in flight, so the slot provides a
+        double-buffered replacement.
         """
         slot = self._staging_slot()
         object_transforms = slot.object_transforms
@@ -401,11 +388,11 @@ class _AsyncRenderStrategy(_RenderStrategy):
 
     @contextmanager
     def stage_camera_transforms(self, binding: Any, num_rows: int) -> Iterator[tuple[wp.array, wp.array]]:
-        """Stage camera transforms into the frame's slot; publish them on exit.
+        """Stage camera transforms into the frame's slot and write them to ``binding`` on exit.
 
         See :meth:`_RenderStrategy.stage_camera_transforms`. Camera and object updates share the
-        frame's slot in whichever order the frame runs them. The slot's camera buffers are
-        reallocated when ``num_rows`` diverges from their pre-sized ``num_envs``.
+        frame's slot in any order. The camera buffers are reallocated when ``num_rows`` differs
+        from their pre-sized ``num_envs``.
         """
         slot = self._staging_slot()
         if slot.camera_transforms.shape[0] != num_rows:
@@ -423,16 +410,14 @@ class _AsyncRenderStrategy(_RenderStrategy):
         consume_products: _RenderProductConsumer,
         ordinal: int | None = None,
     ) -> None:
-        """Step OVRTX asynchronously and enqueue the op for deferred consumption.
+        """Start an asynchronous render and queue it for later delivery.
 
-        The first frame of a scene is drained immediately, so the first camera read returns a rendered
-        frame rather than the zero-initialized output buffer. Priming is per scene, not per camera:
-        when several cameras share this renderer, only the first submitted render is drained
-        synchronously. Later frames are pipelined; a drain only replaces buffer contents, so the
-        output stays valid while the queue fills.
-        See :meth:`_RenderStrategy.render`.
+        The first frame of a scene is delivered immediately. The first camera read therefore
+        returns a rendered frame instead of the zero-initialized output buffer. Later frames are
+        pipelined. See :meth:`_RenderStrategy.render`.
         """
-        # The flag, not an empty ring, marks the first frame: scene writes can drain the ring dry every frame.
+        # The flag marks the first frame. An empty ring cannot: scene writes can drain the ring
+        # dry on every frame.
         is_first_frame = not self._primed
         op = renderer.step_async(render_products=render_products, delta_time=delta_time, ordinal=ordinal)
         self._enqueue_render_op(op, render_data, consume_products)
@@ -441,11 +426,10 @@ class _AsyncRenderStrategy(_RenderStrategy):
             self._try_drain_one()
 
     def settle_before_scene_write(self) -> None:
-        """Drain every queued render so the caller's scene write cannot alter a frame in flight.
+        """Wait for every queued render. See :meth:`_RenderStrategy.settle_before_scene_write`.
 
-        See :meth:`_RenderStrategy.settle_before_scene_write`. Draining here keeps the pipelining
-        window open across the caller's own work -- simulation, inference and product reads all
-        overlap the render, and only the next frame's first write closes it.
+        Waiting here, at the next frame's first write, keeps the overlap window open across the
+        caller's own work between the frames.
         """
         while self._has_pending_ops():
             self._try_drain_one()
@@ -455,22 +439,21 @@ class _AsyncRenderStrategy(_RenderStrategy):
         return bool(self._ring) and self._ring.popleft().deliver()
 
     def release_render_data(self, render_data: OVRTXRenderData) -> None:
-        """Disown ``render_data`` in queued frames. See :meth:`_RenderStrategy.release_render_data`.
+        """Stop delivering queued frames into ``render_data``.
 
-        The frames' ops stay queued and are still waited on. Delivery then skips the released
-        camera, instead of depending on its cleared buffers making consumption a no-op.
+        See :meth:`_RenderStrategy.release_render_data`. The queued renders still complete. Their
+        delivery then skips the released camera.
         """
         for entry in self._ring:
             if entry.render_data is render_data:
                 entry.render_data = None
 
     def cleanup(self) -> list[Exception]:
-        """Drain all queued renders best-effort and drop staging slots.
+        """Finish all queued renders, drop the staging slots, and return the collected failures.
 
-        Each render delivers into the buffers it was submitted with. Failures are collected, not
-        raised. One bad op must not block draining the rest or tearing the renderer down, but a
-        failed final frame must not exit the run silently either. The caller re-raises after it
-        has released its backend resources. See :meth:`_RenderStrategy.cleanup`.
+        One bad op must not block the rest of the teardown, so failures are collected instead of
+        raised. The caller re-raises them after it has released its backend resources. See
+        :meth:`_RenderStrategy.cleanup`.
         """
         errors: list[Exception] = []
         while self._has_pending_ops():
