@@ -5,6 +5,7 @@
 
 __all__ = [
     "PhysxReplicateContext",
+    "physx_replicate",
 ]
 
-from .replicate import PhysxReplicateContext
+from .replicate import PhysxReplicateContext, physx_replicate

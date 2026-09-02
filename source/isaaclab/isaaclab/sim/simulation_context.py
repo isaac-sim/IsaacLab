@@ -11,7 +11,7 @@ import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import torch
 
@@ -127,7 +127,6 @@ class SimulationContext:
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
         self._backend_registry: dict[type[object], object] = {}
-        self._backend_clone_roles: dict[type[object], set[str]] = {}
 
         use_isaac_sim = has_kit()
         self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
@@ -950,13 +949,7 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
-    def get_or_create_backend(
-        self,
-        backend_type: type[_BackendT],
-        *args: Any,
-        clone_role: Literal["physics", "model", "scene"] | None = None,
-        **kwargs: Any,
-    ) -> _BackendT:
+    def get_or_create_backend(self, backend_type: type[_BackendT], *args: Any, **kwargs: Any) -> _BackendT:
         """Return the simulation-scoped native backend for a type.
 
         Consumers that register the same backend type resolve one shared native resource
@@ -965,19 +958,13 @@ class SimulationContext:
         Args:
             backend_type: Backend class to construct when the resource does not exist.
             *args: Positional arguments used only when constructing the resource.
-            clone_role: ``"physics"`` for native physics replication, ``"model"`` for model
-                construction, or ``"scene"`` for whole-scene materialization.
             **kwargs: Keyword arguments used only when constructing the resource.
 
         Returns:
             The existing or newly constructed native backend.
         """
-        if clone_role not in (None, "physics", "model", "scene"):
-            raise ValueError(f"Unknown clone role: {clone_role!r}.")
         if backend_type not in self._backend_registry:
             self._backend_registry[backend_type] = backend_type(*args, **kwargs)
-        if clone_role is not None:
-            self._backend_clone_roles.setdefault(backend_type, set()).add(clone_role)
         return cast(_BackendT, self._backend_registry[backend_type])
 
     @classmethod
@@ -1010,7 +997,6 @@ class SimulationContext:
                     if (clear := getattr(resource, "clear", None)) is not None:
                         run_cleanup(clear)
                 instance._backend_registry.clear()
-                instance._backend_clone_roles.clear()
 
                 # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
                 # close_stage() + app shutdown destroy the entire stage at once.

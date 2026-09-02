@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from types import MappingProxyType
 
 from pxr import Sdf, Usd, UsdGeom
@@ -274,8 +274,8 @@ def build_render_product_as_string(
     height: int,
     num_envs: int,
     data_types: list[str],
-    camera_path: str,
     minimal_mode: int | None = None,
+    camera_rel_path: str = "Camera",
     background_color: tuple[float, float, float] | None = None,
     device_id: int | None = None,
     enable_shadows: bool = False,
@@ -283,17 +283,17 @@ def build_render_product_as_string(
     """Build the render product USD snippet as a string.
 
     This string is meant to be appended to an exported stage (ASCII) before loading into OVRTX.
-    The initial camera relationship targets only the exact source camera that exists in the trimmed
-    stage. Multi-environment rendering rewrites the relationship with every exact camera path after
-    runtime cloning.
+    The initial camera relationship targets only environment zero, whose camera is guaranteed to
+    exist in the trimmed stage. Multi-environment rendering rewrites the relationship with every
+    resolved camera path after runtime cloning.
 
     Args:
         width: Tile width from sensor config [px].
         height: Tile height from sensor config [px].
         num_envs: Number of environments from scene.
         data_types: Data types from sensor config.
-        camera_path: Exact source camera prim path.
         minimal_mode: RTX minimal mode. None if not requested. Valid values are 1, 2, 3.
+        camera_rel_path: Camera prim path relative to the env root (e.g. ``"Camera"`` or ``"Robot/head_cam"``).
         background_color: Solid background color as normalized RGB floats ``(r, g, b)`` in ``[0, 1]``.
             When set, the render product uses a solid color background instead of the dome light.
             When ``None``, the default dome-light background is used.
@@ -309,6 +309,7 @@ def build_render_product_as_string(
     data_types = data_types if data_types else ["rgb"]
     tiled_width, tiled_height = _tiled_resolution(num_envs, width, height)
 
+    camera_paths = [f"/World/envs/env_0/{camera_rel_path}"]
     render_product_name = "RenderProduct"
     render_product_path = f"/Render/{render_product_name}"
 
@@ -316,7 +317,7 @@ def build_render_product_as_string(
     render_var_path, render_var_name, source_name = render_var_configs[0]
 
     camera_content = build_render_scope_usd(
-        [camera_path],
+        camera_paths,
         render_product_name,
         render_var_path,
         render_var_name,
@@ -334,33 +335,36 @@ def build_render_product_as_string(
 
 def create_scene_partition_attributes(
     stage,
-    camera_paths_by_env: Mapping[str, str],
+    num_envs: int = 1,
 ) -> None:
-    """Create scene partition attributes on exact environment and camera prims.
+    """Create scene partition attributes for env roots and cameras.
+
+    Camera prims are discovered by USD type (``UsdGeom.Camera``) rather than by name, so this works regardless of
+    where the camera is placed in the hierarchy.
 
     Args:
         stage: USD stage to modify.
-        camera_paths_by_env: Exact environment root paths to their exact camera paths.
-
-    Raises:
-        ValueError: If a camera is outside its environment.
-        RuntimeError: If a declared environment or camera prim does not exist.
+        num_envs: Number of environments.
     """
     # Collect the attribute paths and scene partition tokens to update.
     attr_updates: list[tuple[Sdf.Path, str]] = []
-    for env_path, camera_path in camera_paths_by_env.items():
-        if camera_path != env_path and not camera_path.startswith(env_path.rstrip("/") + "/"):
-            raise ValueError(f"Camera '{camera_path}' is not under environment '{env_path}'.")
+    for env_idx in range(num_envs):
+        env_path = f"/World/envs/env_{env_idx}"
         env_prim = stage.GetPrimAtPath(env_path)
         if not env_prim.IsValid():
-            raise RuntimeError(f"Failed to get environment root prim at '{env_path}'.")
-        scene_partition = env_path.rstrip("/").rsplit("/", 1)[-1]
-        attr_updates.append((env_prim.GetPath().AppendProperty("primvars:omni:scenePartition"), scene_partition))
+            logger.warning("Failed to get env root prim at '%s'", env_path)
+            continue
 
-        camera_prim = stage.GetPrimAtPath(camera_path)
-        if not camera_prim.IsA(UsdGeom.Camera):
-            raise RuntimeError(f"Failed to get camera prim at '{camera_path}'.")
-        attr_updates.append((camera_prim.GetPath().AppendProperty("omni:scenePartition"), scene_partition))
+        scene_partition = f"env_{env_idx}"
+
+        for prim in Usd.PrimRange(env_prim):
+            if prim.GetPath() == env_prim.GetPath():
+                attr_path = prim.GetPath().AppendProperty("primvars:omni:scenePartition")
+            elif prim.IsA(UsdGeom.Camera):
+                attr_path = prim.GetPath().AppendProperty("omni:scenePartition")
+            else:
+                continue
+            attr_updates.append((attr_path, scene_partition))
 
     root_layer = stage.GetRootLayer()
     type_name = Sdf.ValueTypeNames.Token
@@ -413,13 +417,13 @@ def _collect_prims_to_deactivate(parent_prim: Usd.Prim, source_paths: frozenset[
 
 
 def export_stage_to_string(
-    stage: Usd.Stage, env_paths: Sequence[str], source_paths: tuple[str, ...], keep_env_roots: bool = True
+    stage: Usd.Stage, num_envs: int, source_paths: tuple[str, ...], keep_env_roots: bool = True
 ) -> str:
     """Export the USD stage as a USDA string for OVRTX loading.
 
-    The stage is trimmed so OVRTX receives only the environment roots and prototype geometry declared by the
-    plan. Non-source prims are deactivated on an anonymous session layer used only for export, so the input stage
-    remains unchanged.
+    When ``num_envs`` is 1, the full stage is exported unchanged. Otherwise the stage is trimmed so OVRTX receives
+    only the prototype geometry it replicates at clone time. Non-source env descendants are deactivated on an
+    anonymous session layer used only for export, so the input stage remains unchanged.
 
     When ``keep_env_roots`` is True (the legacy ``renderer.clone_usd`` path) the non-source env root prims stay
     active so the exported stage retains a slot for every env. The ovstage ``stage.clone`` path passes False, which
@@ -428,7 +432,7 @@ def export_stage_to_string(
 
     Args:
         stage: USD stage to export.
-        env_paths: Exact parallel environment root paths on the stage.
+        num_envs: Number of parallel environments on the stage.
         source_paths: The paths to source prims to keep in the exported stage.
         keep_env_roots: Whether to keep the non-source env root prims active in the exported stage. Pass False for
             the ovstage clone path, which repopulates env roots itself.
@@ -436,35 +440,29 @@ def export_stage_to_string(
     Returns:
         USDA text of the (possibly trimmed) stage.
     """
+    if num_envs <= 1:
+        return stage.ExportToString()
+
     export_session = Sdf.Layer.CreateAnonymous()
     export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
     export_stage = Usd.Stage.Open(stage.GetRootLayer(), export_session)
-    env_parent_path = Sdf.Path(env_paths[0]).GetParentPath()
-    if any(Sdf.Path(path).GetParentPath() != env_parent_path for path in env_paths[1:]):
-        raise ValueError("OVRTX requires every environment root to share one parent.")
-    env_parent = export_stage.GetPrimAtPath(env_parent_path)
-    if not env_parent.IsValid():
-        raise RuntimeError(f"Failed to get prim at path: {env_parent_path}")
+    envs_path = Sdf.Path("/World/envs")
+    envs_prim = export_stage.GetPrimAtPath(envs_path)
+    if not envs_prim.IsValid():
+        raise RuntimeError(f"Failed to get prim at path: {envs_path}")
 
     source_path_set = frozenset(map(Sdf.Path, source_paths))
     prim_paths: list[Sdf.Path] = []
 
     if keep_env_roots:
-        env_path_set = frozenset(map(Sdf.Path, env_paths))
-        for env_path in env_path_set:
-            if not export_stage.GetPrimAtPath(env_path).IsValid():
-                raise RuntimeError(f"Failed to get environment root prim at '{env_path}'.")
-        for env_prim in env_parent.GetChildren():
-            env_path = env_prim.GetPath()
-            if env_path in source_path_set:
-                continue
-            if env_path in env_path_set or any(source.HasPrefix(env_path) for source in source_path_set):
-                prim_paths.extend(_collect_prims_to_deactivate(env_prim, source_path_set))
-            elif env_prim.IsActive():
-                prim_paths.append(env_path)
+        for child in envs_prim.GetChildren():
+            # Legacy code path: keep env roots so we can query their xforms after opening stage
+            child_path = child.GetPath()
+            if child_path not in source_path_set:
+                prim_paths.extend(_collect_prims_to_deactivate(child, source_path_set))
     else:
         # Ovstage code path: strip env roots, their xforms are queried beforehand.
-        prim_paths = _collect_prims_to_deactivate(env_parent, source_path_set)
+        prim_paths = _collect_prims_to_deactivate(envs_prim, source_path_set)
 
     with Sdf.ChangeBlock():
         for prim_path in prim_paths:

@@ -110,8 +110,6 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
             sources=(env_fmt.format(0),),
             destinations=(env_fmt,),
             clone_mask=torch.ones((1, num_envs), dtype=torch.bool, device=sim.device),
-            env_ids=env_ids,
-            positions=env_origins,
         )
     )
     # PhysX-only optimization: filter collisions across env clones. Skip on Newton —

@@ -43,7 +43,7 @@ def queue_replication(cfg: Any) -> None:
 def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     """Dispatch a fully routed clone plan and publish it after replication.
 
-    Planning consumes cfg registrations; dispatch does not rediscover or reshape their mapping.
+    Planning derives routing from the input cfgs; dispatch does not rediscover or reshape that mapping.
     Every context is owned by the active :class:`~isaaclab.sim.SimulationContext` and receives
     only ``plan``. The queue is cleared up front, so a backend failure cannot leak stale entries
     into the next lifecycle.
@@ -57,16 +57,15 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     sim = SimulationContext.instance()
     if sim is None:
         raise RuntimeError("Clone-plan replication requires an active SimulationContext.")
-    missing = [context_type for context_type in plan.context_rows if context_type not in sim._backend_registry]
+    context_types = tuple(
+        context_type for context_type in plan.context_rows if replicate_physics or context_type is UsdReplicateContext
+    )
+    missing = [context_type for context_type in context_types if context_type not in sim._backend_registry]
     if missing:
         names = ", ".join(f"{context_type.__module__}.{context_type.__qualname__}" for context_type in missing)
         raise RuntimeError(f"Clone contexts must be registered before plan dispatch: {names}.")
 
-    contexts = []
-    for context_type in plan.context_rows:
-        roles = sim._backend_clone_roles.get(context_type, set())
-        if replicate_physics or context_type is UsdReplicateContext or roles & {"model", "scene"}:
-            contexts.append(sim._backend_registry[context_type])
+    contexts = [sim._backend_registry[context_type] for context_type in context_types]
     for context in sorted(contexts, key=lambda item: item.replicate_priority):
         context.replicate(plan)
     sim.set_clone_plan(plan)

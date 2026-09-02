@@ -14,20 +14,19 @@ from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from ._fabric_notices import disabled_fabric_change_notifies
 from .path import split
-from .query import _clone_mapping
 
 if TYPE_CHECKING:
     from .clone_plan import ClonePlan
 
 
-def _select_env_ids(env_ids: torch.Tensor, mask: torch.Tensor | None, row: int) -> torch.Tensor:
-    """Return the environment ids selected by a replication row."""
+def _select_columns(env_ids: torch.Tensor, mask: torch.Tensor | None, row: int) -> torch.Tensor:
+    """Return the mask columns selected by a replication row."""
     if mask is None:
-        return env_ids
+        return torch.arange(len(env_ids), device=env_ids.device)
     row_mask = mask if mask.dim() == 1 else mask[row]
     if row_mask.dtype != torch.bool:
         row_mask = row_mask.to(dtype=torch.bool)
-    return env_ids[row_mask]
+    return row_mask.nonzero(as_tuple=False).flatten()
 
 
 class UsdReplicateContext:
@@ -50,14 +49,15 @@ class UsdReplicateContext:
         Args:
             plan: Replication layout shared by every clone backend.
         """
+        if plan.env_ids is None:
+            raise ValueError("ClonePlan.env_ids is required for replication.")
         rows = plan.context_rows[type(self)]
-        sources, destinations, mask = _clone_mapping(plan, rows, whole_env=True)
         items = []
-        for row, source in enumerate(sources):
-            columns = mask[row].to(dtype=torch.bool).nonzero(as_tuple=False).flatten()
+        for row in rows:
+            columns = _select_columns(plan.env_ids, plan.clone_mask, row)
             target_envs = plan.env_ids[columns.to(device=plan.env_ids.device)]
-            positions = plan.positions[columns.to(device=plan.positions.device)]
-            items.append((source, destinations[row], target_envs, positions, None))
+            positions = None if plan.positions is None else plan.positions[columns.to(device=plan.positions.device)]
+            items.append((plan.sources[row], plan.destinations[row], target_envs, positions, None))
         if not items:
             return
 
@@ -160,11 +160,10 @@ def usd_replicate(
     """
     items = []
     for row, source in enumerate(sources):
-        target_envs = _select_env_ids(env_ids, mask, row)
-        indices = target_envs.to(device=positions.device) if positions is not None else target_envs
-        row_positions = None if positions is None else positions[indices]
-        indices = target_envs.to(device=quaternions.device) if quaternions is not None else target_envs
-        row_quaternions = None if quaternions is None else quaternions[indices]
+        columns = _select_columns(env_ids, mask, row)
+        target_envs = env_ids[columns.to(device=env_ids.device)]
+        row_positions = None if positions is None else positions[columns.to(device=positions.device)]
+        row_quaternions = None if quaternions is None else quaternions[columns.to(device=quaternions.device)]
         items.append((source, destinations[row], target_envs, row_positions, row_quaternions))
     context = UsdReplicateContext(stage)
     if items:

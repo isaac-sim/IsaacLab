@@ -260,31 +260,6 @@ def test_replicate_physics_flag_controls_physx_replicator(device, replicate_phys
     assert torch.isfinite(scene["robot"].data.joint_pos.torch).all()
 
 
-def test_cfg_cloning_contexts_override_backend_default(monkeypatch: pytest.MonkeyPatch):
-    """AssetBaseCfg.cloning_contexts replaces the backend default stack for that asset."""
-    import isaaclab.cloner.replicate_session as replicate_session_module
-    from isaaclab.cloner import REPLICATION_QUEUE
-
-    # keep the queue for inspection: the fake drain does not clear it
-    monkeypatch.setattr(replicate_session_module, "replicate", lambda plan, *, stage, replicate_physics=True: None)
-
-    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
-        sim._app_control_on_stop_handle = None
-        scene_cfg = MySceneCfg(num_envs=2, env_spacing=1.0)
-        scene_cfg.rigid_obj.cloning_contexts = ("isaaclab.cloner:UsdReplicateContext",)
-        try:
-            InteractiveScene(scene_cfg)
-            queued_by_path = {cfg.prim_path: cfg for cfg in REPLICATION_QUEUE}
-            # the override rides the queued cfg; resolution happens at replicate()
-            assert queued_by_path["/World/envs/env_[^/]+/RigidObj"].cloning_contexts == (
-                "isaaclab.cloner:UsdReplicateContext",
-            )
-            # untouched asset resolves to the backend default stack at replicate()
-            assert queued_by_path["/World/envs/env_[^/]+/Robot"].cloning_contexts is None
-        finally:
-            REPLICATION_QUEUE.clear()
-
-
 def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
     """The composition root separates cloneable configs from shared prim roots."""
     scene = object.__new__(InteractiveScene)

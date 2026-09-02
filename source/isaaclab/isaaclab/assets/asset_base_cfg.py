@@ -50,8 +50,8 @@ class AssetBaseCfg:
     """Cloning contexts for this asset. Defaults to None.
 
     Entries are ``"module:ContextClass"`` references (or classes). If None, planning
-    routes the asset to contexts registered for the simulation's physics clone role.
-    An empty tuple requests no explicit physics context.
+    routes the asset to the active physics manager's clone context. An empty tuple
+    requests no explicit physics context.
     :class:`~isaaclab.cloner.UsdReplicateContext` is still added automatically when ``spawn``
     is set and Kit is available; listing it explicitly forces USD replication even without Kit.
     """

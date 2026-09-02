@@ -361,7 +361,7 @@ def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground)
             destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
             clone_mask=torch.tensor([[True, False, True], [False, True, False]], dtype=torch.bool, device=sim.device),
             env_ids=torch.arange(3, dtype=torch.long, device=sim.device),
-            positions=torch.tensor([[0.0, 0.0, 0.0], [3.0, 0.0, 0.0], [6.0, 0.0, 0.0]], device=sim.device),
+            positions=None,
             cfg_rows={},
         )
     )

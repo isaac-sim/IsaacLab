@@ -45,65 +45,29 @@ class ClonePlan:
     """Source prim paths, one per replication row."""
 
     destinations: tuple[str, ...]
-    """Destination paths, templated for replicated rows and exact for shared rows."""
+    """Destination path templates with ``"{}"`` for the env id, one per row."""
 
     clone_mask: torch.Tensor
     """Bool tensor ``[len(sources), num_clones]``; ``True`` if env ``j`` comes from row ``i``."""
 
-    env_ids: torch.Tensor
-    """Long tensor ``[num_clones]`` of target env ids."""
+    env_ids: torch.Tensor | None = None
+    """Long tensor ``[num_clones]`` of target env ids.
 
-    positions: torch.Tensor
-    """Per-env world positions [m], shape ``[num_clones, 3]``."""
+    Optional for plans used only with :func:`~isaaclab.cloner.query.iter_sources` or
+    :func:`~isaaclab.cloner.query.path_to_source`; required by :func:`~isaaclab.cloner.replicate`.
+    """
+
+    positions: torch.Tensor | None = None
+    """Per-env world positions [m], shape ``[num_clones, 3]``, or ``None``."""
 
     cfg_rows: dict[int, tuple[int, ...]] = field(default_factory=dict)
     """``id(cfg)`` to the row indices the cfg owns."""
 
     context_rows: dict[type[object], tuple[int, ...]] = field(default_factory=dict)
-    """Clone-context types to their routed replication rows."""
+    """Clone-context types to the rows they consume."""
 
-    env_template: str = DEFAULT_ENV_TEMPLATE
-    """Environment path template used by whole-environment clone contexts."""
-
-    def __post_init__(self) -> None:
-        """Validate the flat replication relation at its public boundary."""
-        if not isinstance(self.clone_mask, torch.Tensor) or not isinstance(self.env_ids, torch.Tensor):
-            raise TypeError("clone_mask and env_ids must be torch tensors.")
-        if not isinstance(self.positions, torch.Tensor):
-            raise TypeError("positions must be a torch tensor.")
-        rows = len(self.sources)
-        if len(self.destinations) != rows or self.clone_mask.ndim != 2 or self.clone_mask.shape[0] != rows:
-            raise ValueError("sources, destinations, and clone_mask rows must have equal length.")
-        if self.clone_mask.dtype != torch.bool:
-            raise TypeError("clone_mask must be a bool tensor.")
-        if self.env_ids.ndim != 1 or self.clone_mask.shape[1] != len(self.env_ids):
-            raise ValueError("clone_mask columns must match the one-dimensional env_ids tensor.")
-        if self.env_ids.dtype != torch.long:
-            raise TypeError("env_ids must be a torch.long tensor.")
-        if self.clone_mask.device != self.env_ids.device or self.positions.device != self.env_ids.device:
-            raise ValueError("clone_mask, env_ids, and positions must use the same device.")
-        if bool((self.env_ids < 0).any()):
-            raise ValueError("env_ids must be nonnegative.")
-        if len(torch.unique(self.env_ids)) != len(self.env_ids):
-            raise ValueError("env_ids must be unique.")
-        if self.positions.shape != (len(self.env_ids), 3):
-            raise ValueError("positions must have shape [len(env_ids), 3].")
-        for row, (source, destination) in enumerate(zip(self.sources, self.destinations, strict=True)):
-            if "{}" in source:
-                raise ValueError("ClonePlan sources must be exact prim paths.")
-            if destination.count("{}") > 1:
-                raise ValueError("A replicated destination must contain exactly one clone slot.")
-            if "{}" not in destination and (source != destination or bool(self.clone_mask[row].any())):
-                raise ValueError("A shared row requires an exact source == destination and an empty clone mask.")
-        routed_rows = (*self.cfg_rows.values(), *self.context_rows.values())
-        if any(row < 0 or row >= rows for owned_rows in routed_rows for row in owned_rows):
-            raise ValueError("cfg_rows and context_rows must reference existing plan rows.")
-        if any(len(set(owned_rows)) != len(owned_rows) for owned_rows in self.context_rows.values()):
-            raise ValueError("context_rows cannot route the same plan row more than once.")
-        if self.env_template.count("{}") != 1:
-            raise ValueError("env_template must contain exactly one clone slot.")
-        if any("{}" not in self.destinations[row] for rows in self.context_rows.values() for row in rows):
-            raise ValueError("context_rows cannot route exact shared rows.")
+    global_paths: tuple[str, ...] = ()
+    """Unique prim paths for scene assets shared by every environment."""
 
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cpu"):
@@ -260,96 +224,44 @@ def make_valid_clone_combinations(
     return torch.tensor(rows, dtype=torch.long, device=device)
 
 
-def _compile_context_rows(
-    cfgs: tuple[Any, ...],
-    cfg_rows: dict[int, tuple[int, ...]],
-    destinations: tuple[str, ...],
-    clone_mask: torch.Tensor,
-    whole_env_rows: tuple[int, ...],
+def _context_rows(
+    cfgs: tuple[Any, ...], cfg_rows: dict[int, tuple[int, ...]], populated_rows: set[int]
 ) -> dict[type[object], tuple[int, ...]]:
-    """Compile cfg and simulation-scoped clone-context routing into plan rows."""
+    """Route plan rows to the clone contexts registered for this simulation."""
     sim = sim_utils.SimulationContext.instance()
-    context_roles = {} if sim is None else sim._backend_clone_roles
-    populated_rows = {
-        row for row, destination in enumerate(destinations) if "{}" in destination and bool(clone_mask[row].any())
-    }
-    physics_contexts = tuple(context_type for context_type, roles in context_roles.items() if "physics" in roles)
+    if sim is None:
+        return {}
 
-    routed_rows: dict[type[object], set[int]] = {context_type: set() for context_type in context_roles}
-    usd_context: type[object] | None = None
+    usd_context = string_to_callable("isaaclab.cloner.usd:UsdReplicateContext")
+    physics_context = sim.physics_manager.clone_context_type
+    if isinstance(physics_context, str):
+        physics_context = string_to_callable(physics_context)
+    routed: dict[type[object], set[int]] = {}
+
     for cfg in cfgs:
-        references = getattr(cfg, "cloning_contexts", None)
-        contexts = (
-            physics_contexts
-            if references is None
-            else tuple(string_to_callable(value) if isinstance(value, str) else value for value in references)
-        )
-        if any(not isinstance(context, type) for context in contexts):
-            raise TypeError(f"{type(cfg).__name__}.cloning_contexts must contain only context classes.")
         rows = cfg_rows.get(id(cfg))
         if rows is None:
             continue
-        automatic_usd = getattr(cfg, "spawn", None) is not None and has_kit()
-        if automatic_usd:
-            if usd_context is None:
-                usd_context = string_to_callable("isaaclab.cloner.usd:UsdReplicateContext")
+        references = cfg.cloning_contexts
+        contexts = (
+            (() if physics_context is None else (physics_context,))
+            if references is None
+            else tuple(string_to_callable(value) if isinstance(value, str) else value for value in references)
+        )
+        if cfg.spawn is not None and has_kit():
             contexts = tuple(dict.fromkeys((*contexts, usd_context)))
-        explicit_usd = next(
-            (
-                context
-                for context in contexts
-                if context.__module__ == "isaaclab.cloner.usd" and context.__qualname__ == "UsdReplicateContext"
-            ),
-            None,
-        )
-        if explicit_usd is not None:
-            usd_context = explicit_usd
-            if sim is None:
-                raise RuntimeError("USD cloning requires an active SimulationContext.")
-            sim.get_or_create_backend(usd_context, sim.stage, clone_role="scene")
+        if any(not isinstance(context, type) for context in contexts):
+            raise TypeError(f"{type(cfg).__name__}.cloning_contexts must contain only context classes.")
         for context_type in contexts:
-            routed_rows.setdefault(context_type, set()).update(rows)
+            routed.setdefault(context_type, set()).update(rows)
 
-    for context_type, roles in context_roles.items():
-        if roles & {"model", "scene"}:
-            routed_rows[context_type].update(populated_rows)
-        if roles & {"physics", "model", "scene"}:
-            routed_rows[context_type].update(whole_env_rows)
-    return {context_type: tuple(sorted(rows & populated_rows)) for context_type, rows in routed_rows.items()}
-
-
-def _finalize_plan(
-    sources: tuple[str, ...],
-    destinations: tuple[str, ...],
-    clone_mask: torch.Tensor,
-    env_ids: torch.Tensor,
-    positions: torch.Tensor,
-    cfg_rows: dict[int, tuple[int, ...]],
-    cfgs: tuple[Any, ...],
-    global_paths: tuple[str, ...],
-    env_template: str,
-    whole_env_rows: tuple[int, ...] = (),
-) -> ClonePlan:
-    """Add exact shared rows and compile the complete clone-context routing."""
-    global_paths = tuple(dict.fromkeys(global_paths))
-    if any("{}" in path for path in global_paths):
-        raise ValueError("Shared scene paths must be exact prim paths without a clone slot.")
-    if global_paths:
-        sources = (*sources, *global_paths)
-        destinations = (*destinations, *global_paths)
-        clone_mask = torch.cat(
-            [clone_mask, torch.zeros((len(global_paths), len(env_ids)), dtype=torch.bool, device=clone_mask.device)]
-        )
-    return ClonePlan(
-        sources=sources,
-        destinations=destinations,
-        clone_mask=clone_mask,
-        env_ids=env_ids,
-        positions=positions,
-        cfg_rows=cfg_rows,
-        context_rows=_compile_context_rows(cfgs, cfg_rows, destinations, clone_mask, whole_env_rows),
-        env_template=env_template,
-    )
+    if usd_context in routed:
+        sim.get_or_create_backend(usd_context, sim.stage)
+    return {
+        context_type: tuple(sorted(rows & populated_rows))
+        for context_type, rows in routed.items()
+        if rows & populated_rows
+    }
 
 
 def make_clone_plan(
@@ -371,8 +283,8 @@ def make_clone_plan(
 
     Each input cfg's ``spawn_path`` / ``spawn_paths`` is mutated so the subsequent
     asset constructor spawns the prototype into its first active environment. Every cfg
-    is an env-scoped entity with a spawner. Shared assets become exact plan rows with an
-    empty clone mask.
+    is an env-scoped entity with a spawner. Shared assets are declared explicitly through
+    ``global_paths`` and are never replicated.
 
     Args:
         cfgs: Cloneable asset cfgs with resolved env-scoped ``prim_path`` and ``spawn``.
@@ -388,8 +300,8 @@ def make_clone_plan(
 
     Returns:
         A :class:`ClonePlan` whose ``sources``/``destinations``/``clone_mask`` describe
-        the flat prototype-to-env mapping and whose ``cfg_rows`` maps each replicated cfg
-        to the rows it owns.
+        the flat prototype-to-env mapping, whose ``cfg_rows`` maps each replicated cfg
+        to the rows it owns, and whose ``global_paths`` names shared scene assets.
     """
 
     def set_spawn_paths(spawn_cfg: Any, paths: list[str | None]) -> None:
@@ -420,36 +332,34 @@ def make_clone_plan(
     # 2) No env-scoped cfgs: emit an empty plan so the scene can still proceed.
     if not groups:
         empty_mask = torch.zeros((0, num_clones), dtype=torch.bool, device=device)
-        return _finalize_plan(
-            (),
-            (),
-            empty_mask,
-            env_ids,
-            positions,
-            {},
-            cfgs,
-            global_paths,
-            env_template,
+        return ClonePlan(
+            sources=(),
+            destinations=(),
+            clone_mask=empty_mask,
+            env_ids=env_ids,
+            positions=positions,
+            cfg_rows={},
+            global_paths=global_paths,
         )
 
-    # 3) Keep one homogeneous environment root so hand-authored sibling prims remain covered.
+    # 3) Homogeneous (every cfg is single-variant): emit the simpler env-root plan.
     if valid_set is None and all(count == 1 for _, _, _, count in groups):
         for cfg, spawn_cfg, destination, _ in groups:
             set_spawn_paths(spawn_cfg, [destination.format(0)])
         cfg_rows = {id(cfg): (0,) for cfg, _, _, _ in groups}
-        return _finalize_plan(
-            (env_template.format(0),),
-            (env_template,),
-            torch.ones((1, num_clones), dtype=torch.bool, device=device),
-            env_ids,
-            positions,
-            cfg_rows,
-            cfgs,
-            global_paths,
-            env_template,
+        clone_mask = torch.ones((1, num_clones), dtype=torch.bool, device=device)
+        return ClonePlan(
+            sources=(env_template.format(0),),
+            destinations=(env_template,),
+            clone_mask=clone_mask,
+            env_ids=env_ids,
+            positions=positions,
+            cfg_rows=cfg_rows,
+            context_rows=_context_rows(cfgs, cfg_rows, {0}),
+            global_paths=global_paths,
         )
 
-    # 4) Enumerate heterogeneous prototype combinations and build per-row masks.
+    # 4) Heterogeneous: enumerate prototype combos, build per-row mask, mutate spawn paths.
     group_sizes = [count for _, _, _, count in groups]
 
     def validate_combo_tensor(combos: torch.Tensor, name: str, expected_rows: int | None = None) -> torch.Tensor:
@@ -491,12 +401,14 @@ def make_clone_plan(
     sources_list: list[str] = []
     destinations_list: list[str] = []
     cfg_rows: dict[int, tuple[int, ...]] = {}
+    populated_rows: set[int] = set()
     row = 0
     for cfg, spawn_cfg, destination, count in groups:
         cfg_rows[id(cfg)] = tuple(range(row, row + count))
         group_mask = clone_mask[row : row + count]
         env_ids_assigned = group_mask.to(torch.int).argmax(dim=1).tolist()
         active = group_mask.any(dim=1).tolist()
+        populated_rows.update(row + i for i, is_active in enumerate(active) if is_active)
         paths = [
             destination.format(env_id) if is_active else None for env_id, is_active in zip(env_ids_assigned, active)
         ]
@@ -508,16 +420,15 @@ def make_clone_plan(
         set_spawn_paths(spawn_cfg, paths)
         row += count
 
-    return _finalize_plan(
-        tuple(sources_list),
-        tuple(destinations_list),
-        clone_mask,
-        env_ids,
-        positions,
-        cfg_rows,
-        cfgs,
-        global_paths,
-        env_template,
+    return ClonePlan(
+        sources=tuple(sources_list),
+        destinations=tuple(destinations_list),
+        clone_mask=clone_mask,
+        env_ids=env_ids,
+        positions=positions,
+        cfg_rows=cfg_rows,
+        context_rows=_context_rows(cfgs, cfg_rows, populated_rows),
+        global_paths=global_paths,
     )
 
 
@@ -526,44 +437,41 @@ def clone_plan_from_env_0(
     destination: str,
     num_clones: int,
     device: str,
-    positions: torch.Tensor,
+    positions: torch.Tensor | None = None,
     global_paths: tuple[str, ...] = (),
 ) -> ClonePlan:
-    """Build a whole-environment clone plan after constructing environment zero.
+    """Build a single-source clone plan that targets every env from one source row.
 
     Auto-populates :attr:`ClonePlan.cfg_rows` from :data:`~isaaclab.cloner.REPLICATION_QUEUE`,
-    mapping every env-scoped cfg to the environment-root row. This intentionally covers
-    hand-authored sibling prims that are not represented in the queue. ``global_paths`` is the
-    complete declaration of shared assets and is never inferred from the stage.
+    including only cfgs whose ``prim_path`` falls under the env-root prefix of
+    ``destination``. ``global_paths`` is the complete declaration of shared assets; it is
+    never inferred from the stage or replication queue. Must be called *after* all asset
+    constructors have run, so their cfgs are already registered in the queue; otherwise
+    those assets will be skipped by the subsequent :func:`~isaaclab.cloner.replicate` call.
 
     Args:
         source: Source prim path (typically ``/World/envs/env_0``).
         destination: Destination template with ``"{}"`` for the env id.
         num_clones: Number of target envs.
         device: Torch device for the mask and env id buffers.
-        positions: Per-env world positions [m], shape ``[num_clones, 3]``.
+        positions: Optional per-env world positions [m], shape ``[num_clones, 3]``.
         global_paths: Complete shared-asset roots for the hand-built scene. Defaults to none.
 
     Returns:
-        A :class:`ClonePlan` covering the complete environment-zero subtree.
+        A :class:`ClonePlan` with a single source row covering every env.
     """
     from .replicate_session import REPLICATION_QUEUE  # noqa: PLC0415
 
     queued = tuple(REPLICATION_QUEUE)
-    global_paths = tuple(dict.fromkeys(global_paths))
     cfg_rows = {id(cfg): (0,) for cfg in queued if match(cfg.prim_path, destination) is not None}
-    for global_row, path in enumerate(global_paths, start=1):
-        cfg_rows.update({id(cfg): (global_row,) for cfg in queued if cfg.prim_path == path})
-    env_ids = torch.arange(num_clones, dtype=torch.long, device=device)
-    return _finalize_plan(
-        (source,),
-        (destination,),
-        torch.ones((1, num_clones), dtype=torch.bool, device=device),
-        env_ids,
-        positions,
-        cfg_rows,
-        queued,
-        global_paths,
-        destination,
-        whole_env_rows=(0,),
+    clone_mask = torch.ones((1, num_clones), dtype=torch.bool, device=device)
+    return ClonePlan(
+        sources=(source,),
+        destinations=(destination,),
+        clone_mask=clone_mask,
+        env_ids=torch.arange(num_clones, dtype=torch.long, device=device),
+        positions=positions,
+        cfg_rows=cfg_rows,
+        context_rows=_context_rows(queued, cfg_rows, {0}),
+        global_paths=global_paths,
     )

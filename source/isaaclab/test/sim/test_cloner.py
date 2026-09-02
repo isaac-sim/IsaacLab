@@ -99,27 +99,25 @@ def test_usd_replicate_with_positions_and_mask(sim):
 
 def test_usd_replicate_context_consumes_plan(sim):
     """UsdReplicateContext consumes the same plan used by every clone backend."""
-    sim_utils.create_prim("/World/template", "Xform")
     sim_utils.create_prim("/World/template/A", "Xform")
     sim_utils.create_prim("/World/envs", "Xform")
-    sim_utils.create_prim("/World/envs/env_0", "Xform")
-    sim_utils.create_prim("/World/envs/env_1", "Xform")
 
     stage = sim_utils.get_current_stage()
     ctx = UsdReplicateContext(stage)
     plan = ClonePlan(
         sources=("/World/template/A",),
-        destinations=("/World/envs/env_{}/A",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool),
-        env_ids=torch.tensor([0, 1], dtype=torch.long),
-        positions=torch.zeros((2, 3)),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=torch.tensor([[False, True]]),
+        env_ids=torch.tensor([10, 20]),
+        positions=torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
         context_rows={UsdReplicateContext: (0,)},
     )
-    assert not stage.GetPrimAtPath("/World/envs/env_1/A").IsValid()
     ctx.replicate(plan)
 
-    assert stage.GetPrimAtPath("/World/envs/env_0/A").IsValid()
-    assert stage.GetPrimAtPath("/World/envs/env_1/A").IsValid()
+    assert not stage.GetPrimAtPath("/World/envs/env_10").IsValid()
+    prim = stage.GetPrimAtPath("/World/envs/env_20")
+    assert prim.IsValid()
+    assert tuple(UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0).ExtractTranslation()) == (4.0, 5.0, 6.0)
 
 
 def test_usd_replicate_nested_asset_preserves_local_offset_with_positions(sim):
@@ -325,11 +323,12 @@ def test_queue_replication_only_appends(sim):
     assert [cfg_a, cfg_b] == REPLICATION_QUEUE
 
 
-def test_make_clone_plan_homogeneous_covers_environment_root(sim):
-    """A homogeneous plan preserves complete environment-zero coverage."""
+def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
+    """Homogeneous (single-variant) cfgs produce one source row at the env root."""
     cube = SimpleNamespace(
         prim_path="/World/envs/env_[^/]+/Robot",
         spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+        cloning_contexts=None,
     )
     plan = make_clone_plan(
         cfgs=[cube],
@@ -339,12 +338,12 @@ def test_make_clone_plan_homogeneous_covers_environment_root(sim):
         global_paths=("/World/Ground",),
     )
 
-    assert plan.sources == ("/World/envs/env_0", "/World/Ground")
-    assert plan.destinations == ("/World/envs/env_{}", "/World/Ground")
-    assert plan.clone_mask.shape == (2, 4)
-    assert plan.clone_mask[0].all()
+    assert plan.sources == ("/World/envs/env_0",)
+    assert plan.destinations == ("/World/envs/env_{}",)
+    assert plan.clone_mask.shape == (1, 4)
+    assert plan.clone_mask.all()
     assert plan.cfg_rows[id(cube)] == (0,)
-    assert not plan.clone_mask[1].any()
+    assert plan.global_paths == ("/World/Ground",)
     assert plan.env_ids.shape == (4,)
     assert plan.positions.shape == (4, 3)
     assert cube.spawn.spawn_path == "/World/envs/env_0/Robot"
@@ -399,6 +398,7 @@ def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
     """Multi-variant spawners get per-variant spawn_paths and contribute multiple plan rows."""
     multi_cfg = SimpleNamespace(
         prim_path="/World/envs/env_[^/]+/Object",
+        cloning_contexts=None,
         spawn=sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=[
                 sim_utils.ConeCfg(radius=0.1, height=0.2),
@@ -409,6 +409,7 @@ def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
     plain_cfg = SimpleNamespace(
         prim_path="/World/envs/env_[^/]+/Robot",
         spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+        cloning_contexts=None,
     )
     plan = make_clone_plan(
         cfgs=[multi_cfg, plain_cfg],
@@ -423,17 +424,16 @@ def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
         "/World/envs/env_{}/Object",
         "/World/envs/env_{}/Object",
         "/World/envs/env_{}/Robot",
-        "/World/Ground",
     )
     assert plan.cfg_rows[id(multi_cfg)] == (0, 1)
     assert plan.cfg_rows[id(plain_cfg)] == (2,)
-    assert not plan.clone_mask[-1].any()
+    assert plan.global_paths == ("/World/Ground",)
     assert multi_cfg.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
     assert plain_cfg.spawn.spawn_path == "/World/envs/env_0/Robot"
 
 
-def test_make_clone_plan_records_globals_as_exact_rows(sim):
-    """Shared assets are exact zero-mask rows rather than a side channel."""
+def test_make_clone_plan_records_globals_outside_replication_rows(sim):
+    """Global cfgs are named by the plan without becoming rows a backend might copy."""
     plan = make_clone_plan(
         cfgs=[],
         num_clones=3,
@@ -442,18 +442,18 @@ def test_make_clone_plan_records_globals_as_exact_rows(sim):
         global_paths=("/World/global/Robot", "/World/ground"),
     )
 
-    assert plan.sources == ("/World/global/Robot", "/World/ground")
-    assert plan.destinations == plan.sources
-    assert plan.clone_mask.shape == (2, 3)
-    assert not plan.clone_mask.any()
+    assert plan.sources == ()
+    assert plan.destinations == ()
+    assert plan.clone_mask.shape == (0, 3)
     assert plan.cfg_rows == {}
+    assert plan.global_paths == ("/World/global/Robot", "/World/ground")
 
 
-def test_clone_plan_from_env_0_covers_queued_cfgs_and_globals(sim):
-    """The direct-env plan covers its complete environment root and exact shared assets."""
-    env_cfg_a = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot")
-    env_cfg_b = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Object")
-    global_cfg = SimpleNamespace(prim_path="/World/global/Light")
+def test_clone_plan_from_env_0_populates_cfg_rows_and_global_paths(sim):
+    """The direct-env constructor separates replicated cfg rows from shared asset paths."""
+    env_cfg_a = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", spawn=None)
+    env_cfg_b = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Object", spawn=None)
+    global_cfg = SimpleNamespace(prim_path="/World/global/Light", spawn=None)
 
     for cfg in (env_cfg_a, env_cfg_b, global_cfg):
         cfg.cloning_contexts = (UsdReplicateContext,)
@@ -463,10 +463,11 @@ def test_clone_plan_from_env_0_covers_queued_cfgs_and_globals(sim):
     pos = grid_transforms(4, 1.0, device=sim.cfg.device)[0]
     plan = cloner.clone_plan_from_env_0(src, dest, 4, sim.cfg.device, pos, global_paths=("/World/global/Light",))
 
-    assert plan.sources == ("/World/envs/env_0", "/World/global/Light")
-    assert plan.destinations == ("/World/envs/env_{}", "/World/global/Light")
-    assert plan.cfg_rows == {id(env_cfg_a): (0,), id(env_cfg_b): (0,), id(global_cfg): (1,)}
-    assert plan.clone_mask[0].all() and not plan.clone_mask[1].any()
+    assert plan.sources == ("/World/envs/env_0",)
+    assert plan.destinations == ("/World/envs/env_{}",)
+    assert plan.cfg_rows == {id(env_cfg_a): (0,), id(env_cfg_b): (0,)}
+    assert plan.global_paths == ("/World/global/Light",)
+    assert plan.clone_mask.all() and plan.clone_mask.shape == (1, 4)
     assert torch.equal(plan.env_ids, torch.arange(4, dtype=torch.long, device=sim.cfg.device))
 
 

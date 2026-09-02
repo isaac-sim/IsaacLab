@@ -401,6 +401,8 @@ class OvPhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
+    clone_context_type = OvPhysxReplicateContext
+
     _cfg: ClassVar[OvPhysxCfg | None] = None
     _physx: ClassVar[Any] = None  # ovphysx.PhysX (lazy import)
     _ovstage: ClassVar[Any] = None
@@ -522,7 +524,7 @@ class OvPhysxManager(PhysicsManager):
         IsaacLab's conservative first-device policy for this process.
         """
         super().initialize(sim_context)
-        sim_context.get_or_create_backend(OvPhysxReplicateContext, sim_context, clone_role="physics")
+        sim_context.get_or_create_backend(cls.clone_context_type, sim_context)
         cls._ensure_physx_schemas_registered()
         cls._warmup_done = False
         cls._requires_full_stage = False

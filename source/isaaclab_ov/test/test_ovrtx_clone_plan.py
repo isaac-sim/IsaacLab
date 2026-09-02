@@ -104,10 +104,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer._device = "cuda:0"  # __init__'s default, replaced by create_render_data(spec)
     # create_render_data resolves this from the spec; tests that bypass it get the default.
     renderer._warp_device = SimpleNamespace(ordinal=0)
-    renderer._env_paths = ()
-    renderer._camera_paths = ()
-    renderer._camera_env_paths = ()
-    renderer._source_camera_path = None
+    renderer._camera_rel_path = "Camera"
     renderer._render_product_paths = []
     renderer._exported_usd_string = None
     renderer._initialized_scene = False
@@ -117,51 +114,29 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     return renderer
 
 
-def _make_camera_render_spec(
-    num_envs: int = 1, device: str = "cpu", camera_paths: tuple[str, ...] | None = None
-) -> CameraRenderSpec:
+def _make_camera_render_spec(num_envs: int = 1, device: str = "cpu") -> CameraRenderSpec:
     spawn = PinholeCameraCfg(
         focal_length=24.0,
         focus_distance=400.0,
         horizontal_aperture=20.955,
         clipping_range=(0.1, 1.0e5),
     )
-    camera_paths = camera_paths or tuple(f"/World/envs/env_{env_idx}/Camera" for env_idx in range(num_envs))
     cfg = CameraCfg(
         height=8,
         width=16,
-        prim_path=camera_paths[0],
+        prim_path="/World/envs/env_0/Camera",
         spawn=spawn,
         data_types=["rgb"],
     )
+    camera_paths = tuple(f"/World/envs/env_{env_idx}/Camera" for env_idx in range(num_envs))
     return CameraRenderSpec(
         cfg=cfg,
         device=device,
         num_instances=num_envs,
         camera_prim_paths=camera_paths,
         view_count=num_envs,
+        camera_path_relative_to_env_0="Camera",
     )
-
-
-def _prepare_stage(renderer: OVRTXRenderer, stage: Usd.Stage, num_envs: int) -> None:
-    """Run the renderer's declared camera-then-stage preparation lifecycle."""
-    renderer.prepare_cameras(stage, _make_camera_render_spec(num_envs))
-    renderer.prepare_stage(stage, num_envs)
-
-
-def _attach_camera_plan(renderer: OVRTXRenderer, spec: CameraRenderSpec) -> None:
-    """Attach the plan-derived path state normally produced by stage preparation."""
-    renderer._clone_plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=torch.ones((1, spec.num_instances), dtype=torch.bool),
-        env_ids=torch.arange(spec.num_instances),
-        positions=torch.zeros((spec.num_instances, 3)),
-    )
-    renderer._env_paths = tuple(f"/World/envs/env_{env_id}" for env_id in range(spec.num_instances))
-    renderer._camera_paths = spec.camera_prim_paths
-    renderer._camera_env_paths = renderer._env_paths
-    renderer._source_camera_path = spec.camera_prim_paths[0]
 
 
 def test_clone_sources_in_ovrtx_uses_active_plan_rows():
@@ -264,12 +239,11 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
     renderer = _make_ovrtx_renderer_without_backend()
     positions = torch.tensor([[0.0, 0.0, 0.0], [1.5, -2.0, 0.25], [3.0, 4.0, 0.5]])
     renderer._clone_plan = ClonePlan(
-        sources=("/World/scenes/scene_7/Robot", "/World/scenes/scene_3/Object"),
-        destinations=("/World/scenes/scene_{}/Robot", "/World/scenes/scene_{}/Object"),
+        sources=("/World/envs/env_7/Robot", "/World/envs/env_3/Object"),
+        destinations=("/World/envs/env_{}/Robot", "/World/envs/env_{}/Object"),
         clone_mask=torch.tensor([[True, False, False], [False, True, True]]),
         env_ids=torch.tensor([7, 3, 12]),
         positions=positions,
-        env_template="/World/scenes/scene_{}",
     )
     events: list[tuple[str, str, object]] = []
     xforms: list[np.ndarray] = []
@@ -313,12 +287,8 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
     expected = np.tile(np.eye(4, dtype=np.float64), (3, 1, 1))
     expected[:, 3, :3] = positions.numpy()
     assert events == [
-        ("clone", "/World/scenes/scene_3/Object", ["/World/scenes/scene_12/Object"]),
-        (
-            "paths",
-            "envs",
-            ["/World/scenes/scene_7", "/World/scenes/scene_3", "/World/scenes/scene_12"],
-        ),
+        ("clone", "/World/envs/env_3/Object", ["/World/envs/env_12/Object"]),
+        ("paths", "envs", ["/World/envs/env_7", "/World/envs/env_3", "/World/envs/env_12"]),
         ("query", "envs", "env_paths"),
         ("write", "omni:xform", "root_xforms"),
     ]
@@ -337,118 +307,46 @@ def test_write_file_creates_parent_directory_and_writes_utf8(tmp_path: Path):
     assert output_path.read_text(encoding="utf-8") == "#usda 1.0\n"
 
 
-def test_prepare_stage_requires_published_plan(monkeypatch: pytest.MonkeyPatch):
-    """OVRTX stage preparation rejects an absent plan."""
-    _patch_simulation_context(monkeypatch, None)
-    stage = _make_multi_env_stage(2)
-    renderer = _make_ovrtx_renderer_without_backend()
+@pytest.mark.parametrize(
+    "clone_plan",
+    [
+        None,
+        ClonePlan(
+            sources=("/World/envs/env_0",),
+            destinations=("/World/envs/env_{}",),
+            clone_mask=torch.ones((1, 2), dtype=torch.bool),
+            env_ids=torch.arange(2),
+        ),
+        ClonePlan(
+            sources=("/World/envs/env_0",),
+            destinations=("/World/envs/env_{}",),
+            clone_mask=torch.ones((1, 2), dtype=torch.bool),
+            positions=torch.zeros((2, 3)),
+        ),
+    ],
+)
+def test_prepare_stage_requires_published_plan_ids_and_positions(
+    monkeypatch: pytest.MonkeyPatch, clone_plan: ClonePlan | None
+):
+    """OVRTX stage preparation rejects an absent plan and plans missing ids or positions."""
+    _patch_simulation_context(monkeypatch, clone_plan)
 
-    with pytest.raises(RuntimeError, match="Clone plan is required"):
-        _prepare_stage(renderer, stage, 2)
+    with pytest.raises(RuntimeError, match="Clone plan with environment ids and positions is required"):
+        _make_ovrtx_renderer_without_backend().prepare_stage(_make_multi_env_stage(2), 2)
 
 
-def test_custom_environment_template_drives_ovrtx_stage_and_clone_paths(monkeypatch: pytest.MonkeyPatch):
-    """OVRTX derives non-contiguous roots, nested cameras, partitions, scales, and cloning from the plan."""
-    env_ids = torch.tensor([2, 5])
-    env_template = "/World/scenes/scene_{}"
-    env_paths = tuple(env_template.format(env_id) for env_id in env_ids.tolist())
-    camera_paths = tuple(f"{env_path}/Robot/link/Camera" for env_path in reversed(env_paths))
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World")
-    UsdGeom.Xform.Define(stage, "/World/scenes")
-    for env_path in env_paths:
-        UsdGeom.Xform.Define(stage, env_path)
-        robot = UsdGeom.Xform.Define(stage, f"{env_path}/Robot")
-        robot.AddScaleOp().Set((2.0, 1.0, 1.0))
-        UsdGeom.Xform.Define(stage, f"{env_path}/Robot/link")
-    for camera_path in camera_paths:
-        UsdGeom.Camera.Define(stage, camera_path)
-
+def test_prepare_stage_rejects_non_dense_environment_ids(monkeypatch: pytest.MonkeyPatch):
     plan = ClonePlan(
-        sources=(f"{env_paths[1]}/Robot",),
-        destinations=(f"{env_template}/Robot",),
+        sources=("/World/envs/env_7",),
+        destinations=("/World/envs/env_{}",),
         clone_mask=torch.ones((1, 2), dtype=torch.bool),
-        env_ids=env_ids,
+        env_ids=torch.tensor([7, 3]),
         positions=torch.zeros((2, 3)),
-        env_template=env_template,
     )
     _patch_simulation_context(monkeypatch, plan)
-    renderer = _make_ovrtx_renderer_without_backend()
-    spec = _make_camera_render_spec(2, camera_paths=camera_paths)
-    renderer.prepare_cameras(stage, spec)
-    renderer.prepare_stage(stage, 2)
 
-    assert renderer._env_paths == env_paths
-    assert renderer._camera_paths == camera_paths
-    assert renderer._camera_env_paths == tuple(reversed(env_paths))
-    assert f"{env_paths[1]}/Robot" in renderer._object_scales_by_path
-
-    root_layer = stage.GetRootLayer()
-    for env_path in env_paths:
-        camera_path = f"{env_path}/Robot/link/Camera"
-        token = env_path.rsplit("/", 1)[-1]
-        assert (
-            root_layer.GetAttributeAtPath(Sdf.Path(env_path).AppendProperty("primvars:omni:scenePartition")).default
-            == token
-        )
-        assert (
-            root_layer.GetAttributeAtPath(Sdf.Path(camera_path).AppendProperty("omni:scenePartition")).default == token
-        )
-
-    renderer._initialize_from_spec_legacy = lambda _spec: None
-    renderer._initialize_from_spec(spec)
-    assert renderer._source_camera_path == camera_paths[0]
-
-    clone_calls: list[tuple[str, list[str]]] = []
-    write_calls: list[tuple[tuple, dict]] = []
-    renderer._renderer.clone_usd = lambda source, destinations: clone_calls.append((source, destinations))
-    renderer._renderer.write_attribute = lambda *args, **kwargs: write_calls.append((args, kwargs))
-    renderer._clone_sources_in_ovrtx()
-    renderer._update_scene_partitions_after_clone()
-
-    assert clone_calls == [(f"{env_paths[1]}/Robot", [f"{env_paths[0]}/Robot"])]
-    assert write_calls[0][1]["prim_paths"] == list(env_paths)
-    assert write_calls[1][0][:3] == (env_paths, "primvars:omni:scenePartition", ["scene_2", "scene_5"])
-    assert write_calls[2][0][:3] == (camera_paths, "omni:scenePartition", ["scene_5", "scene_2"])
-
-
-def test_custom_environment_membership_excludes_nested_camera_subtree(monkeypatch: pytest.MonkeyPatch):
-    """Newton bindings use exact environment and camera subtrees instead of default-path substrings."""
-    env_paths = ("/World/scenes/scene_2", "/World/scenes/scene_5")
-    camera_paths = tuple(f"{env_path}/Robot/link/Camera" for env_path in env_paths)
-    model = SimpleNamespace(
-        body_label=(
-            f"{env_paths[0]}/Robot/base",
-            camera_paths[0],
-            f"{camera_paths[1]}/housing",
-            "/World/envs/env_0/Robot/base",
-        )
-    )
-    monkeypatch.setattr("isaaclab_newton.physics.NewtonManager.get_model", lambda: model)
-    monkeypatch.setattr(ovrtx_renderer_module.SimulationContext, "instance", lambda: object())
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "array", lambda values, **_kwargs: values)
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "zeros", lambda *_args, **_kwargs: [])
-
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._env_paths = env_paths
-    renderer._camera_paths = camera_paths
-    renderer._camera_env_paths = env_paths
-    renderer._clone_plan = ClonePlan(
-        sources=(f"{env_paths[0]}/Robot",),
-        destinations=("/World/scenes/scene_{}/Robot",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool),
-        env_ids=torch.tensor([2, 5]),
-        positions=torch.zeros((2, 3)),
-        env_template="/World/scenes/scene_{}",
-    )
-    bound_paths: list[str] = []
-    renderer._renderer.bind_attribute = lambda prim_paths, **_kwargs: bound_paths.extend(prim_paths) or object()
-    renderer._renderer.write_attribute = lambda **_kwargs: None
-    renderer._create_object_scale_array = lambda paths: paths
-
-    renderer._setup_xform_bindings_legacy()
-
-    assert bound_paths == [f"{env_paths[0]}/Robot/base"]
+    with pytest.raises(RuntimeError, match="environment ids ordered from zero"):
+        _make_ovrtx_renderer_without_backend().prepare_stage(_make_multi_env_stage(2), 2)
 
 
 def test_prepare_stage_keeps_material_binding_inside_clone_source(monkeypatch: pytest.MonkeyPatch):
@@ -461,8 +359,8 @@ def test_prepare_stage_keeps_material_binding_inside_clone_source(monkeypatch: p
     UsdShade.MaterialBindingAPI.Apply(body)
     UsdShade.MaterialBindingAPI(body).Bind(material)
     plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
+        sources=(source,),
+        destinations=("/World/envs/env_{}/Robot",),
         clone_mask=torch.ones((1, num_envs), dtype=torch.bool),
         env_ids=torch.arange(num_envs),
         positions=torch.zeros((num_envs, 3)),
@@ -470,7 +368,7 @@ def test_prepare_stage_keeps_material_binding_inside_clone_source(monkeypatch: p
     _patch_simulation_context(monkeypatch, plan)
     renderer = _make_ovrtx_renderer_without_backend()
 
-    _prepare_stage(renderer, stage, num_envs)
+    renderer.prepare_stage(stage, num_envs)
 
     exported_layer = Sdf.Layer.CreateAnonymous(".usda")
     assert exported_layer.ImportFromString(renderer._exported_usd_string)
@@ -499,7 +397,7 @@ def test_prepare_stage_writes_pre_ovrtx_stage_dump(tmp_path: Path, monkeypatch: 
     renderer.cfg.temp_usd_dir = str(tmp_path)
     expected_pre_export = stage.ExportToString()
 
-    _prepare_stage(renderer, stage, 2)
+    renderer.prepare_stage(stage, 2)
 
     pre_stage_path = tmp_path / _PRE_OVRTX_STAGE_FILE
     assert pre_stage_path.is_file()
@@ -530,7 +428,7 @@ def test_prepare_stage_skips_temp_usd_write_when_temp_usd_dir_unset(monkeypatch:
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.cfg.temp_usd_dir = None
 
-    _prepare_stage(renderer, stage, 2)
+    renderer.prepare_stage(stage, 2)
 
     assert write_calls == []
 
@@ -546,9 +444,7 @@ def test_initialize_from_spec_writes_combined_stage_dump(tmp_path: Path):
     renderer._renderer.bind_attribute = lambda **kwargs: object()
     renderer._renderer.write_attribute = lambda **kwargs: None
 
-    spec = _make_camera_render_spec(num_envs=1)
-    _attach_camera_plan(renderer, spec)
-    renderer._initialize_from_spec(spec)
+    renderer._initialize_from_spec(_make_camera_render_spec(num_envs=1))
 
     combined_path = tmp_path / _OVRTX_STAGE_FILE
     combined_text = combined_path.read_text(encoding="utf-8")
@@ -579,9 +475,7 @@ def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path:
             return "cuda:1"
 
     monkeypatch.setattr(ovrtx_renderer_module.wp, "get_device", lambda device: _FakeWarpDevice())
-    spec = _make_camera_render_spec(num_envs=1, device="cuda:1")
-    _attach_camera_plan(renderer, spec)
-    renderer.create_render_data(spec)
+    renderer.create_render_data(_make_camera_render_spec(num_envs=1, device="cuda:1"))
 
     combined_text = (tmp_path / _OVRTX_STAGE_FILE).read_text(encoding="utf-8")
     assert "uint[] deviceIds = [1]" in combined_text
@@ -598,7 +492,7 @@ def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():
 
     renderer._renderer.open_usd_from_string = lambda _usd_string: call_order.append("open")
     renderer._clone_sources_in_ovrtx = lambda: call_order.append("clone")
-    renderer._update_scene_partitions_after_clone = lambda: call_order.append("partitions")
+    renderer._update_scene_partitions_after_clone = lambda _num_envs: call_order.append("partitions")
 
     def _write_array_attribute(prim_paths: list[str], attribute_name: str, tensors: list[list[str]]) -> None:
         call_order.append("rewrite_cameras")
@@ -611,7 +505,6 @@ def test_initialize_from_spec_refreshes_camera_relationship_after_cloning():
     renderer._setup_deformable_bindings = lambda _num_envs: None
 
     spec = _make_camera_render_spec(num_envs=num_envs)
-    _attach_camera_plan(renderer, spec)
     renderer._initialize_from_spec(spec)
 
     assert call_order == ["open", "clone", "partitions", "rewrite_cameras"]
@@ -640,7 +533,7 @@ def test_prepare_stage_stores_clone_plan_and_exports(monkeypatch: pytest.MonkeyP
     stage = _make_multi_env_stage(num_envs)
     renderer = _make_ovrtx_renderer_without_backend()
 
-    _prepare_stage(renderer, stage, 4)
+    renderer.prepare_stage(stage, 4)
 
     assert renderer._clone_plan is published
 

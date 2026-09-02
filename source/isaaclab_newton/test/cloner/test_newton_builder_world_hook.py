@@ -13,12 +13,9 @@ import newton
 import pytest
 import torch
 from isaaclab_newton.cloner import copy_newton_clone_source, newton_builder_world_hook
-from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager
 
 from pxr import Usd, UsdGeom, UsdLux, UsdPhysics
-
-from isaaclab.physics import PhysicsManager
 
 replicate_module = importlib.import_module("isaaclab_newton.cloner.replicate")
 
@@ -37,9 +34,6 @@ def test_newton_builder_world_hook_owns_one_registration(monkeypatch):
 
     hooks = [existing]
     monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", hooks)
-    simulation = SimpleNamespace(physics_manager=NewtonManager, _backend_registry={})
-    simulation._backend_registry[NewtonReplicateContext] = NewtonReplicateContext(simulation)
-    monkeypatch.setattr(PhysicsManager, "_sim", simulation)
 
     with pytest.raises(ValueError, match="stop"):
         with newton_builder_world_hook(temporary):
@@ -66,9 +60,6 @@ def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
     mesh = newton.Mesh(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2])
     source.add_shape_mesh(body, mesh=mesh)
     monkeypatch.setattr(NewtonManager, "_cl_protos", {"/World/Source": source})
-    simulation = SimpleNamespace(physics_manager=NewtonManager, _backend_registry={})
-    simulation._backend_registry[NewtonReplicateContext] = NewtonReplicateContext(simulation)
-    monkeypatch.setattr(PhysicsManager, "_sim", simulation)
 
     copied = copy_newton_clone_source("/World/Source")
 
@@ -89,21 +80,24 @@ def test_explicit_global_import_uses_global_world(monkeypatch):
     add_usd = mock.Mock(wraps=builder.add_usd)
     monkeypatch.setattr(builder, "add_usd", add_usd)
     manager = SimpleNamespace(
-        create_builder=mock.Mock(return_value=builder),
-        _inject_terrain_heightfields=mock.Mock(return_value=[]),
-        _deformable_registry=(),
-        _cl_inject_sites=mock.Mock(return_value=({}, {}, {})),
-        _per_world_builder_hooks=(),
+        create_builder=mock.Mock(return_value=builder), _inject_terrain_heightfields=mock.Mock(return_value=[])
     )
-    simulation = SimpleNamespace(physics_manager=manager, cfg=SimpleNamespace(physics_prim_path="/physicsScene"))
+    monkeypatch.setattr(
+        replicate_module.PhysicsManager,
+        "_sim",
+        SimpleNamespace(physics_manager=manager, cfg=SimpleNamespace(physics_prim_path="/physicsScene")),
+    )
+    monkeypatch.setattr(replicate_module.NewtonManager, "_deformable_registry", ())
+    monkeypatch.setattr(replicate_module.NewtonManager, "_cl_inject_sites", mock.Mock(return_value=({}, {}, {})))
+    monkeypatch.setattr(replicate_module.NewtonManager, "_per_world_builder_hooks", ())
     monkeypatch.setattr(replicate_module, "replace_newton_builder_shape_colors", mock.Mock())
 
     builder, *_ = replicate_module._build_newton_builder_from_mapping(
-        simulation,
         stage,
         (),
+        (),
+        torch.arange(2),
         torch.empty((0, 2), dtype=torch.bool),
-        torch.zeros((2, 3)),
         global_paths=global_paths,
         load_visual_shapes=False,
     )

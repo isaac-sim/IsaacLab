@@ -31,13 +31,7 @@ from isaaclab.sim.utils.semantics import add_labels
 
 def _empty_clone_plan() -> ClonePlan:
     """A clone plan owning nothing, standing in for scenes with no replicated shapes to fall back to."""
-    return ClonePlan(
-        sources=(),
-        destinations=(),
-        clone_mask=torch.zeros(0, 0, dtype=torch.bool),
-        env_ids=torch.empty(0, dtype=torch.long),
-        positions=torch.empty((0, 3)),
-    )
+    return ClonePlan(sources=(), destinations=(), clone_mask=torch.zeros(0, 0, dtype=torch.bool))
 
 
 def _cfg(**overrides):
@@ -220,7 +214,6 @@ def _prototype_only_scene():
         destinations=("/World/envs/env_{}/Robot",),
         clone_mask=torch.ones(1, 2, dtype=torch.bool),
         env_ids=torch.tensor([0, 1]),
-        positions=torch.zeros((2, 3)),
     )
     return stage, shape_paths, plan
 
