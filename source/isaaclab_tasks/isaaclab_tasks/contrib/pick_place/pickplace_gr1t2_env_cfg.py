@@ -7,6 +7,7 @@ import os
 import tempfile
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as base_mdp
@@ -25,6 +26,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
 
@@ -279,43 +281,43 @@ def _build_gr1t2_pickplace_pipeline():
 # against ``Object`` matches an empty Xform and force_matrix_w always reads zero.
 _STEERING_WHEEL_BODY = "{ENV_REGEX_NS}/Object/Geometry/sm_steeringwheel_a01_01"
 
-
-# Steering-wheel collision meshes that must keep their convex decomposition under MJWarp.
-# The rim is the tube the hands actually grasp and the spokes bound the gap the fingers wrap
-# through, so collapsing either into a single hull would fill the wheel and make it ungraspable.
-_STEERING_WHEEL_DECOMPOSED_MESHES = frozenset(
-    {
-        "sm_steeringwheel_a01_wheel_rim_01",
-        "sm_steeringwheel_a01_wheel_spokes_01",
-    }
+# The hand contact sensors filter on the grasped body. Under PhysX that is the wheel's nested
+# rigid-body prim above; under MJWarp the object is a primitive whose body *is* ``/Object``.
+# Filtering the wrong path fails sensor initialization outright, so this follows the object.
+_GRASPED_BODY = preset(
+    default=_STEERING_WHEEL_BODY,
+    newton_mjwarp="{ENV_REGEX_NS}/Object",
 )
 
-# Only two meshes actually carry a decomposition piece MuJoCo rejects with "mesh volume is too
-# small": ``sm_steeringwheel_a01_hub_contactplate_screws_01`` and
-# ``sm_steeringwheel_a01_wheel_quickrelease1_01`` (found by compiling with the decomposition
-# intact and reading the piece MuJoCo names). Hulling only those two also compiles, and keeps
-# faithful geometry on every surface the hand grips -- but it measured *worse* on the CI replay
-# benchmark (2/20 vs 4/20 for the blanket-hull set), so the broader set above is kept.
+
+# Newton resolves an omitted friction value to zero, so a body with no authored material has no
+# friction at all and slides out of the grasp. Mirrors ``ROBOT_CONTACT_MATERIAL_CFG`` in the NIST
+# factory task, the one task here that runs detailed meshes on MJWarp.
+_ROBOT_CONTACT_MATERIAL = preset(
+    default=None,
+    newton_mjwarp=[
+        UsdPhysicsRigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
+        NewtonMaterialCfg(contact_stiffness=1.0e6, contact_damping=2000.0),
+    ],
+)
 
 
-def _spawn_steering_wheel_for_mjwarp(
+# GR1T2's finger links are authored as a single ``convexHull`` each, so every concavity in a
+# curved, tapered finger is filled in and the collider sits visibly proud of the rendered mesh,
+# so the hand contacts objects before it looks like it should. Import them as meshes instead
+# (GeoType.MESH rather than GeoType.CONVEX_MESH) so the collider tracks the visual surface --
+# verified in teleop by touching the two hands' fingertips together.
+_GR1T2_HAND_LINK_TOKENS = ("_proximal", "_intermediate", "_distal")
+
+
+def _spawn_gr1t2_for_mjwarp(
     prim_path: str,
     cfg: UsdFileCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs,
 ):
-    """Spawn the steering wheel with an MJWarp-compatible collision approximation.
-
-    Every collision mesh in the asset is authored as ``convexDecomposition``. MuJoCo derives
-    each convex piece's inertia from its volume and rejects the model outright when a piece is
-    degenerate (``mesh volume is too small``); the wheel's hub and quick-release parts decompose
-    into such slivers, which makes the MJWarp model fail to compile.
-
-    Collapsing every mesh to a single convex hull compiles but turns the wheel into a solid disc.
-    Instead only the non-graspable detail meshes are hulled, and the meshes in
-    :data:`_STEERING_WHEEL_DECOMPOSED_MESHES` keep their decomposition so the wheel stays
-    graspable. PhysX is unaffected: this spawner is only used by the ``newton_mjwarp`` preset.
+    """Spawn GR1T2 with hand colliders that follow the visual mesh.
 
     Args:
         prim_path: The prim path or regex pattern to spawn the asset at.
@@ -327,30 +329,47 @@ def _spawn_steering_wheel_for_mjwarp(
     Returns:
         The spawned source prim.
     """
-    from pxr import Usd, UsdGeom, UsdPhysics  # noqa: PLC0415
+    from pxr import Sdf, Usd, UsdGeom, UsdPhysics  # noqa: PLC0415
 
     prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
 
     stage = sim_utils.get_current_stage()
+    touched = 0
     for root_path in sim_utils.find_matching_prim_paths(prim_path):
         root = stage.GetPrimAtPath(root_path)
         if not root.IsValid():
             continue
-        for mesh_prim in Usd.PrimRange(root):
-            if mesh_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                # The asset authors no mass, so each backend derives one from its own collision
-                # volume. Hulling the detail meshes above changes that volume, and Newton lands on
-                # 0.2812 kg where PhysX resolves 0.5845 kg -- the capture was recorded against the
-                # PhysX value, so the replayed forces are tuned for a wheel twice this heavy.
-                # ``MassPropertiesCfg`` on the spawn cfg cannot express this: the rigid body is a
-                # nested prim, not the spawn root, so the authored mass never reaches it.
-                mass_api = UsdPhysics.MassAPI.Apply(mesh_prim)
-                mass_api.CreateMassAttr().Set(_STEERING_WHEEL_MASS)
-            if not mesh_prim.IsA(UsdGeom.Mesh) or mesh_prim.GetName() in _STEERING_WHEEL_DECOMPOSED_MESHES:
+        # Each link's ``collisions`` scope is an instance, so its meshes live in a shared
+        # prototype that ``Usd.PrimRange`` does not descend into and that cannot be edited in
+        # place. De-instance the hand scopes first; there is one robot in this task, so the
+        # extra prims are cheap.
+        for scope_prim in Usd.PrimRange(root):
+            if scope_prim.GetName() != "collisions" or not scope_prim.IsInstanceable():
                 continue
+            if any(token in str(scope_prim.GetPath()) for token in _GR1T2_HAND_LINK_TOKENS):
+                scope_prim.SetInstanceable(False)
+        for mesh_prim in Usd.PrimRange(root):
+            if not mesh_prim.IsA(UsdGeom.Mesh):
+                continue
+            path_str = str(mesh_prim.GetPath())
+            if "/collisions" not in path_str:
+                continue
+            if not any(token in path_str for token in _GR1T2_HAND_LINK_TOKENS):
+                continue
+            # The finger collision meshes author no ``physics:approximation``, so the importer
+            # falls back to a single convex hull per link -- which fills in every concavity of a
+            # curved finger and leaves the collider standing proud of the rendered mesh. Apply
+            # the schema and ask for the mesh itself; ``convexDecomposition`` is not an option
+            # here because these meshes are authored at 100x and scaled to 0.01, so the pieces
+            # come out below MuJoCo's minimum volume ("mesh volume is too small").
+            UsdPhysics.MeshCollisionAPI.Apply(mesh_prim)
             approximation = mesh_prim.GetAttribute("physics:approximation")
-            if approximation and approximation.Get() is not None:
-                approximation.Set("convexHull")
+            if not approximation:
+                approximation = mesh_prim.CreateAttribute("physics:approximation", Sdf.ValueTypeNames.Token)
+            approximation.Set("none")
+            touched += 1
+    if touched:
+        print(f"[gr1t2] re-approximated {touched} hand collision meshes as convexDecomposition")
     return prim
 
 
@@ -377,6 +396,10 @@ def _gr1t2_robot_spawn() -> UsdFileCfg:
         # The remaining PhysX damping and velocity-limit fields are not consumed by Newton.
         newton_mjwarp=sim_utils.MujocoRigidBodyPropertiesCfg(disable_gravity=True, gravcomp=1.0),
     )
+    # Newton resolves an omitted friction value to zero, so the hands need an authored friction
+    # pair to grip at all. Mirrors ``ROBOT_CONTACT_MATERIAL_CFG`` in the NIST factory task.
+    spawn.physics_material = _ROBOT_CONTACT_MATERIAL
+    spawn.func = preset(default=spawn.func, newton_mjwarp=_spawn_gr1t2_for_mjwarp)
     return spawn
 
 
@@ -474,12 +497,41 @@ _PACKING_TABLE_COLLIDER_SIZE = (2.4736, 0.762, 0.9941)
 _PACKING_TABLE_COLLIDER_POS = (0.0, 0.55, 0.49705)
 
 
-# The wheel authors no mass, so each backend derives one from its own collision volume and the
-# two disagree: PhysX resolves 0.5845 kg, Newton 0.2812 kg (2.08x lighter, with inertia off by the
-# same factor rather than by a power of the 0.75 scale -- so this is a volume difference from the
-# convex-hull approximation, not a dropped scale). The recorded demo was captured against the PhysX
-# value, so author it explicitly to keep the two backends on the same object. [kg]
-_STEERING_WHEEL_MASS = 0.5845
+# Object the hands actually grasp, selected per backend.
+#
+# PhysX keeps the authored steering wheel. MJWarp cannot: the wheel's rim is a torus, and MuJoCo
+# has no concave mesh-mesh collision, so however the rim is approximated the hand either passes
+# straight through it (single mesh -- the collider is silently unusable) or the ring fills in
+# (single hull -- the wheel becomes a solid disc). Neither is graspable, and the failure is in
+# the asset rather than the backend: with the primitive below, the same hand, solver and
+# controller grasp, carry and release normally.
+#
+# The stand-in is the graspable primitive from ``Isaac-Lift-Franka``, which runs MJWarp as its
+# default backend, so its shape and physics are already validated there. It is placed 0.0762 m
+# (3 in) nearer the robot than the wheel so the smaller object stays inside comfortable reach.
+#
+# Replace this with the real wheel once the asset ships a convex-decomposed rim.
+_NEWTON_OBJECT_SIZE = 0.035
+"""Edge length of the MJWarp stand-in object [m]."""
+
+_NEWTON_OBJECT_MASS = 0.2
+"""Mass of the MJWarp stand-in object [kg], matching the validated lift-task primitive."""
+
+
+def _newton_object_spawn() -> sim_utils.CuboidCfg:
+    """Build the graspable primitive used in place of the steering wheel under MJWarp."""
+    return sim_utils.CuboidCfg(
+        size=(_NEWTON_OBJECT_SIZE, _NEWTON_OBJECT_SIZE, _NEWTON_OBJECT_SIZE),
+        physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.5, dynamic_friction=0.5),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=0,
+            disable_gravity=False,
+        ),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=_NEWTON_OBJECT_MASS),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.6, 0.2)),
+    )
 
 
 def _steering_wheel_spawn(func=None) -> UsdFileCfg:
@@ -532,11 +584,11 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     object = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.45, 0.45, 0.9996], rot=[0.0, 0.0, 0.0, 1.0]),
-        spawn=preset(
-            default=_steering_wheel_spawn(),
-            newton_mjwarp=_steering_wheel_spawn(func=_spawn_steering_wheel_for_mjwarp),
+        init_state=RigidObjectCfg.InitialStateCfg(
+            pos=preset(default=[-0.45, 0.45, 0.9996], newton_mjwarp=[-0.3738, 0.45, 0.9996]),
+            rot=[0.0, 0.0, 0.0, 1.0],
         ),
+        spawn=preset(default=_steering_wheel_spawn(), newton_mjwarp=_newton_object_spawn()),
     )
 
     # Humanoid robot configured for pick-place manipulation tasks
@@ -584,13 +636,13 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     # (``spawn.activate_contact_sensors=True``), so it is not set again here.
     left_hand_contact = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/[^/]*L_(index|middle|ring|pinky|thumb)[^/]*_link",
-        filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
+        filter_prim_paths_expr=[_GRASPED_BODY],
         update_period=0.0,
         history_length=3,
     )
     right_hand_contact = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/[^/]*R_(index|middle|ring|pinky|thumb)[^/]*_link",
-        filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
+        filter_prim_paths_expr=[_GRASPED_BODY],
         update_period=0.0,
         history_length=3,
     )
