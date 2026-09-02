@@ -14,19 +14,16 @@ import os
 import sys
 
 import pytest
+import warp as wp
+
+wp.config.enable_backward = False
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 @pytest.fixture()
-def enable_scene_partition(monkeypatch):
-    """Set ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1`` for the duration of one test."""
-    monkeypatch.setenv("ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION", "1")
-
-
-@pytest.fixture(params=["legacy", "ovstage"])
 def ovstage_variant(request, monkeypatch):
-    """Parametrize tests across the legacy and ovstage OVRTX code paths."""
+    """Select the indirectly parametrized OVRTX stage path."""
     if request.param == "ovstage":
         monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
     else:

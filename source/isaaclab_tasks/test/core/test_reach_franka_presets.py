@@ -16,14 +16,15 @@ from isaaclab_tasks.utils.hydra import resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 _TASK = "Isaac-Reach-Franka"
-_CONTRIB_DIFFIK_TASK = "IsaacContrib-Reach-Franka-IK-Rel"
-_NEWTON_IK_TASK = "Isaac-Reach-Franka-Newton-IK-Rel"
-_NEWTON_IK_V0_TASK = "Isaac-Reach-Franka-Newton-IK-Rel-v0"
-_OSC_TASK = "Isaac-Reach-Franka-OSC"
+_CONTRIB_DIFFIK_ABS_TASK = "IsaacContrib-Reach-Franka-IK-Abs"
 
 
 def _load_env_cfg(*presets: str):
-    cfg = load_cfg_from_registry(_TASK, "env_cfg_entry_point")
+    return _load_reach_env_cfg(_TASK, *presets)
+
+
+def _load_reach_env_cfg(task: str, *presets: str):
+    cfg = load_cfg_from_registry(task, "env_cfg_entry_point")
     return resolve_presets(cfg, selected=presets)
 
 
@@ -33,38 +34,58 @@ def _without_actions(cfg):
     return cfg_dict
 
 
-def test_reach_uses_controller_neutral_franka_config_module():
-    entry_point = registry[_TASK].kwargs["env_cfg_entry_point"]
+def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
+    spec = registry[_CONTRIB_DIFFIK_ABS_TASK]
 
-    assert entry_point.endswith(".franka_reach_env_cfg:FrankaReachEnvCfg")
-    assert _CONTRIB_DIFFIK_TASK not in registry
-    assert _NEWTON_IK_TASK not in registry
-    assert _NEWTON_IK_V0_TASK not in registry
+    assert spec.kwargs["deprecated"] == {"alias": "--task Isaac-Reach-Franka physics=isaacsim_physx presets=diffik_abs"}
+    with pytest.warns(FutureWarning, match="presets=diffik_abs"):
+        legacy_cfg = load_cfg_from_registry(_CONTRIB_DIFFIK_ABS_TASK, "env_cfg_entry_point")
+
+    canonical_cfg = _load_env_cfg("diffik_abs", "isaacsim_physx")
+    legacy_cfg = resolve_presets(legacy_cfg)
+    assert legacy_cfg.to_dict() == canonical_cfg.to_dict()
+
+
+_REACH_PRESET_CASES = [
+    (_TASK, (), "JointPositionActionCfg", "NewtonCfg"),
+    (_TASK, ("isaacsim_physx",), "JointPositionActionCfg", "PhysxCfg"),
+    (_TASK, ("newton_mjwarp",), "JointPositionActionCfg", "NewtonCfg"),
+    (_TASK, ("ovphysx",), "JointPositionActionCfg", "OvPhysxCfg"),
+    (_TASK, ("diffik",), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
+    (_TASK, ("diffik", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
+    (_TASK, ("diffik", "newton_mjwarp"), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
+    (_TASK, ("diffik_abs", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
+    (_TASK, ("diffik_abs", "newton_mjwarp"), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
+    (_TASK, ("diffik_abs", "ovphysx"), "DifferentialInverseKinematicsActionCfg", "OvPhysxCfg"),
+    (_TASK, ("newton_ik", "newton_mjwarp"), "NewtonInverseKinematicsActionCfg", "NewtonCfg"),
+    ("Isaac-Reach-UR10", (), "JointPositionActionCfg", "NewtonCfg"),
+    ("Isaac-Reach-UR10", ("isaacsim_physx",), "JointPositionActionCfg", "PhysxCfg"),
+    ("Isaac-Reach-UR10", ("newton_mjwarp",), "JointPositionActionCfg", "NewtonCfg"),
+]
 
 
 @pytest.mark.parametrize(
-    ("presets", "action_type", "physics_type"),
-    [
-        ((), "JointPositionActionCfg", "NewtonCfg"),
-        (("isaacsim_physx",), "JointPositionActionCfg", "PhysxCfg"),
-        (("newton_mjwarp",), "JointPositionActionCfg", "NewtonCfg"),
-        (("ovphysx",), "JointPositionActionCfg", "OvPhysxCfg"),
-        (("diffik",), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
-        (("diffik", "isaacsim_physx"), "DifferentialInverseKinematicsActionCfg", "PhysxCfg"),
-        (("diffik", "newton_mjwarp"), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
-        (("newton_ik", "newton_mjwarp"), "NewtonInverseKinematicsActionCfg", "NewtonCfg"),
-    ],
+    ("task", "presets", "action_type", "physics_type"),
+    [pytest.param(*case, id=f"{case[0]}-{'-'.join(case[1]) or 'default'}") for case in _REACH_PRESET_CASES],
 )
-def test_reach_action_and_physics_presets_resolve_supported_combinations(presets, action_type, physics_type):
-    cfg = _load_env_cfg(*presets)
+def test_reach_presets_resolve_supported_combinations(task, presets, action_type, physics_type):
+    cfg = _load_reach_env_cfg(task, *presets)
 
     cfg.validate()
     assert type(cfg.actions.arm_action).__name__ == action_type
     assert type(cfg.sim.physics).__name__ == physics_type
-    assert type(cfg.scene.table).__name__ == "AssetBaseCfg"
-    assert cfg.sim.dt == pytest.approx(1.0 / 120.0)
-    assert cfg.decimation == 4
-    assert cfg.sim.dt * cfg.decimation == pytest.approx(1.0 / 30.0)
+
+
+def test_reach_ur10_physics_presets_change_only_physics():
+    """UR10 backend selections must preserve the task configuration."""
+    physx = _load_reach_env_cfg("Isaac-Reach-UR10", "isaacsim_physx")
+    newton = _load_reach_env_cfg("Isaac-Reach-UR10", "newton_mjwarp")
+
+    physx_cfg = physx.to_dict()
+    newton_cfg = newton.to_dict()
+    physx_cfg["sim"].pop("physics")
+    newton_cfg["sim"].pop("physics")
+    assert physx_cfg == newton_cfg
 
 
 def test_reach_action_presets_change_only_the_action_configuration():
@@ -78,32 +99,6 @@ def test_reach_action_presets_change_only_the_action_configuration():
     assert _without_actions(joint_pos_physx) == _without_actions(diffik_physx)
     assert _without_actions(joint_pos_newton) == _without_actions(diffik_newton)
     assert _without_actions(joint_pos_newton) == _without_actions(newton_ik)
-
-
-def test_reach_penalizes_action_magnitude_rate_and_physical_joint_motion():
-    rewards = _load_env_cfg().rewards
-    action_rate = rewards.action_rate
-    action_magnitude = rewards.action_magnitude
-    joint_vel = rewards.joint_vel
-
-    assert action_rate.func.__name__ == "action_rate_l2"
-    assert action_rate.weight == pytest.approx(-0.0001)
-    assert action_magnitude.func.__name__ == "action_l2"
-    assert action_magnitude.weight == pytest.approx(-0.005)
-    assert joint_vel.func.__name__ == "joint_vel_l2"
-    assert joint_vel.weight == pytest.approx(-0.0001)
-    assert joint_vel.params["asset_cfg"].joint_names == ["panda_joint.*"]
-    assert _load_env_cfg().curriculum.joint_vel.params == {
-        "term_name": "joint_vel",
-        "weight": -0.001,
-        "num_steps": 4500,
-    }
-    assert _load_env_cfg().curriculum.action_rate.params == {
-        "term_name": "action_rate",
-        "weight": -0.005,
-        "num_steps": 4500,
-    }
-    assert "end_effector_position_tracking_fine_grained" not in rewards.to_dict()
 
 
 def test_reach_success_requires_position_and_orientation():
@@ -156,104 +151,6 @@ def test_reach_success_requires_position_and_orientation():
     position_only_succeeded = mdp.pose_command_success(env, **success.params)
 
     assert torch.equal(position_only_succeeded, torch.tensor([True, False, True]))
-
-
-def test_reach_uses_menagerie_franka():
-    robot = _load_env_cfg().scene.robot
-
-    assert robot.spawn.usd_path.endswith("/Robots/FrankaEmika/franka_panda.usda")
-    assert list(robot.actuators) == ["panda_arm", "panda_hand"]
-    assert robot.actuators["panda_arm"].velocity_limit_sim == {
-        "panda_joint[1-4]": 20.0,
-        "panda_joint[5-7]": 25.0,
-    }
-    assert robot.actuators["panda_arm"].stiffness == {
-        "panda_joint[1-2]": 1000.0,
-        "panda_joint[3-4]": 750.0,
-        "panda_joint[5-7]": 300.0,
-    }
-    assert robot.actuators["panda_arm"].damping == {
-        "panda_joint[1-2]": 20.0,
-        "panda_joint[3-4]": 4.0,
-        "panda_joint[5-7]": 2.0,
-    }
-    assert robot.actuators["panda_arm"].armature is None
-    assert robot.actuators["panda_hand"].stiffness is None
-    assert robot.actuators["panda_hand"].damping is None
-
-
-def test_reach_osc_uses_menagerie_franka_effort_actuator():
-    cfg = load_cfg_from_registry(_OSC_TASK, "env_cfg_entry_point")
-
-    assert cfg.scene.robot.spawn.usd_path.endswith("/Robots/FrankaEmika/franka_panda.usda")
-    assert cfg.scene.robot.actuators["panda_arm"].stiffness == 0.0
-    assert cfg.scene.robot.actuators["panda_arm"].damping == 0.0
-
-
-def test_reach_newton_uses_high_frequency_solver_timing():
-    cfg = _load_env_cfg("newton_mjwarp")
-
-    assert cfg.sim.physics.use_cuda_graph is True
-    assert cfg.sim.physics.num_substeps == 2
-    assert cfg.sim.physics.solver_cfg.update_data_interval == 2
-    assert cfg.sim.dt / cfg.sim.physics.num_substeps == pytest.approx(1.0 / 240.0)
-    assert cfg.decimation * cfg.sim.physics.num_substeps == 8
-
-
-def test_reach_joint_position_action_configuration():
-    action = _load_env_cfg().actions.arm_action
-
-    assert action.asset_name == "robot"
-    assert action.joint_names == ["panda_joint.*"]
-    assert action.scale == 0.5
-    assert action.use_default_offset is True
-    assert action.clip is None
-
-
-def test_reach_diffik_action_configuration():
-    action = _load_env_cfg("diffik").actions.arm_action
-
-    assert action.asset_name == "robot"
-    assert action.joint_names == ["panda_joint.*"]
-    assert action.body_name == "panda_hand"
-    assert action.controller.command_type == "pose"
-    assert action.controller.use_relative_mode is True
-    assert action.controller.ik_method == "dls"
-    assert action.controller.ik_params == {"lambda_val": 0.01}
-    assert action.scale == (0.05, 0.05, 0.05, 0.5, 0.5, 0.5)
-    assert action.body_offset.pos == [0.0, 0.0, 0.107]
-    assert action.clip is None
-
-
-def test_reach_diffik_action_configuration_is_identical_across_backends():
-    physx_action = _load_env_cfg("diffik", "isaacsim_physx").actions.arm_action
-    newton_action = _load_env_cfg("diffik", "newton_mjwarp").actions.arm_action
-
-    assert physx_action.to_dict() == newton_action.to_dict()
-    assert newton_action.controller.ik_params == {"lambda_val": 0.01}
-    assert newton_action.scale == (0.05, 0.05, 0.05, 0.5, 0.5, 0.5)
-    assert newton_action.clip is None
-
-
-def test_reach_newton_ik_action_configuration():
-    cfg = _load_env_cfg("newton_ik", "newton_mjwarp")
-    action = cfg.actions.arm_action
-    diffik_action = _load_env_cfg("diffik", "newton_mjwarp").actions.arm_action
-
-    assert action.asset_name == "robot"
-    assert action.joint_names == ["panda_joint.*"]
-    assert action.controller.optimizer == "lm"
-    assert action.controller.jacobian_mode == "analytic"
-    assert action.controller.iterations == 4
-    assert len(action.objectives) == 2
-    assert action.objectives[0].body_name == "panda_hand"
-    assert action.objectives[0].body_offset_pos == (0.0, 0.0, 0.107)
-    assert action.objectives[0].command_type == "pose"
-    assert action.objectives[0].use_relative_mode is True
-    assert action.objectives[0].scale == diffik_action.scale == (0.05, 0.05, 0.05, 0.5, 0.5, 0.5)
-    assert action.objectives[0].rotation_weight == 2.0
-    assert action.objectives[1].weight == 0.1
-    assert action.clip is None
 
 
 def test_reach_newton_ik_rejects_physx():

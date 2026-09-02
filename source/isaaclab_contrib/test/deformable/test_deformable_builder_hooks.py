@@ -13,7 +13,7 @@ from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
 
-from isaaclab_contrib.deformable import DeformableObject, VBDSolverCfg
+from isaaclab_contrib.deformable import DeformableObject
 from isaaclab_contrib.deformable.deformable_object import (
     DeformableRegistryEntry,
     add_deformable_entry_to_builder,
@@ -59,9 +59,9 @@ class _FakeStage:
 def _make_surface_entry() -> DeformableRegistryEntry:
     half_sqrt = math.sqrt(0.5)
     return DeformableRegistryEntry(
-        prim_path="/World/envs/env_.*/cloth",
-        sim_mesh_prim_path="/World/envs/env_.*/cloth/mesh",
-        vis_mesh_prim_path="/World/envs/env_.*/cloth/mesh",
+        prim_path="{ENV_REGEX_NS}/cloth",
+        sim_mesh_prim_path="{ENV_REGEX_NS}/cloth/mesh",
+        vis_mesh_prim_path="{ENV_REGEX_NS}/cloth/mesh",
         vertices=[
             wp.vec3(0.0, 0.0, 0.0),
             wp.vec3(1.0, 0.0, 0.0),
@@ -81,7 +81,6 @@ def _vec3_as_tuple(value) -> tuple[float, float, float]:
 def test_deformable_package_exports_public_symbols():
     """Test that deformable symbols are exported from the package root."""
     assert DeformableObject.__name__ == "DeformableObject"
-    assert VBDSolverCfg.__name__ == "VBDSolverCfg"
 
 
 def test_newton_material_defaults_match_registry_defaults():

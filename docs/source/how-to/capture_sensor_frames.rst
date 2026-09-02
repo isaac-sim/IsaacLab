@@ -83,7 +83,7 @@ The training entrypoints register the capture flags in ``add_common_train_args``
 
 .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/common.py
    :language: python
-   :lines: 277-300
+   :lines: 407-430
 
 
 Capture schedule
@@ -194,7 +194,7 @@ See also
 --------
 
 * :doc:`record_video` - record a perspective viewport clip with ``--video``
-* :doc:`/source/overview/reinforcement-learning/rl_existing_scripts` - training entrypoints that
+* :doc:`/source/concepts/reinforcement_learning` - training entrypoints that
   expose the capture flags
 * :doc:`/source/overview/core-concepts/visualization` - visualizers and rendering during training
 * :doc:`/source/overview/core-concepts/sensors/camera` - camera sensors and annotator data types

@@ -46,7 +46,7 @@ As a result, training with hydra arguments can be run with the following syntax:
 
               .. code-block:: shell
 
-                  uv run isaaclab train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+                  uv run --extra rl-games isaaclab train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
 
            .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -63,7 +63,7 @@ As a result, training with hydra arguments can be run with the following syntax:
 
               .. code-block:: shell
 
-                  uv run isaaclab train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+                  uv run --extra skrl isaaclab train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
            .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -80,7 +80,7 @@ As a result, training with hydra arguments can be run with the following syntax:
 
               .. code-block:: shell
 
-                  uv run isaaclab train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
+                  uv run --extra sb3 isaaclab train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
            .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -125,17 +125,17 @@ In the above example, we could also disable the ``joint_pos_rel`` observation by
 
 Dictionaries
 ^^^^^^^^^^^^
-Elements in dictionaries are handled as a parameters in the hierarchy. For example, in the Cartpole environment:
+Elements in dictionaries are handled as parameters in the hierarchy. For example, in the Cartpole environment:
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
     :language: python
-    :lines: 90-114
-    :emphasize-lines: 11
+    :start-at: reset_cart_position = EventTerm(
+    :end-before: reset_pole_position = EventTerm(
 
 the ``position_range`` parameter can be modified with ``env.events.reset_cart_position.params.position_range="[-2.0, 2.0]"``.
 This example shows two noteworthy points:
 
-- The parameter we set has a space, so it must be enclosed in quotes.
+- The value contains a space, so it must be enclosed in quotes for the shell.
 - The parameter is a list while it is a tuple in the config. This is due to the fact that Hydra does not support tuples.
 
 
@@ -152,13 +152,18 @@ For example, for the configuration of the Cartpole camera environment:
     :language: python
     :start-at: class CartpoleTiledCameraCfg
     :end-at: observation_space = [3, 96, 96]
-    :emphasize-lines: 12, 43
 
-The configuration declares the single-frame shape. At environment initialization, the default
-``frame_stack=2`` expands it to an effective policy observation shape of ``[6,96,96]``.
-If the user were to modify the width of the camera, i.e. ``env.tiled_camera.width=128``, then the
-single-frame parameter ``env.observation_space=[3,96,128]`` must be updated and given as input as
-well, producing an effective stacked shape of ``[6,96,128]``.
+The configuration declares the single-frame channel count and a default spatial size.
+At environment initialization, ``CartpoleCameraEnv`` rebuilds ``observation_space`` from
+the resolved camera: the default ``frame_stack=2`` expands channels, and height/width are
+taken from ``tiled_camera``. So ``env.tiled_camera.width=128 env.tiled_camera.height=128``
+alone yields an effective stacked shape of ``[6,128,128]`` without also overriding
+``env.observation_space``. The channel entry in ``observation_space`` must still match the
+camera data type (for example ``[1, ...]`` with ``presets=depth``); presets already set this.
+
+Class-body assignments are evaluated once at import time and do **not** track later
+Hydra overrides unless runtime code explicitly rebuilds the dependent value, as this
+camera environment does.
 
 Similarly, the ``__post_init__`` method is not updated with the command line inputs. In the ``LocomotionVelocityRoughEnvCfg``, for example,
 the post init update is as follows:
@@ -166,7 +171,6 @@ the post init update is as follows:
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py
     :language: python
     :start-at: class LocomotionVelocityRoughEnvCfg
-    :emphasize-lines: 23, 29, 31
 
 Here, when modifying ``env.decimation`` or ``env.sim.dt``, the user needs to give the updated ``env.sim.render_interval``,
 ``env.scene.height_scanner.update_period``, and ``env.scene.contact_forces.update_period`` as input as well.
@@ -180,23 +184,13 @@ validation after all fields have been resolved. This hook is called automaticall
 resolution and MISSING-field checks succeed, allowing you to catch invalid parameter
 combinations early with clear error messages.
 
-**Defining a validation hook:**
+For example, the Franka reach configuration validates that its Newton IK action
+preset is paired with a Newton physics configuration:
 
-.. code-block:: python
-
-   from isaaclab.utils.configclass import configclass
-
-   @configclass
-   class MyEnvCfg:
-       physics_backend: str = "physx"
-       use_multi_asset: bool = False
-
-       def validate_config(self):
-           if self.physics_backend == "newton" and self.use_multi_asset:
-               raise ValueError(
-                   "Newton physics does not support multi-asset spawning."
-                   " Use a single-geometry object preset instead."
-               )
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/reach/config/franka/franka_reach_env_cfg.py
+    :language: python
+    :start-at: def validate_config(self) -> None:
+    :end-at: raise ValueError("The 'newton_ik' action preset requires a Newton physics preset.")
 
 **When it runs:**
 
@@ -206,13 +200,17 @@ combinations early with clear error messages.
 
 **Common validation patterns:**
 
-- Physics backend compatibility (e.g., Newton does not support multi-asset spawning)
-- Renderer and camera data type compatibility (e.g., Newton Warp only supports ``rgb`` and ``depth``)
-- Feature extractor compatibility with camera configuration
+- Compatibility between independently selectable controllers, physics configurations, and renderers
+- Renderer, camera data type, and feature extractor compatibility
+- Numeric relationships or limits that cannot be expressed by field types alone
 
 
 Preset System
 -------------
+
+For a user-focused introduction to choosing physics, rendering, and task
+variants, start with :doc:`/source/concepts/backends_and_presets`. This section
+covers the complete preset definition and resolution behavior.
 
 The preset system lets you swap out entire config sections -- or individual scalar
 values -- with a single command line argument. Instead of overriding individual
@@ -228,12 +226,19 @@ including presets inside dict-valued fields (e.g. ``actuators``).
 Override Order
 ^^^^^^^^^^^^^^
 
-Overrides are applied in sequence:
+The effective precedence, from lowest to highest, is:
 
-1. **Auto-default**: Configs with a ``"default"`` field auto-apply without CLI args
-2. **Global presets**: ``presets=newton_mjwarp,inference`` applies to ALL matching configs
-3. **Path presets**: ``env.backend=newton_mjwarp`` replaces a specific section
-4. **Scalar overrides**: ``env.sim.dt=0.001`` modifies individual fields
+1. **Defaults**: Each unresolved ``PresetCfg`` falls back to its ``default`` field.
+2. **Typed and domain selections**: ``physics=newton_mjwarp`` selects physics while
+   ``presets=rgb`` broadcasts a task-specific name to every matching config.
+3. **Path selections**: ``env.sim.physics=newton_kamino`` targets one specific
+   ``PresetCfg`` and takes precedence at that path.
+4. **Play-mode changes**: When requested by a play command, the environment's
+   ``play_mode()`` changes are applied to the resolved config.
+5. **Scalar overrides**: ``env.sim.dt=0.001`` has the final say for an individual field.
+
+If multiple broadcast names select different alternatives at the same active path,
+resolution fails instead of silently choosing one.
 
 
 Defining Presets with PresetCfg
@@ -245,26 +250,32 @@ override is given:
 
 .. code-block:: python
 
+    from isaaclab.sim import SimulationCfg
+    from isaaclab.utils.configclass import configclass
+    from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_physx.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg
 
     @configclass
-    class PhysicsCfg(PresetCfg):
-        default: PhysxCfg = PhysxCfg()
+    class PhysicsPresetsCfg(PresetCfg):
+        isaacsim_physx: PhysxCfg = PhysxCfg()
+        default: PhysxCfg = isaacsim_physx
         newton_mjwarp: NewtonCfg = NewtonCfg()
 
     @configclass
     class MyEnvCfg:
-        physics: PhysicsCfg = PhysicsCfg()
+        sim: SimulationCfg = SimulationCfg(physics=PhysicsPresetsCfg())
+
+Physics is owned by :class:`~isaaclab.sim.SimulationCfg`, so the preset's config
+path is ``env.sim.physics``. For backend selection, prefer the typed selector:
 
 .. code-block:: bash
 
-    # Use Newton physics backend
-    python train.py --task=Isaac-Reach-Franka env.physics=newton_mjwarp
+    uv run isaaclab train --rl_library rsl_rl \
+        --task Isaac-Cartpole physics=newton_mjwarp
 
-For tasks that expose automatic PhysX-family selection, ``physics=physx`` is
-resolved at launch time: Isaac Sim PhysX is used when a Kit renderer or Kit viewer
-is requested, and OvPhysX is used for fully kit-less runs. Use
-``physics=isaacsim_physx`` to force Isaac Sim PhysX.
+Use the path form ``env.sim.physics=newton_mjwarp`` only when you intentionally
+want to replace that one preset node without selecting other matching task presets.
 
 The ``default`` field can be set to ``None`` to make an optional feature that is
 disabled unless explicitly selected:
@@ -272,22 +283,23 @@ disabled unless explicitly selected:
 .. code-block:: python
 
     @configclass
+    class CameraSettingsCfg:
+        width: int = 64
+        height: int = 64
+
+    @configclass
     class CameraPresetCfg(PresetCfg):
         default = None
-        small: CameraCfg = CameraCfg(width=64, height=64)
-        large: CameraCfg = CameraCfg(width=256, height=256)
+        small: CameraSettingsCfg = CameraSettingsCfg()
+        large: CameraSettingsCfg = CameraSettingsCfg(width=256, height=256)
 
     @configclass
     class SceneCfg:
         camera: CameraPresetCfg = CameraPresetCfg()
 
-.. code-block:: bash
-
-    # camera is None -- no camera overhead
-    python train.py --task=Isaac-Reach-Franka
-
-    # activate camera with the "large" preset
-    python train.py --task=Isaac-Reach-Franka env.scene.camera=large
+Here, ``env.scene.camera`` resolves to ``None`` by default. A registered task using
+this config can activate the large camera with the path selector
+``env.scene.camera=large``.
 
 
 .. _hydra-backend-solver-presets:
@@ -298,43 +310,18 @@ Backend and Solver Presets
 Physics backend selection uses the same preset system. A task can define a
 ``PresetCfg`` whose entries replace the complete physics config:
 
-.. code-block:: python
+The Cartpole task's definition is a maintained example:
 
-    from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
-    from isaaclab_ovphysx.physics import OvPhysxCfg
-    from isaaclab_physx.physics import PhysxCfg
-
-    from isaaclab.utils.configclass import configclass
-
-    from isaaclab_tasks.utils import PresetCfg
-
-    @configclass
-    class CartpolePhysicsCfg(PresetCfg):
-        physx: PhysxCfg = PhysxCfg()
-        isaacsim_physx: PhysxCfg = PhysxCfg()
-        ovphysx: OvPhysxCfg = OvPhysxCfg()
-        default = physx
-        newton_mjwarp: NewtonCfg = NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(njmax=5, nconmax=3),
-            num_substeps=1,
-        )
-        newton_kamino: NewtonCfg = NewtonCfg(
-            solver_cfg=KaminoSolverCfg(
-                integrator="moreau",
-                use_collision_detector=True,
-                sparse_jacobian=True,
-                padmm_max_iterations=100,
-            ),
-            num_substeps=1,
-            debug_mode=False,
-            use_cuda_graph=True,
-        )
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
+    :language: python
+    :start-at: class CartpolePhysicsCfg(PresetCfg):
+    :end-before: ##
 
 The ``newton_mjwarp`` and ``newton_kamino`` entries both select the Newton physics backend because
 both entries are :class:`~isaaclab_newton.physics.NewtonCfg` objects. The difference
 is the solver configuration: ``newton_mjwarp`` uses
 :class:`~isaaclab_newton.physics.MJWarpSolverCfg`, while ``newton_kamino`` uses
-:class:`~isaaclab_newton.physics.KaminoSolverCfg`.
+:class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg`.
 
 Kamino is therefore a solver preset, not a separate Isaac Lab backend. The same
 Newton assets, sensors, renderers, and visualizers are used after the preset is
@@ -347,20 +334,22 @@ is currently beta.
     Kamino support is experimental and currently depends on the asset being
     structured in a way that Kamino can consume. Assets that work with the
     MuJoCo-Warp or PhysX presets may still require model-structure updates before
-    they work with ``presets=newton_kamino``.
+    they work with ``physics=newton_kamino``.
 
 .. code-block:: bash
 
-    # Select the Kamino solver preset everywhere it is defined
-    python train.py --task=Isaac-Cartpole presets=newton_kamino
+    # Preferred: select and validate a physics preset by type
+    uv run isaaclab train --rl_library rsl_rl \
+        --task Isaac-Cartpole physics=newton_kamino
 
-    # Select the Kamino solver preset for a specific physics config path
-    python train.py --task=Isaac-Cartpole env.sim.physics=newton_kamino
+    # Advanced: replace only the physics config at this path
+    uv run isaaclab train --rl_library rsl_rl \
+        --task Isaac-Cartpole env.sim.physics=newton_kamino
 
-The ``newton_kamino`` preset is currently defined for ``Isaac-Cartpole-Direct``,
-``Isaac-Ant-Direct``, ``Isaac-Cartpole``, and ``Isaac-Ant``. Passing
-``presets=newton_kamino`` to a task without a ``newton_kamino`` preset does not enable Kamino;
-add and validate a task-specific preset first.
+Backend support is task-specific and changes as tasks are validated. Use the task's
+``--help`` output as the source of truth. Passing ``physics=newton_kamino`` to a
+task that does not advertise it fails; it does not add a Kamino configuration to
+that task.
 
 
 Inline Presets with preset()
@@ -374,10 +363,12 @@ For simple values (scalars, lists) that don't warrant a full subclass, use the
 
     from isaaclab_tasks.utils.hydra import preset
 
-    # Scalar preset -- one line, no boilerplate class
-    self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton_mjwarp=0.01, physx=0.0)
+    # Scalar preset -- no boilerplate subclass
+    self.scene.robot.actuators["legs"].armature = preset(
+        default=0.0, isaacsim_physx=0.0, newton_mjwarp=0.01, physx=0.0
+    )
 
-This is equivalent to defining a ``PresetCfg`` subclass with three ``float``
+This is equivalent to defining a ``PresetCfg`` subclass with the same ``float``
 fields, but without the ceremony. The ``default`` keyword is required.
 
 ``preset()`` works for any value type -- scalars, lists, or even config
@@ -404,8 +395,14 @@ including inside dict-valued fields such as ``actuators``:
 
 .. code-block:: bash
 
-    # Select MJWarp preset globally -- sets armature to 0.01
-    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC presets=newton_mjwarp
+    # Select MJWarp physics and all matching dependent alternatives
+    uv run isaaclab train --rl_library rsl_rl \
+        --task IsaacContrib-Velocity-Rough-AnymalC physics=newton_mjwarp
+
+The typed ``physics=`` selector uses broadcast resolution for the selected name,
+so matching task-specific alternatives such as this armature value are updated too.
+It additionally verifies that the name resolved a physics configuration; the free-form
+``presets=`` selector does not provide that type check.
 
 
 Typed Preset Selectors
@@ -427,12 +424,14 @@ that can be appended to any training or play script command:
    * - ``presets=NAME[,NAME,...]``
      - Broadcast: applied to every matching :class:`~isaaclab_tasks.utils.hydra.PresetCfg` in the config tree
 
-The typed selectors ``physics=`` and ``renderer=`` fold into ``presets=`` automatically
-before Hydra resolves the config, so they are fully interchangeable with the equivalent
-``presets=NAME`` form. They exist to surface only relevant variants in ``--help`` and
-to make intent explicit on the command line.
+The typed selectors use the same broadcast resolution as ``presets=``. This means
+``physics=newton_mjwarp`` can also update dependent task presets with the same name,
+such as actuator or event settings. They are not interchangeable, however: a typed
+selector must resolve at least one config of its declared type or it raises an error.
+Use ``physics=`` and ``renderer=`` for backend choices, and reserve ``presets=`` for
+task-specific modes.
 
-**Available physics backends** (when defined by the task):
+**Common physics preset names** (only when advertised by the task):
 
 .. list-table::
    :widths: 30 70
@@ -440,17 +439,19 @@ to make intent explicit on the command line.
 
    * - Name
      - Backend
+   * - ``isaacsim_physx``
+     - Concrete Isaac Sim PhysX configuration
    * - ``physx``
-     - PhysX (explicit; also selected when no ``physics=`` or ``presets=`` is given)
+     - Automatic PhysX-family selection between configured alternatives
    * - ``newton_mjwarp``
      - Newton physics with the MuJoCo-Warp solver
    * - ``newton_kamino``
      - Newton physics with the Kamino solver (beta; limited tasks — see :ref:`hydra-backend-solver-presets`)
    * - ``ovphysx``
-     - OV PhysX backend (kit-less mode; select classic tasks only;
-       incompatible with ``--visualizer kit``)
+     - Concrete OvPhysX configuration for supported kit-less tasks
 
-**Available renderer backends** (provided by :class:`~isaaclab_tasks.utils.presets.MultiBackendRendererCfg`):
+**Common renderer preset names** (when provided by
+:class:`~isaaclab_tasks.utils.presets.MultiBackendRendererCfg`):
 
 .. list-table::
    :widths: 30 70
@@ -458,14 +459,19 @@ to make intent explicit on the command line.
 
    * - Name
      - Renderer
-   * - ``default`` / ``isaacsim_rtx``
-     - Isaac Sim RTX renderer (used when no ``renderer=`` or ``presets=`` is given)
+   * - ``isaacsim_rtx``
+     - Concrete Isaac Sim RTX renderer
+   * - ``rtx``
+     - Automatic RTX-family selection between configured alternatives
    * - ``newton_renderer``
      - Newton Warp renderer
    * - ``ovrtx``
-     - OV RTX renderer
-   * - ``rtx``
-     - Automatic RTX renderer selection (Isaac Sim RTX when running with Isaac Sim, and OVRTX for kit-less)
+     - Concrete OVRTX renderer for supported kit-less tasks
+
+The implicit ``default`` field is task-specific and is intentionally omitted from
+``--help``. Do not infer a task's default backend from these conventional names;
+inspect its help output or configuration. Automatic choices such as ``physics=physx``
+and ``renderer=rtx`` are opt-in, not universal defaults.
 
 Domain presets (observation modes, camera configurations, etc.) are task-specific.
 Pass ``--task=<task-name> --help`` to a training command to see all presets available
@@ -496,7 +502,9 @@ preset.
 .. note::
 
     Legacy aliases ``newton`` → ``newton_mjwarp`` and ``kamino`` → ``newton_kamino``
-    are still accepted but emit a :class:`FutureWarning`. Prefer the canonical names.
+    are still accepted but emit a :class:`FutureWarning`. The renderer aliases
+    ``isaacsim_rtx_renderer`` → ``isaacsim_rtx`` and ``ovrtx_renderer`` → ``ovrtx``
+    behave the same way. Prefer the canonical names.
 
 
 Using Presets
@@ -507,43 +515,48 @@ Using Presets
 .. code-block:: bash
 
     # Switch to Newton MuJoCo-Warp physics
-    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC physics=newton_mjwarp
+    uv run isaaclab train --rl_library rsl_rl \
+        --task IsaacContrib-Velocity-Rough-AnymalC physics=newton_mjwarp
 
     # Switch to Newton renderer for camera environments
-    python train.py --task=Isaac-Cartpole-Camera-Direct renderer=newton_renderer
+    uv run isaaclab train --rl_library rsl_rl \
+        --task Isaac-Cartpole-Camera-Direct renderer=newton_renderer
 
-    # Combine typed selectors -- each one applies to its own PresetCfg type
-    python train.py --task=Isaac-Cartpole-Camera-Direct \
+    # Combine typed selectors with a task-specific observation preset
+    uv run isaaclab train --rl_library rsl_rl \
+        --task Isaac-Cartpole-Camera-Direct \
         physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
 **Path presets** -- select a specific preset for one config path:
 
 .. code-block:: bash
 
-    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC \
-        env.events=newton_mjwarp
+    # Replace only this task's physics preset node
+    uv run isaaclab train --rl_library rsl_rl \
+        --task Isaac-Cartpole env.sim.physics=newton_kamino
 
-**Global presets** -- apply the same preset name everywhere it exists:
-
-.. code-block:: bash
-
-    # Apply "newton_mjwarp" preset to all configs that define it
-    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC \
-        presets=newton_mjwarp
-
-**Multiple global presets** -- apply several non-conflicting presets:
+**Domain presets** -- broadcast a task-specific name everywhere it exists:
 
 .. code-block:: bash
 
-    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC \
-        presets=newton_mjwarp,inference
+    # Keep the observation pipeline and camera data type in sync
+    uv run isaaclab train --rl_library rsl_rl \
+        --task Isaac-Cartpole-Camera presets=depth
 
-**Combined** -- global presets + scalar overrides:
+**Multiple domain presets** -- apply several non-conflicting task choices:
 
 .. code-block:: bash
 
-    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC \
-        presets=newton_mjwarp \
+    uv run isaaclab train --rl_library rsl_rl \
+        --task Isaac-Lift-KukaAllegro-Camera presets=duo_camera,rgb128
+
+**Combined** -- typed selectors, a domain preset, and a scalar override:
+
+.. code-block:: bash
+
+    uv run isaaclab train --rl_library rsl_rl \
+        --task Isaac-Cartpole-Camera \
+        physics=newton_mjwarp renderer=newton_renderer presets=rgb \
         env.sim.dt=0.002
 
 
@@ -567,20 +580,22 @@ working together:
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py
     :language: python
-    :lines: 20-25
+    :start-at: class AnymalCRoughEnvCfg
 
-A single ``presets=newton_mjwarp`` on the command line resolves every ``PresetCfg``
-and ``preset()`` that defines a ``newton_mjwarp`` field: the physics engine is swapped
-to Newton, ``AnymalCEventsCfg`` selects Newton-compatible events, and the
-actuator armature is set to ``0.01``.
+The base velocity configuration also defines ``newton_mjwarp`` alternatives for
+physics and a center-of-mass randomization event that MJWarp disables. An explicit
+``physics=newton_mjwarp`` resolves the physics config and every active dependent
+alternative with that name: the event is disabled and the ANYmal-C actuator
+armature becomes ``0.01``. The typed selector also verifies that a physics preset
+was actually selected.
 
 .. code-block:: bash
 
-    # Default (PhysX events, armature=0.0)
-    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC
+    uv run isaaclab train --rl_library rsl_rl \
+        --task IsaacContrib-Velocity-Rough-AnymalC physics=newton_mjwarp
 
-    # MJWarp (Newton events, armature=0.01)
-    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC presets=newton_mjwarp
+Without a selector, each ``PresetCfg`` independently uses its own ``default``;
+the name of a default alternative is not broadcast to other preset nodes.
 
 
 Summary
@@ -597,17 +612,17 @@ Summary
      - ``env.sim.dt=0.001``
      - Modify single field
    * - Path preset
-     - ``env.events=newton_mjwarp``
+     - ``env.sim.physics=newton_kamino``
      - Replace entire section
-   * - Global preset
-     - ``presets=newton_mjwarp``
-     - Apply everywhere matching
+   * - Domain preset
+     - ``presets=rgb``
+     - Apply a task-specific name everywhere matching
    * - Typed physics selector
      - ``physics=newton_mjwarp``
-     - Selects a :class:`~isaaclab.physics.PhysicsCfg` variant; folds into ``presets=``
+     - Select a physics variant, update matching dependent presets, and require a typed match
    * - Typed renderer selector
      - ``renderer=newton_renderer``
-     - Selects a :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` variant; folds into ``presets=``
+     - Select a renderer variant and require a typed match
    * - Combined
      - ``physics=newton_mjwarp renderer=newton_renderer presets=rgb env.sim.dt=0.001``
      - Typed selectors + domain preset + scalar override

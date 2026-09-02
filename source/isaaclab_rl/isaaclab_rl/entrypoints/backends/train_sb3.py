@@ -18,18 +18,22 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from isaaclab.app import add_launcher_args
+from isaaclab.app import add_launcher_args, report_activity
 
 from isaaclab_rl.entrypoints.common import (
     CHECKPOINT_SELECTORS,
     add_common_train_args,
     apply_env_overrides,
+    apply_video_recording,
     configure_io_descriptors,
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    pre_launch_video_config,
     resolve_checkpoint_selector,
     set_hydra_args,
+    show_run_summary,
+    startup_screen,
     wrap_training_capture,
     write_run_manifest,
 )
@@ -98,108 +102,120 @@ def run(argv: list[str]) -> None:
     signal.signal(signal.SIGINT, _cleanup_pbar)
 
     args_cli = _parse_args(argv)
-    env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+    with startup_screen(args_cli, num_stages=3) as screen:
+        env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+        pre_launch_video_config(env_cfg, args_cli=args_cli)
+        show_run_summary(screen, args_cli, env_cfg, library="sb3", action="train")
+        screen.stage("Launching simulation")
+        with launch_simulation(env_cfg, args_cli):
+            if args_cli.seed == -1:
+                args_cli.seed = random.randint(0, 10000)
 
-    with launch_simulation(env_cfg, args_cli):
-        if args_cli.seed == -1:
-            args_cli.seed = random.randint(0, 10000)
+            apply_env_overrides(args_cli, env_cfg)
+            agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
+            if args_cli.max_iterations is not None:
+                agent_cfg["n_timesteps"] = args_cli.max_iterations * agent_cfg["n_steps"] * env_cfg.scene.num_envs
 
-        apply_env_overrides(args_cli, env_cfg)
-        agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
-        if args_cli.max_iterations is not None:
-            agent_cfg["n_timesteps"] = args_cli.max_iterations * agent_cfg["n_steps"] * env_cfg.scene.num_envs
+            env_cfg.seed = agent_cfg["seed"]
 
-        env_cfg.seed = agent_cfg["seed"]
-
-        run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
-        print(f"[INFO] Logging experiment in directory: {log_root_path}")
-        print(f"Exact experiment name requested from command line: {run_info}")
-        log_dir = os.path.join(log_root_path, run_info)
-        write_run_manifest(
-            log_dir,
-            library="sb3",
-            task=args_cli.task,
-            metadata={"agent": args_cli.agent},
-        )
-        dump_train_configs(log_dir, env_cfg, agent_cfg)
-
-        command = " ".join(sys.orig_argv)
-        (Path(log_dir) / "command.txt").write_text(command)
-
-        agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
-        policy_arch = agent_cfg.pop("policy")
-        n_timesteps = agent_cfg.pop("n_timesteps")
-
-        configure_io_descriptors(env_cfg, args_cli, logger)
-        env_cfg.log_dir = log_dir
-
-        env = create_isaaclab_env(
-            args_cli.task,
-            env_cfg,
-            args_cli,
-            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
-        )
-        env = wrap_training_capture(env, log_dir, args_cli)
-
-        start_time = time.time()
-        env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
-
-        norm_keys = {"normalize_input", "normalize_value", "clip_obs"}
-        norm_args = {}
-        for key in norm_keys:
-            if key in agent_cfg:
-                norm_args[key] = agent_cfg.pop(key)
-
-        if norm_args and norm_args.get("normalize_input"):
-            print(f"Normalizing input, {norm_args=}")
-            env = VecNormalize(
-                env,
-                training=True,
-                norm_obs=norm_args["normalize_input"],
-                norm_reward=norm_args.get("normalize_value", False),
-                clip_obs=norm_args.get("clip_obs", 100.0),
-                gamma=agent_cfg["gamma"],
-                clip_reward=np.inf,
-            )
-
-        agent = PPO(policy_arch, env, verbose=1, tensorboard_log=log_dir, **agent_cfg)
-        if args_cli.checkpoint in CHECKPOINT_SELECTORS:
-            checkpoint_path = resolve_checkpoint_selector(
-                log_root_path,
-                args_cli.checkpoint,
+            run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
+            print(f"[INFO] Logging experiment in directory: {log_root_path}")
+            print(f"Exact experiment name requested from command line: {run_info}")
+            log_dir = os.path.join(log_root_path, run_info)
+            write_run_manifest(
+                log_dir,
                 library="sb3",
                 task=args_cli.task,
-                checkpoint_pattern=r"model(?:_.*)?\.zip",
-                preferred_checkpoint_pattern=r"model\.zip",
                 metadata={"agent": args_cli.agent},
             )
-            agent = agent.load(checkpoint_path, env, print_system_info=True)
-        elif args_cli.checkpoint is not None:
-            agent = agent.load(args_cli.checkpoint, env, print_system_info=True)
+            dump_train_configs(log_dir, env_cfg, agent_cfg)
 
-        # configure_seed must run after PPO construction/load so torch determinism does not disturb SB3's initialization
-        if args_cli.deterministic:
-            configure_seed(env_cfg.seed, torch_deterministic=True)
+            command = " ".join(sys.orig_argv)
+            (Path(log_dir) / "command.txt").write_text(command)
 
-        checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
-        callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval)]
+            agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
+            policy_arch = agent_cfg.pop("policy")
+            n_timesteps = agent_cfg.pop("n_timesteps")
 
-        with contextlib.suppress(KeyboardInterrupt):
-            agent.learn(
-                total_timesteps=n_timesteps,
-                callback=callbacks,
-                progress_bar=True,
-                log_interval=None,
+            configure_io_descriptors(env_cfg, args_cli, logger)
+            env_cfg.log_dir = log_dir
+            apply_video_recording(env_cfg, log_dir, args_cli)
+
+            screen.stage("Creating environment")
+            env = create_isaaclab_env(
+                args_cli.task,
+                env_cfg,
+                args_cli,
+                convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            env = wrap_training_capture(env, log_dir, args_cli)
 
-        agent.save(os.path.join(log_dir, "model"))
-        print("Saving to:")
-        print(os.path.join(log_dir, "model.zip"))
+            screen.stage("Preparing agent")
+            start_time = time.time()
+            report_activity("Wrapping environment")
+            env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
+            report_activity(None)
 
-        if isinstance(env, VecNormalize):
-            print("Saving normalization")
-            env.save(os.path.join(log_dir, "model_vecnormalize.pkl"))
+            norm_keys = {"normalize_input", "normalize_value", "clip_obs"}
+            norm_args = {}
+            for key in norm_keys:
+                if key in agent_cfg:
+                    norm_args[key] = agent_cfg.pop(key)
 
-        print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-        env.close()
+            if norm_args and norm_args.get("normalize_input"):
+                print(f"Normalizing input, {norm_args=}")
+                env = VecNormalize(
+                    env,
+                    training=True,
+                    norm_obs=norm_args["normalize_input"],
+                    norm_reward=norm_args.get("normalize_value", False),
+                    clip_obs=norm_args.get("clip_obs", 100.0),
+                    gamma=agent_cfg["gamma"],
+                    clip_reward=np.inf,
+                )
+
+            report_activity("Building policy")
+            agent = PPO(policy_arch, env, verbose=1, tensorboard_log=log_dir, **agent_cfg)
+            report_activity(None)
+            if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+                checkpoint_path = resolve_checkpoint_selector(
+                    log_root_path,
+                    args_cli.checkpoint,
+                    library="sb3",
+                    task=args_cli.task,
+                    checkpoint_pattern=r"model(?:_.*)?\.zip",
+                    preferred_checkpoint_pattern=r"model\.zip",
+                    metadata={"agent": args_cli.agent},
+                )
+                agent = agent.load(checkpoint_path, env, print_system_info=True)
+            elif args_cli.checkpoint is not None:
+                agent = agent.load(args_cli.checkpoint, env, print_system_info=True)
+
+            # configure_seed must run after PPO construction/load so torch determinism does not disturb
+            # SB3's initialization
+            if args_cli.deterministic:
+                configure_seed(env_cfg.seed, torch_deterministic=True)
+
+            checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
+            callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval)]
+
+            screen.close()
+            with contextlib.suppress(KeyboardInterrupt):
+                agent.learn(
+                    total_timesteps=n_timesteps,
+                    callback=callbacks,
+                    progress_bar=True,
+                    log_interval=None,
+                )
+
+            agent.save(os.path.join(log_dir, "model"))
+            print("Saving to:")
+            print(os.path.join(log_dir, "model.zip"))
+
+            if isinstance(env, VecNormalize):
+                print("Saving normalization")
+                env.save(os.path.join(log_dir, "model_vecnormalize.pkl"))
+
+            print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+            env.close()

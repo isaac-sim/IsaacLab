@@ -17,6 +17,7 @@ import warp as wp
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp, replace_background_depth_wp
 
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "Install Isaac Lab with the 'all' extra (`pip install isaaclab[all]`) or install the "
+    "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
     "isaaclab-ppisp extension from the Isaac Lab source checkout."
 )
 
@@ -379,18 +380,8 @@ class NewtonWarpRenderer(BaseRenderer):
 
     RenderData = RenderData
 
-    @classmethod
-    def provides_temporal_camera_data(cls, data_type: str) -> bool:
-        # Pure rasterizer: no temporal accumulation on any output.
-        return False
-
     def __init__(self, cfg: NewtonWarpRendererCfg):
         """Pre-physics initialization."""
-        from isaaclab.physics.scene_data_requirements import (
-            aggregate_requirements,
-            requirement_for_renderer_type,
-        )
-
         self.cfg = cfg
         self.newton_sensor: newton.sensors.SensorTiledCamera | None = None
         # USD stage captured in ``prepare_cameras``; used by the segmentation mapper to read semantics.
@@ -399,11 +390,9 @@ class NewtonWarpRenderer(BaseRenderer):
         self._seg_mapper: NewtonSegmentationMapper | None = None
 
         sim = SimulationContext.instance()
-        current_req = sim.get_scene_data_requirements()
-        renderer_req = requirement_for_renderer_type("newton_warp")
-        merged = aggregate_requirements([current_req, renderer_req])
-        if merged != current_req:
-            sim.update_scene_data_requirements(merged)
+        requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL["newton_warp"]
+        sim.requires_usd_stage |= requires_stage
+        sim.requires_newton_model |= requires_model
 
     def initialize(self) -> None:
         """Post-physics setup: read the built Newton model and construct the sensor."""
@@ -442,6 +431,11 @@ class NewtonWarpRenderer(BaseRenderer):
         if self.cfg.create_default_light:
             self.newton_sensor.utils.create_default_light(enable_shadows=self.cfg.enable_shadows)
 
+    @property
+    def visual_material_writer(self):
+        """Return the shared Newton model color-writer factory."""
+        return NewtonManager.create_visual_material_writer
+
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this Newton Warp backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
@@ -475,6 +469,18 @@ class NewtonWarpRenderer(BaseRenderer):
         :class:`UsdSemantics.LabelsAPI` labels when a segmentation output is requested.
         """
         self._stage = stage
+        # NOTE: OpenCV lens distortion (``spawn.distortion``) is not yet applied by the Newton
+        # renderer. The distortion cfg is renderer-agnostic and could be piped through Newton's warp
+        # ray-tracing utilities here in the future; for now the camera renders undistorted. This is
+        # the intended extension point.
+        spawn = getattr(spec.cfg, "spawn", None)
+        if getattr(spawn, "distortion", None) is not None:
+            logger.warning(
+                "OpenCV lens distortion is set on the camera cfg but is not yet applied by the Newton"
+                " renderer: it derives a single field of view from fy, so the distortion coefficients,"
+                " the principal point, and a non-square fx are ignored and the camera renders as a"
+                " centered, square-pixel pinhole. Use the RTX/OVRTX renderer to apply the full model."
+            )
         if spec.cfg.isp_cfg is None:
             return
         try:
@@ -501,7 +507,8 @@ class NewtonWarpRenderer(BaseRenderer):
             or RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types
         ):
             if self._seg_mapper is None:
-                self._seg_mapper = NewtonSegmentationMapper(self._newton_model, self._stage, self.cfg)
+                clone_plan = SimulationContext.instance().get_clone_plan()
+                self._seg_mapper = NewtonSegmentationMapper(self._newton_model, self._stage, self.cfg, clone_plan)
         if RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types:
             self._seg_mapper.build_mapping(
                 RenderBufferKind.SEMANTIC_SEGMENTATION, bool(self.cfg.colorize_semantic_segmentation)

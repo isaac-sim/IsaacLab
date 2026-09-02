@@ -256,7 +256,9 @@ def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: p
     assert len(calls) == 1
     assert calls[0][0] == "Isaac-Test"
     assert calls[0][1]["cfg"] is env_cfg
-    assert calls[0][1]["render_mode"] is None
+    # render_mode is no longer passed — recording is configured via env_cfg.video_recorders
+    # before env creation (apply_video_recording), not via the gym render-mode mechanism.
+    assert "render_mode" not in calls[0][1]
 
 
 def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -277,7 +279,8 @@ def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.Mon
     env = create_isaaclab_env("Isaac-Test", env_cfg, args_cli, convert_marl_to_single_agent=False)
 
     assert env is expected_env
-    assert calls == [(env_cfg, "Isaac-Test", {"render_mode": "rgb_array"})]
+    # render_mode is no longer forwarded — recording is driven by env_cfg.video_recorders.
+    assert calls == [(env_cfg, "Isaac-Test", {})]
 
 
 def test_dispatch_library_entrypoint_shows_help_without_library(
@@ -333,3 +336,47 @@ def test_resolve_play_task_name_keeps_registered_and_unknown_tasks() -> None:
     assert resolve_play_task_name("Isaac-DoesNotExist-Play") == "Isaac-DoesNotExist-Play"
     assert resolve_play_task_name("Isaac-Something") == "Isaac-Something"
     assert resolve_play_task_name(None) is None
+
+
+class _RecordingScreen:
+    """Loading screen stand-in that keeps the summary fields instead of drawing them."""
+
+    def __init__(self) -> None:
+        self.fields: dict[str, str] = {}
+
+    def summary(self, title: str, fields: dict[str, str]) -> None:
+        self.fields = fields
+
+
+@pytest.mark.parametrize(
+    "selectors, expected_physics, expected_renderer",
+    [
+        (["physics=ovphysx", "renderer=rtx"], "ovphysx", "rtx (ovrtx)"),
+        (["physics=isaacsim_physx", "renderer=rtx"], "isaacsim_physx", "rtx (isaacsim_rtx)"),
+        # ``physx`` reaches the physics backend the same way ``rtx`` reaches the renderer
+        (["physics=physx", "renderer=rtx"], "physx (ovphysx)", "rtx (ovrtx)"),
+        ([], "newton_mjwarp", "newton_renderer"),
+        (["physics=physx", "presets=depth"], "physx (ovphysx)", "newton_renderer"),
+    ],
+)
+def test_run_summary_reports_concrete_backends(
+    selectors: list[str],
+    expected_physics: str,
+    expected_renderer: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The summary reports concrete backends and launcher-owned automatic choices."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import resolve_task_config
+
+    task = "Isaac-Cartpole-Camera-Direct"
+    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py", *selectors])
+    env_cfg, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point")
+    screen = _RecordingScreen()
+    args_cli = argparse.Namespace(task=task, device=None, num_envs=None, visualizer=None)
+
+    _rl_common.show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
+
+    assert screen.fields["Physics"] == expected_physics
+    assert screen.fields["Renderer"] == expected_renderer
+    assert "Presets" not in screen.fields

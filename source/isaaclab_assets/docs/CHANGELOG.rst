@@ -1,6 +1,62 @@
 Changelog
 ---------
 
+0.6.5 (2026-08-21)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed self-collisions being uncontrolled under Newton for
+  :data:`~isaaclab_assets.robots.allegro.ALLEGRO_HAND_CFG`,
+  :data:`~isaaclab_assets.robots.shadow_hand.SHADOW_HAND_CFG`,
+  :data:`~isaaclab_assets.robots.shadow_hand.SHADOW_HAND_NEWTON_CFG`, and
+  :data:`~isaaclab_assets.robots.kuka_allegro.KUKA_ALLEGRO_CFG`. Their ``articulation_props`` used
+  the deprecated PhysX-only ``ArticulationRootPropertiesCfg``, which never authored the
+  ``newton:selfCollisionEnabled`` attribute Newton's schema resolver checks. They now pass a
+  ``PhysxArticulationCfg`` + ``NewtonArticulationCfg`` fragment pair so ``enabled_self_collisions``
+  is authored on both backends explicitly.
+
+
+0.6.4 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+
+0.6.3 (2026-08-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated the Menagerie Franka configuration to use its corrected USD-authored arm drive gains.
+
+
+0.6.2 (2026-08-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the DR Legs feet colliding as bounding boxes by setting an explicit ``convexHull`` mesh
+  approximation on :data:`~isaaclab_assets.robots.dr_legs.DR_LEGS_IMPLICIT_PD_CFG`.
+
+
+0.6.1 (2026-07-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :data:`~isaaclab_assets.sensors.GELSIGHT_MINI_CFG` to use the available GelSight render data.
+
+
 0.6.0 (2026-07-29)
 ~~~~~~~~~~~~~~~~~~
 

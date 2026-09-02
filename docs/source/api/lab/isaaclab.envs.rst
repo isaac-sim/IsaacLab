@@ -112,3 +112,35 @@ Common
 .. autoclass:: ViewerCfg
     :members:
     :exclude-members: __init__
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.envs` API.
+
+.. currentmodule:: isaaclab.envs
+
+.. autosummary::
+   :nosignatures:
+
+   DataGenConfig
+   SubTaskConstraintCoordinationScheme
+   SubTaskConstraintType
+   VideoRecorderCfg
+
+.. autoclass:: DataGenConfig
+   :show-inheritance:
+
+.. autoclass:: SubTaskConstraintCoordinationScheme
+   :show-inheritance:
+
+.. autoclass:: SubTaskConstraintType
+   :show-inheritance:
+
+.. autoclass:: VideoRecorderCfg
+   :show-inheritance:
+
+.. toctree::
+   :hidden:
+
+   isaaclab.envs.leapp_deployment_env

@@ -7,9 +7,10 @@
 # Please check the NGC container page for license information.
 
 # Base image
-ARG ISAACSIM_BASE_IMAGE_ARG
-ARG ISAACSIM_VERSION_ARG
+ARG ISAACSIM_BASE_IMAGE_ARG=nvcr.io/nvidia/isaac-sim
+ARG ISAACSIM_VERSION_ARG=6.0.0
 FROM ${ISAACSIM_BASE_IMAGE_ARG}:${ISAACSIM_VERSION_ARG} AS base
+ARG ISAACSIM_VERSION_ARG
 ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
 
 # Set default RUN shell to bash
@@ -34,6 +35,8 @@ ENV HOME=${DOCKER_USER_HOME}
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PIP_RETRIES=12
+ENV UV_HTTP_RETRIES=12
 
 # Base image may end with a non-root user; switch to root for system-level
 # setup and package installation.
@@ -110,8 +113,12 @@ RUN touch /bin/nvidia-smi && \
     mkdir -p /var/run/nvidia-persistenced && \
     touch /var/run/nvidia-persistenced/socket
 
+# robomimic declares imageio-ffmpeg for optional video helpers. Keep its
+# bundled FFmpeg binary out of the distributed image and let users who
+# enable video recording install MoviePy and its video backend explicitly.
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
-    ${ISAACLAB_PATH}/isaaclab.sh --install
+    ${ISAACLAB_PATH}/isaaclab.sh --install && \
+    ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y imageio-ffmpeg
 
 # HACK: Remove install of quadprog dependency
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
@@ -135,9 +142,16 @@ RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc 
 RUN groupadd --non-unique --gid 1000 isaaclab \
  && useradd --non-unique --uid 1000 --gid 1000 -M -l -s /bin/bash -d ${DOCKER_USER_HOME} isaaclab
 
+# The Isaac Sim image sets HUB__ARGS__DETECT_ONLY=true, which forbids OmniHub from starting.
+# omni.client still asks it to launch, so every Kit startup retries ~39 times before giving
+# up. Letting OmniHub start also needs its cache at /var/cache/hub, owned by the isaac-sim
+# user (uid 1234) upstream, to be writable by the uid 1000 runtime user.
+ENV HUB__ARGS__DETECT_ONLY=false
+
 RUN chown -R isaaclab:isaaclab \
         ${ISAACLAB_PATH} \
-        ${DOCKER_USER_HOME}
+        ${DOCKER_USER_HOME} \
+        /var/cache/hub
 
 # Open up traversal of the Isaac Sim root and runtime home for non-root users.
 # Inner Isaac Sim files keep their original permissions, so avoid chowning the

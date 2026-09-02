@@ -70,6 +70,28 @@ def test_spawn_cone_with_deformable_and_mass_props(sim):
         sim.step()
 
 
+def test_spawn_cone_with_deformable_and_collision_fragment_mapping(sim):
+    """A deformable mesh accepts ``collision_props`` as a target-pattern mapping.
+
+    Regression: the mapping was wrapped in a list, failed the fragment type check and raised, and
+    the writer call neither dispatched mapping entries nor anchored their patterns.
+    """
+    from isaaclab_physx.sim.schemas import PhysxCollisionCfg
+
+    cfg = sim_utils.MeshConeCfg(
+        radius=1.0,
+        height=2.0,
+        deformable_props=PhysxDeformableBodyPropertiesCfg(deformable_body_enabled=True, mass=1.0),
+        collision_props={"/sim_mesh": [PhysxCollisionCfg(contact_offset=0.02, rest_offset=0.001)]},
+    )
+    cfg.func("/World/ConeMap", cfg)
+
+    sim_mesh = sim.stage.GetPrimAtPath("/World/ConeMap/sim_mesh")
+    assert sim_mesh.IsValid()
+    assert abs(sim_mesh.GetAttribute("physxCollision:contactOffset").Get() - 0.02) < 1e-6
+    assert abs(sim_mesh.GetAttribute("physxCollision:restOffset").Get() - 0.001) < 1e-6
+
+
 def test_spawn_cone_with_deformable_and_density_props(sim):
     """Test spawning of UsdGeomMesh prim for a cone with deformable body and mass API,
     specifying density instead of mass.

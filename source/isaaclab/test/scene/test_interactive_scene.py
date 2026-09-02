@@ -19,10 +19,10 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg, RigidObjectCollectionCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.cloner import CloneCfg
-from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -36,7 +36,7 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # articulation
     robot = ArticulationCfg(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
         ),
@@ -46,7 +46,7 @@ class MySceneCfg(InteractiveSceneCfg):
     )
     # rigid object
     rigid_obj = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/RigidObj",
+        prim_path="{ENV_REGEX_NS}/RigidObj",
         spawn=sim_utils.CuboidCfg(
             size=(0.5, 0.5, 0.5),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -105,6 +105,56 @@ def test_relative_flag(device, setup_scene):
     assert_state_different(prev_state, next_state)
     scene.reset_to(prev_state, is_relative=True)
     assert_state_equal(prev_state, scene.get_state(is_relative=True))
+
+
+def test_relative_deformable_state():
+    env_origins = torch.arange(12, dtype=torch.float32).reshape(4, 3)
+    nodal_position = torch.arange(60, dtype=torch.float32).reshape(4, 5, 3)
+    nodal_velocity = torch.zeros_like(nodal_position)
+    written_state = {}
+    deformable = SimpleNamespace(
+        data=SimpleNamespace(
+            nodal_pos_w=SimpleNamespace(torch=nodal_position),
+            nodal_vel_w=SimpleNamespace(torch=nodal_velocity),
+        ),
+        write_nodal_pos_to_sim=lambda value, env_ids: written_state.update(position=value, env_ids=env_ids),
+        write_nodal_velocity_to_sim=lambda value, env_ids: written_state.update(velocity=value),
+    )
+    scene = SimpleNamespace(
+        device="cpu",
+        env_origins=env_origins,
+        _articulations={},
+        _cable_objects={},
+        _deformable_objects={"object": deformable},
+        _rigid_objects={},
+        _surface_grippers={},
+        _rigid_object_collections={},
+        write_data_to_sim=lambda: None,
+    )
+
+    state = InteractiveScene.get_state(scene, is_relative=True)
+
+    torch.testing.assert_close(
+        state["deformable_object"]["object"]["nodal_position"], nodal_position - env_origins[:, None, :]
+    )
+
+    env_ids = torch.tensor([3, 1])
+    reset_nodal_position = torch.arange(30, dtype=torch.float32).reshape(2, 5, 3)
+    reset_nodal_velocity = torch.ones_like(reset_nodal_position)
+    reset_state = {
+        "deformable_object": {
+            "object": {
+                "nodal_position": reset_nodal_position,
+                "nodal_velocity": reset_nodal_velocity,
+            },
+        }
+    }
+
+    InteractiveScene.reset_to(scene, reset_state, env_ids=env_ids, is_relative=True)
+
+    torch.testing.assert_close(written_state["position"], reset_nodal_position + env_origins[env_ids, None, :])
+    torch.testing.assert_close(written_state["velocity"], reset_nodal_velocity)
+    torch.testing.assert_close(written_state["env_ids"], env_ids)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -227,17 +277,17 @@ def test_cfg_cloning_contexts_override_backend_default(monkeypatch: pytest.Monke
             InteractiveScene(scene_cfg)
             queued_by_path = {cfg.prim_path: cfg for cfg in REPLICATION_QUEUE}
             # the override rides the queued cfg; resolution happens at replicate()
-            assert queued_by_path["/World/envs/env_.*/RigidObj"].cloning_contexts == (
+            assert queued_by_path["/World/envs/env_[^/]+/RigidObj"].cloning_contexts == (
                 "isaaclab.cloner:UsdReplicateContext",
             )
             # untouched asset resolves to the backend default stack at replicate()
-            assert queued_by_path["/World/envs/env_.*/Robot"].cloning_contexts is None
+            assert queued_by_path["/World/envs/env_[^/]+/Robot"].cloning_contexts is None
         finally:
             REPLICATION_QUEUE.clear()
 
 
-def test_collect_asset_cfgs_resolves_env_regex_macros():
-    """_collect_asset_cfgs rewrites {ENV_REGEX_NS} macros and expands collections."""
+def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
+    """The composition root separates cloneable configs from shared prim roots."""
     scene = object.__new__(InteractiveScene)
     cube_cfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
@@ -252,59 +302,31 @@ def test_collect_asset_cfgs_resolves_env_regex_macros():
     scene.cfg = SimpleNamespace(
         num_envs=2,
         objects=RigidObjectCollectionCfg(rigid_objects={"cube": cube_cfg, "shape": shape_cfg}),
+        ground=AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg()),
     )
     scene.cloner_cfg = CloneCfg()
-    scene._env_regex_ns = scene.cloner_cfg.clone_regex
-    scene._env_ns = scene._env_regex_ns.rsplit("/", 1)[0]
+    scene._env_fmt = scene.cloner_cfg.clone_template
 
-    cfgs = scene._collect_asset_cfgs()
+    cfgs, global_paths = scene._collect_asset_cfgs()
 
     prim_paths = sorted(c.prim_path for c in cfgs)
-    assert prim_paths == ["/World/envs/env_.*/Cube", "/World/envs/env_.*/Shape"]
+    assert prim_paths == ["/World/envs/env_[^/]+/Cube", "/World/envs/env_[^/]+/Shape"]
+    assert global_paths == ("/World/Ground",)
 
 
-def test_collect_asset_cfgs_orders_sensors_last():
-    """Non-sensor cfgs precede sensor cfgs in _collect_asset_cfgs output."""
-    from isaaclab.sensors import ContactSensorCfg
+def test_collect_asset_cfgs_excludes_entities_without_spawners():
+    """Only configs that can author clone sources reach make_clone_plan."""
 
     scene = object.__new__(InteractiveScene)
     sensor = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
-    body = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot")
-    scene.cfg = SimpleNamespace(num_envs=1, sensor=sensor, body=body)
+    scene.cfg = SimpleNamespace(num_envs=1, sensor=sensor)
     scene.cloner_cfg = CloneCfg()
-    scene._env_ns = scene.cloner_cfg.clone_regex.rsplit("/", 1)[0]
+    scene._env_fmt = scene.cloner_cfg.clone_template
 
-    cfgs = scene._collect_asset_cfgs()
+    cfgs, global_paths = scene._collect_asset_cfgs()
 
-    # Sensors come after non-sensor entities so they can bind to spawned bodies.
-    assert cfgs.index(body) < cfgs.index(sensor)
-
-
-def test_aggregate_scene_data_requirements_merges_visualizers_and_renderers(monkeypatch: pytest.MonkeyPatch):
-    """Scene aggregation must OR visualizer and sensor-renderer requirements onto sim context.
-
-    Replaces the old test that asserted a clone-time visualizer hook was installed from
-    requirements. The hook is gone; the only remaining behavior is publishing the merged
-    :class:`SceneDataRequirement` to the simulation context.
-    """
-    scene = object.__new__(InteractiveScene)
-    scene.physics_backend = "physx"
-    scene.stage = object()
-    scene._sensors = {
-        "cam": SimpleNamespace(cfg=SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="newton_warp")))
-    }
-
-    posted: list = []
-    scene.sim = SimpleNamespace(
-        get_scene_data_requirements=lambda: SceneDataRequirement(),
-        update_scene_data_requirements=posted.append,
-    )
-
-    scene._aggregate_scene_data_requirements({"rerun"})
-
-    assert len(posted) == 1
-    merged = posted[0]
-    assert merged.requires_newton_model
+    assert cfgs == []
+    assert global_paths == ()
 
 
 def assert_state_equal(s1: dict, s2: dict, path=""):

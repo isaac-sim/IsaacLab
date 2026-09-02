@@ -9,7 +9,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import math
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 import numpy as np
 import warp as wp
@@ -23,6 +23,7 @@ from ..utils import (
     apply_nested,
     create_prim,
     find_global_fixed_joint_prim,
+    find_matching_prims,
     get_all_matching_child_prims,
     has_deformable_body_api,
     safe_set_attribute_on_usd_prim,
@@ -277,32 +278,46 @@ Articulation root properties.
 
 
 def apply_articulation_root_properties(
-    prim_path: str,
+    prim_path_expr: str,
     fragments: Iterable[schemas_cfg.ArticulationRootFragment],
     stage: Usd.Stage | None = None,
     fix_root_link: bool | None = None,
+    create_if_missing: bool = False,
 ) -> bool:
-    """Apply fragments to every top-level articulation root under a prim.
+    """Apply a list of articulation-root fragments to the roots matched by an expression.
 
-    Existing roots are discovered before a fresh anchor is applied, including roots hidden in
-    instances. Nested roots are pruned, while sibling roots are all processed. Instance roots are
-    reported but not authored.
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Robot/.*`` every descendant of a prim. Matched prims that
+    already carry ``UsdPhysics.ArticulationRootAPI`` are the targets: each fragment is
+    dispatched to every target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+    Sibling roots (independent articulations matched by one expression) are all processed.
+    Nested targets are authored as matched, with a warning -- resolving nested roots is the
+    asset author's responsibility.
 
-    When fix_root_link is True, the active physics manager creates or enables the world joint and
-    returns the backend's final root prim. False only disables an existing joint.
+    With :paramref:`create_if_missing`, the API is applied to every matched prim that lacks
+    it. Zero targets warn and return False. Instanced matches are skipped with a warning.
+
+    An empty fragment list is an authoring no-op: it returns True immediately when
+    :paramref:`fix_root_link` is None, but still resolves targets and adjusts topology when the
+    flag is set. When :paramref:`fix_root_link` is True, the active physics manager creates or
+    enables the world joint on each target and returns the backend's final root prim; False
+    only disables an existing joint.
 
     Args:
-        prim_path: The prim path whose subtree is searched for articulation roots.
+        prim_path_expr: The prim path expression matched against the stage.
         fragments: Articulation-root fragments to apply.
-        stage: The stage containing the prim. Defaults to the current stage.
+        stage: The stage where to find the prims. Defaults to None, in which case the current
+            stage is used.
         fix_root_link: Whether to fix the root link. None leaves topology unchanged.
+        create_if_missing: Whether to apply ``UsdPhysics.ArticulationRootAPI`` to every
+            matched prim that does not carry it. Defaults to False.
 
     Returns:
-        True if every writable root and fragment succeeds and no instance root is skipped.
+        True if every target and fragment succeeded and no instanced prim was skipped.
 
     Raises:
         TypeError: If fragments contains a non-articulation fragment.
-        ValueError: If prim_path is invalid.
         RuntimeError: If fixing cannot resolve the active backend or relocate the root.
         NotImplementedError: If the backend cannot fix the resolved root.
     """
@@ -318,54 +333,39 @@ def apply_articulation_root_properties(
     ]
     if stage is None:
         stage = get_current_stage()
+    if not fragments and fix_root_link is None:
+        return True
 
-    roots = []
-    for candidate in get_all_matching_child_prims(
-        prim_path,
-        lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
-        stage=stage,
-        traverse_instance_prims=True,
-    ):
-        if not any(candidate.GetPath().HasPrefix(root.GetPath()) for root in roots):
-            roots.append(candidate)
-
-    writable_roots = []
-    skipped_roots = []
-    for root in roots:
-        if root.IsInstance() or root.IsInstanceProxy():
-            skipped_roots.append(root)
-        else:
-            writable_roots.append(root)
-
-    if not roots and fragments:
-        root = stage.GetPrimAtPath(prim_path)
-        if root.IsInstance() or root.IsInstanceProxy():
-            skipped_roots.append(root)
-        else:
-            UsdPhysics.ArticulationRootAPI.Apply(root)
-            writable_roots.append(root)
-
-    if skipped_roots:
+    targets, creation_candidates, any_skipped = _match_fragment_targets(
+        prim_path_expr, lambda p: p.HasAPI(UsdPhysics.ArticulationRootAPI), stage
+    )
+    if create_if_missing:
+        for prim in creation_candidates:
+            UsdPhysics.ArticulationRootAPI.Apply(prim)
+            targets.append(prim)
+    target_paths = [t.GetPath() for t in targets]
+    if any(path != other and path.HasPrefix(other) for path in target_paths for other in target_paths):
         logger.warning(
-            "Skipping articulation-root updates on instanced prims: %s.",
-            [root.GetPath().pathString for root in skipped_roots],
+            "Expression '%s' targets nested articulation roots (%s); authoring on all of them.",
+            prim_path_expr,
+            [p.pathString for p in target_paths],
         )
-    if not writable_roots:
-        if fix_root_link is not None and not skipped_roots:
-            logger.warning(
-                "No articulation root found under '%s': ignoring fix_root_link=%s.", prim_path, fix_root_link
-            )
-        return not skipped_roots and fix_root_link is None
+    if not targets:
+        logger.warning("No articulation-root targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        return False
 
     if fix_root_link:
         from isaaclab.sim import SimulationContext
 
         sim = SimulationContext.instance()
         if sim is None:
-            raise RuntimeError(f"Cannot fix articulation roots under '{prim_path}' without an active simulation.")
+            raise RuntimeError(
+                f"Cannot fix articulation roots matched by '{prim_path_expr}' without an active simulation."
+            )
 
-    success = not skipped_roots
-    for root in writable_roots:
+    # aggregate per-target, per-fragment results so a reported failure is not masked
+    success = not any_skipped
+    for root in targets:
         if fix_root_link:
             root = sim.physics_manager.fix_articulation_root(root, stage)
         elif fix_root_link is False:
@@ -582,10 +582,41 @@ def modify_articulation_root_properties(
                     if not parent_attr:
                         parent_attr = parent_prim.CreateAttribute(aname, attr.GetTypeName())
                     parent_attr.Set(attr.Get())
+            # -- Newton root schema and its authored properties
+            newton_root_schema = "NewtonArticulationRootAPI"
+            if newton_root_schema in articulation_prim.GetAppliedSchemas():
+                if not parent_prim.AddAppliedSchema(newton_root_schema):
+                    raise RuntimeError(f"Failed to apply '{newton_root_schema}' to '{parent_prim.GetPath()}'.")
+                schema_definition = Usd.SchemaRegistry().FindAppliedAPIPrimDefinition(newton_root_schema)
+                newton_properties = []
+                if schema_definition is not None:
+                    for property_name in schema_definition.GetPropertyNames():
+                        prop = articulation_prim.GetProperty(property_name)
+                        if prop and prop.IsAuthored():
+                            newton_properties.append(prop)
+                for prop in newton_properties:
+                    if not prop.FlattenTo(parent_prim):
+                        raise RuntimeError(f"Failed to move '{prop.GetPath()}' to '{parent_prim.GetPath()}'.")
+                for prop in newton_properties:
+                    if not articulation_prim.RemoveProperty(prop.GetName()):
+                        raise RuntimeError(f"Failed to remove '{prop.GetPath()}' from the former articulation root.")
+                if not articulation_prim.RemoveAppliedSchema(newton_root_schema):
+                    raise RuntimeError(f"Failed to remove '{newton_root_schema}' from '{articulation_prim.GetPath()}'.")
 
             # remove api from root
             articulation_prim.RemoveAppliedSchema("PhysxArticulationAPI")
             articulation_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
+            articulation_prim = parent_prim
+
+    # Mirror after any root relocation so the Newton API does not recreate an articulation root
+    # on the former root link.
+    enabled_self_collisions = cfg_dict.get("enabled_self_collisions")
+    if enabled_self_collisions is not None:
+        if "NewtonArticulationRootAPI" not in articulation_prim.GetAppliedSchemas():
+            articulation_prim.AddAppliedSchema("NewtonArticulationRootAPI")
+        safe_set_attribute_on_usd_prim(
+            articulation_prim, "newton:selfCollisionEnabled", enabled_self_collisions, camel_case=False
+        )
 
     # success
     return True
@@ -596,70 +627,45 @@ Fragment-writer helpers.
 """
 
 
-def _resolve_fragment_targets(
-    prim_path: str,
-    api_type,
+def _match_fragment_targets(
+    prim_path_expr: str,
+    is_target: Callable[[Usd.Prim], bool],
     stage: Usd.Stage,
-    apply_fresh: bool,
-) -> tuple[list, bool]:
-    """Resolve the prims that a fragment family writer should author on.
+) -> tuple[list[Usd.Prim], list[Usd.Prim], bool]:
+    """Resolve fragment-writer targets from a prim path expression.
 
-    This mirrors the legacy nested writers: prims under ``prim_path`` that already carry
-    ``api_type`` are modified in place, and the search does not descend past a match, since
-    nested applications of the same physics schema are not allowed. Only when the subtree
-    carries no such prim is the defining API applied freshly to ``prim_path`` itself -- the
-    bare-prim case used by the shape and mesh spawners. Instanced prims cannot be edited, so
-    they are skipped with a warning.
+    Matches ``prim_path_expr`` with :func:`~isaaclab.sim.utils.find_matching_prims` (a plain
+    regular expression over whole prim paths) and splits the matches: writable prims
+    passing ``is_target`` are targets, writable prims failing it are creation candidates, and
+    instanced prims passing it are skipped with a warning since prototypes cannot be authored on.
 
     Args:
-        prim_path: The prim path whose subtree is searched.
-        api_type: The defining USD API schema type (e.g. ``UsdPhysics.RigidBodyAPI``).
-        stage: The stage containing the prim.
-        apply_fresh: Whether to apply ``api_type`` to ``prim_path`` when the subtree contains
-            no carrier of it.
+        prim_path_expr: The prim path expression to match. Path-like objects (e.g.
+            ``Sdf.Path``) are accepted and converted with ``str``.
+        is_target: Predicate deciding whether a matched prim is a valid family target.
+        stage: The stage to match on.
 
     Returns:
-        A tuple ``(targets, any_skipped)`` holding the writable target prims and whether any
-        instanced prim was skipped.
-
-    Raises:
-        ValueError: When the prim path is not valid.
+        A tuple ``(targets, creation_candidates, any_skipped)``.
     """
-    prim = stage.GetPrimAtPath(prim_path)
-    if not prim.IsValid():
-        raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # breadth-first search that stops descending at the first carrier on each branch, like the
-    # legacy nested writers: nested applications of the same physics schema are not allowed, so
-    # nothing below a carrier is ever a target. This keeps the search linear in the subtree size
-    # instead of collecting every carrier and pruning afterwards. Carriers on instanced prims are
-    # read-only and collected separately so they can be reported.
+    # tolerate path-like inputs such as Sdf.Path, whose string form is the path itself
+    prim_path_expr = str(prim_path_expr)
     targets = []
+    creation_candidates = []
     skipped = []
-    prims_queue = [prim]
-    index = 0
-    while index < len(prims_queue):
-        candidate = prims_queue[index]
-        index += 1
-        if candidate.HasAPI(api_type):
-            if candidate.IsInstance() or candidate.IsInstanceProxy():
-                skipped.append(candidate)
-            else:
-                targets.append(candidate)
-            continue
-        prims_queue += candidate.GetFilteredChildren(Usd.TraverseInstanceProxies())
-    if not targets and not skipped and apply_fresh:
-        if prim.IsInstance() or prim.IsInstanceProxy():
-            skipped.append(prim)
-        else:
-            api_type.Apply(prim)
-            targets.append(prim)
+    for prim in find_matching_prims(prim_path_expr, stage):
+        instanced = prim.IsInstance() or prim.IsInstanceProxy()
+        if is_target(prim):
+            (skipped if instanced else targets).append(prim)
+        elif not instanced:
+            creation_candidates.append(prim)
     if skipped:
         logger.warning(
-            "Skipping %s updates on instanced prims: %s.",
-            api_type.__name__,
+            "Skipping fragment updates on instanced prims matched by '%s': %s.",
+            prim_path_expr,
             [p.GetPath().pathString for p in skipped],
         )
-    return targets, bool(skipped)
+    return targets, creation_candidates, bool(skipped)
 
 
 """
@@ -668,37 +674,53 @@ Rigid body properties.
 
 
 def apply_rigid_body_properties(
-    prim_path: str, fragments: Iterable[schemas_cfg.RigidBodyFragment], stage: Usd.Stage | None = None
+    prim_path_expr: str,
+    fragments: Iterable[schemas_cfg.RigidBodyFragment],
+    create_if_missing: bool = False,
+    stage: Usd.Stage | None = None,
 ) -> bool:
-    """Apply a list of rigid-body fragments to the rigid bodies under a prim.
+    """Apply a list of rigid-body fragments to the rigid bodies matched by an expression.
 
-    Existing rigid bodies in the subtree are modified in place, matching the legacy nested
-    writer. Real assets author ``UsdPhysics.RigidBodyAPI`` on their link prims, so anchoring a
-    fresh rigid body on the spawn prim instead would nest those links under a new body and the
-    PhysX parser would drop the articulation's joint graph. Only when the subtree carries no
-    rigid body is ``UsdPhysics.RigidBodyAPI`` applied to ``prim_path`` itself -- the bare-prim
-    case used by the shape and mesh spawners. Each fragment is dispatched to every resolved
-    target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry
-    backend-specific funcs, so core never imports a backend.
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Robot/.*`` every descendant of a prim. Matched prims that
+    already carry ``UsdPhysics.RigidBodyAPI`` are modified in place: each fragment is
+    dispatched to every such target via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
+    funcs, so core never imports a backend.
+
+    An empty fragment list is an authoring no-op and returns True. With
+    :paramref:`create_if_missing`, ``UsdPhysics.RigidBodyAPI`` is applied to every matched
+    prim that lacks it; only the asset's joints decide which bodies participate in the
+    articulation, so the expression is trusted as written. Zero targets warn and return
+    False. Instanced matches are skipped with a warning.
 
     Args:
-        prim_path: The prim path whose subtree is searched for rigid bodies.
+        prim_path_expr: The prim path expression matched against the stage.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.RigidBodyFragment` instances.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
+        create_if_missing: Whether to apply ``UsdPhysics.RigidBodyAPI`` to every matched
+            prim that does not carry it. Defaults to False.
+        stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
 
     Returns:
         True if every target and fragment succeeded and no instanced prim was skipped.
-
-    Raises:
-        ValueError: When the prim path is not valid.
     """
     fragments = list(fragments)
     if stage is None:
         stage = get_current_stage()
-    targets, any_skipped = _resolve_fragment_targets(
-        prim_path, UsdPhysics.RigidBodyAPI, stage, apply_fresh=bool(fragments)
+    if not fragments:
+        return True
+    targets, creation_candidates, any_skipped = _match_fragment_targets(
+        prim_path_expr, lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI), stage
     )
+    if create_if_missing:
+        for prim in creation_candidates:
+            UsdPhysics.RigidBodyAPI.Apply(prim)
+            targets.append(prim)
+    if not targets:
+        logger.warning("No rigid-body targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        return False
     # aggregate per-target, per-fragment results so a reported failure is not masked
     success = not any_skipped
     for target in targets:
@@ -903,36 +925,53 @@ Collision properties.
 
 
 def apply_collision_properties(
-    prim_path: str, fragments: Iterable[schemas_cfg.CollisionFragment], stage: Usd.Stage | None = None
+    prim_path_expr: str,
+    fragments: Iterable[schemas_cfg.CollisionFragment],
+    create_if_missing: bool = False,
+    stage: Usd.Stage | None = None,
 ) -> bool:
-    """Apply a list of collision fragments to the colliders under a prim.
+    """Apply a list of collision fragments to the colliders matched by an expression.
 
-    Existing colliders in the subtree are modified in place, matching the legacy nested writer.
-    Real assets author ``UsdPhysics.CollisionAPI`` on their collider prims, so anchoring a fresh
-    collider on the spawn prim would change the scene's collision geometry. Only when the
-    subtree carries no collider is ``UsdPhysics.CollisionAPI`` applied to ``prim_path`` itself
-    -- the bare-prim case used by the shape and mesh spawners. Each fragment is dispatched to
-    every resolved target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend
-    fragments carry backend-specific funcs, so core never imports a backend.
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Robot/.*`` every descendant of a prim. Matched prims that
+    already carry ``UsdPhysics.CollisionAPI`` are modified in place: each fragment is
+    dispatched to every such target via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
+    funcs, so core never imports a backend.
+
+    An empty fragment list is an authoring no-op and returns True. With
+    :paramref:`create_if_missing`, ``UsdPhysics.CollisionAPI`` is applied to every matched
+    prim that lacks it. When no target remains, a warning is emitted and False is
+    returned without authoring anything. Matched prims inside instances cannot be authored on
+    and are skipped with a warning.
 
     Args:
-        prim_path: The prim path whose subtree is searched for colliders.
+        prim_path_expr: The prim path expression matched against the stage.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.CollisionFragment` instances.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
+        create_if_missing: Whether to apply ``UsdPhysics.CollisionAPI`` to matched prims that
+            do not carry it. Defaults to False.
+        stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
 
     Returns:
         True if every target and fragment succeeded and no instanced prim was skipped.
-
-    Raises:
-        ValueError: When the prim path is not valid.
     """
     fragments = list(fragments)
     if stage is None:
         stage = get_current_stage()
-    targets, any_skipped = _resolve_fragment_targets(
-        prim_path, UsdPhysics.CollisionAPI, stage, apply_fresh=bool(fragments)
+    if not fragments:
+        return True
+    targets, creation_candidates, any_skipped = _match_fragment_targets(
+        prim_path_expr, lambda p: p.HasAPI(UsdPhysics.CollisionAPI), stage
     )
+    if create_if_missing:
+        for candidate in creation_candidates:
+            UsdPhysics.CollisionAPI.Apply(candidate)
+            targets.append(candidate)
+    if not targets:
+        logger.warning("No collision targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        return False
     # aggregate per-target, per-fragment results so a reported failure is not masked
     success = not any_skipped
     for target in targets:
@@ -1037,32 +1076,51 @@ Mass properties.
 
 
 def apply_mass_properties(
-    prim_path: str, fragments: Iterable[schemas_cfg.MassFragment], stage: Usd.Stage | None = None
+    prim_path_expr: str,
+    fragments: Iterable[schemas_cfg.MassFragment],
+    create_if_missing: bool = False,
+    stage: Usd.Stage | None = None,
 ) -> bool:
-    """Apply a list of mass fragments to the mass-bearing prims under a prim.
+    """Apply a list of mass fragments to the mass-bearing prims matched by an expression.
 
-    Existing mass-bearing prims in the subtree are modified in place, matching the legacy nested
-    writer, since real assets author ``UsdPhysics.MassAPI`` on their link prims. Only when the
-    subtree carries none is ``UsdPhysics.MassAPI`` applied to ``prim_path`` itself -- the
-    bare-prim case used by the shape and mesh spawners. Each fragment is dispatched to every
-    resolved target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Robot/.*`` every descendant of a prim. Matched prims that
+    already carry ``UsdPhysics.MassAPI`` are modified in place: each fragment is dispatched to
+    every such target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend
+    fragments carry backend-specific funcs, so core never imports a backend.
+
+    An empty fragment list is an authoring no-op and returns True. With
+    :paramref:`create_if_missing`, ``UsdPhysics.MassAPI`` is applied to every matched prim
+    that lacks it; pairing the mass with a rigid body is the caller's responsibility. Zero
+    targets warn and return False. Instanced matches are skipped with a warning.
 
     Args:
-        prim_path: The prim path whose subtree is searched for mass-bearing prims.
+        prim_path_expr: The prim path expression matched against the stage.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.MassFragment` instances.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
+        create_if_missing: Whether to apply ``UsdPhysics.MassAPI`` to every matched prim
+            that does not carry it. Defaults to False.
+        stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
 
     Returns:
         True if every target and fragment succeeded and no instanced prim was skipped.
-
-    Raises:
-        ValueError: When the prim path is not valid.
     """
     fragments = list(fragments)
     if stage is None:
         stage = get_current_stage()
-    targets, any_skipped = _resolve_fragment_targets(prim_path, UsdPhysics.MassAPI, stage, apply_fresh=bool(fragments))
+    if not fragments:
+        return True
+    targets, creation_candidates, any_skipped = _match_fragment_targets(
+        prim_path_expr, lambda p: p.HasAPI(UsdPhysics.MassAPI), stage
+    )
+    if create_if_missing:
+        for prim in creation_candidates:
+            UsdPhysics.MassAPI.Apply(prim)
+            targets.append(prim)
+    if not targets:
+        logger.warning("No mass targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        return False
     # aggregate per-target, per-fragment results so a reported failure is not masked
     success = not any_skipped
     for target in targets:
@@ -1328,15 +1386,22 @@ def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
 
 
 def apply_joint_drive_properties(
-    prim_path: str, fragments, stage: Usd.Stage | None = None, ensure_drives_exist: bool = False
+    prim_path_expr: str,
+    fragments,
+    stage: Usd.Stage | None = None,
+    ensure_drives_exist: bool = False,
+    create_if_missing: bool = False,
 ) -> bool:
-    """Apply a list of joint-drive fragments to all joint prims under a prim path.
+    """Apply a list of joint-drive fragments to the joint prims matched by an expression.
 
-    Mirrors the recursion behaviour of :func:`modify_joint_drive_properties` (decorated with
-    :func:`~isaaclab.sim.utils.apply_nested`): the prim path and all its descendants are visited,
-    and the fragments are dispatched to every revolute/prismatic joint prim found. As soon as a
-    prim is successfully handled, its children are not descended into (nested joints are not
-    allowed).
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Robot/.*`` every descendant of a prim. The fragments are
+    dispatched to every matched revolute/prismatic joint prim that is not excluded by a
+    backend-registered skip predicate (see :func:`register_joint_drive_skip_predicate`, e.g.
+    PhysX tendon members). Non-joint matches are ignored silently -- a subtree expression
+    matches every descendant, so per-prim warnings would spam. Matched prims inside
+    instances cannot be authored on and are skipped with a warning.
 
     Unlike :func:`apply_rigid_body_properties`, the joint-drive family has no implicit anchor:
     ``UsdPhysics.DriveAPI`` is *presence-gated* and applied only by :func:`apply_drive` when a
@@ -1344,75 +1409,77 @@ def apply_joint_drive_properties(
     fragment is dispatched via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, so backend
     fragments carry backend-specific funcs and core never imports a backend.
 
+    An empty fragment list is an authoring no-op and returns True. When no fragment succeeds on
+    any joint, a warning is emitted and False is returned.
+
     Args:
-        prim_path: The root prim path to search for joint prims under.
+        prim_path_expr: The prim path expression matched against the stage.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.JointDriveFragment` instances.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
+        stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
         ensure_drives_exist: If True, write a minimal stiffness (``1e-3``) to any drive whose
             authored stiffness *and* damping are both zero, so that backends (e.g. Newton) treat
             the drive as active. Reproduces the legacy
             :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.ensure_drives_exist` behaviour. This is
             a spawner-level flag, not a fragment field.
+        create_if_missing: If True, apply the axis-appropriate ``UsdPhysics.DriveAPI`` instance
+            (``"angular"`` for revolute joints, ``"linear"`` for prismatic joints) on matched
+            joints that do not carry it, before dispatching the fragments. Distinct from
+            :paramref:`ensure_drives_exist`: this flag creates the drive API itself, whereas
+            :paramref:`ensure_drives_exist` seeds a minimal stiffness on fully-passive drives
+            that already exist. Defaults to False.
 
     Returns:
-        True if the fragments were applied to at least one joint prim, False otherwise.
+        True if the fragments were applied to at least one joint prim and no instanced joint
+        was skipped, False otherwise.
     """
     if stage is None:
         stage = get_current_stage()
 
     fragments = list(fragments)
+    if not fragments:
+        return True
     # detect whether a UsdPhysics.DriveAPI fragment is present (governs presence-gating + the
     # ensure_drives_exist behaviour, which only makes sense for the solver-common drive fragment)
     drive_cfg = next((f for f in fragments if isinstance(f, schemas_cfg.UsdPhysicsDriveCfg)), None)
 
-    root_prim = stage.GetPrimAtPath(prim_path)
-    if not root_prim.IsValid():
-        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # match revolute/prismatic joints not excluded by a backend-registered skip predicate;
+    # non-joint matches (creation_candidates) are ignored silently since a subtree expression
+    # matches every descendant
+    targets, _, any_skipped = _match_fragment_targets(
+        prim_path_expr,
+        lambda p: (p.IsA(UsdPhysics.RevoluteJoint) or p.IsA(UsdPhysics.PrismaticJoint)) and not _skip_joint_drive(p),
+        stage,
+    )
 
     count_success = 0
-    instanced_prim_paths = []
-    all_prims = [root_prim]
-    while len(all_prims) > 0:
-        child_prim = all_prims.pop(0)
-        child_prim_path = child_prim.GetPath().pathString
-        # skip instanced prims (cannot author on prototypes)
-        if child_prim.IsInstance():
-            instanced_prim_paths.append(child_prim_path)
-            continue
-        # a prim is a valid joint-drive target only if it is a revolute/prismatic joint
-        is_joint = child_prim.IsA(UsdPhysics.RevoluteJoint) or child_prim.IsA(UsdPhysics.PrismaticJoint)
-        if not is_joint:
-            all_prims += child_prim.GetChildren()
-            continue
-        # skip backend-owned joints wholesale (e.g. PhysX tendon members): no fragment may author on
-        # them. The backend registers the detector via register_joint_drive_skip_predicate, so this
-        # gate carries no backend-specific knowledge; descend into children to reach nested joints.
-        if _skip_joint_drive(child_prim):
-            all_prims += child_prim.GetChildren()
-            continue
+    for joint_prim in targets:
+        joint_prim_path = joint_prim.GetPath().pathString
+        if create_if_missing:
+            drive_api_name = _drive_instance_name(joint_prim)
+            if drive_api_name is not None and not joint_prim.HasAPI(UsdPhysics.DriveAPI, drive_api_name):
+                UsdPhysics.DriveAPI.Apply(joint_prim, drive_api_name)
         # dispatch each fragment via its func
         success = False
         for cfg in fragments:
             func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-            if func(cfg, child_prim_path, stage):
+            if func(cfg, joint_prim_path, stage):
                 success = True
         # seed a minimal stiffness only when the drive fragment authored neither stiffness nor
         # damping and the resulting drive is fully passive
         if ensure_drives_exist and drive_cfg is not None and success:
-            _ensure_drive_exists(drive_cfg, child_prim)
+            _ensure_drive_exists(drive_cfg, joint_prim)
         if success:
             count_success += 1
-        else:
-            all_prims += child_prim.GetChildren()
 
-    if count_success == 0:
+    # instanced skips were already reported by the matcher; only warn when nothing matched at all
+    if count_success == 0 and not any_skipped:
         logger.warning(
-            f"Could not apply joint-drive properties on any prims under: '{prim_path}'."
-            " This might be because no revolute/prismatic joint prims were found, or they are"
-            f" instanced. Discovered list of instanced prim paths: {instanced_prim_paths}"
+            "Could not apply joint-drive properties on any joints matched by '%s'."
+            " No revolute/prismatic joint prims matched or every fragment reported failure.",
+            prim_path_expr,
         )
-    return count_success > 0
+    return count_success > 0 and not any_skipped
 
 
 def _ensure_drive_exists(drive_cfg, prim) -> None:
@@ -1562,45 +1629,71 @@ Fixed tendon properties.
 """
 
 
+def _is_fixed_tendon_target(prim: Usd.Prim) -> bool:
+    """Whether a prim carries a fixed-tendon representation (PhysX multi-apply instance or MjcTendon prim)."""
+    if prim.GetTypeName() == "MjcTendon":
+        return True
+    return any("PhysxTendonAxisRootAPI" in s for s in prim.GetAppliedSchemas())
+
+
+def _is_spatial_tendon_target(prim: Usd.Prim) -> bool:
+    """Whether a prim carries a spatial-tendon multi-apply instance."""
+    return any(
+        "PhysxTendonAttachmentRootAPI" in s or "PhysxTendonAttachmentLeafAPI" in s for s in prim.GetAppliedSchemas()
+    )
+
+
 def apply_fixed_tendon_properties(
-    prim_path: str, fragments: Iterable[schemas_cfg.FixedTendonFragment], stage: Usd.Stage | None = None
+    prim_path_expr: str, fragments: Iterable[schemas_cfg.FixedTendonFragment], stage: Usd.Stage | None = None
 ) -> bool:
-    """Apply a list of fixed-tendon fragments to a prim.
+    """Apply a list of fixed-tendon fragments to the tendon prims matched by an expression.
 
-    Fixed tendons are a *tune-not-apply* family: the applied ``PhysxTendonAxisRootAPI``
-    multi-instance schemas already exist on the prim (authored in the source asset). This writer
-    therefore applies no anchor schema; it only dispatches each fragment via its
-    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, which tunes the existing instances.
-    Backend fragments carry backend-specific funcs, so core never imports a backend.
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Robot/.*`` every descendant of a prim. A matched prim is a
+    fixed-tendon target when it carries an applied ``PhysxTendonAxisRootAPI`` multi-apply
+    instance or is a ``MjcTendon`` prim.
 
-    Each fragment tunes only its own schema and returns ``False`` when that schema is not
-    present on the prim. A prim carries a single tendon backend, so compose backends across
-    prims rather than mixing PhysX and Mujoco fragments in one list on one prim.
+    Fixed tendons are a *tune-not-apply* family: the tendon topology is authored in the source
+    asset, so this writer never creates instances -- it only dispatches each fragment via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func` to every matched target. Backend
+    fragments carry backend-specific funcs, so core never imports a backend. A fragment
+    succeeds when its func returns True on at least one target: each func only tunes its own
+    backend's representation and no-ops (returns False) on the other backend's prims, so a
+    mixed-backend target set does not fail the write.
+
+    An empty fragment list is an authoring no-op and returns True. When no target matches, a
+    warning is emitted and False is returned without authoring anything. Matched prims inside
+    instances cannot be authored on and are skipped with a warning.
 
     Args:
-        prim_path: The prim path to apply the fixed-tendon schemas on.
+        prim_path_expr: The prim path expression matched against the stage.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.FixedTendonFragment` instances.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
+        stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
 
     Returns:
-        True if all fragments applied successfully, False if any fragment reported failure.
-
-    Raises:
-        ValueError: If the prim at ``prim_path`` is not valid.
+        True if every fragment tuned at least one target and no instanced prim was skipped.
     """
+    fragments = list(fragments)
     if stage is None:
         stage = get_current_stage()
-    prim = stage.GetPrimAtPath(prim_path)
-    # fail loudly on an invalid path (matches the sibling apply_* writers)
-    if not prim.IsValid():
-        raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # tune-not-apply: the PhysxTendonAxisRootAPI instances already exist; apply no anchor.
-    # aggregate per-fragment results so a reported failure is not silently masked.
-    success = True
+    if not fragments:
+        return True
+    targets, _, any_skipped = _match_fragment_targets(prim_path_expr, _is_fixed_tendon_target, stage)
+    if not targets:
+        logger.warning("No fixed-tendon targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        return False
+    # per-fragment any-target aggregation: a fragment fails only when it tuned no target at all,
+    # since each backend's func legitimately no-ops on the other backend's tendon prims.
+    success = not any_skipped
     for cfg in fragments:
         func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        success = bool(func(cfg, prim_path, stage)) and success
+        fragment_hit = False
+        for target in targets:
+            if func(cfg, target.GetPath().pathString, stage):
+                fragment_hit = True
+        success = fragment_hit and success
     return success
 
 
@@ -1681,46 +1774,56 @@ Spatial tendon properties.
 
 
 def apply_spatial_tendon_properties(
-    prim_path: str, fragments: Iterable[schemas_cfg.SpatialTendonFragment], stage: Usd.Stage | None = None
+    prim_path_expr: str, fragments: Iterable[schemas_cfg.SpatialTendonFragment], stage: Usd.Stage | None = None
 ) -> bool:
-    """Apply a list of spatial-tendon fragments to a prim.
+    """Apply a list of spatial-tendon fragments to the tendon prims matched by an expression.
 
-    Spatial tendons are a *tune-not-apply* family: the applied
-    ``PhysxTendonAttachmentRootAPI`` / ``PhysxTendonAttachmentLeafAPI`` multi-instance schemas
-    already exist on the prim (authored in the source asset). This writer therefore applies no
-    anchor schema; it only dispatches each fragment via its
-    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, which tunes the existing instances.
-    Backend fragments carry backend-specific funcs, so core never imports a backend.
+    The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
+    ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
+    selects one path segment and ``/World/Robot/.*`` every descendant of a prim. A matched prim is a
+    spatial-tendon target when it carries an applied ``PhysxTendonAttachmentRootAPI`` or
+    ``PhysxTendonAttachmentLeafAPI`` multi-apply instance.
 
-    Each fragment tunes only its own schema and returns ``False`` when that schema is not
-    present on the prim. A prim carries a single tendon backend, so compose backends across
-    prims rather than mixing PhysX and Mujoco fragments in one list on one prim.
+    Spatial tendons are a *tune-not-apply* family: the tendon topology is authored in the
+    source asset, so this writer never creates instances -- it only dispatches each fragment
+    via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func` to every matched target. Backend
+    fragments carry backend-specific funcs, so core never imports a backend. A fragment
+    succeeds when its func returns True on at least one target: each func only tunes its own
+    backend's representation and no-ops (returns False) on the other backend's prims, so a
+    mixed-backend target set does not fail the write.
+
+    An empty fragment list is an authoring no-op and returns True. When no target matches, a
+    warning is emitted and False is returned without authoring anything. Matched prims inside
+    instances cannot be authored on and are skipped with a warning.
 
     Args:
-        prim_path: The prim path to apply the spatial-tendon schemas on.
+        prim_path_expr: The prim path expression matched against the stage.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.SpatialTendonFragment` instances.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
+        stage: The stage where to find the prims. Defaults to None, in which case the current
             stage is used.
 
     Returns:
-        True if all fragments applied successfully, False if any fragment reported failure.
-
-    Raises:
-        ValueError: If the prim at ``prim_path`` is not valid.
+        True if every fragment tuned at least one target and no instanced prim was skipped.
     """
+    fragments = list(fragments)
     if stage is None:
         stage = get_current_stage()
-    prim = stage.GetPrimAtPath(prim_path)
-    # fail loudly on an invalid path (matches the sibling apply_* writers)
-    if not prim.IsValid():
-        raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # tune-not-apply: the PhysxTendonAttachmentRootAPI / PhysxTendonAttachmentLeafAPI instances
-    # already exist; apply no anchor.
-    # aggregate per-fragment results so a reported failure is not silently masked.
-    success = True
+    if not fragments:
+        return True
+    targets, _, any_skipped = _match_fragment_targets(prim_path_expr, _is_spatial_tendon_target, stage)
+    if not targets:
+        logger.warning("No spatial-tendon targets matched expression '%s'; nothing was authored.", prim_path_expr)
+        return False
+    # per-fragment any-target aggregation: a fragment fails only when it tuned no target at all,
+    # since each backend's func legitimately no-ops on the other backend's tendon prims.
+    success = not any_skipped
     for cfg in fragments:
         func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        success = bool(func(cfg, prim_path, stage)) and success
+        fragment_hit = False
+        for target in targets:
+            if func(cfg, target.GetPath().pathString, stage):
+                fragment_hit = True
+        success = fragment_hit and success
     return success
 
 
@@ -1927,6 +2030,33 @@ def _fix_tet_winding_kernel(
         tet_indices[i, 3] = v2
 
 
+def define_deformable_curve_properties(prim_path: str, stage: Usd.Stage | None = None) -> None:
+    """Apply the deformable curve simulation schema.
+
+    Args:
+        prim_path: The path of the ``UsdGeom.BasisCurves`` prim.
+        stage: The stage where the prim exists. Defaults to the current stage.
+
+    Raises:
+        ValueError: If the prim path is invalid or is not a ``UsdGeom.BasisCurves`` prim.
+        RuntimeError: If the schema cannot be applied.
+    """
+    if stage is None:
+        stage = get_current_stage()
+
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    if not prim.IsA(UsdGeom.BasisCurves):
+        raise ValueError(f"Prim path '{prim_path}' is not a UsdGeom.BasisCurves prim.")
+
+    schema_name = "PhysicsCurvesDeformableSimAPI"
+    if schema_name in prim.GetPrimTypeInfo().GetAppliedAPISchemas():
+        return
+    if not prim.AddAppliedSchema(schema_name):
+        raise RuntimeError(f"Failed to set deformable curve API on prim '{prim_path}'.")
+
+
 def define_deformable_body_properties(
     prim_path: str,
     cfg: schemas_cfg.DeformableBodyPropertiesBaseCfg,
@@ -1966,6 +2096,8 @@ def define_deformable_body_properties(
     Raises:
         ValueError: When the prim path is not valid.
         ValueError: When the prim has no mesh or multiple meshes.
+        ModuleNotFoundError: When automatic volume tetrahedralization is requested
+            without its optional dependencies.
         RuntimeError: When setting the deformable body properties fails.
     """
     # get stage handle
@@ -2074,11 +2206,16 @@ def define_deformable_body_properties(
         if sim_mesh_prim is None:
             try:
                 from pytetwild import tetrahedralize
-            except ImportError as exc:
-                raise ImportError(
-                    "Automatic tetrahedralization of volume deformables requires the optional 'pytetwild' "
-                    "package. Install pytetwild or provide a pre-tetrahedralized UsdGeom.TetMesh under the "
-                    f"deformable prim '{prim_path}'."
+            except ModuleNotFoundError as exc:
+                if exc.name not in {"pytetwild", "pyvista", "vtk", "vtkmodules"}:
+                    raise
+                raise ModuleNotFoundError(
+                    "Automatic tetrahedralization of volume deformables requires the optional "
+                    "tetrahedralization dependencies. Install them with "
+                    "uv sync --inexact --extra tetrahedralization from a source checkout "
+                    "(or ./isaaclab.sh -i tetrahedralization with the legacy installer), or "
+                    'pip install "isaaclab[tetrahedralization]" from a wheel. Alternatively, provide '
+                    f"a pre-tetrahedralized UsdGeom.TetMesh under the deformable prim {prim_path}."
                 ) from exc
 
             tet_mesh_points, tet_mesh_indices = tetrahedralize(

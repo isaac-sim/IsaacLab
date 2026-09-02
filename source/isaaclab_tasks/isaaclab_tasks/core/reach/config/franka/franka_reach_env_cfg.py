@@ -18,7 +18,7 @@ from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsA
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 ##
 # Pre-defined configs
@@ -51,6 +51,14 @@ class FrankaArmActionCfg(PresetCfg):
         scale=(0.05, 0.05, 0.05, 0.5, 0.5, 0.5),
         body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
     )
+    diffik_abs: DifferentialInverseKinematicsActionCfg = diffik.replace(
+        controller=diffik.controller.replace(
+            use_relative_mode=False,
+            ik_params={"lambda_val": 0.45},
+        ),
+        body_offset=None,
+        scale=1.0,
+    )
     newton_ik: NewtonInverseKinematicsActionCfg = NewtonInverseKinematicsActionCfg(
         asset_name="robot",
         joint_names=["panda_joint.*"],
@@ -61,7 +69,7 @@ class FrankaArmActionCfg(PresetCfg):
                 body_offset_pos=(0.0, 0.0, 0.107),
                 command_type="pose",
                 use_relative_mode=True,
-                scale=(0.05, 0.05, 0.05, 0.5, 0.5, 0.5),
+                scale=(0.05, 0.05, 0.05, 0.25, 0.25, 0.25),
                 rotation_weight=2.0,
             ),
             NewtonIKJointLimitObjectiveCfg(weight=0.1),
@@ -88,10 +96,15 @@ class FrankaReachEnvCfg(ReachEnvCfg):
 
         # switch robot to franka
         self.scene.robot = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.rigid_props.disable_gravity = preset(default=False, diffik_abs=True)
         # override rewards
         self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["panda_hand"]
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["panda_hand"]
         self.rewards.joint_vel.params["asset_cfg"].joint_names = ["panda_joint.*"]
+        self.rewards.action_magnitude.weight = preset(
+            default=self.rewards.action_magnitude.weight,
+            diffik_abs=0.0,
+        )
 
         # override actions
         self.actions.arm_action = FrankaArmActionCfg()

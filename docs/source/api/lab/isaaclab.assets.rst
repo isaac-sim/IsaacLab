@@ -9,6 +9,13 @@
 
     AssetBase
     AssetBaseCfg
+    VisualMaterial
+    VisualMaterialCfg
+    BaseCableObject
+    BaseCableObjectData
+    CableObject
+    CableObjectData
+    CableObjectCfg
     RigidObject
     RigidObjectData
     RigidObjectCfg
@@ -46,6 +53,20 @@ Asset Base
 
 .. autoclass:: AssetBaseCfg
     :members:
+    :exclude-members: __init__, class_type, InitialStateCfg
+
+Visual Material
+---------------
+
+.. autoclass:: VisualMaterial
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: VisualMaterialCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
     :exclude-members: __init__, class_type, InitialStateCfg
 
 Rigid Object
@@ -87,6 +108,39 @@ Rigid Object Collection
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type
+
+Cable Object
+------------
+
+Cable object dynamics are currently supported only by the Newton backend.
+
+.. autoclass:: CableObject
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: BaseCableObject
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: CableObjectData
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: BaseCableObjectData
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: CableObjectCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__, class_type, InitialStateCfg
 
 Deformable Object
 -----------------
@@ -164,3 +218,30 @@ Articulation Ordering
 .. autofunction:: parse_articulation_ordering_convention
 
 .. autofunction:: get_articulation_name_ordering
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.assets` API.
+
+.. currentmodule:: isaaclab.assets
+
+.. autosummary::
+   :nosignatures:
+
+   BaseRigidObject
+   BaseRigidObjectCollection
+   BaseRigidObjectCollectionData
+   BaseRigidObjectData
+
+.. autoclass:: BaseRigidObject
+   :show-inheritance:
+
+.. autoclass:: BaseRigidObjectCollection
+   :show-inheritance:
+
+.. autoclass:: BaseRigidObjectCollectionData
+   :show-inheritance:
+
+.. autoclass:: BaseRigidObjectData
+   :show-inheritance:

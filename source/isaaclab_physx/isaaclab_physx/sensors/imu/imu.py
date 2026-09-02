@@ -14,6 +14,7 @@ import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.sensors.imu import BaseImu
+from isaaclab.sim.utils.queries import path_expr_to_glob
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -70,7 +71,6 @@ class Imu(BaseImu):
         self._raw_coms: wp.array | None = None
         self._update_cmd: wp.Launch | None = None
         self._update_env_mask: wp.array | None = None
-        self._update_inv_dt: float | None = None
         self._use_recorded_launch: bool = False
 
     def __str__(self) -> str:
@@ -115,10 +115,6 @@ class Imu(BaseImu):
             device=self._device,
         )
 
-    def update(self, dt: float, force_recompute: bool = False):
-        self._dt = dt
-        super().update(dt, force_recompute)
-
     """
     Implementation.
     """
@@ -134,7 +130,7 @@ class Imu(BaseImu):
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
 
         self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
-        self._view = self._physics_sim_view.create_rigid_body_view(self._rigid_parent_expr.replace(".*", "*"))
+        self._view = self._physics_sim_view.create_rigid_body_view(path_expr_to_glob(self._rigid_parent_expr))
 
         # Query world gravity and compute accelerometer bias (real IMUs always measure gravity)
         gravity = self._physics_sim_view.get_gravity()
@@ -187,13 +183,11 @@ class Imu(BaseImu):
             )
         wp.copy(self._coms_buffer, self._raw_coms)
 
-        inv_dt = 1.0 / self._dt
         if self._use_recorded_launch:
             if self._update_cmd is None:
                 try:
-                    self._update_cmd = self._launch_update(env_mask, inv_dt, record_cmd=True)
+                    self._update_cmd = self._launch_update(env_mask, record_cmd=True)
                     self._update_env_mask = env_mask
-                    self._update_inv_dt = inv_dt
                 except Exception as exc:
                     self._use_recorded_launch = False
                     logger.warning(
@@ -204,15 +198,12 @@ class Imu(BaseImu):
                 if env_mask is not self._update_env_mask:
                     self._update_cmd.set_param_by_name("env_mask", env_mask)
                     self._update_env_mask = env_mask
-                if inv_dt != self._update_inv_dt:
-                    self._update_cmd.set_param_by_name("inv_dt", inv_dt)
-                    self._update_inv_dt = inv_dt
                 self._update_cmd.launch()
                 return
 
-        self._launch_update(env_mask, inv_dt)
+        self._launch_update(env_mask)
 
-    def _launch_update(self, env_mask: wp.array, inv_dt: float, record_cmd: bool = False) -> wp.Launch | None:
+    def _launch_update(self, env_mask: wp.array, record_cmd: bool = False) -> wp.Launch | None:
         """Launch or record the kernel that updates the IMU data."""
 
         return wp.launch(
@@ -226,8 +217,8 @@ class Imu(BaseImu):
                 self._offset_pos_b,
                 self._offset_quat_b,
                 self._gravity_bias_w,
-                inv_dt,
                 self._timestamp,
+                self._timestamp_last_update,
                 self._prev_lin_vel_w,
                 self._data._ang_vel_b,
                 self._data._lin_acc_b,
@@ -258,4 +249,3 @@ class Imu(BaseImu):
         self._raw_coms = None
         self._update_cmd = None
         self._update_env_mask = None
-        self._update_inv_dt = None

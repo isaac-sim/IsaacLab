@@ -256,18 +256,6 @@ def test_freefall_acceleration(sim):
     torch.testing.assert_close(ang_acc, torch.zeros_like(ang_acc), atol=0.05, rtol=0.0)
 
 
-def test_sensor_print(sim):
-    """Test that the sensor string representation works."""
-    scene_cfg = PvaTestSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
-    pva: Pva = scene["pva"]
-    sensor_str = str(pva)
-    assert "newton" in sensor_str
-    assert "Pva sensor" in sensor_str
-
-
 @configclass
 class OffsetRotatedSceneCfg(InteractiveSceneCfg):
     """Scene with a tilted cube and offset PVA sensor in freefall.

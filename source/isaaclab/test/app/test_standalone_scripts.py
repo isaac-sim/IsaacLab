@@ -160,6 +160,14 @@ def test_showroom_documents_options_for_each_mentioned_demo():
 
 def test_commands_respect_script_launcher_capabilities():
     """Commands must enable cameras and avoid unsupported launcher arguments."""
+    h1_case = next(case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/h1_locomotion.py")
+    assert h1_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
+
+    pick_and_place_case = next(
+        case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/pick_and_place.py"
+    )
+    assert pick_and_place_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "kit"]
+
     camera_case = next(
         case
         for case in build_cases(SPECS)
@@ -167,6 +175,7 @@ def test_commands_respect_script_launcher_capabilities():
     )
     assert camera_case.command()[3:5] == ["--num_envs", "1"]
     assert camera_case.command()[-2:] == ["--visualizer", "none"]
+    assert camera_case.spec.startup_timeout == 900.0
 
     kitless_case = next(
         case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/sensors/ppisp_camera_ovrtx.py"
@@ -192,13 +201,13 @@ def test_commands_respect_script_launcher_capabilities():
         case
         for case in build_cases(SPECS)
         if case.spec.relative_path == "scripts/demos/bin_packing.py"
-        and case.physics_backend == "newton_mjwarp"
+        and case.physics_backend == "isaacsim_physx"
         and case.visualizer == "none"
     )
     assert "--num_envs" in physics_case.command()
     num_envs_index = physics_case.command().index("--num_envs")
     assert physics_case.command()[num_envs_index + 1] == "2"
-    assert physics_case.command()[-4:] == ["--physics", "newton_mjwarp", "--visualizer", "none"]
+    assert physics_case.command()[-4:] == ["--physics", "isaacsim_physx", "--visualizer", "none"]
 
     multi_asset_case = next(
         case
@@ -225,6 +234,125 @@ def test_commands_respect_script_launcher_capabilities():
     )
     assert "--enable_cameras" in ray_camera_case.command()
 
+    usd_camera_case = next(
+        case
+        for case in build_cases(SPECS)
+        if case.spec.relative_path == "scripts/tutorials/04_sensors/run_usd_camera.py" and case.visualizer == "none"
+    )
+    assert "--enable_cameras" not in usd_camera_case.command()
+
+
+def test_hands_demo_uses_asset_owned_shadow_hand_configs():
+    """The generic hands demo must not inherit task-specific spawn policy."""
+    path = script_cases.ROOT / "scripts/demos/hands.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    imports = {
+        (node.module, alias.name) for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names
+    }
+
+    assert not {module for module, _ in imports if module and module.startswith("isaaclab_tasks")}
+    assert {
+        ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_CFG"),
+        ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_NEWTON_CFG"),
+    } <= imports
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "scripts/demos/sensors/cameras.py",
+        "scripts/demos/sensors/contact_sensor.py",
+        "scripts/demos/sensors/frame_transformer_sensor.py",
+        "scripts/demos/sensors/imu_sensor.py",
+        "scripts/demos/sensors/multi_mesh_raycaster_camera.py",
+        "scripts/demos/sensors/pva_sensor.py",
+        "scripts/demos/sensors/raycaster_sensor.py",
+        "scripts/demos/sensors/tacsl_sensor.py",
+    ],
+)
+def test_physx_only_sensor_demos_accept_explicit_physics_selector(relative_path):
+    """PhysX-only sensor demos must accept their documented backend explicitly."""
+    spec = next(spec for spec in SPECS if spec.relative_path == relative_path)
+    assert spec.physics_backends == (("--physics", "isaacsim_physx"),)
+
+
+def test_cable_demo_accepts_explicit_newton_vbd_selector():
+    """The Newton-only cable demo must accept its documented backend explicitly."""
+    spec = next(spec for spec in SPECS if spec.relative_path == "scripts/demos/cables.py")
+    assert spec.physics_backends == (("--physics", "newton_vbd"),)
+
+
+def test_multi_mesh_raycaster_uses_cli_visualizer_defaults():
+    """The interactive raycaster demo must let CLI requests create default visualizer configs."""
+    path = script_cases.ROOT / "scripts/demos/sensors/multi_mesh_raycaster.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    simulation_cfg_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "SimulationCfg"
+    ]
+    assert len(simulation_cfg_calls) == 1
+
+    visualizer_cfg_values = [
+        keyword.value for keyword in simulation_cfg_calls[0].keywords if keyword.arg == "visualizer_cfgs"
+    ]
+    assert len(visualizer_cfg_values) == 1
+    assert isinstance(visualizer_cfg_values[0], ast.Constant)
+    assert visualizer_cfg_values[0].value is None
+
+
+def test_h1_locomotion_uses_backend_aware_checkpoint_and_rejects_missing_policy():
+    """The H1 demo must select its backend-aware policy without passing None to RSL-RL."""
+    path = script_cases.ROOT / "scripts/demos/h1_locomotion.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+    constants = {
+        target.id: node.value.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance((target := node.targets[0]), ast.Name)
+        and isinstance(node.value, ast.Constant)
+    }
+    assert constants["TASK"] == "Isaac-Velocity-Rough-H1"
+
+    backend_assignments = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "backend_names" for target in node.targets)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+        and node.value.func.id == "get_pretrained_checkpoint_backend_names"
+    ]
+    assert backend_assignments
+
+    checkpoint_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "get_published_pretrained_checkpoint"
+    ]
+    assert any(
+        len(call.args) == 3
+        and isinstance(call.args[0], ast.Name)
+        and call.args[0].id == "RL_LIBRARY"
+        and isinstance(call.args[1], ast.Name)
+        and call.args[1].id == "TASK"
+        and isinstance(call.args[2], ast.Starred)
+        and isinstance(call.args[2].value, ast.Name)
+        and call.args[2].value.id == "backend_names"
+        for call in checkpoint_calls
+    )
+    assert any(
+        isinstance(node, ast.Raise)
+        and isinstance(node.exc, ast.Call)
+        and isinstance(node.exc.func, ast.Name)
+        and node.exc.func.id == "FileNotFoundError"
+        for node in ast.walk(tree)
+    )
+
 
 def test_launch_case_reports_script_and_combination_exemptions():
     """Whole-script and individual-combination exemptions must remain distinguishable."""
@@ -245,6 +373,98 @@ def test_subprocess_supervisor_soaks_then_stops_process_group():
     assert result.ready
     assert result.stopped_after_soak
     assert result.elapsed < 2.0
+
+
+def test_subprocess_supervisor_ignores_fatal_output_after_intentional_teardown(monkeypatch):
+    """Fatal-looking output caused by intentional teardown must not fail a healthy launch."""
+
+    class FakeStdout:
+        def fileno(self):
+            return 1
+
+    class FakeProcess:
+        stdout = FakeStdout()
+        returncode = None
+
+        def poll(self):
+            return self.returncode
+
+        def communicate(self, timeout):
+            return b"Traceback (most recent call last):\n", None
+
+    class FakeSelector:
+        selections = 0
+
+        def register(self, fileobj, events):
+            self.fileobj = fileobj
+
+        def select(self, timeout):
+            self.selections += 1
+            if self.selections > 1:
+                return []
+            key = type("Key", (), {"fileobj": self.fileobj})()
+            return [(key, script_cases.selectors.EVENT_READ)]
+
+        def close(self):
+            pass
+
+    process = FakeProcess()
+    monkeypatch.setattr(script_cases.subprocess, "Popen", lambda *args, **kwargs: process)
+    monkeypatch.setattr(script_cases.selectors, "DefaultSelector", FakeSelector)
+    monkeypatch.setattr(script_cases.os, "read", lambda *args: b"READY\n")
+    monkeypatch.setattr(script_cases, "_terminate_process_group", lambda process: setattr(process, "returncode", -15))
+
+    result = run_until_ready(["demo.py"], r"READY", startup_timeout=2.0, soak_time=0.0)
+    assert result.ready
+    assert result.stopped_after_soak
+    assert "Traceback (most recent call last):" in result.output
+    assert not result.fatal_patterns
+
+
+def test_subprocess_supervisor_classifies_buffered_fatal_output_before_intentional_teardown(monkeypatch):
+    """Fatal output already buffered at the soak deadline must remain test-failing."""
+
+    class FakeStdout:
+        def fileno(self):
+            return 1
+
+    class FakeProcess:
+        stdout = FakeStdout()
+        returncode = None
+
+        def poll(self):
+            return self.returncode
+
+        def communicate(self, timeout):
+            return b"post-teardown output\n", None
+
+    class FakeSelector:
+        selections = 0
+
+        def register(self, fileobj, events):
+            self.fileobj = fileobj
+
+        def select(self, timeout):
+            self.selections += 1
+            if self.selections > 2:
+                return []
+            key = type("Key", (), {"fileobj": self.fileobj})()
+            return [(key, script_cases.selectors.EVENT_READ)]
+
+        def close(self):
+            pass
+
+    process = FakeProcess()
+    chunks = iter((b"READY\n", b"Traceback (most recent call last):\n"))
+    monkeypatch.setattr(script_cases.subprocess, "Popen", lambda *args, **kwargs: process)
+    monkeypatch.setattr(script_cases.selectors, "DefaultSelector", FakeSelector)
+    monkeypatch.setattr(script_cases.os, "read", lambda *args: next(chunks))
+    monkeypatch.setattr(script_cases, "_terminate_process_group", lambda process: setattr(process, "returncode", -15))
+
+    result = run_until_ready(["demo.py"], r"READY", startup_timeout=2.0, soak_time=0.0)
+    assert result.ready
+    assert result.stopped_after_soak
+    assert "Traceback (most recent call last):" in result.fatal_patterns
 
 
 def test_subprocess_supervisor_accepts_clean_exit_after_readiness():
@@ -372,7 +592,11 @@ if __name__ == '__main__':
 
 @pytest.mark.parametrize(
     ("backend", "package"),
-    [("isaacsim_physx", "isaaclab_physx"), ("newton_mjwarp", "isaaclab_newton")],
+    [
+        ("isaacsim_physx", "isaaclab_physx"),
+        ("newton_mjwarp", "isaaclab_newton"),
+        ("ovphysx", "isaaclab_ov"),
+    ],
 )
 def test_backend_availability_resolves_implementation_package(monkeypatch, backend, package):
     """Backend gating must query the package that implements each declared backend."""
@@ -394,6 +618,10 @@ def test_visualizer_availability_requires_shared_and_backend_packages(monkeypatc
     available = {"isaaclab_visualizers", "isaaclab_newton", "rerun"}
     monkeypatch.setattr(script_cases.importlib.util, "find_spec", lambda name: object() if name in available else None)
     assert visualizer_is_available("newton")
+    assert visualizer_is_available("newton_gl")
+    assert not visualizer_is_available("newton_rtx")
+    available.add("ovrtx")
+    assert visualizer_is_available("newton_rtx")
     assert visualizer_is_available("rerun")
     assert not visualizer_is_available("viser")
 
@@ -458,7 +686,7 @@ def test_standalone_script_remains_healthy_after_startup(case):
     missing_modules = [module for module in case.spec.required_modules if not script_cases.module_is_available(module)]
     if missing_modules:
         pytest.skip(f"required runtime module(s) not installed: {', '.join(missing_modules)}")
-    if case.visualizer in {"kit", "newton"} and not gui_is_available():
+    if case.visualizer in {"kit", "newton", "newton_gl", "newton_rtx"} and not gui_is_available():
         pytest.skip("GUI smoke test requires DISPLAY or WAYLAND_DISPLAY")
     if not backend_is_available(case.physics_backend):
         pytest.skip(f"physics backend package for {case.physics_backend!r} is not installed")

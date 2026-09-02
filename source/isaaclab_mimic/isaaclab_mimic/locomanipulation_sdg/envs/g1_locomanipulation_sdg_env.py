@@ -8,7 +8,6 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.envs.common import ViewerCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
@@ -17,6 +16,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.datasets import EpisodeData
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDGInputData
 from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import OccupancyMap
@@ -40,7 +40,7 @@ NUM_BOXES = 0
 @configclass
 class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
     packing_table_2 = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/PackingTable2",
+        prim_path="{ENV_REGEX_NS}/PackingTable2",
         init_state=AssetBaseCfg.InitialStateCfg(
             pos=[-2, -3.55, -0.3],
             # rot=[0, 0, 0, 1]),
@@ -54,7 +54,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
 
     def add_robot_pov_cam(self, height, width):
         robot_pov_cam = CameraCfg(
-            prim_path="/World/envs/env_.*/Robot/torso_link/d435_link/camera",
+            prim_path="{ENV_REGEX_NS}/Robot/torso_link/d435_link/camera",
             update_period=0.0,
             height=height,
             width=width,
@@ -66,7 +66,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
 
     def add_background_asset(self, background_usd_path: str):
         background = AssetBaseCfg(
-            prim_path="/World/envs/env_.*/Background",
+            prim_path="{ENV_REGEX_NS}/Background",
             init_state=AssetBaseCfg.InitialStateCfg(
                 pos=[0, 0, 0],
                 rot=[0.0, 0.0, 0.0, 1.0],
@@ -81,7 +81,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
     def add_forklifts(self, num_forklifts: int):
         for i in range(num_forklifts):
             forklift = AssetBaseCfg(
-                prim_path=f"/World/envs/env_.*/Forklift{i}",
+                prim_path=f"/World/envs/env_[^/]+/Forklift{i}",
                 init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Forklift/forklift.usd",
@@ -93,7 +93,7 @@ class G1LocomanipulationSDGSceneCfg(LocomanipulationG1SceneCfg):
     def add_boxes(self, num_boxes: int):
         for i in range(num_boxes):
             box = AssetBaseCfg(
-                prim_path=f"/World/envs/env_.*/Box{i}",
+                prim_path=f"/World/envs/env_[^/]+/Box{i}",
                 init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.0, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/Props/SM_CardBoxB_01_681.usd",
@@ -122,10 +122,6 @@ class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
 class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGEnvCfg):
     """Configuration for the G1 29DoF environment."""
 
-    viewer: ViewerCfg = ViewerCfg(
-        eye=(0.0, 3.0, 1.25), lookat=(0.0, 0.0, 0.5), origin_type="asset_body", asset_name="robot", body_name="pelvis"
-    )
-
     # Scene settings
     scene: G1LocomanipulationSDGSceneCfg = G1LocomanipulationSDGSceneCfg(
         num_envs=1, env_spacing=2.5, replicate_physics=False
@@ -145,6 +141,7 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
         # simulation settings
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 6
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.0, 3.0, 1.25), lookat=(0.0, 0.0, 0.5))
 
         # Set the URDF and mesh paths for the IK controller
         urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501

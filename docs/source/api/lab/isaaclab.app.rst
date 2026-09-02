@@ -8,6 +8,7 @@
    .. autosummary::
 
       AppLauncher
+      LoadingScreen
       Scan
 
    .. rubric:: Functions
@@ -16,6 +17,7 @@
 
       launch_simulation
       make_physics_cfg
+      report_activity
       scan
 
 
@@ -55,13 +57,13 @@ To set the environment variables, one can use the following command in the termi
 
    export LIVESTREAM=2
    # run the python script
-   uv run python scripts/demos/quadrupeds.py
+   uv run --extra isaacsim python scripts/demos/quadrupeds.py
 
 Alternatively, one can set the environment variables to the python script directly:
 
 .. code:: bash
 
-   LIVESTREAM=2 uv run python scripts/demos/quadrupeds.py
+   LIVESTREAM=2 uv run --extra isaacsim python scripts/demos/quadrupeds.py
 
 
 Overriding the environment variables
@@ -124,3 +126,22 @@ Simulation Launcher
 
 .. _livestream: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html
 .. _`WebRTC Livestream`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.app` API.
+
+.. currentmodule:: isaaclab.app
+
+.. autosummary::
+   :nosignatures:
+
+   LoadingScreen
+   SettingsManager
+
+.. autoclass:: LoadingScreen
+   :show-inheritance:
+
+.. autoclass:: SettingsManager
+   :show-inheritance:

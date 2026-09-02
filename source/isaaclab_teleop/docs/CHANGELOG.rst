@@ -1,6 +1,92 @@
 Changelog
 ---------
 
+0.8.2 (2026-09-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the XR headset receiving noise instead of the rendered scene on multi-GPU hosts.
+  The auto-launched CloudXR runtime selected its own device, and because Vulkan's physical
+  device enumeration is unrelated to the CUDA ordering Isaac Lab picks the simulation and
+  renderer devices with, the compositor could end up on a different GPU than the one holding
+  the rendered swapchain. The runtime is now pinned to the renderer's CUDA device via
+  ``NV_CXR_GPU_INDEX_CUDA``; an index already set in the environment or in the
+  ``--cloudxr_env`` profile is left untouched.
+
+
+0.8.1 (2026-08-28)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab teleop run``, ``record``, and ``replay`` workflows rejecting Hydra-style
+  task selectors such as ``physics=isaacsim_physx presets=diffik``. The workflows now resolve task
+  configurations through the shared preset-aware path and expose the selector syntax in ``--help``.
+
+
+0.8.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added XR camera feedback to ``teleop_se3_agent.py`` and ``record_demos.py``, with task-configured
+  existing-camera selection, declarative layouts, and viewer-start, head-locked, or explicit-world
+  placement.
+* Added a PiP-owned CUDA Replicator source with staged camera-buffer fallback so camera feedback works
+  with CPU physics without changing the core camera output device.
+* Added optional feed-local DLSS Ray Reconstruction and execution-mode settings, applied by the
+  PiP adapter without extending the core camera or renderer configuration APIs.
+* Added lazy Kit Scene UI loading so kitless teleoperation warns and continues without PiP.
+* Added :class:`~isaaclab_teleop.XrCameraFeedSession` as the supported camera-feedback lifecycle
+  API for teleoperation entry points.
+
+Changed
+^^^^^^^
+
+* Changed ``--disable_external_cameras`` into the master camera-rendering and PiP gate for
+  ``teleop_se3_agent.py`` and ``record_demos.py``. To keep task cameras enabled without PiP, leave
+  this flag unset and configure ``xr_camera_feeds`` as an empty list or with every feed disabled.
+
+Fixed
+^^^^^
+
+* Fixed camera feedback so it refreshes immediately after environment resets.
+* Fixed pre-6.1 PiP compatibility by falling back to classic DLSS when a selected feed requests
+  Ray Reconstruction on a runtime without responsive denoising.
+
+
+0.7.1 (2026-08-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a spurious warning during ``./isaaclab.sh -i teleop`` by removing the
+  ``[tool.isaaclab] pip_upgrade_dependencies`` entry for ``isaacteleop``. The dependency is
+  declared by the root ``teleop`` extra rather than by this package, so the targeted upgrade
+  could never resolve it from the installed package metadata.
+
+
+0.7.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_teleop.check_system_requirements`, which measures the workstation against
+  the recommended teleoperation spec (CPU single-thread throughput, frequency governor, GPU memory
+  and architecture, driver, and system memory) and reports any unmet requirement. The check runs
+  automatically when a teleop session starts, is advisory only, and never blocks a session.
+
+* Added :meth:`~isaaclab_teleop.IsaacTeleopDevice.send_client_message` for sending JSON messages
+  from Isaac Lab to the connected XR client over the teleop control channel. Workstation warnings
+  use it to surface in the headset, where the operator can see them.
+
+
 0.6.0 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~
 

@@ -13,12 +13,14 @@ import logging
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-import carb
-
 from .xr_anchor_utils import XrAnchorSynchronizer
 from .xr_cfg import XrCfg
 
-# Import XR components with fallback for testing
+# Import Kit components with fallback for sessions without Kit
+carb = None
+with contextlib.suppress(ModuleNotFoundError):
+    import carb
+
 XRCore = None
 XRCoreEventType = None
 with contextlib.suppress(ModuleNotFoundError):
@@ -116,7 +118,7 @@ class XrAnchorManager:
                 logger.warning(f"Failed to create XR anchor prim: {e}")
 
         # Configure carb settings for XR rendering
-        if hasattr(carb, "settings"):
+        if carb is not None and hasattr(carb, "settings"):
             carb.settings.get_settings().set_float("/persistent/xr/render/nearPlane", self._xr_cfg.near_plane)
             carb.settings.get_settings().set_string("/persistent/xr/anchorMode", "custom anchor")
             carb.settings.get_settings().set_string("/xrstage/customAnchor", self._xr_anchor_headset_path)
