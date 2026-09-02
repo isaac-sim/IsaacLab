@@ -441,6 +441,118 @@ def test_manager_serializes_env0_only_stage_in_memory(caplog):
     assert "stripped 1 env_<i!=0> subtrees from in-memory USD" in caplog.text
 
 
+@pytest.mark.parametrize("domain_name", ["PHYSICS", "ALL"])
+def test_manager_represents_dangling_physics_material_target_only_in_export(domain_name):
+    """The OVStage export represents only the missing physics-purpose target."""
+    import ovstage
+    from isaaclab_ov.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
+
+    stage = Usd.Stage.CreateInMemory()
+    world = UsdGeom.Xform.Define(stage, "/World").GetPrim()
+    collider = UsdGeom.Cube.Define(stage, "/World/Collider").GetPrim()
+    valid_collider = UsdGeom.Cube.Define(stage, "/World/ValidCollider").GetPrim()
+    UsdPhysics.CollisionAPI.Apply(collider)
+    UsdPhysics.CollisionAPI.Apply(valid_collider)
+    UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
+
+    missing_physics_material_path = Sdf.Path("/World/MissingPhysicsMaterial")
+    missing_all_purpose_material_path = Sdf.Path("/World/MissingAllPurposeMaterial")
+    missing_preview_material_path = Sdf.Path("/World/MissingPreviewMaterial")
+    missing_collection_material_path = Sdf.Path("/World/MissingCollectionMaterial")
+    missing_physics_collection_material_path = Sdf.Path("/World/MissingPhysicsCollectionMaterial")
+    valid_material_path = Sdf.Path("/World/ValidMaterial")
+    inherited_material_path = Sdf.Path("/InheritedMaterial")
+
+    inherited_material = UsdShade.Material.Define(stage, inherited_material_path)
+    UsdPhysics.MaterialAPI.Apply(inherited_material.GetPrim())
+    UsdShade.MaterialBindingAPI.Apply(world)
+    UsdShade.MaterialBindingAPI(world).Bind(inherited_material, materialPurpose="physics")
+    UsdShade.MaterialBindingAPI.Apply(collider)
+    collider.CreateRelationship("material:binding", False).SetTargets([missing_all_purpose_material_path])
+    collider.CreateRelationship("material:binding:physics", False).SetTargets([missing_physics_material_path])
+    collider.CreateRelationship("material:binding:preview", False).SetTargets([missing_preview_material_path])
+    collider.CreateRelationship("material:binding:collection:physics:test", False).SetTargets(
+        [Sdf.Path("/World.collection:test"), missing_physics_collection_material_path]
+    )
+    collider.CreateRelationship("material:binding:collection:test", False).SetTargets(
+        [Sdf.Path("/World.collection:test"), missing_collection_material_path]
+    )
+    valid_material = UsdShade.Material.Define(stage, valid_material_path)
+    UsdPhysics.MaterialAPI.Apply(valid_material.GetPrim())
+    valid_collider.CreateRelationship("material:binding:physics", False).SetTargets([valid_material_path])
+
+    assert not stage.GetPrimAtPath(missing_physics_material_path).IsValid()
+
+    usda = OvPhysxManager._serialize_selected_stage(stage)
+    layer = Sdf.Layer.CreateAnonymous("material-bindings.usda")
+    assert layer.ImportFromString(usda)
+    exported = Usd.Stage.Open(layer)
+
+    exported_missing = exported.GetPrimAtPath(missing_physics_material_path)
+    assert exported_missing.IsValid()
+    assert exported_missing.GetTypeName() == ""
+    assert exported_missing.GetAppliedSchemas() == []
+    assert exported.GetPrimAtPath(valid_material_path).IsA(UsdShade.Material)
+    assert exported.GetPrimAtPath("/World/ValidCollider").GetRelationship("material:binding:physics").GetTargets() == [
+        valid_material_path
+    ]
+    assert not exported.GetPrimAtPath(missing_all_purpose_material_path).IsValid()
+    assert not exported.GetPrimAtPath(missing_preview_material_path).IsValid()
+    assert not exported.GetPrimAtPath(missing_collection_material_path).IsValid()
+    assert not exported.GetPrimAtPath(missing_physics_collection_material_path).IsValid()
+    exported_collider = exported.GetPrimAtPath("/World/Collider")
+    assert exported_collider.GetRelationship("material:binding:physics").GetTargets() == [missing_physics_material_path]
+    assert not UsdShade.MaterialBindingAPI(exported_collider).ComputeBoundMaterial("physics")[0]
+    assert not stage.GetPrimAtPath(missing_physics_material_path).IsValid()
+
+    populated_stage = ovstage.Stage(
+        f"dangling-physics-material-{domain_name.lower()}",
+        config=ovstage.StageConfig(
+            runtime_default_hierarchy_computation_model=ovstage.HierarchyComputationModel.CPU_INCREMENTAL
+        ),
+    )
+    try:
+        ovstage.population.open_usd_from_string(
+            populated_stage,
+            usda,
+            ordinal=1,
+            domains=getattr(ovstage.PopulationDomain, domain_name),
+        )
+        populated_stage.advance_write_floor(ordinal=1).wait()
+    finally:
+        populated_stage.destroy()
+
+
+def test_manager_does_not_recreate_stripped_material_target_ancestors():
+    """A dangling binding cannot recreate an environment removed from the export."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd, UsdGeom, UsdShade
+
+    stage = Usd.Stage.CreateInMemory()
+    collider = UsdGeom.Cube.Define(stage, "/World/envs/env_0/Collider").GetPrim()
+    stripped_material_path = Sdf.Path("/World/envs/env_1/Material")
+    UsdShade.Material.Define(stage, stripped_material_path)
+    collider.CreateRelationship("material:binding:physics", False).SetTargets([stripped_material_path])
+
+    previous = OvPhysxManager._requires_full_stage
+    try:
+        OvPhysxManager._requires_full_stage = False
+        usda = OvPhysxManager._serialize_selected_stage(stage)
+    finally:
+        OvPhysxManager._requires_full_stage = previous
+
+    layer = Sdf.Layer.CreateAnonymous("stripped-material-target.usda")
+    assert layer.ImportFromString(usda)
+    exported = Usd.Stage.Open(layer)
+    assert not exported.GetPrimAtPath("/World/envs/env_1").IsValid()
+    assert exported.GetPrimAtPath("/World/envs/env_0/Collider").GetRelationship(
+        "material:binding:physics"
+    ).GetTargets() == [stripped_material_path]
+
+
 def test_manager_logs_when_serialized_stage_has_no_envs(caplog):
     """The in-memory serializer diagnoses stages without the standard env namespace."""
     from isaaclab_ov.physics import OvPhysxManager

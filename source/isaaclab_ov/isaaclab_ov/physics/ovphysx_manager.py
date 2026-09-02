@@ -903,6 +903,46 @@ class OvPhysxManager(PhysicsManager):
             del envs_spec.nameChildren[child_name]
         return len(names_to_remove)
 
+    @staticmethod
+    def _materialize_dangling_physics_material_binding_targets(layer: Any) -> int:
+        """Represent missing physics-material targets as inert overs for OVStage 0.2.
+
+        USD preserves a direct binding whose target prim does not exist and
+        resolves it as no material. The OVStage 0.2 physics population path
+        instead requires that target path to be representable. Adding an empty
+        over to the flattened export preserves the relationship and its
+        no-material result without changing the live USD stage.
+
+        Only the exact physics-purpose relationship that triggers the OVStage
+        failure is handled. Targets whose parent prim is also absent are left
+        untouched so this workaround cannot recreate a stripped subtree.
+        """
+        from pxr import Usd  # noqa: PLC0415
+
+        exported_stage = Usd.Stage.Open(layer)
+        if exported_stage is None:
+            raise RuntimeError("OvPhysxManager: failed to open the flattened stage for material binding repair.")
+
+        target_paths = set()
+        for prim in exported_stage.TraverseAll():
+            relationship = prim.GetRelationship("material:binding:physics")
+            if not relationship:
+                continue
+            for target_path in relationship.GetTargets():
+                if (
+                    target_path.IsPrimPath()
+                    and not exported_stage.GetPrimAtPath(target_path).IsValid()
+                    and exported_stage.GetPrimAtPath(target_path.GetParentPath()).IsValid()
+                ):
+                    target_paths.add(target_path)
+
+        for target_path in sorted(target_paths, key=str):
+            if not exported_stage.OverridePrim(target_path).IsValid():
+                raise RuntimeError(
+                    f"OvPhysxManager: failed to represent dangling material binding target {str(target_path)!r}."
+                )
+        return len(target_paths)
+
     @classmethod
     def _serialize_selected_stage(cls, sim_stage: Any) -> str:
         """Serialize the selected stage representation for OVStage population."""
@@ -919,6 +959,12 @@ class OvPhysxManager(PhysicsManager):
                 )
             else:
                 logger.debug("OvPhysxManager: no cloned environments to strip — serialized stage as-is.")
+        represented_count = cls._materialize_dangling_physics_material_binding_targets(layer)
+        if represented_count:
+            logger.debug(
+                "OvPhysxManager: represented %d dangling physics-material target(s) in the flattened stage",
+                represented_count,
+            )
         return layer.ExportToString()
 
     @classmethod
