@@ -42,6 +42,38 @@ class OperationalSpaceControllerCfg:
     partial_inertial_dynamics_decoupling: bool = False
     """Whether to ignore the inertial coupling between the translational & rotational motions."""
 
+    inertial_decoupling_method: str = "inv"
+    """Method used to invert the task-space inertia :math:`J M^{-1} J^T`: ``"inv"``, ``"cond_clamp"``.
+
+    The task-space inertia loses rank at kinematic singularities, where a plain inverse produces
+    unbounded command forces. Non-redundant (6-DoF) arms are most exposed, since they cannot
+    reconfigure through a singularity in the null space, but redundant arms reach such
+    configurations too.
+
+    - Plain inverse (``"inv"``): no regularization. Matches the behavior of releases before this
+      option existed and remains the default.
+    - Condition-number clamp (``"cond_clamp"``): damps :math:`J M^{-1} J^T` by an amount derived
+      from its own magnitude, bounding its condition number and so capping the resulting command
+      forces.
+        - ``"max_condition_number"``: approximate upper bound on the ratio between the largest and
+          smallest eigenvalue (default: 1e6). The bound is approached within a factor of the task
+          dimension, since the damping is keyed off the largest diagonal entry rather than the
+          largest eigenvalue.
+
+    Because the damping is set by a ratio, it is independent of the robot's mass and link scale.
+    Away from singularities it perturbs the inverse by roughly ``1/max_condition_number`` in
+    relative terms, which is small but not zero: expect some change in tracking even on
+    well-conditioned setups. For reference, the task-space inertia of a UR10 or a Franka sits around
+    1e4 to 3e5 during healthy tracking and climbs past 1e7 as the arm diverges. Lower the bound to
+    intervene earlier, at the cost of tracking accuracy near singularities.
+    """
+
+    inertial_decoupling_params: dict[str, float] | None = None
+    """Parameters for the given :attr:`inertial_decoupling_method`.
+
+    Unspecified entries fall back to the defaults documented on :attr:`inertial_decoupling_method`.
+    """
+
     gravity_compensation: bool = False
     """Whether to perform gravity compensation."""
 
@@ -92,3 +124,27 @@ class OperationalSpaceControllerCfg:
 
     nullspace_damping_ratio: float = 1.0
     """The damping ratio for null space control."""
+
+    def __post_init__(self):
+        # check valid input
+        if self.inertial_decoupling_method not in ["inv", "cond_clamp"]:
+            raise ValueError(f"Unsupported inertial decoupling method: {self.inertial_decoupling_method}.")
+        # default parameters for each inversion method
+        default_params = {
+            "inv": {},
+            "cond_clamp": {"max_condition_number": 1e6},
+        }
+        # update parameters for the chosen method if not provided
+        params = default_params[self.inertial_decoupling_method].copy()
+        if self.inertial_decoupling_params is not None:
+            params.update(self.inertial_decoupling_params)
+        self.inertial_decoupling_params = params
+        # validate the clamp bound
+        if (
+            self.inertial_decoupling_method == "cond_clamp"
+            and self.inertial_decoupling_params["max_condition_number"] <= 1.0
+        ):
+            raise ValueError(
+                "cond_clamp max_condition_number must be > 1, got"
+                f" {self.inertial_decoupling_params['max_condition_number']}."
+            )

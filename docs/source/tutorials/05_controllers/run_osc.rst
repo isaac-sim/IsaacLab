@@ -83,6 +83,15 @@ especially for rapid movements. This inertial decoupling accounts for the coupli
 If desired, the inertial coupling between the translational and rotational axes could be ignored by setting the
 ``partial_inertial_dynamics_decoupling`` to ``True``.
 
+Inertial decoupling requires inverting the task-space inertia, which loses rank at kinematic singularities. By
+default (``inertial_decoupling_method`` set to ``"inv"``) this inversion is unregularized, so command forces grow
+without bound as a singularity is approached. Non-redundant (6-DoF) arms are the most exposed, since they cannot
+reconfigure around a singularity in the null-space, but redundant arms reach such configurations too. Setting
+``inertial_decoupling_method`` to ``"cond_clamp"`` bounds the condition number of the task-space inertia, which caps
+the command forces. The bound is set through ``inertial_decoupling_params["max_condition_number"]``. Because it
+constrains a ratio rather than a magnitude, it behaves the same on robots of different mass and scale, and it leaves
+well-conditioned configurations untouched.
+
 If it is desired to include the gravity compensation in the operational space command, the ``gravity_compensation``
 should be set to ``True``.
 

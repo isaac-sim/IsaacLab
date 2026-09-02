@@ -432,15 +432,17 @@ class OperationalSpaceController:
                 self._mass_matrix_inv = torch.inverse(mass_matrix)
                 if self.cfg.partial_inertial_dynamics_decoupling:
                     # Fill in the translational and rotational parts of the inertia separately, ignoring their coupling
-                    self._os_mass_matrix_b[:, 0:3, 0:3] = torch.inverse(
-                        jacobian_b[:, 0:3] @ self._mass_matrix_inv @ jacobian_b[:, 0:3].mT
+                    self._os_mass_matrix_b[:, 0:3, 0:3] = self._invert_task_inertia(
+                        jacobian_b[:, 0:3] @ self._mass_matrix_inv @ jacobian_b[:, 0:3].mT, jacobian_b[:, 0:3]
                     )
-                    self._os_mass_matrix_b[:, 3:6, 3:6] = torch.inverse(
-                        jacobian_b[:, 3:6] @ self._mass_matrix_inv @ jacobian_b[:, 3:6].mT
+                    self._os_mass_matrix_b[:, 3:6, 3:6] = self._invert_task_inertia(
+                        jacobian_b[:, 3:6] @ self._mass_matrix_inv @ jacobian_b[:, 3:6].mT, jacobian_b[:, 3:6]
                     )
                 else:
                     # Calculate the operational space mass matrix fully accounting for the couplings
-                    self._os_mass_matrix_b[:] = torch.inverse(jacobian_b @ self._mass_matrix_inv @ jacobian_b.mT)
+                    self._os_mass_matrix_b[:] = self._invert_task_inertia(
+                        jacobian_b @ self._mass_matrix_inv @ jacobian_b.mT, jacobian_b
+                    )
                 # (Generalized) operational space command forces
                 # F = (J M^(-1) J^T)^(-1) * \ddot(x_des) = M_task * \ddot(x_des)
                 os_command_forces_b = self._os_mass_matrix_b @ des_ee_acc_b
@@ -547,3 +549,53 @@ class OperationalSpaceController:
                 raise ValueError(f"Invalid null-space control method: {self.cfg.nullspace_control}.")
 
         return joint_efforts
+
+    """
+    Helper functions.
+    """
+
+    def _invert_task_inertia(self, task_inertia_inv: torch.Tensor, jacobian_b: torch.Tensor) -> torch.Tensor:
+        """Invert the task-space inertia using the configured regularization method.
+
+        The task-space inertia inverse :math:`J M^{-1} J^T` loses rank at kinematic singularities,
+        where a plain inverse yields unbounded command forces. Damping keeps the result bounded at
+        the cost of steady-state tracking accuracy.
+
+        ``"cond_clamp"`` adds :math:`\\lambda^2 I` before inverting, with :math:`\\lambda^2` derived
+        from the matrix's own magnitude so that the condition number stays bounded. Because the
+        damping is set by a ratio rather than an absolute amount, it is independent of the robot's
+        mass and link scale, and away from singularities it perturbs the result by only
+        :math:`1/\\text{max_condition_number}` in relative terms.
+
+        Args:
+            task_inertia_inv: The task-space inertia inverse :math:`J M^{-1} J^T`, of shape
+                (``num_envs``, N, N) where N is 6 for full decoupling and 3 for each partially
+                decoupled block.
+            jacobian_b: The (sub-)Jacobian in the root frame used to build ``task_inertia_inv``,
+                of shape (``num_envs``, N, ``num_DoF``). Unused by the current methods; retained so
+                singularity measures keyed off the Jacobian can be added without changing callers.
+
+        Returns:
+            The task-space inertia :math:`\\Lambda` [kg for translational rows, kg·m² for rotational
+            rows], of the same shape as ``task_inertia_inv``.
+
+        Raises:
+            ValueError: When the configured inertial decoupling method is not recognized.
+        """
+        method = self.cfg.inertial_decoupling_method
+        if method == "inv":
+            return torch.inverse(task_inertia_inv)
+        elif method == "cond_clamp":
+            max_cond = self.cfg.inertial_decoupling_params["max_condition_number"]
+            dim = task_inertia_inv.shape[-1]
+            identity = torch.eye(n=dim, device=self._device)
+            # J M^-1 J^T is symmetric positive semi-definite, so its largest diagonal entry is a
+            # lower bound on its largest eigenvalue, and within a factor of `dim` of it. Deriving
+            # the damping from that magnitude bounds the condition number to within the same factor
+            # while needing only an inverse -- an eigendecomposition is both costlier and prone to
+            # non-convergence on exactly the ill-conditioned matrices this path exists to handle.
+            magnitude = task_inertia_inv.diagonal(dim1=-2, dim2=-1).max(dim=-1).values.clamp(min=1e-12)
+            lambda_sq = magnitude / max_cond
+            return torch.inverse(task_inertia_inv + lambda_sq.view(-1, 1, 1) * identity)
+        else:
+            raise ValueError(f"Unsupported inertial decoupling method: {method}.")
