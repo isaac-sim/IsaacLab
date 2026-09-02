@@ -121,7 +121,13 @@ if TYPE_CHECKING:
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 
-_SENSOR_STAGE_STATE_ATTRIBUTES = frozenset({"body_qdd", "body_parent_f"})
+_SENSORS_BY_STATE_ATTRIBUTE = {
+    "body_qdd": "the IMU or PVA sensor",
+    "body_parent_f": "the joint-wrench sensor",
+}
+"""Which Isaac Lab sensors read each state attribute that MuJoCo's sensor stage fills."""
+
+_SENSOR_STAGE_STATE_ATTRIBUTES = frozenset(_SENSORS_BY_STATE_ATTRIBUTE)
 """Extended state attributes that MuJoCo Warp's sensor stage fills via ``rne_postconstraint``."""
 
 
@@ -2099,12 +2105,13 @@ class NewtonManager(PhysicsManager):
             )
         blocked = cls._active_extended_state_attributes & _SENSOR_STAGE_STATE_ATTRIBUTES
         if isinstance(solver_cfg, MJWarpSolverCfg) and blocked:
+            sensors = sorted({_SENSORS_BY_STATE_ATTRIBUTE[attr] for attr in blocked})
             raise ValueError(
-                f"Newton deterministic mode {deterministic_mode.name} requires MuJoCo Warp's internal sensor "
-                f"computation to be disabled, which also skips the rne_postconstraint stage that fills "
-                f"{sorted(blocked)}. Sensors in this scene read that state (IMU and PVA read 'body_qdd'; the "
-                "joint-wrench sensor reads 'body_parent_f'), so they would report values that are never "
-                "refreshed. Remove those sensors, or disable deterministic mode."
+                f"This task does not support deterministic physics: it uses {' and '.join(sensors)},"
+                f" reading {sorted(blocked)}. Those attributes come from MuJoCo's post-constraint pass,"
+                " which runs inside the sensor stage that a determinism guarantee must disable, so the"
+                " values would never be refreshed. Remove the sensors, or drop the determinism request"
+                f" (deterministic_mode={deterministic_mode.name})."
             )
 
     @classmethod

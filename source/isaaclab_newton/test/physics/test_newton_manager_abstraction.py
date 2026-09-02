@@ -1661,7 +1661,7 @@ def test_deterministic_mode_rejects_sensors_that_need_the_sensor_stage(attr, cle
     """Disabling MJWarp sensors starves IMU/PVA/joint-wrench, so the request is refused."""
     NewtonManager._active_extended_state_attributes = {attr}
 
-    with pytest.raises(ValueError, match="rne_postconstraint"):
+    with pytest.raises(ValueError, match="does not support deterministic physics"):
         NewtonManager._validate_deterministic_solver_cfg(
             MJWarpSolverCfg(disable_sensors=True), wp.DeterministicMode.RUN_TO_RUN
         )

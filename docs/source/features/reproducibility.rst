@@ -84,11 +84,14 @@ the default; clear :attr:`isaaclab.physics.PhysicsCfg.deterministic` instead.
 
 .. note::
 
-   ``disable_sensors`` turns off MuJoCo Warp's internal sensor computation,
-   including its ``rne_postconstraint`` stage, which fills the Newton
-   ``body_qdd`` and ``body_parent_f`` state. The IMU, PVA, and joint-wrench
-   sensors read that state, so Newton raises rather than let them report stale
-   values: remove those sensors, or drop the determinism request. Integrations
+   ``disable_sensors`` is required rather than optional: MuJoCo Warp's tactile
+   sensor kernel applies two atomic reduction families to one output array, which
+   Warp's deterministic code generation cannot lower, so the sensor module fails
+   to compile under a determinism guarantee. Disabling it also skips the
+   ``rne_postconstraint`` stage, which fills the Newton ``body_qdd`` and
+   ``body_parent_f`` state. The IMU, PVA, and joint-wrench sensors read that
+   state, so Newton raises rather than let them report stale values: remove those
+   sensors, or drop the determinism request. Integrations
    that consume native MJWarp sensor outputs directly are affected too, and are
    not detected.
 
