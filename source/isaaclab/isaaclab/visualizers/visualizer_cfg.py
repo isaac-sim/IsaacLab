@@ -40,6 +40,9 @@ class VisualizerCfg:
         RerunVisualizerCfg, or ViserVisualizerCfg (from isaaclab_visualizers.kit/.newton/.rerun/.viser).
     """
 
+    class_type: type[BaseVisualizer] | str | None = None
+    """Visualizer implementation class. Concrete configs must set this field."""
+
     # Primary interactive camera settings
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
     """Interactive visualizer camera eye position in world coordinates."""
@@ -210,39 +213,3 @@ class VisualizerCfg:
                 )
                 self.streaming_envs = num
                 self.tiled_cam_num = None
-
-    def get_visualizer_type(self) -> str | None:
-        """Get the visualizer type identifier.
-
-        Returns:
-            The visualizer type string, or None if not set (base class).
-        """
-        return self.visualizer_type
-
-    def create_visualizer(self) -> BaseVisualizer:
-        """Create visualizer instance from this config using factory pattern.
-
-        Loads the matching backend from isaaclab_visualizers (e.g. isaaclab_visualizers.rerun).
-
-        Raises:
-            ValueError: If visualizer_type is None (base class used directly) or not registered.
-            ImportError: If isaaclab_visualizers or the requested backend extra is not installed.
-        """
-        from .visualizer import Visualizer
-
-        if self.visualizer_type is None:
-            raise ValueError(
-                "Cannot create visualizer from base VisualizerCfg class. "
-                "Use a specific config from isaaclab_visualizers "
-                "(e.g. KitVisualizerCfg, NewtonGLVisualizerCfg, RerunVisualizerCfg, ViserVisualizerCfg)."
-            )
-
-        try:
-            return Visualizer(self)
-        except (ValueError, ImportError, ModuleNotFoundError) as exc:
-            if self.visualizer_type in ("newton_gl", "newton_rtx", "rerun", "viser", "kit"):
-                raise ImportError(
-                    f"Could not import visualizer '{self.visualizer_type}' from isaaclab_visualizers. "
-                    f"{_get_visualizer_install_hint(self.visualizer_type)}\nOriginal error: {exc}"
-                ) from exc
-            raise

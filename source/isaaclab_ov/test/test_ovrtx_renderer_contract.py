@@ -22,7 +22,6 @@ _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
 pytestmark = [
-    pytest.mark.isaacsim_ci,
     pytest.mark.skipif(
         bool(_MISSING_MODULES),
         reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
@@ -30,11 +29,9 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
-    from isaaclab_ov.renderers import (
-        OVRTXRendererCfg,  # noqa: E402
-        ovrtx_mapping,  # noqa: E402
-    )
+    from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_compat import RENDER_VAR_FRAME_KEYS  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
         _DISABLE_LINUX_CUDA_CPU_SYNC_ENV,
         OVRTXRenderData,
@@ -50,6 +47,7 @@ else:
     ovrtx_use_ovstage_enabled = None
     _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = None
     _gpu_side_render_var_sync_enabled = None
+    RENDER_VAR_FRAME_KEYS = None
 
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
@@ -212,13 +210,36 @@ def test_ovrtx_process_frame_skips_ldr_rgba_when_ppisp_is_active():
             raise AssertionError("PPISP RGBA output must not read OVRTX LdrColor")
 
     class Frame:
-        render_vars = {"LdrColor": FailingRenderVar()}
+        render_vars = {RENDER_VAR_FRAME_KEYS["LdrColor"]: FailingRenderVar()}
 
     renderer = _make_ovrtx_renderer_without_backend()
     render_data = _make_ovrtx_render_data()
     render_data.ppisp_pipeline = object()
 
     renderer._process_render_frame(render_data, Frame(), {"rgba": object()})
+
+
+@pytest.mark.parametrize("stale_key", ["LdrColor", "/Render/Vars/LdrColor"])
+def test_ovrtx_process_frame_reads_only_the_installed_ldr_color_key(monkeypatch: pytest.MonkeyPatch, stale_key: str):
+    """Frames are keyed by source name on OVRTX 0.4 and by prim path on 0.5; only one form is read."""
+    installed_key = RENDER_VAR_FRAME_KEYS["LdrColor"]
+
+    mapped = []
+
+    @contextlib.contextmanager
+    def fake_map(self, render_var):
+        mapped.append(render_var)
+        yield object()
+
+    monkeypatch.setattr(OVRTXRenderer, "_map_render_var_to_dlpack", fake_map)
+    monkeypatch.setattr(OVRTXRenderer, "_extract_rgba_tiles", lambda *args, **kwargs: None)
+
+    class Frame:
+        render_vars = {stale_key: "stale", installed_key: "installed"}
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._process_render_frame(_make_ovrtx_render_data(), Frame(), {"rgba": object()})
+    assert mapped == ["installed"]
 
 
 def test_ovrtx_ppisp_hdr_source_is_cloned_to_output_device(monkeypatch):
@@ -457,86 +478,15 @@ def test_ovrtx_map_render_var_orders_the_read_against_render_completion(monkeypa
     sentinel = object()
     render_var = _RecordingRenderVar()
     monkeypatch.setattr(ovrtx_renderer_module, "_gpu_side_render_var_sync_enabled", lambda: gpu_side)
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
     monkeypatch.setattr(ovrtx_renderer_module.wp, "from_dlpack", lambda mapping: sentinel)
 
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cuda:0"
+    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=99))
     with renderer._map_render_var_to_dlpack(render_var) as array:
         assert array is sentinel
 
     assert render_var.ordering == [expected]
-
-
-class _RecordingMappedBinding:
-    """Stand-in for an OVRTX attribute binding that records how its mapping is committed."""
-
-    def __init__(self):
-        self.map_calls: list[dict] = []
-        self.unmap_calls: list[dict] = []
-
-    def map(self, *, device, device_id):
-        self.map_calls.append({"device": device, "device_id": device_id})
-        binding = self
-
-        class _Mapping:
-            tensor = object()
-
-            def unmap(self, *, event=None, stream=None):
-                binding.unmap_calls.append({"event": event, "stream": stream})
-
-        return _Mapping()
-
-
-def _patch_warp_device(monkeypatch, *, ordinal: int, cuda_stream: int) -> None:
-    """Fake the current Warp stream; ``ordinal`` documents the device the test pretends to run on."""
-    monkeypatch.setattr(ovrtx_mapping.wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=cuda_stream))
-
-
-@pytest.mark.parametrize(("device", "expected"), [("cuda:1", 1), ("cuda", 0)])
-def test_cuda_device_id_parses_the_device_string(device, expected):
-    """The mapping device index is parsed from the string; a bare ``"cuda"`` parses to 0.
-
-    The bare-``"cuda"`` case intentionally preserves pre-existing behavior even though Warp
-    resolves it to its current CUDA device -- see the TODO on ``cuda_device_id``.
-    """
-    assert ovrtx_mapping.cuda_device_id(device) == expected
-
-
-def test_map_attribute_for_warp_writes_commits_on_the_producer_stream(monkeypatch):
-    """The unmap names the Warp stream that produced the data, so the commit cannot race the fill.
-
-    An unmap without a CUDA sync performs no synchronization at all, so the assertion is on the
-    unmap's ``stream`` argument, not merely on the unmap happening.
-    """
-    sentinel = object()
-    binding = _RecordingMappedBinding()
-    _patch_warp_device(monkeypatch, ordinal=1, cuda_stream=99)
-    monkeypatch.setattr(ovrtx_mapping.wp, "from_dlpack", lambda tensor, dtype: sentinel)
-
-    with ovrtx_mapping.map_attribute_for_warp_writes(binding, "cuda:1", wp.mat44d) as array:
-        assert array is sentinel
-
-    assert binding.map_calls == [{"device": ovrtx_renderer_module.Device.CUDA, "device_id": 1}]
-    assert binding.unmap_calls == [{"event": None, "stream": 99}]
-
-
-def test_map_attribute_for_warp_writes_unmaps_when_the_fill_raises(monkeypatch):
-    """A failed fill must still release the mapping exactly once, with the same stream ordering.
-
-    Skipping the unmap would leak the mapping to OVRTX's ``__del__`` safety net, which commits
-    fire-and-forget without any CUDA sync.
-    """
-    binding = _RecordingMappedBinding()
-    _patch_warp_device(monkeypatch, ordinal=0, cuda_stream=7)
-    monkeypatch.setattr(ovrtx_mapping.wp, "from_dlpack", lambda tensor, dtype: object())
-
-    with pytest.raises(ValueError, match="fill failed"):
-        with ovrtx_mapping.map_attribute_for_warp_writes(binding, "cuda:0", wp.mat44d):
-            raise ValueError("fill failed")
-
-    assert binding.map_calls == [{"device": ovrtx_renderer_module.Device.CUDA, "device_id": 0}]
-    assert binding.unmap_calls == [{"event": None, "stream": 7}]
 
 
 def test_ovrtx_cleanup_releases_only_the_given_render_data():
