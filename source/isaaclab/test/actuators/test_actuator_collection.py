@@ -27,6 +27,7 @@ from isaaclab.actuators import (
     IdealPDActuatorCfg,
     ImplicitActuator,
     ImplicitActuatorCfg,
+    RemotizedPDActuatorCfg,
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
@@ -77,6 +78,17 @@ def _dc_cfg(
         actuator_effort_limit=effort_limit,
         actuator_velocity_limit=velocity_limit,
         saturation_effort=saturation_effort,
+    )
+
+
+def _remotized_cfg(*, velocity_limit: float | None) -> RemotizedPDActuatorCfg:
+    """Create a minimal remotized PD actuator configuration."""
+    return RemotizedPDActuatorCfg(
+        joint_names_expr=[".*"],
+        stiffness=0.0,
+        damping=0.0,
+        actuator_velocity_limit=velocity_limit,
+        joint_parameter_lookup=[[-1.0, 1.0, 10.0], [1.0, 1.0, 10.0]],
     )
 
 
@@ -403,6 +415,48 @@ def test_implicit_actuator_separate_rated_effort_limit_is_honored():
     group = collection["motor"]
     torch.testing.assert_close(group.actuator_effort_limit, torch.full((2, 3), 12.0))
     torch.testing.assert_close(group.joint_effort_limit, torch.full((2, 3), 34.0))
+
+
+@pytest.mark.parametrize("control_type", [FakeActuatorControl, NativeFakeActuatorControl], ids=["lab", "native"])
+def test_soft_joint_velocity_limits_are_initialized_before_compute(control_type):
+    control = control_type()
+    control._current_joint_properties["joint_velocity_limit"].copy_(
+        torch.tensor([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]])
+    )
+
+    collection = ActuatorCollection(
+        {
+            "authored": ImplicitActuatorCfg(joint_names_expr=["joint_0", "joint_2"], stiffness=0.0, damping=0.0),
+            "configured": ImplicitActuatorCfg(
+                joint_names_expr=["joint_1"],
+                stiffness=0.0,
+                damping=0.0,
+                actuator_velocity_limit=7.0,
+            ),
+        },
+        control,
+    )
+
+    torch.testing.assert_close(
+        wp.to_torch(collection._soft_joint_vel_limits),
+        torch.tensor([[10.0, 7.0, 30.0], [40.0, 7.0, 60.0]]),
+    )
+
+
+@pytest.mark.parametrize("control_type", [FakeActuatorControl, NativeFakeActuatorControl], ids=["lab", "native"])
+@pytest.mark.parametrize("velocity_limit", [None, 7.0], ids=["authored", "configured"])
+def test_remotized_soft_joint_velocity_limits_are_unbounded_before_compute(control_type, velocity_limit):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        collection = ActuatorCollection(
+            {"motor": _remotized_cfg(velocity_limit=velocity_limit)},
+            control_type(),
+        )
+
+    torch.testing.assert_close(
+        wp.to_torch(collection._soft_joint_vel_limits),
+        torch.full((2, 3), torch.inf),
+    )
 
 
 @pytest.mark.parametrize(
