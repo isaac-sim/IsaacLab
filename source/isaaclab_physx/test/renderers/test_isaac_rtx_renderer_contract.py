@@ -20,8 +20,6 @@ from packaging import version
 from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
-pytestmark = pytest.mark.isaacsim_ci
-
 
 def _install_omni_stubs(monkeypatch):
     omni_module = sys.modules.get("omni", types.ModuleType("omni"))
