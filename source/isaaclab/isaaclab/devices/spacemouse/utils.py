@@ -46,15 +46,15 @@ def convert_buffer(b1, b2):
     return _scale_to_control(_to_int16(b1, b2))
 
 
-# USB identifiers of the 3Dconnexion devices supported by Isaac Lab, mapped to the product name that
-# selects the HID report layout used by the device listener threads.
-# Source: USB ID repository maintained at https://www.linux-usb.org/usb.ids
+# USB identifiers of the directly attached 3Dconnexion devices, mapped to the product name that
+# selects the HID report layout used by the device listener threads. Identifiers are taken from the
+# community-maintained USB ID repository at https://www.linux-usb.org/usb.ids.
+# Wireless receivers are deliberately left out: their report layout differs from the cabled devices
+# (see the Universal Receiver branch in the listener threads) and is unverified against hardware, so
+# they are matched by product string only.
 SPACEMOUSE_USB_IDS: dict[tuple[int, int], str] = {
     (0x256F, 0xC62E): "SpaceMouse Wireless",
-    (0x256F, 0xC62F): "SpaceMouse Wireless",
     (0x256F, 0xC635): "SpaceMouse Compact",
-    (0x256F, 0xC652): "3Dconnexion Universal Receiver",
-    (0x046D, 0xC628): "SpaceNavigator for Notebooks",
 }
 """Mapping from the ``(vendor_id, product_id)`` of a supported SpaceMouse to its product name."""
 
