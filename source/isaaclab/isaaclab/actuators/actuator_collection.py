@@ -27,6 +27,7 @@ from .actuator_base import ActuatorBase, resolve_joint_parameter
 from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
 from .actuator_control import ActuatorControl
 from .actuator_pd import IdealPDActuator, ImplicitActuator
+from .actuator_pd_cfg import RemotizedPDActuatorCfg
 
 logger = logging.getLogger(__name__)
 
@@ -334,6 +335,16 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                 # placeholder keeps configuration order; replaced by the Newton actuator
                 # objects once the backend selection is finalized.
                 self._groups[actuator_name] = None
+                if isinstance(actuator_cfg, RemotizedPDActuatorCfg):
+                    # Remotized actuators use an angle-dependent effort lookup rather than
+                    # fixed actuator limits, matching RemotizedPDActuator's Lab execution.
+                    actuator_velocity_limit = torch.full_like(properties["joint_velocity_limit"], torch.inf)
+                else:
+                    actuator_velocity_limit = self._resolve_joint_property(
+                        actuator_cfg.actuator_velocity_limit,
+                        properties["joint_velocity_limit"],
+                        joint_names,
+                    )
             else:
                 actuator_kwargs = dict(
                     cfg=actuator_cfg,
@@ -352,7 +363,11 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                 else:
                     # explicit models default their clip limit to the authored joint effort limit.
                     actuator_kwargs["actuator_effort_limit"] = joint_defaults["joint_effort_limit"]
-                self._groups[actuator_name] = actuator_cfg.class_type(**actuator_kwargs)
+                actuator = actuator_cfg.class_type(**actuator_kwargs)
+                self._groups[actuator_name] = actuator
+                actuator_velocity_limit = actuator.actuator_velocity_limit
+            # Reset terms can read soft limits before the first actuator compute.
+            wp.to_torch(self._soft_joint_vel_limits)[:, actuator_joint_ids] = actuator_velocity_limit
             if self._debug_value_resolution:
                 self._joint_property_resolution_rows[actuator_name] = table_rows
             construction_records.append(
