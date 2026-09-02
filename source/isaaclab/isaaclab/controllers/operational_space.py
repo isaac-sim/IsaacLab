@@ -7,12 +7,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
+import warp as wp
 
 from isaaclab.utils.math import (
     apply_delta_pose,
     combine_frame_transforms,
-    compute_pose_error,
     matrix_from_quat,
     subtract_frame_transforms,
 )
@@ -23,6 +24,14 @@ if TYPE_CHECKING:
 
 class OperationalSpaceController:
     """Operational-space controller.
+
+    The task-space impedance law, the contact-wrench law and null-space control are evaluated by
+    Newton's model-free operational-space controller
+    (:class:`newton.controllers.ControllerOperationalSpaceModelFree`). Target resolution, the task
+    frame and the gain schedule remain in Isaac Lab so the public configuration, command, and output
+    contracts are preserved. The task frame is handed to Newton as the operational frame, so gains,
+    selection axes and targets stay expressed in it rather than being rotated into the root frame
+    here. Solves run through float32 internal buffers.
 
     Reference:
 
@@ -61,62 +70,57 @@ class OperationalSpaceController:
                 raise ValueError(f"Invalid control command: {command_type}.")
         self.target_dim = sum(self.target_list)
 
+        # resolve which laws the Newton backend has to be built with; the target types are static
+        # configuration, so the backend's feature set never changes over the controller's lifetime
+        self._wrench_control = "wrench_abs" in self.cfg.target_types
+        self._wrench_feedback = self._wrench_control and self.cfg.contact_wrench_stiffness_task is not None
+        self._nullspace_control = self.cfg.nullspace_control == "position"
+
         # create buffers
-        # -- selection matrices, which might be defined in the task reference frame different from the root frame
-        self._selection_matrix_motion_task = torch.diag_embed(
-            torch.tensor(self.cfg.motion_control_axes_task, dtype=torch.float, device=self._device)
-            .unsqueeze(0)
-            .repeat(self.num_envs, 1)
+        # -- selection axes, defined in the task reference frame, which might differ from the root frame
+        self._selection_axes_motion_task = torch.tensor(
+            self.cfg.motion_control_axes_task, dtype=torch.float, device=self._device
         )
-        self._selection_matrix_force_task = torch.diag_embed(
-            torch.tensor(self.cfg.contact_wrench_control_axes_task, dtype=torch.float, device=self._device)
-            .unsqueeze(0)
-            .repeat(self.num_envs, 1)
+        self._selection_axes_force_task = torch.tensor(
+            self.cfg.contact_wrench_control_axes_task, dtype=torch.float, device=self._device
         )
-        # -- selection matrices in root frame
-        self._selection_matrix_motion_b = torch.zeros_like(self._selection_matrix_motion_task)
-        self._selection_matrix_force_b = torch.zeros_like(self._selection_matrix_force_task)
         # -- commands
         self._task_space_target_task = torch.zeros(self.num_envs, self.target_dim, device=self._device)
-        # -- Placeholders for motion/force control
+        # -- task frame, in root frame, the targets and control axes are defined in
+        self._task_frame_pose_b = torch.zeros(self.num_envs, 7, device=self._device)
+        self._task_frame_pose_b[:, 6] = 1.0  # xyzw format: identity quat is [0, 0, 0, 1]
+        # -- Placeholders for motion/force control. The targets stay ``None`` until commanded; once
+        # -- they are, they name the buffers below, so their identity never changes afterwards.
         self.desired_ee_pose_task = None
         self.desired_ee_pose_b = None
         self.desired_ee_wrench_task = None
         self.desired_ee_wrench_b = None
-        # -- buffer for operational space mass matrix
-        self._os_mass_matrix_b = torch.zeros(self.num_envs, 6, 6, device=self._device)
-        # -- Placeholder for the inverse of joint space mass matrix
-        self._mass_matrix_inv = None
-        # -- motion control gains
-        self._motion_p_gains_task = torch.diag_embed(
-            torch.ones(self.num_envs, 6, device=self._device)
-            * torch.tensor(self.cfg.motion_stiffness_task, dtype=torch.float, device=self._device)
+        self._desired_ee_pose_task_buf = torch.zeros(self.num_envs, 7, device=self._device)
+        self._desired_ee_pose_b_buf = torch.zeros(self.num_envs, 7, device=self._device)
+        self._desired_ee_wrench_task_buf = torch.zeros(self.num_envs, 6, device=self._device)
+        self._desired_ee_wrench_b_buf = torch.zeros(self.num_envs, 6, device=self._device)
+        # -- damping ratio, resolved once: it is static configuration the gain schedule re-reads
+        self._motion_damping_ratio_task = torch.as_tensor(
+            self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device
+        ).reshape(1, -1)
+        # -- motion control gains, per task axis
+        self._motion_p_gains_task = torch.zeros(self.num_envs, 6, device=self._device)
+        self._motion_p_gains_task[:] = torch.tensor(
+            self.cfg.motion_stiffness_task, dtype=torch.float, device=self._device
         )
         # -- -- zero out the axes that are not motion controlled, as keeping them non-zero will cause other axes
         # -- -- to act due to coupling
-        self._motion_p_gains_task[:] = self._selection_matrix_motion_task @ self._motion_p_gains_task[:]
-        self._motion_d_gains_task = torch.diag_embed(
-            2
-            * torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1).sqrt()
-            * torch.as_tensor(self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device).reshape(1, -1)
-        )
-        # -- -- motion control gains in root frame
-        self._motion_p_gains_b = torch.zeros_like(self._motion_p_gains_task)
-        self._motion_d_gains_b = torch.zeros_like(self._motion_d_gains_task)
+        self._motion_p_gains_task *= self._selection_axes_motion_task
+        self._motion_d_gains_task = 2 * self._motion_p_gains_task.sqrt() * self._motion_damping_ratio_task
         # -- force control gains
         if self.cfg.contact_wrench_stiffness_task is not None:
-            self._contact_wrench_p_gains_task = torch.diag_embed(
-                torch.ones(self.num_envs, 6, device=self._device)
-                * torch.tensor(self.cfg.contact_wrench_stiffness_task, dtype=torch.float, device=self._device)
+            self._contact_wrench_p_gains_task = torch.zeros(self.num_envs, 6, device=self._device)
+            self._contact_wrench_p_gains_task[:] = torch.tensor(
+                self.cfg.contact_wrench_stiffness_task, dtype=torch.float, device=self._device
             )
-            self._contact_wrench_p_gains_task[:] = (
-                self._selection_matrix_force_task @ self._contact_wrench_p_gains_task[:]
-            )
-            # -- -- force control gains in root frame
-            self._contact_wrench_p_gains_b = torch.zeros_like(self._contact_wrench_p_gains_task)
+            self._contact_wrench_p_gains_task *= self._selection_axes_force_task
         else:
             self._contact_wrench_p_gains_task = None
-            self._contact_wrench_p_gains_b = None
         # -- position gain limits
         self._motion_p_gains_limits = torch.zeros(self.num_envs, 6, 2, device=self._device)
         self._motion_p_gains_limits[..., 0], self._motion_p_gains_limits[..., 1] = (
@@ -129,8 +133,6 @@ class OperationalSpaceController:
             self.cfg.motion_damping_ratio_limits_task[0],
             self.cfg.motion_damping_ratio_limits_task[1],
         )
-        # -- end-effector contact wrench
-        self._ee_contact_wrench_b = torch.zeros(self.num_envs, 6, device=self._device)
 
         # -- buffers for null-space control gains
         self._nullspace_p_gain = torch.tensor(self.cfg.nullspace_stiffness, dtype=torch.float, device=self._device)
@@ -139,6 +141,15 @@ class OperationalSpaceController:
             * torch.sqrt(self._nullspace_p_gain)
             * torch.tensor(self.cfg.nullspace_damping_ratio, dtype=torch.float, device=self._device)
         )
+
+        # the Newton backend is built on the first ``compute`` call, once the Jacobian reveals the
+        # number of controlled DOFs
+        self._controller = None
+        self._num_dof = None
+        # per-port Warp wrappers around the caller's tensors, keyed by port; see :meth:`_bind`
+        self._warp_bindings: dict[str, tuple[torch.Tensor, wp.array]] = {}
+        # whether the measured wrench's moment half still has to be refreshed from the command
+        self._measured_moment_stale = True
 
     """
     Properties.
@@ -170,6 +181,7 @@ class OperationalSpaceController:
         self.desired_ee_pose_task = None
         self.desired_ee_wrench_b = None
         self.desired_ee_wrench_task = None
+        self._measured_moment_stale = True
 
     def set_command(
         self,
@@ -227,15 +239,8 @@ class OperationalSpaceController:
             )
             # task space targets + stiffness
             self._task_space_target_task[:] = task_space_command.squeeze(dim=-1)
-            self._motion_p_gains_task[:] = torch.diag_embed(stiffness)
-            self._motion_p_gains_task[:] = self._selection_matrix_motion_task @ self._motion_p_gains_task[:]
-            self._motion_d_gains_task = torch.diag_embed(
-                2
-                * torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1).sqrt()
-                * torch.as_tensor(self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device).reshape(
-                    1, -1
-                )
-            )
+            self._motion_p_gains_task[:] = stiffness * self._selection_axes_motion_task
+            self._motion_d_gains_task[:] = 2 * self._motion_p_gains_task.sqrt() * self._motion_damping_ratio_task
         elif self.cfg.impedance_mode == "variable":
             # split input command
             task_space_command, stiffness, damping_ratio = torch.split(command, [self.target_dim, 6, 6], dim=-1)
@@ -248,19 +253,18 @@ class OperationalSpaceController:
             )
             # task space targets + stiffness + damping
             self._task_space_target_task[:] = task_space_command
-            self._motion_p_gains_task[:] = torch.diag_embed(stiffness)
-            self._motion_p_gains_task[:] = self._selection_matrix_motion_task @ self._motion_p_gains_task[:]
-            self._motion_d_gains_task[:] = torch.diag_embed(
-                2 * torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1).sqrt() * damping_ratio
-            )
+            self._motion_p_gains_task[:] = stiffness * self._selection_axes_motion_task
+            self._motion_d_gains_task[:] = 2 * self._motion_p_gains_task.sqrt() * damping_ratio
         else:
             raise ValueError(f"Invalid impedance mode: {self.cfg.impedance_mode}.")
 
         if current_task_frame_pose_b is None:
             # xyzw format: identity quat is [0, 0, 0, 1]
-            current_task_frame_pose_b = torch.tensor(
-                [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]] * self.num_envs, device=self._device
-            )
+            self._task_frame_pose_b.zero_()
+            self._task_frame_pose_b[:, 6] = 1.0
+        else:
+            self._task_frame_pose_b[:] = current_task_frame_pose_b
+        current_task_frame_pose_b = self._task_frame_pose_b
 
         # Resolve the target commands
         target_groups = torch.split(self._task_space_target_task, self.target_list, dim=1)
@@ -280,55 +284,23 @@ class OperationalSpaceController:
                 desired_ee_pos_task, desired_ee_rot_task = apply_delta_pose(
                     current_ee_pos_task, current_ee_rot_task, target
                 )
-                self.desired_ee_pose_task = torch.cat([desired_ee_pos_task, desired_ee_rot_task], dim=-1)
+                self._desired_ee_pose_task_buf[:, :3] = desired_ee_pos_task
+                self._desired_ee_pose_task_buf[:, 3:] = desired_ee_rot_task
+                self.desired_ee_pose_task = self._desired_ee_pose_task_buf
             elif command_type == "pose_abs":
                 # compute targets
-                self.desired_ee_pose_task = target.clone()
+                self._desired_ee_pose_task_buf[:] = target
+                self.desired_ee_pose_task = self._desired_ee_pose_task_buf
             elif command_type == "wrench_abs":
                 # compute targets
-                self.desired_ee_wrench_task = target.clone()
+                self._desired_ee_wrench_task_buf[:] = target
+                self.desired_ee_wrench_task = self._desired_ee_wrench_task_buf
             else:
                 raise ValueError(f"Invalid control command: {command_type}.")
 
-        # Rotation of task frame wrt root frame, converts a coordinate from task frame to root frame.
-        R_task_b = matrix_from_quat(current_task_frame_pose_b[:, 3:])
-        # Rotation of root frame wrt task frame, converts a coordinate from root frame to task frame.
-        R_b_task = R_task_b.mT
-
-        # Transform motion control stiffness gains from task frame to root frame
-        self._motion_p_gains_b[:, 0:3, 0:3] = R_task_b @ self._motion_p_gains_task[:, 0:3, 0:3] @ R_b_task
-        self._motion_p_gains_b[:, 3:6, 3:6] = R_task_b @ self._motion_p_gains_task[:, 3:6, 3:6] @ R_b_task
-
-        # Transform motion control damping gains from task frame to root frame
-        self._motion_d_gains_b[:, 0:3, 0:3] = R_task_b @ self._motion_d_gains_task[:, 0:3, 0:3] @ R_b_task
-        self._motion_d_gains_b[:, 3:6, 3:6] = R_task_b @ self._motion_d_gains_task[:, 3:6, 3:6] @ R_b_task
-
-        # Transform contact wrench gains from task frame to root frame (if applicable)
-        if self._contact_wrench_p_gains_task is not None and self._contact_wrench_p_gains_b is not None:
-            self._contact_wrench_p_gains_b[:, 0:3, 0:3] = (
-                R_task_b @ self._contact_wrench_p_gains_task[:, 0:3, 0:3] @ R_b_task
-            )
-            self._contact_wrench_p_gains_b[:, 3:6, 3:6] = (
-                R_task_b @ self._contact_wrench_p_gains_task[:, 3:6, 3:6] @ R_b_task
-            )
-
-        # Transform selection matrices from target frame to base frame
-        self._selection_matrix_motion_b[:, 0:3, 0:3] = (
-            R_task_b @ self._selection_matrix_motion_task[:, 0:3, 0:3] @ R_b_task
-        )
-        self._selection_matrix_motion_b[:, 3:6, 3:6] = (
-            R_task_b @ self._selection_matrix_motion_task[:, 3:6, 3:6] @ R_b_task
-        )
-        self._selection_matrix_force_b[:, 0:3, 0:3] = (
-            R_task_b @ self._selection_matrix_force_task[:, 0:3, 0:3] @ R_b_task
-        )
-        self._selection_matrix_force_b[:, 3:6, 3:6] = (
-            R_task_b @ self._selection_matrix_force_task[:, 3:6, 3:6] @ R_b_task
-        )
-
         # Transform desired pose from task frame to root frame
         if self.desired_ee_pose_task is not None:
-            self.desired_ee_pose_b = torch.zeros_like(self.desired_ee_pose_task)
+            self.desired_ee_pose_b = self._desired_ee_pose_b_buf
             self.desired_ee_pose_b[:, :3], self.desired_ee_pose_b[:, 3:] = combine_frame_transforms(
                 current_task_frame_pose_b[:, :3],
                 current_task_frame_pose_b[:, 3:],
@@ -338,7 +310,11 @@ class OperationalSpaceController:
 
         # Transform desired wrenches to root frame
         if self.desired_ee_wrench_task is not None:
-            self.desired_ee_wrench_b = torch.zeros_like(self.desired_ee_wrench_task)
+            # Rotation of task frame wrt root frame, converts a coordinate from task frame to root frame.
+            R_task_b = matrix_from_quat(current_task_frame_pose_b[:, 3:])
+            self.desired_ee_wrench_b = self._desired_ee_wrench_b_buf
+            # the measured wrench's moment half mirrors this command, so it needs one refresh
+            self._measured_moment_stale = True
             self.desired_ee_wrench_b[:, :3] = (R_task_b @ self.desired_ee_wrench_task[:, :3].unsqueeze(-1)).squeeze(-1)
             self.desired_ee_wrench_b[:, 3:] = (R_task_b @ self.desired_ee_wrench_task[:, 3:].unsqueeze(-1)).squeeze(
                 -1
@@ -399,151 +375,223 @@ class OperationalSpaceController:
 
         # deduce number of DoF
         num_DoF = jacobian_b.shape[2]
-        # create joint effort vector
-        joint_efforts = torch.zeros(self.num_envs, num_DoF, device=self._device)
 
-        # compute joint efforts for motion-control
+        # check the inputs the requested laws need, before handing anything to the backend
         if self.desired_ee_pose_b is not None:
-            # check input is provided
             if current_ee_pose_b is None or current_ee_vel_b is None:
                 raise ValueError("Current end-effector pose and velocity are required for motion control.")
-            # -- end-effector tracking error
-            pose_error_b = torch.cat(
-                compute_pose_error(
-                    current_ee_pose_b[:, :3],
-                    current_ee_pose_b[:, 3:],
-                    self.desired_ee_pose_b[:, :3],
-                    self.desired_ee_pose_b[:, 3:],
-                    rot_error_type="axis_angle",
-                ),
-                dim=-1,
-            )
-            velocity_error_b = -current_ee_vel_b  # zero target velocity. The target is assumed to be stationary.
-            # -- desired end-effector acceleration (spring-damper system)
-            des_ee_acc_b = self._motion_p_gains_b @ pose_error_b.unsqueeze(
-                -1
-            ) + self._motion_d_gains_b @ velocity_error_b.unsqueeze(-1)
-            # -- Inertial dynamics decoupling
-            if self.cfg.inertial_dynamics_decoupling:
-                # check input is provided
-                if mass_matrix is None:
-                    raise ValueError("Mass matrix is required for inertial decoupling.")
-                # Compute operational space mass matrix
-                self._mass_matrix_inv = torch.inverse(mass_matrix)
-                if self.cfg.partial_inertial_dynamics_decoupling:
-                    # Fill in the translational and rotational parts of the inertia separately, ignoring their coupling
-                    self._os_mass_matrix_b[:, 0:3, 0:3] = torch.inverse(
-                        jacobian_b[:, 0:3] @ self._mass_matrix_inv @ jacobian_b[:, 0:3].mT
-                    )
-                    self._os_mass_matrix_b[:, 3:6, 3:6] = torch.inverse(
-                        jacobian_b[:, 3:6] @ self._mass_matrix_inv @ jacobian_b[:, 3:6].mT
-                    )
-                else:
-                    # Calculate the operational space mass matrix fully accounting for the couplings
-                    self._os_mass_matrix_b[:] = torch.inverse(jacobian_b @ self._mass_matrix_inv @ jacobian_b.mT)
-                # (Generalized) operational space command forces
-                # F = (J M^(-1) J^T)^(-1) * \ddot(x_des) = M_task * \ddot(x_des)
-                os_command_forces_b = self._os_mass_matrix_b @ des_ee_acc_b
-            else:
-                # Task-space impedance control: command forces = \ddot(x_des).
-                # Please note that the definition of task-space impedance control varies in literature.
-                # This implementation ignores the inertial term. For inertial decoupling,
-                # use inertial_dynamics_decoupling=True.
-                os_command_forces_b = des_ee_acc_b
-            # -- joint-space commands
-            joint_efforts += (jacobian_b.mT @ self._selection_matrix_motion_b @ os_command_forces_b).squeeze(-1)
-
-        # compute joint efforts for contact wrench/force control
+            if self.cfg.inertial_dynamics_decoupling and mass_matrix is None:
+                raise ValueError("Mass matrix is required for inertial decoupling.")
         if self.desired_ee_wrench_b is not None:
-            # -- task-space contact wrench
-            if self.cfg.contact_wrench_stiffness_task is not None:
-                # check input is provided
-                if current_ee_force_b is None:
-                    raise ValueError("Current end-effector force is required for closed-loop force control.")
-                # We can only measure the force component at the contact, so only apply the feedback for only the force
-                # component, keep the control of moment components open loop
-                self._ee_contact_wrench_b[:, 0:3] = current_ee_force_b
-                self._ee_contact_wrench_b[:, 3:6] = self.desired_ee_wrench_b[:, 3:6]
-                # closed-loop control with feedforward term
-                os_contact_wrench_command_b = self.desired_ee_wrench_b.unsqueeze(
-                    -1
-                ) + self._contact_wrench_p_gains_b @ (self.desired_ee_wrench_b - self._ee_contact_wrench_b).unsqueeze(
-                    -1
-                )
-            else:
-                # open-loop control
-                os_contact_wrench_command_b = self.desired_ee_wrench_b.unsqueeze(-1)
-            # -- joint-space commands
-            joint_efforts += (jacobian_b.mT @ self._selection_matrix_force_b @ os_contact_wrench_command_b).squeeze(-1)
-
-        # add gravity compensation (bias correction)
-        if self.cfg.gravity_compensation:
-            # check input is provided
-            if gravity is None:
-                raise ValueError("Gravity vector is required for gravity compensation.")
-            # add gravity compensation
-            joint_efforts += gravity
-
-        # Add null-space control
-        # -- Free null-space control
-        if self.cfg.nullspace_control == "none":
-            # No additional control is applied in the null space.
-            pass
-        else:
-            # Check if the system is redundant
+            if self.cfg.contact_wrench_stiffness_task is not None and current_ee_force_b is None:
+                raise ValueError("Current end-effector force is required for closed-loop force control.")
+        if self.cfg.gravity_compensation and gravity is None:
+            raise ValueError("Gravity vector is required for gravity compensation.")
+        if self.cfg.nullspace_control != "none":
             if num_DoF <= 6:
                 raise ValueError("Null-space control is only applicable for redundant manipulators.")
-
-            # Calculate the pseudo-inverse of the Jacobian
-            if self.cfg.inertial_dynamics_decoupling and not self.cfg.partial_inertial_dynamics_decoupling:
-                # Dynamically consistent pseudo-inverse allows decoupling of null space and task space
-                if self._mass_matrix_inv is None or mass_matrix is None:
-                    raise ValueError("Mass matrix inverse is required for dynamically consistent pseudo-inverse")
-                jacobian_pinv_transpose = self._os_mass_matrix_b @ jacobian_b @ self._mass_matrix_inv
-            else:
-                # Moore-Penrose pseudo-inverse if full inertia matrix is not available (e.g., no/partial decoupling)
-                jacobian_pinv_transpose = torch.pinverse(jacobian_b).mT
-
-            # Calculate the null-space projector
-            nullspace_jacobian_transpose = (
-                torch.eye(n=num_DoF, device=self._device) - jacobian_b.mT @ jacobian_pinv_transpose
-            )
-
-            # Null space position control
+            if (
+                self.cfg.inertial_dynamics_decoupling
+                and not self.cfg.partial_inertial_dynamics_decoupling
+                and mass_matrix is None
+            ):
+                raise ValueError("Mass matrix inverse is required for dynamically consistent pseudo-inverse")
             if self.cfg.nullspace_control == "position":
-                # Check if the current joint positions and velocities are provided
                 if current_joint_pos is None or current_joint_vel is None:
                     raise ValueError("Current joint positions and velocities are required for null-space control.")
-
-                # Calculate the joint errors for nullspace position control
-                if nullspace_joint_pos_target is None:
-                    nullspace_joint_pos_target = torch.zeros_like(current_joint_pos)
-                # Check if the dimensions of the target nullspace joint positions match the current joint positions
-                elif nullspace_joint_pos_target.shape != current_joint_pos.shape:
+                if (
+                    nullspace_joint_pos_target is not None
+                    and nullspace_joint_pos_target.shape != current_joint_pos.shape
+                ):
                     raise ValueError(
                         f"The target nullspace joint positions shape '{nullspace_joint_pos_target.shape}' does not"
                         f"match the current joint positions shape '{current_joint_pos.shape}'."
                     )
-
-                joint_pos_error_nullspace = nullspace_joint_pos_target - current_joint_pos
-                joint_vel_error_nullspace = -current_joint_vel
-
-                # Calculate the desired joint accelerations
-                joint_acc_nullspace = (
-                    self._nullspace_p_gain * joint_pos_error_nullspace
-                    + self._nullspace_d_gain * joint_vel_error_nullspace
-                ).unsqueeze(-1)
-
-                # Calculate the projected torques in null-space
-                if mass_matrix is not None:
-                    tau_null = (nullspace_jacobian_transpose @ mass_matrix @ joint_acc_nullspace).squeeze(-1)
-                else:
-                    tau_null = nullspace_jacobian_transpose @ joint_acc_nullspace
-
-                # Add the null-space joint efforts to the total joint efforts
-                joint_efforts += tau_null
-
             else:
                 raise ValueError(f"Invalid null-space control method: {self.cfg.nullspace_control}.")
 
-        return joint_efforts
+        if self._num_dof != num_DoF:
+            self._initialize_controller(num_DoF)
+
+        inputs = self._controller_input
+
+        # -- kinematics and dynamics: bound straight from the caller's tensors, which are produced
+        # -- elsewhere and read unchanged, so staging them would only add a copy
+        inputs.jacobian_tool_world = self._bind("jacobian", jacobian_b)
+        if self.cfg.inertial_dynamics_decoupling:
+            inputs.mass_matrix = self._bind("mass_matrix", mass_matrix)
+        if self.cfg.gravity_compensation:
+            inputs.gravity_force = self._bind("gravity", gravity, flatten=True)
+        inputs.tool_pose_world = (
+            self._bind("tool_pose", current_ee_pose_b, dtype=wp.transform)
+            if current_ee_pose_b is not None
+            else self._identity_pose_port
+        )
+        inputs.tool_twist_world = (
+            self._bind("tool_twist", current_ee_vel_b, dtype=wp.spatial_vector)
+            if current_ee_vel_b is not None
+            else self._zero_spatial
+        )
+
+        # -- motion control: zero gains gate the term, so an uncommanded (or reset) target
+        # -- contributes nothing while the gain schedule itself stays untouched
+        if self.desired_ee_pose_task is not None:
+            inputs.desired_tool_pose_operational = self._bind(
+                "desired_pose", self.desired_ee_pose_task, dtype=wp.transform
+            )
+            inputs.motion_stiffness = self._motion_stiffness_port
+            inputs.motion_damping = self._motion_damping_port
+        else:
+            inputs.desired_tool_pose_operational = self._identity_pose_port
+            inputs.motion_stiffness = self._zero_spatial
+            inputs.motion_damping = self._zero_spatial
+
+        # -- contact wrench control: the desired wrench is already in root frame, which is the frame
+        # -- Newton expects it in; only the measured wrench has to be composed here
+        if self._wrench_control:
+            if self.desired_ee_wrench_b is not None:
+                inputs.desired_wrench_world = self._bind(
+                    "desired_wrench", self.desired_ee_wrench_b, dtype=wp.spatial_vector
+                )
+                if self._wrench_feedback:
+                    self._measured_wrench[:, :3] = current_ee_force_b
+                    if self._measured_moment_stale:
+                        # only the force component is measured, so the moment stays open loop:
+                        # feeding the desired moment back leaves that half of the error at zero. It
+                        # mirrors the command, so it is refreshed per command rather than per step.
+                        self._measured_wrench[:, 3:] = self.desired_ee_wrench_b[:, 3:]
+                        self._measured_moment_stale = False
+            else:
+                inputs.desired_wrench_world = self._zero_spatial
+                if self._wrench_feedback:
+                    # an uncommanded wrench must not leave a stale moment behind: with feedback on,
+                    # Newton would read it as ``Kp * (0 - stale)`` and drive torque from it
+                    self._measured_wrench.zero_()
+                    self._measured_moment_stale = True
+
+        # -- null-space posture task; the desired velocity is always zero and ``input()`` returns
+        # -- that port zero-initialised, so it is never written
+        if self._nullspace_control:
+            inputs.joint_q = self._bind("joint_q", current_joint_pos, flatten=True)
+            inputs.joint_qd = self._bind("joint_qd", current_joint_vel, flatten=True)
+            inputs.joint_q_des_null = (
+                self._zero_joint
+                if nullspace_joint_pos_target is None
+                else self._bind("nullspace_target", nullspace_joint_pos_target, flatten=True)
+            )
+
+        # evaluate the operational-space law on the Newton backend and return the torque view;
+        # ``dt`` is unused by the law and is accepted only for API symmetry
+        self._controller.step(inputs=inputs, outputs=self._controller_output, dt=0.0)
+        return self._joint_efforts
+
+    """
+    Internal helpers.
+    """
+
+    def _initialize_controller(self, num_dof: int) -> None:
+        """Construct the Newton controller and wire the persistent Torch/Warp bridge buffers.
+
+        Deferred to the first :meth:`compute` call, because the number of controlled DOFs is only
+        known from the Jacobian; importing this module therefore never requires Newton.
+
+        Args:
+            num_dof: The number of controlled DOFs, as deduced from the Jacobian.
+        """
+        from newton.controllers import ControllerOperationalSpaceModelFree
+
+        num_envs = self.num_envs
+
+        # homogeneous fleet: every environment contributes the same number of controlled DOFs
+        controlled_dofs_per_robot = wp.array(
+            np.full(num_envs, num_dof, dtype=np.int32), dtype=wp.int32, device=self._device
+        )
+
+        # ``None`` keeps the motion gains as live input ports: they follow the variable impedance
+        # modes, and are zeroed while no pose target has been commanded. The selection axes are only
+        # accepted when wrench control is on; otherwise the zeroed gains carry the motion selection.
+        self._controller = ControllerOperationalSpaceModelFree(
+            controlled_dofs_per_robot=controlled_dofs_per_robot,
+            motion_stiffness=None,
+            motion_damping=None,
+            operational_frame_pose_world=None,
+            use_inertia_decoupling=self.cfg.inertial_dynamics_decoupling,
+            use_partial_inertia_decoupling=self.cfg.partial_inertial_dynamics_decoupling,
+            use_gravity_compensation=self.cfg.gravity_compensation,
+            use_wrench_feedforward=self._wrench_control,
+            use_wrench_feedback=self._wrench_feedback,
+            motion_selection_axes=(
+                wp.spatial_vector(*self.cfg.motion_control_axes_task) if self._wrench_control else None
+            ),
+            wrench_selection_axes=(
+                wp.spatial_vector(*self.cfg.contact_wrench_control_axes_task) if self._wrench_control else None
+            ),
+            # this controller masks the resulting task-space force, not the commanded acceleration
+            mask_motion_after_inertia=True,
+            wrench_stiffness=(
+                wp.from_torch(self._contact_wrench_p_gains_task, dtype=wp.spatial_vector)
+                if self._wrench_feedback
+                else None
+            ),
+            use_null_space_control=self._nullspace_control,
+            null_space_stiffness=float(self._nullspace_p_gain) if self._nullspace_control else None,
+            null_space_damping=float(self._nullspace_d_gain) if self._nullspace_control else None,
+            device=self._device,
+        )
+        self._controller_input = self._controller.input()
+        self._controller_output = self._controller.output()
+        self._num_dof = num_dof
+        self._warp_bindings.clear()
+        self._measured_moment_stale = True  # the ports below are freshly allocated
+
+        # Gains and the task frame are buffers this controller owns and updates in place, so they
+        # bind once and ``set_command`` updates propagate without a per-step copy. The gain ports
+        # are kept to hand so an uncommanded target can swap in the zero stand-in below.
+        self._motion_stiffness_port = wp.from_torch(self._motion_p_gains_task, dtype=wp.spatial_vector)
+        self._motion_damping_port = wp.from_torch(self._motion_d_gains_task, dtype=wp.spatial_vector)
+        self._controller_input.operational_frame_pose_world = wp.from_torch(self._task_frame_pose_b, dtype=wp.transform)
+
+        # Stand-ins bound in place of a port whose target has not been commanded: zeros mute the
+        # term, and an identity pose keeps the pose-error kernel well formed. Newton only reads its
+        # input ports, so one zero array can back several of them.
+        self._zero_spatial = wp.zeros(num_envs, dtype=wp.spatial_vector, device=self._device)
+        self._zero_joint = wp.zeros(num_envs * num_dof, dtype=wp.float32, device=self._device)
+        identity_pose = torch.zeros(num_envs, 7, device=self._device)
+        identity_pose[:, 6] = 1.0
+        self._identity_pose = identity_pose  # keep the storage alive behind the Warp view
+        self._identity_pose_port = wp.from_torch(identity_pose, dtype=wp.transform)
+
+        # The measured wrench is the one port composed from two sources, so it is written through a
+        # view rather than bound; every other port binds a caller or controller buffer directly.
+        if self._wrench_feedback:
+            self._measured_wrench = wp.to_torch(self._controller_input.measured_wrench_world)
+
+        # torque output aliases the controller's flat output port, reshaped to (num_envs, num_dof)
+        self._joint_efforts = wp.to_torch(self._controller_output.joint_f).view(num_envs, num_dof)
+
+    def _bind(self, key: str, tensor: torch.Tensor, dtype=None, flatten: bool = False) -> wp.array:
+        """Wrap a caller's tensor for Newton, reusing the wrapper while it keeps handing over the same one.
+
+        Callers pass persistent buffers they refill in place, so the wrapper is built once and the
+        controller reads the refilled values through it. A caller that hands over a fresh tensor
+        each step still gets a correct wrapper, just a rebuilt one. Non-contiguous tensors are never
+        cached: the wrapper would alias the throwaway copy rather than the caller's own storage.
+
+        Args:
+            key: Port identity, so one port's wrapper never satisfies another's lookup.
+            tensor: The caller's tensor.
+            dtype: Warp dtype to reinterpret the trailing dimension as, if any.
+            flatten: Whether to collapse the tensor to one dimension first.
+
+        Returns:
+            A Warp array viewing ``tensor``.
+        """
+        cached = self._warp_bindings.get(key)
+        if cached is not None and cached[0] is tensor:
+            return cached[1]
+        contiguous = tensor.contiguous()
+        source = contiguous.reshape(-1) if flatten else contiguous
+        array = wp.from_torch(source) if dtype is None else wp.from_torch(source, dtype=dtype)
+        if contiguous is tensor:
+            self._warp_bindings[key] = (tensor, array)
+        return array
