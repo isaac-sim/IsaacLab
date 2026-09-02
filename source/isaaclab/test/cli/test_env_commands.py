@@ -75,3 +75,53 @@ def test_launcher_rejects_downloaded_isaac_sim_with_active_environment(tmp_path)
 
     assert result.returncode == 1
     assert "Downloaded Isaac Sim packages cannot be combined" in result.stderr
+
+
+@pytest.mark.skipif(envs.is_windows(), reason="Linux launcher behavior")
+def test_launcher_uses_bundled_python_with_inactive_default_environment(tmp_path):
+    """An inactive default environment must not override the bundled Python."""
+    launcher = tmp_path / "isaaclab.sh"
+    shutil.copy2(envs.ISAACLAB_ROOT / "isaaclab.sh", launcher)
+    bundled_python = tmp_path / "_isaac_sim" / "python.sh"
+    bundled_python.parent.mkdir()
+    bundled_python.write_text("#!/usr/bin/env bash\necho bundled-python\n")
+    bundled_python.chmod(0o755)
+    inactive_python = tmp_path / "env_isaaclab" / "bin" / "python"
+    inactive_python.parent.mkdir(parents=True)
+    inactive_python.write_text("#!/usr/bin/env bash\necho inactive-python\n")
+    inactive_python.chmod(0o755)
+
+    environment = os.environ.copy()
+    environment.pop("VIRTUAL_ENV", None)
+    environment.pop("CONDA_PREFIX", None)
+    result = subprocess.run(["bash", str(launcher), "-h"], capture_output=True, text=True, check=False, env=environment)
+
+    assert result.returncode == 0
+    assert "bundled-python" in result.stdout
+    assert "inactive-python" not in result.stdout
+
+
+@pytest.mark.skipif(envs.is_windows(), reason="Linux launcher behavior")
+def test_launcher_allows_relinking_unmarked_source_build(tmp_path):
+    """The source-build command must bypass downloaded-package environment rejection."""
+    launcher = tmp_path / "isaaclab.sh"
+    shutil.copy2(envs.ISAACLAB_ROOT / "isaaclab.sh", launcher)
+    (tmp_path / "_isaac_sim").mkdir()
+    active_python = tmp_path / "virtual-env" / "bin" / "python"
+    active_python.parent.mkdir(parents=True)
+    active_python.write_text("#!/usr/bin/env bash\necho active-python\n")
+    active_python.chmod(0o755)
+
+    environment = os.environ.copy()
+    environment["VIRTUAL_ENV"] = str(tmp_path / "virtual-env")
+    environment.pop("CONDA_PREFIX", None)
+    result = subprocess.run(
+        ["bash", str(launcher), "--isaacsim_source", str(tmp_path / "IsaacSim")],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=environment,
+    )
+
+    assert result.returncode == 0
+    assert "active-python" in result.stdout

@@ -182,18 +182,6 @@ Documentation
 Breaking Changes
 ----------------
 
-Downloaded Isaac Sim packages
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Downloaded Isaac Sim packages linked as ``_isaac_sim`` must now use the Python interpreter bundled with Isaac Sim.
-Combining a downloaded package with a conda, ``uv``, or ``venv`` environment is no longer supported and produces an
-error. Use ``isaaclab.sh`` or ``isaaclab.bat`` without an active virtual environment, or install Isaac Sim from pip
-inside the virtual environment instead.
-
-Live Isaac Sim source builds remain compatible with ``uv``. Run
-``uv run isaaclab --isaacsim_source PATH_TO_ISAAC_SIM`` after updating Isaac Lab so the linked source build receives
-the marker that distinguishes it from a downloaded package.
-
 Preset CLI
 ~~~~~~~~~~
 

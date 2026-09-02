@@ -13,10 +13,20 @@ export ISAACLAB_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && p
 
 # Downloaded Isaac Sim packages must run with their bundled Python. Live source
 # builds created by --isaacsim_source carry a marker and support active environments.
+isaacsim_source_requested=false
+for arg in "$@"; do
+    if [ "$arg" = "--isaacsim_source" ]; then
+        isaacsim_source_requested=true
+        break
+    fi
+done
+
+downloaded_isaac_sim=false
 if [ -d "$ISAACLAB_PATH/_isaac_sim" ] && [ ! -f "$ISAACLAB_PATH/_isaac_sim/.isaaclab_source_build" ]; then
-    if [ -n "$VIRTUAL_ENV" ] || [ -n "$CONDA_PREFIX" ] || [ -f "$ISAACLAB_PATH/env_isaaclab/bin/python" ]; then
+    downloaded_isaac_sim=true
+    if [ "$isaacsim_source_requested" = false ] && { [ -n "$VIRTUAL_ENV" ] || [ -n "$CONDA_PREFIX" ]; }; then
         echo "[ERROR] Downloaded Isaac Sim packages cannot be combined with a Python virtual environment." >&2
-        echo "[ERROR] Use the bundled Python after removing/deactivating the virtual environment, or remove '_isaac_sim' and install Isaac Sim from pip in the virtual environment." >&2
+        echo "[ERROR] Use the bundled Python after deactivating the virtual environment, or run '--isaacsim_source PATH' to link a live source build." >&2
         exit 1
     fi
 fi
@@ -26,7 +36,7 @@ if [ -n "$VIRTUAL_ENV" ]; then
     python_exe="$VIRTUAL_ENV/bin/python"
 elif [ -n "$CONDA_PREFIX" ]; then
     python_exe="$CONDA_PREFIX/bin/python"
-elif [ -f "$ISAACLAB_PATH/env_isaaclab/bin/python" ]; then
+elif [ "$downloaded_isaac_sim" = false ] && [ -f "$ISAACLAB_PATH/env_isaaclab/bin/python" ]; then
     python_exe="$ISAACLAB_PATH/env_isaaclab/bin/python"
 elif [ -f "$ISAACLAB_PATH/_isaac_sim/python.sh" ]; then
     python_exe="$ISAACLAB_PATH/_isaac_sim/python.sh"
