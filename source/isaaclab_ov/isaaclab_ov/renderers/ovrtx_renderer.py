@@ -265,25 +265,6 @@ def _resolve_rtx_minimal_mode(data_types: list[str]) -> int | None:
     return _RTX_MINIMAL_MODES[filtered_data_types[0]]
 
 
-def _camera_spec_summary(spec: CameraRenderSpec) -> tuple:
-    """The camera spec fields that scene initialization consumes, for mismatch detection.
-
-    The data types use the same normalization as scene initialization. Two specs that build the
-    same scene therefore compare equal.
-    """
-    data_types = list(spec.cfg.data_types) if spec.cfg.data_types else ["rgb"]
-    if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
-        data_types.append("rgb_hdr")
-    return (
-        tuple(spec.camera_prim_paths),
-        spec.cfg.width,
-        spec.cfg.height,
-        tuple(data_types),
-        getattr(spec.cfg, "background_color", None),
-        spec.num_instances,
-    )
-
-
 def _write_file(output_dir: Path, file_name: str, content: str) -> None:
     """Write ``content`` to ``output_dir / file_name``.
 
@@ -392,7 +373,6 @@ class OVRTXRenderer(BaseRenderer):
         self._cable_counts: wp.array | None = None
         self._cable_points: wp.array | None = None
         self._initialized_scene = False
-        self._initialized_spec_summary: tuple | None = None
         self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
         self._output_id_color_buffers: dict[str, wp.array] = {}
@@ -979,20 +959,12 @@ class OVRTXRenderer(BaseRenderer):
         self._warp_device = wp.get_device(spec.device)
         self._device = str(self._warp_device)
         self._strategy.set_device(self._warp_device)
-        spec_summary = _camera_spec_summary(spec)
         if not self._initialized_scene:
             self._initialize_from_spec(spec)
-            self._initialized_spec_summary = spec_summary
-        elif spec_summary != self._initialized_spec_summary:
-            # The scene (render products, camera bindings, resolution) was built from the first
-            # camera's spec and later specs are ignored, so this camera would silently read the
-            # first camera's images. Reached when cameras with equal RendererCfg share one renderer
-            # through RenderContext.get_renderer's config dedup.
-            logger.warning(
-                "OVRTX renderer already initialized with a different camera spec; it renders one"
-                " camera spec per instance, so this camera will receive the first camera's images."
-                " Give each camera a distinct RendererCfg so each gets its own renderer."
-            )
+        # TODO: The scene is built from the first camera's spec, and later specs are silently
+        # ignored. A second camera that dedups onto this renderer through
+        # RenderContext.get_renderer therefore receives the first camera's images. Detect the
+        # mismatch and warn or raise. This predates asynchronous rendering.
         return OVRTXRenderData(spec, self._device)
 
     def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, ProxyArray]) -> None:
