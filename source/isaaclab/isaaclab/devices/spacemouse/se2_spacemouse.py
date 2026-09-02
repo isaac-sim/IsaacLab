@@ -19,7 +19,7 @@ import torch
 from isaaclab.utils.array import convert_to_torch
 
 from ..device_base import DeviceBase
-from .utils import convert_buffer
+from .utils import convert_buffer, device_not_found_message, open_device, resolve_device_name
 
 if TYPE_CHECKING:
     from .se2_spacemouse_cfg import Se2SpaceMouseCfg
@@ -43,6 +43,9 @@ class Se2SpaceMouse(DeviceBase):
     .. _HID-API: https://github.com/libusb/hidapi
 
     """
+
+    SUPPORTED_DEVICES = ("SpaceMouse Compact", "SpaceNavigator for Notebooks")
+    """Product names of the 3Dconnexion models handled by this device."""
 
     def __init__(self, cfg: Se2SpaceMouseCfg):
         """Initialize the spacemouse layer.
@@ -115,19 +118,19 @@ class Se2SpaceMouse(DeviceBase):
     def _find_device(self):
         """Find the device connected to computer."""
         found = False
+        enumerated_devices = []
         # implement a timeout for device search
         for _ in range(5):
-            for device in hid.enumerate():
-                if (
-                    device["product_string"] == "SpaceMouse Compact"
-                    or device["product_string"] == "SpaceNavigator for Notebooks"
-                ):
+            enumerated_devices = hid.enumerate()
+            for device in enumerated_devices:
+                device_name = resolve_device_name(device, self.SUPPORTED_DEVICES)
+                if device_name is not None:
                     # set found flag
                     found = True
                     vendor_id = device["vendor_id"]
                     product_id = device["product_id"]
                     # connect to the device
-                    self._device.open(vendor_id, product_id)
+                    open_device(self._device, vendor_id, product_id, device_name)
             # check if device found
             if not found:
                 time.sleep(1.0)
@@ -135,7 +138,7 @@ class Se2SpaceMouse(DeviceBase):
                 break
         # no device found: return false
         if not found:
-            raise OSError("No device found by SpaceMouse. Is the device connected?")
+            raise OSError(device_not_found_message(self.SUPPORTED_DEVICES, enumerated_devices))
 
     def _run_device(self):
         """Listener thread that keeps pulling new messages."""

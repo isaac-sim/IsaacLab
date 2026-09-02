@@ -5,6 +5,11 @@
 
 """Helper functions for SpaceMouse."""
 
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Any
+
 # MIT License
 #
 # Copyright (c) 2022 Stanford Vision and Learning Lab and UT Robot Perception and Learning Lab
@@ -39,6 +44,94 @@ def convert_buffer(b1, b2):
         Scaled value from Space-mouse message
     """
     return _scale_to_control(_to_int16(b1, b2))
+
+
+# USB identifiers of the 3Dconnexion devices supported by Isaac Lab, mapped to the product name that
+# selects the HID report layout used by the device listener threads.
+# Source: USB ID repository maintained at https://www.linux-usb.org/usb.ids
+SPACEMOUSE_USB_IDS: dict[tuple[int, int], str] = {
+    (0x256F, 0xC62E): "SpaceMouse Wireless",
+    (0x256F, 0xC62F): "SpaceMouse Wireless",
+    (0x256F, 0xC635): "SpaceMouse Compact",
+    (0x256F, 0xC652): "3Dconnexion Universal Receiver",
+    (0x046D, 0xC628): "SpaceNavigator for Notebooks",
+}
+"""Mapping from the ``(vendor_id, product_id)`` of a supported SpaceMouse to its product name."""
+
+
+def resolve_device_name(device: dict[str, Any], supported_names: Sequence[str]) -> str | None:
+    """Resolve the product name of an enumerated HID device against the supported SpaceMouse models.
+
+    USB identifiers are matched first, because the ``hidapi`` wheels bundle a backend that reaches the
+    device through ``libusb`` and reports empty product strings unless the process is allowed to open
+    the USB node. Product strings are only used as a fallback, and are matched both verbatim and with
+    the ``"3Dconnexion "`` prefix that some HID backends prepend stripped off.
+
+    Args:
+        device: An entry returned by :func:`hid.enumerate`.
+        supported_names: Product names accepted by the caller.
+
+    Returns:
+        The matched product name, or None if the device is not a supported SpaceMouse.
+    """
+    name = SPACEMOUSE_USB_IDS.get((device["vendor_id"], device["product_id"]))
+    if name in supported_names:
+        return name
+    product_string = (device.get("product_string") or "").strip()
+    for candidate in (product_string, product_string.removeprefix("3Dconnexion ")):
+        if candidate in supported_names:
+            return candidate
+    return None
+
+
+def open_device(hid_device: Any, vendor_id: int, product_id: int, device_name: str):
+    """Open a detected SpaceMouse and re-raise permission failures with actionable guidance.
+
+    Args:
+        hid_device: An unopened :class:`hid.device` handle.
+        vendor_id: USB vendor identifier of the detected device.
+        product_id: USB product identifier of the detected device.
+        device_name: Product name of the detected device, used in the error message.
+
+    Raises:
+        OSError: If the device is present but cannot be opened, typically because the user lacks
+            access to its USB node.
+    """
+    try:
+        hid_device.open(vendor_id, product_id)
+    except OSError as exc:
+        raise OSError(
+            f"Found '{device_name}' ({vendor_id:#06x}:{product_id:#06x}) but failed to open it: {exc}."
+            " On Linux the bundled HID backend reaches the device through libusb, so the user needs"
+            " read and write access to the USB node under '/dev/bus/usb'; granting access to"
+            " '/dev/hidraw*' alone is not sufficient. See the teleoperation documentation for the"
+            " required udev rule."
+        ) from exc
+
+
+def device_not_found_message(supported_names: Sequence[str], enumerated_devices: Sequence[dict[str, Any]]) -> str:
+    """Compose the error raised when no supported SpaceMouse is connected.
+
+    Args:
+        supported_names: Product names accepted by the caller.
+        enumerated_devices: The HID devices reported by :func:`hid.enumerate` during the search.
+
+    Returns:
+        An error message listing the supported models and the HID devices that were seen.
+    """
+    seen = ", ".join(
+        f"{device['vendor_id']:#06x}:{device['product_id']:#06x} ({device.get('product_string') or 'unnamed'})"
+        for device in enumerated_devices
+    )
+    return (
+        "No device found by SpaceMouse. Is the device connected?"
+        f" Supported models: {', '.join(supported_names)}."
+        f" Enumerated HID devices: {seen or 'none'}."
+        " Note that on Linux the bundled HID backend reaches the device through libusb, so the user"
+        " needs read and write access to the USB node under '/dev/bus/usb'; granting access to"
+        " '/dev/hidraw*' alone is not sufficient. See the teleoperation documentation for the"
+        " required udev rule."
+    )
 
 
 """

@@ -56,7 +56,9 @@ def mock_environment(mocker):
     carb_mock.input.KeyboardEventType.KEY_RELEASE = 2
 
     # Mock the SpaceMouse
-    hid_mock.enumerate.return_value = [{"product_string": "SpaceMouse Compact", "vendor_id": 123, "product_id": 456}]
+    hid_mock.enumerate.return_value = [
+        {"product_string": "SpaceMouse Compact", "vendor_id": 0x256F, "product_id": 0xC635}
+    ]
     hid_mock.device.return_value = device_mock
 
     # Mock Haply WebSocket
@@ -222,6 +224,52 @@ def test_se2spacemouse_constructors(mock_environment, mocker):
     result = spacemouse.advance()
     assert isinstance(result, torch.Tensor)
     assert result.shape == (3,)  # (v_x, v_y, omega_z)
+
+
+@pytest.mark.parametrize(
+    "product_string",
+    [
+        # some HID backends report the kernel's combined name instead of the bare USB product string
+        "3Dconnexion SpaceMouse Compact",
+        # the libusb-based backend bundled in the hidapi wheels reports no product string at all
+        # unless the process is allowed to open the USB node
+        "",
+    ],
+    ids=["prefixed_product_string", "missing_product_string"],
+)
+def test_spacemouse_detected_by_usb_id(mock_environment, mocker, product_string):
+    """SpaceMouse detection must not rely on an exact product string match."""
+    mock_environment["hid"].enumerate.return_value = [
+        {"product_string": product_string, "vendor_id": 0x256F, "product_id": 0xC635}
+    ]
+    for module_name, device_cls, cfg_cls in (
+        ("isaaclab.devices.spacemouse.se2_spacemouse", Se2SpaceMouse, Se2SpaceMouseCfg),
+        ("isaaclab.devices.spacemouse.se3_spacemouse", Se3SpaceMouse, Se3SpaceMouseCfg),
+    ):
+        device_mod = importlib.import_module(module_name)
+        mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+        # the listener thread polls the mocked device in a busy loop; detection is what is under test
+        mocker.patch.object(device_mod, "threading")
+
+        device = device_cls(cfg_cls())
+
+        assert device is not None
+    mock_environment["device"].open.assert_called_with(0x256F, 0xC635)
+
+
+def test_spacemouse_not_found_error_lists_enumerated_devices(mock_environment, mocker):
+    """The error raised when no SpaceMouse is connected should help identify the problem."""
+    mock_environment["hid"].enumerate.return_value = [{"product_string": "", "vendor_id": 0x046D, "product_id": 0xC52F}]
+    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
+    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+    mocker.patch.object(device_mod.time, "sleep")
+
+    with pytest.raises(OSError) as exc_info:
+        Se3SpaceMouse(Se3SpaceMouseCfg())
+
+    message = str(exc_info.value)
+    assert "0x046d:0xc52f" in message
+    assert "/dev/bus/usb" in message
 
 
 def test_se3spacemouse_constructors(mock_environment, mocker):
