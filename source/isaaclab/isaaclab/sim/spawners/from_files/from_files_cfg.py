@@ -7,14 +7,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
-from pathlib import Path
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners import materials
 from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg, SpawnerCfg
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
-_DEFAULT_GROUND_PLANE_USD = str(Path(__file__).parent / "data" / "default_ground_plane" / "default_ground_plane.usda")
+_DEFAULT_GROUND_PLANE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Environments/Grid/default_ground_plane.usda"
 _DEFAULT_GROUND_PLANE_TILE_SIZE = 5.0
 
 
@@ -308,12 +308,13 @@ class GroundPlaneCfg(SpawnerCfg):
     func: Callable | str = "{DIR}.from_files:spawn_ground_plane"
 
     usd_path: str = _DEFAULT_GROUND_PLANE_USD
-    """Path to the USD file to spawn asset from. Defaults to Isaac Lab's bundled ground plane."""
+    """Path to the USD file to spawn asset from. Defaults to Isaac Lab's ground plane on Nucleus."""
 
     color: tuple[float, float, float] | None = None
     """The color tint of the ground plane. Defaults to None.
 
-    If None, the authored material colors remain unchanged.
+    If None, the authored material colors remain unchanged. An explicit value tints the diffuse
+    component; authored emission remains unchanged.
     """
 
     size: tuple[float, float] = (100.0, 100.0)
