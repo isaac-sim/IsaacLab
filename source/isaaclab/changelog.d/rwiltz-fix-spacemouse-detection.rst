@@ -5,6 +5,7 @@ Fixed
   ``No device found by SpaceMouse`` when a supported 3Dconnexion device was connected. Detection matched the
   HID product string exactly, which the ``libusb`` backend bundled in the ``hidapi`` wheels leaves empty
   unless the process may open the USB node. Directly attached devices are now matched by their USB vendor
-  and product ids, with the product string kept as a fallback, and
-  the errors raised when a device cannot be found or opened name the enumerated devices and the required
-  permissions.
+  and product ids, with the product string kept as a fallback, and the errors raised when a device cannot be
+  found or opened name the enumerated devices and the required permissions.
+* Fixed SpaceMouse discovery giving up when the first supported device could not be opened. Discovery now
+  continues to the remaining devices and only reports the open failures if none of them could be opened.

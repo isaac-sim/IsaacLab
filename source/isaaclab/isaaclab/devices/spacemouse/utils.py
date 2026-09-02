@@ -84,41 +84,34 @@ def resolve_device_name(device: dict[str, Any], supported_names: Sequence[str]) 
     return None
 
 
-def open_device(hid_device: Any, vendor_id: int, product_id: int, device_name: str):
-    """Open a detected SpaceMouse and re-raise permission failures with actionable guidance.
-
-    Args:
-        hid_device: An unopened :class:`hid.device` handle.
-        vendor_id: USB vendor identifier of the detected device.
-        product_id: USB product identifier of the detected device.
-        device_name: Product name of the detected device, used in the error message.
-
-    Raises:
-        OSError: If the device is present but cannot be opened, typically because the user lacks
-            access to its USB node.
-    """
-    try:
-        hid_device.open(vendor_id, product_id)
-    except OSError as exc:
-        raise OSError(
-            f"Found '{device_name}' ({vendor_id:#06x}:{product_id:#06x}) but failed to open it: {exc}."
-            " On Linux the bundled HID backend reaches the device through libusb, so the user needs"
-            " read and write access to the USB node under '/dev/bus/usb'; granting access to"
-            " '/dev/hidraw*' alone is not sufficient. See the teleoperation documentation for the"
-            " required udev rule."
-        ) from exc
+_PERMISSION_HINT = (
+    " Note that on Linux the bundled HID backend reaches the device through libusb, so the user needs"
+    " read and write access to the USB node under '/dev/bus/usb'; granting access to '/dev/hidraw*'"
+    " alone is not sufficient. See the teleoperation documentation for the required udev rule."
+)
+"""Guidance appended to the discovery errors, which are almost always caused by USB permissions."""
 
 
-def device_not_found_message(supported_names: Sequence[str], enumerated_devices: Sequence[dict[str, Any]]) -> str:
-    """Compose the error raised when no supported SpaceMouse is connected.
+def device_not_found_message(
+    supported_names: Sequence[str],
+    enumerated_devices: Sequence[dict[str, Any]],
+    open_failures: Sequence[str] = (),
+) -> str:
+    """Compose the error raised when no supported SpaceMouse could be opened.
 
     Args:
         supported_names: Product names accepted by the caller.
         enumerated_devices: The HID devices reported by :func:`hid.enumerate` during the search.
+        open_failures: Descriptions of the supported devices that were found but could not be opened.
 
     Returns:
-        An error message listing the supported models and the HID devices that were seen.
+        An error message naming either the devices that could not be opened, or, when none matched,
+        the supported models and the HID devices that were seen.
     """
+    if open_failures:
+        return (
+            "Found a supported SpaceMouse but could not open it: " + "; ".join(open_failures) + "." + _PERMISSION_HINT
+        )
     seen = ", ".join(
         f"{device['vendor_id']:#06x}:{device['product_id']:#06x} ({device.get('product_string') or 'unnamed'})"
         for device in enumerated_devices
@@ -127,11 +120,22 @@ def device_not_found_message(supported_names: Sequence[str], enumerated_devices:
         "No device found by SpaceMouse. Is the device connected?"
         f" Supported models: {', '.join(supported_names)}."
         f" Enumerated HID devices: {seen or 'none'}."
-        " Note that on Linux the bundled HID backend reaches the device through libusb, so the user"
-        " needs read and write access to the USB node under '/dev/bus/usb'; granting access to"
-        " '/dev/hidraw*' alone is not sufficient. See the teleoperation documentation for the"
-        " required udev rule."
-    )
+    ) + _PERMISSION_HINT
+
+
+def describe_open_failure(device_name: str, vendor_id: int, product_id: int, error: OSError) -> str:
+    """Describe a supported device that was detected but could not be opened.
+
+    Args:
+        device_name: Product name of the detected device.
+        vendor_id: USB vendor identifier of the detected device.
+        product_id: USB product identifier of the detected device.
+        error: The error raised while opening the device.
+
+    Returns:
+        A short description naming the device and the underlying error.
+    """
+    return f"'{device_name}' ({vendor_id:#06x}:{product_id:#06x}): {error}"
 
 
 """

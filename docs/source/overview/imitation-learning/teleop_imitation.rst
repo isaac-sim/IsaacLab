@@ -168,14 +168,18 @@ the key bindings are:
 
    .. code:: bash
 
+      sudo groupadd -f plugdev && sudo usermod -aG plugdev "$USER"
       sudo tee /etc/udev/rules.d/99-spacemouse.rules <<'EOF'
-      SUBSYSTEM=="usb", ATTR{idVendor}=="256f", MODE="0666"
-      KERNEL=="hidraw*", ATTRS{idVendor}=="256f", MODE="0666"
+      SUBSYSTEM=="usb", ATTR{idVendor}=="256f", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+      KERNEL=="hidraw*", ATTRS{idVendor}=="256f", TAG+="uaccess", GROUP="plugdev", MODE="0660"
       EOF
       sudo udevadm control --reload-rules && sudo udevadm trigger
 
-   Then unplug and reconnect the SpaceMouse. Older 3Dconnexion models such as the SpaceNavigator for
-   Notebooks enumerate under the Logitech vendor id, so replace ``256f`` with ``046d`` for those.
+   Then unplug and reconnect the SpaceMouse, and log out and back in so the new group membership
+   applies. The rule grants access to the user on the local seat (``uaccess``) and to members of
+   ``plugdev``, rather than to every account on the machine; the ``plugdev`` membership is what makes
+   it work over SSH, where there is no local seat. Older 3Dconnexion models such as the SpaceNavigator
+   for Notebooks enumerate under the Logitech vendor id, so replace ``256f`` with ``046d`` for those.
 
    We recommend using local deployment of Isaac Lab to use the SpaceMouse. If using container deployment (:ref:`deployment-docker`), you must give the ``isaac-lab-base`` container access to the USB bus by
    mounting it and allowing its device cgroup in your ``docker-compose.yaml`` file:
@@ -187,7 +191,8 @@ the key bindings are:
       device_cgroup_rules:
          - "c 189:* rmw"
 
-   Isaac Lab is only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.
+   Isaac Lab supports the SpaceMouse Compact, SpaceMouse Wireless and SpaceNavigator for Notebooks
+   from 3Dconnexion. SE(3) teleoperation additionally supports the 3Dconnexion Universal Receiver.
 
 
 

@@ -257,11 +257,45 @@ def test_spacemouse_detected_by_usb_id(mock_environment, mocker, product_string)
     mock_environment["device"].open.assert_called_with(0x256F, 0xC635)
 
 
+def test_spacemouse_skips_devices_that_cannot_be_opened(mock_environment, mocker):
+    """An inaccessible SpaceMouse must not hide a second one the user can actually open."""
+    inaccessible = {"product_string": "", "vendor_id": 0x256F, "product_id": 0xC635}
+    accessible = {"product_string": "", "vendor_id": 0x256F, "product_id": 0xC62E}
+    mock_environment["hid"].enumerate.return_value = [inaccessible, accessible]
+    mock_environment["device"].open.side_effect = [OSError("open failed"), None]
+    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
+    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+    mocker.patch.object(device_mod, "threading")
+
+    device = Se3SpaceMouse(Se3SpaceMouseCfg())
+
+    assert device._device_name == "SpaceMouse Wireless"
+    mock_environment["device"].open.assert_called_with(0x256F, 0xC62E)
+
+
+def test_spacemouse_open_failure_reports_permissions(mock_environment, mocker):
+    """When the only supported device cannot be opened, the error must explain why."""
+    mock_environment["hid"].enumerate.return_value = [{"product_string": "", "vendor_id": 0x256F, "product_id": 0xC635}]
+    mock_environment["device"].open.side_effect = OSError("open failed")
+    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
+    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+    mocker.patch.object(device_mod, "threading")
+    mocker.patch.object(device_mod.time, "sleep")
+
+    with pytest.raises(OSError) as exc_info:
+        Se3SpaceMouse(Se3SpaceMouseCfg())
+
+    message = str(exc_info.value)
+    assert "SpaceMouse Compact" in message
+    assert "/dev/bus/usb" in message
+
+
 def test_spacemouse_not_found_error_lists_enumerated_devices(mock_environment, mocker):
     """The error raised when no SpaceMouse is connected should help identify the problem."""
     mock_environment["hid"].enumerate.return_value = [{"product_string": "", "vendor_id": 0x046D, "product_id": 0xC52F}]
     device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
     mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+    mocker.patch.object(device_mod, "threading")
     mocker.patch.object(device_mod.time, "sleep")
 
     with pytest.raises(OSError) as exc_info:
