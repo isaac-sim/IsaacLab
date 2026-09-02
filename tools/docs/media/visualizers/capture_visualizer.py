@@ -563,7 +563,8 @@ def _follow_camera(env, env_ids) -> None:
             for i in range(3)
         )
         trend = tuple(
-            _HERO_CAMERA_SMOOTHING_BETA * (level[i] - prev_level[i]) + (1.0 - _HERO_CAMERA_SMOOTHING_BETA) * prev_trend[i]
+            _HERO_CAMERA_SMOOTHING_BETA * (level[i] - prev_level[i])
+            + (1.0 - _HERO_CAMERA_SMOOTHING_BETA) * prev_trend[i]
             for i in range(3)
         )
     else:
@@ -708,7 +709,9 @@ def configure_playback_hero() -> list[str]:
     """Register the tile capture config and preserve Hydra arguments."""
     task = argument_value("--task")
     if task != _HERO_TASK:
-        raise ValueError(f"capture_visualizer's hero pipeline is only configured for task {_HERO_TASK!r}, got {task!r}.")
+        raise ValueError(
+            f"capture_visualizer's hero pipeline is only configured for task {_HERO_TASK!r}, got {task!r}."
+        )
     gym.spec(task).kwargs["env_cfg_entry_point"] = "capture_visualizer:AnymalDTileCaptureCfg"
     return sys.argv[1:]
 
