@@ -194,6 +194,7 @@
         task: "Isaac-Cartpole",
         benchmarkWorkload: "runtime",
     };
+    const rlLibraryExtras = {rl_games: "rl-games", sb3: "sb3", skrl: "skrl", rlinf: "rlinf"};
     let benchmarkRows = [];
 
     const categoryFor = (task) => {
@@ -311,10 +312,13 @@
         if (fields.physics.value === "isaacsim_physx" || fields.renderer.value === "isaacsim_rtx") {
             extras.push("isaacsim");
         }
+        if (rlLibraryExtras[fields.rl.value]) {
+            extras.push(rlLibraryExtras[fields.rl.value]);
+        }
 
         const parts = ["uv", "run"];
-        for (const extra of extras) {
-            parts.push("--extra", extra);
+        if (extras.length) {
+            parts.push("--extra", extras.join(","));
         }
         const task = selectedTask();
         const supportsRl = task.rl.length > 0;
