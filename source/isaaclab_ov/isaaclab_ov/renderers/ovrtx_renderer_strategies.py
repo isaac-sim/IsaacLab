@@ -259,7 +259,7 @@ class _AsyncRenderStrategy(_RenderStrategy):
     _NUM_SLOTS = 2
 
     # One frame of camera latency. The ring holds one more render because a frame is drained only
-    # after the next one is enqueued. Deeper queues measured no benefit, so they stay unsupported.
+    # after the next one is enqueued. Deeper queues are not supported.
     _LATENCY_FRAMES = 1
 
     @classmethod
