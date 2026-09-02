@@ -46,10 +46,6 @@ def command_new(new_args: list[str]) -> None:
         new_args: Arguments forwarded to the template generator CLI.
     """
 
-    print_info("Installing template dependencies...")
-    reqs = ISAACLAB_ROOT / "tools" / "template" / "requirements.txt"
-    run_python_command("pip", ["install", "-q", "-r", str(reqs)], is_module=True)
-
     print_info("Running template generator...")
     cli_script = ISAACLAB_ROOT / "tools" / "template" / "cli.py"
     run_python_command(cli_script, new_args)

@@ -13,14 +13,14 @@ import rich.console
 import rich.table
 from common import ROOT_DIR
 from generator import generate, get_algorithms_per_rl_library
-from InquirerPy import inquirer, separator
+from rich.prompt import Prompt
 
 
 class CLIHandler:
     """CLI handler for the Isaac Lab template."""
 
-    def __init__(self):
-        self.console = rich.console.Console()
+    def __init__(self, console: rich.console.Console | None = None):
+        self.console = console if console is not None else rich.console.Console()
 
     @staticmethod
     def get_choices(choices: list[str], default: list[str]) -> list[str]:
@@ -49,15 +49,9 @@ class CLIHandler:
         Returns:
             str: The selected choice.
         """
-        return inquirer.select(
-            message=message,
-            choices=choices,
-            cycle=True,
-            default=default,
-            style=None,
-            wrap_lines=True,
-            long_instruction=long_instruction,
-        ).execute()
+        if long_instruction:
+            self.console.print(long_instruction, markup=False)
+        return self._ask(message, choices=choices, default=default)
 
     def input_checkbox(self, message: str, choices: list[str], default: str | None = None) -> list[str]:
         """Prompt the user to select one or more options from a list of choices.
@@ -71,23 +65,26 @@ class CLIHandler:
             The selected choices.
         """
 
-        def transformer(result: list[str]) -> str:
-            if "all" in result or "both" in result:
-                token = "all" if "all" in result else "both"
-                return f"{token} ({', '.join(choices[: choices.index('---')])})"
-            return ", ".join(result)
+        selectable_choices = [choice for choice in choices if choice != "---"]
+        for index, choice in enumerate(selectable_choices, start=1):
+            self.console.print(f"  [cyan]{index}[/cyan].", choice)
 
-        return inquirer.checkbox(
-            message=message,
-            choices=[separator.Separator() if "---" in item else item for item in choices],
-            cycle=True,
-            default=default,
-            style=None,
-            wrap_lines=True,
-            validate=lambda result: len(result) >= 1,
-            invalid_message="No option selected (SPACE: select/deselect an option, ENTER: confirm selection)",
-            transformer=transformer,
-        ).execute()
+        default_index = None
+        if default is not None and default in selectable_choices:
+            default_index = str(selectable_choices.index(default) + 1)
+
+        while True:
+            response = self._ask(
+                f"{message} Enter comma-separated numbers",
+                default=default_index,
+            )
+            try:
+                indices = [int(token.strip()) for token in response.split(",")]
+            except ValueError:
+                indices = []
+            if indices and all(1 <= index <= len(selectable_choices) for index in indices):
+                return list(dict.fromkeys(selectable_choices[index - 1] for index in indices))
+            self.console.print("Enter one or more valid numbers separated by commas.", style="red")
 
     def input_path(
         self,
@@ -107,12 +104,7 @@ class CLIHandler:
         Returns:
             The input path.
         """
-        return inquirer.filepath(
-            message=message,
-            default=default if default is not None else "",
-            validate=validate,
-            invalid_message=invalid_message,
-        ).execute()
+        return self._input_value(message, default, validate, invalid_message)
 
     def input_text(
         self,
@@ -132,12 +124,33 @@ class CLIHandler:
         Returns:
             The input text.
         """
-        return inquirer.text(
-            message=message,
-            default=default if default is not None else "",
-            validate=validate,
-            invalid_message=invalid_message,
-        ).execute()
+        return self._input_value(message, default, validate, invalid_message)
+
+    def _ask(
+        self,
+        message: str,
+        choices: list[str] | None = None,
+        default: str | None = None,
+    ) -> str:
+        """Prompt for a string with optional choices and default value."""
+        kwargs = {"console": self.console, "choices": choices, "case_sensitive": False}
+        if default is not None:
+            kwargs["default"] = default
+        return Prompt.ask(message.removesuffix(":"), **kwargs)
+
+    def _input_value(
+        self,
+        message: str,
+        default: str | None,
+        validate: Callable[[str], bool] | None,
+        invalid_message: str,
+    ) -> str:
+        """Prompt until the entered value passes validation."""
+        while True:
+            value = self._ask(message, default=default)
+            if validate is None or validate(value):
+                return value
+            self.console.print(invalid_message or "Invalid input.", style="red")
 
 
 class State(str, enum.Enum):
