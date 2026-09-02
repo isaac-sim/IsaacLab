@@ -14,7 +14,6 @@ isaaclab.renderers
 
   .. autosummary::
 
-    async_rendering_enabled_from_env
     resolve_async_rendering_enabled
     warn_unsupported_async_rendering
 
@@ -79,7 +78,5 @@ below. Only the OVRTX renderer implements the pipelined path.
    camera that a given task may not define.
 
 .. autofunction:: resolve_async_rendering_enabled
-
-.. autofunction:: async_rendering_enabled_from_env
 
 .. autofunction:: warn_unsupported_async_rendering

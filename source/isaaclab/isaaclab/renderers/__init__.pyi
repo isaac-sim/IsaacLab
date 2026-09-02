@@ -11,7 +11,6 @@ __all__ = [
     "RenderBufferSpec",
     "RendererCfg",
     "RenderContext",
-    "async_rendering_enabled_from_env",
     "resolve_async_rendering_enabled",
     "warn_unsupported_async_rendering",
 ]
@@ -22,7 +21,6 @@ from .output_contract import RenderBufferKind, RenderBufferSpec
 from .renderer_cfg import (
     ASYNC_RENDERING_ENV_VAR,
     RendererCfg,
-    async_rendering_enabled_from_env,
     resolve_async_rendering_enabled,
     warn_unsupported_async_rendering,
 )

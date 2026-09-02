@@ -26,9 +26,6 @@ other value raises ``ValueError``. Set it to exercise the asynchronous path with
 camera that a given task may not define.
 """
 
-_FALSE_SPELLINGS = ("0", "false", "no", "off")
-_TRUE_SPELLINGS = ("1", "true", "yes", "on")
-
 
 @configclass
 class RendererCfg:
@@ -49,56 +46,22 @@ class RendererCfg:
     """
 
 
-def _parse_async_rendering_enabled(value: bool | int | str) -> bool:
-    """Normalize an :attr:`RendererCfg.async_rendering` value to a flag.
-
-    Args:
-        value: A boolean, ``0``/``1``, or a string spelling of either.
-
-    Returns:
-        Whether asynchronous rendering is enabled.
-
-    Raises:
-        ValueError: If ``value`` is not a recognized boolean spelling. Frame counts above one are
-            rejected explicitly: multi-frame latency is not supported yet.
-    """
-    # ``bool`` is a subclass of ``int``, so it has to be matched before the integer case.
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, int):
-        if value in (0, 1):
-            return bool(value)
-        raise ValueError(f"async rendering is a flag; multi-frame latency ({value}) is not supported yet")
-    if isinstance(value, str):
-        text = value.strip().lower()
-        if text in _FALSE_SPELLINGS:
-            return False
-        if text in _TRUE_SPELLINGS:
-            return True
-    raise ValueError(f"async rendering expects a boolean spelling, got {value!r}")
-
-
-def async_rendering_enabled_from_env() -> bool | None:
-    """Return the :data:`ASYNC_RENDERING_ENV_VAR` override.
-
-    Returns:
-        The override flag, or ``None`` when the variable is unset or empty.
-
-    Raises:
-        ValueError: If the variable holds an unrecognized boolean spelling. A silently ignored
-            typo would degrade an intended asynchronous run to a synchronous one.
-    """
-    raw = os.environ.get(ASYNC_RENDERING_ENV_VAR)
-    if raw is None or raw.strip() == "":
-        return None
-    return _parse_async_rendering_enabled(raw)
+# TODO: IsaacLab hand-rolls parsing like this for several boolean environment variables and
+# configuration values. Replace these copies with one shared argument-parsing helper.
+def _parse_flag(value: bool | int | str) -> bool:
+    """Normalize a flag value, accepting the usual boolean spellings."""
+    text = str(value).strip().lower()
+    if text in ("1", "true", "yes", "on"):
+        return True
+    if text in ("0", "false", "no", "off"):
+        return False
+    raise ValueError(
+        f"async rendering expects a boolean spelling, got {value!r}. Frame counts above one are not supported yet."
+    )
 
 
 def resolve_async_rendering_enabled(cfg: RendererCfg) -> bool:
     """Return whether ``cfg`` asks for asynchronous rendering, honoring :data:`ASYNC_RENDERING_ENV_VAR`.
-
-    The configuration value is validated even when the environment variable overrides it. An
-    invalid configuration therefore fails the same way in every environment.
 
     Args:
         cfg: Renderer configuration to read :attr:`RendererCfg.async_rendering` from.
@@ -108,11 +71,12 @@ def resolve_async_rendering_enabled(cfg: RendererCfg) -> bool:
 
     Raises:
         ValueError: If the configuration value or the environment variable is not a recognized
-            boolean spelling.
+            boolean spelling. The configuration value is validated even when the environment
+            variable overrides it, so an invalid configuration fails in every environment.
     """
-    enabled = _parse_async_rendering_enabled(cfg.async_rendering)
-    override = async_rendering_enabled_from_env()
-    return enabled if override is None else override
+    enabled = _parse_flag(cfg.async_rendering)
+    override = os.environ.get(ASYNC_RENDERING_ENV_VAR, "").strip()
+    return _parse_flag(override) if override else enabled
 
 
 def warn_unsupported_async_rendering(cfg: RendererCfg, renderer_name: str) -> None:

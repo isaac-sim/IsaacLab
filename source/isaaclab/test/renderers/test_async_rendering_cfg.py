@@ -12,7 +12,6 @@ import pytest
 from isaaclab.renderers import (
     ASYNC_RENDERING_ENV_VAR,
     RendererCfg,
-    async_rendering_enabled_from_env,
     resolve_async_rendering_enabled,
     warn_unsupported_async_rendering,
 )
@@ -58,14 +57,15 @@ def test_untyped_cfg_value_raises_the_documented_error(value):
 def test_env_var_spellings(raw, expected, monkeypatch):
     monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, raw)
 
-    assert async_rendering_enabled_from_env() is expected
+    assert resolve_async_rendering_enabled(RendererCfg(async_rendering=not expected)) is expected
 
 
 @pytest.mark.parametrize("raw", ["", "   "])
 def test_empty_env_var_means_unset(raw, monkeypatch):
+    """An empty variable leaves the configured value in effect."""
     monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, raw)
 
-    assert async_rendering_enabled_from_env() is None
+    assert resolve_async_rendering_enabled(RendererCfg(async_rendering=True)) is True
 
 
 @pytest.mark.parametrize("raw", ["banana", "1.5", "-1", "3", "yes please"])
@@ -74,7 +74,7 @@ def test_invalid_env_var_raises(raw, monkeypatch):
     monkeypatch.setenv(ASYNC_RENDERING_ENV_VAR, raw)
 
     with pytest.raises(ValueError):
-        async_rendering_enabled_from_env()
+        resolve_async_rendering_enabled(RendererCfg())
 
 
 def test_env_var_overrides_cfg(monkeypatch):
