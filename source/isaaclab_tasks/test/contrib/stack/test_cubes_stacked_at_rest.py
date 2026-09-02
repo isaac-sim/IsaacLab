@@ -11,11 +11,6 @@ configuration on the way down, so without an at-rest requirement a drop scores a
 stack. These tests drive the function with hand-built scene objects: no gym.make, USD, or physics.
 """
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 from types import SimpleNamespace
 
 import pytest
