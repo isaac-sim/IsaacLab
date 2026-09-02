@@ -108,7 +108,13 @@ class AgileBasedLowerBodyAction(ActionTerm):
         # Compose policy input using helper function
         policy_input = self._compose_policy_input(base_command, obs_tensor)
 
-        joint_actions = self._policy.forward(policy_input)
+        # The locomotion policy is frozen and used for inference only. Run it under ``no_grad``:
+        # its output feeds ``set_joint_position_target_index``, and the Newton backend writes joint
+        # targets through Warp kernels, which reject a tensor that requires grad
+        # ("Can't get __cuda_array_interface__ on Variable that requires grad"). PhysX writes
+        # through torch and does not hit this.
+        with torch.no_grad():
+            joint_actions = self._policy.forward(policy_input)
 
         self._raw_actions[:] = joint_actions
 

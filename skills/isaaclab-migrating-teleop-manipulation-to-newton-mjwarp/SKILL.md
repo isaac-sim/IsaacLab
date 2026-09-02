@@ -198,6 +198,72 @@ asset, not as a reason to sweep harder.**
 with `collision_cfg` (clear it with `collision_cfg=null`; Hydra's `~key` delete does not work
 here).
 
+## Per-Asset Checks That Are Not Universal
+
+Several steps above are *checks*, not mandatory edits. Confirm each against the asset in front of
+you rather than copying another port:
+
+* **Hand colliders may already be correct.** GR1T2's finger links import as `CONVEX_MESH` and need
+  the fix above; G1's TriHand links already import as `MESH`. Probe `shape_type` before editing.
+* **Gravity handling depends on the base.** A fixed-base humanoid can use
+  `MujocoRigidBodyPropertiesCfg(disable_gravity=True, gravcomp=1.0)`. A *locomanipulation* robot
+  walks, so its lower-body policy needs real ground contact -- copying the fixed-base trick breaks
+  locomotion.
+* **Solver profile follows the task, not the robot.** Use the locomotion profile (pyramidal cone,
+  `impratio=1`) for walking tasks and the dexterous profile (elliptic, `impratio=10`) for
+  fixed-base manipulation, then raise the contact budget for the extra bodies.
+
+## Contact Sensors: Validate Patterns Against Newton Labels
+
+`ContactSensorCfg.prim_path` is a regex. PhysX resolves it against USD prim paths; **Newton
+matches it against the model's body labels**, which preserve the asset's intermediate grouping
+prims. A pattern written for PhysX can match nothing under MJWarp, and sensor init then fails the
+whole env build:
+
+```
+ValueError: No bodies matched the sensing object pattern(s).
+```
+
+Real example: the G1 hands nest under a grouping prim, so the Newton label is
+`/Robot/left_hand/left_hand_index_0_link` while the task's pattern was
+`/Robot/left_hand_[^/]*_link`. `[^/]*` cannot cross a path separator, so nothing matched. Preset
+the corrected pattern for `newton_mjwarp` and leave the PhysX one alone.
+
+Dump the labels before writing a pattern:
+
+```python
+from isaaclab_newton.physics import NewtonManager as NM
+
+print([lbl for lbl in NM.get_model().body_label if "hand" in lbl])
+```
+
+Note the articulation's `data.body_names` are short names and will *not* reveal this -- they look
+matchable when the labels are not.
+
+## Policy-Driven Action Terms Must Detach
+
+Newton writes joint targets through Warp kernels, which reject a torch tensor that requires grad:
+
+```
+RuntimeError: Can't get __cuda_array_interface__ on Variable that requires grad
+```
+
+Any action term that runs a pretrained policy (a locomotion policy wrapped by a locomanipulation
+task, for instance) must run inference under `torch.no_grad()` or detach its output. PhysX writes
+through torch and never trips this, so the bug is invisible until the port. It surfaces on the
+first `env.step`, not at construction.
+
+## Standalone Probes Need Cameras When The Env Has One
+
+Launching a probe with `AppLauncher(args_cli, enable_cameras=False)` against an env that carries a
+camera fails deep in the render graph with a message that never mentions cameras:
+
+```
+ValueError: Invalid object in Py_Graph in getWrappedGraphFromNode
+```
+
+Use `enable_cameras=True` in probes for camera-bearing envs, or strip the camera from the cfg.
+
 ## Benchmarking Without Fooling Yourself
 
 Use the CI replay harness as the metric and respect its variance.
@@ -247,8 +313,10 @@ Beware clamping when interpreting synthetic actions: a uniform `+1.0` on joints 
 5. A hard `sim.reset()` followed by a commanded motion stays finite.
 6. In teleop, the two hands' fingertips touch without visible interpenetration.
 7. In teleop, the object can be grasped, carried and released without sticking.
-8. Replay success at n=20 sits within a stated margin of the PhysX baseline, both measured one
-   process at a time with the CI timeout.
+8. Contact-sensor patterns match actual Newton body labels, not just USD paths.
+9. Any policy-driven action term runs under `no_grad` or detaches.
+10. Replay success at n=20 sits within a stated margin of the PhysX baseline, both measured one
+    process at a time with the CI timeout.
 
 ## References
 
