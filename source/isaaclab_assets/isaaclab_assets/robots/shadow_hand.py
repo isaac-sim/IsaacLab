@@ -16,8 +16,6 @@ Reference:
 
 """
 
-import os
-
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
@@ -57,16 +55,9 @@ cannot reach them.
 TENDON_POSITION_LIMITS = (0.0, 3.1415)
 """Commandable range of each tendon motor [rad].
 
-The asset's value: each tendon actuator authors ``mjc:ctrlRange:max = 3.1415``, which is pi to
-four decimals. It is pi by construction rather than by choice -- the coordinate is
-``J0 = J1 + J2`` and each of those joints travels ``[0, pi/2]``, so their sum spans ``[0, pi]``.
-That matches the hardware: the hand's middle and distal joints each move through 90 degrees on one
-tendon.
-
-Restated here because no *runtime* accessor reports it on both backends. The tendons carry no
-position limit of their own -- MEASURED, ``mujoco.tendon_limited`` is ``2`` (MuJoCo's "auto") and
-``mujoco.tendon_range`` is all zeros -- so ``fixed_tendon_pos_limits`` reads zeros. What bounds
-the command is the actuator's control range, which the MuJoCo backend exposes and PhysX does not.
+The asset's tendon actuators author ``mjc:ctrlRange:max = 3.1415``: ``J0 = J1 + J2`` with each
+joint spanning ``[0, pi/2]``. Restated here because the tendons carry no position limit of their
+own and only the MuJoCo backend exposes the actuator's control range.
 """
 
 FINGERTIP_NAMES = [
@@ -80,12 +71,9 @@ FINGERTIP_NAMES = [
 
 SHADOW_HAND_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        # The published asset must carry the four PhysX tendon schemas the mujoco variant
-        # expresses as MjcTendon prims, and a world weld; MEASURED, an asset without them
-        # gives fixed_base=False tendons=0 where this expects fixed_base=True tendons=4.
-        usd_path=os.environ.get(
-            "SHADOW_HAND_USD",
-            f"{ISAAC_NUCLEUS_DIR}/Robots_Multiphysics/ShadowRobot/ShadowHandMultiPhysics_v0/right_hand/right_hand.usda",
+        # the asset carries the four PhysX tendon schemas and a world weld (fixed_base=True, tendons=4)
+        usd_path=(
+            f"{ISAAC_NUCLEUS_DIR}/Robots_Multiphysics/ShadowRobot/ShadowHandMultiPhysics_v0/right_hand/right_hand.usda"
         ),
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,
@@ -95,8 +83,7 @@ SHADOW_HAND_CFG = ArticulationCfg(
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=True,
-                # MEASURED: without these the hand reaches non-finite observations at iteration
-                # 49 (reorient) and 3 (handover). The scene-level clamp does not substitute.
+                # without these the hand reaches non-finite observations early in training
                 solver_position_iteration_count=8,
                 solver_velocity_iteration_count=0,
                 sleep_threshold=0.005,
@@ -107,16 +94,11 @@ SHADOW_HAND_CFG = ArticulationCfg(
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.5),
-        # Newton's importer cancels the root xform during FK, so the orientation is re-applied.
-        # MEASURED: of the 24 axis-aligned orientations this is 33 mm from the reference pose and
-        # every other is 545-615 mm. One rotation serves both engines; the palm lands at the same
-        # env-local (0.0, -0.247, 0.51) on each.
+        # Newton's importer cancels the root xform during FK, so the orientation is re-applied here for both engines
         rot=(0.0, 0.0, -0.70710678118, 0.70710678118),
         joint_pos={".*": 0.0},
     ),
-    # Each backend enumerates differently -- MEASURED, index 3 is rh_FFJ3 on Newton and rh_MFJ4
-    # on PhysX, and a policy moved across scores 0.0005 against a 0.6165 native baseline.
-    # Newton's order is the public one, so PhysX permutes to match.
+    # backends enumerate joints and bodies differently; Newton's order is the public one
     joint_ordering="mjwarp",
     body_ordering="mjwarp",
     actuators={
@@ -142,25 +124,20 @@ SHADOW_HAND_CFG = ArticulationCfg(
                 "rh_THJ2": 1.5,
                 "rh_THJ1": 1.0,
             },
-            # MEASURED: these joints do not inherit the model's damping (only the tendon-coupled
-            # J1/J2 do), and stiffness without damping rings rather than settles.
+            # these joints do not inherit the model's damping; without it the stiffness rings
             damping={"rh_WRJ.*": 0.5, "rh_(FF|MF|RF|LF|TH)J.*": 0.1},
-            # The asset's own values, restated because they do not survive import -- MEASURED,
-            # leaving them None lands every joint at 0.0 where stiffness and damping do survive.
+            # the asset's own values, restated because they do not survive import
             armature=2.0e-4,
             friction=1.0e-2,
         ),
         "tendon_joints": ImplicitActuatorCfg(
             joint_names_expr=["rh_(FF|MF|RF|LF)J(2|1)"],
-            # A PhysX fixed tendon has no force range, so the joint's effort limit is where the
-            # model's cap lives. MEASURED: unset, these eight land at 3.4e38 while every directly
-            # driven joint gets 1-10 N-m.
+            # a PhysX fixed tendon has no force range, so the model's cap lives on the joint effort limit
             joint_effort_limit={
                 "rh_(FF|MF|RF|LF)J2": 0.9,
                 "rh_(FF|MF|RF|LF)J1": 0.7245,
             },
-            # The tendon drives these, so stiffness and damping stay as authored (None keeps the
-            # USD value); armature and friction are restated because they do not survive import.
+            # the tendon drives these: gains stay as authored, armature and friction do not survive import
             stiffness=None,
             damping=None,
             armature=2.0e-4,
