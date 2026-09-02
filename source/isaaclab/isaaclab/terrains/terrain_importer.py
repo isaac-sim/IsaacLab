@@ -113,12 +113,7 @@ class TerrainImporter:
             # configure the origins in a grid
             self.configure_env_origins()
         elif self.cfg.terrain_type == "plane":
-            # Size the visual mesh to the environment grid. The collision plane remains infinite.
-            num_rows = int(np.ceil(self.cfg.num_envs / np.sqrt(self.cfg.num_envs)))
-            num_cols = int(np.ceil(self.cfg.num_envs / num_rows))
-            spacing = self.cfg.env_spacing or 0.0
-            size = (max(100.0, (num_rows + 1) * spacing), max(100.0, (num_cols + 1) * spacing))
-            self.import_ground_plane("terrain", size=size)
+            self.import_ground_plane("terrain")
             # configure the origins in a grid
             self.configure_env_origins()
         else:
@@ -196,13 +191,14 @@ class TerrainImporter:
     Operations - Import.
     """
 
-    def import_ground_plane(self, name: str, size: tuple[float, float] = (2.0e6, 2.0e6)):
+    def import_ground_plane(self, name: str, size: tuple[float, float] | None = None):
         """Add a plane to the terrain importer.
 
         Args:
             name: The name of the imported terrain. This name is used to create the USD prim
                 corresponding to the terrain.
-            size: The size of the plane. Defaults to (2.0e6, 2.0e6).
+            size: The visual size of the plane [m]. If None, the visual mesh covers the configured
+                environment grid with a 100 m minimum. The collision plane remains infinite.
 
         Raises:
             ValueError: If a terrain with the same name already exists.
@@ -216,6 +212,9 @@ class TerrainImporter:
             )
         # store the mesh name
         self.terrain_prim_paths.append(prim_path)
+
+        if size is None:
+            size = self._compute_ground_plane_size()
 
         # obtain ground plane color from the configured visual material
         color = None
@@ -257,16 +256,17 @@ class TerrainImporter:
         # store the mesh name
         self.terrain_prim_paths.append(prim_path)
 
-        # Preserve the historical dark material for generated terrains while allowing plane terrains
-        # to keep the ground plane's authored appearance by default.
-        visual_material = self.cfg.visual_material
-        if visual_material is None and self.cfg.terrain_type == "generator":
-            visual_material = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0))
-
         # import the mesh
         create_prim_from_mesh(
-            prim_path, mesh, visual_material=visual_material, physics_material=self.cfg.physics_material
+            prim_path, mesh, visual_material=self.cfg.visual_material, physics_material=self.cfg.physics_material
         )
+
+    def _compute_ground_plane_size(self) -> tuple[float, float]:
+        """Compute a bounded visual plane size that covers the environment grid [m]."""
+        num_rows = int(np.ceil(self.cfg.num_envs / np.sqrt(self.cfg.num_envs)))
+        num_cols = int(np.ceil(self.cfg.num_envs / num_rows))
+        spacing = self.cfg.env_spacing or 0.0
+        return (max(100.0, (num_rows + 1) * spacing), max(100.0, (num_cols + 1) * spacing))
 
     def _is_heightfield_collider_requested(self, cfg: TerrainGeneratorCfg) -> bool:
         """Check whether the generated terrain should be collided against as a heightfield.

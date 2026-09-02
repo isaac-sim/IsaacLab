@@ -96,6 +96,21 @@ def test_terrain_generation(device):
         assert actualSize[1] == pytest.approx(expectedSizeY)
 
 
+def test_visual_material_defaults():
+    """Resolves omitted visual materials by terrain type while preserving an explicit None."""
+    generator_cfg = TerrainImporterCfg(prim_path="/World/generated", terrain_type="generator")
+    assert isinstance(generator_cfg.visual_material, PreviewSurfaceCfg)
+    assert generator_cfg.visual_material.diffuse_color == (0.0, 0.0, 0.0)
+
+    plane_cfg = TerrainImporterCfg(prim_path="/World/plane", terrain_type="plane")
+    assert plane_cfg.visual_material is None
+
+    unmaterialized_generator_cfg = TerrainImporterCfg(
+        prim_path="/World/unmaterialized", terrain_type="generator", visual_material=None
+    )
+    assert unmaterialized_generator_cfg.visual_material is None
+
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("use_custom_material", [True, False])
 def test_plane(device, use_custom_material):
@@ -124,6 +139,20 @@ def test_plane(device, use_custom_material):
         assert tuple(environment.GetAttribute("xformOp:scale").Get()) == pytest.approx((2.6, 2.6, 1.0))
         visual_mesh = UsdGeom.Mesh(sim.stage.GetPrimAtPath(f"{mesh_prim_path}/Environment/Geometry"))
         assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(visual_mesh).GetPrimvar("st").Get()] == [
+            (-26.0, -26.0),
+            (26.0, -26.0),
+            (26.0, 26.0),
+            (-26.0, 26.0),
+        ]
+
+        # Direct imports use the same bounded default instead of the legacy 2,000 km visual mesh.
+        terrain_importer.import_ground_plane("direct")
+        direct_environment = sim.stage.GetPrimAtPath(f"{terrain_importer.cfg.prim_path}/direct/Environment")
+        assert tuple(direct_environment.GetAttribute("xformOp:scale").Get()) == pytest.approx((2.6, 2.6, 1.0))
+        direct_mesh = UsdGeom.Mesh(
+            sim.stage.GetPrimAtPath(f"{terrain_importer.cfg.prim_path}/direct/Environment/Geometry")
+        )
+        assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(direct_mesh).GetPrimvar("st").Get()] == [
             (-26.0, -26.0),
             (26.0, -26.0),
             (26.0, 26.0),
