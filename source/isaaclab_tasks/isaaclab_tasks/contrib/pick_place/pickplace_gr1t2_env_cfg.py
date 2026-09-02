@@ -320,7 +320,7 @@ def _spawn_steering_wheel_for_mjwarp(
     Returns:
         The spawned source prim.
     """
-    from pxr import Usd, UsdGeom  # noqa: PLC0415
+    from pxr import Usd, UsdGeom, UsdPhysics  # noqa: PLC0415
 
     prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
 
@@ -330,6 +330,15 @@ def _spawn_steering_wheel_for_mjwarp(
         if not root.IsValid():
             continue
         for mesh_prim in Usd.PrimRange(root):
+            if mesh_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                # The asset authors no mass, so each backend derives one from its own collision
+                # volume. Hulling the detail meshes above changes that volume, and Newton lands on
+                # 0.2812 kg where PhysX resolves 0.5845 kg -- the capture was recorded against the
+                # PhysX value, so the replayed forces are tuned for a wheel twice this heavy.
+                # ``MassPropertiesCfg`` on the spawn cfg cannot express this: the rigid body is a
+                # nested prim, not the spawn root, so the authored mass never reaches it.
+                mass_api = UsdPhysics.MassAPI.Apply(mesh_prim)
+                mass_api.CreateMassAttr().Set(_STEERING_WHEEL_MASS)
             if not mesh_prim.IsA(UsdGeom.Mesh) or mesh_prim.GetName() in _STEERING_WHEEL_DECOMPOSED_MESHES:
                 continue
             approximation = mesh_prim.GetAttribute("physics:approximation")
@@ -456,6 +465,14 @@ def _gr1t2_actuators():
 # sits at y = 0.55, so these are centred on that in the proxy below.
 _PACKING_TABLE_COLLIDER_SIZE = (2.4736, 0.762, 0.9941)
 _PACKING_TABLE_COLLIDER_POS = (0.0, 0.55, 0.49705)
+
+
+# The wheel authors no mass, so each backend derives one from its own collision volume and the
+# two disagree: PhysX resolves 0.5845 kg, Newton 0.2812 kg (2.08x lighter, with inertia off by the
+# same factor rather than by a power of the 0.75 scale -- so this is a volume difference from the
+# convex-hull approximation, not a dropped scale). The recorded demo was captured against the PhysX
+# value, so author it explicitly to keep the two backends on the same object. [kg]
+_STEERING_WHEEL_MASS = 0.5845
 
 
 def _steering_wheel_spawn(func=None) -> UsdFileCfg:
