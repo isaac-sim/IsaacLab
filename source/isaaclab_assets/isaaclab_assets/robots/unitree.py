@@ -387,6 +387,137 @@ This configuration removes most collision meshes to speed up simulation.
 """
 
 
+G1_29DOF_VELOCITY_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
+        activate_contact_sensors=True,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False,
+            retain_accelerations=False,
+            linear_damping=0.0,
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=1.0,
+        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=4
+        ),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        # 0.793 rather than the 0.74 of ``G1_CFG``: pelvis-to-ankle is 0.7429 m on this robot
+        # against 0.6865 m on the superseded one, so the old height buries the feet in the
+        # ground plane and the solver answers by launching the robot upward.
+        pos=(0.0, 0.0, 0.793),
+        joint_pos={
+            ".*_hip_pitch_joint": -0.20,
+            ".*_knee_joint": 0.42,
+            ".*_ankle_pitch_joint": -0.23,
+            # ``elbow_pitch``/``elbow_roll`` on the superseded asset; this robot splits them
+            # into ``elbow``/``wrist_roll``, which is what the hardware calls them.
+            ".*_elbow_joint": 0.87,
+            "left_shoulder_roll_joint": 0.16,
+            "left_shoulder_pitch_joint": 0.35,
+            "right_shoulder_roll_joint": -0.16,
+            "right_shoulder_pitch_joint": 0.35,
+        },
+        joint_vel={".*": 0.0},
+    ),
+    soft_joint_pos_limit_factor=0.9,
+    actuators={
+        "legs": ImplicitActuatorCfg(
+            joint_names_expr=[
+                ".*_hip_yaw_joint",
+                ".*_hip_roll_joint",
+                ".*_hip_pitch_joint",
+                ".*_knee_joint",
+                "waist_yaw_joint",  # ``torso_joint`` on the superseded asset
+            ],
+            effort_limit_sim=300,
+            stiffness={
+                ".*_hip_yaw_joint": 150.0,
+                ".*_hip_roll_joint": 150.0,
+                ".*_hip_pitch_joint": 200.0,
+                ".*_knee_joint": 200.0,
+                "waist_yaw_joint": 200.0,
+            },
+            damping={
+                ".*_hip_yaw_joint": 5.0,
+                ".*_hip_roll_joint": 5.0,
+                ".*_hip_pitch_joint": 5.0,
+                ".*_knee_joint": 5.0,
+                "waist_yaw_joint": 5.0,
+            },
+            armature={
+                ".*_hip_.*": 0.01,
+                ".*_knee_joint": 0.01,
+                "waist_yaw_joint": 0.01,
+            },
+        ),
+        "feet": ImplicitActuatorCfg(
+            effort_limit_sim=20,
+            joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
+            stiffness=20.0,
+            damping=2.0,
+            armature=0.01,
+        ),
+        "waist": ImplicitActuatorCfg(
+            # Absent from the superseded asset, which is why ``G1_CFG`` has no group for them.
+            joint_names_expr=["waist_roll_joint", "waist_pitch_joint"],
+            effort_limit_sim=50.0,
+            stiffness=200.0,
+            damping=5.0,
+            armature=0.01,
+        ),
+        "arms": ImplicitActuatorCfg(
+            joint_names_expr=[
+                ".*_shoulder_pitch_joint",
+                ".*_shoulder_roll_joint",
+                ".*_shoulder_yaw_joint",
+                ".*_elbow_joint",
+                ".*_wrist_roll_joint",
+                ".*_wrist_pitch_joint",  # absent from the superseded asset
+                ".*_wrist_yaw_joint",  # absent from the superseded asset
+            ],
+            effort_limit_sim=300,
+            stiffness=40.0,
+            damping=10.0,
+            armature=0.01,
+        ),
+        "hands": ImplicitActuatorCfg(
+            # Dex3 fingers, named ``.*_zero/one/two/three/four/five/six_joint`` on the
+            # superseded asset. The gains match what ``G1_CFG`` gives its fingers.
+            joint_names_expr=[".*_hand_.*_joint"],
+            effort_limit_sim=300,
+            stiffness=40.0,
+            damping=10.0,
+            armature=0.001,
+        ),
+    },
+)
+"""Configuration for the Unitree G1 29-DoF Humanoid robot, for velocity locomotion.
+
+The 29-DoF counterpart of :data:`G1_MINIMAL_CFG`: the same actuator groups and gains, carried over
+to the six joints the superseded robot does not have (waist roll and pitch, wrist pitch and yaw),
+on the asset NVIDIA ships today.
+
+Unlike ``g1_minimal.usd``, this asset carries collision geometry on the pelvis, both knees, the
+waist and both wrists, and a task that uses it needs a base-height constraint. Without one the
+robot rests weight on those colliders, the torso-contact termination never fires, and a crouched
+gait survives the full episode: measured on flat ground, ``success_rate`` 0.010 against 1.000 with
+a height term added.
+
+Trimming the collision set is not an optimization. Measured on ``Isaac-Velocity-Flat-G1-29Dof``
+with Newton MJWarp, 4096 environments, seed 42, 1500 iterations: ``Metrics/success_rate`` ends at
+0.010 with every authored collider active and 0.995 with this configuration, because the extra
+colliders stop the robot from lifting its feet.
+
+The joint names differ from :data:`G1_CFG`: ``torso_joint`` is ``waist_yaw_joint``, and
+``elbow_pitch_joint`` / ``elbow_roll_joint`` are ``elbow_joint`` / ``wrist_roll_joint``. Any
+reward, event or termination that spells a joint name has to be updated alongside the asset.
+"""
+
+
 G1_29DOF_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
