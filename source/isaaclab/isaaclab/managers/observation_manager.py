@@ -15,7 +15,7 @@ import numpy as np
 import torch
 from prettytable import PrettyTable
 
-from isaaclab.utils import class_to_dict, modifiers, noise
+from isaaclab.utils import class_to_dict, modifiers, noise, string_to_callable
 from isaaclab.utils.buffers import CircularBuffer
 
 from .manager_base import ManagerBase, ManagerTermBase
@@ -581,6 +581,9 @@ class ObservationManager(ManagerBase):
                     for mod_cfg in term_cfg.modifiers:
                         # check if class modifier and initialize with observation size when adding
                         if isinstance(mod_cfg, modifiers.ModifierCfg):
+                            # resolve string-based modifiers before checking whether they are classes
+                            if isinstance(mod_cfg.func, str):
+                                mod_cfg.func = string_to_callable(str(mod_cfg.func))
                             # to list of modifiers - instantiate class-based modifiers
                             if inspect.isclass(mod_cfg.func):
                                 mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
