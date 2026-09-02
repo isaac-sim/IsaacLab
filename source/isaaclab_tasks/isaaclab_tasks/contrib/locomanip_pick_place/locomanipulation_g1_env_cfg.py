@@ -384,7 +384,11 @@ class PhysicsCfg(PresetCfg):
             use_mujoco_contacts=False,
         ),
         collision_cfg=NewtonCollisionPipelineCfg(),
-        default_shape_cfg=NewtonShapeCfg(),
+        # Contact stiffness follows the Unitree locomotion presets rather than Newton's default
+        # ``ke=2.5e3``. A humanoid's weight on two feet sinks visibly into the default contact:
+        # the ankle links rest 2.2 cm lower than under PhysX and the lower-body policy never
+        # settles (joint speeds grow to ~22 rad/s where PhysX quiets to 0.2).
+        default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
         num_substeps=2,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)

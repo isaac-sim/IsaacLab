@@ -41,8 +41,15 @@ class AgileBasedLowerBodyAction(ActionTerm):
         self._policy = load_torchscript_model(_temp_policy_path, device=env.device)
         self._env = env
 
-        # Find joint ids for the lower body joints
-        joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names, as_proxy=True)
+        # Find joint ids for the lower body joints.
+        #
+        # The policy emits its targets in the order ``cfg.joint_names`` declares, so the resolved
+        # ids have to keep that order. Without ``preserve_order`` they come back in articulation
+        # order instead, and every target is applied to whichever joint the articulation happens
+        # to list in that slot. PhysX orders this robot's joints the same way the config lists
+        # them, so the mismatch is invisible there; Newton groups them differently and the robot
+        # falls over instead of standing.
+        joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names, preserve_order=True, as_proxy=True)
         self._joint_ids = joint_ids.torch
 
         # Get the scale and offset from the configuration

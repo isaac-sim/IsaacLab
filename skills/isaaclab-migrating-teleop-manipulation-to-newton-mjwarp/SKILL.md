@@ -294,6 +294,59 @@ ValueError: Invalid object in Py_Graph in getWrappedGraphFromNode
 
 Use `enable_cameras=True` in probes for camera-bearing envs, or strip the camera from the cfg.
 
+## Locomotion Tasks: Contact Stiffness Is Not Optional
+
+`NewtonShapeCfg()` defaults to `ke=2.5e3`. That is far too soft to carry a humanoid: measured on
+G1, the ankle links rested **2.2 cm lower** than under PhysX (0.014 vs 0.036) because the feet sank
+into the floor, and the lower-body policy never settled.
+
+Match the shape config to the locomotion presets, not just the solver config:
+
+```python
+default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0)
+```
+
+These are the values `core/velocity/velocity_env_cfg.py` uses for walking robots. Matching the
+*solver* profile (pyramidal cone, `impratio=1`) is not enough on its own -- the shape config is a
+separate knob and its default is tuned for light tabletop objects.
+
+Validate by stepping with zero actions and comparing foot-link height against PhysX. They should
+agree to a millimetre or two.
+
+## Joint Ordering In Policy-Driven Action Terms
+
+`find_joints()` returns ids in **articulation order** unless `preserve_order=True` is passed. A
+pretrained policy emits its targets in the order its config declares, so without `preserve_order`
+each target lands on whichever joint the articulation happens to list in that slot.
+
+PhysX often orders a robot's joints the same way the config lists them, which hides the bug
+completely; Newton groups them differently and it surfaces. This has now appeared twice in this
+repo -- once in the Pink IK hand-joint path and once in a locomotion action term -- so treat every
+`find_joints()` call that feeds ordered data as suspect:
+
+```python
+joint_ids, names = asset.find_joints(cfg.joint_names, preserve_order=True, as_proxy=True)
+```
+
+## Known Open Issue: G1 Locomanipulation Does Not Stand Under MJWarp
+
+Recorded so the next person does not re-derive it. With zero actions:
+
+| | PhysX | Newton |
+|---|---|---|
+| foot height, settled | 0.036, holds | 0.036 after the `ke` fix, then rises |
+| root height @ step 30 | 0.72, stable | 0.43 and falling |
+| `abs(qd)` max @ step 30 | 0.22 (quiet) | ~19 (flailing) |
+
+The contact-stiffness fix corrected the foot penetration but the robot still falls. Ruled out so
+far: ground-plane friction (defaults to 0.5, so not the zero-friction trap), foot sinking, joint
+ordering in the action term (`preserve_order` applied, no change), and non-finite state (all
+values stay finite).
+
+Remaining suspects, untested: the policy's observation terms reading differently under Newton
+(projected gravity, root velocities), the `DCMotorCfg` explicit actuator model behaving
+differently, or the locomotion solver profile needing more substeps for a 200 Hz task.
+
 ## Benchmarking Without Fooling Yourself
 
 Use the CI replay harness as the metric and respect its variance.
