@@ -6,6 +6,9 @@ Changed
   named differently. Both engines now spawn the hand at the same orientation; the previous assets
   needed two, because one baked a root orientation that the other did not.
 
+* Changed ``SHADOW_HAND_CFG`` to spawn the asset with its default ``Physics`` variant. Use
+  ``SHADOW_HAND_PHYSX_CFG`` or ``SHADOW_HAND_NEWTON_CFG`` to select an engine explicitly.
+
 Added
 ^^^^^
 
@@ -18,11 +21,11 @@ Added
 Removed
 ^^^^^^^
 
-* Removed ``SHADOW_ACTUATED_JOINT_NAMES``, ``SHADOW_TENDON_JOINT_NAMES`` and
-  ``SHADOW_PHYSX_TENDON_GEARING``. Use ``JOINT_NAMES`` and
-  ``TENDON_NAMES`` instead. Note that ``SHADOW_ACTUATED_JOINT_NAMES`` listed all
-  twenty motors, so code that fed it to ``find_joints`` was asking for four joints that do not
-  exist; ``JOINT_NAMES`` lists only the sixteen that drive a joint.
+* Removed ``SHADOW_ACTUATED_JOINT_NAMES``; use ``JOINT_NAMES`` for the sixteen joint-driving
+  motors and ``TENDON_NAMES`` for the four tendon-driving ones. The removed list named all twenty
+  motors, so code that fed it to ``find_joints`` was asking for four joints that do not exist.
+
+* Removed ``SHADOW_FINGERTIP_BODY_NAMES``; use ``FINGERTIP_NAMES``.
 
 Fixed
 ^^^^^
