@@ -290,6 +290,13 @@ _STEERING_WHEEL_DECOMPOSED_MESHES = frozenset(
     }
 )
 
+# Only two meshes actually carry a decomposition piece MuJoCo rejects with "mesh volume is too
+# small": ``sm_steeringwheel_a01_hub_contactplate_screws_01`` and
+# ``sm_steeringwheel_a01_wheel_quickrelease1_01`` (found by compiling with the decomposition
+# intact and reading the piece MuJoCo names). Hulling only those two also compiles, and keeps
+# faithful geometry on every surface the hand grips -- but it measured *worse* on the CI replay
+# benchmark (2/20 vs 4/20 for the blanket-hull set), so the broader set above is kept.
+
 
 def _spawn_steering_wheel_for_mjwarp(
     prim_path: str,
