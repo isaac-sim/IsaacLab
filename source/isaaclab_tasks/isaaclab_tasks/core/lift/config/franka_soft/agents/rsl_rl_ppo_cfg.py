@@ -33,7 +33,7 @@ class FrankaDeformablePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 3000
     save_interval = 50
-    experiment_name = "franka_soft"
+    experiment_name = "lift_soft"
     obs_groups = {
         "actor": ["policy"],
         "critic": ["policy"],
