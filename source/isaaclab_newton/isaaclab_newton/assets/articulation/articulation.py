@@ -206,14 +206,6 @@ class Articulation(BaseArticulation):
     attribute. They are used to compute the joint commands during the :meth:`write_data_to_sim` function.
     """
 
-    _mjc_tendon_control: MjcTendonControl | None = None
-    """MuJoCo tendon control adapter, or ``None`` when this articulation drives no tendon.
-
-    Defaulted on the class because :meth:`write_data_to_sim` reads it, while only
-    :meth:`_process_tendons` assigns it -- an articulation built without the full initialization
-    path never reaches that step.
-    """
-
     def __init__(self, cfg: ArticulationCfg):
         """Initialize the articulation.
 
@@ -226,6 +218,8 @@ class Articulation(BaseArticulation):
 
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
+        # MuJoCo tendon control adapter; ``_process_tendons`` creates it when the model has tendon actuators.
+        self._mjc_tendon_control: MjcTendonControl | None = None
 
     def _register_callbacks(self) -> None:
         """Register Newton lifecycle callbacks required before model finalization."""

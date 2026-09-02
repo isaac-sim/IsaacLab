@@ -1942,6 +1942,12 @@ def test_fixed_tendon_position_target_reaches_only_given_envs(sim, num_articulat
     # from the command -- and identical poses would mean it reached both.
     commanded, untouched = articulation.data.joint_pos.torch[0], articulation.data.joint_pos.torch[1]
     assert not torch.allclose(commanded, untouched)
+    # Each Shadow Hand tendon ``rh_XFJ0`` is the sum of joints ``rh_XFJ1`` and ``rh_XFJ2``, so the
+    # commanded environment's tendon lengths must have moved toward the 1.0 target and away from
+    # the uncommanded environment, which the actuator holds at its 0.0 control.
+    for tendon_name in articulation.fixed_tendon_names:
+        joint_ids, _ = articulation.find_joints([tendon_name[:-1] + "1", tendon_name[:-1] + "2"])
+        assert commanded[joint_ids].sum() > untouched[joint_ids].sum()
 
 
 @pytest.mark.parametrize("device", ["cpu"])

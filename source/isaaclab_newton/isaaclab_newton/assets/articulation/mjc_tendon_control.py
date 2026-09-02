@@ -49,7 +49,7 @@ class MjcTendonControl:
     """Drives an articulation's fixed tendons through MuJoCo's native tendon actuators.
 
     Created by :meth:`~isaaclab_newton.assets.Articulation._process_tendons` when the model carries
-    at least one directly-actuated fixed tendon. Command tendons through the articulation's
+    tendon actuators. Command tendons through the articulation's
     backend-neutral
     :meth:`~isaaclab.assets.articulation.BaseArticulation.set_fixed_tendon_position_target_index`
     rather than through this internal adapter.
@@ -57,7 +57,7 @@ class MjcTendonControl:
 
     @classmethod
     def create(cls, articulation: Articulation, model: Model) -> MjcTendonControl | None:
-        """Build the adapter, or None when no actuator transmits to any of the tendons.
+        """Build the adapter, or None when no actuator drives any of the tendons.
 
         Args:
             articulation: Newton articulation owning the fixed tendons.
@@ -109,8 +109,8 @@ class MjcTendonControl:
         ]
         if passive:
             logger.warning(
-                "Fixed tendons %s have no direct MuJoCo position actuator, so commanding them has no effect."
-                " Author an actuator whose transmission is each tendon to drive them.",
+                "Fixed tendons %s have no MuJoCo actuator, so commanding them has no effect. Author an"
+                " actuator whose transmission is each tendon to drive them.",
                 passive,
             )
 
@@ -210,6 +210,10 @@ def resolve_fixed_tendon_actuator_columns(view: ArticulationView, model: Model) 
     Returns:
         Actuator column per fixed tendon, ``-1`` where no actuator transmits to that tendon, or
         None when the model carries no tendon actuators at all.
+
+    Raises:
+        ValueError: If a tendon actuator targets something that is not one of the articulation's
+            fixed tendons, or if two actuators target the same tendon.
     """
     # Counts come from the view, not the model: the view's are per-articulation, while the model's
     # are scene-wide and would oversize the mapping when several articulation types coexist.
@@ -218,21 +222,31 @@ def resolve_fixed_tendon_actuator_columns(view: ArticulationView, model: Model) 
     if actuator_count == 0 or tendon_count == 0:
         return None
 
-    # trntype says what an actuator transmits to, and is per-actuator and identical across
-    # instances, so one instance's row describes the articulation. Its companion trnid names the
-    # target, but the USD importer never writes it for a tendon: it resolves the row from
-    # ``actuator_target_label`` when it builds the MuJoCo spec and does not persist the result, so
-    # the attribute stays at its ``-1`` default. The tendon actuators are therefore matched to
-    # tendons by declaration order, which both come from the same stage traversal.
+    # trntype says what an actuator transmits to and is identical across instances, so one row
+    # describes the articulation. Its companion trnid is never written for a USD tendon actuator, so
+    # the target is matched the way the solver matches it: by the actuator's target label against
+    # the tendon names, which come from the same labels.
     trntype = view.get_attribute("mujoco.actuator_trntype", model).numpy()[0, 0]
     tendon_actuators = np.flatnonzero(trntype == int(SolverMuJoCo.TrnType.TENDON))
     if tendon_actuators.size == 0:
         return None
-    if tendon_actuators.size != tendon_count:
-        raise ValueError(
-            f"The articulation declares {tendon_count} fixed tendons but"
-            f" {tendon_actuators.size} actuators transmit to a tendon. Ordering cannot pair them;"
-            " author exactly one tendon actuator per fixed tendon."
-        )
 
-    return tendon_actuators.astype(np.int32)
+    labels = view.custom_frequency_labels["mujoco:actuator"]
+    tendon_names = list(view.tendon_names)
+    columns = np.full(tendon_count, -1, dtype=np.int32)
+    for column in tendon_actuators:
+        label = labels[column]
+        name = label.rsplit("/", 1)[-1]
+        if name not in tendon_names:
+            raise ValueError(
+                f"Actuator column {column} targets '{label}', which is not one of this articulation's fixed"
+                f" tendons {tendon_names}."
+            )
+        tendon = tendon_names.index(name)
+        if columns[tendon] >= 0:
+            raise ValueError(
+                f"Fixed tendon '{name}' is driven by actuator columns {columns[tendon]} and {column}; author"
+                " one actuator per tendon."
+            )
+        columns[tendon] = column
+    return columns

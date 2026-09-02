@@ -19,22 +19,31 @@ _TENDON = int(SolverMuJoCo.TrnType.TENDON)
 _JOINT = 0
 
 
-def _make_view_and_model(trntypes=(_JOINT, _TENDON, _TENDON), tendon_count=2):
-    """Build a view with ``trntypes`` actuators, of which the tendon ones drive ``tendon_count``.
+def _make_view_and_model(trntypes=(_JOINT, _TENDON, _TENDON), tendon_count=2, targets=None):
+    """Build a view with ``trntypes`` actuators over ``tendon_count`` tendons named ``t0, t1, ...``.
 
     ``mujoco:actuator_trnid`` is deliberately absent: the USD importer never writes it for a
-    tendon actuator, so the resolver must not depend on it.
+    tendon actuator, so the resolver must pair by target label, as the solver does.
 
     Args:
         trntypes: ``mujoco:actuator_trntype`` per actuator column.
         tendon_count: Number of fixed tendons the view reports.
+        targets: Tendon name each tendon actuator targets, in column order. Defaults to the tendons
+            in declaration order.
     """
     actuator_count = len(trntypes)
+    tendon_columns = [i for i, trntype in enumerate(trntypes) if trntype == _TENDON]
+    if targets is None:
+        targets = [f"t{k}" for k in range(len(tendon_columns))]
+    labels = [f"/robot/joints/j{i}" for i in range(actuator_count)]
+    for column, target in zip(tendon_columns, targets, strict=True):
+        labels[column] = f"/robot/tendons/{target}"
     attrs = {"mujoco.actuator_trntype": np.array([[list(trntypes)]], dtype=np.int32)}
     view = SimpleNamespace(
         device=wp.get_device("cpu"),
         custom_frequency_counts={"mujoco:actuator": actuator_count, "mujoco:tendon": tendon_count},
-        custom_frequency_labels={"mujoco:actuator": [f"act{i}" for i in range(actuator_count)]},
+        custom_frequency_labels={"mujoco:actuator": labels},
+        tendon_names=[f"t{k}" for k in range(tendon_count)],
         get_attribute=lambda name, source: wp.array(attrs[name], dtype=wp.int32, device="cpu"),
     )
     return view, SimpleNamespace()
@@ -59,14 +68,14 @@ def _make_articulation(fixed_tendon_names, actuator_count=3, count_per_world=1):
     )
 
 
-def test_tendon_actuators_pair_with_tendons_in_declaration_order():
-    view, model = _make_view_and_model()
+def test_tendon_actuators_pair_with_tendons_by_target_label():
+    # Actuator 0 drives a joint; column 1 targets t1 and column 2 targets t0, so declaration order
+    # would pair them backwards. The label decides.
+    view, model = _make_view_and_model(targets=["t1", "t0"])
 
     columns = resolve_fixed_tendon_actuator_columns(view, model)
 
-    # Actuator 0 drives a joint; columns 1 and 2 are the tendon actuators, paired to tendons 0
-    # and 1 by declaration order because both orders come from the same stage traversal.
-    np.testing.assert_array_equal(columns, [1, 2])
+    np.testing.assert_array_equal(columns, [2, 1])
 
 
 def test_a_model_with_no_tendon_actuators_resolves_to_nothing():
@@ -82,15 +91,24 @@ def test_a_view_without_the_actuator_frequency_resolves_to_nothing():
     assert resolve_fixed_tendon_actuator_columns(view, model) is None
 
 
-def test_a_tendon_no_actuator_drives_is_refused_rather_than_guessed():
-    """Ordering can only pair the two lists when they are the same length.
-
-    With a passive tendon the counts differ and no ordering rule recovers which tendon is the
-    unactuated one, so the mismatch has to be reported instead of silently shifting every pair.
-    """
+def test_a_tendon_no_actuator_drives_gets_no_column():
+    """A passive tendon keeps column -1; the other tendons still find their actuators."""
     view, model = _make_view_and_model(tendon_count=3)
 
-    with pytest.raises(ValueError, match="3 fixed tendons but 2 actuators"):
+    np.testing.assert_array_equal(resolve_fixed_tendon_actuator_columns(view, model), [1, 2, -1])
+
+
+def test_an_actuator_targeting_an_unknown_tendon_is_refused():
+    view, model = _make_view_and_model(targets=["t0", "nope"])
+
+    with pytest.raises(ValueError, match="not one of this articulation's fixed tendons"):
+        resolve_fixed_tendon_actuator_columns(view, model)
+
+
+def test_two_actuators_on_one_tendon_are_refused():
+    view, model = _make_view_and_model(targets=["t0", "t0"])
+
+    with pytest.raises(ValueError, match="one actuator per tendon"):
         resolve_fixed_tendon_actuator_columns(view, model)
 
 
@@ -104,12 +122,11 @@ def test_tendons_no_actuator_transmits_to_are_named_once(caplog):
     assert "rh_FFJ0" not in caplog.text
 
 
-@pytest.mark.parametrize("columns", [[1, 2, 3], [0, 0, 0]])
-def test_a_fully_actuated_model_warns_about_nothing(caplog, columns):
+def test_a_fully_actuated_model_warns_about_nothing(caplog):
     articulation = _make_articulation(["a", "b", "c"])
 
     with caplog.at_level(logging.WARNING):
-        MjcTendonControl(articulation, np.array(columns, dtype=np.int32), articulation.root_view)
+        MjcTendonControl(articulation, np.array([1, 2, 3], dtype=np.int32), articulation.root_view)
 
     assert caplog.text == ""
 
