@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 import torch
 import warp as wp
-from newton import GeoType, ModelBuilder, ShapeFlags
+from newton import GeoType, JointType, ModelBuilder, ShapeFlags
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -148,7 +148,20 @@ def _build_source_builder(
     replace_newton_builder_shape_colors(builder, stage)
     if load_visual_shapes:
         import_builder_visual_material_paths(builder, stage)
+    _name_root_joints_after_their_body(builder)
     return builder
+
+
+def _name_root_joints_after_their_body(builder: ModelBuilder) -> None:
+    """Name importer-generated free root joints after their child bodies, in place."""
+    for index, label in enumerate(builder.joint_label):
+        if not isinstance(label, str) or not label.startswith("joint_") or not label[6:].isdigit():
+            continue
+        if builder.joint_type[index] != JointType.FREE or builder.joint_parent[index] != -1:
+            continue
+        body_label = builder.body_label[builder.joint_child[index]]
+        if isinstance(body_label, str) and body_label.startswith("/"):
+            builder.joint_label[index] = f"{body_label}_free_joint"
 
 
 def _quat_multiply(a: np.ndarray, b: np.ndarray) -> np.ndarray:

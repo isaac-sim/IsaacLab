@@ -509,5 +509,46 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         )
 
 
+class TestRootJointNaming(unittest.TestCase):
+    """The importer leaves a floating base's root joint unnamed; every other entity is named."""
+
+    _SOURCE = "/World/envs/env_0/Robot"
+    _BODY = "/World/envs/env_0/Robot/pelvis"
+
+    @staticmethod
+    def _builder_with_free_root(body_label: str) -> newton.ModelBuilder:
+        builder = newton.ModelBuilder()
+        body = builder.add_link(xform=wp.transform(), label=body_label)
+        builder.add_joint_free(child=body)
+        return builder
+
+    def test_a_generated_root_joint_name_becomes_its_body_path(self):
+        builder = self._builder_with_free_root(self._BODY)
+        self.assertFalse(builder.joint_label[0].startswith("/"))
+
+        newton_clone_utils_module._name_root_joints_after_their_body(builder)
+
+        self.assertEqual(builder.joint_label[0], f"{self._BODY}_free_joint")
+
+    def test_other_joint_labels_are_left_alone(self):
+        named = self._builder_with_free_root(self._BODY)
+        named.joint_label[0] = "authored"
+
+        non_free = newton.ModelBuilder()
+        parent = non_free.add_link(xform=wp.transform(), label=self._BODY)
+        child = non_free.add_link(xform=wp.transform(), label=f"{self._BODY}/link")
+        non_free.add_joint_revolute(parent=parent, child=child, axis=(0.0, 0.0, 1.0))
+
+        non_root = newton.ModelBuilder()
+        parent = non_root.add_link(xform=wp.transform(), label=self._BODY)
+        child = non_root.add_link(xform=wp.transform(), label=f"{self._BODY}/link")
+        non_root.add_joint_free(parent=parent, child=child)
+
+        for builder in (named, non_free, non_root):
+            original = list(builder.joint_label)
+            newton_clone_utils_module._name_root_joints_after_their_body(builder)
+            self.assertEqual(builder.joint_label, original)
+
+
 if __name__ == "__main__":
     unittest.main()
