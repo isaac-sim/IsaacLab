@@ -619,7 +619,8 @@ class SyntheticGaussianSceneCfg(InteractiveSceneCfg):
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
+        # Keep the background in the calibrated HDR range independently of the default plane's appearance.
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.1)),
     )
 
     gaussian = AssetBaseCfg(
