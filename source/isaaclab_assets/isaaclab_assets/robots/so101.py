@@ -25,7 +25,6 @@ configuration retains the gains previously tuned for IK tracking.
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
 # Configuration
@@ -33,11 +32,12 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 SO101_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=(f"{ISAAC_NUCLEUS_DIR}/Robots_Multiphysics/RobotStudio/so101_new_calib_SysID/so101_new_calib.usda"),
+        usd_path=(
+            "omniverse://isaac-dev.ov.nvidia.com/Isaac/Robots_Multiphysics/RobotStudio/"
+            "so101_new_calib_SysID/so101_new_calib.usda"
+        ),
         variants={"Robot": "robot", "Sensor": "sensors", "Physics": "physics"},
-        make_uninstanceable=True,
         activate_contact_sensors=True,
-        collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
             max_depenetration_velocity=1.0,
