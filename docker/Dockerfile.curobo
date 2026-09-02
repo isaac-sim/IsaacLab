@@ -164,7 +164,7 @@ RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ISAACLAB_PATH}/_isaac_sim
 
 # The image's package set. Kit ships in the base image, so the teleop stack comes without the
 # ``isaacsim`` wheel; ``teleop`` itself is left exactly as tuned.
-ARG IMAGE_EXTRAS="--extra sb3 --extra skrl --extra rl-games --extra rsl-rl --extra viser --extra rerun --extra mimic --extra teleop-no-isaacsim --extra test-runtime"
+ARG IMAGE_EXTRAS="--extra sb3 --extra skrl --extra rl-games --extra rsl-rl --extra viser --extra rerun --extra mimic --extra teleop --extra test"
 
 # Workspace manifests only: ``uv sync --no-install-workspace`` needs every member's
 # pyproject.toml to build an installation plan, but not their sources. Resolving the
