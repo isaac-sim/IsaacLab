@@ -330,6 +330,29 @@ def test_ensure_visualization_model_builds_from_stage_when_backend_is_physx(monk
     assert NewtonManager._state_0 is not None
 
 
+def test_ensure_visualization_model_clears_shape_collision_filter_pairs_before_finalize(monkeypatch):
+    """The shadow model never runs collision detection, so USD-authored self-collision
+    filters (which scale with the number of cloned envs) must not be packed into it.
+    """
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics import newton_manager as nm
+
+    _reset_newton_manager_state()
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
+    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage())
+    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
+    _set_sim_context(monkeypatch, nm)
+    monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
+
+    builder = _make_finalize_builder(body_count=3)
+    builder.shape_collision_filter_pairs = [(0, 1), (0, 2)]
+    monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: (builder, ([], [])))
+
+    NewtonManager._ensure_visualization_model()
+
+    assert builder.shape_collision_filter_pairs == []
+
+
 def test_physx_shadow_model_is_rebuilt_after_physics_stop(monkeypatch):
     """Sequential PhysX scenes must not reuse the prior scene's Newton visualization model."""
     from isaaclab_newton.physics import NewtonManager
