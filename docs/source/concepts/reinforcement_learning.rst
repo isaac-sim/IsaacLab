@@ -33,7 +33,7 @@ To evaluate the latest compatible checkpoint in the interactive visualizer:
 
 The ``train`` and ``play`` commands work across the supported RL libraries.
 
-.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/rl_progression_learning_anymald.gif
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/rl_learning_progression_anymald.gif
    :width: 100%
    :align: center
    :alt: ANYmal-D locomotion at RSL-RL training iterations 0, 100, and 299
