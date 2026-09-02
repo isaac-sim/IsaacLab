@@ -90,6 +90,26 @@ SIMPLE_SHADING_MODE_SETTING = "/rtx/minimal/mode"
 _WARP_MAX_ARRAY_DIM = 2_147_483_647
 
 
+def _validate_tiled_buffer_size(spec: CameraRenderSpec) -> None:
+    """Raise a clear error if this camera's tiled buffer would overflow Warp's array shape limit.
+
+    Worst case is 4 elements per pixel: RGBA/HDR annotators return 4 channels directly, and
+    colorized segmentation annotators reinterpret a uint32 id as 4 uint8 channels.
+    """
+    num_tile_cols = math.ceil(math.sqrt(spec.view_count))
+    num_tile_rows = math.ceil(spec.view_count / num_tile_cols)
+    tiled_pixels = (num_tile_cols * spec.cfg.width) * (num_tile_rows * spec.cfg.height)
+    max_elements_per_pixel = 4
+    if tiled_pixels * max_elements_per_pixel > _WARP_MAX_ARRAY_DIM:
+        raise ValueError(
+            f"Camera '{spec.cfg.prim_path}' would allocate a tiled render buffer of up to"
+            f" {tiled_pixels * max_elements_per_pixel} elements ({spec.view_count} environments tiled into a"
+            f" {num_tile_cols}x{num_tile_rows} grid at {spec.cfg.width}x{spec.cfg.height} resolution), which"
+            f" exceeds Warp's signed-32-bit-representable array shape limit ({_WARP_MAX_ARRAY_DIM})."
+            " Reduce the number of environments (--num_envs) or the camera resolution for this task."
+        )
+
+
 def _camera_semantic_filter_predicate(semantic_filter: str | list[str]) -> str:
     """Build the instance-mapping semantics predicate from :attr:`isaaclab.sensors.camera.CameraCfg.semantic_filter`.
 
@@ -257,21 +277,8 @@ class IsaacRtxRenderer(BaseRenderer):
         """Create render product and annotators for the tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         # Fail fast with an actionable error instead of a cryptic Warp ``ValueError`` raised deep
-        # inside render()'s ``.flatten()`` call once the annotators are already attached. Worst case
-        # is 4 elements per pixel: RGBA/HDR annotators return 4 channels directly, and colorized
-        # segmentation annotators reinterpret a uint32 id as 4 uint8 channels.
-        num_tile_cols = math.ceil(math.sqrt(spec.view_count))
-        num_tile_rows = math.ceil(spec.view_count / num_tile_cols)
-        tiled_pixels = (num_tile_cols * spec.cfg.width) * (num_tile_rows * spec.cfg.height)
-        max_elements_per_pixel = 4
-        if tiled_pixels * max_elements_per_pixel > _WARP_MAX_ARRAY_DIM:
-            raise ValueError(
-                f"Camera '{spec.cfg.prim_path}' would allocate a tiled render buffer of up to"
-                f" {tiled_pixels * max_elements_per_pixel} elements ({spec.view_count} environments tiled into a"
-                f" {num_tile_cols}x{num_tile_rows} grid at {spec.cfg.width}x{spec.cfg.height} resolution), which"
-                f" exceeds Warp's signed-32-bit-representable array shape limit ({_WARP_MAX_ARRAY_DIM})."
-                " Reduce the number of environments (--num_envs) or the camera resolution for this task."
-            )
+        # inside render()'s ``.flatten()`` call once the annotators are already attached.
+        _validate_tiled_buffer_size(spec)
 
         import omni.replicator.core as rep
         from omni.syntheticdata import SyntheticData
@@ -580,7 +587,11 @@ class IsaacRtxRenderer(BaseRenderer):
             trim_channels = None
             if data_type == "motion_vectors":
                 trim_channels = 2
-            elif data_type == "normals" or data_type in SIMPLE_SHADING_MODES or data_type == str(RenderBufferKind.RGB_HDR):
+            elif (
+                data_type == "normals"
+                or data_type in SIMPLE_SHADING_MODES
+                or data_type == str(RenderBufferKind.RGB_HDR)
+            ):
                 trim_channels = 3
 
             if trim_channels is not None:
