@@ -83,6 +83,12 @@ SIMPLE_SHADING_MODES = {
 }
 SIMPLE_SHADING_MODE_SETTING = "/rtx/minimal/mode"
 
+# Warp arrays require every dimension to fit in a signed 32-bit int (see
+# ``warp.types.array.__getitem__``/``check_array_shape``). ``render()`` flattens the whole
+# tiled buffer (all environments' camera tiles concatenated) into one Warp array per data
+# type, so this bounds how large ``num_envs * tile pixels`` can get before that call raises.
+_WARP_MAX_ARRAY_DIM = 2_147_483_647
+
 
 def _camera_semantic_filter_predicate(semantic_filter: str | list[str]) -> str:
     """Build the instance-mapping semantics predicate from :attr:`isaaclab.sensors.camera.CameraCfg.semantic_filter`.
@@ -250,6 +256,23 @@ class IsaacRtxRenderer(BaseRenderer):
     def create_render_data(self, spec: CameraRenderSpec) -> IsaacRtxRenderData:
         """Create render product and annotators for the tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
+        # Fail fast with an actionable error instead of a cryptic Warp ``ValueError`` raised deep
+        # inside render()'s ``.flatten()`` call once the annotators are already attached. Worst case
+        # is 4 elements per pixel: RGBA/HDR annotators return 4 channels directly, and colorized
+        # segmentation annotators reinterpret a uint32 id as 4 uint8 channels.
+        num_tile_cols = math.ceil(math.sqrt(spec.view_count))
+        num_tile_rows = math.ceil(spec.view_count / num_tile_cols)
+        tiled_pixels = (num_tile_cols * spec.cfg.width) * (num_tile_rows * spec.cfg.height)
+        max_elements_per_pixel = 4
+        if tiled_pixels * max_elements_per_pixel > _WARP_MAX_ARRAY_DIM:
+            raise ValueError(
+                f"Camera '{spec.cfg.prim_path}' would allocate a tiled render buffer of up to"
+                f" {tiled_pixels * max_elements_per_pixel} elements ({spec.view_count} environments tiled into a"
+                f" {num_tile_cols}x{num_tile_rows} grid at {spec.cfg.width}x{spec.cfg.height} resolution), which"
+                f" exceeds Warp's signed-32-bit-representable array shape limit ({_WARP_MAX_ARRAY_DIM})."
+                " Reduce the number of environments (--num_envs) or the camera resolution for this task."
+            )
+
         import omni.replicator.core as rep
         from omni.syntheticdata import SyntheticData
         from pxr import UsdGeom
