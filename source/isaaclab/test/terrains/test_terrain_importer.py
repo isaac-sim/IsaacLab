@@ -98,7 +98,7 @@ def test_terrain_generation(device):
 
 def test_visual_material_defaults():
     """Resolves omitted visual materials by terrain type while preserving an explicit None."""
-    generator_cfg = TerrainImporterCfg(prim_path="/World/generated", terrain_type="generator")
+    generator_cfg = TerrainImporterCfg(prim_path="/World/generated")
     assert isinstance(generator_cfg.visual_material, PreviewSurfaceCfg)
     assert generator_cfg.visual_material.diffuse_color == (0.0, 0.0, 0.0)
 
