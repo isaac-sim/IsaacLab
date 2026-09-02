@@ -177,17 +177,6 @@ def _scatter_xform_scales(
     site_xform_scale[indices[i]] = new_scales[i]
 
 
-_SiteSpec = tuple[
-    tuple[str, ...] | None,  # body label patterns, or None for a bodyless site
-    wp.transform,  # site transform [m], body-local when body patterns are set, else env-root-local
-    tuple[float, float, float],  # scale
-    bool,  # bodyless site: one per world rather than one globally
-    tuple[int, ...] | None,  # env ids the site covers, or None for all of them
-    str | None,  # destination template naming the env it lands in, for a per-world site
-]
-"""One resolved site request."""
-
-
 class NewtonSiteFrameView(BaseFrameView):
     """Batched Newton site view for non-physics frames.
 
@@ -244,11 +233,9 @@ class NewtonSiteFrameView(BaseFrameView):
         if model is not None:
             self._initialize_from_specs(model)
         else:
-            for body_patterns, xform, scale, per_world, _env_ids, template in self._site_specs:
+            for body_patterns, xform, scale, per_world, _env_ids in self._site_specs:
                 if body_patterns is None:
-                    self._site_labels.append(
-                        NewtonManager.cl_register_site(None, xform, per_world=per_world, destination_template=template)
-                    )
+                    self._site_labels.append(NewtonManager.cl_register_site(None, xform, per_world=per_world))
                     self._site_label_scales.append(scale)
                 else:
                     for body_pattern in body_patterns:
@@ -258,14 +245,18 @@ class NewtonSiteFrameView(BaseFrameView):
                 self._on_physics_ready, PhysicsEvent.PHYSICS_READY, name=f"site_view_{self._prim_path}"
             )
 
-    def _resolve_site_specs(self, stage, validate_xform_ops: bool) -> list[_SiteSpec]:
+    def _resolve_site_specs(
+        self, stage, validate_xform_ops: bool
+    ) -> list[tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]]:
         """Resolve source prims into Newton site registration specs."""
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         model = NewtonManager.get_model()
         body_labels = list(model.body_label) if model is not None else ()
         shape_labels = list(model.shape_label) if model is not None else ()
         use_clone_body_pattern = model is None
-        specs: list[_SiteSpec] = []
+        specs: list[
+            tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]
+        ] = []
 
         for path_expr in self._prim_paths:
             if resolve_matching_names(path_expr, body_labels, raise_when_no_match=False)[1]:
@@ -322,7 +313,7 @@ class NewtonSiteFrameView(BaseFrameView):
         env_ids: tuple[int, ...] | None,
         use_clone_body_pattern: bool,
         stage,
-    ) -> _SiteSpec:
+    ) -> tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]:
         """Resolve one source prim into body patterns, local frame, and xform scale."""
         prim_path = prim.GetPath().pathString
         if prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.HasAPI(UsdPhysics.ArticulationRootAPI):
@@ -361,8 +352,7 @@ class NewtonSiteFrameView(BaseFrameView):
                                 raise RuntimeError(
                                     f"FrameView destination root '{destination_root}' does not end with '{suffix}'."
                                 )
-                            root = destination_root[: -len(suffix)]
-                            return (root,), wp.transform(pos, quat), scale, False, env_ids, None
+                            return (destination_root[: -len(suffix)],), wp.transform(pos, quat), scale, False, env_ids
                         body_patterns = []
                         for env_id in env_ids:
                             destination_root = destination_template.format(env_id)
@@ -371,7 +361,7 @@ class NewtonSiteFrameView(BaseFrameView):
                                     f"FrameView destination root '{destination_root}' does not end with '{suffix}'."
                                 )
                             body_patterns.append(destination_root[: -len(suffix)])
-                        return tuple(body_patterns), wp.transform(pos, quat), scale, False, env_ids, None
+                        return tuple(body_patterns), wp.transform(pos, quat), scale, False, env_ids
                     else:
                         raise RuntimeError(f"FrameView source body '{body_path}' is not under '{source_root}'.")
                     if use_clone_body_pattern:
@@ -380,7 +370,7 @@ class NewtonSiteFrameView(BaseFrameView):
                         body_patterns = tuple(destination_template.format(env_id) + suffix for env_id in env_ids)
                 else:
                     body_patterns = (body_path,)
-                return body_patterns, wp.transform(pos, quat), scale, False, env_ids, None
+                return body_patterns, wp.transform(pos, quat), scale, False, env_ids
             body_prim = body_prim.GetParent()
 
         ref_path = source_root
@@ -391,7 +381,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 ref_path = source_root[: -len(source_suffix)] if source_suffix else source_root
         ref_prim = stage.GetPrimAtPath(ref_path) if ref_path is not None else None
         pos, quat = sim_utils.resolve_prim_pose(prim, ref_prim if ref_prim and ref_prim.IsValid() else None)
-        return None, wp.transform(pos, quat), scale, source_root is not None, env_ids, destination_template
+        return None, wp.transform(pos, quat), scale, source_root is not None, env_ids
 
     def _on_physics_ready(self, _event) -> None:
         """Callback invoked when the Newton model becomes available."""
@@ -431,7 +421,7 @@ class NewtonSiteFrameView(BaseFrameView):
         site_locals: list[list[float]] = []
         site_scales: list[tuple[float, float, float]] = []
 
-        for body_patterns, xform, scale, per_world, env_ids, _template in self._site_specs:
+        for body_patterns, xform, scale, per_world, env_ids in self._site_specs:
             if body_patterns is None:
                 if per_world:
                     if NewtonManager._world_xforms is None:

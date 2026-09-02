@@ -64,13 +64,6 @@ class ClonePlan:
     global_paths: tuple[str, ...] = ()
     """Unique prim paths for scene assets shared by every environment."""
 
-    env_template: str = DEFAULT_ENV_TEMPLATE
-    """Destination template for one environment, with ``"{}"`` for the env id.
-
-    Every row's destination is this template followed by the asset's path below the
-    environment, so this names the part a clone varies from the part it shares.
-    """
-
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cpu"):
     """Create a centered grid of transforms for ``N`` instances.
@@ -300,7 +293,6 @@ def make_clone_plan(
             positions=positions,
             cfg_rows={},
             global_paths=global_paths,
-            env_template=env_template,
         )
 
     # 3) Homogeneous (every cfg is single-variant): emit the simpler env-root plan.
@@ -316,7 +308,6 @@ def make_clone_plan(
             positions=positions,
             cfg_rows=cfg_rows,
             global_paths=global_paths,
-            env_template=env_template,
         )
 
     # 4) Heterogeneous: enumerate prototype combos, build per-row mask, mutate spawn paths.
@@ -386,7 +377,6 @@ def make_clone_plan(
         positions=positions,
         cfg_rows=cfg_rows,
         global_paths=global_paths,
-        env_template=env_template,
     )
 
 
@@ -429,5 +419,4 @@ def clone_plan_from_env_0(
         positions=positions,
         cfg_rows=cfg_rows,
         global_paths=global_paths,
-        env_template=destination,
     )

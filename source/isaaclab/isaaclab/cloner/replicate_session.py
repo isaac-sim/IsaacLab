@@ -99,7 +99,7 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
 
     backend_ctxs: dict[type, Any] = {}
     for BackendCtxCls, row_set in backend_rows.items():
-        ctx = BackendCtxCls(stage, global_paths=plan.global_paths, env_template=plan.env_template)
+        ctx = BackendCtxCls(stage, global_paths=plan.global_paths)
         backend_ctxs[BackendCtxCls] = ctx
         row_list = sorted(row_set)
         ctx.queue_mapping(
