@@ -105,6 +105,8 @@
             ["IsaacContrib-PickPlace-Locomanipulation-G1-Abs", "", "", "isaacsim_rtx,newton_renderer,ovrtx", "", {}, "tasks/manipulation/g1_pick_place_locomanipulation.jpg"],
             ["IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow", "", "isaacsim_physx,newton_mjwarp", "", "", {}, "tasks/manipulation/agibot_place_mug.jpg"],
             ["IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow", "", "isaacsim_physx,newton_mjwarp", "", "", {}, "tasks/manipulation/agibot_place_toy.jpg"],
+            ["IsaacContrib-Reach-OneRobotics-A1", "rsl_rl", "", "", ""],
+            ["IsaacContrib-Reach-OneRobotics-A1-Bimanual", "rsl_rl", "", "", ""],
             ["IsaacContrib-Reach-OpenArm", "rl_games,rsl_rl,skrl", "", "", "", {}, "tasks/manipulation/openarm_uni_reach.jpg"],
             ["IsaacContrib-Reach-OpenArmBi", "rl_games,rsl_rl", "", "", "", {}, "tasks/manipulation/openarm_bi_reach.jpg"],
             ["IsaacContrib-Reorient-Cube-Shadow-OpenAI-FF-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/manipulation/shadow_cube.jpg"],
