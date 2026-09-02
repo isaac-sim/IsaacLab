@@ -47,7 +47,15 @@ def object_ee_distance(
     """
     asset: RigidObject = env.scene[asset_cfg.name]
     obj: RigidObject = env.scene[object_cfg.name]
-    asset_pos = asset.data.body_pos_w.torch[:, asset_cfg.body_ids]
+    # index with a cached device tensor: indexing with a Python list uploads it every call (a stream sync)
+    body_ids = asset_cfg.body_ids
+    if isinstance(body_ids, list):
+        body_ids_t = getattr(asset_cfg, "_body_ids_device", None)
+        if body_ids_t is None:
+            body_ids_t = torch.tensor(body_ids, dtype=torch.long, device=env.device)
+            asset_cfg._body_ids_device = body_ids_t
+        body_ids = body_ids_t
+    asset_pos = asset.data.body_pos_w.torch[:, body_ids]
     object_pos = obj.data.root_pos_w.torch
     distance = torch.linalg.norm(asset_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
     contact_bonus = contacts(env, contact_threshold, thumb_name, finger_names).float().clamp(0.1, 1.0)
@@ -252,6 +260,7 @@ class _ProgressReward(ManagerTermBase):
         super().__init__(cfg, env)
         # inf marks an environment whose bar has not been seeded yet against its current command
         self.best_error = torch.full((env.num_envs,), float("inf"), device=env.device)
+        self._inf = torch.full_like(self.best_error, float("inf"))
         self._prev_command: torch.Tensor | None = None
 
     def reset(self, env_ids: Sequence[int] | None = None):
@@ -275,15 +284,18 @@ class _ProgressReward(ManagerTermBase):
         """
         # a resampled command changes the error's reference, so the bar it was measured against no
         # longer applies; dropping it to inf re-seeds from the first error under the new command
+        # masked writes via torch.where: boolean-mask indexing (``x[mask] = v``) launches a nonzero and
+        # a host->device scalar copy, each of which synchronizes the stream every step
         if self._prev_command is None:
             self._prev_command = command.clone()
         else:
-            self.best_error[(self._prev_command != command).any(dim=1)] = float("inf")
+            resampled = (self._prev_command != command).any(dim=1)
+            torch.where(resampled, self._inf, self.best_error, out=self.best_error)
             self._prev_command.copy_(command)
         unseeded = torch.isinf(self.best_error)
-        self.best_error[unseeded] = error[unseeded]
+        torch.where(unseeded, error, self.best_error, out=self.best_error)
         improved = gate & (error < self.best_error - min_improvement)
-        self.best_error[improved] = error[improved]
+        torch.where(improved, error, self.best_error, out=self.best_error)
         return improved.float()
 
 

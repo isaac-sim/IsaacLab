@@ -229,7 +229,9 @@ class VisualizationMarkers:
             norm_marker_indices = norm_marker_indices.to(device=target_device)
         if norm_environment_ids is not None:
             norm_environment_ids = norm_environment_ids.to(device=target_device)
-            if torch.any(norm_environment_ids < 0):
+            # the device->host readback synchronizes the stream every call; only pay for it when a
+            # backend will consume the indices
+            if self._backends and torch.any(norm_environment_ids < 0):
                 raise ValueError("Expected `environment_ids` to contain non-negative indices.")
 
         marker_values = (norm_translations, norm_orientations, norm_scales, norm_marker_indices)

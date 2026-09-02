@@ -447,7 +447,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
 
-        # reset the episode length buffer
-        self.episode_length_buf[env_ids] = 0
+        # reset the episode length buffer (device-side fill avoids a host scalar upload + stream sync)
+        if isinstance(env_ids, slice):
+            self.episode_length_buf[env_ids] = 0
+        else:
+            self.episode_length_buf.index_fill_(0, torch.as_tensor(env_ids, device=self.device).long(), 0)
 
         self.sim.render_context.reset_scene_state_cadence()

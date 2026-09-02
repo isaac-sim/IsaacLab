@@ -176,9 +176,8 @@ class TerminationManager(ManagerBase):
             self._term_dones[:, i] = value
         # update last-episode dones once per compute: for any env where a term fired,
         # reflect exactly which term(s) fired this step and clear others
-        rows = self._term_dones.any(dim=1).nonzero(as_tuple=True)[0]
-        if rows.numel() > 0:
-            self._last_episode_dones[rows] = self._term_dones[rows]
+        fired = self._term_dones.any(dim=1, keepdim=True)
+        torch.where(fired, self._term_dones, self._last_episode_dones, out=self._last_episode_dones)
         # return combined termination signal
         return self._truncated_buf | self._terminated_buf
 
