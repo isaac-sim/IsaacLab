@@ -247,8 +247,10 @@ backend-specific and AppLauncher arguments:
      - Name for the exported graph and output directory.
    * - ``--export_method``
      - ``onnx-dynamo``
-     - Export backend. Choices: ``onnx-dynamo``, ``onnx-torchscript``, ``jit-script``,
-       ``jit-trace``.
+     - Select the export backend based on the artifact format you need. ``onnx-dynamo`` is the
+       recommended default; the other choices are optional. If one backend does not support your
+       model, try another. Choices: ``onnx-dynamo``, ``onnx-torchscript``, ``jit-script``,
+       ``jit-trace``, ``pt2``.
    * - ``--export_save_path``
      - Checkpoint dir
      - Base directory for export output.
@@ -370,13 +372,17 @@ artifacts do not look correct.
 Export Backends
 ^^^^^^^^^^^^^^^
 
-The ``--export_method`` argument controls how the policy network is serialized:
+The ``--export_method`` argument controls how the policy network is serialized and therefore the
+format of the generated model artifact. Use the default ``onnx-dynamo`` backend unless your
+downstream runtime or workflow requires another format. Backend support can vary by model, so if
+one backend fails, try another backend that produces an acceptable artifact format.
 
 - **onnx-dynamo** (default) — Uses ``torch.onnx.dynamo_export``. Best compatibility with
   modern PyTorch features.
 - **onnx-torchscript** — Uses the legacy ``torch.onnx.export`` path. May be needed for
   certain model architectures.
 - **jit-script** / **jit-trace** — Produces TorchScript ``.pt`` files instead of ONNX.
+- **pt2** — Produces a PyTorch ExportedProgram ``.pt2`` file.
 
 
 Recurrent Policies
