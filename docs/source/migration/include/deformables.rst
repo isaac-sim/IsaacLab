@@ -5,143 +5,51 @@ Migration of Deformables
 
 .. currentmodule:: isaaclab
 
-In the newer versions of Omni Physics (107.0 and later), the old deformable body functionality has become deprecated.
-The following sections describe the changes to migrate to the new Omni Physics API, specifically moving away from
-Soft Bodies and towards Surface and Volume Deformables. The deformable object asset classes remain in
-``isaaclab.assets``. Schema define/modify functions remain unified in ``isaaclab.sim.schemas``, and deformable
-material spawning remains unified in ``isaaclab.sim.spawners.materials``. Deformable property and material
-configuration classes are backend-specific: PhysX configurations live in ``isaaclab_physx.sim`` and Newton
-configurations live in ``isaaclab_newton.sim``.
+Isaac Lab 3.0 updates the deformable body API to align with Omni Physics 110.0. The old soft body
+API is deprecated and replaced by two distinct deformable types:
 
-.. note::
+- **Volume deformables**: 3D objects simulated with a tetrahedral FEM mesh (soft cubes, teddy
+  bears). They support kinematic targets on individual vertices.
+- **Surface deformables**: 2D surfaces simulated directly on a triangle mesh (cloth, membranes).
+  They add stretch, shear, and bend stiffness, but do not support kinematic vertex targets.
 
-  The following changes are with respect to Isaac Lab v3.0.0 and Omni Physics v110.0. Please refer to the
-  `release notes`_ for any changes in the future releases.
+The type is determined by the physics material assigned to the object:
 
+- :class:`~isaaclab_physx.sim.PhysxDeformableBodyMaterialCfg` for PhysX volume deformables.
+- :class:`~isaaclab_physx.sim.PhysxSurfaceDeformableBodyMaterialCfg` for PhysX surface deformables.
+- :class:`~isaaclab_newton.sim.NewtonDeformableBodyMaterialCfg` for Newton volume deformables.
+- :class:`~isaaclab_newton.sim.NewtonSurfaceDeformableBodyMaterialCfg` for Newton surface deformables.
 
-.. rubric:: Surface and Volume Deformables
+.. rubric:: Import Changes
 
-With the new Omni Physics API, deformable bodies are split into two distinct types, as described in the
-`Omni Physics documentation`_:
-
-- **Volume deformables**: 3D objects simulated with a tetrahedral FEM mesh (e.g., soft cubes, spheres, capsules).
-  These support kinematic targets on individual vertices. The simulation operates on a tetrahedral mesh internally,
-  while a separate triangle surface mesh handles rendering.
-- **Surface deformables**: 2D surfaces simulated directly on a triangle mesh (e.g., cloth, fabric, membranes).
-  These have additional material properties for controlling stretch, shear, and bend stiffness, but do not support
-  kinematic vertex targets.
-
-The type of deformable is determined by the **physics material** assigned to the object:
-
-- :class:`~isaaclab_physx.sim.PhysxDeformableBodyMaterialCfg` creates a PhysX **volume** deformable.
-- :class:`~isaaclab_physx.sim.PhysxSurfaceDeformableBodyMaterialCfg` creates a PhysX **surface** deformable.
-- :class:`~isaaclab_newton.sim.spawners.materials.NewtonDeformableBodyMaterialCfg` creates a Newton
-  **volume** deformable.
-- :class:`~isaaclab_newton.sim.spawners.materials.NewtonSurfaceDeformableBodyMaterialCfg` creates a Newton
-  **surface** deformable.
-
-
-.. rubric:: Migration from the Old API
-
-**Import Changes**
-
-Deformable object cfgs remain in ``isaaclab.assets``. Deformable schema and material cfgs should be imported
-from the physics backend package:
+Deformable object cfgs remain in ``isaaclab.assets``. Deformable schema and material cfgs are
+backend-specific and move to the backend package:
 
 .. list-table::
    :header-rows: 1
    :widths: 50 50
 
-   * - Old Import
+   * - Old Import (``isaaclab.sim``)
      - New Import
-   * - ``from isaaclab.sim import DeformableBodyPropertiesCfg``
-     - ``from isaaclab_physx.sim import PhysxDeformableBodyPropertiesCfg``
-   * - ``from isaaclab.sim import DeformableBodyMaterialCfg``
-     - ``from isaaclab_physx.sim import PhysxDeformableBodyMaterialCfg``
-   * - ``from isaaclab.sim import SurfaceDeformableBodyMaterialCfg``
-     - ``from isaaclab_physx.sim import PhysxSurfaceDeformableBodyMaterialCfg``
-   * - ``from isaaclab.sim import DeformableBodyPropertiesCfg``
-     - ``from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg``
-   * - ``from isaaclab.sim import DeformableBodyMaterialCfg``
-     - ``from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg``
-   * - ``from isaaclab.sim import SurfaceDeformableBodyMaterialCfg``
-     - ``from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg``
-   * - ``from isaaclab_physx.assets import DeformableObjectCfg``
-     - ``from isaaclab.assets import DeformableObjectCfg``
+   * - ``DeformableBodyPropertiesCfg``
+     - ``isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg`` or
+       ``isaaclab_newton.sim.NewtonDeformableBodyPropertiesCfg``
+   * - ``DeformableBodyMaterialCfg``
+     - ``isaaclab_physx.sim.PhysxDeformableBodyMaterialCfg`` or
+       ``isaaclab_newton.sim.NewtonDeformableBodyMaterialCfg``
+   * - ``SurfaceDeformableBodyMaterialCfg``
+     - ``isaaclab_physx.sim.PhysxSurfaceDeformableBodyMaterialCfg`` or
+       ``isaaclab_newton.sim.NewtonSurfaceDeformableBodyMaterialCfg``
 
-**Removed Properties**
+:class:`~isaaclab.sim.DeformableBodyPropertiesBaseCfg` is now empty; the OmniPhysics deformable
+body fields are owned by :class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg`.
 
-The following properties have been **removed** from
-:class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg`:
-
-- ``collision_simplification`` and related parameters (``collision_simplification_remeshing``,
-  ``collision_simplification_target_triangle_count``, ``collision_simplification_force_conforming``,
-  ``collision_simplification_remove_open_edges``) — collision mesh generation is now handled automatically by
-  PhysX through ``deformableUtils.create_auto_volume_deformable_hierarchy()`` and
-  ``deformableUtils.create_auto_surface_deformable_hierarchy()``.
-- ``simulation_hexahedral_resolution`` — the simulation mesh resolution is no longer user-configurable;
-  PhysX determines it automatically.
-- ``vertex_velocity_damping`` — replaced by the more general ``linear_damping`` property from the
-  `PhysX deformable schema`_.
-- ``sleep_damping`` — replaced by ``settling_damping`` in the `PhysX deformable schema`_.
-- ``contact_offset`` and ``rest_offset``, along with the ``PhysxDeformableCollisionPropertiesCfg`` class that
-  contributed them: PhysX reads collision offsets off the collider, which for a deformable is its simulation
-  mesh, so authoring them on the body prim never reached the solver. Set them on the mesh spawner's
-  ``collision_props`` instead: ``collision_props=[PhysxCollisionCfg(rest_offset=0.0005, contact_offset=0.005)]``.
-
-**Added Properties**
-
-The following properties have been **added** to
-:class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg`:
-
-- ``deformable_body_enabled``, ``kinematic_enabled``, and ``mass`` — OmniPhysics
-  deformable body properties owned by the PhysX backend cfg.
-- ``linear_damping`` — linear damping coefficient [1/s].
-- ``max_linear_velocity`` — maximum allowable linear velocity [m/s]. A negative value lets the simulation choose
-  a per-vertex value dynamically (currently only supported for surface deformables).
-- ``settling_damping`` — additional damping applied when vertex velocity falls below ``settling_threshold`` [1/s].
-- ``enable_speculative_c_c_d`` — enables speculative continuous collision detection.
-- ``disable_gravity`` — per-deformable gravity control.
-- ``collision_pair_update_frequency`` — how often surface-to-surface collision pairs are updated per time step
-  (surface deformables only).
-- ``collision_iteration_multiplier`` — collision subiterations per solver iteration (surface deformables only).
-
-For a full description of all available properties, refer to the `PhysX deformable schema`_ and
-`OmniPhysics deformable schema`_ documentation.
-
-**Material Changes**
-
-The deformable material hierarchy is now split by backend:
-
-- :class:`~isaaclab.sim.DeformableBodyMaterialBaseCfg` and
-  :class:`~isaaclab.sim.SurfaceDeformableBodyMaterialBaseCfg` — empty base classes for backend-specific
-  deformable material configs.
-- :class:`~isaaclab_physx.sim.PhysxDeformableBodyMaterialCfg` — for PhysX volume deformables. Contains ``density``,
-  ``static_friction``, ``dynamic_friction``, ``youngs_modulus``, ``poissons_ratio``, and ``elasticity_damping``.
-- :class:`~isaaclab_physx.sim.PhysxSurfaceDeformableBodyMaterialCfg` — extends the PhysX volume material config with
-  surface-specific properties: ``surface_thickness``, ``surface_stretch_stiffness``, ``surface_shear_stiffness``,
-  ``surface_bend_stiffness``, and ``bend_damping``.
-- :class:`~isaaclab_newton.sim.spawners.materials.NewtonDeformableBodyMaterialCfg` and
-  :class:`~isaaclab_newton.sim.spawners.materials.NewtonSurfaceDeformableBodyMaterialCfg` contain Newton-specific
-  fields such as density, particle radius, direct Lame parameters ``k_mu``/``k_lambda`` for volume deformables,
-  and VBD stiffness parameters for surface deformables.
-
-The old ``damping_scale`` property has been removed. Use ``elasticity_damping`` directly instead.
-
-**DeformableObject View Change**
-
-The internal PhysX view type has changed from ``physx.SoftBodyView`` to ``physx.DeformableBodyView``.
-The property ``root_physx_view`` has been deprecated in favor of ``root_view``.
-
-
-.. rubric:: Code Examples
-
-**Volume Deformable (Before and After)**
+.. rubric:: Example: Volume Deformable
 
 **Before**:
 
 .. code-block:: python
-   :emphasize-lines: 1,2
+   :emphasize-lines: 8,10
 
    import isaaclab.sim as sim_utils
    from isaaclab.assets import DeformableObject, DeformableObjectCfg
@@ -160,7 +68,7 @@ The property ``root_physx_view`` has been deprecated in favor of ``root_view``.
 **After**:
 
 .. code-block:: python
-   :emphasize-lines: 1,2
+   :emphasize-lines: 3,9,11
 
    import isaaclab.sim as sim_utils
    from isaaclab.assets import DeformableObject, DeformableObjectCfg
@@ -177,64 +85,49 @@ The property ``root_physx_view`` has been deprecated in favor of ``root_view``.
    )
    cube_object = DeformableObject(cfg=cfg)
 
-**Surface Deformable (New)**
+.. rubric:: Removed Properties
 
-Surface deformables use :class:`~isaaclab.sim.spawners.meshes.MeshRectangleCfg` for 2D meshes, combined with
-:class:`~isaaclab_physx.sim.PhysxSurfaceDeformableBodyMaterialCfg`:
+The following fields no longer exist:
 
-.. code-block:: python
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
 
-   import isaaclab.sim as sim_utils
-   from isaaclab.assets import DeformableObject, DeformableObjectCfg
-   from isaaclab_physx.sim import PhysxDeformableBodyPropertiesCfg, PhysxSurfaceDeformableBodyMaterialCfg
+   * - Removed from
+     - Replacement
+   * - ``PhysxDeformableBodyPropertiesCfg.collision_simplification`` and its
+       ``collision_simplification_*`` parameters
+     - None. PhysX generates the collision mesh automatically.
+   * - ``PhysxDeformableBodyPropertiesCfg.simulation_hexahedral_resolution``
+     - None. PhysX determines the simulation mesh resolution.
+   * - ``PhysxDeformableBodyPropertiesCfg.vertex_velocity_damping``
+     - ``linear_damping``
+   * - ``PhysxDeformableBodyPropertiesCfg.sleep_damping``
+     - ``settling_damping``
+   * - ``PhysxDeformableBodyMaterialCfg.damping_scale``
+     - ``elasticity_damping``
+   * - ``contact_offset`` / ``rest_offset`` and ``PhysxDeformableCollisionPropertiesCfg``
+     - Set them on the mesh spawner instead, using
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg`:
+       ``collision_props=[PhysxCollisionCfg(rest_offset=0.0005, contact_offset=0.005)]``.
+       PhysX reads collision offsets off the collider, which for a deformable is its simulation
+       mesh, so authoring them on the body prim never reached the solver.
 
-   cfg = DeformableObjectCfg(
-       prim_path="/World/Origin.*/Cloth",
-       spawn=sim_utils.MeshRectangleCfg(
-           size=(1.5, 1.5),
-           resolution=(21, 21),
-           deformable_props=PhysxDeformableBodyPropertiesCfg(),
-           visual_material=sim_utils.PreviewSurfaceCfg(),
-           physics_material=PhysxSurfaceDeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e5),
-       ),
-   )
-   cloth_object = DeformableObject(cfg=cfg)
+:class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg` also gained fields from the new
+schema. See the class reference and the `PhysX deformable schema`_ for the current list.
 
-**USD File Deformable**
+.. rubric:: Behavior Changes
 
-Deformable properties can also be applied to imported USD assets using
-:class:`~isaaclab.sim.spawners.from_files.UsdFileCfg`:
-
-.. code-block:: python
-
-   import isaaclab.sim as sim_utils
-   from isaaclab.assets import DeformableObject, DeformableObjectCfg
-   from isaaclab_physx.sim import PhysxDeformableBodyMaterialCfg, PhysxDeformableBodyPropertiesCfg
-
-   from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-
-   cfg = DeformableObjectCfg(
-       prim_path="/World/Origin.*/Teddy",
-       spawn=sim_utils.UsdFileCfg(
-           usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Teddy_Bear/teddy_bear.usd",
-           deformable_props=PhysxDeformableBodyPropertiesCfg(),
-           physics_material=PhysxDeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e5),
-           scale=[0.05, 0.05, 0.05],
-       ),
-   )
-   teddy_object = DeformableObject(cfg=cfg)
-
-
-.. rubric:: Limitations
-
-- **Kinematic targets are volume-only.** Calling
+- Kinematic targets are volume-only. Calling
   :meth:`~isaaclab.assets.DeformableObject.write_nodal_kinematic_target_to_sim_index` on a surface
-  deformable will raise a ``ValueError``.
-- **Surface-specific solver properties** (``collision_pair_update_frequency``,
-  ``collision_iteration_multiplier``) have no effect on volume deformables.
+  deformable raises a ``ValueError``.
+- ``collision_pair_update_frequency`` and ``collision_iteration_multiplier`` have no effect on
+  volume deformables.
+- The PhysX view behind a deformable changed from ``physx.SoftBodyView`` to
+  ``physx.DeformableBodyView``, and ``root_physx_view`` is deprecated in favor of ``root_view``.
+
+For runnable volume, surface, and USD-asset examples, see the
+:ref:`tutorial-interact-deformable-object` tutorial and ``scripts/demos/deformables.py``.
 
 
-.. _Omni Physics documentation: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/110.0/dev_guide/deformables/deformable_bodies.html
 .. _PhysX deformable schema: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/110.0/dev_guide/deformables/physx_deformable_schema.html#physxbasedeformablebodyapi
-.. _OmniPhysics deformable schema: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/110.0/dev_guide/deformables/omniphysics_deformable_schema.html
-.. _release notes: https://github.com/isaac-sim/IsaacLab/releases
