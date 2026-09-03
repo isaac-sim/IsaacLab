@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -78,7 +79,7 @@ class VideoRecorder:
         self._frames: list[np.ndarray] = []
         self._step_count = 0
         self._frames_step_count = 0
-        self._clip_index = 0
+        self._clip_index = self._next_clip_index()
         self._recording = False
         # Set to True after the first unrecoverable frame-capture error so that
         # subsequent steps do not propagate the exception or repeat the log message.
@@ -300,6 +301,21 @@ class VideoRecorder:
     def _clip_path(self, index: int) -> str:
         return os.path.join(self._effective_output_dir(), f"{self.cfg.output_filename_prefix}_{index:04d}.mp4")
 
+    def _next_clip_index(self) -> int:
+        return max(self._existing_clip_indices(), default=-1) + 1
+
+    def _existing_clip_indices(self) -> list[int]:
+        output_dir = self._effective_output_dir()
+        if not os.path.isdir(output_dir):
+            return []
+
+        pattern = re.compile(rf"^{re.escape(str(self.cfg.output_filename_prefix))}_(?P<index>\d+)\.mp4$")
+        return [
+            int(match.group("index"))
+            for filename in os.listdir(output_dir)
+            if (match := pattern.match(filename)) is not None
+        ]
+
     def _close_clip(self) -> None:
         if not self._frames:
             self._recording = False
@@ -343,7 +359,9 @@ class VideoRecorder:
         if self.cfg.keep_last_n_clips is None:
             return
         cutoff = self._clip_index - self.cfg.keep_last_n_clips
-        for index in range(max(0, cutoff)):
+        for index in self._existing_clip_indices():
+            if index >= cutoff:
+                continue
             path = self._clip_path(index)
             try:
                 os.remove(path)
