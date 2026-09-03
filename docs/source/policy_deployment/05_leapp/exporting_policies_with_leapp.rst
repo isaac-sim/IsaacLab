@@ -247,8 +247,11 @@ backend-specific and AppLauncher arguments:
      - Name for the exported graph and output directory.
    * - ``--export_method``
      - ``onnx-dynamo``
-     - Export backend. Choices: ``onnx-dynamo``, ``onnx-torchscript``, ``jit-script``,
-       ``jit-trace``.
+     - Select the export backend based on the artifact format you need. ``onnx-dynamo`` is the
+       recommended default; the other choices are optional. If one backend does not support your
+       model, try another. See the
+       `LEAPP export guide <https://nvidia-isaac.github.io/leapp/guides/export.html>`__
+       for options and guidance.
    * - ``--export_save_path``
      - Checkpoint dir
      - Base directory for export output.
@@ -365,6 +368,13 @@ The log is useful for diagnosing issues such as:
 
 In practice, this should be your first stop when the export does not complete or when the output
 artifacts do not look correct.
+
+Use the default ``onnx-dynamo`` backend unless your
+downstream runtime or workflow requires another format. Backend support can vary by model, so if
+one backend fails, try another backend that produces an acceptable artifact format.
+
+For details on ONNX, JIT, and PT2 export formats, see the
+`LEAPP export guide <https://nvidia-isaac.github.io/leapp/guides/export.html>`__.
 
 
 Export Backends
