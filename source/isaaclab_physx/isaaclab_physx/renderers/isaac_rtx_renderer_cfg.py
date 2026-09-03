@@ -5,12 +5,17 @@
 
 """Configuration for Isaac RTX (Replicator) Renderer."""
 
+from __future__ import annotations
+
 from dataclasses import field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
+
+if TYPE_CHECKING:
+    from .isaac_rtx_renderer import IsaacRtxRenderer
 
 
 @configclass
@@ -109,6 +114,9 @@ class IsaacRtxRendererCfg(RendererCfg):
     segmentation, semantic filtering, depth clipping) used by the RTX rendering
     pipeline.
     """
+
+    class_type: type[IsaacRtxRenderer] | str = "{DIR}.isaac_rtx_renderer:IsaacRtxRenderer"
+    """Renderer implementation class."""
 
     renderer_type: str = "isaac_rtx"
     """Type identifier for Isaac RTX renderer."""

@@ -42,6 +42,7 @@ from environ_docs import (  # noqa: E402
     ENVIRONMENT_BROWSER_TASKS_END_MARKER,
     ENVIRONMENT_BROWSER_TASKS_START_MARKER,
     EnvironmentDocRow,
+    _apply_preset_exclusions,
     _physics_names_for_docs,
     apply_rl_library_overrides,
     collect_environment_browser_preview_images,
@@ -198,6 +199,24 @@ def test_physics_names_for_docs_infers_physx_from_default():
         {PresetTarget.PHYSICS: ["newton_mjwarp"], PresetTarget.DOMAIN: [], PresetTarget.RENDERER: []},
     )
     assert names == ["newton_mjwarp", "physx"]
+
+
+def test_preset_exclusions_remove_only_runtime_disabled_task_combinations():
+    presets = {
+        PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp"],
+        PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
+        PresetTarget.DOMAIN: ["rgb"],
+    }
+
+    excluded = _apply_preset_exclusions("IsaacContrib-Stack-Cube-Franka", presets)
+    unchanged = _apply_preset_exclusions("Isaac-Lift-Franka", presets)
+
+    assert excluded == {
+        PresetTarget.PHYSICS: ["isaacsim_physx"],
+        PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
+        PresetTarget.DOMAIN: ["rgb"],
+    }
+    assert unchanged == presets
 
 
 def test_collect_environment_doc_rows_from_mock_specs():

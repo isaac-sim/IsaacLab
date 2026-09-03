@@ -22,35 +22,12 @@ The package also provides the unified training and playback entrypoints used by 
 """
 
 import importlib.metadata
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from .entrypoints import PlaybackRequest, SimpleAgentRequest, TrainingRequest
+from isaaclab.utils.module import lazy_export
 
 try:
     __version__ = importlib.metadata.version("isaaclab_rl")
 except importlib.metadata.PackageNotFoundError:
     __version__ = "0.0.0"
-__all__ = [
-    "PlaybackRequest",
-    "SimpleAgentRequest",
-    "TrainingRequest",
-    "play",
-    "random_agent",
-    "run_play_cli",
-    "run_random_agent_cli",
-    "run_train_cli",
-    "run_train_multigpu_cli",
-    "run_zero_agent_cli",
-    "train",
-    "zero_agent",
-]
 
-
-def __getattr__(name: str):
-    """Lazily expose unified reinforcement learning entrypoint APIs."""
-    if name in __all__:
-        from . import entrypoints
-
-        return getattr(entrypoints, name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+lazy_export()
