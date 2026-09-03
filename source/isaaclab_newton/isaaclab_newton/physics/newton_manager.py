@@ -2922,14 +2922,6 @@ class NewtonManager(PhysicsManager):
 
         device = PhysicsManager._device or "cpu"
         try:
-            # The shadow model never runs collision detection -- body_q is overwritten every
-            # frame from the PhysX SceneDataProvider state, not computed by a Newton solver.
-            # USD-authored self-collision filters (e.g. physxArticulation:enabledSelfCollisions)
-            # still get imported by add_usd though, and replicated across every cloned env.
-            # At real env counts that PhysX tasks train with, that filter-pair set can reach
-            # billions of entries and blow up ModelBuilder.finalize() trying to pack it.
-            # Drop it before finalizing since the shadow model has no use for it.
-            builder.shape_collision_filter_pairs = []
             NewtonManager._model = builder.finalize(device=device)
             NewtonManager._state_0 = cls._model.state()
             cls._model.num_envs = cls._num_envs

@@ -114,6 +114,8 @@ def build_visualization_builder_from_stage_envs(
         shadow_entities, registry_groups = add_shadow_deformables_to_builder(
             builder, stage, env_paths, device=device, entries=deformable_entries, clone_plan=clone_plan
         )
+        builder.shape_collision_filter_pairs = []
+        builder.shape_collision_group[:] = [0] * builder.shape_count
         return builder, (shadow_entities, registry_groups)
 
     if not env_paths:
@@ -148,6 +150,12 @@ def build_visualization_builder_from_stage_envs(
         schema_resolvers,
         ignore_paths=source_deformable_ignore_paths or None,
     )
+    global_builder = builder
+    builder = ModelBuilder(up_axis=up_axis)  # Preserve Newton's compact empty filter store.
+    for visual_builder in (global_builder, *source_builders.values()):
+        visual_builder.shape_collision_filter_pairs = []
+        visual_builder.shape_collision_group[:] = [0] * visual_builder.shape_count
+    builder.add_builder(global_builder)
     replicate_builder_mapping(builder, sources, mapping, positions, quaternions, source_builders)
     rename_builder_labels(builder, sources, destinations, env_ids, mapping)
     shadow_entities, registry_groups = add_shadow_deformables_to_builder(
