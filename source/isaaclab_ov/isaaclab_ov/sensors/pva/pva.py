@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -156,11 +157,10 @@ class Pva(BasePva):
             )
 
         # PVA reports projected gravity as the unit direction vector (not the bias the IMU uses).
-        gravity = SimulationManager.get_gravity()
-        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self._device)
-        gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
-        gravity_dir_repeated = gravity_dir.repeat(self._num_bodies, 1)
-        self._gravity_vec_w = wp.from_torch(gravity_dir_repeated.contiguous(), dtype=wp.vec3f)
+        # The scene value can change at runtime, so it is refreshed on every update.
+        self._gravity_w: tuple[float, float, float] | None = None
+        self._gravity_vec_w = wp.empty(self._num_bodies, dtype=wp.vec3f, device=self._device)
+        self._refresh_gravity_vec()
 
         self._initialize_buffers_impl()
 
@@ -185,9 +185,28 @@ class Pva(BasePva):
         # across the reset; ``_initialize_impl`` rebuilds a fresh view on the next play.
         self._root_view = None
 
+    def _refresh_gravity_vec(self):
+        """Refresh the cached gravity buffer when the scene gravity changed.
+
+        Scene gravity is runtime-mutable (see
+        :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`), so the buffer is
+        re-filled in place rather than reallocated: consumers (and any recorded launch) hold
+        the array pointer, and a fresh allocation would freeze the sensor on the old value.
+        """
+        gravity = SimulationManager.get_gravity()
+        gravity = (float(gravity[0]), float(gravity[1]), float(gravity[2]))
+        if gravity == self._gravity_w:
+            return
+        self._gravity_w = gravity
+        # Mirrors ``math_utils.normalize``: the norm is clamped to eps, so zero scene gravity
+        # yields a zero direction instead of NaNs.
+        scale = 1.0 / max(math.sqrt(gravity[0] ** 2 + gravity[1] ** 2 + gravity[2] ** 2), 1.0e-9)
+        self._gravity_vec_w.fill_(wp.vec3f(gravity[0] * scale, gravity[1] * scale, gravity[2] * scale))
+
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
+        self._refresh_gravity_vec()
 
         # ``OvPhysxView.read_into`` fills the structured-dtype buffer in place via a
         # cached float32 reinterpret; no manual float32 alias is needed.

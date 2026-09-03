@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -158,12 +159,11 @@ class Pva(BasePva):
         # Create the rigid body view on the ancestor
         self._view = self._physics_sim_view.create_rigid_body_view(path_expr_to_glob(self._rigid_parent_expr))
 
-        # Get world gravity
-        gravity = self._physics_sim_view.get_gravity()
-        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
-        gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
-        gravity_dir_repeated = gravity_dir.repeat(self.num_instances, 1)
-        self.GRAVITY_VEC_W = ProxyArray(wp.from_torch(gravity_dir_repeated.contiguous(), dtype=wp.vec3f))
+        # Unit world-gravity direction. The scene value can change at runtime, so it is
+        # refreshed on every update instead of snapshotted here.
+        self._gravity_w: tuple[float, float, float] | None = None
+        self.GRAVITY_VEC_W = ProxyArray(wp.empty(self.num_instances, dtype=wp.vec3f, device=self.device))
+        self._refresh_gravity_vec()
 
         # Create internal buffers
         self._initialize_buffers_impl()
@@ -187,9 +187,28 @@ class Pva(BasePva):
 
         self._use_recorded_launch = wp.get_device(self._device).is_cuda
 
+    def _refresh_gravity_vec(self):
+        """Refresh the cached gravity buffer when the scene gravity changed.
+
+        Scene gravity is runtime-mutable (see
+        :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`), so the buffer is
+        re-filled in place rather than reallocated: consumers (and any recorded launch) hold
+        the array pointer, and a fresh allocation would freeze the sensor on the old value.
+        """
+        gravity = self._physics_sim_view.get_gravity()
+        gravity = (float(gravity[0]), float(gravity[1]), float(gravity[2]))
+        if gravity == self._gravity_w:
+            return
+        self._gravity_w = gravity
+        # Mirrors ``math_utils.normalize``: the norm is clamped to eps, so zero scene gravity
+        # yields a zero direction instead of NaNs.
+        scale = 1.0 / max(math.sqrt(gravity[0] ** 2 + gravity[1] ** 2 + gravity[2] ** 2), 1.0e-9)
+        self.GRAVITY_VEC_W.warp.fill_(wp.vec3f(gravity[0] * scale, gravity[1] * scale, gravity[2] * scale))
+
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
+        self._refresh_gravity_vec()
 
         # Refresh the PhysX buffers every update, but create their typed Warp views only once:
         # the getters lazily allocate their output buffers and refresh the same memory in place

@@ -102,6 +102,7 @@ def _make_sensor(sensor_type: str, use_recorded_launch: bool = True):
     coms = wp.from_torch(coms_torch.contiguous()).view(wp.transformf)
     rigid_view = _FakeRigidView(transforms, velocities, coms)
 
+    gravity_sink = {"value": (0.0, 0.0, -9.81)}
     sensor_cls = Imu if sensor_type == "imu" else Pva
     sensor = sensor_cls.__new__(sensor_cls)
     sensor.cfg = SimpleNamespace(prim_path=f"/World/{sensor_type.upper()}")
@@ -125,6 +126,9 @@ def _make_sensor(sensor_type: str, use_recorded_launch: bool = True):
     sensor._initialize_handle = None
     sensor._invalidate_initialize_handle = None
     sensor._prim_deletion_handle = None
+    # ``_update_buffers_impl`` re-reads scene gravity so runtime randomization stays visible.
+    sensor._physics_sim_view = SimpleNamespace(get_gravity=lambda: gravity_sink["value"])
+    sensor._gravity_w = gravity_sink["value"]
 
     if sensor_type == "imu":
         sensor._data = ImuData()
@@ -137,13 +141,13 @@ def _make_sensor(sensor_type: str, use_recorded_launch: bool = True):
         sensor.GRAVITY_VEC_W = ProxyArray(wp.zeros(2, dtype=wp.vec3f, device=device))
 
     env_mask = wp.ones(2, dtype=wp.bool, device=device)
-    return sensor, rigid_view, velocities_torch, env_mask
+    return sensor, rigid_view, velocities_torch, env_mask, gravity_sink
 
 
 @pytest.mark.parametrize("sensor_type", ["imu", "pva"])
 def test_sensor_caches_physx_typed_views(sensor_type):
     """Repeated eager updates should reuse typed views over refreshed PhysX buffers."""
-    sensor, rigid_view, _, env_mask = _make_sensor(sensor_type, use_recorded_launch=False)
+    sensor, rigid_view, _, env_mask, _ = _make_sensor(sensor_type, use_recorded_launch=False)
 
     sensor._update_buffers_impl(env_mask)
     sensor._update_buffers_impl(env_mask)
@@ -158,7 +162,7 @@ def test_sensor_caches_physx_typed_views(sensor_type):
 @pytest.mark.parametrize("sensor_type", ["imu", "pva"])
 def test_sensor_records_and_replays_changed_runtime_inputs(sensor_type):
     """Replay should observe refreshed buffers, a new mask, and a changed sample interval."""
-    sensor, rigid_view, velocities_torch, env_mask = _make_sensor(sensor_type)
+    sensor, rigid_view, velocities_torch, env_mask, _ = _make_sensor(sensor_type)
 
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor.device)
@@ -189,7 +193,7 @@ def test_sensor_records_and_replays_changed_runtime_inputs(sensor_type):
 @pytest.mark.parametrize("sensor_type", ["imu", "pva"])
 def test_sensor_falls_back_when_recording_fails(monkeypatch, sensor_type):
     """A recording failure should disable recording and execute the update eagerly."""
-    sensor, _, _, env_mask = _make_sensor(sensor_type)
+    sensor, _, _, env_mask, _ = _make_sensor(sensor_type)
     sensor_module = imu_module if sensor_type == "imu" else pva_module
     original_launch = sensor_module.wp.launch
 
@@ -213,7 +217,7 @@ def test_sensor_falls_back_when_recording_fails(monkeypatch, sensor_type):
 @pytest.mark.parametrize("sensor_type", ["imu", "pva"])
 def test_sensor_invalidation_drops_cached_launch_state(monkeypatch, sensor_type):
     """Physics invalidation should release cached PhysX views and the recorded command."""
-    sensor, _, _, _ = _make_sensor(sensor_type)
+    sensor, _, _, _, _ = _make_sensor(sensor_type)
     sensor._raw_transforms = object()
     sensor._raw_velocities = object()
     sensor._raw_coms = object()
@@ -230,3 +234,45 @@ def test_sensor_invalidation_drops_cached_launch_state(monkeypatch, sensor_type)
     assert sensor._raw_coms is None
     assert sensor._update_cmd is None
     assert sensor._update_env_mask is None
+
+
+@pytest.mark.parametrize("sensor_type", ["imu", "pva"])
+def test_sensor_tracks_runtime_gravity_changes(sensor_type):
+    """Scene gravity randomized after initialization must reach the sensor's replayed launch."""
+    sensor, _, _, env_mask, gravity_sink = _make_sensor(sensor_type)
+    buffer = sensor._gravity_bias_w if sensor_type == "imu" else sensor.GRAVITY_VEC_W.warp
+    buffer.fill_(wp.vec3f(0.0, 0.0, -9.81) if sensor_type == "imu" else wp.vec3f(0.0, 0.0, -1.0))
+
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor.device)
+    # The recorded launch holds this pointer, so the refresh must not reallocate the buffer.
+    buffer_ptr = buffer.ptr
+
+    gravity_sink["value"] = (0.0, 3.72, 0.0)
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor.device)
+
+    # IMU reports the accelerometer bias (-g); PVA reports the unit gravity direction.
+    expected = (0.0, -3.72, 0.0) if sensor_type == "imu" else (0.0, 1.0, 0.0)
+    torch.testing.assert_close(
+        wp.to_torch(buffer),
+        torch.tensor(expected, device=sensor.device).repeat(2, 1),
+    )
+    assert buffer.ptr == buffer_ptr
+
+
+@pytest.mark.parametrize("sensor_type", ["imu", "pva"])
+def test_sensor_skips_gravity_refill_when_unchanged(sensor_type):
+    """An unchanged scene gravity must not overwrite the buffer on every update."""
+    sensor, _, _, env_mask, _ = _make_sensor(sensor_type)
+    buffer = sensor._gravity_bias_w if sensor_type == "imu" else sensor.GRAVITY_VEC_W.warp
+    sentinel = wp.vec3f(7.0, 7.0, 7.0)
+    buffer.fill_(sentinel)
+
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor.device)
+
+    torch.testing.assert_close(
+        wp.to_torch(buffer),
+        torch.tensor((7.0, 7.0, 7.0), device=sensor.device).repeat(2, 1),
+    )
