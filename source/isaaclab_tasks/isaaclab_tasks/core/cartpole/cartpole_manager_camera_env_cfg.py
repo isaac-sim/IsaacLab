@@ -16,7 +16,7 @@ from isaaclab.visualizers import VisualizerCfg
 import isaaclab_tasks.core.cartpole.mdp as mdp
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg, ObservationsCfg
 from isaaclab_tasks.utils import PresetCfg
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg, validate_warp_renderer_data_types
 
 ##
 # Camera presets
@@ -166,6 +166,10 @@ class CartpoleCameraEnvCfg(PresetCfg):
 
         # scene: fewer, more-spaced envs so each camera renders cleanly
         scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0)
+
+        def validate_config(self):
+            """Check that the camera data type is renderable by the selected renderer."""
+            validate_warp_renderer_data_types(self.scene.tiled_camera, "tiled_camera")
 
         def __post_init__(self):
             super().__post_init__()

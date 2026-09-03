@@ -15,7 +15,7 @@ from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 from isaaclab_tasks.utils import PresetCfg
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg, validate_warp_renderer_data_types
 
 
 @configclass
@@ -71,6 +71,10 @@ class CartpoleCameraEnvCfg(PresetCfg):
 
         # reset: smaller initial pole angle than the proprioceptive task
         initial_pole_angle_range = (-0.125 * math.pi, 0.125 * math.pi)  # [rad]
+
+        def validate_config(self):
+            """Check that the camera data type is renderable by the selected renderer."""
+            validate_warp_renderer_data_types(self.tiled_camera, "tiled_camera")
 
         def __post_init__(self):
             self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))
