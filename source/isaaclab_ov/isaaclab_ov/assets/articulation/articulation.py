@@ -30,7 +30,6 @@ from isaaclab.assets.articulation.ordering_resolvers import (
     _canonical_joint_dof_name,
 )
 from isaaclab.physics import PhysicsManager
-from isaaclab.sim.schemas import resolve_applied_schema_instances
 from isaaclab.utils.buffers import TimestampedBufferWarp
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
@@ -4139,7 +4138,12 @@ class Articulation(BaseArticulation):
                                     schema_names.extend(str(item) for item in items)
                         # GetAppliedSchemas() and the apiSchemas metadata report the same items; dedupe
                         schema_names = list(dict.fromkeys(schema_names))
-                        root_instances = resolve_applied_schema_instances(schema_names, "PhysxTendonAxisRootAPI")
+                        # a fixed tendon is named after its PhysxTendonAxisRootAPI instance, not the joint carrying it
+                        root_instances = [
+                            schema_name.removeprefix("PhysxTendonAxisRootAPI:")
+                            for schema_name in schema_names
+                            if schema_name.startswith("PhysxTendonAxisRootAPI:")
+                        ]
                         name = prim.GetPath().name
                         if root_instances:
                             self._fixed_tendon_names.extend(root_instances)

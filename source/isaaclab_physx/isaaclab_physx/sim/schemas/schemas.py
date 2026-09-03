@@ -6,10 +6,9 @@
 """PhysX schema-fragment appliers and compatibility wrappers.
 
 The deformable schema writers are backend-aware but remain unified in
-:mod:`isaaclab.sim.schemas`. This module hosts the PhysX joint-drive applier, which keeps the
-backend-specific ``PhysxJointAPI`` handling out of the core package, and retains
-:func:`apply_fixed_tendon` / :func:`apply_spatial_tendon` as compatibility wrappers over
-:func:`~isaaclab.sim.schemas.apply_namespaced`.
+:mod:`isaaclab.sim.schemas`. This module additionally hosts the PhysX-specific fragment
+applier funcs that override :attr:`~isaaclab.sim.schemas.SchemaFragment.func` for the
+joint-drive and multi-instance tendon schemas, keeping the backend func out of the core package.
 """
 
 from __future__ import annotations
@@ -20,7 +19,6 @@ import math
 from pxr import Usd, UsdPhysics
 
 from isaaclab.sim.schemas.schemas import (
-    apply_namespaced,
     define_deformable_body_properties,
     modify_deformable_body_properties,
 )
@@ -77,11 +75,71 @@ def apply_physx_joint(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bo
     return True
 
 
+def _strip_fragment_fields(cfg) -> dict:
+    """Collect a fragment's non-``None`` data fields, excluding the ``func`` plumbing field.
+
+    Args:
+        cfg: The fragment instance to read fields from.
+
+    Returns:
+        A mapping of set field names to their values, ready to author as namespaced USD attributes.
+    """
+    return {
+        f.name: getattr(cfg, f.name)
+        for f in dataclasses.fields(cfg)
+        if f.name != "func" and getattr(cfg, f.name) is not None
+    }
+
+
+def _tune_multi_instance_tendon(cfg, prim_path: str, stage: Usd.Stage | None, markers: tuple[str, ...]) -> bool:
+    """Tune the multi-instance tendon schemas (matching one of ``markers``) on the prim at ``prim_path``.
+
+    Shared backend for :func:`apply_fixed_tendon` / :func:`apply_spatial_tendon`. These schemas are
+    *tune-not-apply* (instances are authored in the source asset). This is a strictly per-prim
+    tuner: the core writers (e.g. :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`) own
+    targeting and hand it the exact resolved prim paths, so it never descends into descendants. It
+    writes each set fragment field as ``<schema_name>:<camelCase(field)>`` across every matching
+    applied instance on the prim. Applies no schema. The fragment's ``_usd_namespace`` is unused
+    (these are not flat-namespace fragments); the schema marker is matched explicitly via
+    ``markers``.
+
+    Args:
+        cfg: The tendon fragment whose set fields are written.
+        prim_path: The prim path carrying the tendon schema instances.
+        stage: The stage to resolve the prim on. Defaults to the current stage.
+        markers: Substrings identifying the applied schema(s) to tune (e.g. ``("PhysxTendonAxisRootAPI",)``).
+
+    Returns:
+        True if at least one matching instance was tuned, False if none is applied on the prim.
+
+    Raises:
+        ValueError: If the prim at ``prim_path`` does not exist in the stage.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    matching_schemas = [s for s in prim.GetAppliedSchemas() if any(m in s for m in markers)]
+    if not matching_schemas:
+        return False
+    values = _strip_fragment_fields(cfg)
+    for schema_name in matching_schemas:
+        for attr_name, value in values.items():
+            safe_set_attribute_on_usd_prim(
+                prim, f"{schema_name}:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
+            )
+    return True
+
+
 def apply_fixed_tendon(cfg: PhysxFixedTendonCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     """Tune the multi-instance ``PhysxTendonAxisRootAPI`` schemas on a prim.
 
-    Retained as the published entry point; the fragment declares its multiple-apply schema, so the
-    generic applier does the work.
+    Custom ``func`` override for :class:`PhysxFixedTendonCfg`. The fixed-tendon schema is
+    multi-instance and *tune-not-apply* (instances are authored in the source asset), so this
+    writes each set fragment field as ``<schema_name>:<camelCase(field)>`` across every applied
+    ``PhysxTendonAxisRootAPI`` instance and applies no schema. Writes nothing for the ``mjc:``
+    Mujoco path — a separate ``MjcTendon``-aware Newton fragment handles that path.
 
     Args:
         cfg: The :class:`PhysxFixedTendonCfg` fragment to apply.
@@ -91,15 +149,14 @@ def apply_fixed_tendon(cfg: PhysxFixedTendonCfg, prim_path: str, stage: Usd.Stag
     Returns:
         True if at least one ``PhysxTendonAxisRootAPI`` instance was tuned, False if none is applied.
     """
-    return apply_namespaced(cfg, prim_path, stage)
+    return _tune_multi_instance_tendon(cfg, prim_path, stage, ("PhysxTendonAxisRootAPI",))
 
 
 def apply_spatial_tendon(cfg: PhysxSpatialTendonCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
-    """Tune the multi-instance ``PhysxTendonAttachmentRootAPI`` schemas on a prim.
+    """Tune the multi-instance ``PhysxTendonAttachment{Root,Leaf}API`` schemas on a prim.
 
-    Retained as the published entry point; the fragment declares its multiple-apply schema, so the
-    generic applier does the work. Only the attachment *root* is tuned: leaf and intermediate
-    attachments declare per-element geometry and limits, not the tendon's dynamics.
+    Custom ``func`` override for :class:`PhysxSpatialTendonCfg`. Writes each set fragment field
+    across every applied attachment-root and attachment-leaf instance and applies no schema.
 
     Args:
         cfg: The :class:`PhysxSpatialTendonCfg` fragment to apply.
@@ -107,7 +164,8 @@ def apply_spatial_tendon(cfg: PhysxSpatialTendonCfg, prim_path: str, stage: Usd.
         stage: The stage where to find the prim. Defaults to the current stage.
 
     Returns:
-        True if at least one ``PhysxTendonAttachmentRootAPI`` instance was tuned, False if none is
-        applied.
+        True if at least one attachment instance was tuned, False if none is applied.
     """
-    return apply_namespaced(cfg, prim_path, stage)
+    return _tune_multi_instance_tendon(
+        cfg, prim_path, stage, ("PhysxTendonAttachmentRootAPI", "PhysxTendonAttachmentLeafAPI")
+    )

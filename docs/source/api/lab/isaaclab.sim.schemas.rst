@@ -88,9 +88,6 @@ isaaclab.sim.schemas
     define_mesh_collision_properties
     modify_mesh_collision_properties
     modify_fixed_tendon_properties
-    modify_spatial_tendon_properties
-    multiple_apply_property_name
-    resolve_applied_schema_instances
     define_deformable_body_properties
     define_deformable_curve_properties
     modify_deformable_body_properties
@@ -282,8 +279,6 @@ Tendon
 
 .. autofunction:: modify_fixed_tendon_properties
 .. autofunction:: modify_spatial_tendon_properties
-.. autofunction:: multiple_apply_property_name
-.. autofunction:: resolve_applied_schema_instances
 
 Tendon cfg classes are PhysX-only and live in
 :mod:`isaaclab_physx.sim.schemas`

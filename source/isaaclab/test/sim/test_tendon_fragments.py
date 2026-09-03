@@ -12,8 +12,6 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import dataclasses
-
 import pytest
 
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom
@@ -59,23 +57,15 @@ def _make_spatial_tendon_prim(stage, path, instance="default"):
     return prim
 
 
-def _make_spatial_tendon_leaf_prim(stage, path, instance="default"):
-    """Create a prim with a multi-instance PhysxTendonAttachmentLeafAPI applied."""
-    prim = _make_xform(stage, path)
-    PhysxSchema.PhysxTendonAttachmentLeafAPI.Apply(prim, instance)
-    return prim
-
-
 def _tendon_attr_prefix(prim, schema_substr):
-    """Return the canonical PhysX property prefix for an applied tendon schema.
+    """Return the applied-schema name used by the writer as the authored-attribute prefix.
 
-    Applied schema tokens use ``PhysxTendon...API:<instance>``, while all PhysX tendon
-    properties use the schema-declared ``physxTendon:<instance>`` namespace.
+    The legacy writer authors ``f"{schema_name}:{camelCase(field)}"`` where ``schema_name`` is
+    the entry returned by ``prim.GetAppliedSchemas()`` (e.g. ``PhysxTendonAxisRootAPI:t0``).
     """
     for schema_name in prim.GetAppliedSchemas():
         if schema_substr in schema_name:
-            instance_name = schema_name.split(":", maxsplit=1)[1]
-            return f"physxTendon:{instance_name}"
+            return schema_name
     raise AssertionError(f"no applied schema containing {schema_substr!r} on {prim.GetPath()}")
 
 
@@ -91,7 +81,7 @@ def test_fixed_tendon_fragment_metadata_defaults():
 
     cfg = PhysxFixedTendonCfg(stiffness=1.0)
     assert isinstance(cfg, FixedTendonFragment) and isinstance(cfg, SchemaFragment)
-    assert type(cfg)._usd_multi_apply_schema == "PhysxTendonAxisRootAPI"
+    assert cfg.func == "isaaclab_physx.sim.schemas:apply_fixed_tendon"
     assert cfg.stiffness == 1.0 and cfg.damping is None
 
 
@@ -102,7 +92,7 @@ def test_spatial_tendon_fragment_metadata_defaults():
 
     cfg = PhysxSpatialTendonCfg(stiffness=2.0)
     assert isinstance(cfg, SpatialTendonFragment) and isinstance(cfg, SchemaFragment)
-    assert type(cfg)._usd_multi_apply_schema == "PhysxTendonAttachmentRootAPI"
+    assert cfg.func == "isaaclab_physx.sim.schemas:apply_spatial_tendon"
     assert cfg.stiffness == 2.0 and cfg.damping is None
 
 
@@ -124,7 +114,6 @@ def test_physx_fixed_tendon_fragment_writes_instanced_namespace():
     assert abs(prim.GetAttribute(f"{prefix}:damping").Get() - 0.5) < 1e-6
     # the ``func`` plumbing field must not be authored as an attribute
     assert not prim.HasAttribute(f"{prefix}:func")
-    assert not prim.HasAttribute("PhysxTendonAxisRootAPI:t0:stiffness")
 
 
 # -------------------------------------------------------------------------------------
@@ -141,7 +130,7 @@ def test_apply_fixed_tendon_writes_all_instances():
     prim = _make_prim_with_schemas(stage, "/World/FTmulti", ["PhysxTendonAxisRootAPI:t0", "PhysxTendonAxisRootAPI:t1"])
     assert apply_fixed_tendon(PhysxFixedTendonCfg(stiffness=9.0), "/World/FTmulti", stage) is True
     for inst in ("t0", "t1"):
-        assert abs(prim.GetAttribute(f"physxTendon:{inst}:stiffness").Get() - 9.0) < 1e-6
+        assert abs(prim.GetAttribute(f"PhysxTendonAxisRootAPI:{inst}:stiffness").Get() - 9.0) < 1e-6
 
 
 def test_apply_fixed_tendon_writer_descends_to_child_prims():
@@ -180,7 +169,7 @@ def test_apply_spatial_tendon_writer_descends_to_child_prims():
     assert apply_spatial_tendon(PhysxSpatialTendonCfg(stiffness=5.0), "/World/Robot2", stage) is False
     # the core writer's subtree expression descends from the root to the joint
     assert apply_spatial_tendon_properties("/World/Robot2(/.*)?", [PhysxSpatialTendonCfg(stiffness=5.0)], stage) is True
-    assert abs(child.GetAttribute("physxTendon:s0:stiffness").Get() - 5.0) < 1e-6
+    assert abs(child.GetAttribute("PhysxTendonAttachmentRootAPI:s0:stiffness").Get() - 5.0) < 1e-6
 
 
 def test_physx_spatial_tendon_fragment_writes_instanced_namespace():
@@ -195,29 +184,6 @@ def test_physx_spatial_tendon_fragment_writes_instanced_namespace():
     assert abs(prim.GetAttribute(f"{prefix}:stiffness").Get() - 4.0) < 1e-6
     assert abs(prim.GetAttribute(f"{prefix}:limitStiffness").Get() - 0.25) < 1e-6
     assert not prim.HasAttribute(f"{prefix}:func")
-    assert not prim.HasAttribute("PhysxTendonAttachmentRootAPI:s0:stiffness")
-
-
-def test_every_multi_apply_fragment_field_is_declared_by_its_schema():
-    """A field its schema does not declare can never be authored, so catch it at authoring time.
-
-    The generic applier asks USD for each attribute name, so a field the declared schema does not
-    own raises at spawn. Checking the fragment classes here turns that into a fast, deterministic
-    failure naming the offending field.
-    """
-    from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg, PhysxSpatialTendonCfg
-
-    from isaaclab.utils.string import to_camel_case
-
-    registry = Usd.SchemaRegistry()
-    for cfg_cls in (PhysxFixedTendonCfg, PhysxSpatialTendonCfg):
-        schema_name = cfg_cls._usd_multi_apply_schema
-        definition = registry.FindAppliedAPIPrimDefinition(schema_name)
-        assert definition is not None, f"{schema_name} is not registered"
-        declared = {n.rsplit(":", 1)[-1] for n in definition.GetPropertyNames() if "__INSTANCE_NAME__" in n}
-        fields = {f.name for f in dataclasses.fields(cfg_cls) if f.name != "func"}
-        undeclared = sorted(f for f in fields if to_camel_case(f, "cC") not in declared)
-        assert not undeclared, f"{cfg_cls.__name__} declares {undeclared}, absent from {schema_name}"
 
 
 def test_apply_spatial_tendon_writes_all_instances():
@@ -232,10 +198,8 @@ def test_apply_spatial_tendon_writes_all_instances():
         ["PhysxTendonAttachmentRootAPI:r0", "PhysxTendonAttachmentLeafAPI:l0"],
     )
     assert apply_spatial_tendon(PhysxSpatialTendonCfg(stiffness=4.0), "/World/STmulti", stage) is True
-    assert abs(prim.GetAttribute("physxTendon:r0:stiffness").Get() - 4.0) < 1e-6
-    # Stiffness is a property of the tendon, declared only by the root schema; the leaf attachment
-    # declares geometry and limits, so it is skipped rather than given an attribute PhysX ignores.
-    assert not prim.HasAttribute("physxTendon:l0:stiffness")
+    assert abs(prim.GetAttribute("PhysxTendonAttachmentRootAPI:r0:stiffness").Get() - 4.0) < 1e-6
+    assert abs(prim.GetAttribute("PhysxTendonAttachmentLeafAPI:l0:stiffness").Get() - 4.0) < 1e-6
 
 
 # -------------------------------------------------------------------------------------
@@ -487,13 +451,11 @@ def test_legacy_and_fragment_fixed_tendon_produce_identical_attrs():
             for schema_name in prim.GetAppliedSchemas():
                 if "PhysxTendonAxisRootAPI" not in schema_name:
                     continue
-                instance_name = schema_name.split(":", maxsplit=1)[1]
-                prefix = f"physxTendon:{instance_name}"
                 for suffix in ("limitStiffness", "damping"):
-                    attr = prim.GetAttribute(f"{prefix}:{suffix}")
+                    attr = prim.GetAttribute(f"{schema_name}:{suffix}")
                     if attr and attr.HasAuthoredValue():
                         rel = prim.GetPath().pathString[len(root) :]  # key relative to root so paths compare
-                        attrs[f"{rel}|{prefix}:{suffix}"] = attr.Get()
+                        attrs[f"{rel}|{schema_name}:{suffix}"] = attr.Get()
         return attrs
 
     legacy = _collect("/World/legacy")
@@ -503,63 +465,6 @@ def test_legacy_and_fragment_fixed_tendon_produce_identical_attrs():
     assert legacy.keys() == fragment.keys()
     for key, value in legacy.items():
         assert abs(fragment[key] - value) < 1e-6
-
-
-def test_legacy_and_fragment_spatial_tendon_produce_identical_attrs():
-    """The legacy and fragment writers must tune the same schema-owned spatial-tendon attributes."""
-    from isaaclab_physx.sim.schemas import PhysxSpatialTendonCfg, PhysxSpatialTendonPropertiesCfg
-
-    from isaaclab.sim.schemas import apply_spatial_tendon_properties, modify_spatial_tendon_properties
-
-    stage = _new_sim()
-    legacy_prim = _make_spatial_tendon_prim(stage, "/World/legacySpatial", instance="s0")
-    fragment_prim = _make_spatial_tendon_prim(stage, "/World/fragmentSpatial", instance="s0")
-
-    modify_spatial_tendon_properties(
-        "/World/legacySpatial",
-        PhysxSpatialTendonPropertiesCfg(stiffness=6.0, damping=0.2, offset=0.1),
-        stage,
-    )
-    apply_spatial_tendon_properties(
-        "/World/fragmentSpatial",
-        [PhysxSpatialTendonCfg(stiffness=6.0, damping=0.2, offset=0.1)],
-        stage,
-    )
-
-    for suffix in ("stiffness", "damping", "offset"):
-        legacy_value = legacy_prim.GetAttribute(f"physxTendon:s0:{suffix}").Get()
-        fragment_value = fragment_prim.GetAttribute(f"physxTendon:s0:{suffix}").Get()
-        assert abs(fragment_value - legacy_value) < 1e-6
-    assert not legacy_prim.HasAttribute("PhysxTendonAttachmentRootAPI:s0:stiffness")
-    assert not fragment_prim.HasAttribute("PhysxTendonAttachmentRootAPI:s0:stiffness")
-
-
-def test_legacy_spatial_tendon_skips_leaf_instances():
-    """A leaf attachment declares none of this cfg's properties, so it is skipped, not written."""
-    from isaaclab_physx.sim.schemas import PhysxSpatialTendonPropertiesCfg
-
-    from isaaclab.sim.schemas import modify_spatial_tendon_properties
-
-    stage = _new_sim()
-    # A single-attachment tendon carries both instances on one prim; a branching tendon has
-    # leaf-only prims. Both reach the writer, and neither declares stiffness/damping/offset.
-    both_prim = _make_spatial_tendon_prim(stage, "/World/rootAndLeaf", instance="s0")
-    PhysxSchema.PhysxTendonAttachmentLeafAPI.Apply(both_prim, "s0")
-    leaf_prim = _make_spatial_tendon_leaf_prim(stage, "/World/leafOnly", instance="s0")
-
-    # a root under the leaf-only prim: reached only if the leaf-only prim reports "nothing written",
-    # since ``apply_nested`` stops descending at the first prim the writer succeeds on
-    nested_root = _make_spatial_tendon_prim(stage, "/World/leafOnly/root", instance="s0")
-
-    cfg = PhysxSpatialTendonPropertiesCfg(stiffness=6.0, damping=0.2, offset=0.1)
-    for path in ("/World/rootAndLeaf", "/World/leafOnly"):
-        modify_spatial_tendon_properties(path, cfg, stage)
-
-    for suffix, expected in (("stiffness", 6.0), ("damping", 0.2), ("offset", 0.1)):
-        assert abs(both_prim.GetAttribute(f"physxTendon:s0:{suffix}").Get() - expected) < 1e-6
-        assert abs(nested_root.GetAttribute(f"physxTendon:s0:{suffix}").Get() - expected) < 1e-6
-        # the leaf-only prim declares no root property, so nothing is authored on it
-        assert not leaf_prim.GetAttribute(f"physxTendon:s0:{suffix}").IsValid()
 
 
 def test_spawn_from_file_with_empty_tendon_lists_is_noop(tmp_path):

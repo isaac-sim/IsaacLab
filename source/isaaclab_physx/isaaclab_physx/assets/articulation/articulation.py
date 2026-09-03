@@ -23,7 +23,6 @@ from pxr import UsdPhysics
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.sim.schemas import resolve_applied_schema_instances
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
@@ -4149,7 +4148,12 @@ class Articulation(BaseArticulation):
                 # check whether joint has tendons - tendon name follows the joint name it is attached to
                 joint = UsdPhysics.Joint.Get(self.stage, usd_joint_path)
                 joint_applied_schemas = joint.GetPrim().GetAppliedSchemas()
-                root_instances = resolve_applied_schema_instances(joint_applied_schemas, "PhysxTendonAxisRootAPI")
+                # a fixed tendon is named after its PhysxTendonAxisRootAPI instance, not the joint carrying it
+                root_instances = [
+                    str(schema_name).removeprefix("PhysxTendonAxisRootAPI:")
+                    for schema_name in joint_applied_schemas
+                    if str(schema_name).startswith("PhysxTendonAxisRootAPI:")
+                ]
                 if root_instances:
                     self._fixed_tendon_names.extend(root_instances)
                 elif any(
