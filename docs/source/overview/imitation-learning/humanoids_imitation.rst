@@ -11,6 +11,9 @@ This page covers data generation and imitation learning workflows for humanoid r
 
 .. important::
 
+   The Isaac Lab Mimic workflows and Pink IK tasks on this page are supported only on Linux.
+   Pink IK and its dependencies are not available on Windows.
+
    Complete the tutorial in :ref:`Synthetic Data Generation and Imitation Learning with Isaac Lab Mimic <teleoperation-imitation-learning>`
    before proceeding with the following demonstrations to
    understand the data collection, annotation, and generation steps of Isaac Lab Mimic.
