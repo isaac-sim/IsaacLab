@@ -1629,27 +1629,49 @@ Fixed tendon properties.
 """
 
 
-def _applied_schema_instance(applied_schema, schema_type: str) -> str | None:
-    """Return an applied multiple-apply schema's instance when its type matches exactly."""
-    applied_type, instance = Usd.SchemaRegistry.GetTypeNameAndInstance(str(applied_schema))
-    return instance if applied_type == schema_type and instance else None
+_FIXED_TENDON_SCHEMAS = ("PhysxTendonAxisRootAPI", "PhysxTendonAxisAPI")
+_SPATIAL_TENDON_SCHEMAS = ("PhysxTendonAttachmentRootAPI",)
 
 
-def _is_fixed_tendon_target(prim: Usd.Prim) -> bool:
-    """Whether a prim carries a fixed-tendon representation."""
-    if prim.GetTypeName() == "MjcTendon":
+def _write_tendon_properties(prim, values, schema_type):
+    authored = False
+    for schema in prim.GetAppliedSchemas():
+        applied_type, instance = Usd.SchemaRegistry.GetTypeNameAndInstance(str(schema))
+        if applied_type != schema_type or not instance:
+            continue
+        authored = True
+        for name, value in values.items():
+            attribute = f"physxTendon:{instance}:{to_camel_case(name, 'cC')}"
+            safe_set_attribute_on_usd_prim(prim, attribute, value, camel_case=False)
+    return authored
+
+
+def _apply_tendon_fragments(prim_path_expr, fragments, schema_types, prim_types, family, stage):
+    fragments = list(fragments)
+    if stage is None:
+        stage = get_current_stage()
+    if not fragments:
         return True
-    fixed_types = {"PhysxTendonAxisRootAPI", "PhysxTendonAxisAPI"}
-    return any(
-        _applied_schema_instance(schema, schema_type)
-        for schema in prim.GetAppliedSchemas()
-        for schema_type in fixed_types
+    targets, _, any_skipped = _match_fragment_targets(
+        prim_path_expr,
+        lambda prim: prim.GetTypeName() in prim_types
+        or any(
+            Usd.SchemaRegistry.GetTypeNameAndInstance(str(schema))[0] in schema_types
+            for schema in prim.GetAppliedSchemas()
+        ),
+        stage,
     )
-
-
-def _is_spatial_tendon_target(prim: Usd.Prim) -> bool:
-    """Whether a prim carries a spatial-tendon root instance."""
-    return any(_applied_schema_instance(schema, "PhysxTendonAttachmentRootAPI") for schema in prim.GetAppliedSchemas())
+    if not targets:
+        logger.warning("No %s-tendon targets matched expression '%s'; nothing was authored.", family, prim_path_expr)
+        return False
+    success = not any_skipped
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        fragment_hit = False
+        for target in targets:
+            fragment_hit |= bool(func(cfg, target.GetPath().pathString, stage))
+        success = fragment_hit and success
+    return success
 
 
 def apply_fixed_tendon_properties(
@@ -1684,26 +1706,7 @@ def apply_fixed_tendon_properties(
     Returns:
         True if every fragment tuned at least one target and no instanced prim was skipped.
     """
-    fragments = list(fragments)
-    if stage is None:
-        stage = get_current_stage()
-    if not fragments:
-        return True
-    targets, _, any_skipped = _match_fragment_targets(prim_path_expr, _is_fixed_tendon_target, stage)
-    if not targets:
-        logger.warning("No fixed-tendon targets matched expression '%s'; nothing was authored.", prim_path_expr)
-        return False
-    # per-fragment any-target aggregation: a fragment fails only when it tuned no target at all,
-    # since each backend's func legitimately no-ops on the other backend's tendon prims.
-    success = not any_skipped
-    for cfg in fragments:
-        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        fragment_hit = False
-        for target in targets:
-            if func(cfg, target.GetPath().pathString, stage):
-                fragment_hit = True
-        success = fragment_hit and success
-    return success
+    return _apply_tendon_fragments(prim_path_expr, fragments, _FIXED_TENDON_SCHEMAS, ("MjcTendon",), "fixed", stage)
 
 
 @apply_nested
@@ -1744,42 +1747,12 @@ def modify_fixed_tendon_properties(
     if stage is None:
         stage = get_current_stage()
 
-    # get USD prim
     tendon_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has fixed tendon applied on it or if the mjc tendon prim exiss
-    applied_schemas = tendon_prim.GetAppliedSchemas()
-    prim_type = tendon_prim.GetTypeName()
-    if (
-        not any(_applied_schema_instance(schema, "PhysxTendonAxisRootAPI") for schema in applied_schemas)
-        and prim_type != "MjcTendon"
-    ):
-        return False
-
-    # resolve all available instances of the schema since it is multi-instance
-    cfg = cfg.to_dict()
-    if prim_type != "MjcTendon":
-        for schema_name in applied_schemas:
-            instance_name = _applied_schema_instance(schema_name, "PhysxTendonAxisRootAPI")
-            if instance_name is None:
-                continue
-            for attr_name, value in cfg.items():
-                template = f"physxTendon:__INSTANCE_NAME__:{to_camel_case(attr_name, 'cC')}"
-                attribute = Usd.SchemaRegistry.MakeMultipleApplyNameInstance(template, instance_name)
-                safe_set_attribute_on_usd_prim(
-                    tendon_prim,
-                    attribute,
-                    value,
-                    camel_case=False,
-                )
-    else:
-        # NOTE: ``mjc:*`` branch (``MjcTendon`` prim) kept inline; future split candidate into isaaclab_newton.
-        # only stiffness and damping in the cfg map to mjc attributes
-        for attr_name in ("stiffness", "damping"):
-            value = cfg.get(attr_name)
-            safe_set_attribute_on_usd_prim(
-                tendon_prim, f"mjc:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
-            )
-    # success
+    values = cfg.to_dict()
+    if tendon_prim.GetTypeName() != "MjcTendon":
+        return _write_tendon_properties(tendon_prim, values, "PhysxTendonAxisRootAPI")
+    for name in ("stiffness", "damping"):
+        safe_set_attribute_on_usd_prim(tendon_prim, f"mjc:{name}", values.get(name), camel_case=False)
     return True
 
 
@@ -1819,26 +1792,7 @@ def apply_spatial_tendon_properties(
     Returns:
         True if every fragment tuned at least one target and no instanced prim was skipped.
     """
-    fragments = list(fragments)
-    if stage is None:
-        stage = get_current_stage()
-    if not fragments:
-        return True
-    targets, _, any_skipped = _match_fragment_targets(prim_path_expr, _is_spatial_tendon_target, stage)
-    if not targets:
-        logger.warning("No spatial-tendon targets matched expression '%s'; nothing was authored.", prim_path_expr)
-        return False
-    # per-fragment any-target aggregation: a fragment fails only when it tuned no target at all,
-    # since each backend's func legitimately no-ops on the other backend's tendon prims.
-    success = not any_skipped
-    for cfg in fragments:
-        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        fragment_hit = False
-        for target in targets:
-            if func(cfg, target.GetPath().pathString, stage):
-                fragment_hit = True
-        success = fragment_hit and success
-    return success
+    return _apply_tendon_fragments(prim_path_expr, fragments, _SPATIAL_TENDON_SCHEMAS, (), "spatial", stage)
 
 
 @apply_nested
@@ -1878,30 +1832,8 @@ def modify_spatial_tendon_properties(
     # obtain stage
     if stage is None:
         stage = get_current_stage()
-    # get USD prim
     tendon_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has spatial tendon applied on it
-    applied_schemas = tendon_prim.GetAppliedSchemas()
-    has_spatial = any(_applied_schema_instance(schema, "PhysxTendonAttachmentRootAPI") for schema in applied_schemas)
-    if not has_spatial:
-        return False
-
-    cfg = cfg.to_dict()
-    for schema_name in applied_schemas:
-        instance_name = _applied_schema_instance(schema_name, "PhysxTendonAttachmentRootAPI")
-        if instance_name is None:
-            continue
-        for attr_name, value in cfg.items():
-            template = f"physxTendon:__INSTANCE_NAME__:{to_camel_case(attr_name, 'cC')}"
-            attribute = Usd.SchemaRegistry.MakeMultipleApplyNameInstance(template, instance_name)
-            safe_set_attribute_on_usd_prim(
-                tendon_prim,
-                attribute,
-                value,
-                camel_case=False,
-            )
-    # success
-    return True
+    return _write_tendon_properties(tendon_prim, cfg.to_dict(), "PhysxTendonAttachmentRootAPI")
 
 
 """

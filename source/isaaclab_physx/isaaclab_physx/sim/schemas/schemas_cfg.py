@@ -1276,17 +1276,11 @@ class PhysxTendonAxisRootCfg(FixedTendonFragment):
     .. _PhysxTendonAxisRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_root_a_p_i.html
     """
 
-    _usd_namespace: ClassVar[str | None] = None
     _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAxisRootAPI"
     func: Callable | str = "isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema"
 
     instance_names: str | list[str] | None = None
-    """Names of existing tendon instances to tune.
-
-    A string selects one instance, a list selects those instances, and ``None`` selects every
-    ``PhysxTendonAxisRootAPI`` instance on each targeted prim (the default). An empty string or list
-    is an error. This field addresses the schema instances and is not authored as a USD property.
-    """
+    """Existing tendon instances to tune; ``None`` selects all root instances."""
 
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""
@@ -1331,17 +1325,11 @@ class PhysxTendonAxisCfg(FixedTendonFragment):
     .. _PhysxTendonAxisAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_a_p_i.html
     """
 
-    _usd_namespace: ClassVar[str | None] = None
     _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAxisAPI"
     func: Callable | str = "isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema"
 
     instance_names: str | list[str] | None = None
-    """Names of existing tendon-axis instances to tune.
-
-    A string selects one instance, a list selects those instances, and ``None`` selects every
-    ``PhysxTendonAxisAPI`` instance on each targeted prim (the default). An empty string or list is
-    an error. This field addresses the schema instances and is not authored as a USD property.
-    """
+    """Existing tendon-axis instances to tune; ``None`` selects all axis instances."""
 
     gearing: list[float] | None = None
     """Joint gearing per entry in :attr:`joint_axis` [unitless or m/deg, depending on joint axis]."""
@@ -1368,18 +1356,11 @@ class PhysxTendonAttachmentRootCfg(SpatialTendonFragment):
     .. _PhysxTendonAttachmentRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_root_a_p_i.html
     """
 
-    _usd_namespace: ClassVar[str | None] = None
     _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAttachmentRootAPI"
     func: Callable | str = "isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema"
 
     instance_names: str | list[str] | None = None
-    """Names of existing spatial-tendon root instances to tune.
-
-    A string selects one instance, a list selects those instances, and ``None`` selects every
-    ``PhysxTendonAttachmentRootAPI`` instance on each targeted prim (the default). An empty string
-    or list is an error. This field addresses the schema instances and is not authored as a USD
-    property.
-    """
+    """Existing spatial-tendon instances to tune; ``None`` selects all attachment roots."""
 
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""

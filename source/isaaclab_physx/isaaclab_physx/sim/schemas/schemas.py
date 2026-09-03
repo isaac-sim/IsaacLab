@@ -71,40 +71,23 @@ def apply_physx_joint(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bo
     return True
 
 
-def _selected_tendon_instances(prim: Usd.Prim, schema_type: str, selection) -> list[str]:
-    """Return existing instances of ``schema_type`` selected by a tendon fragment."""
-    if selection is None:
-        requested = None
-    elif isinstance(selection, str):
-        if not selection:
-            raise ValueError("'instance_names' must contain at least one non-empty instance name.")
-        requested = {selection}
-    elif isinstance(selection, list):
-        if not selection or any(not isinstance(name, str) or not name for name in selection):
-            raise ValueError("'instance_names' must contain at least one non-empty instance name.")
-        requested = set(selection)
-    else:
-        raise TypeError("'instance_names' must be a string, list of strings, or None.")
-
-    instances = []
-    for applied_schema in prim.GetAppliedSchemas():
-        applied_type, instance = Usd.SchemaRegistry.GetTypeNameAndInstance(str(applied_schema))
-        if applied_type == schema_type and instance and (requested is None or instance in requested):
-            instances.append(instance)
-    return instances
-
-
 def _tune_tendon_schema(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     """Tune selected instances of one concrete PhysX tendon API on one prim."""
     schema_type = type(cfg)._usd_applied_schema
-    if not schema_type:
-        raise TypeError(f"'{type(cfg).__name__}' does not identify a USD tendon schema.")
     if stage is None:
         stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
-    if not prim.IsValid():
-        raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    instances = _selected_tendon_instances(prim, schema_type, cfg.instance_names)
+
+    selected = [cfg.instance_names] if isinstance(cfg.instance_names, str) else cfg.instance_names
+    if selected is not None and (
+        not selected or not all(isinstance(instance, str) and instance for instance in selected)
+    ):
+        raise ValueError("'instance_names' must contain at least one non-empty instance name.")
+    instances = []
+    for applied_schema in prim.GetAppliedSchemas():
+        applied_type, instance = Usd.SchemaRegistry.GetTypeNameAndInstance(str(applied_schema))
+        if applied_type == schema_type and instance and (selected is None or instance in selected):
+            instances.append(instance)
     if not instances:
         return False
 
@@ -118,19 +101,13 @@ def _tune_tendon_schema(cfg, prim_path: str, stage: Usd.Stage | None = None) -> 
     }
     for instance in instances:
         for field in dataclasses.fields(cfg):
-            if field.name in ("func", "instance_names"):
-                continue
             value = getattr(cfg, field.name)
-            if value is None:
+            if field.name in ("func", "instance_names") or value is None:
                 continue
-            property_name = to_camel_case(field.name, "cC")
-            template = templates.get(property_name)
+            template = templates.get(to_camel_case(field.name, "cC"))
             if template is None:
                 raise TypeError(f"'{field.name}' is not a property of USD schema '{schema_type}'.")
             attr_name = Usd.SchemaRegistry.MakeMultipleApplyNameInstance(template, instance)
-            attr = prim.GetAttribute(attr_name)
-            if not attr:
-                raise RuntimeError(f"USD schema '{schema_type}' did not expose attribute '{attr_name}'.")
-            if not attr.Set(value):
+            if not prim.GetAttribute(attr_name).Set(value):
                 raise ValueError(f"Failed to set '{attr_name}' on prim '{prim_path}'.")
     return True
