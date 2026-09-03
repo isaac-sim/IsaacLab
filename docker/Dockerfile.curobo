@@ -9,6 +9,9 @@
 # Base image
 ARG ISAACSIM_BASE_IMAGE_ARG=nvcr.io/nvidia/isaac-sim
 ARG ISAACSIM_VERSION_ARG=6.0.0
+# uv, pinned by digest. Declared after the ARGs so those stay global for the base FROM.
+FROM ghcr.io/astral-sh/uv:0.12.9@sha256:8b940d3a9d65bed080436972241af2e21c84b5e8c9193f7014ed71479ee795ff AS uv
+
 FROM ${ISAACSIM_BASE_IMAGE_ARG}:${ISAACSIM_VERSION_ARG} AS base
 ARG ISAACSIM_VERSION_ARG
 ENV ISAACSIM_VERSION=${ISAACSIM_VERSION_ARG}
@@ -35,8 +38,15 @@ ENV HOME=${DOCKER_USER_HOME}
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PIP_RETRIES=12
 ENV UV_HTTP_RETRIES=12
+
+# uv. Dependencies resolve from uv.lock into this venv instead of Isaac Sim's own
+# site-packages; isaaclab.sh sources setup_python_env.sh so ``isaacsim`` stays importable.
+ARG VENV_PATH_ARG=/opt/isaaclab-venv
+ENV VIRTUAL_ENV=${VENV_PATH_ARG}
+ENV UV_PROJECT_ENVIRONMENT=${VENV_PATH_ARG}
+ENV UV_PYTHON=${ISAACSIM_ROOT_PATH_ARG}/kit/python/bin/python3
+ENV UV_PYTHON_PREFERENCE=only-system
 
 # Base image may end with a non-root user; switch to root for system-level
 # setup and package installation.
@@ -104,30 +114,6 @@ ARG LD_LIBRARY_PATH
 ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
 ENV TORCH_CUDA_ARCH_LIST=8.0+PTX
 
-# copy files necessary for installing Isaac Lab and its dependencies
-# this way we minimize the chance of cache invalidation on file edits
-COPY ../isaaclab.* ../environment.yml ../pyproject.toml ${ISAACLAB_PATH}/
-COPY ../tools/ ${ISAACLAB_PATH}/tools/
-COPY ../source/ ${ISAACLAB_PATH}/source/
-
-# Fix the line endings for the shell scripts (Windows git may add \r)
-RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
-
-# Ensure isaaclab.sh has execute permissions
-RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
-
-# Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the Isaac Lab directory
-RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ISAACLAB_PATH}/_isaac_sim
-
-# Install toml (used by tools/install_deps.py) and pytest (needed to run
-# in-container tests; moved to optional [test] extra in pyproject.toml)
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install toml pytest
-
-# Install apt dependencies for extensions that declare them in their extension.toml,
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source && \
-    apt-get -y autoremove && apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
 # for singularity usage, have to create the directories that will binded
 RUN mkdir -p ${ISAACSIM_ROOT_PATH}/kit/cache && \
     mkdir -p ${DOCKER_USER_HOME}/.cache/ov && \
@@ -148,50 +134,107 @@ RUN touch /bin/nvidia-smi && \
     mkdir -p /var/run/nvidia-persistenced && \
     touch /var/run/nvidia-persistenced/socket
 
-# HACK: Remove pre-bundled torch BEFORE installing Isaac Lab dependencies.
-# This forces isaaclab.sh --install to install torch fresh to site-packages,
-# rather than skipping because it detects the pre-bundled version.
-RUN rm -rf ${ISAACSIM_ROOT_PATH}/exts/omni.isaac.ml_archive/pip_prebundle/torch*
-
-# HACK: Reinstall pip properly after removing prebundled packages
-# The removal of torch* corrupts pip's vendor packages (_structures.py is deleted).
-# We must completely remove pip first, then do a clean install.
-RUN rm -rf ${ISAACSIM_ROOT_PATH}/kit/python/lib/python3.12/site-packages/pip* && \
-    wget -q https://bootstrap.pypa.io/get-pip.py && \
-    ${ISAACLAB_PATH}/_isaac_sim/kit/python/bin/python3 get-pip.py && \
-    rm get-pip.py
-
-RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
-    ${ISAACLAB_PATH}/isaaclab.sh --install
-
-# HACK: Uninstall quadprog as it causes issues with some reinforcement learning frameworks
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
-
-# Install cuRobo from source (pinned commit); needs CUDA env and Torch
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation \
-    "nvidia-curobo @ git+https://github.com/NVlabs/curobo.git@ebb71702f3f70e767f40fd8e050674af0288abe8"
-
-# Install isaaclab_teleop (needed by Pink IK tests and related env configs)
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --editable ${ISAACLAB_PATH}/source/isaaclab_teleop
-
-# aliasing isaaclab.sh and python for convenience
-RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "alias python=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "alias python3=${ISAACLAB_PATH}/_isaac_sim/python.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "alias pip='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "alias pip3='${ISAACLAB_PATH}/_isaac_sim/python.sh -m pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "alias tensorboard='${ISAACLAB_PATH}/_isaac_sim/python.sh ${ISAACLAB_PATH}/_isaac_sim/tensorboard'" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "export TZ=$(date +%Z)" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "shopt -s histappend" >> ${DOCKER_USER_HOME}/.bashrc && \
-    echo "PROMPT_COMMAND='history -a'" >> ${DOCKER_USER_HOME}/.bashrc
-
-# Create the non-root runtime user after root-only image setup is complete.
+# Created before the venv so the install layers can set ownership as they write, instead of
+# a recursive chown afterwards: on overlayfs a chown copies up every file it touches, which
+# costs both build time and a duplicate of the venv in the image.
 # The uid/gid 1000 match GitHub runner bind mounts used by the cuRobo tests.
 # --non-unique is required because some base image revisions already carry
 # another user or group at uid/gid 1000.
 RUN groupadd --non-unique --gid 1000 isaaclab \
  && useradd --non-unique --uid 1000 --gid 1000 -M -l -s /bin/bash -d ${DOCKER_USER_HOME} isaaclab
+
+# copy files necessary for installing Isaac Lab and its dependencies
+# this way we minimize the chance of cache invalidation on file edits
+COPY --from=uv /uv /uvx /usr/local/bin/
+COPY ../isaaclab.* ../environment.yml ../pyproject.toml ../uv.lock ${ISAACLAB_PATH}/
+COPY ../tools/ ${ISAACLAB_PATH}/tools/
+
+# Fix the line endings for the shell scripts (Windows git may add \r), then restore the
+# launcher's mode. ``sed -i`` rewrites the file under the build umask, so an explicit 755
+# keeps it runnable by a container started with a uid other than the image's own.
+RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} + \
+ && chmod 755 ${ISAACLAB_PATH}/isaaclab.sh
+
+# Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the Isaac Lab directory
+RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ISAACLAB_PATH}/_isaac_sim
+
+
+
+
+
+# The image's package set. Kit ships in the base image, so the teleop stack comes without the
+# ``isaacsim`` wheel; ``teleop`` itself is left exactly as tuned.
+ARG IMAGE_EXTRAS="--extra sb3 --extra skrl --extra rl-games --extra rsl-rl --extra viser --extra rerun --extra mimic --extra teleop --extra test"
+
+# Workspace manifests only: ``uv sync --no-install-workspace`` needs every member's
+# pyproject.toml to build an installation plan, but not their sources. Resolving the
+# third-party packages here means a source edit re-runs only the workspace install below.
+COPY --parents ../source/*/pyproject.toml ${ISAACLAB_PATH}/
+
+# Resolving into a venv leaves Isaac Sim's site-packages untouched, so the pre-bundled torch
+# no longer has to be deleted to get a fresh one (which corrupted pip's vendored
+# ``_structures.py`` and forced a get-pip.py re-bootstrap). ``quadprog`` is not a lock entry,
+# so it is never installed and needs no uninstall. ``isaaclab_teleop`` (needed by the Pink IK
+# tests) is a workspace member and comes from the sync.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    cd ${ISAACLAB_PATH} && \
+    uv venv --seed "${VIRTUAL_ENV}" && \
+    uv sync --frozen --inexact ${IMAGE_EXTRAS} \
+      --no-install-workspace --no-install-package imageio-ffmpeg && \
+    chown -R isaaclab:isaaclab ${VIRTUAL_ENV} && \
+    chmod -R a+rwX ${VIRTUAL_ENV}/lib ${VIRTUAL_ENV}/bin
+
+COPY ../source/ ${ISAACLAB_PATH}/source/
+
+# Fix the line endings of the scripts the COPY above just wrote.
+RUN find ${ISAACLAB_PATH}/source -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
+
+# Install apt dependencies for extensions that declare them in their extension.toml,
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source && \
+    apt-get -y autoremove && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# The workspace members install editable now that their sources are present; ``find`` fixes
+# only what this layer wrote, so overlayfs does not copy up the venv again.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    cd ${ISAACLAB_PATH} && \
+    uv sync --frozen --inexact ${IMAGE_EXTRAS} \
+      --no-install-package imageio-ffmpeg && \
+    find ${VIRTUAL_ENV} \! -user isaaclab \
+      -exec chown isaaclab:isaaclab {} + -exec chmod a+rwX {} +
+
+# Isaac Sim's prebundled packages sit on PYTHONPATH ahead of the venv for launch paths that
+# never import isaaclab (``runheadless.sh``, ``isaac-sim.streaming.sh``), so its torch would
+# shadow the venv's and load a libtorch_cuda.so needing an NCCL symbol the bundled NCCL does
+# not export (nvbugs 6343978). Repoint them at the venv; the pip install path did this itself.
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p -c \
+      "from isaaclab.cli.commands.install import _repoint_prebundle_packages; _repoint_prebundle_packages()"
+
+# uv venv/uv sync above needed Kit's interpreter as the venv base; from here on ``uv pip``
+# should target the venv, including the interactive ``pip`` alias below.
+ENV UV_PYTHON=${VENV_PATH_ARG}/bin/python
+
+# cuRobo builds CUDA extensions against the torch already in the venv, so build isolation
+# stays off; it is pinned to a commit rather than a release. ``--seed`` only provides pip on
+# 3.12, so the build backend has to be installed for the isolation-free build to import it.
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install setuptools wheel && \
+    uv pip install --no-build-isolation \
+      "nvidia-curobo @ git+https://github.com/NVlabs/curobo.git@ebb71702f3f70e767f40fd8e050674af0288abe8" \
+ && find ${VIRTUAL_ENV} \! -user isaaclab \
+      -exec chown isaaclab:isaaclab {} + -exec chmod a+rwX {} +
+
+# aliasing isaaclab.sh and python for convenience
+RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias python='${ISAACLAB_PATH}/isaaclab.sh -p'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias python3='${ISAACLAB_PATH}/isaaclab.sh -p'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias pip='uv pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias pip3='uv pip'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "alias tensorboard='${VIRTUAL_ENV}/bin/tensorboard'" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "export TZ=$(date +%Z)" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "shopt -s histappend" >> ${DOCKER_USER_HOME}/.bashrc && \
+    echo "PROMPT_COMMAND='history -a'" >> ${DOCKER_USER_HOME}/.bashrc
 
 # The Isaac Sim image sets HUB__ARGS__DETECT_ONLY=true, which forbids OmniHub from starting.
 # omni.client still asks it to launch, so every Kit startup retries ~39 times before giving

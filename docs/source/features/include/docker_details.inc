@@ -166,9 +166,10 @@ The display will be forwarded to the host machine.
 
 .. rubric:: Python Interpreter
 
-The Isaac Sim-based profiles use the Python interpreter provided by Isaac Sim at ``/isaac-sim/python.sh``.
-The kit-less profile instead uses the locked Python 3.12 virtual environment at
-``/workspace/isaaclab/.venv``. In either container, use the following command:
+Every profile installs from ``uv.lock`` into a Python 3.12 virtual environment at
+``/opt/isaaclab-venv``. On the Isaac Sim-based profiles the environment is built on Isaac Sim's
+own interpreter, and Isaac Sim itself stays outside it, reached through the ``_isaac_sim``
+symlink; ``isaaclab.sh`` puts it on the path. In either container, use the following command:
 
 .. code:: bash
 

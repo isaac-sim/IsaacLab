@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 import runpy
+import subprocess
 import sys
 import types
 from types import SimpleNamespace
@@ -21,6 +22,45 @@ import torch
 from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch
 from isaaclab_rl.entrypoints import simple_agents as _simple_agents
 from isaaclab_rl.entrypoints.simple_agents import _create_zero_action_policy
+
+
+@pytest.mark.parametrize(
+    ("statement", "unexpected_modules"),
+    [
+        ("import isaaclab_rl", ["isaaclab_rl.entrypoints", "torch"]),
+        ("import isaaclab_rl.entrypoints", ["isaaclab_rl.entrypoints.multigpu", "torch"]),
+        ("import isaaclab_rl.entrypoints.backends", ["torch"]),
+        ("import isaaclab_rl.rl_games", ["isaaclab_rl.rl_games.rl_games", "rl_games", "torch"]),
+        ("import isaaclab_rl.rl_games.pbt", ["isaaclab_rl.rl_games.pbt.pbt", "rl_games", "torch"]),
+        ("import isaaclab_rl.rsl_rl", ["isaaclab_rl.rsl_rl.vecenv_wrapper", "rsl_rl", "torch"]),
+        ("import isaaclab_rl.utils", ["torch"]),
+        (
+            "from isaaclab_rl import run_play_cli",
+            ["isaaclab_rl.entrypoints.multigpu", "torch"],
+        ),
+        (
+            "from isaaclab_rl.entrypoints import run_play_cli",
+            ["isaaclab_rl.entrypoints.multigpu", "torch"],
+        ),
+    ],
+)
+def test_public_namespaces_do_not_import_unrelated_frameworks(statement: str, unexpected_modules: list[str]) -> None:
+    """Importing public namespaces must not eagerly load unrelated RL frameworks."""
+    unexpected_modules_literal = repr(unexpected_modules)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            f"{statement}; import sys; "
+            f"unexpected = [name for name in {unexpected_modules_literal} if name in sys.modules]; "
+            "assert not unexpected, f'Unexpected eager imports: {unexpected}'",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_zero_agent_infers_finite_manager_actions() -> None:
@@ -182,6 +222,19 @@ def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
 
     assert torch.equal(actions["robot"], torch.zeros(3, 2))
     assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
+
+
+@pytest.mark.parametrize("policy", ["zero", "random"])
+def test_simple_agents_default_to_newton_visualizer(
+    policy: _simple_agents.PolicyName,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Checkpoint-free agents default to Newton visualization."""
+    monkeypatch.setattr(sys, "argv", ["pytest"])
+
+    args = _simple_agents._parse_args([], policy)
+
+    assert args.visualizer == ["newton_gl"]
 
 
 def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -462,6 +515,39 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
         train_rsl_rl.run([])
 
     assert _torch_backend_state() == caller_state
+
+
+def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch) -> None:
+    """RSL-RL parses tasks registered by its external callback."""
+    from isaaclab_rl.entrypoints.backends import train_rsl_rl
+
+    task_name = "Isaac-ExternalCallbackOrderTest"
+    callback_module_name = "_external_callback_order_test"
+    callback_module = types.ModuleType(callback_module_name)
+
+    def register_task() -> list[str]:
+        gym.register(
+            id=task_name,
+            entry_point="dummy:Env",
+            kwargs={"rsl_rl_cfg_entry_point": "dummy:AgentCfg"},
+        )
+        return []
+
+    callback_module.register_task = register_task
+    monkeypatch.setitem(sys.modules, callback_module_name, callback_module)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["train.py", "--task", task_name, "--external_callback", f"{callback_module_name}.register_task"],
+    )
+    gym.registry.pop(task_name, None)
+
+    try:
+        args = train_rsl_rl._parse_args(sys.argv[1:])
+    finally:
+        gym.registry.pop(task_name, None)
+
+    assert args.task == task_name
 
 
 def test_skrl_training_restores_jax_backend(monkeypatch) -> None:
