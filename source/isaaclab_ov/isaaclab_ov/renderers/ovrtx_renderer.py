@@ -79,7 +79,6 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     decode_stable_id_semantic_id_map,
 )
 from isaaclab_ov.renderers.ovrtx_compat import RENDER_VAR_FRAME_KEYS
-from isaaclab_ov.renderers.ovrtx_mapping import map_attribute_for_warp_writes
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     compute_cable_points_world_kernel,
