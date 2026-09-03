@@ -104,10 +104,6 @@ def create_physx_rigid_object(
     # Cached .view(wp.float32) wrappers
     object.__setattr__(rigid_object, "_root_link_pose_w_f32", None)
     object.__setattr__(rigid_object, "_root_com_vel_w_f32", None)
-    object.__setattr__(rigid_object, "_inst_wrench_force_f32", None)
-    object.__setattr__(rigid_object, "_inst_wrench_torque_f32", None)
-    object.__setattr__(rigid_object, "_perm_wrench_force_f32", None)
-    object.__setattr__(rigid_object, "_perm_wrench_torque_f32", None)
 
     # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes
     N, B = num_instances, 1  # rigid object has 1 body

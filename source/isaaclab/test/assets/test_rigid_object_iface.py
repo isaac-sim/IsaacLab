@@ -1217,6 +1217,11 @@ class TestRigidObjectSubmissionEquivalence:
         force, torque, frame = composer.resolve_submission()
         composer.compose_to_body_frame()
 
+        # The invariant under test: Newton must never accept a world frame. Derive the expectation
+        # from the backend name rather than from `composer._supports_world_at_com` itself, so that
+        # flipping Newton's constructed value would not keep this test tautologically green.
+        assert composer._supports_world_at_com is (backend != "newton")
+
         # Expected frame per the resolve_submission contract:
         # - a local wrench is already body-frame.
         # - a global positioned force always needs the CoM correction, so it composes to body-frame.

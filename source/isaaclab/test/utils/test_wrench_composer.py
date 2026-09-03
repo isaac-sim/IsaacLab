@@ -1849,12 +1849,23 @@ def test_resolve_submission_mixed_content_composes(device: str):
     """Mixed local and global content is pose-dependent and must compose."""
     asset = create_mock_asset(2, 1, device)
     composer = WrenchComposer(asset, supports_world_at_com=True)
-    composer.add_forces_and_torques_index(forces=torch.ones(2, 1, 3, device=device), is_global=True)
-    composer.add_forces_and_torques_index(forces=torch.ones(2, 1, 3, device=device), is_global=False)
+    composer.add_forces_and_torques_index(
+        forces=torch.full((2, 1, 3), 2.0, device=device),
+        torques=torch.full((2, 1, 3), 3.0, device=device),
+        is_global=True,
+    )
+    composer.add_forces_and_torques_index(
+        forces=torch.full((2, 1, 3), 5.0, device=device),
+        torques=torch.full((2, 1, 3), 7.0, device=device),
+        is_global=False,
+    )
 
-    _, _, frame = composer.resolve_submission()
+    force, torque, frame = composer.resolve_submission()
 
     assert frame is WrenchComposer.Frame.BODY
+    composer.compose_to_body_frame()
+    np.testing.assert_allclose(force.numpy(), composer.out_force_b.warp.numpy(), atol=1e-6)
+    np.testing.assert_allclose(torque.numpy(), composer.out_torque_b.warp.numpy(), atol=1e-6)
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -1863,14 +1874,17 @@ def test_resolve_submission_positioned_global_force_composes(device: str):
     asset = create_mock_asset(2, 1, device)
     composer = WrenchComposer(asset, supports_world_at_com=True)
     composer.add_forces_and_torques_index(
-        forces=torch.ones(2, 1, 3, device=device),
-        positions=torch.ones(2, 1, 3, device=device),
+        forces=torch.full((2, 1, 3), 4.0, device=device),
+        positions=torch.full((2, 1, 3), 6.0, device=device),
         is_global=True,
     )
 
-    _, _, frame = composer.resolve_submission()
+    force, torque, frame = composer.resolve_submission()
 
     assert frame is WrenchComposer.Frame.BODY
+    composer.compose_to_body_frame()
+    np.testing.assert_allclose(force.numpy(), composer.out_force_b.warp.numpy(), atol=1e-6)
+    np.testing.assert_allclose(torque.numpy(), composer.out_torque_b.warp.numpy(), atol=1e-6)
 
 
 @pytest.mark.parametrize("device", test_devices())
