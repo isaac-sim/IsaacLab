@@ -21,7 +21,6 @@ from isaaclab_tasks.utils.hydra import (
     _format_unknown_presets_error,
     apply_overrides,
     collect_presets,
-    get_preset_selection,
     parse_overrides,
     preset,
     resolve_presets,
@@ -1401,14 +1400,6 @@ def test_resolve_presets_idempotent():
     assert isinstance(second.backend, PhysxCfg)
     assert isinstance(second.observations, NoiselessObservationsCfg)
     assert second.backend.dt == first.backend.dt
-
-
-def test_resolve_presets_records_and_preserves_selection():
-    """Resolved configs retain canonical preset names for downstream consumers."""
-    resolved = resolve_presets(PresetCfgEnvCfg(), ("fast",))
-
-    assert get_preset_selection(resolved) == ("fast",)
-    assert get_preset_selection(resolve_presets(resolved)) == ("fast",)
 
 
 def test_unknown_global_preset_name_detected():

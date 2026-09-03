@@ -77,11 +77,13 @@ def test_build_core_jobs_adds_declared_workflow_and_checkpoint_variants(
     monkeypatch.setattr(
         "scripts.tools.train_and_publish_checkpoints.get_pretrained_checkpoint_set_cfg",
         lambda _: PretrainedCheckpointSetCfg(
-            policy_presets=("depth", "rgb"),
+            variant_resolver=lambda _: None,
             checkpoints=(
-                PretrainedCheckpointCfg(workflow="rsl_rl", preset_aliases=(("rgb",),)),
-                PretrainedCheckpointCfg(workflow="rl_games", preset_aliases=(("rgb",),)),
-                PretrainedCheckpointCfg(workflow="rl_games", presets=("depth",), variant="depth", smoke_num_envs=32),
+                PretrainedCheckpointCfg(workflow="rsl_rl"),
+                PretrainedCheckpointCfg(workflow="rl_games"),
+                PretrainedCheckpointCfg(
+                    workflow="rl_games", variant="depth", training_presets=("depth",), smoke_num_envs=32
+                ),
             ),
         ),
     )
@@ -89,9 +91,9 @@ def test_build_core_jobs_adds_declared_workflow_and_checkpoint_variants(
 
     jobs = _build_core_jobs(args)
 
-    assert [(job.workflow, job.checkpoint_variant, job.preset_selectors) for job in jobs] == [
-        ("rsl_rl", None, ()),
-        ("rl_games", None, ()),
+    assert [(job.workflow, job.checkpoint_variant, job.training_presets) for job in jobs] == [
+        ("rsl_rl", "default", ()),
+        ("rl_games", "default", ()),
         ("rl_games", "depth", ("depth",)),
     ]
     assert jobs[-1].job_id == "rl_games:Isaac-Cartpole-Camera-Direct:physx:rtx:depth"

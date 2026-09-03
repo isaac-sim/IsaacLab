@@ -186,12 +186,13 @@ reports that it is unavailable and exits. In that case, train the task locally
 and use ``latest`` or an explicit checkpoint path.
 
 Tasks with observation, action, or agent presets can register a
-``PretrainedCheckpointSetCfg``. Its ``policy_presets`` field classifies the
-presets that change the policy contract, and each ``PretrainedCheckpointCfg``
-maps an exact preset combination to a workflow, artifact variant, agent, and
-optional backend restrictions. Equivalent selections can use
-``preset_aliases`` to retain a stable artifact name. Runtime lookup and the
-publication tool consume this same declaration, so unsupported combinations
+``PretrainedCheckpointSetCfg``. Its ``variant_resolver`` derives a declared
+policy variant from the final environment configuration, after presets and
+scalar overrides have been applied, and returns ``None`` for incompatible
+configurations. Each ``PretrainedCheckpointCfg`` maps a variant to a workflow,
+training preset, agent, and optional backend restrictions. The ``default``
+variant retains the unsuffixed artifact name. Runtime lookup and the
+publication tool consume this same declaration, so unsupported configurations
 fail before a shape-incompatible checkpoint is downloaded.
 
 Maintainers can generate the declared core-task checkpoint matrix with

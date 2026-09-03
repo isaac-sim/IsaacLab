@@ -1,9 +1,3 @@
-Added
-^^^^^
-
-* Added a utility for querying the canonical presets selected on a resolved
-  environment configuration.
-
 Fixed
 ^^^^^
 

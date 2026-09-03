@@ -15,8 +15,8 @@ _LEAPP_ROOT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp"
 
 
 @pytest.mark.parametrize("rl_library", ["rl_games", "rsl_rl", "sb3", "skrl"])
-def test_exporter_resolves_pretrained_checkpoint_for_active_backends(rl_library: str):
-    """Each exporter must request the checkpoint matching its resolved environment backends."""
+def test_exporter_resolves_pretrained_checkpoint_for_environment(rl_library: str):
+    """Each exporter must request the checkpoint matching its resolved environment configuration."""
     export_path = _LEAPP_ROOT / rl_library / "export.py"
     tree = ast.parse(export_path.read_text(encoding="utf-8"), filename=str(export_path))
 

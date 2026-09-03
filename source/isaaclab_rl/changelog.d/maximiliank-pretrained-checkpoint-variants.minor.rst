@@ -1,6 +1,6 @@
 Added
 ^^^^^
 
-* Added declarative pretrained-checkpoint selection so runtime lookup and
-  publication distinguished policy-changing presets, agents, and backend
-  compatibility using one task-owned configuration.
+* Added declarative pretrained-checkpoint selection so runtime lookup derived
+  policy variants from final resolved environment configurations and shared
+  task-owned compatibility declarations with publication tooling.

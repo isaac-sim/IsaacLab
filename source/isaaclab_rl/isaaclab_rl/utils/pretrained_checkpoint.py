@@ -13,6 +13,7 @@ import json
 import os
 import posixpath
 import re
+from collections.abc import Callable
 
 import gymnasium as gym
 
@@ -21,7 +22,6 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, NUCLEUS_ASSET_ROOT_DIR, retrieve_file_path
 
-from isaaclab_tasks.utils.hydra import get_preset_selection
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 PRETRAINED_CHECKPOINT_PATH = ISAACLAB_NUCLEUS_DIR + "/PretrainedCheckpoints"
@@ -66,20 +66,25 @@ WORKFLOW_EXPERIMENT_NAME_VARIABLE = {
 }
 """Maps workflow to the agent variable name that determines the logging directory logs/{workflow}/{variable}"""
 
+PRETRAINED_CHECKPOINT_DEFAULT_VARIANT = "default"
+"""Variant identifier for the checkpoint whose artifact name has no variant suffix."""
+
+_EnvCfg = ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg
+
 
 @dataclasses.dataclass(frozen=True)
 class PretrainedCheckpointCfg:
     """Declaration for one pretrained policy contract.
 
-    Physics and rendering backends remain independent dimensions. ``presets``
-    identifies the policy-changing preset combination used for training, while
-    ``preset_aliases`` maps equivalent selections to the same artifact.
+    Physics and rendering backends remain independent dimensions. The task's
+    :attr:`PretrainedCheckpointSetCfg.variant_resolver` derives ``variant``
+    from the final resolved environment configuration.
 
     Attributes:
         workflow: RL workflow that owns the checkpoint.
-        presets: Policy-changing presets used to train the checkpoint.
-        variant: Stable artifact suffix. ``None`` preserves the default filename.
-        preset_aliases: Equivalent preset combinations accepted during lookup.
+        variant: Stable policy variant. ``"default"`` preserves the artifact
+            filename without a variant suffix.
+        training_presets: Presets used to reproduce this variant for training.
         agent: Non-default agent configuration entry point, if required.
         algorithm: Non-default algorithm passed to the training CLI, if required.
         smoke_num_envs: Environment count for smoke training, if task-specific.
@@ -88,9 +93,8 @@ class PretrainedCheckpointCfg:
     """
 
     workflow: str
-    presets: tuple[str, ...] = ()
-    variant: str | None = None
-    preset_aliases: tuple[tuple[str, ...], ...] = ()
+    variant: str = PRETRAINED_CHECKPOINT_DEFAULT_VARIANT
+    training_presets: tuple[str, ...] = ()
     agent: str | None = None
     algorithm: str | None = None
     smoke_num_envs: int | None = None
@@ -101,15 +105,10 @@ class PretrainedCheckpointCfg:
         """Validate the declaration at construction time."""
         if self.workflow not in WORKFLOWS:
             raise ValueError(f"Unsupported workflow: {self.workflow!r}")
-        if self.variant is not None and re.fullmatch(r"[A-Za-z0-9_-]+", self.variant) is None:
+        if not isinstance(self.variant, str) or re.fullmatch(r"[A-Za-z0-9_-]+", self.variant) is None:
             raise ValueError(f"Invalid checkpoint variant: {self.variant!r}")
         if self.smoke_num_envs is not None and self.smoke_num_envs < 1:
             raise ValueError("smoke_num_envs must be positive")
-
-    @property
-    def preset_selections(self) -> tuple[tuple[str, ...], ...]:
-        """Return canonical and alias preset combinations accepted by this checkpoint."""
-        return (self.presets, *self.preset_aliases)
 
     def supports_backends(self, physics_backend: str, render_backend: str) -> bool:
         """Return whether this checkpoint declaration supports the backends."""
@@ -119,37 +118,34 @@ class PretrainedCheckpointCfg:
 
     def artifact_task_name(self, task_name: str) -> str:
         """Return the task component used in this checkpoint's artifact name."""
-        return f"{task_name}_{self.variant}" if self.variant is not None else task_name
+        if self.variant == PRETRAINED_CHECKPOINT_DEFAULT_VARIANT:
+            return task_name
+        return f"{task_name}_{self.variant}"
 
 
 @dataclasses.dataclass(frozen=True)
 class PretrainedCheckpointSetCfg:
-    """Pretrained policies declared for a task with policy-changing presets.
+    """Pretrained policies declared for a task with multiple policy contracts.
 
-    ``policy_presets`` is the complete set of preset names that can alter the
-    task's observation, action, or agent contract. A lookup must match one of
-    ``checkpoints`` exactly after unrelated physics and renderer presets are
-    removed. This prevents an undeclared policy contract from falling back to
-    a shape-incompatible default checkpoint.
+    The resolver inspects the final environment configuration, after presets
+    and scalar overrides have been applied. A lookup must match the resulting
+    variant exactly, which prevents an undeclared policy contract from falling
+    back to a shape-incompatible default checkpoint.
 
     Attributes:
-        policy_presets: Presets that can change the policy contract.
+        variant_resolver: Function mapping a resolved environment configuration
+            to a declared policy variant, or ``None`` when no published policy
+            is compatible.
         checkpoints: Published policy contracts and their selectors.
     """
 
-    policy_presets: tuple[str, ...]
+    variant_resolver: Callable[[_EnvCfg], str | None]
     checkpoints: tuple[PretrainedCheckpointCfg, ...]
 
     def __post_init__(self) -> None:
-        """Validate selector names."""
-        known = set(self.policy_presets)
-        if len(known) != len(self.policy_presets):
-            raise ValueError("policy_presets must not contain duplicates")
-        for checkpoint in self.checkpoints:
-            for selection in checkpoint.preset_selections:
-                unknown = set(selection) - known
-                if unknown:
-                    raise ValueError(f"Checkpoint selector contains undeclared policy presets: {sorted(unknown)}")
+        """Validate the variant resolver."""
+        if not callable(self.variant_resolver):
+            raise TypeError("variant_resolver must be callable")
 
 
 def get_pretrained_checkpoint_set_cfg(task_name: str) -> PretrainedCheckpointSetCfg | None:
@@ -189,8 +185,8 @@ def select_pretrained_checkpoint(
     """Select the checkpoint declaration matching a resolved task configuration.
 
     Tasks without an explicit checkpoint set retain the legacy implicit default.
-    Declared tasks fail closed when the active policy presets, agent, or backends
-    do not match an entry.
+    Declared tasks fail closed when the resolved policy variant, agent, or
+    backends do not match an entry.
 
     Args:
         workflow: RL workflow name.
@@ -208,9 +204,23 @@ def select_pretrained_checkpoint(
     checkpoint_set = get_pretrained_checkpoint_set_cfg(task_name)
     if checkpoint_set is None:
         return PretrainedCheckpointCfg(workflow=workflow)
+    backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+    return _select_declared_pretrained_checkpoint(workflow, task_name, env_cfg, agent, checkpoint_set, backend_names)
 
-    physics_backend, render_backend = get_pretrained_checkpoint_backend_names(env_cfg)
-    active_presets = set(get_preset_selection(env_cfg)) & set(checkpoint_set.policy_presets)
+
+def _select_declared_pretrained_checkpoint(
+    workflow: str,
+    task_name: str,
+    env_cfg: _EnvCfg,
+    agent: str | None,
+    checkpoint_set: PretrainedCheckpointSetCfg,
+    backend_names: tuple[str, str],
+) -> PretrainedCheckpointCfg | None:
+    """Select a checkpoint using declarations and normalized backends already loaded by the caller."""
+    active_variant = checkpoint_set.variant_resolver(env_cfg)
+    if active_variant is None:
+        return None
+    physics_backend, render_backend = backend_names
     default_agent = f"{workflow}_cfg_entry_point"
     selected_agent = None if agent in (None, default_agent) else agent
     matches = [
@@ -219,11 +229,11 @@ def select_pretrained_checkpoint(
         if checkpoint.workflow == workflow
         and checkpoint.agent == selected_agent
         and checkpoint.supports_backends(physics_backend, render_backend)
-        and any(active_presets == set(selection) for selection in checkpoint.preset_selections)
+        and checkpoint.variant == active_variant
     ]
     if len(matches) > 1:
         raise ValueError(
-            f"Multiple pretrained checkpoints match {task_name!r}, {workflow!r}, presets {sorted(active_presets)}"
+            f"Multiple pretrained checkpoints match {task_name!r}, {workflow!r}, variant {active_variant!r}"
         )
     return matches[0] if matches else None
 
@@ -251,6 +261,7 @@ def get_pretrained_checkpoint_filename(
         physics_backend: Physics backend name, such as ``"physx"`` or
             ``"newtonmjwarp"``.
         render_backend: Render backend name, such as ``"rtx"``, ``"newton"``, or ``"none"``.
+
     Returns:
         The checkpoint filename.
 
@@ -401,6 +412,7 @@ def get_published_pretrained_checkpoint(
             to use the legacy checkpoint layout.
         render_backend: Render backend name. Omit with :paramref:`physics_backend`
             to use the legacy checkpoint layout.
+
     Returns:
         The path.
     """
@@ -441,13 +453,17 @@ def get_published_pretrained_checkpoint_for_env(
         The local checkpoint path, or ``None`` when no compatible checkpoint
         is declared or published.
     """
-    checkpoint = select_pretrained_checkpoint(workflow, task_name, env_cfg, agent)
-    if checkpoint is None:
-        presets = get_preset_selection(env_cfg)
-        details = f" for presets {', '.join(presets)}" if presets else ""
-        print(f"A pre-trained checkpoint is currently unavailable for this task{details}.")
-        return None
+    checkpoint_set = get_pretrained_checkpoint_set_cfg(task_name)
     backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+    if checkpoint_set is None:
+        checkpoint = PretrainedCheckpointCfg(workflow=workflow)
+    else:
+        checkpoint = _select_declared_pretrained_checkpoint(
+            workflow, task_name, env_cfg, agent, checkpoint_set, backend_names
+        )
+    if checkpoint is None:
+        print("A pre-trained checkpoint is currently unavailable for this task configuration.")
+        return None
     return get_published_pretrained_checkpoint(workflow, checkpoint.artifact_task_name(task_name), *backend_names)
 
 

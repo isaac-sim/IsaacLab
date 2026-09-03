@@ -80,6 +80,7 @@ import gymnasium as gym
 from isaaclab.envs import DirectMARLEnvCfg
 
 from isaaclab_rl.utils.pretrained_checkpoint import (
+    PRETRAINED_CHECKPOINT_DEFAULT_VARIANT,
     WORKFLOW_EXPERIMENT_NAME_VARIABLE,
     WORKFLOWS,
     PretrainedCheckpointCfg,
@@ -115,8 +116,8 @@ class CheckpointJob:
     render_backend: str | None = None
     physics_selector: str | None = None
     render_selector: str | None = None
-    checkpoint_variant: str | None = None
-    preset_selectors: tuple[str, ...] = ()
+    checkpoint_variant: str = PRETRAINED_CHECKPOINT_DEFAULT_VARIANT
+    training_presets: tuple[str, ...] = ()
     smoke_num_envs: int | None = None
     agent: str | None = None
     algorithm: str | None = None
@@ -127,14 +128,14 @@ class CheckpointJob:
         if self.physics_backend is None:
             return f"{self.workflow}:{self.task_name}"
         parts = [self.workflow, self.task_name, self.physics_backend, self.render_backend]
-        if self.checkpoint_variant is not None:
+        if self.checkpoint_variant != PRETRAINED_CHECKPOINT_DEFAULT_VARIANT:
             parts.append(self.checkpoint_variant)
         return ":".join(parts)
 
     @property
     def artifact_task_name(self) -> str:
         """Return the task component used in checkpoint files and log directories."""
-        if self.checkpoint_variant is None:
+        if self.checkpoint_variant == PRETRAINED_CHECKPOINT_DEFAULT_VARIANT:
             return self.task_name
         return f"{self.task_name}_{self.checkpoint_variant}"
 
@@ -160,8 +161,8 @@ class CheckpointJob:
             args.append(f"physics={self.physics_selector}")
         if self.render_selector is not None:
             args.append(f"renderer={self.render_selector}")
-        if self.preset_selectors:
-            args.append(f"presets={','.join(self.preset_selectors)}")
+        if self.training_presets:
+            args.append(f"presets={','.join(self.training_presets)}")
         return args
 
 
@@ -373,7 +374,7 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
                             physics_selector=physics_selector,
                             render_selector=render_selector,
                             checkpoint_variant=checkpoint_cfg.variant,
-                            preset_selectors=checkpoint_cfg.presets,
+                            training_presets=checkpoint_cfg.training_presets,
                             smoke_num_envs=checkpoint_cfg.smoke_num_envs,
                             agent=checkpoint_cfg.agent,
                             algorithm=checkpoint_cfg.algorithm,
@@ -699,8 +700,8 @@ def _summary_row(job: CheckpointJob, output_dir: str) -> list[str | bool]:
         job.task_name,
         job.physics_backend or "",
         job.render_backend or "",
-        job.checkpoint_variant or "",
-        ",".join(job.preset_selectors),
+        "" if job.checkpoint_variant == PRETRAINED_CHECKPOINT_DEFAULT_VARIANT else job.checkpoint_variant,
+        ",".join(job.training_presets),
         job.physics_selector or "",
         job.render_selector or "",
         has_run,
@@ -755,7 +756,7 @@ def main(argv: list[str] | None = None) -> int:
                 "Physics",
                 "Renderer",
                 "Variant",
-                "Preset selectors",
+                "Training presets",
                 "Physics selector",
                 "Renderer selector",
                 "Ran",

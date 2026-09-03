@@ -186,7 +186,9 @@ def run(argv: list[str]) -> BenchmarkResult:
                     },
                 )
             else:
-                resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "skrl", args_cli.task, env_cfg)
+                resume_path = _common.resolve_play_checkpoint(
+                    args_cli.checkpoint, "skrl", args_cli.task, env_cfg, agent_cfg_entry_point
+                )
 
             cfg = capture.run_config_from_env_cfg(env_cfg)
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
