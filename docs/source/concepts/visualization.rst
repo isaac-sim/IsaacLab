@@ -398,6 +398,14 @@ Visualizer Overview
       - Timeline scrubbing and playback of ``.rrd`` recordings
       - **Pause Rendering** and **Reset Episode** controls via the ImGui sidebar
 
+      .. note::
+
+         The native Play/Pause timeline controls in the Rerun visualizer UI do not work while
+         visualizing a live simulation or training run. They are hidden by default, but Rerun's
+         dock panel UI can still be used to reveal them; when revealed, clicking them has no
+         effect. Use Isaac Lab's own **Pause Rendering** / **Reset Episode** controls instead.
+         The timeline controls are only meaningful when replaying a saved ``.rrd`` recording.
+
       .. important::
 
          A highlighted URL is printed to the terminal before training begins. Ctrl-click it to

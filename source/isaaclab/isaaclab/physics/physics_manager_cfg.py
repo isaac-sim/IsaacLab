@@ -34,6 +34,19 @@ class PhysicsCfg:
     class_type: type[PhysicsManager] | Any = MISSING
     """The physics manager class to use. Must be set by subclasses."""
 
+    deterministic: bool = False
+    """Whether to request reproducible physics from the backend. Defaults to False.
+
+    This is the backend-agnostic form of the request, set by the ``--deterministic`` command-line
+    flag. Each physics manager translates it into its own settings when the simulation starts, and
+    raises when its configuration cannot provide the guarantee. A backend-specific determinism
+    attribute set explicitly, such as
+    :attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode`, is the more specific instruction
+    and takes precedence.
+
+    Deterministic execution can increase memory use and reduce simulation performance.
+    """
+
 
 @configclass
 class PhysxAutoCfg(PhysicsCfg):
