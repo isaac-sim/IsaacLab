@@ -8,10 +8,13 @@
 #
 # Usage: report.sh restore|growth
 #
-#   restore  prepares both trees, checks the mount is writable, prints the
-#            per-tree hit/miss and records the baseline for the growth pass
+#   restore  prepares the requested tree(s), checks the mount is writable, prints
+#            the per-tree hit/miss and records the baseline for the growth pass
 #   growth   prints how far the run compiled beyond what was restored, and
 #            emits the per-tree file counts and changed flags the save gates read
+#
+# TREES selects which tree(s) to process: 'kit', 'kitless' or 'both' (default).
+# A tree the caller did not request is skipped entirely.
 #
 # The passes are separate invocations of this action, so the restore pass hands
 # its baseline to the growth pass through OVRTX_CACHE_HIT, OVRTX_CACHE_MB_BEFORE
@@ -22,6 +25,12 @@ set -euo pipefail
 
 mode="${1:?usage: report.sh restore|growth}"
 : "${HOST_DIR:?HOST_DIR is required}"
+
+# 'kit', 'kitless' or 'both' (default); the tree(s) this job requested.
+trees="${TREES:-both}"
+requested() {
+  [ "$trees" = "both" ] || [ "$trees" = "$1" ]
+}
 
 # Files, not bytes: an empty tree still measures ~1 MB. tr strips wc's padding,
 # which would otherwise make the '0' comparisons in the save gates miss.
@@ -46,36 +55,40 @@ fingerprint_tree() {
 
 case "$mode" in
   restore)
-    mkdir -p "$HOST_DIR/kit" "$HOST_DIR/kitless"
+    hit=""
+    if requested kit; then
+      mkdir -p "$HOST_DIR/kit"
+      # cache-matched-key is authoritative; directory size is not, since an empty
+      # directory still measures as ~1 MB.
+      if [ -z "${KIT_MATCHED_KEY:-}" ]; then
+        echo "::warning::OVRTX kit shader cache miss - no entry in collection ${KIT_COLLECTION:-}"
+      else
+        echo "OVRTX kit shader cache hit: ${KIT_MATCHED_KEY}"
+        hit="${hit}${KIT_MATCHED_KEY}/"
+      fi
+    fi
+    if requested kitless; then
+      mkdir -p "$HOST_DIR/kitless"
+      if [ -z "${KITLESS_MATCHED_KEY:-}" ]; then
+        echo "::warning::OVRTX kitless shader cache miss - no entry in collection ${KITLESS_COLLECTION:-}"
+      else
+        echo "OVRTX kitless shader cache hit: ${KITLESS_MATCHED_KEY}"
+        hit="${hit}${KITLESS_MATCHED_KEY}/"
+      fi
+    fi
     if [ ! -w "$HOST_DIR" ]; then
       echo "::error::OVRTX shader cache directory is not writable: $HOST_DIR"
       exit 1
     fi
 
-    # cache-matched-key is authoritative; directory size is not, since an empty
-    # directory still measures as ~1 MB.
-    if [ -z "${KIT_MATCHED_KEY:-}" ]; then
-      echo "::warning::OVRTX kit shader cache miss - no entry in collection ${KIT_COLLECTION:-}"
-    else
-      echo "OVRTX kit shader cache hit: ${KIT_MATCHED_KEY}"
-    fi
-    if [ -z "${KITLESS_MATCHED_KEY:-}" ]; then
-      echo "::warning::OVRTX kitless shader cache miss - no entry in collection ${KITLESS_COLLECTION:-}"
-    else
-      echo "OVRTX kitless shader cache hit: ${KITLESS_MATCHED_KEY}"
-    fi
-
-    if [ -z "${KIT_MATCHED_KEY:-}" ] && [ -z "${KITLESS_MATCHED_KEY:-}" ]; then
-      echo "OVRTX_CACHE_HIT=miss" >> "$GITHUB_ENV"
-    else
-      echo "OVRTX_CACHE_HIT=${KIT_MATCHED_KEY:-miss}/${KITLESS_MATCHED_KEY:-miss}" >> "$GITHUB_ENV"
-    fi
+    echo "OVRTX_CACHE_HIT=${hit:-miss}" >> "$GITHUB_ENV"
     echo "OVRTX_CACHE_MB_BEFORE=$(du -sm "$HOST_DIR" | cut -f1)" >> "$GITHUB_ENV"
 
     # Only the warmer compares fingerprints, and hashing both trees is the one
     # part of this pass that scales with the restored snapshot.
     if [ "${PUBLISHES:-false}" = "true" ]; then
       for tree in kit kitless; do
+        requested "$tree" || continue
         echo "$(fingerprint_var "$tree")=$(fingerprint_tree "$HOST_DIR/$tree")" >> "$GITHUB_ENV"
       done
     fi
@@ -85,6 +98,7 @@ case "$mode" in
     if [ ! -d "$HOST_DIR" ]; then
       echo "OVRTX shader cache directory missing; nothing to report"
       for tree in kit kitless; do
+        requested "$tree" || continue
         echo "${tree}-files=0" >> "$GITHUB_OUTPUT"
         echo "${tree}-changed=false" >> "$GITHUB_OUTPUT"
       done
@@ -107,6 +121,7 @@ case "$mode" in
     echo "🔵 OVRTX shader cache: ${before} -> ${after} MB (+${grew}) - ${verdict}" >> "$GITHUB_STEP_SUMMARY"
 
     for tree in kit kitless; do
+      requested "$tree" || continue
       files="$(count_files "$HOST_DIR/$tree")"
       files="${files:-0}"
 

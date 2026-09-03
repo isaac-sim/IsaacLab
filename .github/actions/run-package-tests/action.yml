@@ -114,6 +114,12 @@ inputs:
       back a new snapshot; only warm-ovrtx-cache uses it.
     default: ''
     required: false
+  ovrtx-shader-cache-trees:
+    description: >-
+      Which OVRTX cache tree(s) this job needs: 'kit', 'kitless', or 'both'. A
+      job that only exercises one render path should request just that tree.
+    default: 'both'
+    required: false
   standalone-script-scope:
     description: 'Enable standalone script smoke tests for this scripts/ subdirectory'
     default: ''
@@ -254,6 +260,7 @@ runs:
         mode: restore
         publishes: ${{ inputs.ovrtx-shader-cache == 'save' }}
         isaacsim-version: ${{ inputs.isaacsim-version }}
+        trees: ${{ inputs.ovrtx-shader-cache-trees }}
 
     - name: Setup wheelhouse registry authentication
       if: inputs.wheelhouse-image != ''
@@ -434,6 +441,7 @@ runs:
       with:
         mode: report
         isaacsim-version: ${{ inputs.isaacsim-version }}
+        trees: ${{ inputs.ovrtx-shader-cache-trees }}
 
     # Not success(): compiled PSO blobs stay valid when a golden-image assertion
     # fails, so one failing assertion should not discard a whole warm run.
@@ -445,6 +453,7 @@ runs:
       with:
         mode: save
         isaacsim-version: ${{ inputs.isaacsim-version }}
+        trees: ${{ inputs.ovrtx-shader-cache-trees }}
 
     - name: Cleanup wheelhouse artifacts
       if: always() && steps.extract-wheelhouse.outputs.wheelhouse_host_dir != ''

@@ -803,6 +803,7 @@ jobs:
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
         ovrtx-shader-cache: restore
+        ovrtx-shader-cache-trees: kit
         warp-cache: restore
         container-name: isaac-lab-rendering-correctness-test
         omni-github-test-type: rendering-correctness
@@ -852,6 +853,7 @@ jobs:
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
         ovrtx-shader-cache: restore
+        ovrtx-shader-cache-trees: kitless
         warp-cache: restore
         container-name: "isaac-lab-rendering-correctness-kitless-legacy-test"
         omni-github-test-type: "rendering-correctness-kitless-legacy"
@@ -899,6 +901,7 @@ jobs:
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
         ovrtx-shader-cache: restore
+        ovrtx-shader-cache-trees: kitless
         container-name: "isaac-lab-rendering-correctness-kitless-ovstage-test"
         omni-github-test-type: "rendering-correctness-kitless-ovstage"
 

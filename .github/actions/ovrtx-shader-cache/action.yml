@@ -39,6 +39,13 @@ inputs:
       duplicate snapshot, never a lost one.
     required: false
     default: 'false'
+  trees:
+    description: >-
+      Which cache tree(s) this job needs: 'kit', 'kitless', or 'both'. A job that
+      only exercises one render path should request just that tree, so it does
+      not pay the restore/save cost of the tree it never populates.
+    default: 'both'
+    required: false
 
 outputs:
   host-dir:
@@ -62,7 +69,7 @@ runs:
       run: bash "$GITHUB_ACTION_PATH/key.sh"
 
     - name: Restore OVRTX kit shader cache
-      if: inputs.mode == 'restore'
+      if: inputs.mode == 'restore' && inputs.trees != 'kitless'
       id: restore-kit
       uses: actions/cache/restore@v4
       with:
@@ -71,7 +78,7 @@ runs:
         restore-keys: ${{ steps.compute.outputs.kit-restore-keys }}
 
     - name: Restore OVRTX kitless shader cache
-      if: inputs.mode == 'restore'
+      if: inputs.mode == 'restore' && inputs.trees != 'kit'
       id: restore-kitless
       uses: actions/cache/restore@v4
       with:
@@ -84,6 +91,7 @@ runs:
       shell: bash
       env:
         HOST_DIR: ${{ steps.compute.outputs.host-dir }}
+        TREES: ${{ inputs.trees }}
         KIT_MATCHED_KEY: ${{ steps.restore-kit.outputs.cache-matched-key }}
         KITLESS_MATCHED_KEY: ${{ steps.restore-kitless.outputs.cache-matched-key }}
         KIT_COLLECTION: ${{ steps.compute.outputs.kit-collection }}
@@ -97,6 +105,7 @@ runs:
       shell: bash
       env:
         HOST_DIR: ${{ steps.compute.outputs.host-dir }}
+        TREES: ${{ inputs.trees }}
       run: bash "$GITHUB_ACTION_PATH/report.sh" growth
 
     # Each tree is gated on its own file count so a populated kit/ never carries
@@ -111,7 +120,7 @@ runs:
     # from. It is 'true' whenever the growth step could not rule that out.
     - name: Save OVRTX kit shader cache
       if: >-
-        always() && inputs.mode == 'save'
+        always() && inputs.mode == 'save' && inputs.trees != 'kitless'
         && steps.growth.outputs.kit-files != ''
         && steps.growth.outputs.kit-files != '0'
         && steps.growth.outputs.kit-changed == 'true'
@@ -122,7 +131,7 @@ runs:
 
     - name: Save OVRTX kitless shader cache
       if: >-
-        always() && inputs.mode == 'save'
+        always() && inputs.mode == 'save' && inputs.trees != 'kit'
         && steps.growth.outputs.kitless-files != ''
         && steps.growth.outputs.kitless-files != '0'
         && steps.growth.outputs.kitless-changed == 'true'
@@ -131,10 +140,11 @@ runs:
         path: ${{ steps.compute.outputs.kitless-dir }}
         key: ${{ steps.compute.outputs.kitless-key }}
 
-    - name: Verify both OVRTX shader cache trees were populated
+    - name: Verify requested OVRTX shader cache tree(s) were populated
       if: always() && inputs.mode == 'save'
       shell: bash
       env:
+        TREES: ${{ inputs.trees }}
         KIT_FILES: ${{ steps.growth.outputs.kit-files }}
         KITLESS_FILES: ${{ steps.growth.outputs.kitless-files }}
       run: bash "$GITHUB_ACTION_PATH/verify.sh"

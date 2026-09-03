@@ -11,7 +11,7 @@
 # the one it saves to cannot drift. Only values that stay constant for the
 # lifetime of a job may be keyed on.
 #
-# Reads: ISAACSIM_VERSION, GITHUB_WORKSPACE (for uv.lock), RUNNER_OS,
+# Reads: ISAACSIM_VERSION, GITHUB_WORKSPACE (for pyproject.toml), RUNNER_OS,
 # RUNNER_ARCH, RUNNER_TEMP, GITHUB_SHA, GITHUB_RUN_ID, GITHUB_RUN_ATTEMPT.
 
 set -euo pipefail
@@ -29,12 +29,18 @@ if [ -z "${driver_ver}" ] || [ -z "${gpu_arch}" ]; then
   exit 1
 fi
 
-# The uv.lock pin, not the wheel the container resolves from the ovrtx range,
-# so the key stays a function of the commit and an upstream release cannot
-# re-key every open PR onto a cold collection.
-ovrtx_ver="$(grep -A1 '^name = "ovrtx"$' "${GITHUB_WORKSPACE}/uv.lock" | sed -n 's/^version = "\(.*\)"$/\1/p' | head -1 || true)"
+# [tool.isaaclab.versions].ovrtx in pyproject.toml, the single source of truth
+# resolve-ov-pins reads to build the pip specifier CI actually installs from
+# (a special internal release, not the public wheel uv.lock would resolve), so
+# the key stays a function of the commit and an upstream release cannot re-key
+# every open PR onto a cold collection.
+ovrtx_ver="$(awk -F'"' '
+  /^\[tool\.isaaclab\.versions\]/ { in_section = 1; next }
+  /^\[/ { in_section = 0 }
+  in_section && /^ovrtx[[:space:]]*=/ { print $2; exit }
+' "${GITHUB_WORKSPACE}/pyproject.toml" || true)"
 if [ -z "${ovrtx_ver}" ]; then
-  echo "::error::uv.lock has no version entry for ovrtx"
+  echo "::error::pyproject.toml [tool.isaaclab.versions] has no entry for ovrtx"
   exit 1
 fi
 

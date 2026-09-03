@@ -95,12 +95,14 @@ def test_redirect_applies_settings_with_the_renderer_config(monkeypatch):
     assert [setting.split("=", 1)[1] for setting in applier.applied] == [_CACHE_PATH, _CACHE_PATH]
 
 
-def test_redirect_warns_when_settings_extension_is_unavailable(monkeypatch, caplog):
-    """A runtime without the settings extension degrades to a warning, not a failure."""
+def test_redirect_raises_when_settings_extension_is_unavailable(monkeypatch):
+    """A runtime without the settings extension must fail loudly.
+
+    Silently recompiling at the default cache path would leave CI reporting the
+    restore as a hit even though nothing was redirected.
+    """
     monkeypatch.setenv(SHADER_CACHE_PATH_ENV, _CACHE_PATH)
     monkeypatch.setattr(ovrtx_shader_cache, "_acquire_settings_applier", lambda config: None)
 
-    with caplog.at_level("WARNING", logger=ovrtx_shader_cache.__name__):
+    with pytest.raises(RuntimeError, match=SHADER_CACHE_PATH_ENV):
         redirect_shader_cache(_CONFIG)
-
-    assert SHADER_CACHE_PATH_ENV in caplog.text

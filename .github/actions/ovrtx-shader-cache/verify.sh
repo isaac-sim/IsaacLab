@@ -10,9 +10,15 @@
 # warm-ovrtx-cache is continue-on-error, so this reports without breaking the
 # push build. tools/verify_ovrtx_shader_cache.py is the in-container mount check.
 #
-# Reads KIT_FILES / KITLESS_FILES, the per-tree counts report.sh emitted.
+# Reads TREES (the tree(s) requested; 'kit', 'kitless' or 'both', default 'both')
+# and KIT_FILES / KITLESS_FILES, the per-tree counts report.sh emitted.
 
 set -euo pipefail
+
+trees="${TREES:-both}"
+requested() {
+  [ "$trees" = "both" ] || [ "$trees" = "$1" ]
+}
 
 status=0
 check_tree() {
@@ -24,6 +30,6 @@ check_tree() {
   fi
 }
 
-check_tree kit "${KIT_FILES:-0}"
-check_tree kitless "${KITLESS_FILES:-0}"
+requested kit && check_tree kit "${KIT_FILES:-0}"
+requested kitless && check_tree kitless "${KITLESS_FILES:-0}"
 exit "$status"
