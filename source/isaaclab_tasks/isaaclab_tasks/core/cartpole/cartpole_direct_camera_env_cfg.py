@@ -15,7 +15,7 @@ from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 from isaaclab_tasks.utils import PresetCfg
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg, validate_warp_renderer_data_types
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 
 @configclass
@@ -73,8 +73,31 @@ class CartpoleCameraEnvCfg(PresetCfg):
         initial_pole_angle_range = (-0.125 * math.pi, 0.125 * math.pi)  # [rad]
 
         def validate_config(self):
-            """Check that the camera data type is renderable by the selected renderer."""
-            validate_warp_renderer_data_types(self.tiled_camera, "tiled_camera")
+            """Check for invalid preset combinations after resolution."""
+
+            # Mirrors the kinds published by ``NewtonWarpRenderer.supported_output_types``; the
+            # ``simple_shading_*`` data types are RTX-only and would otherwise fail at env creation.
+            warp_supported = {
+                "rgb",
+                "rgba",
+                "rgb_hdr",
+                "albedo",
+                "depth",
+                "distance_to_camera",
+                "distance_to_image_plane",
+                "normals",
+                "semantic_segmentation",
+                "instance_segmentation",
+            }
+            renderer_type = getattr(self.tiled_camera.renderer_cfg, "renderer_type", None)
+            if renderer_type == "newton_warp":
+                unsupported = set(self.tiled_camera.data_types) - warp_supported
+                if unsupported:
+                    raise ValueError(
+                        f"Warp renderer only supports data types {sorted(warp_supported)}, "
+                        f"but 'tiled_camera' is configured with unsupported types: {sorted(unsupported)}. "
+                        "Choose a compatible preset, e.g. presets=newton_renderer,rgb."
+                    )
 
         def __post_init__(self):
             self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))

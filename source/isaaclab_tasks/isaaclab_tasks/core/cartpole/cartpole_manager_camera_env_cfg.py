@@ -16,7 +16,7 @@ from isaaclab.visualizers import VisualizerCfg
 import isaaclab_tasks.core.cartpole.mdp as mdp
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg, ObservationsCfg
 from isaaclab_tasks.utils import PresetCfg
-from isaaclab_tasks.utils.presets import MultiBackendRendererCfg, validate_warp_renderer_data_types
+from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 ##
 # Camera presets
@@ -168,8 +168,32 @@ class CartpoleCameraEnvCfg(PresetCfg):
         scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0)
 
         def validate_config(self):
-            """Check that the camera data type is renderable by the selected renderer."""
-            validate_warp_renderer_data_types(self.scene.tiled_camera, "tiled_camera")
+            """Check for invalid preset combinations after resolution."""
+
+            # Mirrors the kinds published by ``NewtonWarpRenderer.supported_output_types``; the
+            # ``simple_shading_*`` data types are RTX-only and would otherwise fail at env creation.
+            warp_supported = {
+                "rgb",
+                "rgba",
+                "rgb_hdr",
+                "albedo",
+                "depth",
+                "distance_to_camera",
+                "distance_to_image_plane",
+                "normals",
+                "semantic_segmentation",
+                "instance_segmentation",
+            }
+            camera = self.scene.tiled_camera
+            renderer_type = getattr(camera.renderer_cfg, "renderer_type", None)
+            if renderer_type == "newton_warp":
+                unsupported = set(camera.data_types) - warp_supported
+                if unsupported:
+                    raise ValueError(
+                        f"Warp renderer only supports data types {sorted(warp_supported)}, "
+                        f"but 'tiled_camera' is configured with unsupported types: {sorted(unsupported)}. "
+                        "Choose a compatible preset, e.g. presets=newton_renderer,rgb."
+                    )
 
         def __post_init__(self):
             super().__post_init__()
