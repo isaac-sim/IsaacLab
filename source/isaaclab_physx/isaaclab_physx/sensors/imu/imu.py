@@ -46,9 +46,8 @@ class Imu(BaseImu):
 
     .. note::
 
-        Linear acceleration is computed using numerical differentiation from velocities.
-        Consequently, the IMU sensor accuracy depends on the chosen physics timestep.
-        For sufficient accuracy, we recommend keeping the timestep at least 200 Hz.
+        Linear acceleration is read from the solver and transported from the body center of
+        mass to the sensor frame, then biased by gravity.
     """
 
     cfg: ImuCfg

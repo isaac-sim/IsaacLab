@@ -22,7 +22,7 @@ import isaaclab_ov.tensor_types as TT
 from isaaclab_ov.physics import OvPhysxManager as SimulationManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
-from .kernels import pva_reset_kernel, pva_update_kernel
+from .kernels import pva_reset_kernel, pva_update_kernel, pva_update_solver_acc_kernel
 from .pva_data import PvaData
 
 if TYPE_CHECKING:
@@ -46,10 +46,11 @@ class Pva(BasePva):
 
     .. note::
 
-        Linear and angular accelerations are computed using numerical differentiation
-        of the corresponding velocities. Consequently, the PVA sensor accuracy
-        depends on the chosen physics timestep. For sufficient accuracy, we
-        recommend keeping the timestep at least 200 Hz.
+        Linear and angular accelerations are read from the solver when the OVPhysX wheel
+        exposes the rigid-body acceleration binding; otherwise they are computed using
+        numerical differentiation of the corresponding velocities, in which case the sensor
+        accuracy depends on the chosen physics timestep and we recommend keeping the
+        timestep at least 200 Hz.
     """
 
     cfg: PvaCfg
@@ -70,6 +71,8 @@ class Pva(BasePva):
         # Sentinel — set in :meth:`_initialize_impl`; ``None`` means the sensor has not been bound yet
         # (used by :meth:`_debug_vis_callback` to safely no-op before init).
         self._root_view: OvPhysxView | None = None
+        # Sentinel — resolved in :meth:`_initialize_impl`; ``None`` selects the finite-difference path.
+        self._acc_binding = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -147,6 +150,11 @@ class Pva(BasePva):
 
         self._root_view = OvPhysxView(physx_instance, pattern=pattern, device=self._device)
         self._num_bodies = self._root_view.binding_for(TT.RIGID_BODY_POSE).count
+        # Solver-reported accelerations ship in newer OVPhysX wheels only; fall back to
+        # finite differencing when the binding is unavailable (see isaaclab_ov.tensor_types).
+        self._acc_binding = (
+            self._root_view.binding_for(TT.RIGID_BODY_ACCELERATION) if hasattr(TT, "RIGID_BODY_ACCELERATION") else None
+        )
 
         if self._num_bodies != self._num_envs:
             raise ValueError(
@@ -184,6 +192,7 @@ class Pva(BasePva):
         # Drop the view (and the bindings it caches) so a stale/destroyed handle is not held
         # across the reset; ``_initialize_impl`` rebuilds a fresh view on the next play.
         self._root_view = None
+        self._acc_binding = None
 
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
@@ -193,37 +202,64 @@ class Pva(BasePva):
         # cached float32 reinterpret; no manual float32 alias is needed.
         self._root_view.read_into(TT.RIGID_BODY_POSE, self._transforms)
         self._root_view.read_into(TT.RIGID_BODY_VELOCITY, self._velocities)
+        if self._acc_binding is not None:
+            self._root_view.read_into(TT.RIGID_BODY_ACCELERATION, self._accelerations)
         # RIGID_BODY_COM_POSE is a CPU tensor type in the OVPhysX wheel.
         # For GPU simulations, stage on CPU then copy into the kernel buffer.
         self._root_view.read_into(TT.RIGID_BODY_COM_POSE, self._coms_read_view)
         if self._coms_read_view is not self._coms_buffer:
             wp.copy(self._coms_buffer, self._coms_read_view)
 
-        wp.launch(
-            pva_update_kernel,
-            dim=self._num_envs,
-            inputs=[
-                env_mask,
-                self._transforms,
-                self._velocities,
-                self._coms_buffer,
-                self._offset_pos_b,
-                self._offset_quat_b,
-                self._gravity_vec_w,
-                1.0 / self._dt,
-                self._timestamp,
-                self._prev_lin_vel_w,
-                self._prev_ang_vel_w,
-                self._data._pos_w,
-                self._data._quat_w,
-                self._data._lin_vel_b,
-                self._data._ang_vel_b,
-                self._data._lin_acc_b,
-                self._data._ang_acc_b,
-                self._data._projected_gravity_b,
-            ],
-            device=self._device,
-        )
+        if self._acc_binding is not None:
+            wp.launch(
+                pva_update_solver_acc_kernel,
+                dim=self._num_envs,
+                inputs=[
+                    env_mask,
+                    self._transforms,
+                    self._velocities,
+                    self._accelerations,
+                    self._coms_buffer,
+                    self._offset_pos_b,
+                    self._offset_quat_b,
+                    self._gravity_vec_w,
+                    self._timestamp,
+                    self._data._pos_w,
+                    self._data._quat_w,
+                    self._data._lin_vel_b,
+                    self._data._ang_vel_b,
+                    self._data._lin_acc_b,
+                    self._data._ang_acc_b,
+                    self._data._projected_gravity_b,
+                ],
+                device=self._device,
+            )
+        else:
+            wp.launch(
+                pva_update_kernel,
+                dim=self._num_envs,
+                inputs=[
+                    env_mask,
+                    self._transforms,
+                    self._velocities,
+                    self._coms_buffer,
+                    self._offset_pos_b,
+                    self._offset_quat_b,
+                    self._gravity_vec_w,
+                    1.0 / self._dt,
+                    self._timestamp,
+                    self._prev_lin_vel_w,
+                    self._prev_ang_vel_w,
+                    self._data._pos_w,
+                    self._data._quat_w,
+                    self._data._lin_vel_b,
+                    self._data._ang_vel_b,
+                    self._data._lin_acc_b,
+                    self._data._ang_acc_b,
+                    self._data._projected_gravity_b,
+                ],
+                device=self._device,
+            )
 
     def _initialize_buffers_impl(self):
         """Create buffers for storing data."""
@@ -241,6 +277,8 @@ class Pva(BasePva):
         # Structured-dtype buffers filled in place by :meth:`OvPhysxView.read_into`.
         self._transforms = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
         self._velocities = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)
+        if self._acc_binding is not None:
+            self._accelerations = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)
         self._coms_buffer = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
 
         # RIGID_BODY_COM_POSE is CPU-resident even on a GPU sim, so its binding requires a

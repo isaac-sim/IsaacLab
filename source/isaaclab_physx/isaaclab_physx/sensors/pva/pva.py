@@ -44,9 +44,9 @@ class Pva(BasePva):
 
     .. note::
 
-        We are computing the accelerations using numerical differentiation from the velocities. Consequently, the
-        PVA sensor accuracy depends on the chosen physx timestep. For a sufficient accuracy, we recommend to keep the
-        timestep at least as 200Hz.
+        Linear and angular accelerations are read from the solver and transported from the body
+        center of mass to the sensor frame. They are kinematic accelerations, so they do not
+        include the gravity bias that the IMU sensor reports.
 
     .. note::
 
@@ -81,6 +81,7 @@ class Pva(BasePva):
         self._rigid_parent_expr: str | None = None
         self._raw_transforms: wp.array | None = None
         self._raw_velocities: wp.array | None = None
+        self._raw_accelerations: wp.array | None = None
         self._raw_coms: wp.array | None = None
         self._update_cmd: wp.Launch | None = None
         self._update_env_mask: wp.array | None = None
@@ -132,8 +133,6 @@ class Pva(BasePva):
                 self._data._lin_acc_b,
                 self._data._ang_acc_b,
                 self._data._projected_gravity_b,
-                self._prev_lin_vel_w,
-                self._prev_ang_vel_w,
             ],
             device=self._device,
         )
@@ -197,14 +196,17 @@ class Pva(BasePva):
         # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
         transforms = self._view.get_transforms()
         velocities = self._view.get_velocities()
+        accelerations = self._view.get_accelerations()
         coms = self._view.get_coms()
         if self._raw_transforms is None:
             self._raw_transforms = transforms.view(wp.transformf)
             self._raw_velocities = velocities.view(wp.spatial_vectorf)
+            self._raw_accelerations = accelerations.view(wp.spatial_vectorf)
             self._raw_coms = coms.view(wp.transformf)
         elif (
             transforms.ptr != self._raw_transforms.ptr
             or velocities.ptr != self._raw_velocities.ptr
+            or accelerations.ptr != self._raw_accelerations.ptr
             or coms.ptr != self._raw_coms.ptr
         ):
             raise RuntimeError(
@@ -244,14 +246,12 @@ class Pva(BasePva):
                 env_mask,
                 self._raw_transforms,
                 self._raw_velocities,
+                self._raw_accelerations,
                 self._coms_buffer,
                 self._offset_pos_b,
                 self._offset_quat_b,
                 self.GRAVITY_VEC_W,
                 self._timestamp,
-                self._timestamp_last_update,
-                self._prev_lin_vel_w,
-                self._prev_ang_vel_w,
                 self._data._pos_w,
                 self._data._quat_w,
                 self._data._lin_vel_b,
@@ -269,10 +269,6 @@ class Pva(BasePva):
         # Create data buffers via data class
         self._data.create_buffers(num_envs=self._view.count, device=self._device)
 
-        # Sensor-internal buffers for velocity tracking (not exposed via data)
-        self._prev_lin_vel_w = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
-        self._prev_ang_vel_w = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
-
         # Store sensor offset (applied relative to rigid source).
         # This may be composed later with a fixed ancestor->target transform.
         offset_pos_torch = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
@@ -289,6 +285,7 @@ class Pva(BasePva):
         self._view = None
         self._raw_transforms = None
         self._raw_velocities = None
+        self._raw_accelerations = None
         self._raw_coms = None
         self._update_cmd = None
         self._update_env_mask = None

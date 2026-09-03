@@ -319,16 +319,17 @@ def test_constant_velocity(setup_sim):
 
 @pytest.mark.isaacsim_ci
 def test_constant_acceleration(setup_sim):
-    """Test the PVA sensor with a constant acceleration."""
+    """A constant applied force yields the solver acceleration F/m on top of free fall."""
     sim, scene = setup_sim
-    for idx in range(100):
-        # set acceleration
-        scene.rigid_objects["balls"].write_root_velocity_to_sim(
-            torch.tensor([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
-                scene.num_envs, 1
-            )
-            * (idx + 1)
-        )
+    balls = scene.rigid_objects["balls"]
+    force = 0.25  # [N] on a 0.5 kg ball -> 0.5 m/s^2
+    expected_acc = force / 0.5
+    forces = torch.zeros((scene.num_envs, 1, 3), dtype=torch.float32, device=scene.device)
+    forces[..., 0] = force
+    # keep the window short so the ball stays airborne: PVA reports kinematic acceleration,
+    # so the vertical component is the free-fall -g
+    for idx in range(10):
+        balls.set_external_force_and_torque(forces, torch.zeros_like(forces))
         # write data to sim
         scene.write_data_to_sim()
         # perform step
@@ -336,7 +337,7 @@ def test_constant_acceleration(setup_sim):
         # read data from sim
         scene.update(sim.get_physics_dt())
 
-        # skip first step where initial velocity is zero
+        # skip first step where the solver has not integrated the force yet
         if idx < 1:
             continue
 
@@ -345,8 +346,9 @@ def test_constant_acceleration(setup_sim):
             scene.sensors["pva_ball"].data.lin_acc_b.torch,
             math_utils.quat_apply_inverse(
                 scene.rigid_objects["balls"].data.root_quat_w.torch,
-                torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(scene.num_envs, 1)
-                / sim.get_physics_dt(),
+                torch.tensor([[expected_acc, 0.0, -9.81]], dtype=torch.float32, device=scene.device).repeat(
+                    scene.num_envs, 1
+                ),
             ),
             rtol=1e-4,
             atol=1e-4,
@@ -784,8 +786,8 @@ def test_no_stale_data_after_scene_reset():
 
     Mirrors the ``ManagerBasedRLEnv._reset_idx`` flow where reset runs inside a step
     without a subsequent physics step. The PVA sensor's lazy ``data`` accessor must not
-    refetch from the PhysX rigid-body view here (the velocity buffer reflects the previous
-    physics step and would produce spurious finite-difference accelerations).
+    refetch from the PhysX rigid-body view here (its buffers still reflect the previous
+    physics step and would surface pre-reset velocities and accelerations).
     """
     sim_cfg = sim_utils.SimulationCfg(dt=0.01, physics=PhysxCfg(solver_type=0))
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
@@ -829,8 +831,14 @@ def test_sensor_print(setup_sim):
 
 
 @pytest.mark.parametrize("access_mode", ("lazy_read", "update_period"))
-def test_acceleration_uses_elapsed_sensor_time(setup_sim, access_mode):
-    """Linear and angular acceleration use the elapsed time between sensor samples."""
+def test_velocity_writes_do_not_produce_spurious_acceleration(setup_sim, access_mode):
+    """Directly written (teleported) velocities do not show up as fake accelerations.
+
+    The PVA sensor reports the solver acceleration, so a velocity write — which involves no
+    force — must not spike the sensor. This was a known artifact of the previous
+    finite-difference implementation (e.g. on environment resets). The airborne ball is in
+    free fall throughout, so the only acceleration left is ``-g`` along the world z axis.
+    """
     sim, scene = setup_sim
     dt = sim.get_physics_dt()
     body = scene.rigid_objects["balls"]
@@ -857,11 +865,9 @@ def test_acceleration_uses_elapsed_sensor_time(setup_sim, access_mode):
         if access_mode == "update_period":
             _ = sensor.data
 
-    expected_lin_acc = torch.full((scene.num_envs,), 0.1 / dt, device=scene.device)
-    expected_ang_acc = torch.full((scene.num_envs,), 0.2 / dt, device=scene.device)
-    torch.testing.assert_close(
-        torch.linalg.vector_norm(sensor.data.lin_acc_b.torch, dim=-1), expected_lin_acc, rtol=1e-4, atol=1e-3
-    )
-    torch.testing.assert_close(
-        torch.linalg.vector_norm(sensor.data.ang_acc_b.torch, dim=-1), expected_ang_acc, rtol=1e-4, atol=1e-3
-    )
+    expected_lin_acc = torch.tensor([[0.0, 0.0, -9.81]], device=scene.device).repeat(scene.num_envs, 1)
+    torch.testing.assert_close(sensor.data.lin_acc_b.torch, expected_lin_acc, rtol=0.0, atol=1e-2)
+    # The angular acceleration is not exactly zero because PhysX's default angular damping
+    # opposes the written spin, so bound it well below the 0.2 / dt spike finite differencing
+    # would report for the same velocity writes.
+    assert torch.all(sensor.data.ang_acc_b.torch.abs() < 0.01 * 0.2 / dt)

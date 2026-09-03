@@ -123,7 +123,6 @@ def _make_sensor(sensor_type: str, use_recorded_launch: bool = True):
     sensor._num_envs = 2
     sensor._view = rigid_view
     sensor._timestamp = wp.ones(2, dtype=wp.float32, device=device)
-    sensor._timestamp_last_update = wp.full(2, value=0.5, dtype=wp.float32, device=device)
     sensor._offset_pos_b = wp.zeros(2, dtype=wp.vec3f, device=device)
     sensor._offset_quat_b = wp.array(
         [wp.quatf(0.0, 0.0, 0.0, 1.0), wp.quatf(0.0, 0.0, 0.0, 1.0)], dtype=wp.quatf, device=device
@@ -131,6 +130,7 @@ def _make_sensor(sensor_type: str, use_recorded_launch: bool = True):
     sensor._coms_buffer = wp.zeros(2, dtype=wp.transformf, device=device)
     sensor._raw_transforms = None
     sensor._raw_velocities = None
+    sensor._raw_accelerations = None
     sensor._raw_coms = None
     sensor._update_cmd = None
     sensor._update_env_mask = None
@@ -140,43 +140,38 @@ def _make_sensor(sensor_type: str, use_recorded_launch: bool = True):
     sensor._prim_deletion_handle = None
 
     if sensor_type == "imu":
-        sensor._raw_accelerations = None
         sensor._data = ImuData()
         sensor._data.create_buffers(num_envs=2, device=device)
         sensor._gravity_bias_w = wp.zeros(2, dtype=wp.vec3f, device=device)
     else:
-        sensor._prev_lin_vel_w = wp.zeros(2, dtype=wp.vec3f, device=device)
         sensor._data = PvaData()
         sensor._data.create_buffers(num_envs=2, device=device)
-        sensor._prev_ang_vel_w = wp.zeros(2, dtype=wp.vec3f, device=device)
         sensor.GRAVITY_VEC_W = ProxyArray(wp.zeros(2, dtype=wp.vec3f, device=device))
 
     env_mask = wp.ones(2, dtype=wp.bool, device=device)
-    return sensor, rigid_view, velocities_torch, accelerations_torch, env_mask
+    return sensor, rigid_view, accelerations_torch, env_mask
 
 
 @pytest.mark.parametrize("sensor_type", ["imu", "pva"])
 def test_sensor_caches_physx_typed_views(sensor_type):
     """Repeated eager updates should reuse typed views over refreshed PhysX buffers."""
-    sensor, rigid_view, _, _, env_mask = _make_sensor(sensor_type, use_recorded_launch=False)
+    sensor, rigid_view, _, env_mask = _make_sensor(sensor_type, use_recorded_launch=False)
 
     sensor._update_buffers_impl(env_mask)
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor.device)
 
-    acc_gets = 2 if sensor_type == "imu" else 0
-    assert rigid_view.get_counts == {"transforms": 2, "velocities": 2, "accelerations": acc_gets, "coms": 2}
+    assert rigid_view.get_counts == {"transforms": 2, "velocities": 2, "accelerations": 2, "coms": 2}
     assert rigid_view.transforms.view_count == 1
     assert rigid_view.velocities.view_count == 1
+    assert rigid_view.accelerations.view_count == 1
     assert rigid_view.coms.view_count == 1
-    if sensor_type == "imu":
-        assert rigid_view.accelerations.view_count == 1
 
 
 @pytest.mark.parametrize("sensor_type", ["imu", "pva"])
 def test_sensor_records_and_replays_changed_runtime_inputs(sensor_type):
-    """Replay should observe refreshed buffers, a new mask, and a changed sample interval."""
-    sensor, rigid_view, velocities_torch, accelerations_torch, env_mask = _make_sensor(sensor_type)
+    """Replay should observe refreshed buffers and a new mask."""
+    sensor, rigid_view, accelerations_torch, env_mask = _make_sensor(sensor_type)
 
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor.device)
@@ -188,11 +183,7 @@ def test_sensor_records_and_replays_changed_runtime_inputs(sensor_type):
         torch.tensor([2.0, 2.0], device=sensor.device),
     )
 
-    if sensor_type == "imu":
-        accelerations_torch[:, 0] = torch.tensor([3.0, 16.0], device=sensor.device)
-    else:
-        velocities_torch[:, 0] = torch.tensor([3.0, 5.0], device=sensor.device)
-    wp.to_torch(sensor._timestamp_last_update).fill_(1.0)
+    accelerations_torch[:, 0] = torch.tensor([3.0, 16.0], device=sensor.device)
     wp.to_torch(sensor._timestamp).fill_(1.25)
     changed_env_mask = wp.array([False, True], dtype=wp.bool, device=sensor.device)
     sensor._update_buffers_impl(changed_env_mask)
@@ -200,8 +191,7 @@ def test_sensor_records_and_replays_changed_runtime_inputs(sensor_type):
 
     assert sensor._update_cmd is update_cmd
     # replays must still call the PhysX getters: they are what refresh the underlying buffers
-    acc_gets = 2 if sensor_type == "imu" else 0
-    assert rigid_view.get_counts == {"transforms": 2, "velocities": 2, "accelerations": acc_gets, "coms": 2}
+    assert rigid_view.get_counts == {"transforms": 2, "velocities": 2, "accelerations": 2, "coms": 2}
     torch.testing.assert_close(
         wp.to_torch(sensor._data._lin_acc_b)[:, 0],
         torch.tensor([2.0, 16.0], device=sensor.device),
@@ -211,7 +201,7 @@ def test_sensor_records_and_replays_changed_runtime_inputs(sensor_type):
 @pytest.mark.parametrize("sensor_type", ["imu", "pva"])
 def test_sensor_falls_back_when_recording_fails(monkeypatch, sensor_type):
     """A recording failure should disable recording and execute the update eagerly."""
-    sensor, _, _, _, env_mask = _make_sensor(sensor_type)
+    sensor, _, _, env_mask = _make_sensor(sensor_type)
     sensor_module = imu_module if sensor_type == "imu" else pva_module
     original_launch = sensor_module.wp.launch
 
@@ -235,12 +225,11 @@ def test_sensor_falls_back_when_recording_fails(monkeypatch, sensor_type):
 @pytest.mark.parametrize("sensor_type", ["imu", "pva"])
 def test_sensor_invalidation_drops_cached_launch_state(monkeypatch, sensor_type):
     """Physics invalidation should release cached PhysX views and the recorded command."""
-    sensor, _, _, _, _ = _make_sensor(sensor_type)
+    sensor, _, _, _ = _make_sensor(sensor_type)
     sensor._raw_transforms = object()
     sensor._raw_velocities = object()
+    sensor._raw_accelerations = object()
     sensor._raw_coms = object()
-    if sensor_type == "imu":
-        sensor._raw_accelerations = object()
     sensor._update_cmd = object()
     sensor._update_env_mask = object()
     base_cls = BaseImu if sensor_type == "imu" else BasePva
@@ -251,8 +240,7 @@ def test_sensor_invalidation_drops_cached_launch_state(monkeypatch, sensor_type)
     assert sensor._view is None
     assert sensor._raw_transforms is None
     assert sensor._raw_velocities is None
+    assert sensor._raw_accelerations is None
     assert sensor._raw_coms is None
-    if sensor_type == "imu":
-        assert sensor._raw_accelerations is None
     assert sensor._update_cmd is None
     assert sensor._update_env_mask is None
