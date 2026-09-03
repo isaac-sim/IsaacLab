@@ -211,7 +211,7 @@ exclude_patterns = [
     "licenses/*",
     "plans",
     # Include-only fragments (pulled in via ``.. include::``; not standalone pages).
-    "source/setup/installation/include/*",
+    "source/migration/include/*",
 ]
 
 # Mock out modules that are not available on RTD

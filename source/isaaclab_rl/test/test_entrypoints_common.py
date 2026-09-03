@@ -380,3 +380,63 @@ def test_run_summary_reports_concrete_backends(
     assert screen.fields["Physics"] == expected_physics
     assert screen.fields["Renderer"] == expected_renderer
     assert "Presets" not in screen.fields
+
+
+def _fake_physics_cfg(class_name: str, **attrs: Any) -> Any:
+    """Build a physics-config stand-in carrying the backend-agnostic determinism field."""
+    return type(class_name, (), {"deterministic": False, **attrs})()
+
+
+def test_apply_env_overrides_records_the_deterministic_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``--deterministic`` reaches the physics config, which the AppLauncher flag never did."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import resolve_task_config
+
+    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py"])
+    env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera", "rl_games_cfg_entry_point")
+    # Guard the premise: the shipped defaults request no guarantee.
+    assert env_cfg.sim.physics.deterministic is False
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert env_cfg.sim.physics.deterministic is True
+    # Translation belongs to the backend, so nothing backend-specific is touched here.
+    assert env_cfg.sim.physics.deterministic_mode == "not_guaranteed"
+    assert env_cfg.sim.physics.solver_cfg.disable_sensors is False
+
+
+def test_apply_env_overrides_leaves_physics_alone_without_the_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without ``--deterministic`` the physics config is untouched."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import resolve_task_config
+
+    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py"])
+    env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera", "rl_games_cfg_entry_point")
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=False)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert env_cfg.sim.physics.deterministic is False
+
+
+@pytest.mark.parametrize("class_name", ["PhysxCfg", "OvPhysxCfg", "NewtonCfg", "SomeFutureBackendCfg"])
+def test_apply_env_overrides_records_the_request_for_every_backend(class_name: str) -> None:
+    """The request is backend-agnostic, so the entrypoint needs no per-backend knowledge."""
+    physics = _fake_physics_cfg(class_name)
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert physics.deterministic is True
+
+
+def test_apply_env_overrides_tolerates_a_config_without_physics() -> None:
+    """A config that never resolved a physics backend is left alone rather than failing."""
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=None))
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert env_cfg.sim.physics is None

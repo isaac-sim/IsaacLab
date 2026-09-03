@@ -1300,7 +1300,12 @@ class AppLauncher:
                 self._kit_args.append(argument)
 
         # Select the renderer by CUDA index; the trailing comma keeps the setting string-typed.
-        if launcher_args.get("multi_gpu") is False:
+        # XR streams a single stereo swapchain that the CloudXR compositor imports, so the
+        # renderer has to stay on one known device there too -- otherwise the compositor and
+        # the renderer can end up on different GPUs and the headset receives noise. This only
+        # applies once a CUDA device has actually been selected: ``--xr`` on its own resolves
+        # to ``cpu``, where there is no simulation GPU to align to, so Kit's own choice stands.
+        if launcher_args.get("multi_gpu") is False or (self._xr and "cuda" in self.device):
             argument = f"--/renderer/multiGpu/activeCudaGpus={self.device_id},"
             setting = argument.partition("=")[0]
             if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):

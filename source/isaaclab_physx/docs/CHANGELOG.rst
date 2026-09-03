@@ -1,6 +1,35 @@
 Changelog
 ---------
 
+5.3.1 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added translation of :attr:`~isaaclab.physics.PhysicsCfg.deterministic` in ``PhysxManager``, which
+  enables :attr:`~isaaclab_physx.physics.PhysxCfg.enable_enhanced_determinism`.
+
+
+5.3.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to ``IsaacRtxRendererCfg`` through its ``class_type`` field.
+
+Changed
+^^^^^^^
+
+* Changed the tendon fragment functions (e.g. the ``func`` behind
+  :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonCfg`) to author on the given prim
+  only. Target selection, including subtree matching via prim path expressions, is now
+  owned by the core family writers such as
+  :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`; pass
+  ``f"{prim_path}(/.*)?"`` to those writers to reach descendant tendon prims.
+
+
 5.2.1 (2026-08-27)
 ~~~~~~~~~~~~~~~~~~
 

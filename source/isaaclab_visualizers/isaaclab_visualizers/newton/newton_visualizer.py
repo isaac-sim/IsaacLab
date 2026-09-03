@@ -12,7 +12,7 @@ import logging
 import math
 import os
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np  # noqa: F401 — used in type hints and colorization helpers
 import torch
@@ -467,7 +467,7 @@ class _NewtonViewerUIMixin:
                 imgui.text("Ctrl + Middle Click - Dolly")
                 imgui.text("Scroll - Dolly")
                 imgui.text("Ctrl + Scroll - FOV zoom")
-                imgui.text("Space - Pause/Resume")
+                imgui.text("Space - Pause/Resume Rendering")
                 imgui.text(". - Step one frame (when paused)")
                 imgui.text("H - Toggle UI")
                 imgui.text("F - Frame camera around model")
@@ -487,11 +487,13 @@ class _NewtonViewerUIMixin:
 
         # Pause/Resume Rendering is not exposed on RTX: stopping end_frame() would
         # freeze the imgui, and OVRTX naturally converges when the scene is paused.
+        # ``self._paused`` (not a separately tracked flag) is the single source of truth here
+        # because the Newton viewer's own Space key handler toggles it directly, bypassing this
+        # button; mirroring a separate flag would let the button state drift out of sync with Space.
         if not isinstance(self, NewtonViewerRTX):
-            rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
+            rendering_label = "Resume Rendering" if self._paused else "Pause Rendering"
             if imgui.button(rendering_label):
-                self._paused_rendering = not self._paused_rendering
-                self._paused = self._paused_rendering
+                self._paused = not self._paused
 
         if imgui.button("Reset Episode"):
             self._reset_requested = True
@@ -608,13 +610,22 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         no existing Isaac Lab use case is affected by this constraint.
     """
 
-    def __init__(self, *args, metadata: dict | None = None, update_frequency: int = 1, **kwargs):
+    def __init__(
+        self,
+        *args,
+        metadata: dict | None = None,
+        update_frequency: int = 1,
+        render_settings: dict[str, Any] | None = None,
+        **kwargs,
+    ):
         """Initialize Newton RTX viewer wrapper state.
 
         Args:
             *args: Positional arguments forwarded to ``ViewerRTX``.
             metadata: Optional metadata shown in viewer panels.
             update_frequency: Viewer refresh cadence in simulation frames.
+            render_settings: Extra RTX attributes to author on the render product. See
+                :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`.
             **kwargs: Keyword arguments forwarded to ``ViewerRTX``.
         """
         # Patch environment so OVRTX's CRenderApiLibLoader can find libovrtx.dylib.so.
@@ -635,6 +646,11 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
                     os.environ["LD_LIBRARY_PATH"] = _extra + (os.pathsep + _ld if _ld else "")
                 os.environ.setdefault("OMNI_USD_PLUGINS_BASE_PATH", str(_bin))
 
+        # Assigned before super().__init__(): ViewerRTX reaches
+        # _add_camera_lights_and_render_product() during initialization, and the override reads
+        # this. Copied so a caller's dict cannot mutate the viewer's settings afterwards.
+        self._render_settings = dict(render_settings or {})
+
         super().__init__(*args, **kwargs)
         self._paused_training = False
         self._paused_rendering = False
@@ -654,6 +670,24 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # exist.  Register the training controls now (they are buffered by ViewerRTX until
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
+
+    def _add_camera_lights_and_render_product(self) -> None:
+        """Author the configured RTX attributes onto the render product.
+
+        Runs here because ``_init_ovrtx`` exports the stage right after this call and the renderer
+        reads that export, so later edits are ignored.
+        """
+        super()._add_camera_lights_and_render_product()
+        if not self._render_settings:
+            return
+        from pxr import Sdf
+
+        prim = self.stage.GetPrimAtPath(self._render_product_path)
+        for name, (type_name, value) in self._render_settings.items():
+            value_type = getattr(Sdf.ValueTypeNames, type_name, None)
+            if value_type is None:
+                raise ValueError(f"Render setting {name!r} names unknown USD type {type_name!r}.")
+            prim.CreateAttribute(name, value_type).Set(value)
 
     def get_frame(self) -> np.ndarray:
         """Return the latest OVRTX LDR framebuffer as contiguous RGB pixels."""
@@ -701,7 +735,6 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
         """
         super().__init__(*args, **kwargs)
         self._paused_training = False
-        self._paused_rendering = False
         self._reset_requested = False
         self._metadata = metadata or {}
         self._update_frequency = update_frequency
@@ -731,8 +764,12 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
         return self._paused_training
 
     def is_rendering_paused(self) -> bool:
-        """Return whether rendering is paused by viewer controls."""
-        return self._paused_rendering
+        """Return whether rendering is paused by viewer controls.
+
+        Mirrors ``self._paused`` directly since the Newton viewer's Space key handler toggles it
+        in-place, outside the Isaac Lab "Pause Rendering" button.
+        """
+        return self._paused
 
     def on_key_press(self, symbol, modifiers):
         """Forward key presses unless UI is currently capturing input."""
@@ -2113,6 +2150,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
             environment=self.cfg.rtx_environment,
+            render_settings=self.cfg.render_settings,
         )
 
     def _apply_camera_pose(

@@ -357,13 +357,19 @@ run_tests() {
       fi
       if [ -n \"\${TEST_EXTRA_UV_PACKAGES:-}\" ]; then
         echo \"Installing extra packages with uv: \${TEST_EXTRA_UV_PACKAGES}\"
-        # isaaclab.sh prints an informational line before command output, and pip
-        # installs scripts into the user base when Isaac Sim site-packages is read-only.
-        isaac_python=\"\$(./isaaclab.sh -p -c 'import sys; print(sys.executable)' | tail -n 1)\"
-        isaac_user_site=\"\$(./isaaclab.sh -p -c 'import site; print(site.getusersitepackages())' | tail -n 1)\"
-        uv_executable=\"\$(./isaaclab.sh -p -c 'import pathlib, site; print(pathlib.Path(site.getuserbase()) / \"bin\" / \"uv\")' | tail -n 1)\"
-        if [ ! -x \"\${uv_executable}\" ]; then
-          bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install uv
+        # isaaclab.sh prints an [INFO] banner on stdout around the command output, so the
+        # banner is filtered rather than positionally skipped.
+        isaac_python=\"\$(./isaaclab.sh -p -c 'import sys; print(sys.executable)' | grep -v '^\[INFO\]' | tail -n 1)\"
+        isaac_user_site=\"\$(./isaaclab.sh -p -c 'import site; print(site.getusersitepackages())' | grep -v '^\[INFO\]' | tail -n 1)\"
+        # The image ships uv on PATH. Fall back to the user base only for images that do
+        # not: pip installs into the venv, not the user base, when the interpreter is a venv,
+        # so the user-base path is never created there.
+        uv_executable=\"\$(command -v uv || true)\"
+        if [ -z \"\${uv_executable}\" ]; then
+          uv_executable=\"\$(./isaaclab.sh -p -c 'import pathlib, site; print(pathlib.Path(site.getuserbase()) / \"bin\" / \"uv\")' | grep -v '^\[INFO\]' | tail -n 1)\"
+          if [ ! -x \"\${uv_executable}\" ]; then
+            bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install uv
+          fi
         fi
         bash /with-python-package-retries.sh \"\${uv_executable}\" pip install --python \"\${isaac_python}\" --target \"\${isaac_user_site}\" \${TEST_EXTRA_UV_PACKAGES}
         # Isaac Sim puts bundled packages ahead of the user site. Overlay only
