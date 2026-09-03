@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from isaaclab.sim.schemas.schemas_cfg import (
     ArticulationRootBaseCfg,
@@ -1174,7 +1174,13 @@ class PhysxFixedTendonPropertiesCfg:
     """
 
     rest_length: float | None = None
-    """Spring rest length of the tendon."""
+    """Spring rest length of the tendon [m]."""
+
+    lower_limit: float | None = None
+    """Lower limit of the tendon's length [m]."""
+
+    upper_limit: float | None = None
+    """Upper limit of the tendon's length [m]."""
 
 
 @configclass
@@ -1205,8 +1211,8 @@ class PhysxSpatialTendonPropertiesCfg:
     Tendons are a PhysX-only feature -- Newton has no tendon system -- so this class
     is a pure data carrier that is consumed by the PhysX-specific writer
     :func:`~isaaclab.sim.schemas.modify_spatial_tendon_properties`. The writer authors
-    the multi-instance ``PhysxTendonAttachmentRootAPI`` / ``PhysxTendonAttachmentLeafAPI``
-    schemas; this cfg class declares no metadata-driven writer plumbing of its own.
+    every existing ``PhysxTendonAttachmentRootAPI`` instance; this cfg class declares no
+    metadata-driven writer plumbing of its own.
 
     See :func:`~isaaclab.sim.schemas.modify_spatial_tendon_properties` for more information.
 
@@ -1258,27 +1264,28 @@ class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
 
 @configclass
 class PhysxFixedTendonCfg(FixedTendonFragment):
-    """PhysX fixed-tendon attributes from `PhysxTendonAxisRootAPI`_.
+    """Whole-tendon attributes from `PhysxTendonAxisRootAPI`_.
 
-    A fixed-tendon fragment (see :class:`~isaaclab.sim.schemas.FixedTendonFragment`) for the
-    PhysX fixed-tendon schema. Unlike single-namespace fragments, this is a *tune-not-apply*
-    fragment: the multi-instance ``PhysxTendonAxisRootAPI:<inst>`` schemas already exist on the
-    prim (authored in the source asset), so the fragment overrides
-    :attr:`~isaaclab.sim.schemas.SchemaFragment.func` with :func:`apply_fixed_tendon`, which
-    descends the prim subtree and tunes every existing ``PhysxTendonAxisRootAPI:<inst>`` instance
-    directly.
+    This is a *tune-not-apply* fragment: the source asset owns the
+    ``PhysxTendonAxisRootAPI:<instance>`` topology, and this fragment selects existing instances
+    to tune. Use :class:`PhysxFixedTendonAxisCfg` for the per-joint-axis properties of the same
+    fixed tendon.
 
     Dispatched via :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`.
 
     .. _PhysxTendonAxisRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_root_a_p_i.html
     """
 
-    # Not namespace-driven: the custom applier matches the multi-instance schema explicitly, so
-    # ``_usd_namespace`` stays ``None`` -- this also guards against accidentally routing the fragment
-    # through the generic ``apply_namespaced`` (which would raise on a missing namespace).
     _usd_namespace: ClassVar[str | None] = None
-    # override ``func``: writer iterates multi-instance ``PhysxTendonAxisRootAPI`` schemas; ``apply_namespaced`` cannot.
     func: Callable | str = "isaaclab_physx.sim.schemas:apply_fixed_tendon"
+
+    instance_names: str | list[str] | None = None
+    """Names of existing tendon instances to tune.
+
+    A string selects one instance, a list selects those instances, and ``None`` selects every
+    ``PhysxTendonAxisRootAPI`` instance on each targeted prim (the default). An empty string or list
+    is an error. This field addresses the schema instances and is not authored as a USD property.
+    """
 
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""
@@ -1302,32 +1309,74 @@ class PhysxFixedTendonCfg(FixedTendonFragment):
     rest_length: float | None = None
     """Spring rest length of the tendon [m]."""
 
+    lower_limit: float | None = None
+    """Lower limit of the tendon's length [m]."""
+
+    upper_limit: float | None = None
+    """Upper limit of the tendon's length [m]."""
+
+
+@configclass
+class PhysxFixedTendonAxisCfg(FixedTendonFragment):
+    """Per-joint-axis attributes from `PhysxTendonAxisAPI`_.
+
+    The source asset owns each ``PhysxTendonAxisAPI:<instance>``. This fragment selects existing
+    instances on the matched joint prims and tunes their contribution to a fixed tendon. A
+    ``PhysxTendonAxisRootAPI`` automatically includes the axis API with the same instance name, so
+    this fragment can target both the root joint and AxisAPI-only child joints.
+
+    Dispatched via :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`.
+
+    .. _PhysxTendonAxisAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = None
+    func: Callable | str = "isaaclab_physx.sim.schemas:apply_fixed_tendon_axis"
+
+    instance_names: str | list[str] | None = None
+    """Names of existing tendon-axis instances to tune.
+
+    A string selects one instance, a list selects those instances, and ``None`` selects every
+    ``PhysxTendonAxisAPI`` instance on each targeted prim (the default). An empty string or list is
+    an error. This field addresses the schema instances and is not authored as a USD property.
+    """
+
+    gearing: list[float] | None = None
+    """Joint gearing per entry in :attr:`joint_axis` [unitless or m/deg, depending on joint axis]."""
+
+    force_coefficient: list[float] | None = None
+    """Joint force coefficient per entry in :attr:`joint_axis` [unitless or m, depending on joint axis]."""
+
+    joint_axis: list[Literal["transX", "transY", "transZ", "rotX", "rotY", "rotZ"]] | None = None
+    """Joint axes corresponding to :attr:`gearing` and :attr:`force_coefficient`."""
+
 
 @configclass
 class PhysxSpatialTendonCfg(SpatialTendonFragment):
     """PhysX spatial-tendon attributes from `PhysxTendonAttachmentRootAPI`_.
 
     A spatial-tendon fragment (see :class:`~isaaclab.sim.schemas.SpatialTendonFragment`) for the
-    PhysX spatial-tendon schema. Unlike single-namespace fragments, this is a *tune-not-apply*
-    fragment: the multi-instance ``PhysxTendonAttachmentRootAPI:<inst>`` /
-    ``PhysxTendonAttachmentLeafAPI:<inst>`` schemas already exist on the prim (authored in the
-    source asset), so the fragment overrides
-    :attr:`~isaaclab.sim.schemas.SchemaFragment.func` with :func:`apply_spatial_tendon`, which
-    descends the prim subtree and tunes every existing ``PhysxTendonAttachmentRootAPI:<inst>`` /
-    ``PhysxTendonAttachmentLeafAPI:<inst>`` instance directly.
+    PhysX spatial-tendon schema. This is a *tune-not-apply* fragment: the source asset owns the
+    ``PhysxTendonAttachmentRootAPI:<instance>`` topology, and this fragment selects existing roots
+    to tune. Its fields are whole-tendon dynamics; attachment and leaf properties remain
+    asset-authored.
 
     Dispatched via :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`.
 
     .. _PhysxTendonAttachmentRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_root_a_p_i.html
     """
 
-    # Not namespace-driven: the custom applier matches the multi-instance schemas explicitly, so
-    # ``_usd_namespace`` stays ``None`` -- this also guards against accidentally routing the fragment
-    # through the generic ``apply_namespaced`` (which would raise on a missing namespace).
     _usd_namespace: ClassVar[str | None] = None
-    # override ``func``: writer iterates multi-instance ``PhysxTendonAttachment{Root,Leaf}API``
-    # schemas, which the generic ``apply_namespaced`` cannot.
     func: Callable | str = "isaaclab_physx.sim.schemas:apply_spatial_tendon"
+
+    instance_names: str | list[str] | None = None
+    """Names of existing spatial-tendon root instances to tune.
+
+    A string selects one instance, a list selects those instances, and ``None`` selects every
+    ``PhysxTendonAttachmentRootAPI`` instance on each targeted prim (the default). An empty string
+    or list is an error. This field addresses the schema instances and is not authored as a USD
+    property.
+    """
 
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""

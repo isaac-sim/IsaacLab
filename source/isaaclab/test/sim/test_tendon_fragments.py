@@ -12,6 +12,8 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import dataclasses
+
 import pytest
 
 from pxr import PhysxSchema, Sdf, Usd, UsdGeom
@@ -57,16 +59,13 @@ def _make_spatial_tendon_prim(stage, path, instance="default"):
     return prim
 
 
-def _tendon_attr_prefix(prim, schema_substr):
-    """Return the applied-schema name used by the writer as the authored-attribute prefix.
-
-    The legacy writer authors ``f"{schema_name}:{camelCase(field)}"`` where ``schema_name`` is
-    the entry returned by ``prim.GetAppliedSchemas()`` (e.g. ``PhysxTendonAxisRootAPI:t0``).
-    """
+def _tendon_attr_prefix(prim, schema_type):
+    """Return the schema-declared property prefix for one applied tendon API."""
     for schema_name in prim.GetAppliedSchemas():
-        if schema_substr in schema_name:
-            return schema_name
-    raise AssertionError(f"no applied schema containing {schema_substr!r} on {prim.GetPath()}")
+        applied_type, instance = Usd.SchemaRegistry.GetTypeNameAndInstance(str(schema_name))
+        if applied_type == schema_type:
+            return f"physxTendon:{instance}"
+    raise AssertionError(f"no {schema_type!r} instance on {prim.GetPath()}")
 
 
 # -------------------------------------------------------------------------------------
@@ -79,10 +78,21 @@ def test_fixed_tendon_fragment_metadata_defaults():
 
     from isaaclab.sim.schemas import FixedTendonFragment, SchemaFragment
 
-    cfg = PhysxFixedTendonCfg(stiffness=1.0)
+    cfg = PhysxFixedTendonCfg(instance_names="index_finger", stiffness=1.0)
     assert isinstance(cfg, FixedTendonFragment) and isinstance(cfg, SchemaFragment)
     assert cfg.func == "isaaclab_physx.sim.schemas:apply_fixed_tendon"
-    assert cfg.stiffness == 1.0 and cfg.damping is None
+    assert cfg.instance_names == "index_finger" and cfg.stiffness == 1.0 and cfg.damping is None
+
+
+def test_fixed_tendon_axis_fragment_metadata_defaults():
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonAxisCfg
+
+    from isaaclab.sim.schemas import FixedTendonFragment, SchemaFragment
+
+    cfg = PhysxFixedTendonAxisCfg(instance_names="index_finger", gearing=[-0.5])
+    assert isinstance(cfg, FixedTendonFragment) and isinstance(cfg, SchemaFragment)
+    assert cfg.func == "isaaclab_physx.sim.schemas:apply_fixed_tendon_axis"
+    assert cfg.instance_names == "index_finger" and cfg.gearing == [-0.5]
 
 
 def test_spatial_tendon_fragment_metadata_defaults():
@@ -90,10 +100,17 @@ def test_spatial_tendon_fragment_metadata_defaults():
 
     from isaaclab.sim.schemas import SchemaFragment, SpatialTendonFragment
 
-    cfg = PhysxSpatialTendonCfg(stiffness=2.0)
+    cfg = PhysxSpatialTendonCfg(instance_names="cable", stiffness=2.0)
     assert isinstance(cfg, SpatialTendonFragment) and isinstance(cfg, SchemaFragment)
     assert cfg.func == "isaaclab_physx.sim.schemas:apply_spatial_tendon"
-    assert cfg.stiffness == 2.0 and cfg.damping is None
+    assert cfg.instance_names == "cable" and cfg.stiffness == 2.0 and cfg.damping is None
+
+
+def test_multiple_apply_mechanics_are_not_a_public_core_fragment_convention():
+    import isaaclab.sim.schemas as schemas
+
+    assert "MultiApplyFragment" not in schemas.__all__
+    assert "apply_multi_apply" not in schemas.__all__
 
 
 # -------------------------------------------------------------------------------------
@@ -108,11 +125,18 @@ def test_physx_fixed_tendon_fragment_writes_instanced_namespace():
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
     prim = _make_fixed_tendon_prim(stage, "/World/FT", instance="t0")
-    apply_fixed_tendon(PhysxFixedTendonCfg(stiffness=3.0, damping=0.5), "/World/FT", stage)
+    apply_fixed_tendon(
+        PhysxFixedTendonCfg(instance_names="t0", stiffness=3.0, damping=0.5, lower_limit=-0.2, upper_limit=0.4),
+        "/World/FT",
+        stage,
+    )
     prefix = _tendon_attr_prefix(prim, "PhysxTendonAxisRootAPI")
     assert abs(prim.GetAttribute(f"{prefix}:stiffness").Get() - 3.0) < 1e-6
     assert abs(prim.GetAttribute(f"{prefix}:damping").Get() - 0.5) < 1e-6
-    # the ``func`` plumbing field must not be authored as an attribute
+    assert prim.GetAttribute(f"{prefix}:lowerLimit").Get() == pytest.approx(-0.2)
+    assert prim.GetAttribute(f"{prefix}:upperLimit").Get() == pytest.approx(0.4)
+    assert not prim.HasAttribute("PhysxTendonAxisRootAPI:t0:stiffness")
+    assert not prim.HasAttribute(f"{prefix}:instanceNames")
     assert not prim.HasAttribute(f"{prefix}:func")
 
 
@@ -121,16 +145,127 @@ def test_physx_fixed_tendon_fragment_writes_instanced_namespace():
 # -------------------------------------------------------------------------------------
 
 
-def test_apply_fixed_tendon_writes_all_instances():
+def test_apply_fixed_tendon_selects_one_instance():
     from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg, apply_fixed_tendon
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
     prim = _make_prim_with_schemas(stage, "/World/FTmulti", ["PhysxTendonAxisRootAPI:t0", "PhysxTendonAxisRootAPI:t1"])
-    assert apply_fixed_tendon(PhysxFixedTendonCfg(stiffness=9.0), "/World/FTmulti", stage) is True
+    assert apply_fixed_tendon(PhysxFixedTendonCfg(instance_names="t0", stiffness=9.0), "/World/FTmulti", stage) is True
+    assert prim.GetAttribute("physxTendon:t0:stiffness").Get() == pytest.approx(9.0)
+    assert not prim.GetAttribute("physxTendon:t1:stiffness").HasAuthoredValue()
+
+
+def test_apply_fixed_tendon_broadcasts_by_default():
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg, apply_fixed_tendon
+
+    stage = _new_sim()
+    prim = _make_prim_with_schemas(
+        stage, "/World/FTbroadcast", ["PhysxTendonAxisRootAPI:t0", "PhysxTendonAxisRootAPI:t1"]
+    )
+    assert apply_fixed_tendon(PhysxFixedTendonCfg(stiffness=9.0), "/World/FTbroadcast", stage)
     for inst in ("t0", "t1"):
-        assert abs(prim.GetAttribute(f"PhysxTendonAxisRootAPI:{inst}:stiffness").Get() - 9.0) < 1e-6
+        assert prim.GetAttribute(f"physxTendon:{inst}:stiffness").Get() == pytest.approx(9.0)
+
+
+def test_apply_fixed_tendon_selects_a_list_of_instances():
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg, apply_fixed_tendon
+
+    stage = _new_sim()
+    prim = _make_prim_with_schemas(
+        stage,
+        "/World/FTlist",
+        ["PhysxTendonAxisRootAPI:t0", "PhysxTendonAxisRootAPI:t1", "PhysxTendonAxisRootAPI:t2"],
+    )
+    cfg = PhysxFixedTendonCfg(instance_names=["t0", "t2"], damping=0.25)
+    assert apply_fixed_tendon(cfg, "/World/FTlist", stage)
+    assert prim.GetAttribute("physxTendon:t0:damping").Get() == pytest.approx(0.25)
+    assert not prim.GetAttribute("physxTendon:t1:damping").HasAuthoredValue()
+    assert prim.GetAttribute("physxTendon:t2:damping").Get() == pytest.approx(0.25)
+
+
+@pytest.mark.parametrize("instance_names", [[], ""])
+def test_apply_fixed_tendon_rejects_empty_instance_selection(instance_names):
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg, apply_fixed_tendon
+
+    stage = _new_sim()
+    _make_fixed_tendon_prim(stage, "/World/FTempty", instance="t0")
+    with pytest.raises(ValueError, match="instance_names"):
+        apply_fixed_tendon(PhysxFixedTendonCfg(instance_names=instance_names, stiffness=1.0), "/World/FTempty", stage)
+
+
+def test_fixed_tendon_axis_fragment_targets_root_and_child_axes():
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonAxisCfg
+
+    from isaaclab.sim.schemas import apply_fixed_tendon_properties
+
+    stage = _new_sim()
+    UsdGeom.Xform.Define(stage, "/World/Hand")
+    root = _make_fixed_tendon_prim(stage, "/World/Hand/root", instance="index_finger")
+    PhysxSchema.PhysxTendonAxisRootAPI.Apply(root, "shared_coupling")
+    child = _make_xform(stage, "/World/Hand/child")
+    PhysxSchema.PhysxTendonAxisAPI.Apply(child, "index_finger")
+
+    cfg = PhysxFixedTendonAxisCfg(
+        instance_names="index_finger", gearing=[-0.5], force_coefficient=[2.0], joint_axis=["rotX"]
+    )
+    assert apply_fixed_tendon_properties("/World/Hand(/.*)?", [cfg], stage)
+    for prim in (root, child):
+        prefix = "physxTendon:index_finger"
+        assert list(prim.GetAttribute(f"{prefix}:gearing").Get()) == pytest.approx([-0.5])
+        assert list(prim.GetAttribute(f"{prefix}:forceCoefficient").Get()) == pytest.approx([2.0])
+        assert list(prim.GetAttribute(f"{prefix}:jointAxis").Get()) == ["rotX"]
+    assert not root.GetAttribute("physxTendon:shared_coupling:gearing").HasAuthoredValue()
+
+
+def test_tendon_fragments_match_schema_ownership():
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonAxisCfg, PhysxFixedTendonCfg, PhysxSpatialTendonCfg
+
+    from isaaclab.utils.string import to_camel_case
+
+    address_fields = {"func", "instance_names"}
+    root_fields = {field.name for field in dataclasses.fields(PhysxFixedTendonCfg)} - address_fields
+    axis_fields = {field.name for field in dataclasses.fields(PhysxFixedTendonAxisCfg)} - address_fields
+    spatial_fields = {field.name for field in dataclasses.fields(PhysxSpatialTendonCfg)} - address_fields
+    assert root_fields == {
+        "tendon_enabled",
+        "stiffness",
+        "damping",
+        "limit_stiffness",
+        "offset",
+        "rest_length",
+        "lower_limit",
+        "upper_limit",
+    }
+    assert axis_fields == {"gearing", "force_coefficient", "joint_axis"}
+    assert spatial_fields == {"tendon_enabled", "stiffness", "damping", "limit_stiffness", "offset"}
+    assert root_fields.isdisjoint(axis_fields)
+
+    registry = Usd.SchemaRegistry()
+    for cfg_type, schema_type in (
+        (PhysxFixedTendonCfg, "PhysxTendonAxisRootAPI"),
+        (PhysxFixedTendonAxisCfg, "PhysxTendonAxisAPI"),
+        (PhysxSpatialTendonCfg, "PhysxTendonAttachmentRootAPI"),
+    ):
+        definition = registry.FindAppliedAPIPrimDefinition(schema_type)
+        assert definition is not None
+        schema_properties = {
+            str(Usd.SchemaRegistry.GetMultipleApplyNameTemplateBaseName(str(name)))
+            for name in definition.GetPropertyNames()
+            if "__INSTANCE_NAME__" in str(name)
+        }
+        cfg_properties = {
+            to_camel_case(field.name, "cC")
+            for field in dataclasses.fields(cfg_type)
+            if field.name not in address_fields
+        }
+        assert cfg_properties <= schema_properties
+
+    with pytest.raises(TypeError):
+        PhysxFixedTendonCfg(instance_names="finger", gearing=[1.0])
+    with pytest.raises(TypeError):
+        PhysxFixedTendonAxisCfg(instance_names="finger", stiffness=1.0)
 
 
 def test_apply_fixed_tendon_writer_descends_to_child_prims():
@@ -169,7 +304,7 @@ def test_apply_spatial_tendon_writer_descends_to_child_prims():
     assert apply_spatial_tendon(PhysxSpatialTendonCfg(stiffness=5.0), "/World/Robot2", stage) is False
     # the core writer's subtree expression descends from the root to the joint
     assert apply_spatial_tendon_properties("/World/Robot2(/.*)?", [PhysxSpatialTendonCfg(stiffness=5.0)], stage) is True
-    assert abs(child.GetAttribute("PhysxTendonAttachmentRootAPI:s0:stiffness").Get() - 5.0) < 1e-6
+    assert child.GetAttribute("physxTendon:s0:stiffness").Get() == pytest.approx(5.0)
 
 
 def test_physx_spatial_tendon_fragment_writes_instanced_namespace():
@@ -186,7 +321,7 @@ def test_physx_spatial_tendon_fragment_writes_instanced_namespace():
     assert not prim.HasAttribute(f"{prefix}:func")
 
 
-def test_apply_spatial_tendon_writes_all_instances():
+def test_apply_spatial_tendon_selects_roots_and_skips_leaves():
     from isaaclab_physx.sim.schemas import PhysxSpatialTendonCfg, apply_spatial_tendon
 
     sim_utils.create_new_stage()
@@ -195,11 +330,34 @@ def test_apply_spatial_tendon_writes_all_instances():
     prim = _make_prim_with_schemas(
         stage,
         "/World/STmulti",
+        [
+            "PhysxTendonAttachmentRootAPI:r0",
+            "PhysxTendonAttachmentRootAPI:r1",
+            "PhysxTendonAttachmentLeafAPI:l0",
+        ],
+    )
+    assert apply_spatial_tendon(PhysxSpatialTendonCfg(instance_names="r0", stiffness=4.0), "/World/STmulti", stage)
+    assert prim.GetAttribute("physxTendon:r0:stiffness").Get() == pytest.approx(4.0)
+    assert not prim.GetAttribute("physxTendon:r1:stiffness").HasAuthoredValue()
+    assert not prim.GetAttribute("physxTendon:l0:stiffness").IsValid()
+
+
+def test_legacy_spatial_tendon_writer_uses_root_property_namespace():
+    from isaaclab_physx.sim.schemas import PhysxSpatialTendonPropertiesCfg
+
+    from isaaclab.sim.schemas import modify_spatial_tendon_properties
+
+    stage = _new_sim()
+    prim = _make_prim_with_schemas(
+        stage,
+        "/World/STlegacy",
         ["PhysxTendonAttachmentRootAPI:r0", "PhysxTendonAttachmentLeafAPI:l0"],
     )
-    assert apply_spatial_tendon(PhysxSpatialTendonCfg(stiffness=4.0), "/World/STmulti", stage) is True
-    assert abs(prim.GetAttribute("PhysxTendonAttachmentRootAPI:r0:stiffness").Get() - 4.0) < 1e-6
-    assert abs(prim.GetAttribute("PhysxTendonAttachmentLeafAPI:l0:stiffness").Get() - 4.0) < 1e-6
+    writer = modify_spatial_tendon_properties.__wrapped__
+    assert writer("/World/STlegacy", PhysxSpatialTendonPropertiesCfg(stiffness=6.0), stage)
+    assert prim.GetAttribute("physxTendon:r0:stiffness").Get() == pytest.approx(6.0)
+    assert not prim.HasAttribute("PhysxTendonAttachmentRootAPI:r0:stiffness")
+    assert not prim.GetAttribute("physxTendon:l0:stiffness").IsValid()
 
 
 # -------------------------------------------------------------------------------------
@@ -218,7 +376,10 @@ def test_apply_fixed_tendon_properties_dispatches_fragments():
     prim = _make_fixed_tendon_prim(stage, "/World/FT2", instance="t0")
     apply_fixed_tendon_properties(
         "/World/FT2",
-        [PhysxFixedTendonCfg(stiffness=5.0), PhysxFixedTendonCfg(damping=0.75)],
+        [
+            PhysxFixedTendonCfg(stiffness=5.0),
+            PhysxFixedTendonCfg(damping=0.75),
+        ],
         stage,
     )
     prefix = _tendon_attr_prefix(prim, "PhysxTendonAxisRootAPI")
@@ -237,7 +398,10 @@ def test_apply_spatial_tendon_properties_dispatches_fragments():
     prim = _make_spatial_tendon_prim(stage, "/World/ST2", instance="s0")
     apply_spatial_tendon_properties(
         "/World/ST2",
-        [PhysxSpatialTendonCfg(stiffness=6.0), PhysxSpatialTendonCfg(offset=0.1)],
+        [
+            PhysxSpatialTendonCfg(stiffness=6.0),
+            PhysxSpatialTendonCfg(offset=0.1),
+        ],
         stage,
     )
     prefix = _tendon_attr_prefix(prim, "PhysxTendonAttachmentRootAPI")
@@ -252,9 +416,11 @@ def test_apply_spatial_tendon_properties_dispatches_fragments():
 
 def test_public_imports():
     from isaaclab_physx.sim.schemas import (  # noqa: F401
+        PhysxFixedTendonAxisCfg,
         PhysxFixedTendonCfg,
         PhysxSpatialTendonCfg,
         apply_fixed_tendon,
+        apply_fixed_tendon_axis,
         apply_spatial_tendon,
     )
 
@@ -400,6 +566,21 @@ def test_apply_mujoco_fixed_tendon_writes_mjc_namespace():
     assert not prim.HasAttribute("mjc:func")
 
 
+def test_legacy_physx_tendon_cfg_does_not_leak_physx_only_fields_to_mujoco():
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonPropertiesCfg
+
+    from isaaclab.sim.schemas import modify_fixed_tendon_properties
+
+    stage = _new_sim()
+    prim = stage.DefinePrim("/World/LegacyMjcTendon", "MjcTendon")
+    cfg = PhysxFixedTendonPropertiesCfg(stiffness=2.0, damping=0.25, lower_limit=-1.0, upper_limit=1.0)
+    assert modify_fixed_tendon_properties.__wrapped__(str(prim.GetPath()), cfg, stage)
+    assert prim.GetAttribute("mjc:stiffness").Get() == pytest.approx(2.0)
+    assert prim.GetAttribute("mjc:damping").Get() == pytest.approx(0.25)
+    assert not prim.HasAttribute("mjc:lowerLimit")
+    assert not prim.HasAttribute("mjc:upperLimit")
+
+
 def test_apply_mujoco_fixed_tendon_returns_false_on_non_mjc_prim():
     from isaaclab_newton.sim.schemas import MujocoFixedTendonCfg, apply_mujoco_fixed_tendon
 
@@ -449,13 +630,15 @@ def test_legacy_and_fragment_fixed_tendon_produce_identical_attrs():
         attrs = {}
         for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
             for schema_name in prim.GetAppliedSchemas():
-                if "PhysxTendonAxisRootAPI" not in schema_name:
+                schema_type, instance = Usd.SchemaRegistry.GetTypeNameAndInstance(str(schema_name))
+                if schema_type != "PhysxTendonAxisRootAPI":
                     continue
                 for suffix in ("limitStiffness", "damping"):
-                    attr = prim.GetAttribute(f"{schema_name}:{suffix}")
+                    attr_name = f"physxTendon:{instance}:{suffix}"
+                    attr = prim.GetAttribute(attr_name)
                     if attr and attr.HasAuthoredValue():
                         rel = prim.GetPath().pathString[len(root) :]  # key relative to root so paths compare
-                        attrs[f"{rel}|{schema_name}:{suffix}"] = attr.Get()
+                        attrs[f"{rel}|{instance}:{suffix}"] = attr.Get()
         return attrs
 
     legacy = _collect("/World/legacy")

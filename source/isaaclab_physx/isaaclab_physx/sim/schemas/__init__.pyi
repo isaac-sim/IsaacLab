@@ -6,6 +6,7 @@
 __all__ = [
     "apply_physx_joint",
     "apply_fixed_tendon",
+    "apply_fixed_tendon_axis",
     "apply_spatial_tendon",
     "define_deformable_body_properties",
     "modify_deformable_body_properties",
@@ -27,6 +28,7 @@ __all__ = [
     "PhysxConvexHullCfg",
     "PhysxConvexHullPropertiesCfg",
     "PhysxDeformableBodyPropertiesCfg",
+    "PhysxFixedTendonAxisCfg",
     "PhysxFixedTendonCfg",
     "PhysxFixedTendonPropertiesCfg",
     "PhysxJointCfg",
@@ -51,6 +53,7 @@ __all__ = [
 from .schemas import (
     apply_physx_joint,
     apply_fixed_tendon,
+    apply_fixed_tendon_axis,
     apply_spatial_tendon,
     define_deformable_body_properties,
     modify_deformable_body_properties,
@@ -74,6 +77,7 @@ from .schemas_cfg import (
     PhysxConvexHullCfg,
     PhysxConvexHullPropertiesCfg,
     PhysxDeformableBodyPropertiesCfg,
+    PhysxFixedTendonAxisCfg,
     PhysxFixedTendonCfg,
     PhysxFixedTendonPropertiesCfg,
     PhysxJointCfg,

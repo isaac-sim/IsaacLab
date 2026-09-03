@@ -1629,18 +1629,27 @@ Fixed tendon properties.
 """
 
 
+def _applied_schema_instance(applied_schema, schema_type: str) -> str | None:
+    """Return an applied multiple-apply schema's instance when its type matches exactly."""
+    applied_type, instance = Usd.SchemaRegistry.GetTypeNameAndInstance(str(applied_schema))
+    return instance if applied_type == schema_type and instance else None
+
+
 def _is_fixed_tendon_target(prim: Usd.Prim) -> bool:
-    """Whether a prim carries a fixed-tendon representation (PhysX multi-apply instance or MjcTendon prim)."""
+    """Whether a prim carries a fixed-tendon representation."""
     if prim.GetTypeName() == "MjcTendon":
         return True
-    return any("PhysxTendonAxisRootAPI" in s for s in prim.GetAppliedSchemas())
+    fixed_types = {"PhysxTendonAxisRootAPI", "PhysxTendonAxisAPI"}
+    return any(
+        _applied_schema_instance(schema, schema_type)
+        for schema in prim.GetAppliedSchemas()
+        for schema_type in fixed_types
+    )
 
 
 def _is_spatial_tendon_target(prim: Usd.Prim) -> bool:
-    """Whether a prim carries a spatial-tendon multi-apply instance."""
-    return any(
-        "PhysxTendonAttachmentRootAPI" in s or "PhysxTendonAttachmentLeafAPI" in s for s in prim.GetAppliedSchemas()
-    )
+    """Whether a prim carries a spatial-tendon root instance."""
+    return any(_applied_schema_instance(schema, "PhysxTendonAttachmentRootAPI") for schema in prim.GetAppliedSchemas())
 
 
 def apply_fixed_tendon_properties(
@@ -1651,8 +1660,8 @@ def apply_fixed_tendon_properties(
     The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
     ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
     selects one path segment and ``/World/Robot/.*`` every descendant of a prim. A matched prim is a
-    fixed-tendon target when it carries an applied ``PhysxTendonAxisRootAPI`` multi-apply
-    instance or is a ``MjcTendon`` prim.
+    fixed-tendon target when it carries an applied ``PhysxTendonAxisRootAPI`` or
+    ``PhysxTendonAxisAPI`` instance, or is a ``MjcTendon`` prim.
 
     Fixed tendons are a *tune-not-apply* family: the tendon topology is authored in the source
     asset, so this writer never creates instances -- it only dispatches each fragment via its
@@ -1740,27 +1749,33 @@ def modify_fixed_tendon_properties(
     # check if prim has fixed tendon applied on it or if the mjc tendon prim exiss
     applied_schemas = tendon_prim.GetAppliedSchemas()
     prim_type = tendon_prim.GetTypeName()
-    if not any("PhysxTendonAxisRootAPI" in s for s in applied_schemas) and prim_type != "MjcTendon":
+    if (
+        not any(_applied_schema_instance(schema, "PhysxTendonAxisRootAPI") for schema in applied_schemas)
+        and prim_type != "MjcTendon"
+    ):
         return False
 
     # resolve all available instances of the schema since it is multi-instance
     cfg = cfg.to_dict()
     if prim_type != "MjcTendon":
         for schema_name in applied_schemas:
-            if "PhysxTendonAxisRootAPI" not in schema_name:
+            instance_name = _applied_schema_instance(schema_name, "PhysxTendonAxisRootAPI")
+            if instance_name is None:
                 continue
-            # set into PhysX API by attribute prefix schema_name: (e.g. PhysxTendonAxisRootAPI:default:stiffness)
             for attr_name, value in cfg.items():
+                template = f"physxTendon:__INSTANCE_NAME__:{to_camel_case(attr_name, 'cC')}"
+                attribute = Usd.SchemaRegistry.MakeMultipleApplyNameInstance(template, instance_name)
                 safe_set_attribute_on_usd_prim(
                     tendon_prim,
-                    f"{schema_name}:{to_camel_case(attr_name, 'cC')}",
+                    attribute,
                     value,
                     camel_case=False,
                 )
     else:
         # NOTE: ``mjc:*`` branch (``MjcTendon`` prim) kept inline; future split candidate into isaaclab_newton.
         # only stiffness and damping in the cfg map to mjc attributes
-        for attr_name, value in cfg.items():
+        for attr_name in ("stiffness", "damping"):
+            value = cfg.get(attr_name)
             safe_set_attribute_on_usd_prim(
                 tendon_prim, f"mjc:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
             )
@@ -1781,8 +1796,7 @@ def apply_spatial_tendon_properties(
     The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
     ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
     selects one path segment and ``/World/Robot/.*`` every descendant of a prim. A matched prim is a
-    spatial-tendon target when it carries an applied ``PhysxTendonAttachmentRootAPI`` or
-    ``PhysxTendonAttachmentLeafAPI`` multi-apply instance.
+    spatial-tendon target when it carries an applied ``PhysxTendonAttachmentRootAPI`` instance.
 
     Spatial tendons are a *tune-not-apply* family: the tendon topology is authored in the
     source asset, so this writer never creates instances -- it only dispatches each fragment
@@ -1837,16 +1851,14 @@ def modify_spatial_tendon_properties(
     through length and limit constraints. For instance, it can be used to set up an equality constraint
     between a driven and passive revolute joints.
 
-    The schema comprises of attributes that belong to the `PhysxTendonAxisRootAPI`_ schema.
+    The schema comprises attributes that belong to the `PhysxTendonAttachmentRootAPI`_ schema.
 
     .. note::
         This function is decorated with :func:`apply_nested` that sets the properties to all the prims
         (that have the schema applied on them) under the input prim path.
 
     .. _spatial tendon: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxArticulationSpatialTendon.html
-    .. _PhysxTendonAxisRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_root_a_p_i.html
     .. _PhysxTendonAttachmentRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_root_a_p_i.html
-    .. _PhysxTendonAttachmentLeafAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_leaf_a_p_i.html
 
     Args:
         prim_path: The prim path to the tendon attachment.
@@ -1870,20 +1882,21 @@ def modify_spatial_tendon_properties(
     tendon_prim = stage.GetPrimAtPath(prim_path)
     # check if prim has spatial tendon applied on it
     applied_schemas = tendon_prim.GetAppliedSchemas()
-    has_spatial = any(
-        "PhysxTendonAttachmentRootAPI" in s or "PhysxTendonAttachmentLeafAPI" in s for s in applied_schemas
-    )
+    has_spatial = any(_applied_schema_instance(schema, "PhysxTendonAttachmentRootAPI") for schema in applied_schemas)
     if not has_spatial:
         return False
 
     cfg = cfg.to_dict()
     for schema_name in applied_schemas:
-        if "PhysxTendonAttachmentRootAPI" not in schema_name and "PhysxTendonAttachmentLeafAPI" not in schema_name:
+        instance_name = _applied_schema_instance(schema_name, "PhysxTendonAttachmentRootAPI")
+        if instance_name is None:
             continue
         for attr_name, value in cfg.items():
+            template = f"physxTendon:__INSTANCE_NAME__:{to_camel_case(attr_name, 'cC')}"
+            attribute = Usd.SchemaRegistry.MakeMultipleApplyNameInstance(template, instance_name)
             safe_set_attribute_on_usd_prim(
                 tendon_prim,
-                f"{schema_name}:{to_camel_case(attr_name, 'cC')}",
+                attribute,
                 value,
                 camel_case=False,
             )

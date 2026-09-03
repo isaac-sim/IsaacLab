@@ -26,10 +26,11 @@ from isaaclab.sim.utils import safe_set_attribute_on_usd_prim
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import to_camel_case
 
-from .schemas_cfg import PhysxFixedTendonCfg, PhysxSpatialTendonCfg
+from .schemas_cfg import PhysxFixedTendonAxisCfg, PhysxFixedTendonCfg, PhysxSpatialTendonCfg
 
 __all__ = [
     "apply_fixed_tendon",
+    "apply_fixed_tendon_axis",
     "apply_physx_joint",
     "apply_spatial_tendon",
     "define_deformable_body_properties",
@@ -75,71 +76,73 @@ def apply_physx_joint(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bo
     return True
 
 
-def _strip_fragment_fields(cfg) -> dict:
-    """Collect a fragment's non-``None`` data fields, excluding the ``func`` plumbing field.
+def _selected_tendon_instances(prim: Usd.Prim, schema_type: str, selection) -> list[str]:
+    """Return existing instances of ``schema_type`` selected by a tendon fragment."""
+    if selection is None:
+        requested = None
+    elif isinstance(selection, str):
+        if not selection:
+            raise ValueError("'instance_names' must contain at least one non-empty instance name.")
+        requested = {selection}
+    elif isinstance(selection, list):
+        if not selection or any(not isinstance(name, str) or not name for name in selection):
+            raise ValueError("'instance_names' must contain at least one non-empty instance name.")
+        requested = set(selection)
+    else:
+        raise TypeError("'instance_names' must be a string, list of strings, or None.")
 
-    Args:
-        cfg: The fragment instance to read fields from.
-
-    Returns:
-        A mapping of set field names to their values, ready to author as namespaced USD attributes.
-    """
-    return {
-        f.name: getattr(cfg, f.name)
-        for f in dataclasses.fields(cfg)
-        if f.name != "func" and getattr(cfg, f.name) is not None
-    }
+    instances = []
+    for applied_schema in prim.GetAppliedSchemas():
+        applied_type, instance = Usd.SchemaRegistry.GetTypeNameAndInstance(str(applied_schema))
+        if applied_type == schema_type and instance and (requested is None or instance in requested):
+            instances.append(instance)
+    return instances
 
 
-def _tune_multi_instance_tendon(cfg, prim_path: str, stage: Usd.Stage | None, markers: tuple[str, ...]) -> bool:
-    """Tune the multi-instance tendon schemas (matching one of ``markers``) on the prim at ``prim_path``.
-
-    Shared backend for :func:`apply_fixed_tendon` / :func:`apply_spatial_tendon`. These schemas are
-    *tune-not-apply* (instances are authored in the source asset). This is a strictly per-prim
-    tuner: the core writers (e.g. :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`) own
-    targeting and hand it the exact resolved prim paths, so it never descends into descendants. It
-    writes each set fragment field as ``<schema_name>:<camelCase(field)>`` across every matching
-    applied instance on the prim. Applies no schema. The fragment's ``_usd_namespace`` is unused
-    (these are not flat-namespace fragments); the schema marker is matched explicitly via
-    ``markers``.
-
-    Args:
-        cfg: The tendon fragment whose set fields are written.
-        prim_path: The prim path carrying the tendon schema instances.
-        stage: The stage to resolve the prim on. Defaults to the current stage.
-        markers: Substrings identifying the applied schema(s) to tune (e.g. ``("PhysxTendonAxisRootAPI",)``).
-
-    Returns:
-        True if at least one matching instance was tuned, False if none is applied on the prim.
-
-    Raises:
-        ValueError: If the prim at ``prim_path`` does not exist in the stage.
-    """
+def _tune_tendon_schema(cfg, prim_path: str, stage: Usd.Stage | None, schema_type: str) -> bool:
+    """Tune selected instances of one concrete PhysX tendon API on one prim."""
     if stage is None:
         stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    matching_schemas = [s for s in prim.GetAppliedSchemas() if any(m in s for m in markers)]
-    if not matching_schemas:
+    instances = _selected_tendon_instances(prim, schema_type, cfg.instance_names)
+    if not instances:
         return False
-    values = _strip_fragment_fields(cfg)
-    for schema_name in matching_schemas:
-        for attr_name, value in values.items():
-            safe_set_attribute_on_usd_prim(
-                prim, f"{schema_name}:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
-            )
+
+    definition = Usd.SchemaRegistry().FindAppliedAPIPrimDefinition(schema_type)
+    if definition is None:
+        raise RuntimeError(f"USD schema '{schema_type}' is not registered.")
+    templates = {
+        str(Usd.SchemaRegistry.GetMultipleApplyNameTemplateBaseName(str(name))): str(name)
+        for name in definition.GetPropertyNames()
+        if "__INSTANCE_NAME__" in str(name)
+    }
+    for instance in instances:
+        for field in dataclasses.fields(cfg):
+            if field.name in ("func", "instance_names"):
+                continue
+            value = getattr(cfg, field.name)
+            if value is None:
+                continue
+            property_name = to_camel_case(field.name, "cC")
+            template = templates.get(property_name)
+            if template is None:
+                raise TypeError(f"'{field.name}' is not a property of USD schema '{schema_type}'.")
+            attr_name = Usd.SchemaRegistry.MakeMultipleApplyNameInstance(template, instance)
+            attr = prim.GetAttribute(attr_name)
+            if not attr:
+                raise RuntimeError(f"USD schema '{schema_type}' did not expose attribute '{attr_name}'.")
+            if not attr.Set(value):
+                raise ValueError(f"Failed to set '{attr_name}' on prim '{prim_path}'.")
     return True
 
 
 def apply_fixed_tendon(cfg: PhysxFixedTendonCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
-    """Tune the multi-instance ``PhysxTendonAxisRootAPI`` schemas on a prim.
+    """Tune selected ``PhysxTendonAxisRootAPI`` instances on a prim.
 
-    Custom ``func`` override for :class:`PhysxFixedTendonCfg`. The fixed-tendon schema is
-    multi-instance and *tune-not-apply* (instances are authored in the source asset), so this
-    writes each set fragment field as ``<schema_name>:<camelCase(field)>`` across every applied
-    ``PhysxTendonAxisRootAPI`` instance and applies no schema. Writes nothing for the ``mjc:``
-    Mujoco path — a separate ``MjcTendon``-aware Newton fragment handles that path.
+    The source asset owns the fixed-tendon topology, so this function applies no schema. It writes
+    only whole-tendon root properties to the instances selected by :attr:`PhysxFixedTendonCfg.instance_names`.
 
     Args:
         cfg: The :class:`PhysxFixedTendonCfg` fragment to apply.
@@ -147,16 +150,34 @@ def apply_fixed_tendon(cfg: PhysxFixedTendonCfg, prim_path: str, stage: Usd.Stag
         stage: The stage where to find the prim. Defaults to the current stage.
 
     Returns:
-        True if at least one ``PhysxTendonAxisRootAPI`` instance was tuned, False if none is applied.
+        True if at least one selected root instance exists, otherwise False.
     """
-    return _tune_multi_instance_tendon(cfg, prim_path, stage, ("PhysxTendonAxisRootAPI",))
+    return _tune_tendon_schema(cfg, prim_path, stage, "PhysxTendonAxisRootAPI")
+
+
+def apply_fixed_tendon_axis(cfg: PhysxFixedTendonAxisCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
+    """Tune selected ``PhysxTendonAxisAPI`` instances on a joint prim.
+
+    The source asset owns the fixed-tendon topology, so this function applies no schema. A root API
+    includes the axis API for the same instance; consequently this writer works for both root joints
+    and AxisAPI-only child joints.
+
+    Args:
+        cfg: Per-axis properties and the existing instances to select.
+        prim_path: The joint prim carrying the tendon-axis instances.
+        stage: The stage where to find the prim. Defaults to the current stage.
+
+    Returns:
+        True if at least one selected axis instance exists, otherwise False.
+    """
+    return _tune_tendon_schema(cfg, prim_path, stage, "PhysxTendonAxisAPI")
 
 
 def apply_spatial_tendon(cfg: PhysxSpatialTendonCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
-    """Tune the multi-instance ``PhysxTendonAttachment{Root,Leaf}API`` schemas on a prim.
+    """Tune selected ``PhysxTendonAttachmentRootAPI`` instances on a prim.
 
-    Custom ``func`` override for :class:`PhysxSpatialTendonCfg`. Writes each set fragment field
-    across every applied attachment-root and attachment-leaf instance and applies no schema.
+    The fragment contains whole-tendon dynamics declared by the attachment root. Attachment and
+    leaf properties describe topology and are not modified by this function.
 
     Args:
         cfg: The :class:`PhysxSpatialTendonCfg` fragment to apply.
@@ -164,8 +185,6 @@ def apply_spatial_tendon(cfg: PhysxSpatialTendonCfg, prim_path: str, stage: Usd.
         stage: The stage where to find the prim. Defaults to the current stage.
 
     Returns:
-        True if at least one attachment instance was tuned, False if none is applied.
+        True if at least one selected attachment-root instance exists, otherwise False.
     """
-    return _tune_multi_instance_tendon(
-        cfg, prim_path, stage, ("PhysxTendonAttachmentRootAPI", "PhysxTendonAttachmentLeafAPI")
-    )
+    return _tune_tendon_schema(cfg, prim_path, stage, "PhysxTendonAttachmentRootAPI")

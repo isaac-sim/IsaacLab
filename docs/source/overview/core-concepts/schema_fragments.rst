@@ -60,10 +60,31 @@ imports a backend:
      - tendon-bearing prims (existing tendon instances)
    * - ``spatial_tendons_props``
      - :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`
-     - tendon attachment root / leaf prims
+     - tendon attachment root prims
 
 The tendon families are *tune-not-apply*: the tendon topology is authored in the source
-asset, so their writers only tune existing instances and never create them.
+asset, so their writers only tune existing instances and never create them. PhysX tendon
+fragments use ``instance_names`` to select one or more instances on each matching prim;
+``None`` (the default) broadcasts to all existing instances.
+
+A fixed tendon is split at the same boundary as the PhysX schemas: the root fragment owns
+whole-tendon dynamics and limits, while the axis fragment owns each joint's contribution.
+Prim-path matching chooses the joints and ``instance_names`` chooses the tendon on those
+joints:
+
+.. code-block:: python
+
+   from isaaclab_physx.sim.schemas import PhysxFixedTendonAxisCfg, PhysxFixedTendonCfg
+
+   fixed_tendons_props = {
+       "/joints/index_root": [
+           PhysxFixedTendonCfg(instance_names="index_finger", stiffness=10.0),
+           PhysxFixedTendonAxisCfg(instance_names="index_finger", gearing=[1.0], joint_axis=["rotX"]),
+       ],
+       "/joints/index_distal": [
+           PhysxFixedTendonAxisCfg(instance_names="index_finger", gearing=[-0.5], joint_axis=["rotX"]),
+       ],
+   }
 
 Targeting expressions
 ---------------------

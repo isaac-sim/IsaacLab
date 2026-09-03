@@ -43,7 +43,10 @@ isaaclab_physx.sim.schemas
   .. autosummary::
 
     PhysxFixedTendonPropertiesCfg
+    PhysxFixedTendonCfg
+    PhysxFixedTendonAxisCfg
     PhysxSpatialTendonPropertiesCfg
+    PhysxSpatialTendonCfg
 
   .. rubric:: Deformable body
 
@@ -57,6 +60,9 @@ isaaclab_physx.sim.schemas
 
   .. autosummary::
 
+    apply_fixed_tendon
+    apply_fixed_tendon_axis
+    apply_spatial_tendon
     define_deformable_body_properties
     modify_deformable_body_properties
 
@@ -130,10 +136,29 @@ Tendon
     :show-inheritance:
     :exclude-members: __init__
 
+.. autoclass:: PhysxFixedTendonCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: PhysxFixedTendonAxisCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
 .. autoclass:: PhysxSpatialTendonPropertiesCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__
+
+.. autoclass:: PhysxSpatialTendonCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autofunction:: apply_fixed_tendon
+.. autofunction:: apply_fixed_tendon_axis
+.. autofunction:: apply_spatial_tendon
 
 Deformable Body
 ---------------
@@ -177,11 +202,9 @@ The following classes are part of the public :mod:`isaaclab_physx.sim.schemas` A
    PhysxCollisionCfg
    PhysxConvexDecompositionCfg
    PhysxConvexHullCfg
-   PhysxFixedTendonCfg
    PhysxJointCfg
    PhysxRigidBodyCfg
    PhysxSDFMeshCfg
-   PhysxSpatialTendonCfg
    PhysxTriangleMeshCfg
    PhysxTriangleMeshSimplificationCfg
    RigidBodyPropertiesCfg
@@ -223,9 +246,6 @@ The following classes are part of the public :mod:`isaaclab_physx.sim.schemas` A
 .. autoclass:: PhysxConvexHullCfg
    :show-inheritance:
 
-.. autoclass:: PhysxFixedTendonCfg
-   :show-inheritance:
-
 .. autoclass:: PhysxJointCfg
    :show-inheritance:
 
@@ -233,9 +253,6 @@ The following classes are part of the public :mod:`isaaclab_physx.sim.schemas` A
    :show-inheritance:
 
 .. autoclass:: PhysxSDFMeshCfg
-   :show-inheritance:
-
-.. autoclass:: PhysxSpatialTendonCfg
    :show-inheritance:
 
 .. autoclass:: PhysxTriangleMeshCfg
