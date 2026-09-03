@@ -1620,8 +1620,12 @@ class NewtonManager(PhysicsManager):
             cls._model.num_envs = cls._num_envs
 
         if cls._pending_extended_contact_attributes:
+            # Kept rather than cleared: the requests live on the ``Model``, so every rebuild needs
+            # them re-applied. Clearing here made the forwarding one-shot, and a second finalize
+            # (the sensors are not rebuilt with the model) produced a ``Contacts`` buffer without
+            # ``force`` -- ``SensorContact.update`` then raises on the first step. The full manager
+            # reset still clears the set.
             cls._model.request_contact_attributes(*cls._pending_extended_contact_attributes)
-            NewtonManager._pending_extended_contact_attributes = set()
 
         NewtonManager._state_0 = cls._model.state()
         NewtonManager._state_1 = cls._model.state()
@@ -3497,6 +3501,10 @@ class NewtonManager(PhysicsManager):
 
         cls._newton_contact_sensors[sensor_key] = sensor
         NewtonManager._report_contacts = True
+        # ``SensorContact.__init__`` requests ``force`` on the model it was handed, and that
+        # request does not survive a model rebuild. Record it here so every later finalize
+        # re-applies it and the allocated ``Contacts`` keeps carrying ``force``.
+        cls.request_extended_contact_attribute("force")
 
         if cls._solver is not None and cls._contacts is not None and cls._contacts.force is None:
             cls._initialize_contacts()

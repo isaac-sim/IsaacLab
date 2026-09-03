@@ -3301,7 +3301,7 @@ class Articulation(BaseArticulation):
 
         # Register callback to rebind simulation data after a full reset (model/state recreation).
         self._physics_ready_handle = SimulationManager.register_callback(
-            lambda _: self._data._create_simulation_bindings(),
+            lambda _: self._rebind_after_physics_ready(),
             PhysicsEvent.PHYSICS_READY,
             name=f"articulation_rebind_{self.cfg.prim_path}",
         )
@@ -3320,6 +3320,21 @@ class Articulation(BaseArticulation):
         self._log_articulation_info()
         # Let the articulation data know that it is fully instantiated and ready to use.
         self.data.is_primed = True
+
+    def _rebind_after_physics_ready(self) -> None:
+        """Rebind simulation data and re-apply actuator properties after a hard reset.
+
+        A hard reset (``sim.reset(soft=False)``) re-finalizes the Newton model from the builder.
+        The rebuilt model carries the USD-authored joint drives, so every property the actuator
+        configs wrote is silently discarded -- measured on GR1T2: stiffness 4400 -> 53026,
+        damping 40 -> 2148, armature 0.1 -> 0.0 and the effort limit -> ``inf``. Those values are
+        outside what MJWarp can integrate, so the first commanded motion after the reset drives
+        the whole articulation non-finite while a zero command still looks fine. Re-applying the
+        actuator configs restores the task's gains on the new model.
+        """
+        self._data._create_simulation_bindings()
+        if getattr(self, "actuators", None) is not None:
+            self._process_actuators_cfg()
 
     def _clear_callbacks(self) -> None:
         """Clears all registered callbacks, including the physics-ready rebind handle."""

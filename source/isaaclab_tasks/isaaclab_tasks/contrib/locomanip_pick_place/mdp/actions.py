@@ -41,8 +41,15 @@ class AgileBasedLowerBodyAction(ActionTerm):
         self._policy = load_torchscript_model(_temp_policy_path, device=env.device)
         self._env = env
 
-        # Find joint ids for the lower body joints
-        joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names, as_proxy=True)
+        # Find joint ids for the lower body joints.
+        #
+        # The policy emits its targets in the order ``cfg.joint_names`` declares, so the resolved
+        # ids have to keep that order. Without ``preserve_order`` they come back in articulation
+        # order instead, and every target is applied to whichever joint the articulation happens
+        # to list in that slot. PhysX orders this robot's joints the same way the config lists
+        # them, so the mismatch is invisible there; Newton groups them differently and the robot
+        # falls over instead of standing.
+        joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names, preserve_order=True, as_proxy=True)
         self._joint_ids = joint_ids.torch
 
         # Get the scale and offset from the configuration
@@ -108,7 +115,13 @@ class AgileBasedLowerBodyAction(ActionTerm):
         # Compose policy input using helper function
         policy_input = self._compose_policy_input(base_command, obs_tensor)
 
-        joint_actions = self._policy.forward(policy_input)
+        # The locomotion policy is frozen and used for inference only. Run it under ``no_grad``:
+        # its output feeds ``set_joint_position_target_index``, and the Newton backend writes joint
+        # targets through Warp kernels, which reject a tensor that requires grad
+        # ("Can't get __cuda_array_interface__ on Variable that requires grad"). PhysX writes
+        # through torch and does not hit this.
+        with torch.no_grad():
+            joint_actions = self._policy.forward(policy_input)
 
         self._raw_actions[:] = joint_actions
 

@@ -251,8 +251,11 @@ XR-active replay:
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import sys
 
 from isaaclab.app import AppLauncher
+
+from isaaclab_tasks.utils import setup_preset_cli
 
 parser = argparse.ArgumentParser(
     description=(
@@ -372,7 +375,9 @@ parser.add_argument(
     ),
 )
 AppLauncher.add_app_launcher_args(parser)
-args_cli = parser.parse_args()
+# Accept the same ``physics=`` / ``renderer=`` / ``presets=`` selectors the interactive teleop
+# agent takes, so a capture can be replayed against any backend rather than only the task default.
+args_cli, hydra_args = setup_preset_cli(parser)
 
 app_launcher_args = vars(args_cli)
 # Enable external camera rendering by default so the replay mimics the production teleop env (perf
@@ -383,6 +388,11 @@ app_launcher_args = vars(args_cli)
 app_launcher = AppLauncher(app_launcher_args, enable_cameras=not args_cli.disable_external_cameras)
 simulation_app = app_launcher.app
 
+# Hand the arguments this parser did not consume over to Hydra. Hydra re-parses ``sys.argv``
+# during config resolution and rejects anything that is not an override, so the script's own
+# flags have to be stripped first.
+sys.argv = [sys.argv[0]] + hydra_args
+
 """Rest everything follows."""
 
 
@@ -390,7 +400,6 @@ import json
 import logging
 import os
 import statistics
-import sys
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -409,7 +418,7 @@ from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import parse_env_cfg
+from isaaclab_tasks.utils import resolve_task_config
 
 logger = logging.getLogger(__name__)
 
@@ -752,7 +761,20 @@ def _assert_run_measured(stats: _RunStats, run_index: int) -> None:
     """Raise ``RuntimeError`` if ``stats`` produced no usable per-render
     interval samples. See the module docstring for the no-partial-reports
     rationale; called at the end of :func:`_run_single_replay`.
+
+    Skipped when the CLI selects no renderer at all (``--viz none`` with external
+    cameras off or absent from the scene). Such a run cannot produce frame-interval
+    timings by construction, but its per-run *outcome* is still meaningful -- this is
+    the fastest way to compare task success across physics backends, where throughput
+    numbers are not the quantity under test.
     """
+    if not _rtx_rendering_requested(args_cli) and not stats.active_render_calls:
+        logger.warning(
+            "Run %d rendered nothing (no visualizer, no external cameras): reporting the "
+            "outcome without frame-timing statistics.",
+            run_index,
+        )
+        return
     if stats.active_iterations and not stats.active_frame_times_ms:
         raise RuntimeError(
             f"Run {run_index} produced no usable frame intervals: "
@@ -1088,7 +1110,10 @@ def _prepare_env_cfg(
         Tuple ``(env_cfg, success_term)``. ``success_term`` is ``None`` when
         the env doesn't define a ``success`` termination term.
     """
-    env_cfg = parse_env_cfg(task, device=device, num_envs=num_envs)
+    # Resolve through Hydra so any CLI preset selectors are applied.
+    env_cfg, _ = resolve_task_config(task, "")
+    env_cfg.sim.device = device
+    env_cfg.scene.num_envs = num_envs
     env_cfg.env_name = task.split(":")[-1]
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         raise ValueError(

@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab_teleop import (
     ControllerHapticFeedbackCfg,
     IsaacTeleopCfg,
@@ -19,9 +22,11 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
@@ -31,6 +36,7 @@ from isaaclab_tasks.contrib.locomanip_pick_place.configs.agile_locomotion_observ
     AgileTeacherPolicyObservationsCfg,
 )
 from isaaclab_tasks.contrib.pick_place import mdp as manip_mdp
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.unitree import G1_29DOF_CFG
 
@@ -265,6 +271,130 @@ def _build_g1_locomanipulation_pipeline():
 ##
 # Scene definition
 ##
+# Newton resolves an omitted friction value to zero, so a body with no authored material has no
+# friction at all and slides out of the grasp. Author it on both the robot and the grasped object.
+_ROBOT_CONTACT_MATERIAL = preset(
+    default=None,
+    newton_mjwarp=[
+        UsdPhysicsRigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
+        NewtonMaterialCfg(contact_stiffness=1.0e6, contact_damping=2000.0),
+    ],
+)
+
+# Object the hands grasp, selected per backend.
+#
+# PhysX keeps the authored steering wheel. MJWarp cannot use it: the wheel's rim is a torus and
+# MuJoCo has no concave mesh-mesh collision, so however the rim is approximated the hand either
+# passes through it (imported as a mesh) or the ring fills in and the wheel becomes a solid disc
+# (collapsed to a convex hull). The stand-in is the graspable primitive from
+# ``Isaac-Lift-Franka``, which runs MJWarp as its default backend. Replace it once the asset
+# ships a convex-decomposed rim.
+_NEWTON_OBJECT_SIZE = 0.035
+"""Edge length of the MJWarp stand-in object [m]."""
+
+_NEWTON_OBJECT_MASS = 0.2
+"""Mass of the MJWarp stand-in object [kg], matching the validated lift-task primitive."""
+
+
+def _steering_wheel_spawn() -> UsdFileCfg:
+    """Build the authored steering-wheel spawn used by the PhysX path."""
+    return UsdFileCfg(
+        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
+        scale=(0.75, 0.75, 0.75),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+    )
+
+
+def _newton_object_spawn() -> sim_utils.CuboidCfg:
+    """Build the graspable primitive used in place of the steering wheel under MJWarp."""
+    return sim_utils.CuboidCfg(
+        size=(_NEWTON_OBJECT_SIZE, _NEWTON_OBJECT_SIZE, _NEWTON_OBJECT_SIZE),
+        physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.5, dynamic_friction=0.5),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=0,
+            disable_gravity=False,
+        ),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=_NEWTON_OBJECT_MASS),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.6, 0.2)),
+    )
+
+
+# Newton matches contact sensors against the model's body labels, which keep the asset's
+# intermediate grouping prim: ``/Robot/left_hand/left_hand_index_0_link``. The PhysX pattern
+# below stops at ``/Robot/`` and ``[^/]*`` cannot cross a path separator, so it full-matches
+# nothing under MJWarp and sensor init fails with "No bodies matched the sensing object
+# pattern(s)". Always confirm a sensor pattern against ``model.body_label`` when porting.
+# World-space bounds of the packing table's authored collider. The table prim sits at
+# ``z = -0.3`` in this task (0.3 m lower than the fixed-base pick-place scene), so the proxy is
+# offset to match; the object's start height differs by the same 0.3 m.
+_PACKING_TABLE_COLLIDER_SIZE = (2.4736, 0.762, 0.9941)
+_PACKING_TABLE_COLLIDER_POS = (0.0, 0.55, 0.19705)
+
+
+def _hand_contact_prim_path(side: str) -> object:
+    """Per-backend prim-path pattern for a hand's contact sensor."""
+    return preset(
+        default="{ENV_REGEX_NS}/Robot/" + f"{side}_hand_[^/]*_link",
+        newton_mjwarp="{ENV_REGEX_NS}/Robot/" + f"{side}_hand/{side}_hand_[^/]*_link",
+    )
+
+
+def _g1_robot_spawn():
+    """Copy the shared G1 spawn and author a contact material for MJWarp.
+
+    The spawn is copied so the override stays local to this task and does not leak into
+    :data:`G1_29DOF_CFG`. Gravity is deliberately left enabled: this robot walks, so the
+    lower-body policy needs real ground contact.
+    """
+    spawn = G1_29DOF_CFG.spawn.copy()
+    spawn.physics_material = _ROBOT_CONTACT_MATERIAL
+    return spawn
+
+
+@configclass
+class PhysicsCfg(PresetCfg):
+    """Physics backend presets for the G1 locomanipulation task.
+
+    ``default`` keeps the bare :class:`~isaaclab_physx.physics.PhysxCfg` this task ran with before
+    presets were exposed, so PhysX behavior is unchanged.
+
+    The ``newton_mjwarp`` profile follows the locomotion tasks rather than the fixed-base
+    dexterous ones: this robot walks, so the contact budget has to cover two feet on the ground
+    plus a two-handed grasp, and the friction cone stays pyramidal as it is for the other Unitree
+    locomotion presets. Unlike a fixed-base task, gravity must stay enabled -- the lower-body
+    policy needs real ground contact, so the ``gravcomp`` trick used by fixed-base humanoids does
+    not apply here.
+    """
+
+    isaacsim_physx = PhysxCfg()
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            solver="newton",
+            integrator="implicitfast",
+            njmax=400,
+            nconmax=250,
+            impratio=1.0,
+            cone="pyramidal",
+            update_data_interval=2,
+            iterations=100,
+            ls_iterations=15,
+            ls_parallel=False,
+            use_mujoco_contacts=False,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(),
+        # Contact stiffness follows the Unitree locomotion presets rather than Newton's default
+        # ``ke=2.5e3``. A humanoid's weight on two feet sinks visibly into the default contact:
+        # the ankle links rest 2.2 cm lower than under PhysX and the lower-body policy never
+        # settles (joint speeds grow to ~22 rad/s where PhysX quiets to 0.2).
+        default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
+        num_substeps=2,
+    )
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    default = isaacsim_physx
+
+
 @configclass
 class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     """Scene configuration for locomanipulation environment with G1 robot.
@@ -284,18 +414,34 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    object = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Object",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.6996], rot=[0, 0, 0, 1]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
-            scale=(0.75, 0.75, 0.75),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+    # ``packing_table.usd`` authors its tabletop collider as a ``boundingCube``
+    # ``PhysicsCollisionAPI`` on an Xform rather than on mesh prims. PhysX resolves that and
+    # builds the collider; Newton emits no shape for it, so anything resting on the table falls
+    # straight through. This invisible box reproduces the same bounding volume.
+    #
+    # The box is always spawned, but its collider is only enabled under ``newton_mjwarp`` so
+    # PhysX keeps colliding solely with the asset's own (correctly imported) collider.
+    packing_table_collider = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/PackingTableCollider",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=list(_PACKING_TABLE_COLLIDER_POS)),
+        spawn=sim_utils.CuboidCfg(
+            size=_PACKING_TABLE_COLLIDER_SIZE,
+            visible=False,
+            collision_props=preset(
+                default=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
+                newton_mjwarp=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+            ),
         ),
     )
 
+    object = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Object",
+        init_state=RigidObjectCfg.InitialStateCfg(pos=[-0.35, 0.45, 0.6996], rot=[0, 0, 0, 1]),
+        spawn=preset(default=_steering_wheel_spawn(), newton_mjwarp=_newton_object_spawn()),
+    )
+
     # Humanoid robot w/ arms higher
-    robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot", spawn=_g1_robot_spawn())
 
     # Use the calibrated G1 head-camera view shared with IsaacLab-Arena.
     robot_pov_cam = robot_pov_camera_cfg(
@@ -313,12 +459,12 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
     # on the robot spawn, enabled in the env __post_init__.
     left_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/left_hand_[^/]*_link",
+        prim_path=_hand_contact_prim_path("left"),
         update_period=0.0,
         history_length=3,
     )
     right_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/right_hand_[^/]*_link",
+        prim_path=_hand_contact_prim_path("right"),
         update_period=0.0,
         history_length=3,
     )
@@ -336,6 +482,28 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     )
 
 
+_AGILE_POLICY_LEG_JOINT_NAMES: list[str] = [
+    "left_hip_pitch_joint",
+    "right_hip_pitch_joint",
+    "left_hip_roll_joint",
+    "right_hip_roll_joint",
+    "left_hip_yaw_joint",
+    "right_hip_yaw_joint",
+    "left_knee_joint",
+    "right_knee_joint",
+    "left_ankle_pitch_joint",
+    "right_ankle_pitch_joint",
+    "left_ankle_roll_joint",
+    "right_ankle_roll_joint",
+]
+"""Leg joints the Agile locomotion policy drives, in the order it was trained on.
+
+Listed explicitly for the same reason as :data:`AGILE_POLICY_JOINT_NAMES`: regex patterns resolve
+in articulation order, which differs between PhysX and Newton, so a regex-matched action term
+writes the policy's outputs to the wrong joints under Newton.
+"""
+
+
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
@@ -344,11 +512,7 @@ class ActionsCfg:
 
     lower_body_joint_pos = AgileBasedLowerBodyActionCfg(
         asset_name="robot",
-        joint_names=[
-            ".*_hip_.*_joint",
-            ".*_knee_joint",
-            ".*_ankle_.*_joint",
-        ],
+        joint_names=_AGILE_POLICY_LEG_JOINT_NAMES,
         policy_output_scale=0.25,
         obs_group_name="lower_body_policy",  # need to be the same name as the on in ObservationCfg
         policy_path=f"{ISAACLAB_NUCLEUS_DIR}/Policies/Agile/agile_locomotion.pt",
@@ -469,6 +633,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1 / 200  # 200Hz
         self.sim.render_interval = 2
+        self.sim.physics = PhysicsCfg()
         self.num_rerenders_on_reset = 3
 
         # Set the URDF path for the IK controller. Path resolution (Nucleus → local) happens at runtime.
