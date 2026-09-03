@@ -11,6 +11,9 @@ This page covers data generation and imitation learning workflows for humanoid r
 
 .. important::
 
+   The Isaac Lab Mimic workflows and Pink IK tasks on this page are supported only on Linux.
+   Pink IK and its dependencies are not available on Windows.
+
    Complete the tutorial in :ref:`Synthetic Data Generation and Imitation Learning with Isaac Lab Mimic <teleoperation-imitation-learning>`
    before proceeding with the following demonstrations to
    understand the data collection, annotation, and generation steps of Isaac Lab Mimic.
@@ -78,7 +81,7 @@ Collect five demonstrations by running the following command:
 
 .. code:: bash
 
-   uv run --extra teleop isaaclab teleop record \
+   uv run --extra teleop,isaacsim isaaclab teleop record \
    --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --xr \
@@ -100,7 +103,7 @@ You can replay the collected demonstrations by running the following command:
 
 .. code:: bash
 
-   uv run --extra teleop isaaclab teleop replay \
+   uv run --extra teleop,isaacsim isaaclab teleop replay \
    --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --device cpu \
@@ -271,7 +274,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
 
    .. code:: bash
 
-      uv run --extra teleop isaaclab teleop record \
+      uv run --extra teleop,isaacsim isaaclab teleop record \
       --task IsaacContrib-NutPour-GR1T2-Pink-IK-Abs \
       --visualizer kit \
       --device cpu \
@@ -427,7 +430,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
    .. code:: bash
 
-      uv run --extra teleop isaaclab teleop record \
+      uv run --extra teleop,isaacsim isaaclab teleop record \
       --device cpu \
       --xr \
       --visualizer kit \
@@ -443,7 +446,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
    .. code:: bash
 
-      uv run --extra teleop isaaclab teleop replay \
+      uv run --extra teleop,isaacsim isaaclab teleop replay \
       --device cpu \
       --visualizer kit \
       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \

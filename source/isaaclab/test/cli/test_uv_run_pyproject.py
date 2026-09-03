@@ -48,6 +48,7 @@ def test_uv_run_exposes_centralized_feature_extras():
     # Feature extras a user can activate with ``uv run --extra``.
     expected_extras = {
         "test",
+        "dev",
         "sb3",
         "skrl",
         "rl-games",
@@ -103,6 +104,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras():
         "video",
         "leapp",
         "test",
+        "dev",
     }
 
 
@@ -136,9 +138,8 @@ def test_version_single_source_matches_literal_pins():
     assert versions["ovphysx"] == "0.5.11"
     assert "omniverseclient==2.72.3" in dependencies
 
-    # Isaac Sim extra mirrors the table, and the teleop extra repeats the same pin.
+    # Isaac Sim extra mirrors the table; it is the only place the wheel is pinned.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
-    assert f"isaacsim[all,extscache]=={versions['isaacsim']}" in optional["teleop"]
 
     # OV extras mirror the table. Table values may be an exact version ("1.2.3",
     # mirrored as ``pkg==1.2.3``) or a range spec (">=1.2.3", mirrored as ``pkg>=1.2.3``).
@@ -229,17 +230,18 @@ def test_uv_run_isaacsim_is_an_opt_in_extra():
     assert "wheel-extras" not in pyproject.get("tool", {}).get("isaaclab", {})
 
 
-def test_uv_run_teleop_extra_bundles_isaacsim():
-    """``--extra teleop`` is the single flag for the XR teleoperation workflow.
+def test_uv_run_teleop_extra_excludes_isaacsim():
+    """``teleop`` carries the teleop stack only; Isaac Sim stays its own extra.
 
-    XR teleop needs the Kit XR runtime, so the extra carries Isaac Sim through the
-    ``isaacsim`` extra rather than repeating its pin.
+    XR teleop needs the Kit XR runtime, but environments that already provide Kit (the
+    container images) must not install a second copy of it. Users who need the wheel run
+    ``--extra teleop,isaacsim``.
     """
     optional_dependencies = _root_pyproject()["project"]["optional-dependencies"]
     teleop = optional_dependencies["teleop"]
 
-    # Isaac Sim is listed explicitly; test_version_single_source keeps the pin from drifting.
-    assert any(dep.startswith("isaacsim[all,extscache]==") for dep in teleop)
+    assert not any(dep.startswith("isaacsim") for dep in teleop)
+    assert any(dep.startswith("isaacsim[all,extscache]==") for dep in optional_dependencies["isaacsim"])
     # record_demos.py imports isaaclab_mimic at module level; robomimic stays in ``mimic``.
     assert "isaaclab-mimic" in teleop
     assert not any(dep.startswith("robomimic") for dep in teleop)
