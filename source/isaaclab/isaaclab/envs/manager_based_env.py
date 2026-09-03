@@ -245,7 +245,8 @@ class ManagerBasedEnv:
 
     def __del__(self, _sys=sys):
         """Cleanup for the environment."""
-        if not self._is_closed and not _sys.is_finalizing() and _sys.meta_path is not None:
+        # ``_is_closed`` is missing if ``__init__`` raised before assigning it.
+        if not getattr(self, "_is_closed", True) and not _sys.is_finalizing() and _sys.meta_path is not None:
             self.close()
 
     """

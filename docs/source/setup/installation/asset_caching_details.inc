@@ -120,8 +120,8 @@ Isaac Lab launchers and asset helpers apply the profile automatically. A standal
 
 .. note::
    The China service mirrors a subset of the global asset set, and that subset can change between releases.
-   Check the `Isaac 6.0 asset availability manifest
-   <https://assets.simready.cn/manifests/isaac/6.0/asset-availability.csv>`__ before choosing an asset. The manifest lists
+   Check the `Isaac 6.1 asset availability manifest
+   <https://assets.simready.cn/manifests/isaac/6.1/asset-availability.csv>`__ before choosing an asset. The manifest lists
    service path records relative to the versioned ``Isaac`` folder. A path with no row is not mirrored, and a listed
    path must have an ``available`` status to load from the service. Use an available asset or a local asset pack when
    needed.
