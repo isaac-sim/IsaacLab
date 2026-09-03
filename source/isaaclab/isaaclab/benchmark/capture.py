@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from isaaclab.benchmark.schema import (
+    CameraResolution,
     GpuDeviceInfo,
     GpuResources,
     Hardware,
@@ -382,6 +383,10 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
     return RunConfig(
         physics_backend=physics,
         rendering_backend=rendering or "none",
+        camera_resolutions={
+            path: CameraResolution(width=dimensions["width"], height=dimensions["height"])
+            for path, dimensions in camera_resolutions_from_env_cfg(env_cfg).items()
+        },
     )
 
 

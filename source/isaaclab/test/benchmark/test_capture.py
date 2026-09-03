@@ -26,7 +26,7 @@ from isaaclab.benchmark.measurements import (
     SingleMeasurement,
     StringMetadata,
 )
-from isaaclab.benchmark.schema import Hardware, Resources, Versions
+from isaaclab.benchmark.schema import CameraResolution, Hardware, Resources, Versions
 from isaaclab.sensors import CameraCfg, RayCasterCameraCfg, patterns
 
 
@@ -261,6 +261,12 @@ def test_camera_resolutions_report_distinct_cameras_sorted_by_path():
     }
     assert camera_resolutions_from_env_cfg(env_cfg) == expected
     assert camera_resolution_metadata_from_env_cfg(env_cfg) == [{"name": "camera_resolutions", "data": expected}]
+
+    env_cfg.sim = SimpleNamespace(physics=None)
+    assert run_config_from_env_cfg(env_cfg).camera_resolutions == {
+        "env.a_ray_camera": CameraResolution(width=32, height=24),
+        "env.z_camera": CameraResolution(width=64, height=48),
+    }
 
 
 def test_camera_resolutions_preserve_aliased_camera_paths():
