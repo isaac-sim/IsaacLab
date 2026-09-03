@@ -138,9 +138,7 @@ def setup_preset_cli(
 
     task_name = getattr(args, "task", None) or argv_helper.task_name
     if agent_library and task_name and hasattr(args, "agent") and not _agent_passed_explicitly(parser, args_to_parse):
-        selected = _auto_select_agent(task_name, agent_library, args_to_parse)
-        if selected is not None:
-            args.agent = selected
+        _auto_select_agent(args, task_name, agent_library, args_to_parse)
 
     return args, remaining
 
@@ -346,11 +344,12 @@ def _agent_passed_explicitly(parser: argparse.ArgumentParser, argv: list[str]) -
 
 
 def _auto_select_agent(
+    args: argparse.Namespace,
     task_name: str,
     agent_library: str,
     argv: list[str],
-) -> str | None:
-    """Return the agent entry point the task unambiguously implies, if any.
+) -> None:
+    """Set ``args.agent`` when the task unambiguously implies one entry point.
 
     Two independent selection rules are applied in order:
 
@@ -364,17 +363,15 @@ def _auto_select_agent(
        This handles tasks such as ``IsaacContrib-Humanoid-AMP-*`` that only
        support a non-default algorithm (AMP) and never register the PPO default.
 
-    Callers are responsible for skipping this when the user typed ``--agent``
-    explicitly; see :func:`_agent_passed_explicitly`.
+    Leaves ``args.agent`` untouched when the match is absent or ambiguous, so
+    the caller's default stands. Callers must skip this when the user typed
+    ``--agent`` explicitly; see :func:`_agent_passed_explicitly`.
 
     Args:
+        args: Parsed namespace to update in-place.
         task_name: Gymnasium task ID used to look up the registry spec.
         agent_library: RL-library prefix (e.g. ``"skrl"``).
         argv: Raw argument list scanned for ``presets=`` tokens.
-
-    Returns:
-        The selected agent config entry point, or ``None`` when the match is
-        absent or ambiguous and the caller's existing value should stand.
     """
     active_presets: set[str] = set()
     for token in argv:
@@ -387,7 +384,7 @@ def _auto_select_agent(
     try:
         agents, compatibility = _enumerate_agents(task_name, agent_library)
     except Exception:  # noqa: BLE001
-        return None
+        return
 
     if active_presets:
         # Rule 1: preset-based selection via agent_preset_compatibility.
@@ -400,14 +397,13 @@ def _auto_select_agent(
         if domain_presets:
             matches = [ep for ep, declared in compatibility.items() if domain_presets.issubset(set(declared))]
             if len(matches) == 1:
-                return matches[0]
-        return None
+                args.agent = matches[0]
+        return
 
     # Rule 2: default-absent selection.
     default_ep = f"{agent_library}_cfg_entry_point"
     if default_ep not in agents and len(agents) == 1:
-        return agents[0]
-    return None
+        args.agent = agents[0]
 
 
 class _ArgvHelper:
