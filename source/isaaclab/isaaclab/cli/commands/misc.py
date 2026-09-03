@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from ..utils import (
+    ISAAC_SIM_SOURCE_BUILD_MARKER,
     ISAACLAB_ROOT,
     extract_isaacsim_exe,
     is_windows,
@@ -159,6 +160,7 @@ def command_build_isaacsim(source_path: str) -> None:
         if is_windows():
             print_info("Enable Windows Developer Mode or run from an elevated terminal, then retry.")
         raise SystemExit(1) from error
+    (release_dir / ISAAC_SIM_SOURCE_BUILD_MARKER).touch()
     print_info(f"Linked {link_path} -> {release_dir}")
     _repoint_source_build_prebundles()
 

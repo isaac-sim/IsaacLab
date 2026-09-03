@@ -50,8 +50,8 @@ a fixed base robot. This guide goes over the various considerations and steps to
 Spawning Multiple Assets
 ------------------------
 
-This guide explains how to import and configure different assets in each environment. This is
-useful when you want to create diverse environments with different objects.
+This guide explains how to batch rigid objects into a collection and configure different asset
+variants across environments.
 
 .. toctree::
     :maxdepth: 1
