@@ -19,6 +19,8 @@ import torch
 import warp as wp
 from _rigid_object_iface_test_utils import BACKENDS, get_rigid_object
 
+from isaaclab.utils.wrench_composer import WrenchComposer
+
 pytestmark = pytest.mark.integration
 
 
@@ -1131,3 +1133,42 @@ class TestRigidObjectDataAliases:
         assert d.body_vel_w.shape == d.body_com_vel_w.shape
         assert d.body_lin_vel_w.shape == d.body_com_lin_vel_w.shape
         assert d.body_ang_vel_w.shape == d.body_com_ang_vel_w.shape
+
+
+@pytest.mark.skipif("ovphysx" not in BACKENDS, reason="OvPhysX backend unavailable")
+class TestOvPhysxRigidObjectSubmissionFrame:
+    """OvPhysX packs the same world-frame wrench whether or not it takes the rotation path."""
+
+    @_default_devices
+    def test_global_at_com_matches_composed_path(self, device):
+        num_instances = 2
+        forces = torch.zeros((num_instances, 1, 3), device=device)
+        forces[:, 0, 0] = torch.tensor([1.0, 2.0], device=device)
+        torques = torch.zeros_like(forces)
+        torques[:, 0, 2] = torch.tensor([0.5, 1.5], device=device)
+
+        # Reference: force the rotation path by denying world-frame support. Seed before each
+        # mock construction so `ref` and `obj` get identical random link poses -- the packed
+        # position ([6:9]) is required on both paths and must match too, so both mocks need
+        # the same underlying pose data for the comparison below to be meaningful.
+        np.random.seed(0)
+        ref, _ = get_rigid_object("ovphysx", num_instances=num_instances, device=device)
+        ref._permanent_wrench_composer = WrenchComposer(ref, supports_world_at_com=False)
+        ref.permanent_wrench_composer.set_forces_and_torques_index(forces=forces, torques=torques, is_global=True)
+        ref._wrench_buf.zero_()
+        ref.write_data_to_sim()
+        expected = wp.to_torch(ref._wrench_buf).clone().reshape(num_instances, -1)
+
+        np.random.seed(0)
+        obj, _ = get_rigid_object("ovphysx", num_instances=num_instances, device=device)
+        composer = obj.permanent_wrench_composer
+        composer.set_forces_and_torques_index(forces=forces, torques=torques, is_global=True)
+        calls = []
+        composer._get_com_pos_fn = lambda: calls.append("com")
+        composer._get_link_quat_fn = lambda: calls.append("quat")
+        obj._wrench_buf.zero_()
+        obj.write_data_to_sim()
+
+        assert calls == [], "OvPhysX read body poses for a global-at-CoM wrench"
+        actual = wp.to_torch(obj._wrench_buf).reshape(num_instances, -1)
+        torch.testing.assert_close(actual, expected, atol=1e-5, rtol=1e-5)

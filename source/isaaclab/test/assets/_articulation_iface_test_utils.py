@@ -279,8 +279,8 @@ def create_ovphysx_articulation(
     articulation._create_buffers()
 
     # Wrench composers
-    mock_inst_wrench = WrenchComposer(articulation)
-    mock_perm_wrench = WrenchComposer(articulation)
+    mock_inst_wrench = WrenchComposer(articulation, supports_world_at_com=True)
+    mock_perm_wrench = WrenchComposer(articulation, supports_world_at_com=True)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
     # Prevent __del__ / _clear_callbacks from raising
