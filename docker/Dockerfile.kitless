@@ -17,25 +17,21 @@ ARG ISAACLAB_PATH_ARG=/workspace/isaaclab
 # Deliberately outside ISAACLAB_PATH: CI bind-mounts the checkout over that path, which would
 # otherwise hide the interpreter and leave ``python`` resolving to nothing.
 ARG VENV_PATH_ARG=/opt/isaaclab-venv
-
-# Locale and apt behaviour.
+ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
-
-# Paths. PATH puts the venv first so ``python`` and ``pip`` resolve to it.
-ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
 ENV VIRTUAL_ENV=${VENV_PATH_ARG}
-ENV PATH=${VENV_PATH_ARG}/bin:/usr/local/bin:${PATH}
-
-# uv. The project pins ``python-preference = "only-managed"``, which makes ``uv sync`` download
-# its own CPython, delete the venv and rebuild it against the download. That interpreter is not
-# copied into the runtime stage, leaving bin/python a dangling symlink. Pinning uv to the system
-# interpreter keeps the venv on the libpython3.12 the runtime stage installs.
 ENV UV_PROJECT_ENVIRONMENT=${VENV_PATH_ARG}
+ENV PATH=${VENV_PATH_ARG}/bin:/usr/local/bin:${PATH}
+# The project pins ``python-preference = "only-managed"``, which makes ``uv sync`` download its own
+# CPython, delete the venv and rebuild it against the download. That interpreter is not copied into
+# the runtime stage, leaving bin/python a dangling symlink. Pin uv to the system interpreter, whose
+# libpython3.12 the runtime stage installs.
 ENV UV_PYTHON=/usr/bin/python3.12
 ENV UV_PYTHON_PREFERENCE=only-system
+ENV UV_NO_CACHE=1
+ENV PIP_RETRIES=12
 ENV UV_HTTP_RETRIES=12
-
 
 # Native build tools remain confined to this stage.
 RUN apt-get update \
@@ -58,37 +54,28 @@ WORKDIR ${ISAACLAB_PATH}
 # Copy the install inputs before the rest of the runtime tree so dependency
 # installation remains cached when only scripts or application code changes.
 COPY pyproject.toml uv.lock VERSION LICENSE LICENSE-mimic README.md ./
+COPY source/ source/
 COPY isaaclab.sh ./
-
-# Workspace manifests only: ``uv sync --no-install-workspace`` needs every member's
-# pyproject.toml to build an installation plan, but not their sources. Resolving the
-# third-party packages here means a source edit re-runs only the workspace install below.
-COPY --parents source/*/pyproject.toml ./
 
 # Installed from uv.lock rather than via ``isaaclab.sh --install``: only the lock applies
 # ``[tool.uv] override-dependencies``, which pins ``packaging>=20,<27`` against ovphysx's
 # ``packaging<24``. The pip-style path ignores that table and needs a duplicated overrides file
 # instead, which the lock makes unnecessary. ``all`` is exactly rl+visualizer+ov and excludes the
-# ``isaacsim`` extra; ``importers`` is the two standalone wheels. ``--frozen`` is load-bearing:
-# without it uv re-resolves whenever it judges the lock stale, defeating the point of the lock.
-# ``--inexact`` keeps the seeded pip, which is not a lock entry.
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv venv --seed "${VIRTUAL_ENV}" \
+# ``isaacsim`` extra; ``importers`` is the two standalone wheels. UV_PYTHON above pins the venv to
+# python3.12, matching the runtime stage's libpython3.12; isaaclab.sh resolves VIRTUAL_ENV first.
+# ``--no-managed-python`` is not usable here -- uv rejects it alongside a python-preference.
+# OVRTX caches shaders, textures and derived data inside its own site-packages, and a
+# volume-mounted run executes as the runner's uid rather than the image's, so those paths must be
+# writable by a uid the image cannot know. Widened here rather than bind-mounted: the write targets
+# sit alongside shipped content such as ``cache/shadercache``, which a mount would hide.
+# ``--frozen`` is load-bearing: without it uv re-resolves whenever it judges the lock stale, which
+# would silently defeat the point of installing from it. ``--inexact`` keeps the seeded pip, which
+# is not a lock entry. ``uv sync`` reuses the venv only because UV_PYTHON pins the same interpreter
+# it was created with; otherwise it deletes and rebuilds it.
+RUN uv venv --seed "${VIRTUAL_ENV}" \
  && uv sync --frozen --inexact --extra all --extra importers --extra test \
-      --no-install-workspace
-
-# Sources only: the workspace install below needs these, and nothing else in the repo. A docs
-# or CI edit then re-runs just the trailing COPY rather than the install.
-COPY source/ source/
-
-# ``chmod +x`` applies the build umask and left the launcher at 751, unreadable by a
-# container started with a uid other than the image's own.
-RUN chmod 755 "${ISAACLAB_PATH}/isaaclab.sh"
-
-# The workspace members install editable now that their sources are present.
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --inexact --extra all --extra importers --extra test \
- && chmod -R a+rwX "${VIRTUAL_ENV}/lib" "${VIRTUAL_ENV}/bin" \
+ && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \
+ && chmod -R a+rwX "${VIRTUAL_ENV}"/lib/python3.*/site-packages/ovrtx \
  && python -c "import importlib.metadata as m; \
       names = {d.metadata['Name'].lower() for d in m.distributions()}; \
       assert 'isaacsim' not in names; \
@@ -99,9 +86,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
       assert 'rerun-sdk' in names" \
  && test ! -e "${ISAACLAB_PATH}/_isaac_sim"
 
-# Everything else the image ships (apps, scripts, docker helpers, licenses). Last, so an edit
-# outside ``source/`` re-lays only this layer and leaves the install above cached.
-COPY . .
+# isaaclab.utils.assets parses apps/isaaclab.python.kit at import time to
+# resolve the Nucleus asset root, so apps/ is required even without Kit.
+COPY apps/ apps/
+COPY scripts/ scripts/
+COPY docs/licenses/ docs/licenses/
+COPY docker/docker-compose.yaml docker/docker-compose.yaml
+COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py
 
 
 FROM ${BASE_IMAGE_ARG} AS runtime
@@ -125,6 +116,11 @@ ENV PYTHONUNBUFFERED=1
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
 
+# ``git-lfs`` is required because CI checks out with ``lfs: true`` and bind-mounts that tree in.
+# Any ``git`` call then invokes the LFS filter, and without the binary it fails with "the remote
+# end hung up unexpectedly" -- which surfaced as every kit-less case failing before it allocated a
+# single byte of GPU memory. Dockerfile.base does not need this: the Isaac Sim base already has it.
+#
 # Libraries ovrtx loads at init. GLVND splits these: libgl1 gives libGL.so.1,
 # but libOpenGL.so.0 and libEGL.so.1 need libopengl0 and libegl1. libxrender1 is
 # for the Newton GL viewer: pyglet's xlib backend resolves libXrender.so.1 via
@@ -156,8 +152,6 @@ RUN apt-get update \
 
 COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder /usr/local/bin/uvx /usr/local/bin/uvx
-# CI may install extras into the venv at test time and a volume-mounted run executes as the
-# runner's uid rather than the image's, so widen the paths pip writes.
 COPY --from=builder --chown=isaaclab:isaaclab ${VENV_PATH_ARG} ${VENV_PATH_ARG}
 COPY --from=builder --chown=isaaclab:isaaclab ${ISAACLAB_PATH} ${ISAACLAB_PATH}
 

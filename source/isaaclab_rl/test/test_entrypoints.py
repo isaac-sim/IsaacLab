@@ -464,6 +464,39 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
     assert _torch_backend_state() == caller_state
 
 
+def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch) -> None:
+    """RSL-RL parses tasks registered by its external callback."""
+    from isaaclab_rl.entrypoints.backends import train_rsl_rl
+
+    task_name = "Isaac-ExternalCallbackOrderTest"
+    callback_module_name = "_external_callback_order_test"
+    callback_module = types.ModuleType(callback_module_name)
+
+    def register_task() -> list[str]:
+        gym.register(
+            id=task_name,
+            entry_point="dummy:Env",
+            kwargs={"rsl_rl_cfg_entry_point": "dummy:AgentCfg"},
+        )
+        return []
+
+    callback_module.register_task = register_task
+    monkeypatch.setitem(sys.modules, callback_module_name, callback_module)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["train.py", "--task", task_name, "--external_callback", f"{callback_module_name}.register_task"],
+    )
+    gym.registry.pop(task_name, None)
+
+    try:
+        args = train_rsl_rl._parse_args(sys.argv[1:])
+    finally:
+        gym.registry.pop(task_name, None)
+
+    assert args.task == task_name
+
+
 def test_skrl_training_restores_jax_backend(monkeypatch) -> None:
     """SKRL training removes the JAX backend setting it created after an exception."""
     skrl = pytest.importorskip("skrl")

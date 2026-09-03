@@ -18,15 +18,10 @@
 name: Multi-GPU pytest
 
 on:
+  # No ``paths:`` filter on purpose. Gating lives in the ``changes`` job below so
+  # these jobs are always created and report green when skipped -- a required check
+  # that is never created stays pending forever.
   pull_request:
-    paths:
-      - "source/isaaclab/isaaclab/test/utils/**"
-      - "source/isaaclab/isaaclab/app/app_launcher.py"
-      - "source/**/test/**/test_*.py"
-      - ".github/workflows/test-multi-gpu-pytest.yaml"
-      - ".github/actions/run-package-tests/**"
-      - ".github/actions/run-tests/**"
-      - ".github/actions/ecr-build-push-pull/**"
   workflow_dispatch:
 
 concurrency:
@@ -35,8 +30,61 @@ concurrency:
 
 env:
   CI_IMAGE_TAG: isaac-lab-ci:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
+  # Same tag family as kitless-docker.yml so the layer cache is shared, but built here: the ECR
+  # cache repo is resolved per runner pool, so an image built on the `gpu` pool is invisible to
+  # this one.
+  CI_KITLESS_IMAGE_TAG: isaac-lab-ci:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}-kitless
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      unit: ${{ steps.unit.outputs.should_run }}
+      smoke: ${{ steps.smoke.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 1
+
+      # Narrow: the sharded device-parametrized tests. Their blast radius really is
+      # the launcher plus the device-scope helpers they are discovered by.
+      - name: Detect changes (unit shards)
+        id: unit
+        uses: ./.github/actions/detect-changes
+        with:
+          triggered-jobs-pr: multi-GPU sharded unit tests
+          patterns: |
+            ^source/isaaclab/isaaclab/test/utils/ :: Device-scope test helpers
+            ^source/isaaclab/isaaclab/app/app_launcher\.py$ :: Device selection at launch
+            ^source/.+/test/.+/test_.*\.py$ :: Device-parametrized test files
+            ^\.github/workflows/test-multi-gpu-pytest\.yaml$ :: This workflow
+            ^\.github/actions/(run-tests|run-package-tests|ecr-build-push-pull|multi-gpu|detect-changes)/ :: Shared actions
+
+      # The training smoke drives real multi-rank RL runs, so the runtime it loads is matched
+      # broadly. The task side is not: these tests exercise exactly two gym ids,
+      # ``Isaac-Cartpole-Direct`` and ``Isaac-Cartpole-Camera-Direct``, so only their own
+      # sources are matched rather than all of isaaclab_tasks/isaaclab_assets. An unrelated
+      # manager task, contrib task, or robot asset must not cost an hour of multi-GPU runner.
+      - name: Detect changes (training smoke)
+        id: smoke
+        uses: ./.github/actions/detect-changes
+        with:
+          triggered-jobs-pr: multi-GPU training smoke
+          patterns: |
+            ^source/isaaclab/ :: Core library (app, sim, scene, renderers, sensors)
+            ^source/isaaclab_(newton|physx|ov)/ :: Physics and renderer backends
+            ^source/isaaclab_ppisp/ :: Render pipeline the Newton renderer imports
+            ^source/isaaclab_rl/ :: RL library integration (rsl_rl entry point)
+            ^source/isaaclab_visualizers/ :: Visualizer and renderer coupling
+            ^source/isaaclab_tasks/isaaclab_tasks/(__init__\.py$|utils/|core/cartpole/(agents/|__init__\.py$|cartpole_direct_)) :: Direct Cartpole envs, their registration and agent configs, plus the preset resolution the presets= selector goes through
+            ^source/isaaclab_assets/isaaclab_assets/robots/cartpole\.py$ :: CARTPOLE_CFG, the only asset these envs load
+            ^scripts/reinforcement_learning/ :: Multi-GPU training entry point
+            ^docker/Dockerfile\.(base|kitless)$ :: CI image definitions
+            ^(pyproject\.toml|uv\.lock)$ :: Dependency graph (image identity)
+            ^\.github/workflows/test-multi-gpu-pytest\.yaml$ :: This workflow
+            ^\.github/actions/(run-tests|run-package-tests|ecr-build-push-pull|multi-gpu|detect-changes)/ :: Shared actions
+
   config:
     name: Load Config
     runs-on: ubuntu-latest
@@ -58,7 +106,8 @@ jobs:
 
   build:
     name: Build / cache image
-    needs: [config]
+    needs: [config, changes]
+    if: needs.changes.outputs.unit == 'true' || needs.changes.outputs.smoke == 'true'
     # Must run on the SAME pool as the test job. The ECR cache repo is resolved
     # per runner pool (single-GPU `gpu` runners -> gitci-docker-cache; multi-GPU
     # runners -> multigpu-docker-cache). If this built on `[self-hosted, gpu]`
@@ -88,16 +137,48 @@ jobs:
           dockerfile-path: docker/Dockerfile.base
           cache-tag: cache-base
 
+  build-kitless:
+    name: Build / cache kit-less image
+    needs: [config, changes]
+    # Only the training smoke uses this image; the sharded unit tests are Kit-only.
+    if: needs.changes.outputs.smoke == 'true'
+    # Same pool as the test job for the same reason as ``build`` above -- the ECR cache repo is
+    # per pool, so building elsewhere would force a rebuild on the scarce multi-GPU runner.
+    runs-on: [self-hosted, linux, x64, multi-gpu]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      # Builds from ubuntu rather than the Isaac Sim image, and already installs ``ov[all]``:
+      # with no Isaac Sim there is no prebundled ``packaging`` for ovphysx's ``<24`` cap to
+      # overwrite, which is exactly why that install cannot go in Dockerfile.base.
+      - uses: ./.github/actions/ecr-build-push-pull
+        env:
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+        with:
+          image-tag: ${{ env.CI_KITLESS_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          dockerfile-path: docker/Dockerfile.kitless
+          cache-tag: cache-kitless
+
   test-multi-gpu-pytest:
     name: Multi-GPU unit tests
-    needs: [config, build]
-    if: needs.build.result == 'success'
+    needs: [config, build, changes]
+    # ``always()`` is load-bearing: ``build`` is skipped when neither gate fires, and GitHub skips
+    # a job whose dependency skipped unless the condition carries a status function. Without it a
+    # gate-miss would silently skip the shards too.
+    if: always() && needs.build.result == 'success'
     # The ``multi-gpu`` label is the multi-GPU pool. Do NOT add ``gpu`` here:
     # in this fleet ``gpu`` tags single-GPU runners, so requiring it routes the
     # job onto a 1-GPU box and the shard runner aborts with "Need at least 2
     # visible devices; found 1".
     runs-on: [self-hosted, linux, x64, multi-gpu]
-    timeout-minutes: 60
+    # Shards plus the full training-smoke matrix. The smoke alone is ~30 min
+    # (Kit boot dominates the Kit-renderer cases), so 60 no longer fits.
+    timeout-minutes: 120
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -177,7 +258,34 @@ jobs:
           IMAGE_TAG: ${{ env.CI_IMAGE_TAG }}
           INCLUDE_FILES: ${{ steps.discover.outputs.include }}
           PATHS: ${{ steps.discover.outputs.paths }}
+        if: needs.changes.outputs.unit == 'true'
         run: bash .github/actions/multi-gpu/multi_gpu_host_launcher.sh
+
+      - name: Multi-GPU training smoke (Kit renderer)
+        # Real multi-rank training runs, outside the sharded device-parametrized
+        # path above: a multi-GPU job owns several GPUs at once, so a per-device
+        # shard cannot express it. Unsharded, all GPUs exposed; the tests choose
+        # their own device order.
+        #
+        # Uses the shared run-tests action rather than a bespoke ``docker run``:
+        # passing a file path (not ``tools``) skips the conftest sharding
+        # orchestrator, so this is a plain single pytest run, while still
+        # inheriting the standard container contract -- writable HOME, the Isaac
+        # Sim cache mounts, and junit results collected into ``reports/``.
+        # Runs on failure too, so a red shard does not hide smoke coverage.
+        if: always() && needs.changes.outputs.smoke == 'true'
+        uses: ./.github/actions/run-tests
+        with:
+          test-path: source/isaaclab/test/multi_gpu/test_multi_gpu_training_smoke.py
+          result-file: multi-gpu-smoke-report.xml
+          container-name: isaac-lab-mgpu-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          pytest-options: -m "not kitless"
+          # Run the checkout, not the image's baked-in copy. ecr-build-push-pull serves a
+          # commit-tagged or deps-cache image, so on a cache hit the container carries source
+          # from whenever that image was built -- CI then reports a pass or fail for code this
+          # commit never contained. The shard launcher already bind-mounts for this reason.
+          volume-mount-source: ${{ github.workspace }}
 
       - name: Aggregated test summary
         # Per-shard + per-file pass/total/walltime, plus a combined table, also
@@ -186,3 +294,51 @@ jobs:
         env:
           RUNTIME_DIR: ${{ env.MGPU_RUNTIME_DIR }}
         run: python3 .github/actions/multi-gpu/aggregate_test_summary.py
+
+  test-multi-gpu-smoke-kitless:
+    name: Multi-GPU training smoke (kit-less)
+    needs: [config, build-kitless, changes]
+    # Split out of ``Multi-GPU unit tests`` so a kit-less image build that fails -- or a runner
+    # that dies under it -- cannot take down the Kit-renderer lane, which needs a different image
+    # entirely. When two multi-GPU runners are free the lanes also overlap; when only one is, the
+    # scheduler serialises them onto it, which is the previous behaviour.
+    if: always() && needs.build-kitless.result == 'success' && needs.changes.outputs.smoke == 'true'
+    runs-on: [self-hosted, linux, x64, multi-gpu]
+    # One lane only; the 120 min ceiling on the sharded job covers shards + Kit smoke together.
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      - name: Pull kit-less image from ECR
+        # ``build-kitless`` pushes to ECR from whichever multi-GPU runner it landed on, so the
+        # image is not necessarily present locally here. Without this the kitless step's
+        # ``docker run`` fails with ``pull access denied`` whenever the two jobs are scheduled
+        # on different runners.
+        uses: ./.github/actions/ecr-build-push-pull
+        env:
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+        with:
+          image-tag: ${{ env.CI_KITLESS_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          dockerfile-path: docker/Dockerfile.kitless
+          cache-tag: cache-kitless
+
+      - name: Multi-GPU training smoke (kitless renderer)
+        # Same tests as the Kit lane with the marker inverted, but run in the kit-less image,
+        # which already carries ``ov[all]``. Each stack runs in the image built for it, and the
+        # job split keeps a kitless-renderer fault from taking down the Kit-renderer coverage
+        # that guards renderer device selection.
+        uses: ./.github/actions/run-tests
+        with:
+          test-path: source/isaaclab/test/multi_gpu/test_multi_gpu_training_smoke.py
+          result-file: multi-gpu-smoke-kitless-report.xml
+          container-name: isaac-lab-mgpu-smoke-kitless-${{ github.run_id }}-${{ github.run_attempt }}
+          image-tag: ${{ env.CI_KITLESS_IMAGE_TAG }}
+          pytest-options: -m kitless
+          # Same reason as the Kit step above.
+          volume-mount-source: ${{ github.workspace }}

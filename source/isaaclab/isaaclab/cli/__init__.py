@@ -266,14 +266,20 @@ def cli() -> None:
         "--conda",
         nargs="?",
         const="env_isaaclab",
-        help="Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'.",
+        help=(
+            "Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'. "
+            "Downloaded Isaac Sim packages are not supported."
+        ),
     )
     parser.add_argument(
         "-u",
         "--uv",
         nargs="?",
         const="env_isaaclab",
-        help="Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'.",
+        help=(
+            "Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'. "
+            "Downloaded Isaac Sim packages are not supported."
+        ),
     )
     parser.add_argument(
         "--isaacsim_source",

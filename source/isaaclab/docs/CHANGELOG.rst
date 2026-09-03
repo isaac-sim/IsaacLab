@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+21.0.1 (2026-09-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed interrupted and concurrent Git asset downloads leaving incomplete cache checkouts.
+
+
 21.0.0 (2026-09-01)
 ~~~~~~~~~~~~~~~~~~~
 
