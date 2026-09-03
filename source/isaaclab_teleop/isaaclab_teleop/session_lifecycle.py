@@ -32,22 +32,28 @@ from .teleop_message_processor import TeleopMessageProcessor
 # Opt-in acceptance of the NVIDIA CloudXR license, mirroring the ``OMNI_KIT_ACCEPT_EULA``
 # escape hatch Kit offers for the Omniverse license.
 _CXR_ACCEPT_EULA_ENV = "ISAACLAB_CXR_ACCEPT_EULA"
+# The spellings ``OMNI_KIT_ACCEPT_EULA`` and the CloudXR prompt itself both accept.
+_CXR_ACCEPT_EULA_VALUES = frozenset({"y", "yes", "1"})
 
 
 def cloudxr_eula_accepted() -> bool:
-    """Whether ``ISAACLAB_CXR_ACCEPT_EULA=1`` opts into the NVIDIA CloudXR license.
+    """Whether ``ISAACLAB_CXR_ACCEPT_EULA`` opts into the NVIDIA CloudXR license.
 
     The CloudXR license is separate from the Omniverse one. Without this opt-in the
     runtime prompts for it on stdin, which fails outright when no terminal is attached,
-    so headless, container and CI runs cannot start. Parsing matches the sibling
-    ``ISAACLAB_CXR_SKIP_AUTOLAUNCH`` variable: surrounding whitespace is stripped and
-    only an exact ``1`` counts, so any other value keeps the interactive prompt.
+    so headless, container and CI runs cannot start. ``y``, ``yes`` and ``1`` accept it,
+    case-insensitively and ignoring surrounding whitespace -- the spellings
+    ``OMNI_KIT_ACCEPT_EULA`` and the CloudXR prompt itself both take. Leaving the
+    variable unset, or setting any other value, keeps the interactive prompt.
 
     Every CloudXR launch path shares this helper -- the session lifecycle here and the
     process-scoped launcher in ``teleop_replay_agent.py`` -- so the variable behaves the
     same whichever script starts the runtime.
+
+    Returns:
+        Whether the CloudXR license has been accepted up front.
     """
-    return os.environ.get(_CXR_ACCEPT_EULA_ENV, "").strip() == "1"
+    return os.environ.get(_CXR_ACCEPT_EULA_ENV, "").strip().lower() in _CXR_ACCEPT_EULA_VALUES
 
 
 # The CloudXR runtime accepts at most one of these; setting both is rejected outright.

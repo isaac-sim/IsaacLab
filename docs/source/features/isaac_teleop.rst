@@ -1253,8 +1253,9 @@ works for the Omniverse license:
        --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
        --xr
 
-Only an exact ``1`` accepts it, with surrounding whitespace stripped; leaving the variable
-unset, or setting any other value, keeps the interactive prompt. Acceptance is recorded in
+``y``, ``yes`` and ``1`` accept it, case-insensitively and ignoring surrounding whitespace --
+the same spellings ``OMNI_KIT_ACCEPT_EULA`` takes; leaving the variable unset, or setting any
+other value, keeps the interactive prompt. Acceptance is recorded in
 ``~/.cloudxr/run/eula_accepted``, so once the license has been accepted -- interactively or
 through this variable -- later runs no longer prompt. The variable applies to every script
 that launches the runtime, including the process-scoped launcher in

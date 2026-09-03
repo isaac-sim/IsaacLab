@@ -339,17 +339,21 @@ class TestCloudXREulaAcceptance:
 
         return mock_cls.call_args.kwargs["accept_eula"]
 
-    @pytest.mark.parametrize("value", ["1", " 1 ", "\t1\n"])
-    def test_accepts_when_env_var_is_one(self, value):
-        """An exact ``1``, with or without surrounding whitespace, accepts the license."""
+    @pytest.mark.parametrize("value", ["1", " 1 ", "\t1\n", "y", "Y", "yes", "Yes", "YES"])
+    def test_accepts_affirmative_values(self, value):
+        """``y``/``yes``/``1`` accept the license, case- and whitespace-insensitively.
+
+        These are the spellings ``OMNI_KIT_ACCEPT_EULA`` takes, so a user who accepts the
+        Omniverse license the documented way can spell the CloudXR one the same.
+        """
         with patch.dict(os.environ, {"ISAACLAB_CXR_ACCEPT_EULA": value}):
             os.environ.pop("ISAACLAB_CXR_SKIP_AUTOLAUNCH", None)
             assert cloudxr_eula_accepted() is True
             assert self._accept_eula_passed_to_launcher() is True
 
-    @pytest.mark.parametrize("value", ["0", "yes", "true", "", "11", "1 1"])
+    @pytest.mark.parametrize("value", ["0", "n", "no", "true", "", "11", "1 1"])
     def test_does_not_accept_for_other_values(self, value):
-        """Anything other than ``1`` leaves the interactive prompt in place."""
+        """Anything not affirmative leaves the interactive prompt in place."""
         with patch.dict(os.environ, {"ISAACLAB_CXR_ACCEPT_EULA": value}):
             os.environ.pop("ISAACLAB_CXR_SKIP_AUTOLAUNCH", None)
             assert cloudxr_eula_accepted() is False
