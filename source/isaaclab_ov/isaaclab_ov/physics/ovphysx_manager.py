@@ -41,6 +41,7 @@ from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.stage import create_ovstage
 
+from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR
 
 if TYPE_CHECKING:
@@ -585,22 +586,20 @@ class OvPhysxManager(PhysicsManager):
 
     @staticmethod
     def _warmup_physx(physx: Any) -> None:
-        """Warm a runtime through its current or legacy API."""
-        warmup = getattr(physx, "warmup", None)
+        """Warm a runtime through its version-selected API."""
+        entry_point = OVPHYSX_LIFECYCLE_ENTRY_POINTS["warmup"]
+        warmup = getattr(physx, entry_point, None)
         if warmup is None:
-            warmup = getattr(physx, "warmup_gpu", None)
-        if warmup is None:
-            raise AttributeError("OVPhysX exposes neither warmup() nor legacy warmup_gpu()")
+            raise AttributeError(f"OVPhysX does not expose the selected {entry_point}() lifecycle entry point")
         warmup()
 
     @staticmethod
     def _destroy_physx(physx: Any) -> None:
-        """Tear a runtime down through its current or legacy API."""
-        destroy = getattr(physx, "destroy", None)
+        """Tear a runtime down through its version-selected API."""
+        entry_point = OVPHYSX_LIFECYCLE_ENTRY_POINTS["destroy"]
+        destroy = getattr(physx, entry_point, None)
         if destroy is None:
-            destroy = getattr(physx, "release", None)
-        if destroy is None:
-            raise AttributeError("OVPhysX exposes neither destroy() nor legacy release()")
+            raise AttributeError(f"OVPhysX does not expose the selected {entry_point}() lifecycle entry point")
         destroy()
 
     @classmethod
