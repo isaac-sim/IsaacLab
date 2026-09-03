@@ -743,14 +743,19 @@ class PRDiff:
 
         remote_base = f"origin/{base_ref}"
         if include_worktree:
-            merge_base = subprocess.run(
-                ["git", "merge-base", remote_base, "HEAD"],
-                capture_output=True,
-                text=True,
-                check=True,
-                cwd=REPO_ROOT,
-            ).stdout.strip()
-            diff_target = merge_base
+
+            def _git(*args: str) -> str | None:
+                """Trimmed stdout of a git query, or None when it reports failure (rc != 0)."""
+                result = subprocess.run(["git", *args], capture_output=True, text=True, cwd=REPO_ROOT)
+                return result.stdout.strip() if result.returncode == 0 else None
+
+            diff_target = _git("merge-base", remote_base, "HEAD")
+            # a pending merge puts the other side's commits in the worktree before HEAD has them;
+            # measure from the newer base so that history is not read as this branch's changes
+            if _git("rev-parse", "-q", "--verify", "MERGE_HEAD") is not None:
+                merged_base = _git("merge-base", remote_base, "MERGE_HEAD")
+                if merged_base and _git("merge-base", "--is-ancestor", diff_target, merged_base) is not None:
+                    diff_target = merged_base
         else:
             diff_target = f"{remote_base}...HEAD"
 
