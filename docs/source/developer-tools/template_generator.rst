@@ -4,17 +4,60 @@
 Build your own project or task
 ==============================
 
-The template generator creates a working Cartpole task, its selected agent
-configurations, and the packaging needed for the Isaac Lab CLI to discover it.
-The quickest path is an external project: choose a name and workflow, run
-``uv sync``, and start the generated task with the Newton backend.
+The template generator bootstraps the package structure, task registration, and
+agent configurations needed to start developing an Isaac Lab task. Use it to
+create either a standalone project outside Isaac Lab or a task intended for
+contribution to the Isaac Lab repository. Both options include a working
+Cartpole example that you can replace with your own environment.
 
-The generator runs entirely in the active Isaac Lab environment. It does not
-invoke ``pip`` or install a second set of template dependencies, so it works in
-the pip-less virtual environments created by ``uv``.
+Choose what to generate
+-----------------------
 
-Create and run a project
-------------------------
+The first prompt chooses where the new task will live.
+
+.. list-table::
+   :widths: 22 48 30
+   :header-rows: 1
+
+   * - Type
+     - Use it when
+     - Result
+   * - External (recommended)
+     - You are creating an application, experiment, or reusable project outside
+       the Isaac Lab repository.
+     - A standalone Git repository and uv workspace.
+   * - Internal
+     - You intend to contribute the task to the Isaac Lab repository.
+     - A task package under ``source/isaaclab_tasks``.
+
+Installed Isaac Lab wheels only offer external projects. The internal option is
+available from a source checkout because it writes directly into that checkout.
+
+Next, choose one or more task workflows. See :ref:`feature-workflows` for the
+complete comparison.
+
+.. list-table::
+   :widths: 30 70
+   :header-rows: 1
+
+   * - Workflow
+     - Good fit
+   * - Manager-based | single-agent
+     - Most new tasks. Observations, actions, rewards, events, and terminations
+       remain modular and easy to replace.
+   * - Direct | single-agent
+     - Tasks that need custom step and reset control or a compact environment
+       implementation.
+   * - Direct | multi-agent
+     - Tasks with multiple policies or agent-specific observation and action
+       spaces.
+
+Finally, choose the RL libraries and algorithms whose configuration files you
+want generated. The prompt adapts the available choices to the selected
+workflow. See :ref:`rl-frameworks` for the framework comparison.
+
+Create and run an external project
+----------------------------------
 
 First, :ref:`install Isaac Lab <isaaclab-installation-root>`. Run the generator
 from the Isaac Lab source checkout or from a uv project that contains the
@@ -23,6 +66,10 @@ installed Isaac Lab package:
 .. code-block:: bash
 
    uv run isaaclab --new
+
+The command uses the dependencies from the active Isaac Lab environment. It
+does not invoke ``pip`` or install another set of template dependencies, so it
+also works in the pip-less virtual environments created by ``uv``.
 
 The short form is equivalent:
 
@@ -74,91 +121,22 @@ Isaac Lab itself:
    uv run isaaclab train --rl_library rsl_rl --task <TASK_NAME>
    uv run isaaclab play --rl_library rsl_rl --task <TASK_NAME> --checkpoint latest --viz newton
 
-Choose what to generate
------------------------
-
-The first prompt chooses where the new task will live.
-
-.. list-table::
-   :widths: 22 48 30
-   :header-rows: 1
-
-   * - Type
-     - Use it when
-     - Result
-   * - External (recommended)
-     - You are creating an application, experiment, or reusable project outside
-       the Isaac Lab repository.
-     - A standalone Git repository and uv workspace.
-   * - Internal
-     - You intend to contribute the task to the Isaac Lab repository.
-     - A task package under ``source/isaaclab_tasks``.
-
-Installed Isaac Lab wheels only offer external projects. The internal option is
-available from a source checkout because it writes directly into that checkout.
-
-Next, choose one or more task workflows. See :ref:`feature-workflows` for the
-complete comparison.
-
-.. list-table::
-   :widths: 30 70
-   :header-rows: 1
-
-   * - Workflow
-     - Good fit
-   * - Manager-based | single-agent
-     - Most new tasks. Observations, actions, rewards, events, and terminations
-       remain modular and easy to replace.
-   * - Direct | single-agent
-     - Tasks that need custom step and reset control or a compact environment
-       implementation.
-   * - Direct | multi-agent
-     - Tasks with multiple policies or agent-specific observation and action
-       spaces.
-
-Finally, choose the RL libraries and algorithms whose configuration files you
-want generated. The prompt adapts the available choices to the selected
-workflow. See :ref:`rl-frameworks` for the framework comparison.
-
 Choose a simulation backend
 ---------------------------
 
-Generated projects follow the same optional-extra model as Isaac Lab. Newton is
-available after the default ``uv sync``; heavier simulator runtimes are only
-installed when a command requests their extra.
-
-.. list-table::
-   :widths: 29 23 48
-   :header-rows: 1
-
-   * - Backend selector
-     - Required extra
-     - Example
-   * - ``physics=newton_mjwarp``
-     - None
-     - ``uv run isaaclab random_agent --task <TASK_NAME> physics=newton_mjwarp``
-   * - ``physics=newton_kamino``
-     - None
-     - ``uv run isaaclab random_agent --task <TASK_NAME> physics=newton_kamino``
-   * - ``physics=ovphysx``
-     - ``ovphysx`` or ``ov``
-     - ``uv run --extra ovphysx isaaclab random_agent --task <TASK_NAME> physics=ovphysx``
-   * - ``physics=isaacsim_physx``
-     - ``isaacsim``
-     - ``uv run --extra isaacsim isaaclab random_agent --task <TASK_NAME> physics=isaacsim_physx``
-
-The ``ov`` extra installs both the OV PhysX and OVRTX runtimes. To combine
-Newton physics with OVRTX rendering, request only the ``ovrtx`` extra:
+The default ``uv sync`` installs the kit-less Newton backend without Isaac Sim.
+Use a generated ``isaacsim``, ``ov``, ``ovphysx``, or ``ovrtx`` extra when a
+command needs that optional runtime. For example:
 
 .. code-block:: bash
 
-   uv run --extra ovrtx isaaclab random_agent --task <TASK_NAME> \
-      physics=newton_mjwarp renderer=ovrtx
+   uv run --extra isaacsim isaaclab random_agent \
+      --task <TASK_NAME> physics=isaacsim_physx
 
-Place ``--extra`` before ``isaaclab``. Keep it on every command that needs the
-optional runtime; this lets ``uv`` reproduce the intended environment without a
-separate installation step. See :ref:`isaac-lab-quickstart` for all physics,
-renderer, and visualizer combinations.
+Place ``--extra`` before ``isaaclab`` and keep it on every command that needs
+the optional runtime. See :ref:`backends-and-presets` for the backend and preset
+model and :ref:`isaac-lab-quickstart` for supported physics, renderer, and
+visualizer combinations.
 
 .. _project-structure:
 
