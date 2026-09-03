@@ -121,12 +121,17 @@ def resolve_paths(
         resolved = src_layer.ComputeAbsolutePath(asset_path)
         if resolved and _is_uri_path(resolved):
             return resolved
-        if store_relative_path and resolved and dst_dir:
+        # Search-path identifiers (e.g. the MDL module ``OmniPBR.mdl``) come back unchanged: they
+        # are resolved against the renderer's module path, not the layer's directory. Re-anchoring
+        # one would make it relative to the process working directory and point at nothing.
+        if not os.path.isabs(resolved):
+            return asset_path
+        if store_relative_path and dst_dir:
             try:
                 return os.path.relpath(resolved, dst_dir)
             except ValueError:
                 return resolved
-        return resolved or asset_path
+        return resolved
 
     UsdUtils.ModifyAssetPaths(dst_layer, _modify_path)
 

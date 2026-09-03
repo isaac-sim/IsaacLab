@@ -300,7 +300,7 @@ They do not represent full PP/PN/NN/NP validation. The backends are shown side b
 .. raw:: html
 
    <video controls preload="metadata" style="width:100%; max-width:960px; margin-bottom:1.5em;">
-     <source src="../../_static/sim2sim_anymal_d_transfer.mp4" type="video/mp4">
+     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_anymal_d_transfer_10s_trimmed.mp4" type="video/mp4">
    </video>
 
 **Allegro hand cube reorientation** (``Isaac-Reorient-Cube-Allegro``, PhysX-to-Newton direction only)
@@ -308,7 +308,7 @@ They do not represent full PP/PN/NN/NP validation. The backends are shown side b
 .. raw:: html
 
    <video controls preload="metadata" style="width:100%; max-width:960px; margin-bottom:1.5em;">
-     <source src="../../_static/sim2sim_allegro_transfer.mp4" type="video/mp4">
+     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_allegro_transfer_trimmed.mp4" type="video/mp4">
    </video>
 
 .. tip::
@@ -321,7 +321,7 @@ They do not represent full PP/PN/NN/NP validation. The backends are shown side b
 See also
 --------
 
-* :doc:`/source/overview/reinforcement-learning/rl_existing_scripts`
+* :doc:`/source/concepts/reinforcement_learning`
 * :doc:`/source/features/hydra`
 * :doc:`/source/overview/core-concepts/physical-backends/joint_and_body_ordering`
 * :doc:`/source/overview/core-concepts/physical-backends/newton/mjwarp-solver`

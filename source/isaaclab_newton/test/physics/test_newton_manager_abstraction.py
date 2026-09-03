@@ -25,6 +25,7 @@ Covers:
 
 from __future__ import annotations
 
+import logging
 from inspect import signature
 from types import SimpleNamespace
 
@@ -1608,3 +1609,86 @@ def test_hard_reset_then_step_runs(use_cuda_graph):
         # A hard device sync surfaces any deferred illegal access as an exception.
         sim.step(render=False)
         wp.synchronize_device("cuda:0")
+
+
+@pytest.fixture
+def clean_extended_state_attributes():
+    """Isolate the class-level record of sensor-requested state attributes."""
+    previous = NewtonManager._active_extended_state_attributes
+    NewtonManager._active_extended_state_attributes = set()
+    yield
+    NewtonManager._active_extended_state_attributes = previous
+
+
+@pytest.mark.parametrize(
+    "solver_cfg, deterministic, expected",
+    [
+        pytest.param(XPBDSolverCfg(), False, wp.DeterministicMode.NOT_GUARANTEED, id="no_request"),
+        pytest.param(XPBDSolverCfg(), True, wp.DeterministicMode.RUN_TO_RUN, id="request_xpbd"),
+        pytest.param(MJWarpSolverCfg(), True, wp.DeterministicMode.RUN_TO_RUN, id="request_mjwarp_gpu"),
+        # MuJoCo on the CPU is already reproducible; Warp's mode does not reach it.
+        pytest.param(
+            MJWarpSolverCfg(use_mujoco_cpu=True), True, wp.DeterministicMode.NOT_GUARANTEED, id="request_mujoco_cpu"
+        ),
+    ],
+)
+def test_apply_deterministic_request_translates_the_generic_flag(
+    solver_cfg, deterministic, expected, clean_extended_state_attributes
+) -> None:
+    """The backend owns translation of :attr:`PhysicsCfg.deterministic` into Newton settings."""
+    cfg = NewtonCfg(solver_cfg=solver_cfg, deterministic=deterministic)
+
+    assert NewtonManager._apply_deterministic_request(cfg) == expected
+
+
+@pytest.mark.parametrize("mode", ["run_to_run", "gpu_to_gpu"])
+def test_apply_deterministic_request_skips_an_explicit_mode_on_mujoco_cpu(
+    mode, clean_extended_state_attributes, caplog
+) -> None:
+    """MuJoCo-C is reproducible on its own, so an explicit mode is reported rather than enforced."""
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_cpu=True), deterministic_mode=mode)
+
+    with caplog.at_level(logging.INFO, logger="isaaclab_newton.physics.newton_manager"):
+        assert NewtonManager._apply_deterministic_request(cfg) == wp.DeterministicMode.NOT_GUARANTEED
+
+    assert any("already reproducible" in r.getMessage() for r in caplog.records)
+
+
+def test_apply_deterministic_request_sets_the_mjwarp_sensor_prerequisite(clean_extended_state_attributes) -> None:
+    """MJWarp on the GPU needs its internal sensors off, so the request implies it."""
+    # NewtonCfg copies the nested solver config, so assert on the instance it actually holds.
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), deterministic=True)
+    assert cfg.solver_cfg.disable_sensors is False
+
+    NewtonManager._apply_deterministic_request(cfg)
+
+    assert cfg.solver_cfg.disable_sensors is True
+
+
+def test_apply_deterministic_request_keeps_an_explicit_mode(clean_extended_state_attributes) -> None:
+    """An explicitly requested mode is the more specific instruction and wins."""
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), deterministic=True, deterministic_mode="gpu_to_gpu")
+
+    assert NewtonManager._apply_deterministic_request(cfg) == wp.DeterministicMode.GPU_TO_GPU
+
+
+@pytest.mark.parametrize("attr", ["body_qdd", "body_parent_f"])
+def test_deterministic_mode_rejects_sensors_that_need_the_sensor_stage(attr, clean_extended_state_attributes) -> None:
+    """Disabling MJWarp sensors starves IMU/PVA/joint-wrench, so the request is refused."""
+    NewtonManager._active_extended_state_attributes = {attr}
+
+    with pytest.raises(ValueError, match="does not support deterministic physics"):
+        NewtonManager._validate_deterministic_solver_cfg(
+            MJWarpSolverCfg(disable_sensors=True), wp.DeterministicMode.RUN_TO_RUN
+        )
+
+
+def test_deterministic_mode_allows_those_sensors_without_a_guarantee(
+    clean_extended_state_attributes,
+) -> None:
+    """The sensors are only incompatible with the guarantee, not with MJWarp itself."""
+    NewtonManager._active_extended_state_attributes = {"body_qdd"}
+
+    NewtonManager._validate_deterministic_solver_cfg(
+        MJWarpSolverCfg(disable_sensors=True), wp.DeterministicMode.NOT_GUARANTEED
+    )

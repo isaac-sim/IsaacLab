@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+1.10.1 (2026-09-03)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the Newton GL visualizer's "Pause Rendering" button not reflecting the paused
+  state after pressing :kbd:`Space`. Both controls now toggle the same underlying flag, so
+  the button label and :meth:`~isaaclab_visualizers.newton.newton_visualizer.NewtonViewerGL.is_rendering_paused`
+  stay in sync regardless of whether rendering was paused via the button or the keyboard shortcut.
+  Also clarified the on-screen control hint from "Space - Pause/Resume" to "Space - Pause/Resume
+  Rendering".
+
+
+1.10.0 (2026-09-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`, which authors arbitrary RTX
+  attributes onto the OVRTX render product as ``{name: (usd_type_name, value)}``. ``ViewerRTX`` hard-codes its render
+  product and exports the stage before the renderer reads it, so these are applied in the only window that reaches the
+  renderer. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's quality convergence
+  loop, which ``ViewerRTX`` otherwise disables to keep interactive latency down.
+
+
 1.9.0 (2026-08-30)
 ~~~~~~~~~~~~~~~~~~
 
