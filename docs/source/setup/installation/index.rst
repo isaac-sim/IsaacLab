@@ -1138,9 +1138,6 @@ initialize the profile first:
 
    configure_asset_region_profile()
 
-The previous ``ISAACSIM_STORAGE_PROFILE`` variable remains supported as a deprecated fallback. Use
-``ISAACSIM_ASSET_REGION_PROFILE`` for new configurations.
-
 To return to the primary service, clear ``ISAACSIM_ASSET_ROOT`` and select the ``us`` profile for the
 next process. You can leave the profile unset for later processes.
 

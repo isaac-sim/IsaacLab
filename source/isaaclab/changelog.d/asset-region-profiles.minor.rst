@@ -6,5 +6,5 @@ Added
 Changed
 ^^^^^^^
 
-* Renamed the preferred China profile selector from ``ISAACSIM_STORAGE_PROFILE`` to
-  ``ISAACSIM_ASSET_REGION_PROFILE`` while retaining the previous name as a deprecated fallback.
+* Renamed the China profile selector from ``ISAACSIM_STORAGE_PROFILE`` to
+  ``ISAACSIM_ASSET_REGION_PROFILE``.

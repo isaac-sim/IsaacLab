@@ -51,7 +51,6 @@ _KIT_EXPERIENCE_PATH = os.path.normpath(
 _KIT_ASSET_ROOT_SETTINGS = ("default", "cloud")
 
 _ASSET_REGION_PROFILE_ENV_VAR = "ISAACSIM_ASSET_REGION_PROFILE"
-_LEGACY_STORAGE_PROFILE_ENV_VAR = "ISAACSIM_STORAGE_PROFILE"
 # Update this value when the China mirror moves to a new Isaac Sim asset release.
 _ISAAC_SIM_ASSET_RELEASE = "6.1"
 _CHINA_ASSET_ENDPOINT = "simready-cn.s3.oss-cn-shanghai.aliyuncs.com"
@@ -89,21 +88,13 @@ _CONFIGURED_STORAGE_PROFILES: set[str] = set()
 
 def _selected_storage_profile() -> tuple[str, _StorageProfile] | None:
     """Return the asset region profile selected by the environment, if it is known."""
-    profile_env_var = _ASSET_REGION_PROFILE_ENV_VAR
-    profile_name = os.getenv(profile_env_var)
-    if not profile_name:
-        profile_env_var = _LEGACY_STORAGE_PROFILE_ENV_VAR
-        profile_name = os.getenv(profile_env_var)
-        if profile_name:
-            logger.warning(
-                "%s is deprecated; use %s instead", _LEGACY_STORAGE_PROFILE_ENV_VAR, _ASSET_REGION_PROFILE_ENV_VAR
-            )
+    profile_name = os.getenv(_ASSET_REGION_PROFILE_ENV_VAR)
     if not profile_name:
         return None
 
     profile = _STORAGE_PROFILES.get(profile_name)
     if profile is None:
-        logger.warning("Ignoring %s: no asset region profile named '%s'", profile_env_var, profile_name)
+        logger.warning("Ignoring %s: no asset region profile named '%s'", _ASSET_REGION_PROFILE_ENV_VAR, profile_name)
         return None
     return profile_name, profile
 
