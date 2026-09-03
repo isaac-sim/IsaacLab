@@ -5,10 +5,19 @@
 
 import math
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
+from isaaclab.managers import (
+    EventTermCfg,
+    ObservationGroupCfg,
+    ObservationTermCfg,
+    RewardTermCfg,
+    SceneEntityCfg,
+    TerminationTermCfg,
+)
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
@@ -16,14 +25,43 @@ from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
 from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, DIGIT_V4_CFG, LEG_JOINT_NAMES
+
+from . import _strip_visual_colliders
+
+_strip_visual_colliders.install()
+
+
+# The stability bound is c*h/2 = 0.0716 for Digit's damping and substep; this leaves margin.
+_MIN_STABLE_ARMATURE = 0.10
+
+
+def _raise_low_armature(env, env_ids, floor: float):
+    """Clamp joint armature up to ``floor`` wherever the actuator damping would be unstable.
+
+    ``wrist_yaw`` ships at I = 0.01822 [kg m^2] against c = 57.3 and h = 0.0025 s, giving
+    c*h/I = 7.86 and a measured 6.9x growth per substep; eight more joints sit at 2.74.
+
+    Args:
+        env: The environment instance.
+        env_ids: Unused; the clamp applies to every environment at startup.
+        floor: Minimum armature [kg m^2] for any joint with non-zero damping.
+    """
+    import torch
+
+    asset = env.scene["robot"]
+    armature = asset.data.joint_armature.torch.clone()
+    needs = (asset.data.joint_damping.torch > 0.0) & (armature < floor)
+    if not bool(needs.any()):
+        return
+    asset.write_joint_armature_to_sim_index(armature=torch.where(needs, torch.full_like(armature, floor), armature))
 
 
 @configclass
 class DigitPhysicsCfg(PresetCfg):
-    """PhysX-only physics configuration for the Digit velocity environments."""
+    """Physics configuration for the Digit velocity environments."""
 
     isaacsim_physx = PhysxCfg(
         gpu_max_rigid_patch_count=10 * 2**15,
@@ -31,6 +69,19 @@ class DigitPhysicsCfg(PresetCfg):
         gpu_total_aggregate_pairs_capacity=2**23,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=5000,
+            nconmax=2000,
+            cone="pyramidal",
+            impratio=1.0,
+            integrator="implicitfast",
+            use_mujoco_contacts=False,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
+        num_substeps=2,
+        default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
+    )
     default = isaacsim_physx
 
 
@@ -261,8 +312,23 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # events
         self.events.add_base_mass.params["asset_cfg"].body_names = "torso_base"
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_base"
-        # Digit is PhysX-only, so the inherited ``newton_mjwarp`` branch names no
-        # reachable backend; collapse the preset so it cannot be selected on its own.
+        # base_com carries a single preset branch; collapse it so the body name can be set.
         self.events.base_com = self.events.base_com.default
         self.events.base_com.params["asset_cfg"].body_names = "torso_base"
+        # MJWarp integrates actuator damping explicitly, so a joint runs away once c*h/I > 2.
+        # digit_v4.usd ships ten joints between 2.74 and 7.86; clamp those up at startup. A
+        # scalar ``ImplicitActuatorCfg.armature`` cannot express this -- it would also pull the
+        # joints that are already fine down to the floor.
+        self.events.raise_low_armature = preset(
+            default=None,
+            newton_mjwarp=EventTermCfg(
+                func=_raise_low_armature, mode="startup", params={"floor": _MIN_STABLE_ARMATURE}
+            ),
+        )
+        # The asset authors no articulation_props, so Newton filters every intra-articulation
+        # shape pair -- 253 of them, exactly C(23,2) for its 23 colliding shapes -- and the legs
+        # pass through each other. Which links carry colliders is left as the asset authored it.
+        self.scene.robot.spawn.articulation_props = preset(
+            default=None, newton_mjwarp=[NewtonArticulationCfg(self_collision_enabled=True)]
+        )
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
