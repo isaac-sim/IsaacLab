@@ -203,8 +203,9 @@ class CameraCfg(SensorBaseCfg):
 
     * ``None`` — ISP disabled. No HDR AOV is requested and no RTX-side
       tonemapping flags are flipped.
-    * A :class:`CameraISPMode` sentinel — the renderer backend walks the USD stage to
-      discover an ISP shader (e.g. via the :mod:`isaaclab_ppisp` package).
+    * A :class:`CameraISPMode` sentinel — the renderer backend discovers
+      camera-authored ``ppisp:*`` attributes (e.g. via the :mod:`isaaclab_ppisp`
+      package).
     * A concrete ISP cfg dataclass (e.g. :class:`isaaclab_ppisp.PpispCfg`) — used directly.
 
     The cfg applies once per Camera sensor batch. The PPISP Warp kernel takes
