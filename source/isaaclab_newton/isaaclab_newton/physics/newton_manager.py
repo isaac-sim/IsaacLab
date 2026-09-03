@@ -136,21 +136,50 @@ logger = logging.getLogger(__name__)
 
 
 @wp.kernel(enable_backward=False)
+def _capture_fabric_scales(
+    fabric_transforms: wp.fabricarray(dtype=wp.mat44d),
+    newton_indices: wp.fabricarray(dtype=wp.uint32),
+    body_scales: wp.array(dtype=wp.vec3f),
+):
+    """Capture initialized Fabric world scales by Newton body index."""
+    i = int(wp.tid())
+    idx = int(newton_indices[i])
+    matrix = wp.mat44f(fabric_transforms[i])
+    body_scales[idx] = wp.vec3f(
+        wp.length(wp.vec3f(matrix[0, 0], matrix[0, 1], matrix[0, 2])),
+        wp.length(wp.vec3f(matrix[1, 0], matrix[1, 1], matrix[1, 2])),
+        wp.length(wp.vec3f(matrix[2, 0], matrix[2, 1], matrix[2, 2])),
+    )
+
+
+@wp.kernel(enable_backward=False)
 def _set_fabric_transforms(
     fabric_transforms: wp.fabricarray(dtype=wp.mat44d),
     newton_indices: wp.fabricarray(dtype=wp.uint32),
     newton_body_q: wp.array(ndim=1, dtype=wp.transformf),
+    body_scales: wp.array(dtype=wp.vec3f),
 ):
-    """Write Newton body transforms to Fabric world matrices.
+    """Write Newton body poses to Fabric world matrices with their initialized scale.
 
     For each Fabric prim at thread ``i``, reads the Newton body transform at
-    ``newton_body_q[newton_indices[i]]`` and stores it as a column-major
-    ``mat44d`` in ``fabric_transforms[i]``.
+    ``newton_body_q[newton_indices[i]]`` and combines its translation and rotation
+    with the corresponding scale captured from the initialized Fabric world matrix.
+    Newton transforms do not carry scale, so reapplying the captured value prevents
+    authored USD scale from being overwritten with unit scale during rendering sync.
     """
     i = int(wp.tid())
     idx = int(newton_indices[i])
     transform = newton_body_q[idx]
-    fabric_transforms[i] = wp.transpose(wp.mat44d(wp.transform_to_matrix(transform)))
+    scale = body_scales[idx]
+    fabric_transforms[i] = wp.mat44d(
+        wp.transpose(
+            wp.transform_compose(
+                wp.transform_get_translation(transform),
+                wp.transform_get_rotation(transform),
+                scale,
+            )
+        )
+    )
 
 
 @wp.kernel(enable_backward=False)
@@ -449,6 +478,8 @@ class NewtonManager(PhysicsManager):
     _newton_stage_path = None
     _usdrt_stage = None
     _newton_index_attr = "newton:index"
+    # Body-indexed world scales captured before Newton first overwrites Fabric transforms.
+    _fabric_body_scales: wp.array | None = None
     _clone_physics_only = False
     _transforms_dirty: bool = False
     _transforms_may_change_on_graph_replay: bool = False
@@ -643,8 +674,10 @@ class NewtonManager(PhysicsManager):
         frame rather than after every physics step.
 
         Uses ``wp.fabricarray`` directly (no ``isaacsim.physics.newton`` extension needed).
-        The Warp kernel reads ``state_0.body_q[newton_index[i]]`` and writes the
-        corresponding ``mat44d`` to ``omni:fabric:worldMatrix`` for each prim.
+        On the first successful sync, a Warp kernel captures each initialized Fabric
+        world scale by Newton body index. The pose kernel then combines that scale with
+        ``state_0.body_q[newton_index[i]]`` and writes the corresponding ``mat44d`` to
+        ``omni:fabric:worldMatrix`` for each prim.
 
         When ``IFabricHierarchy.update_world_xforms_gpu_with_options`` is
         available the method mirrors PhysX's ``DirectGpuHelper`` pattern: pause
@@ -713,10 +746,22 @@ class NewtonManager(PhysicsManager):
 
                 fabric_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
                 newton_indices = wp.fabricarray(selection, cls._newton_index_attr)
+                if cls._fabric_body_scales is None:
+                    NewtonManager._fabric_body_scales = wp.empty(
+                        cls._model.body_count,
+                        dtype=wp.vec3f,
+                        device=PhysicsManager._device,
+                    )
+                    wp.launch(
+                        _capture_fabric_scales,
+                        dim=newton_indices.shape[0],
+                        inputs=[fabric_transforms, newton_indices, cls._fabric_body_scales],
+                        device=PhysicsManager._device,
+                    )
                 wp.launch(
                     _set_fabric_transforms,
                     dim=newton_indices.shape[0],
-                    inputs=[fabric_transforms, newton_indices, cls._state_0.body_q],
+                    inputs=[fabric_transforms, newton_indices, cls._state_0.body_q, cls._fabric_body_scales],
                     device=PhysicsManager._device,
                 )
                 wp.synchronize_device(PhysicsManager._device)
@@ -1112,6 +1157,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._sensor_bvh_shape_flags = ShapeFlags.VISIBLE
         NewtonManager._newton_stage_path = None
         NewtonManager._usdrt_stage = None
+        NewtonManager._fabric_body_scales = None
         NewtonManager._transforms_dirty = False
         NewtonManager._transforms_may_change_on_graph_replay = False
         NewtonManager._particles_dirty = False
@@ -1588,6 +1634,7 @@ class NewtonManager(PhysicsManager):
         if not cls._clone_physics_only:
             import usdrt
 
+            NewtonManager._fabric_body_scales = None
             body_paths = list(cls._model.body_label)
             NewtonManager._usdrt_stage = get_current_stage(fabric=True)
             body_bindings = NewtonManager._cl_fabric_body_bindings
