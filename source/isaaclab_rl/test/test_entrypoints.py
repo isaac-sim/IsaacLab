@@ -11,11 +11,200 @@ import importlib
 import runpy
 import sys
 import types
+from types import SimpleNamespace
 
 import gymnasium as gym
+import numpy as np
 import pytest
+import torch
 
 from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch
+from isaaclab_rl.entrypoints import simple_agents as _simple_agents
+from isaaclab_rl.entrypoints.simple_agents import _create_zero_action_policy
+
+
+def test_zero_agent_infers_finite_manager_actions() -> None:
+    """The zero agent holds absolute task-space targets and zeros all other action terms."""
+
+    class DifferentialInverseKinematicsAction:
+        action_dim = 7
+        cfg = SimpleNamespace(controller=SimpleNamespace(use_relative_mode=False, command_type="pose"))
+        _scale = torch.tensor([2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0])
+
+        def _compute_frame_pose(self):
+            return torch.tensor([[2.0, 4.0, 6.0]]), torch.tensor([[0.0, 0.0, 0.0, 1.0]])
+
+    class RMPFlowAction:
+        action_dim = 7
+        cfg = SimpleNamespace(use_relative_mode=False)
+        _scale = torch.ones(7)
+
+        def _compute_frame_pose(self):
+            return torch.tensor([[3.0, 2.0, 1.0]]), torch.tensor([[0.0, 0.0, 1.0, 0.0]])
+
+    class PinkInverseKinematicsAction:
+        action_dim = 16
+        cfg = SimpleNamespace(target_eef_link_names={"left": "left_hand", "right": "right_hand"})
+        _hand_joint_ids = [1, 3]
+        _num_frame_tasks = 2
+
+        def __init__(self):
+            body_poses = torch.tensor(
+                [
+                    [
+                        [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0],
+                        [4.0, 5.0, 6.0, 0.0, 0.0, 1.0, 0.0],
+                    ]
+                ]
+            )
+            self._asset = SimpleNamespace(
+                find_bodies=lambda expressions, preserve_order: ([1, 0], ["left_hand", "right_hand"]),
+                data=SimpleNamespace(
+                    body_link_pose_w=SimpleNamespace(torch=body_poses),
+                    joint_pos=SimpleNamespace(torch=torch.tensor([[0.1, 0.2, 0.3, 0.4]])),
+                ),
+            )
+
+    class OperationalSpaceControllerAction:
+        action_dim = 7
+        raw_actions = torch.zeros(1, 7)
+        _pose_abs_idx = 0
+        _position_scale = torch.ones(3)
+        _orientation_scale = torch.ones(4)
+        _task_frame_pose_b = None
+        _ee_pose_b = torch.tensor([[9.0, 8.0, 7.0, 0.0, 1.0, 0.0, 0.0]])
+
+        def _compute_ee_pose(self):
+            pass
+
+        def _compute_task_frame_pose(self):
+            pass
+
+    class JointAction:
+        action_dim = 2
+
+    terms = {
+        "diff_ik": DifferentialInverseKinematicsAction(),
+        "rmpflow": RMPFlowAction(),
+        "pink": PinkInverseKinematicsAction(),
+        "osc": OperationalSpaceControllerAction(),
+        "joints": JointAction(),
+    }
+    manager = SimpleNamespace(
+        action=torch.empty(1, sum(term.action_dim for term in terms.values())),
+        active_terms=list(terms),
+        get_term=terms.__getitem__,
+    )
+    unwrapped = SimpleNamespace(
+        action_manager=manager,
+        scene=SimpleNamespace(env_origins=torch.tensor([[1.0, 1.0, 1.0]])),
+    )
+
+    actions = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
+
+    expected_pink_poses = torch.tensor(
+        [[[3.0, 4.0, 5.0, 0.0, 0.0, 1.0, 0.0], [0.0, 1.0, 2.0, 0.0, 0.0, 0.0, 1.0]]]
+    ).flatten(start_dim=1)
+    expected = torch.cat(
+        (
+            torch.tensor([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]]),
+            torch.tensor([[3.0, 2.0, 1.0, 0.0, 0.0, 1.0, 0.0]]),
+            expected_pink_poses,
+            torch.tensor([[0.2, 0.4]]),
+            OperationalSpaceControllerAction._ee_pose_b,
+            torch.zeros(1, 2),
+        ),
+        dim=-1,
+    )
+
+    assert torch.equal(actions, expected)
+    assert torch.isfinite(actions).all()
+
+
+def test_zero_agent_rejects_non_finite_inferred_actions() -> None:
+    """The zero agent stops before a non-finite inferred action reaches the environment."""
+
+    class DifferentialInverseKinematicsAction:
+        action_dim = 7
+        cfg = SimpleNamespace(controller=SimpleNamespace(use_relative_mode=False, command_type="pose"))
+        _scale = torch.ones(7)
+
+        def _compute_frame_pose(self):
+            return torch.full((1, 3), torch.nan), torch.tensor([[0.0, 0.0, 0.0, 1.0]])
+
+    term = DifferentialInverseKinematicsAction()
+    manager = SimpleNamespace(
+        action=torch.empty(1, term.action_dim),
+        active_terms=["ik"],
+        get_term=lambda name: term,
+    )
+    unwrapped = SimpleNamespace(action_manager=manager)
+    policy = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))
+
+    with pytest.raises(RuntimeError, match="inferred non-finite actions"):
+        policy()
+
+
+def test_zero_agent_supports_composite_direct_action_spaces() -> None:
+    """Direct environments receive tensorized zeros matching composite action spaces."""
+    action_space = gym.spaces.Dict(
+        {
+            "continuous": gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32),
+            "discrete": gym.spaces.Discrete(3),
+        }
+    )
+    unwrapped = SimpleNamespace(
+        action_manager=None,
+        single_action_space=action_space,
+        device="cpu",
+        num_envs=2,
+    )
+
+    actions = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
+
+    assert torch.equal(actions["continuous"], torch.zeros(2, 2))
+    assert torch.equal(actions["discrete"], torch.zeros(2, 1, dtype=torch.int64))
+
+
+def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
+    """Direct multi-agent environments receive a zero action for every agent."""
+    unwrapped = SimpleNamespace(
+        action_manager=None,
+        action_spaces={
+            "robot": gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32),
+            "object": gym.spaces.Discrete(2),
+        },
+        device="cpu",
+        num_envs=3,
+    )
+
+    actions = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
+
+    assert torch.equal(actions["robot"], torch.zeros(3, 2))
+    assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
+
+
+def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unsupported task presets fail cleanly before a simulator backend is initialized."""
+
+    class _InvalidCfg:
+        scene = SimpleNamespace(num_envs=1)
+        sim = SimpleNamespace(device="cpu", use_fabric=True)
+
+        def validate(self) -> None:
+            raise ValueError("unsupported physics backend")
+
+    args = SimpleNamespace(num_envs=None, device=None, disable_fabric=False, task="Invalid-Task")
+    monkeypatch.setattr(_simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(_simple_agents, "resolve_task_config", lambda task, agent: (_InvalidCfg(), None))
+    monkeypatch.setattr(
+        _simple_agents,
+        "launch_simulation",
+        lambda *args, **kwargs: pytest.fail("simulation launched before config validation"),
+    )
+
+    with pytest.raises(SystemExit, match="Invalid environment configuration: unsupported physics backend"):
+        _simple_agents.run([], policy="zero")
 
 
 def test_train_request_adapts_typed_parameters_to_cli(monkeypatch) -> None:
@@ -273,6 +462,39 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
         train_rsl_rl.run([])
 
     assert _torch_backend_state() == caller_state
+
+
+def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch) -> None:
+    """RSL-RL parses tasks registered by its external callback."""
+    from isaaclab_rl.entrypoints.backends import train_rsl_rl
+
+    task_name = "Isaac-ExternalCallbackOrderTest"
+    callback_module_name = "_external_callback_order_test"
+    callback_module = types.ModuleType(callback_module_name)
+
+    def register_task() -> list[str]:
+        gym.register(
+            id=task_name,
+            entry_point="dummy:Env",
+            kwargs={"rsl_rl_cfg_entry_point": "dummy:AgentCfg"},
+        )
+        return []
+
+    callback_module.register_task = register_task
+    monkeypatch.setitem(sys.modules, callback_module_name, callback_module)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["train.py", "--task", task_name, "--external_callback", f"{callback_module_name}.register_task"],
+    )
+    gym.registry.pop(task_name, None)
+
+    try:
+        args = train_rsl_rl._parse_args(sys.argv[1:])
+    finally:
+        gym.registry.pop(task_name, None)
+
+    assert args.task == task_name
 
 
 def test_skrl_training_restores_jax_backend(monkeypatch) -> None:

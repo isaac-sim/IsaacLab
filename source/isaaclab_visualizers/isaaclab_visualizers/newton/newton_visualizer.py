@@ -467,7 +467,7 @@ class _NewtonViewerUIMixin:
                 imgui.text("Ctrl + Middle Click - Dolly")
                 imgui.text("Scroll - Dolly")
                 imgui.text("Ctrl + Scroll - FOV zoom")
-                imgui.text("Space - Pause/Resume")
+                imgui.text("Space - Pause/Resume Rendering")
                 imgui.text(". - Step one frame (when paused)")
                 imgui.text("H - Toggle UI")
                 imgui.text("F - Frame camera around model")
@@ -487,11 +487,13 @@ class _NewtonViewerUIMixin:
 
         # Pause/Resume Rendering is not exposed on RTX: stopping end_frame() would
         # freeze the imgui, and OVRTX naturally converges when the scene is paused.
+        # ``self._paused`` (not a separately tracked flag) is the single source of truth here
+        # because the Newton viewer's own Space key handler toggles it directly, bypassing this
+        # button; mirroring a separate flag would let the button state drift out of sync with Space.
         if not isinstance(self, NewtonViewerRTX):
-            rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
+            rendering_label = "Resume Rendering" if self._paused else "Pause Rendering"
             if imgui.button(rendering_label):
-                self._paused_rendering = not self._paused_rendering
-                self._paused = self._paused_rendering
+                self._paused = not self._paused
 
         if imgui.button("Reset Episode"):
             self._reset_requested = True
@@ -733,7 +735,6 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
         """
         super().__init__(*args, **kwargs)
         self._paused_training = False
-        self._paused_rendering = False
         self._reset_requested = False
         self._metadata = metadata or {}
         self._update_frequency = update_frequency
@@ -763,8 +764,12 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
         return self._paused_training
 
     def is_rendering_paused(self) -> bool:
-        """Return whether rendering is paused by viewer controls."""
-        return self._paused_rendering
+        """Return whether rendering is paused by viewer controls.
+
+        Mirrors ``self._paused`` directly since the Newton viewer's Space key handler toggles it
+        in-place, outside the Isaac Lab "Pause Rendering" button.
+        """
+        return self._paused
 
     def on_key_press(self, symbol, modifiers):
         """Forward key presses unless UI is currently capturing input."""
