@@ -133,12 +133,20 @@ def test_spawn_urdf(sim):
 def test_spawn_ground_plane(sim):
     """Test loading prim for the ground plane from grid world USD."""
     # Spawn ground plane
-    cfg = sim_utils.GroundPlaneCfg(color=(0.1, 0.1, 0.1), size=(10.0, 10.0))
+    cfg = sim_utils.GroundPlaneCfg(color=(0.1, 0.1, 0.1), size=(10.0, 20.0))
     prim = cfg.func("/World/ground_plane", cfg)
     # Check validity
     assert prim.IsValid()
     assert sim.stage.GetPrimAtPath("/World/ground_plane").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
+
+    mesh = UsdGeom.Mesh(sim.stage.GetPrimAtPath("/World/ground_plane/Environment/Geometry"))
+    assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(mesh).GetPrimvar("st").Get()] == [
+        (-1.0, -2.0),
+        (1.0, -2.0),
+        (1.0, 2.0),
+        (-1.0, 2.0),
+    ]
 
 
 @pytest.mark.isaacsim_ci
