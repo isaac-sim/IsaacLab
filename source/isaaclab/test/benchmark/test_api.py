@@ -176,6 +176,25 @@ def test_training_request_selects_preset_compatible_agent(backend: str, preset: 
     assert args.agent == f"{backend}_feature_cfg_entry_point"
 
 
+@pytest.mark.parametrize("backend", ["rsl_rl", "rl_games"])
+def test_play_request_selects_preset_compatible_agent(backend: str, monkeypatch) -> None:
+    """Playback resolves the same agent config, so it needs the same preset pairing.
+
+    A benchmark sweep only reaches playback once training succeeds, so this path
+    mis-selects the raw-camera entry point in exactly the same way, and would
+    then load a feature-trained checkpoint into the wrong policy architecture.
+    """
+    import isaaclab_tasks  # noqa: F401
+
+    request = BenchmarkPlayRequest(backend=backend, task="Isaac-Cartpole-Camera", presets=("resnet18",))
+    argv = dispatch._request_argv(request)
+    monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
+    entrypoint = importlib.import_module(dispatch._workflow_module("play", backend))
+    args = entrypoint._parse_args(argv)[0]
+
+    assert args.agent == f"{backend}_feature_cfg_entry_point"
+
+
 @pytest.mark.parametrize("backend", ["rsl_rl", "rl_games", "sb3"])
 def test_training_request_keeps_backend_default_agent_without_presets(backend: str, monkeypatch) -> None:
     """Without a preset pairing the backend's canonical default entry point stands."""
