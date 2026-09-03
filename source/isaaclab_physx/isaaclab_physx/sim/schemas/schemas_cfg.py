@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable
-from dataclasses import MISSING
 from typing import ClassVar
 
 from isaaclab.sim.schemas.schemas_cfg import (
@@ -21,6 +20,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     JointDriveFragment,
     MeshCollisionBaseCfg,
     MeshCollisionFragment,
+    MultiApplyFragment,
     RigidBodyBaseCfg,
     RigidBodyFragment,
     SpatialTendonFragment,
@@ -1264,13 +1264,13 @@ class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
 
 
 @configclass
-class PhysxFixedTendonCfg(FixedTendonFragment):
+class PhysxFixedTendonCfg(FixedTendonFragment, MultiApplyFragment):
     """PhysX fixed-tendon attributes from `PhysxTendonAxisRootAPI`_.
 
     A fixed-tendon fragment (see :class:`~isaaclab.sim.schemas.FixedTendonFragment`) for the
     PhysX fixed-tendon schema. Unlike single-namespace fragments, this is a *tune-not-apply*
     fragment: the ``PhysxTendonAxisRootAPI:<inst>`` instances already exist on the prim (authored
-    in the source asset), so :func:`~isaaclab.sim.schemas.apply_multi_apply` tunes the instances
+    in the source asset), so :func:`~isaaclab.sim.schemas.apply_schema_instances` tunes the instances
     :attr:`instance_names` selects and applies no schema.
 
     The fields are the tendon-wide dynamics and limits the root API declares. The per-joint
@@ -1284,11 +1284,7 @@ class PhysxFixedTendonCfg(FixedTendonFragment):
 
     _usd_namespace: ClassVar[str | None] = "physxTendon"
     _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAxisRootAPI"
-    func: Callable | str = "isaaclab.sim.schemas:apply_multi_apply"
-
-    instance_names: str | list[str] | None = MISSING
-    """Tendon instances to tune: one name, a list of names, or ``None`` for every instance on the prim.
-    Required; see :func:`~isaaclab.sim.schemas.apply_multi_apply`."""
+    func: Callable | str = "isaaclab.sim.schemas:apply_schema_instances"
 
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""
@@ -1320,13 +1316,13 @@ class PhysxFixedTendonCfg(FixedTendonFragment):
 
 
 @configclass
-class PhysxSpatialTendonCfg(SpatialTendonFragment):
+class PhysxSpatialTendonCfg(SpatialTendonFragment, MultiApplyFragment):
     """PhysX spatial-tendon attributes from `PhysxTendonAttachmentRootAPI`_.
 
     A spatial-tendon fragment (see :class:`~isaaclab.sim.schemas.SpatialTendonFragment`) for the
     PhysX spatial-tendon schema. Unlike single-namespace fragments, this is a *tune-not-apply*
     fragment: the ``PhysxTendonAttachmentRootAPI:<inst>`` instances already exist on the prim
-    (authored in the source asset), so :func:`~isaaclab.sim.schemas.apply_multi_apply` tunes the
+    (authored in the source asset), so :func:`~isaaclab.sim.schemas.apply_schema_instances` tunes the
     instances :attr:`instance_names` selects and applies no schema.
 
     Only the attachment root is tuned: the fields are the tendon's dynamics, which leaf and
@@ -1339,11 +1335,7 @@ class PhysxSpatialTendonCfg(SpatialTendonFragment):
 
     _usd_namespace: ClassVar[str | None] = "physxTendon"
     _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAttachmentRootAPI"
-    func: Callable | str = "isaaclab.sim.schemas:apply_multi_apply"
-
-    instance_names: str | list[str] | None = MISSING
-    """Tendon instances to tune: one name, a list of names, or ``None`` for every instance on the prim.
-    Required; see :func:`~isaaclab.sim.schemas.apply_multi_apply`."""
+    func: Callable | str = "isaaclab.sim.schemas:apply_schema_instances"
 
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""

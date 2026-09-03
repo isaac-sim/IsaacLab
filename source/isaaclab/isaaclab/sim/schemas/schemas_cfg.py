@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable
+from dataclasses import MISSING
 from typing import ClassVar, Literal
 
 from isaaclab.utils.configclass import configclass
@@ -116,8 +117,9 @@ class SchemaFragment:
     field names the callable that applies the fragment to a prim; the default generic applier
     (:func:`~isaaclab.sim.schemas.apply_namespaced`) reads the metadata and writes each
     non-``None`` field as ``<namespace>:<camelCase(field)>``. Irregular APIs override
-    :attr:`func` with a custom applier; a fragment over a multiple-apply schema points it at
-    :func:`~isaaclab.sim.schemas.apply_multi_apply` and carries an ``instance_names`` field.
+    :attr:`func` with a custom applier; a fragment over a multiple-apply schema mixes in
+    :class:`MultiApplyFragment` and points :attr:`func` at
+    :func:`~isaaclab.sim.schemas.apply_schema_instances`.
 
     .. note::
         A fragment present in a spawner slot means its schema is applied. ``None`` fields are
@@ -221,6 +223,32 @@ class MeshCollisionFragment(SchemaFragment):
     # own namespaced cooking attrs, so they dispatch through :func:`~isaaclab.sim.schemas.apply_mesh_collision`
     # (not the generic :func:`~isaaclab.sim.schemas.apply_namespaced`). See that func for the token coupling.
     func: Callable | str = "isaaclab.sim.schemas:apply_mesh_collision"
+
+
+@configclass
+class MultiApplyFragment(SchemaFragment):
+    """Fragment over a multiple-apply schema: adds the instance coordinate.
+
+    A single-apply schema is addressed by ``(prim, schema)``; a multiple-apply schema by
+    ``(prim, schema, instance name)``, and several instances can live on one prim, so the path
+    expression cannot select among them. The schema and namespace come from the base metadata as
+    for any fragment; this mixin adds :attr:`instance_names`. A concrete fragment combines it with
+    its family marker (``class PhysxFixedTendonCfg(FixedTendonFragment, MultiApplyFragment)``) and
+    sets ``func`` to :func:`~isaaclab.sim.schemas.apply_schema_instances`.
+    """
+
+    instance_names: str | list[str] | None = MISSING
+    """Which instances of the schema to tune.
+
+    * ``"index_finger"`` -- that instance.
+    * ``["index_finger", "middle"]`` -- exactly those instances.
+    * ``None`` -- every instance applied to the prim, chosen deliberately.
+    * ``[]`` -- a configuration error, raised rather than silently writing nothing.
+
+    Required, so omitting it cannot accidentally mean broadcast. A matched prim that carries the
+    schema but none of the named instances is passed over, so one name selects one tendon under the
+    spawner's subtree pattern. Schema identity, not a USD property: never authored.
+    """
 
 
 @configclass

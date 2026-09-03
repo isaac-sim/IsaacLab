@@ -9,7 +9,7 @@ Changed
   ``instance_names=None`` to keep the previous behavior.
 
 * Changed the fixed- and spatial-tendon fragments to dispatch through the generic
-  :func:`~isaaclab.sim.schemas.apply_multi_apply`; the schema and attribute layout are static data
+  :func:`~isaaclab.sim.schemas.apply_schema_instances`; the schema and attribute layout are static data
   on the fragment.
 
 Removed
@@ -17,7 +17,7 @@ Removed
 
 * **Breaking:** Removed ``apply_fixed_tendon`` and ``apply_spatial_tendon`` from
   :mod:`isaaclab_physx.sim.schemas`. They only bound the fragments to a PhysX-side writer that no
-  longer exists. Migration: call :func:`~isaaclab.sim.schemas.apply_multi_apply`, or the family
+  longer exists. Migration: call :func:`~isaaclab.sim.schemas.apply_schema_instances`, or the family
   writer :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`.
 
 Added

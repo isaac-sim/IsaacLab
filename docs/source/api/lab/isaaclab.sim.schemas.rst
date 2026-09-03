@@ -47,6 +47,7 @@ isaaclab.sim.schemas
     ArticulationRootFragment
     JointDriveFragment
     MeshCollisionFragment
+    MultiApplyFragment
     FixedTendonFragment
     SpatialTendonFragment
     UsdPhysicsRigidBodyCfg
@@ -68,7 +69,7 @@ isaaclab.sim.schemas
     apply_fixed_tendon_properties
     apply_spatial_tendon_properties
     apply_namespaced
-    apply_multi_apply
+    apply_schema_instances
     apply_drive
     apply_mesh_collision
 
@@ -90,7 +91,6 @@ isaaclab.sim.schemas
     modify_mesh_collision_properties
     modify_fixed_tendon_properties
     modify_spatial_tendon_properties
-    resolve_applied_schema_instances
     define_deformable_body_properties
     define_deformable_curve_properties
     modify_deformable_body_properties
@@ -128,6 +128,11 @@ Schema Fragments
     :exclude-members: __init__
 
 .. autoclass:: MeshCollisionFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: MultiApplyFragment
     :members:
     :show-inheritance:
     :exclude-members: __init__
@@ -176,7 +181,7 @@ Schema Fragments
 .. autofunction:: apply_fixed_tendon_properties
 .. autofunction:: apply_spatial_tendon_properties
 .. autofunction:: apply_namespaced
-.. autofunction:: apply_multi_apply
+.. autofunction:: apply_schema_instances
 .. autofunction:: apply_drive
 .. autofunction:: apply_mesh_collision
 
@@ -283,7 +288,6 @@ Tendon
 
 .. autofunction:: modify_fixed_tendon_properties
 .. autofunction:: modify_spatial_tendon_properties
-.. autofunction:: resolve_applied_schema_instances
 
 Tendon cfg classes are PhysX-only and live in
 :mod:`isaaclab_physx.sim.schemas`

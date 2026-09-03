@@ -219,15 +219,15 @@ def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
             safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
 
 
-def apply_multi_apply(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd.Stage | None = None) -> bool:
+def apply_schema_instances(cfg: schemas_cfg.MultiApplyFragment, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     """Tune the instances of a multiple-apply schema that a fragment selects on one prim.
 
-    The fragment's ``_usd_applied_schema`` names the multiple-apply schema whose instances
-    (``<Schema>:<instance>`` tokens on the prim) are tuned, ``_usd_namespace`` the namespace each
-    field is written under as ``<namespace>:<instance>:<camelCase(field)>``, and its required
-    ``instance_names`` field picks the instances: one name, a list of names, or ``None`` for every
-    instance on the prim. Applies no schema (the instances are authored in the source asset) and
-    leaves ``None`` fields unchanged.
+    Applier for :class:`~isaaclab.sim.schemas.MultiApplyFragment`: ``_usd_applied_schema`` names the
+    multiple-apply schema whose instances (``<Schema>:<instance>`` tokens on the prim) are tuned,
+    ``_usd_namespace`` the namespace each field is written under as
+    ``<namespace>:<instance>:<camelCase(field)>``, and ``instance_names`` picks the instances: one
+    name, a list of names, or ``None`` for every instance on the prim. Applies no schema (the
+    instances are authored in the source asset) and leaves ``None`` fields unchanged.
     A prim carrying none of the selected instances is passed over, so one name selects one tendon
     under the spawner's subtree pattern.
 
@@ -249,23 +249,25 @@ def apply_multi_apply(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Us
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
     # check on input contract
-    selection = getattr(cfg, "instance_names", MISSING)
+    selection = cfg.instance_names
     if isinstance(selection, type(MISSING)) or (selection is not None and not selection):
         raise ValueError(
             f"'{type(cfg).__name__}.instance_names' must name the instances to tune; pass None for every instance."
         )
     # get filtered targets
-    instances = resolve_applied_schema_instances(prim.GetAppliedSchemas(), type(cfg)._usd_applied_schema)
+    instances = _applied_schema_instances(prim.GetAppliedSchemas(), type(cfg)._usd_applied_schema)
     if selection is not None:
         names = [selection] if isinstance(selection, str) else selection
         instances = [name for name in instances if name in names]
     if not instances:
         return False
-    # author each set field on each instance as namespace:instance:property
+    # author each set field on each instance as namespace:instance:property; fields declared by the
+    # fragment bases are plumbing, not properties
     namespace = type(cfg)._usd_namespace
+    plumbing = {f.name for f in dataclasses.fields(schemas_cfg.MultiApplyFragment)}
     for f in dataclasses.fields(cfg):
         value = getattr(cfg, f.name)
-        if f.name in ("func", "instance_names") or value is None:
+        if f.name in plumbing or value is None:
             continue
         for instance in instances:
             attribute = f"{namespace}:{instance}:{to_camel_case(f.name, 'cC')}"
@@ -1684,22 +1686,8 @@ Fixed tendon properties.
 """
 
 
-def resolve_applied_schema_instances(applied_schemas: Iterable[str], schema_name: str) -> list[str]:
-    """Return the instance names of a multi-apply schema applied to a prim.
-
-    A multi-apply schema is applied as ``<SchemaName>:<instance>``, and the instance -- not the
-    prim it sits on -- is the entity's identity. Fixed tendons are the motivating case: naming one
-    after the joint prim carrying its root gives the same tendon a different name on each physics
-    engine, and collapses several tendons on one prim into a single entry.
-
-    Args:
-        applied_schemas: The prim's applied API schemas, as returned by ``GetAppliedSchemas()``.
-        schema_name: The multi-apply schema to match, without an instance (e.g.
-            ``"PhysxTendonAxisRootAPI"``).
-
-    Returns:
-        The instance names, in the order the prim declares them. Empty if the schema is not applied.
-    """
+def _applied_schema_instances(applied_schemas: Iterable[str], schema_name: str) -> list[str]:
+    """Instance names of a multiple-apply schema among a prim's applied schemas (``<Schema>:<instance>``)."""
     prefix = f"{schema_name}:"
     return [str(name).removeprefix(prefix) for name in applied_schemas if str(name).startswith(prefix)]
 
@@ -1820,8 +1808,8 @@ def modify_fixed_tendon_properties(
 
     cfg = cfg.to_dict()
     if prim_type != "MjcTendon":
-        # the property namespace is declared by the schema, so resolve it through USD per instance
-        for instance_name in resolve_applied_schema_instances(applied_schemas, "PhysxTendonAxisRootAPI"):
+        # the schema declares the ``physxTendon`` namespace; the class name is not part of it
+        for instance_name in _applied_schema_instances(applied_schemas, "PhysxTendonAxisRootAPI"):
             for attr_name, value in cfg.items():
                 attribute = f"physxTendon:{instance_name}:{to_camel_case(attr_name, 'cC')}"
                 safe_set_attribute_on_usd_prim(tendon_prim, attribute, value, camel_case=False)
@@ -1945,14 +1933,15 @@ def modify_spatial_tendon_properties(
         return False
 
     cfg = cfg.to_dict()
-    wrote = False
     # only the attachment root declares the tendon dynamics; leaf instances carry per-branch limits
-    for instance_name in resolve_applied_schema_instances(applied_schemas, "PhysxTendonAttachmentRootAPI"):
+    instances = _applied_schema_instances(applied_schemas, "PhysxTendonAttachmentRootAPI")
+    if not instances:
+        return False
+    for instance_name in instances:
         for attr_name, value in cfg.items():
             attribute = f"physxTendon:{instance_name}:{to_camel_case(attr_name, 'cC')}"
             safe_set_attribute_on_usd_prim(tendon_prim, attribute, value, camel_case=False)
-        wrote = True
-    return wrote
+    return True
 
 
 """
