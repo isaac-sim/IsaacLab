@@ -94,8 +94,7 @@ and is a good starting point for GPU-based training.
      - ``uv run --extra rlinf isaaclab train --rl_library rlinf ...``
 
 RL libraries differ in their supported algorithms, tasks, and workflows. See
-:doc:`/source/overview/reinforcement-learning/rl_frameworks` for a detailed
-comparison.
+:ref:`choose-an-rl-library` for a detailed comparison.
 
 
 The five commands to know
@@ -131,8 +130,8 @@ All task commands accept ``--task <task_name>``. Start by listing the registered
      - ``uv run isaaclab benchmark runtime --task Isaac-Cartpole``
 
 All supported RL libraries use ``--checkpoint`` to choose a checkpoint for
-playback. See :doc:`/source/overview/reinforcement-learning/rl_existing_scripts`
-for the complete training and playback reference.
+playback. See :doc:`/source/concepts/reinforcement_learning` for the
+complete training and playback reference.
 
 .. figure:: ../_static/quickstart/agent-comparison.gif
    :width: 100%
@@ -300,11 +299,12 @@ Benchmark a task
    * - ``play``
      - Trained-policy rollout throughput. Requires ``--rl_library`` and
        ``--checkpoint``.
-   * - ``-multigpu``
-     - Run ``startup``, ``runtime``, or ``training`` across multiple GPUs by adding the suffix ``-multigpu``. For example, ``runtime-multigpu``.
+   * - ``_multigpu``
+     - Run ``startup``, ``runtime``, or ``training`` across multiple GPUs by
+       adding the suffix ``_multigpu``. For example, ``runtime_multigpu``.
 
-See :ref:`testing_benchmarks` for warm-up, formatters, multi-GPU details, and
-how to read results.
+See :ref:`testing_benchmarks` for benchmark fundamentals and
+:ref:`train_multigpu-command` for multi-GPU training and benchmarks.
 
 Next steps
 ----------

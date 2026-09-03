@@ -1719,7 +1719,7 @@ def test_fragment_fix_root_reenables_existing_joint(sim, device):
     joint.CreateBody1Rel().SetTargets([root.GetPath()])
     joint.CreateJointEnabledAttr().Set(False)
 
-    assert sim_utils.apply_articulation_root_properties(asset_path, [], stage, fix_root_link=True)
+    assert sim_utils.apply_articulation_root_properties(f"{asset_path}(/.*)?", [], stage, fix_root_link=True)
     assert joint.GetJointEnabledAttr().Get() is True
     world_joints = []
     for prim in sim_utils.get_all_matching_child_prims(
@@ -2344,8 +2344,8 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
             articulation.update(sim.cfg.dt)
         # check condition
         for i in range(num_articulations):
-            # since there is a moment applied on the articulation, the articulation should rotate
-            assert torch.abs(articulation.data.root_ang_vel_w.torch[i, 2]).item() > 0.1
+            # the response axis depends on the link frames, so check that the articulation rotates
+            assert torch.linalg.vector_norm(articulation.data.root_ang_vel_w.torch[i]).item() > 0.1
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -3363,6 +3363,77 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
     # Read back from the simulation and verify the round-trip.
     materials_check = wp.to_torch(view.get_attribute(TT.SHAPE_FRICTION_AND_RESTITUTION))
     torch.testing.assert_close(materials_check, materials)
+
+
+@wp.kernel
+def _occupy_stream_kernel(iterations: int, out: wp.array(dtype=wp.float32)):
+    total = float(0.0)
+    for i in range(iterations):
+        total += wp.sin(float(i))
+    out[0] = total
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_cpu_only_property_writes_wait_for_pinned_host_staging(sim, device):
+    """Land CPU-only property writes while the device stream is busy.
+
+    OVPhysX keeps joint and body properties on the host even for a GPU simulation, so the writers
+    stage the device-resident data, environment indices, and masks through pinned host buffers
+    before calling the CPU setter. Warp issues that device-to-host copy asynchronously on the
+    device stream, so a long kernel queued ahead of the copy must not let the setter consume the
+    previous contents of the pinned buffers.
+    """
+    articulation, _ = generate_articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=str(Path(__file__).parent / "data" / "articulation_ordering_branching.usda")
+            ),
+            actuators={},
+        ),
+        num_articulations=4,
+        device=device,
+    )
+    sim.reset()
+    num_envs, num_joints = articulation.num_instances, articulation.num_joints
+
+    stiffness_before = _read_binding_to_torch(articulation, TT.DOF_STIFFNESS, device)
+    damping_before = _read_binding_to_torch(articulation, TT.DOF_DAMPING, device)
+    masses_before = _read_binding_to_torch(articulation, TT.BODY_MASS, device)
+    joint_values = torch.arange(1, num_envs * num_joints + 1, device=device, dtype=torch.float32)
+    joint_values = joint_values.reshape(num_envs, num_joints)
+    env_ids = torch.tensor([1, 3], device=device)
+    env_mask = wp.array([False, True, False, True], dtype=wp.bool, device=device)
+    scratch = wp.zeros(1, dtype=wp.float32, device=device)
+
+    def occupy_device_stream(iterations: int = 500_000):
+        wp.launch(_occupy_stream_kernel, dim=1, inputs=[iterations], outputs=[scratch], device=device)
+
+    # Warm up every kernel involved so that module compilation cannot drain the stream
+    # between the writes below and the kernel that keeps it busy.
+    occupy_device_stream(iterations=1)
+    articulation.write_joint_stiffness_to_sim_index(stiffness=stiffness_before[env_ids], env_ids=env_ids)
+    articulation.write_joint_damping_to_sim_mask(damping=damping_before, env_mask=env_mask)
+    articulation.set_masses_mask(masses=masses_before, env_mask=env_mask)
+    wp.synchronize_device(device)
+
+    occupy_device_stream()
+    articulation.write_joint_stiffness_to_sim_index(stiffness=joint_values[env_ids], env_ids=env_ids)
+    occupy_device_stream()
+    articulation.write_joint_damping_to_sim_mask(damping=joint_values, env_mask=env_mask)
+    occupy_device_stream()
+    articulation.set_masses_mask(masses=masses_before * 2.0, env_mask=env_mask)
+    wp.synchronize_device(device)
+
+    expected_stiffness = stiffness_before.clone()
+    expected_stiffness[env_ids] = joint_values[env_ids]
+    expected_damping = damping_before.clone()
+    expected_damping[env_ids] = joint_values[env_ids]
+    expected_masses = masses_before.clone()
+    expected_masses[env_ids] = masses_before[env_ids] * 2.0
+    torch.testing.assert_close(_read_binding_to_torch(articulation, TT.DOF_STIFFNESS, device), expected_stiffness)
+    torch.testing.assert_close(_read_binding_to_torch(articulation, TT.DOF_DAMPING, device), expected_damping)
+    torch.testing.assert_close(_read_binding_to_torch(articulation, TT.BODY_MASS, device), expected_masses)
 
 
 if __name__ == "__main__":
