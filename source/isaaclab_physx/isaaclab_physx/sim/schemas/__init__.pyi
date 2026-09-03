@@ -5,9 +5,6 @@
 
 __all__ = [
     "apply_physx_joint",
-    "apply_fixed_tendon",
-    "apply_fixed_tendon_axis",
-    "apply_spatial_tendon",
     "define_deformable_body_properties",
     "modify_deformable_body_properties",
     "ArticulationRootPropertiesCfg",
@@ -50,14 +47,7 @@ __all__ = [
     "TriangleMeshSimplificationPropertiesCfg",
 ]
 
-from .schemas import (
-    apply_physx_joint,
-    apply_fixed_tendon,
-    apply_fixed_tendon_axis,
-    apply_spatial_tendon,
-    define_deformable_body_properties,
-    modify_deformable_body_properties,
-)
+from .schemas import apply_physx_joint, define_deformable_body_properties, modify_deformable_body_properties
 from .schemas_cfg import (
     ArticulationRootPropertiesCfg,
     CollisionPropertiesCfg,

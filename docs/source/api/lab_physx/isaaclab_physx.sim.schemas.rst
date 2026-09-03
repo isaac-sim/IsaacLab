@@ -60,9 +60,6 @@ isaaclab_physx.sim.schemas
 
   .. autosummary::
 
-    apply_fixed_tendon
-    apply_fixed_tendon_axis
-    apply_spatial_tendon
     define_deformable_body_properties
     modify_deformable_body_properties
 
@@ -155,10 +152,6 @@ Tendon
     :members:
     :show-inheritance:
     :exclude-members: __init__
-
-.. autofunction:: apply_fixed_tendon
-.. autofunction:: apply_fixed_tendon_axis
-.. autofunction:: apply_spatial_tendon
 
 Deformable Body
 ---------------

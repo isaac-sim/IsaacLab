@@ -6,9 +6,9 @@
 """PhysX schema-fragment appliers and compatibility wrappers.
 
 The deformable schema writers are backend-aware but remain unified in
-:mod:`isaaclab.sim.schemas`. This module additionally hosts the PhysX-specific fragment
-applier funcs that override :attr:`~isaaclab.sim.schemas.SchemaFragment.func` for the
-joint-drive and multi-instance tendon schemas, keeping the backend func out of the core package.
+:mod:`isaaclab.sim.schemas`. This module additionally hosts PhysX-specific fragment
+implementation used by joint-drive and multi-instance tendon configs, keeping backend behavior
+out of the core package.
 """
 
 from __future__ import annotations
@@ -26,13 +26,8 @@ from isaaclab.sim.utils import safe_set_attribute_on_usd_prim
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import to_camel_case
 
-from .schemas_cfg import PhysxFixedTendonAxisCfg, PhysxFixedTendonCfg, PhysxSpatialTendonCfg
-
 __all__ = [
-    "apply_fixed_tendon",
-    "apply_fixed_tendon_axis",
     "apply_physx_joint",
-    "apply_spatial_tendon",
     "define_deformable_body_properties",
     "modify_deformable_body_properties",
 ]
@@ -99,8 +94,11 @@ def _selected_tendon_instances(prim: Usd.Prim, schema_type: str, selection) -> l
     return instances
 
 
-def _tune_tendon_schema(cfg, prim_path: str, stage: Usd.Stage | None, schema_type: str) -> bool:
+def _tune_tendon_schema(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     """Tune selected instances of one concrete PhysX tendon API on one prim."""
+    schema_type = type(cfg)._usd_applied_schema
+    if not schema_type:
+        raise TypeError(f"'{type(cfg).__name__}' does not identify a USD tendon schema.")
     if stage is None:
         stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
@@ -136,55 +134,3 @@ def _tune_tendon_schema(cfg, prim_path: str, stage: Usd.Stage | None, schema_typ
             if not attr.Set(value):
                 raise ValueError(f"Failed to set '{attr_name}' on prim '{prim_path}'.")
     return True
-
-
-def apply_fixed_tendon(cfg: PhysxFixedTendonCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
-    """Tune selected ``PhysxTendonAxisRootAPI`` instances on a prim.
-
-    The source asset owns the fixed-tendon topology, so this function applies no schema. It writes
-    only whole-tendon root properties to the instances selected by :attr:`PhysxFixedTendonCfg.instance_names`.
-
-    Args:
-        cfg: The :class:`PhysxFixedTendonCfg` fragment to apply.
-        prim_path: The prim path carrying the fixed-tendon schemas.
-        stage: The stage where to find the prim. Defaults to the current stage.
-
-    Returns:
-        True if at least one selected root instance exists, otherwise False.
-    """
-    return _tune_tendon_schema(cfg, prim_path, stage, "PhysxTendonAxisRootAPI")
-
-
-def apply_fixed_tendon_axis(cfg: PhysxFixedTendonAxisCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
-    """Tune selected ``PhysxTendonAxisAPI`` instances on a joint prim.
-
-    The source asset owns the fixed-tendon topology, so this function applies no schema. A root API
-    includes the axis API for the same instance; consequently this writer works for both root joints
-    and AxisAPI-only child joints.
-
-    Args:
-        cfg: Per-axis properties and the existing instances to select.
-        prim_path: The joint prim carrying the tendon-axis instances.
-        stage: The stage where to find the prim. Defaults to the current stage.
-
-    Returns:
-        True if at least one selected axis instance exists, otherwise False.
-    """
-    return _tune_tendon_schema(cfg, prim_path, stage, "PhysxTendonAxisAPI")
-
-
-def apply_spatial_tendon(cfg: PhysxSpatialTendonCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
-    """Tune selected ``PhysxTendonAttachmentRootAPI`` instances on a prim.
-
-    The fragment contains whole-tendon dynamics declared by the attachment root. Attachment and
-    leaf properties describe topology and are not modified by this function.
-
-    Args:
-        cfg: The :class:`PhysxSpatialTendonCfg` fragment to apply.
-        prim_path: The prim path carrying the spatial-tendon schemas.
-        stage: The stage where to find the prim. Defaults to the current stage.
-
-    Returns:
-        True if at least one selected attachment-root instance exists, otherwise False.
-    """
-    return _tune_tendon_schema(cfg, prim_path, stage, "PhysxTendonAttachmentRootAPI")

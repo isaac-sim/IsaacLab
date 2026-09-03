@@ -1277,7 +1277,8 @@ class PhysxFixedTendonCfg(FixedTendonFragment):
     """
 
     _usd_namespace: ClassVar[str | None] = None
-    func: Callable | str = "isaaclab_physx.sim.schemas:apply_fixed_tendon"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAxisRootAPI"
+    func: Callable | str = "isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema"
 
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""
@@ -1333,7 +1334,8 @@ class PhysxFixedTendonAxisCfg(FixedTendonFragment):
     """
 
     _usd_namespace: ClassVar[str | None] = None
-    func: Callable | str = "isaaclab_physx.sim.schemas:apply_fixed_tendon_axis"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAxisAPI"
+    func: Callable | str = "isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema"
 
     instance_names: str | list[str] | None = None
     """Names of existing tendon-axis instances to tune.
@@ -1369,7 +1371,8 @@ class PhysxSpatialTendonCfg(SpatialTendonFragment):
     """
 
     _usd_namespace: ClassVar[str | None] = None
-    func: Callable | str = "isaaclab_physx.sim.schemas:apply_spatial_tendon"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAttachmentRootAPI"
+    func: Callable | str = "isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema"
 
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""
