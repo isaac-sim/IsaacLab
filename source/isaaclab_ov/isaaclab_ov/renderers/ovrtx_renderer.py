@@ -443,6 +443,7 @@ class OVRTXRenderer(BaseRenderer):
             camera_rel_path=self._camera_rel_path,
             background_color=getattr(spec.cfg, "background_color", None),
             device_id=cuda_device_id(self._device),
+            enable_shadows=self.cfg.enable_shadows,
         )
         self._render_product_paths.append(render_product_path)
         combined_usd_string = self._exported_usd_string + "\n\n" + render_product_string
@@ -1194,6 +1195,7 @@ class OVRTXRenderer(BaseRenderer):
             minimal_mode=_resolve_rtx_minimal_mode(data_types),
             camera_rel_path=self._camera_rel_path,
             device_id=cuda_device_id(self._device),
+            enable_shadows=self.cfg.enable_shadows,
         )
         self._render_product_paths.append(render_product_path)
         combined_usd_string = self._exported_usd_string + "\n\n" + render_product_string
