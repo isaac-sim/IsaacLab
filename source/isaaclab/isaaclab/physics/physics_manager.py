@@ -387,7 +387,10 @@ class PhysicsManager(ABC):
         # The OVD Recorder (omni.physx.pvd) only records PhysX simulations. On other backends the
         # recording would silently never start, so the process would run until manually killed
         # instead of stopping at `--anim_recording_stop_time` and saving the animation.
-        if sim_context.get_setting("/isaaclab/anim_recording/enabled") and not cls.supports_anim_recording:
+        # ``get_setting`` may be absent on lightweight sim_context test doubles that only
+        # implement the ``cfg``/``device`` surface this method also reads above.
+        get_setting = getattr(sim_context, "get_setting", None)
+        if get_setting and get_setting("/isaaclab/anim_recording/enabled") and not cls.supports_anim_recording:
             raise ValueError(
                 f"'--anim_recording_enabled' was set, but the active physics backend ('{cls.__name__}') does not"
                 " support the OVD Recorder. Select the PhysX backend, e.g. by appending"
