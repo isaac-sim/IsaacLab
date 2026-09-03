@@ -18,15 +18,16 @@ ECR is also used as the BuildKit layer cache.
 
 ## Verifying a freshly built image
 
-Pass `verify-command` to assert against the image before it is published:
+Pass `verify-test-path` to assert against the image before it is published:
 
 ```yaml
-    verify-command: uv run --no-project --with pytest python -m pytest -q docker/test/test_image_invariants.py
+    verify-test-path: docker/test/test_image_invariants.py
 ```
 
-It runs only on a full build, with `IMAGE_TAG` and `IMAGE_DIGEST` exported. A failure fails the
-action with nothing pushed, so the next run rebuilds rather than serving the bad image from the
-deps cache. Exact-tag and deps-cache hits skip it: that image passed the command when it was built.
+The tests run only on a full build, with `IMAGE_TAG` and `IMAGE_DIGEST` set, so the caller's job
+needs `uv` (`astral-sh/setup-uv`). A failure fails the action with nothing pushed, so the next run
+rebuilds rather than serving the bad image from the deps cache. Exact-tag and deps-cache hits skip
+them: that image passed when it was built.
 
 ## ECR URL resolution order
 

@@ -303,7 +303,7 @@ def test_image_is_verified_before_it_is_published():
     assert names.index("Verify freshly built image") < names.index("Push to ECR") < names.index("Push deps tag")
 
     build = (REPO_ROOT / ".github" / "workflows" / "build.yaml").read_text(encoding="utf-8")
-    assert "verify-command: uv run" in build, "the base image job must hand its invariants to the action"
+    assert "verify-test-path: docker/test/test_image_invariants.py" in build, "the base job must ask for them"
 
 
 def test_run_tests_links_isaac_sim_only_where_kit_is_installed():

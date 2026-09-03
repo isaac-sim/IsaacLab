@@ -37,14 +37,14 @@ inputs:
     description: Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
     required: false
     default: 'cache'
-  verify-command:
+  verify-test-path:
     description: >
-      Command run against a freshly built image, before it is tagged or pushed, with IMAGE_TAG
-      and IMAGE_DIGEST exported. A failing command fails the action with nothing published, so
-      the next run rebuilds instead of inheriting the bad image from the cache.
+      Path to tests asserted against a freshly built image, before it is tagged or pushed. They
+      run with IMAGE_TAG and IMAGE_DIGEST set; a failure fails the action with nothing published,
+      so the next run rebuilds instead of inheriting the bad image from the cache.
 
-      Not run on an exact-tag or deps-cache hit: those serve an image that already passed this
-      command when it was built.
+      Not run on an exact-tag or deps-cache hit: those serve an image that already passed when it
+      was built.
     required: false
     default: ''
   pull-on-deps-hit:
@@ -257,18 +257,19 @@ runs:
     # rebuilding it, so anything published unverified stays unverified.
     - name: Verify freshly built image
       if: >
-        inputs.verify-command != '' &&
+        inputs.verify-test-path != '' &&
         steps.pull-exact.outputs.hit != 'true' &&
         steps.deps-cache.outputs.deps-cache-hit != 'true'
       shell: bash
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
-        VERIFY_COMMAND: ${{ inputs.verify-command }}
+        TEST_PATH: ${{ inputs.verify-test-path }}
       run: |
         set -euo pipefail
         IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "${IMAGE_TAG}")"
         export IMAGE_DIGEST
-        bash -c "${VERIFY_COMMAND}"
+        uv run --no-project --with pytest \
+          python -m pytest -q "${TEST_PATH}"
 
     - name: Tag built image with ECR-prefixed name
       if: >

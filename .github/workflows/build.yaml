@@ -218,7 +218,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
-        verify-command: uv run --no-project --with pytest python -m pytest -q docker/test/test_image_invariants.py
+        verify-test-path: docker/test/test_image_invariants.py
 
   build-curobo:
     name: Build cuRobo Docker Image
