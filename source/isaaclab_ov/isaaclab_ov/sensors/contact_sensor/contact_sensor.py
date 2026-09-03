@@ -205,6 +205,21 @@ class ContactSensor(BaseContactSensor):
 
         resolve_kwargs = {"raise_if_no_matches": False, "traverse_instance_prims": False}
         body_matches = resolve_matching_prims_from_source(parent_expr, has_contact_report, **resolve_kwargs)
+
+        # A mid-path wildcard prim path (Robot/.*/left_ankle_roll_link) makes
+        # resolve_matching_prims_from_source return the same leaf body once per matching
+        # ancestor, so without a dedup the body is registered many times and the sensor
+        # and filter counts are inflated. Deduplicate by prim path, keeping first order.
+        seen_paths: set[str] = set()
+        unique_matches: list[tuple[object, str]] = []
+        for prim, expr in body_matches:
+            path_string = prim.GetPath().pathString
+            if path_string in seen_paths:
+                continue
+            seen_paths.add(path_string)
+            unique_matches.append((prim, expr))
+        body_matches = unique_matches
+
         body_names = [prim.GetPath().pathString.rsplit("/", 1)[-1] for prim, _ in body_matches]
         if not body_names:
             raise RuntimeError(
