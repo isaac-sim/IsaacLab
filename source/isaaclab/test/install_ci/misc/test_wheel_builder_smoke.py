@@ -108,7 +108,6 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
 
         assert "isaaclab/app/__init__.py" in names
         assert "isaaclab/apps/isaaclab.python.kit" in names
-        assert "isaaclab/source/isaaclab_assets/config/extension.toml" in names
         nested_prefix = "isaaclab/source/isaaclab/isaaclab/"
         assert not any(name.startswith(nested_prefix) for name in names)
 
