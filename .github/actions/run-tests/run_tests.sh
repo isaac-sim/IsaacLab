@@ -320,8 +320,11 @@ run_tests() {
       set -e
       cd /workspace/isaaclab
       mkdir -p tests
-      rm _isaac_sim || true
-      ln -s /isaac-sim _isaac_sim
+      # The runtime mounts above create /isaac-sim in every image. Link it only where Kit
+      # lives there: in the kit-less image the link would read as a downloaded Isaac Sim,
+      # which isaaclab.sh refuses to combine with the image's VIRTUAL_ENV.
+      rm -f _isaac_sim
+      if [ -x /isaac-sim/python.sh ]; then ln -s /isaac-sim _isaac_sim; fi
       if [ -n \"\${WARP_CACHE_PATH:-}\" ]; then
         ./isaaclab.sh -p tools/verify_warp_cache.py
       fi
