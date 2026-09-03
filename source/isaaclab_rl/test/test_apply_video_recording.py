@@ -89,7 +89,9 @@ def test_apply_video_recording_injects_correct_recorder():
         ("clip", "final.pt", "clip"),
     ],
 )
-def test_apply_video_recording_labels_play_video_with_checkpoint_stem(existing_prefix, checkpoint_name, expected_prefix):
+def test_apply_video_recording_labels_play_video_with_checkpoint_stem(
+    existing_prefix, checkpoint_name, expected_prefix
+):
     """Play videos append only a numeric model checkpoint stem, kept as a distinct token."""
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
