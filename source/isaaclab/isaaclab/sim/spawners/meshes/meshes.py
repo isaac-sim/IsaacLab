@@ -315,6 +315,29 @@ Helper functions.
 """
 
 
+def _refine_surface_mesh(mesh: trimesh.Trimesh, cfg: meshes_cfg.MeshCfg) -> trimesh.Trimesh:
+    """Subdivide a deformable's surface mesh to the configured edge-length target.
+
+    Args:
+        mesh: The mesh to refine.
+        cfg: The config carrying :attr:`~isaaclab.sim.MeshCfg.edge_refinement`.
+
+    Returns:
+        The refined mesh, or the input mesh when refinement does not apply.
+
+    Raises:
+        ValueError: If the edge refinement is less than ``1.0``.
+    """
+    if cfg.edge_refinement < 1.0:
+        raise ValueError(f"Mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
+    if cfg.deformable_props is None or cfg.edge_refinement == 1.0:
+        return mesh
+
+    max_edge = float(np.linalg.norm(mesh.bounding_box.extents)) / cfg.edge_refinement
+    vertices, faces = trimesh.remesh.subdivide_to_size(mesh.vertices, mesh.faces, max_edge=max_edge)
+    return trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+
+
 def _apply_deformable_collision_props(prim_path: str, collision_props, stage: Usd.Stage) -> None:
     """Apply collision fragments to the simulation mesh of a deformable body.
 
@@ -379,12 +402,7 @@ def _spawn_mesh_geom_from_mesh(
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
-    if cfg.edge_refinement < 1.0:
-        raise ValueError(f"Mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
-    if cfg.deformable_props is not None and cfg.edge_refinement > 1.0:
-        max_edge = float(np.linalg.norm(mesh.bounding_box.extents)) / cfg.edge_refinement
-        vertices, faces = trimesh.remesh.subdivide_to_size(mesh.vertices, mesh.faces, max_edge=max_edge)
-        mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    mesh = _refine_surface_mesh(mesh, cfg)
 
     # obtain stage handle
     stage = stage if stage is not None else get_current_stage()
