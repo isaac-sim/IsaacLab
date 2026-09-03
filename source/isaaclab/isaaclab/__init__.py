@@ -9,10 +9,11 @@ import importlib.metadata
 import importlib.util
 import os
 import sys
+from importlib.machinery import PathFinder
 
 
 def _deprioritize_prebundle_paths():
-    """Move Isaac Sim ``pip_prebundle`` and known conflicting extension directories to the end of ``sys.path``.
+    """Deprioritize Isaac Sim's bundled Python packages during module resolution.
 
     Isaac Sim's ``setup_python_env.sh`` injects ``pip_prebundle`` directories
     onto ``PYTHONPATH``.  These contain older copies of packages like torch,
@@ -28,6 +29,11 @@ def _deprioritize_prebundle_paths():
     ``sympy`` that only exist in the prebundle), this function moves them to
     the **end** of ``sys.path`` so that pip-installed packages in
     ``site-packages`` take priority.
+
+    Kit's fast importer can also resolve extension modules before Python
+    consults ``sys.path``. Its finder is moved behind the standard path finder
+    so the corrected path ordering remains effective, while extension-only
+    modules continue to resolve through Kit.
 
     The ``PYTHONPATH`` environment variable is also rewritten so that child
     processes inherit the corrected ordering.
@@ -51,6 +57,22 @@ def _deprioritize_prebundle_paths():
             if frag.lower() in norm:
                 return True
         return False
+
+    # Kit installs one global finder for modules bundled by extensions. Keep it
+    # available, but let the active Python environment resolve packages first.
+    fast_finder = next(
+        (
+            finder
+            for finder in sys.meta_path
+            if getattr(finder, "__module__", None) == "omni.ext._impl.fast_importer"
+            and getattr(finder, "__name__", None) == "FastFinder"
+        ),
+        None,
+    )
+    if fast_finder is not None and fast_finder in sys.meta_path and PathFinder in sys.meta_path:
+        if sys.meta_path.index(fast_finder) < sys.meta_path.index(PathFinder):
+            sys.meta_path.remove(fast_finder)
+            sys.meta_path.insert(sys.meta_path.index(PathFinder) + 1, fast_finder)
 
     # Partition: keep non-conflicting in place, collect conflicting.
     clean = []
