@@ -13,8 +13,10 @@ import time
 from pathlib import Path
 from typing import IO, Any
 
+from isaaclab.utils.path import resolve_isaaclab_path
+
 # Path to Isaac Lab installation.
-ISAACLAB_ROOT = Path(__file__).parents[4].resolve()
+ISAACLAB_ROOT = resolve_isaaclab_path(__file__)
 
 # Default path to look for Isaac Sim is _isaac_sim symlink.
 DEFAULT_ISAAC_SIM_PATH = ISAACLAB_ROOT / "_isaac_sim"
