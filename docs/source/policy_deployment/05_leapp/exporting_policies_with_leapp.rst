@@ -75,14 +75,12 @@ Export a trained policy, then launch the exported policy in Isaac Lab:
 
 .. code-block:: bash
 
-   uv run --extra leapp python \
-       scripts/reinforcement_learning/leapp/<RL_LIBRARY>/export.py \
+   uv run --extra leapp isaaclab export --rl_library <RL_LIBRARY> \
        --task <TASK_NAME>
 
-   uv run --extra leapp python \
-       scripts/reinforcement_learning/leapp/deploy.py \
+   uv run --extra leapp isaaclab deploy_leapp \
        --task <TASK_NAME> \
-       --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
+       --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
        --viz kit
 
 Continue with the sections below to select a different RL library, configure the
@@ -92,12 +90,14 @@ export, and validate the generated artifacts.
 Why Export with LEAPP
 ---------------------
 
-Running the export script generates a self-contained export directory alongside your
+Running the export command generates a self-contained export directory alongside your
 checkpoint (or at a custom path). The directory contains:
 
 - **Exported model files** — ``.onnx`` (default) or ``.pt`` depending on the chosen backend.
 - **Export metadata** — LEAPP records the semantic information and wiring needed by downstream
-  deployment runtimes.
+  deployment runtimes, including the policy execution frequency.
+- **Environment configuration** — an ``env.yaml`` dump of the Isaac Lab environment used at export,
+  in the same format as training logs.
 - **Initial values** — a ``.safetensors`` file for any feedback state, such as recurrent hidden
   state or last action.
 - **A graph visualization** — a ``.png`` diagram of the pipeline (can be disabled).
@@ -124,8 +124,9 @@ Exporting a Policy
    policy for a supported core task and backend combination (availability is limited;
    see :ref:`pretrained-checkpoints`).
 
-Use the export script for the RL library that produced the checkpoint. The available script
-directories are ``rsl_rl``, ``rl_games``, ``skrl``, and ``sb3``. Export runs headless by default.
+Use ``isaaclab export --rl_library <rl_library>`` for the RL library that produced the checkpoint.
+The available library values are ``rsl_rl``, ``rl_games``, ``skrl``, and ``sb3``.
+Export runs headless by default.
 Use the same backend extra and ``physics=...`` selector that you used for training. For Isaac Sim
 Kit launches in non-interactive shells, set the EULA variables so startup does not prompt:
 
@@ -142,18 +143,15 @@ Kit launches in non-interactive shells, set the EULA variables so startup does n
             .. code-block:: bash
 
                # Newton backend (kitless)
-               uv run --extra leapp python \
-                   scripts/reinforcement_learning/leapp/<rl_library>/export.py \
+               uv run --extra leapp isaaclab export --rl_library <rl_library> \
                    --task <TASK_NAME> physics=newton_mjwarp
 
                # OV PhysX backend
-               uv run --extra ovphysx,leapp python \
-                   scripts/reinforcement_learning/leapp/<rl_library>/export.py \
+               uv run --extra ovphysx,leapp isaaclab export --rl_library <rl_library> \
                    --task <TASK_NAME> physics=ovphysx
 
                # Isaac Sim PhysX backend
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim,leapp python \
-                   scripts/reinforcement_learning/leapp/<rl_library>/export.py \
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim,leapp isaaclab export --rl_library <rl_library> \
                    --task <TASK_NAME> physics=isaacsim_physx
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
@@ -161,18 +159,15 @@ Kit launches in non-interactive shells, set the EULA variables so startup does n
             .. code-block:: bash
 
                # Newton backend (kitless)
-               ./isaaclab.sh -p \
-                   scripts/reinforcement_learning/leapp/<rl_library>/export.py \
+               ./isaaclab.sh export --rl_library <rl_library> \
                    --task <TASK_NAME> physics=newton_mjwarp
 
                # OV PhysX backend
-               ./isaaclab.sh -p \
-                   scripts/reinforcement_learning/leapp/<rl_library>/export.py \
+               ./isaaclab.sh export --rl_library <rl_library> \
                    --task <TASK_NAME> physics=ovphysx
 
                # Isaac Sim PhysX backend
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
-                   scripts/reinforcement_learning/leapp/<rl_library>/export.py \
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh export --rl_library <rl_library> \
                    --task <TASK_NAME> physics=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -185,17 +180,17 @@ Kit launches in non-interactive shells, set the EULA variables so startup does n
             .. code-block:: batch
 
                :: Newton backend (kitless)
-               uv run --extra leapp python scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
+               uv run --extra leapp isaaclab export --rl_library <rl_library> ^
                    --task <TASK_NAME> physics=newton_mjwarp
 
                :: OV PhysX backend
-               uv run --extra ovphysx,leapp python scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
+               uv run --extra ovphysx,leapp isaaclab export --rl_library <rl_library> ^
                    --task <TASK_NAME> physics=ovphysx
 
                :: Isaac Sim PhysX backend
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
-               uv run --extra isaacsim,leapp python scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
+               uv run --extra isaacsim,leapp isaaclab export --rl_library <rl_library> ^
                    --task <TASK_NAME> physics=isaacsim_physx
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
@@ -203,17 +198,17 @@ Kit launches in non-interactive shells, set the EULA variables so startup does n
             .. code-block:: batch
 
                :: Newton backend (kitless)
-               isaaclab.bat -p scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
+               isaaclab.bat export --rl_library <rl_library> ^
                    --task <TASK_NAME> physics=newton_mjwarp
 
                :: OV PhysX backend
-               isaaclab.bat -p scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
+               isaaclab.bat export --rl_library <rl_library> ^
                    --task <TASK_NAME> physics=ovphysx
 
                :: Isaac Sim PhysX backend
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
-               isaaclab.bat -p scripts\reinforcement_learning\leapp\<rl_library>\export.py ^
+               isaaclab.bat export --rl_library <rl_library> ^
                    --task <TASK_NAME> physics=isaacsim_physx
 
 When ``--checkpoint`` is omitted, the exporter uses the selected task's agent configuration to
@@ -235,16 +230,14 @@ For example, to export a Humanoid policy trained with RSL-RL on Isaac Sim PhysX:
 
             .. code-block:: bash
 
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim,leapp python \
-                   scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim,leapp isaaclab export --rl_library rsl_rl \
                    --task Isaac-Humanoid physics=isaacsim_physx
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
             .. code-block:: bash
 
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh -p \
-                   scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh export --rl_library rsl_rl \
                    --task Isaac-Humanoid physics=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -258,7 +251,7 @@ For example, to export a Humanoid policy trained with RSL-RL on Isaac Sim PhysX:
 
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
-               uv run --extra isaacsim,leapp python scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
+               uv run --extra isaacsim,leapp isaaclab export --rl_library rsl_rl ^
                    --task Isaac-Humanoid physics=isaacsim_physx
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
@@ -267,7 +260,7 @@ For example, to export a Humanoid policy trained with RSL-RL on Isaac Sim PhysX:
 
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
-               isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
+               isaaclab.bat export --rl_library rsl_rl ^
                    --task Isaac-Humanoid physics=isaacsim_physx
 
 By default, the export artifacts are saved in the same directory as the checkpoint. The
@@ -277,7 +270,7 @@ exported graph is named after the task.
 CLI Options
 ^^^^^^^^^^^
 
-The export scripts accept the following common LEAPP-specific arguments in addition to
+The export command accepts the following common LEAPP-specific arguments in addition to
 backend-specific and AppLauncher arguments:
 
 .. list-table::
@@ -323,7 +316,7 @@ backend-specific and AppLauncher arguments:
 How It Works (High Level)
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The export script performs the following steps:
+The export command performs the following steps:
 
 1. **Creates the environment** with ``num_envs=1`` and loads the trained checkpoint.
 2. **Patches the environment** for export. This step injects annotations into the environment
@@ -376,7 +369,7 @@ For details on ONNX, JIT, and PT2 export formats, see the
 Recurrent Policies
 ^^^^^^^^^^^^^^^^^^
 
-LSTM recurrent policies are supported automatically. The export scripts detect actor-side LSTM
+LSTM recurrent policies are supported automatically. The exporters detect actor-side LSTM
 state for RSL-RL, RL-Games, skrl, and Stable-Baselines3 policies, register it as LEAPP feedback
 state, and ensure it appears in the ``feedback_flow`` section of the output YAML. The initial
 hidden state values are saved in the ``.safetensors`` file. Other recurrent architectures are

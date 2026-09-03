@@ -11,7 +11,6 @@ import argparse
 import importlib
 import importlib.util
 import os
-import runpy
 import shutil
 import subprocess
 import sys
@@ -21,10 +20,10 @@ from pathlib import Path
 
 import gymnasium as gym
 import pytest
+import yaml
 
 _THIS_FILE = Path(__file__).resolve()
 _REPO_ROOT = str(_THIS_FILE.parents[4])
-_EXPORT_SCRIPT = os.path.join(_REPO_ROOT, "scripts", "reinforcement_learning", "leapp", "rsl_rl", "export.py")
 _THIS_SCRIPT = str(_THIS_FILE)
 _TASK_NAME = "IsaacContrib-Velocity-Flat-AnymalC-Direct"
 _PACKAGE_NAME = "_isaaclab_test_tutorial_anymal_c"
@@ -114,17 +113,15 @@ def _reregister_task(task_name: str) -> None:
 
 
 def _run_export_subprocess_entrypoint() -> None:
-    """Run export.py after re-registering the direct task in-process."""
+    """Run the installed exporter after re-registering the direct task in-process."""
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--task", required=True)
     args, remaining_args = parser.parse_known_args()
 
     _reregister_task(args.task)
-    export_script_dir = os.path.dirname(_EXPORT_SCRIPT)
-    sys.argv = [_EXPORT_SCRIPT, "--task", args.task, *remaining_args]
-    if export_script_dir not in sys.path:
-        sys.path.insert(0, export_script_dir)
-    runpy.run_path(_EXPORT_SCRIPT, run_name="__main__")
+    from isaaclab_rl.entrypoints.backends.export_rsl_rl import run
+
+    raise SystemExit(run(["--task", args.task, *remaining_args]))
 
 
 def _build_failure_context(result: subprocess.CompletedProcess[str], artifact_dir: str) -> str:
@@ -180,14 +177,23 @@ def test_direct_env_export_flow():
 
     onnx_path = os.path.join(artifact_dir, f"{_TASK_NAME}.onnx")
     yaml_path = os.path.join(artifact_dir, f"{_TASK_NAME}.yaml")
+    env_yaml_path = os.path.join(artifact_dir, "env.yaml")
     log_path = os.path.join(artifact_dir, "log.txt")
 
     if not os.path.isfile(onnx_path):
         pytest.fail(f"Missing .onnx export at {onnx_path}.\n{_build_failure_context(result, artifact_dir)}")
     if not os.path.isfile(yaml_path):
         pytest.fail(f"Missing .yaml export at {yaml_path}.\n{_build_failure_context(result, artifact_dir)}")
+    if not os.path.isfile(env_yaml_path):
+        pytest.fail(f"Missing env.yaml at {env_yaml_path}.\n{_build_failure_context(result, artifact_dir)}")
     if not os.path.isfile(log_path):
         pytest.fail(f"Missing log.txt at {log_path}.\n{_build_failure_context(result, artifact_dir)}")
+
+    with open(yaml_path, encoding="utf-8") as stream:
+        graph = yaml.safe_load(stream)
+    with open(env_yaml_path, encoding="utf-8") as stream:
+        env = yaml.safe_load(stream)
+    assert graph["pipeline"]["configs"]["frequency"] == pytest.approx(1.0 / (env["sim"]["dt"] * env["decimation"]))
 
 
 if __name__ == "__main__":

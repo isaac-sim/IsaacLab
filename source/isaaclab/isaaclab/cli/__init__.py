@@ -8,6 +8,7 @@ import importlib.metadata
 import sys
 from pathlib import Path
 
+from .commands.deploy import command_deploy_leapp
 from .commands.envs import command_setup_conda, command_setup_uv
 from .commands.format import command_format
 from .commands.install import (
@@ -68,6 +69,22 @@ def play(args: list[str] | None = None) -> None:
     _exit_on_error(run_play_cli(args))
 
 
+def export(args: list[str] | None = None) -> None:
+    """Export a reinforcement learning policy with LEAPP."""
+    from isaaclab_rl.entrypoints import run_export_cli
+
+    status = run_export_cli(args)
+    if status != 0:
+        raise SystemExit(status)
+
+
+def deploy_leapp(args: list[str] | None = None) -> None:
+    """Deploy a LEAPP pipeline in simulation."""
+    status = command_deploy_leapp(args)
+    if status != 0:
+        raise SystemExit(status)
+
+
 def zero_agent(args: list[str] | None = None) -> None:
     """Run an environment with a zero-action agent."""
     from isaaclab_rl.entrypoints import run_zero_agent_cli
@@ -125,6 +142,8 @@ def cli() -> None:
     """Parse CLI arguments and run the requested command."""
     subcommands = {
         "benchmark": benchmark,
+        "deploy_leapp": deploy_leapp,
+        "export": export,
         "microbenchmark": microbenchmark,
         "train": train,
         "train_multigpu": train_multigpu,
@@ -151,6 +170,8 @@ def cli() -> None:
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
             "                  (append _multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"
+            "  deploy_leapp    Deploy a LEAPP pipeline in simulation\n"
+            "  export          Export a reinforcement learning policy with LEAPP\n"
             "  train           Train an RL policy\n"
             "  train_multigpu  Train an RL policy across multiple GPUs\n"
             "  play            Play a trained RL policy\n"

@@ -20,10 +20,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+import yaml
 from leapp_initialized_checkpoints import discover_backend_tasks, resolved_path_file, task_checkpoint_dir
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
-_LEAPP_ROOT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp"
 _CHECKPOINT_SCRIPT = Path(__file__).resolve().parent / "leapp_initialized_checkpoints.py"
 _SUBPROCESS_TIMEOUT = 600
 _CHECKPOINT_TIMEOUT = 1200
@@ -40,7 +40,6 @@ class ExportFlowBackend:
     """Configuration for one RL-library LEAPP export flow."""
 
     rl_library: str
-    export_script: Path
     tasks: tuple[str, ...]
 
     @property
@@ -58,7 +57,6 @@ class ExportFlowBackend:
 _EXPORT_BACKENDS = (
     ExportFlowBackend(
         rl_library="rsl_rl",
-        export_script=_LEAPP_ROOT / "rsl_rl" / "export.py",
         tasks=(
             # joint-effort locomotion, no commands
             "Isaac-Cartpole",
@@ -91,17 +89,14 @@ _EXPORT_BACKENDS = (
     ),
     ExportFlowBackend(
         rl_library="rl_games",
-        export_script=_LEAPP_ROOT / "rl_games" / "export.py",
         tasks=("Isaac-Cartpole",),
     ),
     ExportFlowBackend(
         rl_library="skrl",
-        export_script=_LEAPP_ROOT / "skrl" / "export.py",
         tasks=("Isaac-Cartpole",),
     ),
     ExportFlowBackend(
         rl_library="sb3",
-        export_script=_LEAPP_ROOT / "sb3" / "export.py",
         tasks=("Isaac-Cartpole",),
     ),
 )
@@ -225,10 +220,11 @@ def _run_export(
     export_root: Path,
     preset: str | None = None,
 ) -> None:
-    """Run the backend export.py CLI against *checkpoint_path*."""
+    """Run the installed backend exporter against *checkpoint_path*."""
     command = [
         sys.executable,
-        str(backend.export_script),
+        "-m",
+        f"isaaclab_rl.entrypoints.backends.export_{backend.rl_library}",
         "--task",
         task_name,
         "--checkpoint",
@@ -242,15 +238,25 @@ def _run_export(
     preset = _preset_for_task(task_name) if preset is None else preset
     if preset is not None:
         command.append(f"presets={preset}")
-    _run_checked(command, label=f"export.py for {backend.rl_library}/{task_name}")
+    _run_checked(command, label=f"export for {backend.rl_library}/{task_name}")
 
 
 def _assert_leapp_artifacts(export_root: Path, task_name: str) -> None:
     """Assert the expected LEAPP export artifacts exist."""
     export_dir = export_root / task_name
     assert (export_dir / f"{task_name}.onnx").is_file(), f"Missing .onnx export in {export_dir}"
-    assert (export_dir / f"{task_name}.yaml").is_file(), f"Missing .yaml export in {export_dir}"
+    graph_path = export_dir / f"{task_name}.yaml"
+    assert graph_path.is_file(), f"Missing .yaml export in {export_dir}"
     assert (export_dir / "log.txt").is_file(), f"Missing log.txt in {export_dir}"
+
+    graph = yaml.safe_load(graph_path.read_text(encoding="utf-8"))
+    policy_frequency = graph["pipeline"]["configs"]["frequency"]
+    assert policy_frequency > 0
+
+    env_path = export_dir / "env.yaml"
+    assert env_path.is_file(), f"Missing env.yaml in {export_dir}"
+    env = yaml.safe_load(env_path.read_text(encoding="utf-8"))
+    assert policy_frequency == pytest.approx(1.0 / (env["sim"]["dt"] * env["decimation"]))
 
 
 @pytest.fixture(scope="module")
