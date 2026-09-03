@@ -2502,7 +2502,6 @@ def rendering_test_franka_cable(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        env.command_manager.get_term("cable_pose").success_visualizer.set_visibility(False)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
 
