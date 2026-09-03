@@ -168,6 +168,106 @@ def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
     assert registry.groups == {}
 
 
+def test_sanitize_newton_marker_group_id_rewrites_invalid_chars_into_usd_path():
+    """The registry ``prim_path::id`` key is rewritten into a USD-safe prim path."""
+    # The ``::`` the registry key carries is what the RTX USD stage rejects.
+    assert newton_markers._sanitize_newton_marker_group_id("/Visuals/test::140") == "/Visuals/test_140"
+    # A key without a leading slash is anchored to one so it is a valid prim path.
+    assert newton_markers._sanitize_newton_marker_group_id("Visuals/test::140") == "/Visuals/test_140"
+    # A run of invalid characters collapses into a single underscore.
+    assert newton_markers._sanitize_newton_marker_group_id("/a b::c") == "/a_b_c"
+
+
+def test_render_newton_visualization_markers_sanitizes_group_id_and_restores(monkeypatch: pytest.MonkeyPatch):
+    """RTX rendering logs the marker under a sanitized id and restores the registry key."""
+
+    class _Registry:
+        def __init__(self) -> None:
+            self.groups: dict[str, object] = {}
+
+        def set_group(self, group_id: str, marker) -> None:
+            self.groups[group_id] = marker
+
+        def remove_group(self, group_id: str) -> None:
+            self.groups.pop(group_id)
+
+    class _FakeContext:
+        def __init__(self, registry: _Registry) -> None:
+            self.vis_marker_registry = registry
+
+    class _FakeSimulationContext:
+        current: object | None = None
+
+        @classmethod
+        def instance(cls):
+            return cls.current
+
+    registry = _Registry()
+    registry.get_groups = lambda: registry.groups
+    monkeypatch.setattr(newton_markers.sim_utils, "SimulationContext", _FakeSimulationContext)
+    _FakeSimulationContext.current = _FakeContext(registry)
+
+    marker = newton_markers.NewtonVisualizationMarkers(
+        newton_markers.VisualizationMarkersCfg(prim_path="/Visuals/test", markers={}), visible=False
+    )
+    original_group_id = marker.group_id
+    assert "::" in original_group_id  # the raw registry key the RTX stage rejects
+
+    rendered_group_ids: list[str] = []
+    marker.render = lambda *args, **kwargs: rendered_group_ids.append(marker.group_id)
+
+    render_newton_visualization_markers = newton_markers.render_newton_visualization_markers
+    render_newton_visualization_markers(viewer=Mock(), visible_env_ids=None, num_envs=1, sanitize_group_ids=True)
+
+    # rendered under the sanitized id, and the original registry key is restored afterwards
+    assert rendered_group_ids == [newton_markers._sanitize_newton_marker_group_id(original_group_id)]
+    assert "::" not in rendered_group_ids[0]
+    assert marker.group_id == original_group_id
+
+
+def test_render_newton_visualization_markers_keeps_raw_group_id_without_sanitizing(monkeypatch: pytest.MonkeyPatch):
+    """The GL path is unchanged: markers render under the raw registry key."""
+
+    class _Registry:
+        def __init__(self) -> None:
+            self.groups: dict[str, object] = {}
+
+        def set_group(self, group_id: str, marker) -> None:
+            self.groups[group_id] = marker
+
+        def remove_group(self, group_id: str) -> None:
+            self.groups.pop(group_id)
+
+    class _FakeContext:
+        def __init__(self, registry: _Registry) -> None:
+            self.vis_marker_registry = registry
+
+    class _FakeSimulationContext:
+        current: object | None = None
+
+        @classmethod
+        def instance(cls):
+            return cls.current
+
+    registry = _Registry()
+    registry.get_groups = lambda: registry.groups
+    monkeypatch.setattr(newton_markers.sim_utils, "SimulationContext", _FakeSimulationContext)
+    _FakeSimulationContext.current = _FakeContext(registry)
+
+    marker = newton_markers.NewtonVisualizationMarkers(
+        newton_markers.VisualizationMarkersCfg(prim_path="/Visuals/test", markers={}), visible=False
+    )
+    original_group_id = marker.group_id
+
+    rendered_group_ids: list[str] = []
+    marker.render = lambda *args, **kwargs: rendered_group_ids.append(marker.group_id)
+
+    newton_markers.render_newton_visualization_markers(viewer=Mock(), visible_env_ids=None, num_envs=1)
+
+    assert rendered_group_ids == [original_group_id]
+    assert marker.group_id == original_group_id
+
+
 def test_newton_visualizer_cfg_exposes_world_spacing():
     cfg = NewtonGLVisualizerCfg(world_spacing=(2.0, 2.0, 0.0))
 
