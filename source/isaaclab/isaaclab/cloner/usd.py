@@ -8,25 +8,23 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
-
-from pxr import Gf, Sdf, Usd, UsdGeom, Vt
+import numpy as np
 
 from ._fabric_notices import disabled_fabric_change_notifies
 from .path import split
 
 if TYPE_CHECKING:
+    from pxr import Usd
+
     from .clone_plan import ClonePlan
 
 
-def _select_columns(env_ids: torch.Tensor, mask: torch.Tensor | None, row: int) -> torch.Tensor:
+def _select_columns(env_ids: np.ndarray, mask: np.ndarray | None, row: int) -> np.ndarray:
     """Return the mask columns selected by a replication row."""
     if mask is None:
-        return torch.arange(len(env_ids), device=env_ids.device)
-    row_mask = mask if mask.dim() == 1 else mask[row]
-    if row_mask.dtype != torch.bool:
-        row_mask = row_mask.to(dtype=torch.bool)
-    return row_mask.nonzero(as_tuple=False).flatten()
+        return np.arange(len(env_ids))
+    row_mask = mask if mask.ndim == 1 else mask[row]
+    return np.flatnonzero(row_mask)
 
 
 class UsdReplicateContext:
@@ -52,25 +50,29 @@ class UsdReplicateContext:
         if plan.env_ids is None:
             raise ValueError("ClonePlan.env_ids is required for replication.")
         rows = plan.context_rows[type(self)]
-        items = []
+        replication_rows = []
         for row in rows:
             columns = _select_columns(plan.env_ids, plan.clone_mask, row)
-            target_envs = plan.env_ids[columns.to(device=plan.env_ids.device)]
-            positions = None if plan.positions is None else plan.positions[columns.to(device=plan.positions.device)]
-            items.append((plan.sources[row], plan.destinations[row], target_envs, positions, None))
-        if not items:
+            target_envs = plan.env_ids[columns]
+            positions = None if plan.positions is None else plan.positions[columns]
+            replication_rows.append((plan.sources[row], plan.destinations[row], target_envs, positions, None))
+        if not replication_rows:
             return
 
         # Suspend Fabric's per-Sdf.CopySpec notice listener for the duration of the copy work;
         # no-op outside a live Kit application.
         with disabled_fabric_change_notifies(self.stage):
-            self._apply(items)
+            self._apply(replication_rows)
 
     def _apply(
         self,
-        items: list[tuple[str, str, torch.Tensor, torch.Tensor | None, torch.Tensor | None]],
+        replication_rows: list[tuple[str, str, np.ndarray, np.ndarray | None, np.ndarray | None]],
     ) -> None:
         """Author the supplied copy specs into the stage's root layer."""
+        # pxr must be imported after Kit starts; importing it with this module can bind
+        # a different USD runtime before Kit initializes its plugins.
+        from pxr import Gf, Sdf, UsdGeom, Vt  # noqa: PLC0415
+
         rl = self.stage.GetRootLayer()
 
         def dp_depth(template: str) -> int:
@@ -78,17 +80,17 @@ class UsdReplicateContext:
             dp = template.format(0)
             return Sdf.Path(dp).pathElementCount
 
-        depth_to_items: dict[int, list[tuple[str, str, torch.Tensor, torch.Tensor | None, torch.Tensor | None]]] = {}
-        for item in items:
-            depth_to_items.setdefault(dp_depth(item[1]), []).append(item)
+        rows_by_depth: dict[int, list[tuple[str, str, np.ndarray, np.ndarray | None, np.ndarray | None]]] = {}
+        for row in replication_rows:
+            rows_by_depth.setdefault(dp_depth(row[1]), []).append(row)
 
-        for depth in sorted(depth_to_items.keys()):
+        for depth in sorted(rows_by_depth):
             with Sdf.ChangeBlock():
-                for src, tmpl, target_envs, positions, quaternions in depth_to_items[depth]:
+                for src, tmpl, target_envs, positions, quaternions in rows_by_depth[depth]:
                     _, clone_suffix = split(tmpl)
                     is_instance_root = clone_suffix == ""
 
-                    for column, wid in enumerate(target_envs.tolist()):
+                    for column, wid in enumerate(target_envs):
                         wid = int(wid)
                         dp = tmpl.format(wid)
                         Sdf.CreatePrimInLayer(rl, dp)
@@ -136,10 +138,10 @@ def usd_replicate(
     stage: Usd.Stage,
     sources: Sequence[str],
     destinations: Sequence[str],
-    env_ids: torch.Tensor,
-    mask: torch.Tensor | None = None,
-    positions: torch.Tensor | None = None,
-    quaternions: torch.Tensor | None = None,
+    env_ids: np.ndarray,
+    mask: np.ndarray | None = None,
+    positions: np.ndarray | None = None,
+    quaternions: np.ndarray | None = None,
 ) -> None:
     """Replicate USD prims directly for standalone tooling and tests.
 
@@ -158,14 +160,14 @@ def usd_replicate(
         quaternions: Optional orientations in xyzw order, shape ``[E, 4]``. Authored as
             ``xformOp:orient`` only for env-instance root destinations (``.../env_{}``).
     """
-    items = []
+    replication_rows = []
     for row, source in enumerate(sources):
         columns = _select_columns(env_ids, mask, row)
-        target_envs = env_ids[columns.to(device=env_ids.device)]
-        row_positions = None if positions is None else positions[columns.to(device=positions.device)]
-        row_quaternions = None if quaternions is None else quaternions[columns.to(device=quaternions.device)]
-        items.append((source, destinations[row], target_envs, row_positions, row_quaternions))
+        target_envs = env_ids[columns]
+        row_positions = None if positions is None else positions[columns]
+        row_quaternions = None if quaternions is None else quaternions[columns]
+        replication_rows.append((source, destinations[row], target_envs, row_positions, row_quaternions))
     context = UsdReplicateContext(stage)
-    if items:
+    if replication_rows:
         with disabled_fabric_change_notifies(stage):
-            context._apply(items)
+            context._apply(replication_rows)

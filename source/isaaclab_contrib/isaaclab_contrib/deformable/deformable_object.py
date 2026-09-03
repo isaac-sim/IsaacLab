@@ -80,8 +80,8 @@ def add_deformable_entry_to_builder(
     builder,
     entry: DeformableRegistryEntry,
     env_idx: int,
-    env_position: list[float],
-    env_rotation: list[float] | tuple[float, float, float, float],
+    env_position: np.ndarray,
+    env_rotation: np.ndarray,
 ) -> None:
     """Add a deformable registry entry to a Newton ``ModelBuilder`` for one environment.
 
@@ -173,8 +173,8 @@ def add_deformable_entry_to_builder(
 def add_registered_deformables_to_builder(
     builder,
     world_idx: int,
-    env_position: list[float],
-    env_rotation: list[float] | tuple[float, float, float, float],
+    env_position: np.ndarray,
+    env_rotation: np.ndarray,
 ) -> None:
     """Add all registered deformable entries to one Newton builder world."""
     for entry in SimulationManager._deformable_registry:

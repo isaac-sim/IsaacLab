@@ -365,10 +365,8 @@ The scene creation process is as follow:
    self.cartpole = Articulation(self.cfg.robot_cfg)
 
    src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-   positions = cloner.grid_transforms(
-       self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device
-   )[0]
-   plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, positions)
+   positions = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
+   plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, positions)
    cloner.replicate(plan)
 
    if "physx" in self.scene.physics_backend:
@@ -670,11 +668,11 @@ the need to set simulation parameters for actors in the task implementation.
 |     self.sim = super().create_sim(self.device_id,                      |         cfg=GroundPlaneCfg())                                       |
 |         self.graphics_device_id, self.physics_engine,                  |     src, dest = "/World/envs/env_0", "/World/envs/env_{}"           |
 |         self.sim_params)                                               |     positions = cloner.grid_transforms(                             |
-|     self._create_ground_plane()                                        |         self.scene.num_envs, self.scene.cfg.env_spacing,            |
-|     self._create_envs(self.num_envs,                                   |         device=self.device)[0]                                      |
+|     self._create_ground_plane()                                        |         self.scene.num_envs, self.scene.cfg.env_spacing)[0]         |
+|     self._create_envs(self.num_envs,                                   |                                                                     |
 |         self.cfg["env"]['envSpacing'],                                 |     global_paths = ("/World/ground",)                               |
 |         int(np.sqrt(self.num_envs)))                                   |     plan = cloner.clone_plan_from_env_0(                            |
-|                                                                        |         src, dest, self.scene.num_envs, self.device, positions,     |
+|                                                                        |         src, dest, self.scene.num_envs, positions,                  |
 |                                                                        |         global_paths=global_paths)                                  |
 |                                                                        |     cloner.replicate(plan)                                          |
 | def _create_ground_plane(self):                                        |     if "physx" in self.scene.physics_backend:                       |

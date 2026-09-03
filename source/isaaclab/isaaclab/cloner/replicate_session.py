@@ -10,6 +10,8 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 from isaaclab.sim import SimulationContext
 
 from .clone_plan import make_clone_plan
@@ -18,8 +20,6 @@ from .cloner_strategies import sequential
 from .usd import UsdReplicateContext
 
 if TYPE_CHECKING:
-    import torch
-
     from .clone_plan import ClonePlan
 
 
@@ -81,7 +81,7 @@ class ReplicateSession:
 
         .. code-block:: python
 
-            with cloner.ReplicateSession(cfgs, num_clones=128, env_spacing=2.0, device="cuda:0"):
+            with cloner.ReplicateSession(cfgs, num_clones=128, env_spacing=2.0):
                 for cfg in cfgs:
                     cfg.class_type(cfg)
     """
@@ -91,11 +91,10 @@ class ReplicateSession:
         cfgs: Iterable[Any],
         num_clones: int,
         env_spacing: float,
-        device: str,
         *,
         global_paths: tuple[str, ...] = (),
-        clone_strategy: Callable = sequential,
-        valid_set: torch.Tensor | None = None,
+        clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
+        valid_set: np.ndarray | None = None,
         replicate_physics: bool = True,
         env_template: str = DEFAULT_ENV_TEMPLATE,
     ):
@@ -105,10 +104,9 @@ class ReplicateSession:
             cfgs: Asset cfgs with resolved ``prim_path``.
             num_clones: Number of target envs.
             env_spacing: Grid spacing between env origins [m].
-            device: Torch device for plan tensors.
             global_paths: Complete shared-asset roots declared by the composition root. Defaults to none.
             clone_strategy: Prototype-to-env assignment function.
-            valid_set: Optional ``[num_combos, num_groups]`` long tensor of valid
+            valid_set: Optional ``[num_combos, num_groups]`` integer array of valid
                 prototype combinations; ``None`` uses the full cartesian product.
             replicate_physics: Whether physics replication clones each environment;
                 forwarded to :func:`replicate`.
@@ -119,7 +117,6 @@ class ReplicateSession:
         self._kwargs = dict(
             num_clones=num_clones,
             env_spacing=env_spacing,
-            device=device,
             global_paths=global_paths,
             clone_strategy=clone_strategy,
             valid_set=valid_set,

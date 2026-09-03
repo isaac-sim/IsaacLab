@@ -9,7 +9,7 @@ import unittest
 from unittest import mock
 
 import newton
-import torch
+import numpy as np
 import warp as wp
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
 from isaaclab_newton.cloner.newton_clone_utils import rename_builder_labels, replicate_builder_mapping
@@ -154,8 +154,8 @@ def _populate_custom_frequency(builder, freq_name, string_columns, worlds):
 class TestRenameCustomAttributes(unittest.TestCase):
     def setUp(self):
         self.worlds = [0, 1]
-        self.env_ids = torch.tensor([10, 20], dtype=torch.int32)
-        self.mapping = torch.ones(1, len(self.worlds), dtype=torch.bool)
+        self.env_ids = np.array([10, 20], dtype=np.int64)
+        self.mapping = np.ones((1, len(self.worlds)), dtype=np.bool_)
 
     def test_custom_string_columns_follow_frequency_worlds(self):
         builder = newton.ModelBuilder()
@@ -246,19 +246,19 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         base_shape = builder.shape_count
         stride = source.shape_count
 
-        positions = torch.tensor([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]])
-        quaternions = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 3)
+        positions = np.array([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]], dtype=np.float32)
+        quaternions = np.array([[0.0, 0.0, 0.0, 1.0]] * 3, dtype=np.float32)
 
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
             local_site_map, _, _ = replicate_builder_mapping(
                 builder,
                 (source_path,),
-                torch.ones((1, 3), dtype=torch.bool),
+                np.ones((1, 3), dtype=np.bool_),
                 positions,
                 quaternions,
                 {source_path: source},
                 destinations=(destination,),
-                env_ids=torch.arange(3),
+                env_ids=np.arange(3, dtype=np.int64),
                 source_site_indices={id(source): {"ee": [site_idx]}},
             )
 
@@ -277,20 +277,20 @@ class TestReplicateBuilderMapping(unittest.TestCase):
 
         builder = newton.ModelBuilder()
         base_shape = builder.shape_count
-        positions = torch.tensor([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]])
-        quaternions = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 3)
+        positions = np.array([[2.0, 0.0, 0.0], [5.0, 0.0, 0.0], [8.0, 0.0, 0.0]], dtype=np.float32)
+        quaternions = np.array([[0.0, 0.0, 0.0, 1.0]] * 3, dtype=np.float32)
         env_root_offset = wp.transform((0.1, 0.0, 0.0), wp.quat_identity())
 
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
             local_site_map, _, _ = replicate_builder_mapping(
                 builder,
                 (source_path,),
-                torch.ones((1, 3), dtype=torch.bool),
+                np.ones((1, 3), dtype=np.bool_),
                 positions,
                 quaternions,
                 {source_path: source},
                 destinations=(destination,),
-                env_ids=torch.arange(3, dtype=torch.long),
+                env_ids=np.arange(3, dtype=np.int64),
                 env_root_sites={"origin": env_root_offset},
             )
 
@@ -316,12 +316,12 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         replicate_builder_mapping(
             builder,
             sources,
-            torch.tensor([[False, False], [True, False]], dtype=torch.bool),
-            torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
-            torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]]),
+            np.array([[False, False], [True, False]], dtype=np.bool_),
+            np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=np.float32),
+            np.array([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]], dtype=np.float32),
             source_builders,
             destinations=("/World/envs/env_{}/inactive", "/World/envs/env_{}/active"),
-            env_ids=torch.arange(2),
+            env_ids=np.arange(2, dtype=np.int64),
         )
 
         self.assertEqual(builder.geometry_sources_for_world(0), ["/World/envs/env_0/active"])
@@ -341,8 +341,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
         clone_plan = ClonePlan(
             sources=("/World/envs/env_0",),
             destinations=("/World/envs/env_{}",),
-            clone_mask=torch.ones((1, 4), dtype=torch.bool),
-            env_ids=torch.arange(4),
+            clone_mask=np.ones((1, 4), dtype=np.bool_),
+            env_ids=np.arange(4, dtype=np.int64),
         )
 
         entries = visualization_deformables_module._expand_clone_plan_deformable_entries([entry], clone_plan)
@@ -435,8 +435,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
         clone_plan = ClonePlan(
             sources=(),
             destinations=(),
-            clone_mask=torch.empty((0, 0), dtype=torch.bool),
-            env_ids=torch.empty(0, dtype=torch.long),
+            clone_mask=np.empty((0, 0), dtype=np.bool_),
+            env_ids=np.empty(0, dtype=np.int64),
         )
 
         with (
@@ -461,8 +461,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
         clone_plan = ClonePlan(
             sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
             destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-            clone_mask=torch.tensor([[True, False, True], [False, True, False]], dtype=torch.bool),
-            env_ids=torch.tensor([0, 1, 2], dtype=torch.long),
+            clone_mask=np.array([[True, False, True], [False, True, False]], dtype=np.bool_),
+            env_ids=np.array([0, 1, 2], dtype=np.int64),
         )
 
         with (
@@ -508,10 +508,10 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
             for name in ("body_label", "joint_label", "shape_label", "articulation_label")
         }
         builder = newton.ModelBuilder()
-        env_ids = torch.tensor([10, 20], dtype=torch.long)
-        mapping = torch.ones(1, len(env_ids), dtype=torch.bool)
-        positions = torch.zeros((len(env_ids), 3), dtype=torch.float32)
-        quaternions = torch.zeros((len(env_ids), 4), dtype=torch.float32)
+        env_ids = np.array([10, 20], dtype=np.int64)
+        mapping = np.ones((1, len(env_ids)), dtype=np.bool_)
+        positions = np.zeros((len(env_ids), 3), dtype=np.float32)
+        quaternions = np.zeros((len(env_ids), 4), dtype=np.float32)
         quaternions[:, 3] = 1.0
         replicate_builder_mapping(
             builder,
@@ -534,8 +534,8 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         source = newton.ModelBuilder()
         source.add_body(label=f"{self._SRC}/base")
         builder = newton.ModelBuilder()
-        env_ids = torch.tensor([10, 20])
-        mapping = torch.ones((1, 2), dtype=torch.bool)
+        env_ids = np.array([10, 20], dtype=np.int64)
+        mapping = np.ones((1, 2), dtype=np.bool_)
 
         def hook(builder, *_):
             builder.add_body(label=f"{self._SRC}/hook")
@@ -544,8 +544,8 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
             builder,
             (self._SRC,),
             mapping,
-            torch.zeros((2, 3)),
-            torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 2),
+            np.zeros((2, 3), dtype=np.float32),
+            np.array([[0.0, 0.0, 0.0, 1.0]] * 2, dtype=np.float32),
             {self._SRC: source},
             destinations=("/World/envs/env_{}/Robot",),
             env_ids=env_ids,

@@ -7,8 +7,8 @@
 
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
-import torch
 
 import isaaclab.cloner.clone_plan as clone_plan
 import isaaclab.cloner.replicate_session as replicate_session
@@ -30,9 +30,9 @@ def _plan(*context_types):
     return ClonePlan(
         sources=("/World/envs/env_0",),
         destinations=("/World/envs/env_{}",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool),
-        env_ids=torch.arange(2),
-        positions=torch.zeros((2, 3)),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.arange(2, dtype=np.int64),
+        positions=np.zeros((2, 3), dtype=np.float32),
         context_rows={context_type: (0,) for context_type in context_types},
     )
 
@@ -55,7 +55,7 @@ def test_make_clone_plan_routes_default_and_explicit_contexts(monkeypatch):
         prim_path="/World/envs/env_[^/]+/Robot", spawn=SimpleNamespace(spawn_path=None), cloning_contexts=None
     )
 
-    plan = make_clone_plan((cfg,), 2, 1.0, "cpu")
+    plan = make_clone_plan((cfg,), 2, 1.0)
 
     assert plan.context_rows == {_Context: (0,)}
 
@@ -63,7 +63,25 @@ def test_make_clone_plan_routes_default_and_explicit_contexts(monkeypatch):
         pass
 
     cfg.cloning_contexts = (Explicit,)
-    assert make_clone_plan((cfg,), 2, 1.0, "cpu").context_rows == {Explicit: (0,)}
+    assert make_clone_plan((cfg,), 2, 1.0).context_rows == {Explicit: (0,)}
+
+
+@pytest.mark.parametrize("valid_set", [np.asarray([["0"]]), np.asarray([[0 + 1j]])])
+def test_make_clone_plan_rejects_non_integer_combinations(valid_set):
+    """Prototype indices must be integer data rather than values NumPy can coerce to integers."""
+    cfg = SimpleNamespace(
+        prim_path="/World/envs/env_[^/]+/Robot", spawn=SimpleNamespace(spawn_path=None), cloning_contexts=None
+    )
+
+    with pytest.raises(ValueError, match="integer prototype indices"):
+        make_clone_plan((cfg,), 2, 1.0, valid_set=valid_set)
+
+
+def test_grid_transforms_always_returns_float32():
+    """NumPy scalar inputs do not widen the public transform arrays."""
+    positions, orientations = clone_plan.grid_transforms(2, np.float64(1.0))
+
+    assert positions.dtype == orientations.dtype == np.float32
 
 
 def test_replicate_dispatches_the_same_plan_in_priority_order(monkeypatch):

@@ -740,7 +740,7 @@ def render_synthetic_gaussian_scene(
         published = sim.get_clone_plan()
         positions = published.positions if published is not None else None
         src, dst = "/World/envs/env_0", "/World/envs/env_{}"
-        camera_plan = cloner.clone_plan_from_env_0(src, dst, num_envs, str(sim.device), positions)
+        camera_plan = cloner.clone_plan_from_env_0(src, dst, num_envs, positions)
         cloner.replicate(camera_plan)
         sim.reset()
         for _ in range(stabilisation_steps):

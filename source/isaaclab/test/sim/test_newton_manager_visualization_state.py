@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 pytestmark = pytest.mark.integration
@@ -816,7 +817,6 @@ def test_shadow_deformable_placement_uses_parent_pose_not_root(monkeypatch):
 
 def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import(monkeypatch):
     """Clone-path world ``add_usd`` must ignore deformables outside ``/World/envs``."""
-    import torch
     from isaaclab_newton.physics import visualization_builder as vb
 
     from pxr import UsdGeom
@@ -833,8 +833,8 @@ def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import
     clone_plan = SimpleNamespace(
         sources=("/World/envs/env_0",),
         destinations=("/World/envs/env_{}",),
-        env_ids=torch.tensor([0, 1], dtype=torch.int32),
-        clone_mask=torch.tensor([[False, False]], dtype=torch.bool),
+        env_ids=np.asarray([0, 1], dtype=np.int64),
+        clone_mask=np.asarray([[False, False]], dtype=np.bool_),
     )
     monkeypatch.setattr(vb, "ModelBuilder", lambda up_axis="Z": fake_builder)
     monkeypatch.setattr(vb, "_restore_visible_colliders_without_visual_shapes", lambda *args, **kwargs: None)

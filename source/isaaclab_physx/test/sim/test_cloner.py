@@ -14,6 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -30,7 +31,7 @@ from isaaclab.cloner import (
 from isaaclab.sim import build_simulation_context
 
 
-def _make_flat_clone_plan(num_variants: int, num_clones: int, destination: str, device: str):
+def _make_flat_clone_plan(num_variants: int, num_clones: int, destination: str):
     """Build a flat (sources, destinations, clone_mask) tuple for tests using sequential mapping.
 
     The PhysX test_cloner tests intentionally bypass cfg-driven planning and exercise
@@ -38,13 +39,9 @@ def _make_flat_clone_plan(num_variants: int, num_clones: int, destination: str, 
     captures the small amount of flat-plan logic the tests need without re-introducing
     the legacy ``make_clone_plan(sources, destinations, num_clones, ...)`` signature.
     """
-    chosen = sequential(
-        torch.arange(num_variants, dtype=torch.long, device=device).unsqueeze(1),
-        num_clones,
-        device,
-    ).view(-1)
-    mask = torch.zeros((num_variants, num_clones), dtype=torch.bool, device=device)
-    mask[chosen, torch.arange(num_clones, device=device)] = True
+    chosen = sequential(np.arange(num_variants, dtype=np.int64)[:, None], num_clones).reshape(-1)
+    mask = np.zeros((num_variants, num_clones), dtype=np.bool_)
+    mask[chosen, np.arange(num_clones)] = True
     sources = tuple(destination.format(i) for i in range(num_variants))
     destinations = tuple([destination] * num_variants)
     return sources, destinations, mask
@@ -69,11 +66,11 @@ def test_physx_replicate_no_error(sim):
     sim_utils.create_prim("/World/template/A", "Xform")
 
     num_envs = 2
-    env_ids = torch.arange(num_envs, dtype=torch.long)
+    env_ids = np.arange(num_envs, dtype=np.int64)
     for i in range(num_envs):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
 
-    mapping = torch.ones((1, num_envs), dtype=torch.bool)
+    mapping = np.ones((1, num_envs), dtype=np.bool_)
 
     physx_replicate(
         sim_utils.get_current_stage(),
@@ -82,6 +79,19 @@ def test_physx_replicate_no_error(sim):
         env_ids=env_ids,
         mapping=mapping,
     )
+
+
+def test_physx_replicate_validates_mapping_shape(sim):
+    """Mapping rows and columns match the declared sources and environments."""
+    env_ids = np.arange(2, dtype=np.int64)
+    with pytest.raises(ValueError, match="mapping must have shape"):
+        physx_replicate(
+            sim_utils.get_current_stage(),
+            sources=["/World/template/A"],
+            destinations=["/World/envs/env_{}/A"],
+            env_ids=env_ids,
+            mapping=np.ones((1, len(env_ids) + 1), dtype=np.bool_),
+        )
 
 
 def _make_mock_physx_rep():
@@ -143,8 +153,8 @@ def test_physx_replicate_context_consumes_plan(sim):
         plan = ClonePlan(
             sources=("/World/envs/env_0/Object",),
             destinations=("/World/envs/env_{}/Object",),
-            clone_mask=torch.ones((1, 3), dtype=torch.bool),
-            env_ids=torch.arange(3, dtype=torch.long),
+            clone_mask=np.ones((1, 3), dtype=np.bool_),
+            env_ids=np.arange(3, dtype=np.int64),
             context_rows={PhysxReplicateContext: (0,)},
         )
         ctx.replicate(plan)
@@ -185,8 +195,8 @@ def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
             stage,
             sources=[src],
             destinations=["/World/envs/env_{}"],
-            env_ids=torch.arange(num_envs, dtype=torch.long),
-            mapping=torch.ones((1, num_envs), dtype=torch.bool),
+            env_ids=np.arange(num_envs, dtype=np.int64),
+            mapping=np.ones((1, num_envs), dtype=np.bool_),
         )
 
     assert replicate_calls == expected_worlds, (
@@ -194,8 +204,7 @@ def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
     )
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_physx_replicate_isolated_source_loaded_without_replication(sim, device):
+def test_physx_replicate_isolated_source_loaded_without_replication(sim):
     """A single-env source (worlds=[self]) is correctly loaded after physx_replicate.
 
     When there is only one environment and the source maps to itself,
@@ -219,9 +228,8 @@ def test_physx_replicate_isolated_source_loaded_without_replication(sim, device)
         stage,
         sources=["/World/envs/env_0/Sphere"],
         destinations=["/World/envs/env_{}/Sphere"],
-        env_ids=torch.tensor([0], dtype=torch.long),
-        mapping=torch.ones((1, 1), dtype=torch.bool),
-        device=device,
+        env_ids=np.array([0], dtype=np.int64),
+        mapping=np.ones((1, 1), dtype=np.bool_),
     )
 
     sim.reset()
@@ -233,8 +241,7 @@ def test_physx_replicate_isolated_source_loaded_without_replication(sim, device)
     )
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_physx_replicate_heterogeneous_isolated_sources(sim, device):
+def test_physx_replicate_heterogeneous_isolated_sources(sim):
     """physx_replicate handles heterogeneous sources excluding self from world lists.
 
     This is the Lift scenario: multiple object types, each with a designated proto-env.
@@ -256,7 +263,7 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim, device):
     for i in range(num_envs):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
 
-    mapping = torch.zeros((3, num_envs), dtype=torch.bool)
+    mapping = np.zeros((3, num_envs), dtype=np.bool_)
     mapping[0, [0, 2, 4]] = True
     mapping[1, [5]] = True
     mapping[2, [7, 11]] = True
@@ -267,9 +274,8 @@ def test_physx_replicate_heterogeneous_isolated_sources(sim, device):
             stage,
             sources=["/World/envs/env_0/Object", "/World/envs/env_5/Object", "/World/envs/env_7/Object"],
             destinations=["/World/envs/env_{}/Object"] * 3,
-            env_ids=torch.arange(num_envs, dtype=torch.long),
+            env_ids=np.arange(num_envs, dtype=np.int64),
             mapping=mapping,
-            device=device,
         )
 
     expected = [
@@ -320,15 +326,14 @@ def test_direct_clone_plan_multi_asset(sim):
         num_variants=len(cfg.assets_cfg),
         num_clones=num_clones,
         destination="/World/envs/env_{}/Object",
-        device=sim.cfg.device,
     )
     cfg.spawn_paths = list(sources)
     prim = cfg.func("/World/unused", cfg)
     assert prim.IsValid()
 
     stage = sim_utils.get_current_stage()
-    env_ids = torch.arange(num_clones, dtype=torch.long, device=sim.cfg.device)
-    physx_replicate(stage, sources, destinations, env_ids, clone_mask, device=sim.cfg.device)
+    env_ids = np.arange(num_clones, dtype=np.int64)
+    physx_replicate(stage, sources, destinations, env_ids, clone_mask)
     usd_replicate(stage, sources, destinations, env_ids, clone_mask)
 
     primitive_prims = sim_utils.get_all_matching_child_prims(
@@ -362,7 +367,6 @@ def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_coun
         num_variants=num_variants,
         num_clones=num_clones,
         destination="/World/envs/env_{}/Object",
-        device=sim.cfg.device,
     )
     if isinstance(asset_cfg, sim_utils.MultiAssetSpawnerCfg):
         asset_cfg.spawn_paths = list(sources)
@@ -372,8 +376,8 @@ def _run_colocation_collision_filter(sim, asset_cfg, expected_types, assert_coun
     assert prim.IsValid()
 
     stage = sim_utils.get_current_stage()
-    env_ids = torch.arange(num_clones, dtype=torch.long, device=sim.cfg.device)
-    physx_replicate(stage, sources, destinations, env_ids, clone_mask, device=sim.cfg.device)
+    env_ids = np.arange(num_clones, dtype=np.int64)
+    physx_replicate(stage, sources, destinations, env_ids, clone_mask)
     usd_replicate(stage, sources, destinations, env_ids, clone_mask)
 
     primitive_prims = sim_utils.get_all_matching_child_prims(
@@ -477,9 +481,9 @@ def _run_sphere_velocity_sim(sim, use_physx_replicate: bool, num_steps: int = 10
     )
     sphere_cfg.func("/World/envs/env_0/ball", sphere_cfg, translation=(0.0, 0.0, 0.5))
 
-    env_ids = torch.arange(num_envs, dtype=torch.long)
-    positions = torch.tensor([[0.0, 0.0, 0.0], [spacing, 0.0, 0.0]])
-    mapping = torch.ones((1, num_envs), dtype=torch.bool)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    positions = np.array([[0.0, 0.0, 0.0], [spacing, 0.0, 0.0]], dtype=np.float32)
+    mapping = np.ones((1, num_envs), dtype=np.bool_)
 
     if use_physx_replicate:
         physx_replicate(
@@ -488,7 +492,6 @@ def _run_sphere_velocity_sim(sim, use_physx_replicate: bool, num_steps: int = 10
             destinations=["/World/envs/env_{}/ball"],
             env_ids=env_ids,
             mapping=mapping,
-            device=sim.cfg.device,
         )
 
     usd_replicate(

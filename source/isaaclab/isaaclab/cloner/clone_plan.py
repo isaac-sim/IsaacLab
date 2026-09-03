@@ -26,7 +26,7 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-import torch
+import numpy as np
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils.string import string_to_callable
@@ -35,6 +35,7 @@ from isaaclab.utils.version import has_kit
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE, InclusionSet
 from .cloner_strategies import sequential
 from .path import match
+from .usd import UsdReplicateContext
 
 
 @dataclass(frozen=True, eq=False)
@@ -47,17 +48,17 @@ class ClonePlan:
     destinations: tuple[str, ...]
     """Destination path templates with ``"{}"`` for the env id, one per row."""
 
-    clone_mask: torch.Tensor
-    """Bool tensor ``[len(sources), num_clones]``; ``True`` if env ``j`` comes from row ``i``."""
+    clone_mask: np.ndarray
+    """Boolean array ``[len(sources), num_clones]``; ``True`` if env ``j`` comes from row ``i``."""
 
-    env_ids: torch.Tensor | None = None
-    """Long tensor ``[num_clones]`` of target env ids.
+    env_ids: np.ndarray | None = None
+    """Integer array ``[num_clones]`` of target env ids.
 
     Optional for plans used only with :func:`~isaaclab.cloner.query.iter_sources` or
     :func:`~isaaclab.cloner.query.path_to_source`; required by :func:`~isaaclab.cloner.replicate`.
     """
 
-    positions: torch.Tensor | None = None
+    positions: np.ndarray | None = None
     """Per-env world positions [m], shape ``[num_clones, 3]``, or ``None``."""
 
     cfg_rows: dict[int, tuple[int, ...]] = field(default_factory=dict)
@@ -70,55 +71,34 @@ class ClonePlan:
     """Unique prim paths for scene assets shared by every environment."""
 
 
-def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z", device="cpu"):
-    """Create a centered grid of transforms for ``N`` instances.
-
-    Computes ``(x, y)`` coordinates in a roughly square grid centered at the origin
-    with the provided spacing, places the third coordinate according to ``up_axis``,
-    and returns identity orientations. This matches the grid layout used by
-    :class:`isaaclab.terrains.TerrainImporter` for consistent environment positioning.
+def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z") -> tuple[np.ndarray, np.ndarray]:
+    """Create centered grid transforms as host arrays.
 
     Args:
         N: Number of instances.
         spacing: Distance between neighboring grid positions [m].
-        up_axis: Up axis for positions ("z", "y", or "x").
-        device: Torch device for returned tensors.
+        up_axis: Up axis for positions (``"z"``, ``"y"``, or ``"x"``).
 
     Returns:
-        A tuple ``(pos, ori)`` where:
-            - ``pos`` is a tensor of shape ``(N, 3)`` with positions [m].
-            - ``ori`` is a tensor of shape ``(N, 4)`` with identity quaternions in ``(x, y, z, w)``.
+        Positions [m], shape ``[N, 3]``, and identity xyzw orientations, shape ``[N, 4]``.
     """
-    # Match terrain_importer._compute_env_origins_grid layout for consistency
     num_rows = int(math.ceil(N / math.sqrt(N)))
     num_cols = int(math.ceil(N / num_rows))
-
-    # Create meshgrid matching terrain's "ij" indexing
-    ii, jj = torch.meshgrid(
-        torch.arange(num_rows, device=device, dtype=torch.float32),
-        torch.arange(num_cols, device=device, dtype=torch.float32),
-        indexing="ij",
-    )
-    # Flatten and take first N elements
-    ii = ii.flatten()[:N]
-    jj = jj.flatten()[:N]
-
-    # Match terrain's coordinate system: X from rows (negated), Y from cols
+    ii, jj = np.meshgrid(np.arange(num_rows, dtype=np.float32), np.arange(num_cols, dtype=np.float32), indexing="ij")
+    ii = ii.reshape(-1)[:N]
+    jj = jj.reshape(-1)[:N]
     x = -(ii - (num_rows - 1) / 2) * spacing
     y = (jj - (num_cols - 1) / 2) * spacing
-    z0 = torch.zeros(N, device=device)
-
-    # place on plane based on up_axis
+    zero = np.zeros(N, dtype=np.float32)
     if up_axis.lower() == "z":
-        pos = torch.stack([x, y, z0], dim=1)
+        positions = np.stack((x, y, zero), axis=1)
     elif up_axis.lower() == "y":
-        pos = torch.stack([x, z0, y], dim=1)
-    else:  # up_axis == "x"
-        pos = torch.stack([z0, x, y], dim=1)
-
-    # identity orientations (x,y,z,w): w=1 is index 3
-    ori = torch.nn.functional.one_hot(torch.full((N,), 3, device=device), num_classes=4).float()
-    return pos, ori
+        positions = np.stack((x, zero, y), axis=1)
+    else:
+        positions = np.stack((zero, x, y), axis=1)
+    orientations = np.zeros((N, 4), dtype=np.float32)
+    orientations[:, 3] = 1.0
+    return positions.astype(np.float32, copy=False), orientations
 
 
 def num_spawn_variants(spawn_cfg: Any) -> int:
@@ -145,28 +125,26 @@ def make_valid_clone_combinations(
     asset_names: Sequence[str],
     variant_counts: Sequence[int],
     clone_combinations: Sequence[InclusionSet] | None = None,
-    device: str = "cpu",
     *,
     all_asset_names: Sequence[str] | None = None,
-) -> torch.Tensor:
-    """Build the valid clone-combination variant tensor.
+) -> np.ndarray:
+    """Build the valid clone-combination variant array.
 
     Each combination contributes rows in proportion to its weight, split evenly
     across its spawn variants and interleaved round-robin, so any prefix of the
-    tensor samples every combination.
+    array samples every combination.
 
     Args:
-        asset_names: Clone-planned scene asset names, one per tensor column.
+        asset_names: Clone-planned scene asset names, one per array column.
         variant_counts: Number of spawn variants per clone-planned asset.
         clone_combinations: Legal clone combinations; assets not mentioned by
             any combination are active in every row. ``None`` uses the full
             cartesian product of variants.
-        device: Torch device for the output tensor. Defaults to ``"cpu"``.
         all_asset_names: Optional full scene asset-name list; combination
             entries may reference assets that are not clone-planned.
 
     Returns:
-        A ``[num_valid_combinations, num_assets]`` tensor of source variant
+        A ``[num_valid_combinations, num_assets]`` array of source variant
         indices, ``-1`` where an asset is absent.
 
     Raises:
@@ -181,7 +159,7 @@ def make_valid_clone_combinations(
 
     if not clone_combinations:
         rows = itertools.product(*[range(count) for count in variant_counts])
-        return torch.tensor(list(rows), dtype=torch.long, device=device)
+        return np.asarray(list(rows), dtype=np.int64)
 
     clone_asset_names = set(asset_names)
     known_assets = set(all_asset_names) if all_asset_names is not None else clone_asset_names
@@ -221,7 +199,7 @@ def make_valid_clone_combinations(
             for _ in range(weight):
                 rows.append(variants[cursors[index] % len(variants)])
                 cursors[index] += 1
-    return torch.tensor(rows, dtype=torch.long, device=device)
+    return np.asarray(rows, dtype=np.int64)
 
 
 def _context_rows(
@@ -232,34 +210,32 @@ def _context_rows(
     if sim is None:
         return {}
 
-    usd_context = string_to_callable("isaaclab.cloner.usd:UsdReplicateContext")
     physics_context = sim.physics_manager.clone_context_type
-    if isinstance(physics_context, str):
-        physics_context = string_to_callable(physics_context)
-    routed: dict[type[object], set[int]] = {}
+    if physics_context is not None and not isinstance(physics_context, type):
+        raise TypeError("PhysicsManager.clone_context_type must be a context class.")
+    rows_by_context: dict[type[object], set[int]] = {}
 
     for cfg in cfgs:
         rows = cfg_rows.get(id(cfg))
         if rows is None:
             continue
         references = cfg.cloning_contexts
-        contexts = (
-            (() if physics_context is None else (physics_context,))
-            if references is None
-            else tuple(string_to_callable(value) if isinstance(value, str) else value for value in references)
-        )
+        if references is None:
+            contexts = () if physics_context is None else (physics_context,)
+        else:
+            contexts = tuple(string_to_callable(value) if isinstance(value, str) else value for value in references)
         if cfg.spawn is not None and has_kit():
-            contexts = tuple(dict.fromkeys((*contexts, usd_context)))
+            contexts = tuple(dict.fromkeys((*contexts, UsdReplicateContext)))
         if any(not isinstance(context, type) for context in contexts):
             raise TypeError(f"{type(cfg).__name__}.cloning_contexts must contain only context classes.")
         for context_type in contexts:
-            routed.setdefault(context_type, set()).update(rows)
+            rows_by_context.setdefault(context_type, set()).update(rows)
 
-    if usd_context in routed:
-        sim.get_or_create_backend(usd_context, sim.stage)
+    if UsdReplicateContext in rows_by_context:
+        sim.get_or_create_backend(UsdReplicateContext, sim.stage)
     return {
         context_type: tuple(sorted(rows & populated_rows))
-        for context_type, rows in routed.items()
+        for context_type, rows in rows_by_context.items()
         if rows & populated_rows
     }
 
@@ -268,10 +244,9 @@ def make_clone_plan(
     cfgs: Iterable[Any],
     num_clones: int,
     env_spacing: float,
-    device: str,
     global_paths: tuple[str, ...] = (),
-    clone_strategy: Callable = sequential,
-    valid_set: torch.Tensor | None = None,
+    clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
+    valid_set: np.ndarray | None = None,
     env_template: str = DEFAULT_ENV_TEMPLATE,
 ) -> ClonePlan:
     """Build a :class:`ClonePlan` from asset cfgs.
@@ -290,11 +265,10 @@ def make_clone_plan(
         cfgs: Cloneable asset cfgs with resolved env-scoped ``prim_path`` and ``spawn``.
         num_clones: Number of target envs.
         env_spacing: Distance between neighboring grid env origins [m].
-        device: Torch device for plan tensors.
         global_paths: Complete shared-asset roots declared by the scene composition root. Defaults to none.
         clone_strategy: Function that assigns prototype combinations to envs. Defaults
             to :func:`~isaaclab.cloner.sequential`.
-        valid_set: Optional ``[num_combos, num_groups]`` long tensor of valid prototype
+        valid_set: Optional ``[num_combos, num_groups]`` integer array of valid prototype
             combinations. ``None`` (default) uses the full cartesian product of every
             group's prototype indices.
 
@@ -326,12 +300,12 @@ def make_clone_plan(
         if count <= 0:
             raise ValueError(f"Spawner at '{cfg.prim_path}' must have at least one variant.")
         groups.append((cfg, cfg.spawn, env_template + matched.suffix, count))
-    env_ids = torch.arange(num_clones, dtype=torch.long, device=device)
-    positions, _ = grid_transforms(num_clones, env_spacing, device=device)
+    env_ids = np.arange(num_clones, dtype=np.int64)
+    positions, _ = grid_transforms(num_clones, env_spacing)
 
     # 2) No env-scoped cfgs: emit an empty plan so the scene can still proceed.
     if not groups:
-        empty_mask = torch.zeros((0, num_clones), dtype=torch.bool, device=device)
+        empty_mask = np.zeros((0, num_clones), dtype=np.bool_)
         return ClonePlan(
             sources=(),
             destinations=(),
@@ -347,7 +321,7 @@ def make_clone_plan(
         for cfg, spawn_cfg, destination, _ in groups:
             set_spawn_paths(spawn_cfg, [destination.format(0)])
         cfg_rows = {id(cfg): (0,) for cfg, _, _, _ in groups}
-        clone_mask = torch.ones((1, num_clones), dtype=torch.bool, device=device)
+        clone_mask = np.ones((1, num_clones), dtype=np.bool_)
         return ClonePlan(
             sources=(env_template.format(0),),
             destinations=(env_template,),
@@ -362,39 +336,39 @@ def make_clone_plan(
     # 4) Heterogeneous: enumerate prototype combos, build per-row mask, mutate spawn paths.
     group_sizes = [count for _, _, _, count in groups]
 
-    def validate_combo_tensor(combos: torch.Tensor, name: str, expected_rows: int | None = None) -> torch.Tensor:
-        if combos.dtype == torch.bool or torch.is_floating_point(combos):
+    def validate_combinations(combos: np.ndarray, name: str, expected_rows: int | None = None) -> np.ndarray:
+        combos = np.asarray(combos)
+        if not np.issubdtype(combos.dtype, np.integer):
             raise ValueError(f"{name} must contain integer prototype indices.")
-        combos = combos.to(device=device, dtype=torch.long)
+        combos = combos.astype(np.int64, copy=False)
         if combos.ndim != 2:
-            raise ValueError(f"{name} must be a 2-D tensor, got shape {tuple(combos.shape)}.")
+            raise ValueError(f"{name} must be a 2-D array, got shape {tuple(combos.shape)}.")
         if combos.shape[0] == 0:
             raise ValueError(f"{name} must contain at least one row.")
         if expected_rows is not None and combos.shape[0] != expected_rows:
             raise ValueError(f"{name} must contain {expected_rows} rows, got {combos.shape[0]}.")
         if combos.shape[1] != len(group_sizes):
             raise ValueError(f"{name} must contain {len(group_sizes)} columns, got {combos.shape[1]}.")
-        group_sizes_tensor = torch.tensor(group_sizes, dtype=torch.long, device=device).view(1, -1)
-        invalid = (combos < -1) | ((combos >= group_sizes_tensor) & (combos != -1))
+        invalid = (combos < -1) | ((combos >= np.asarray(group_sizes)[None]) & (combos != -1))
         if invalid.any():
             raise ValueError(f"{name} contains prototype indices outside [-1, group_size).")
         return combos
 
     if valid_set is None:
         all_combos = list(itertools.product(*[range(s) for s in group_sizes]))
-        combos = torch.tensor(all_combos, dtype=torch.long, device=device)
+        combos = np.asarray(all_combos, dtype=np.int64)
     else:
-        combos = validate_combo_tensor(valid_set, "valid_set")
-    chosen = validate_combo_tensor(clone_strategy(combos, num_clones, device), "clone_strategy result", num_clones)
+        combos = validate_combinations(valid_set, "valid_set")
+    chosen = validate_combinations(clone_strategy(combos, num_clones), "clone_strategy result", num_clones)
 
-    group_offsets = torch.tensor([0] + list(itertools.accumulate(group_sizes[:-1])), dtype=torch.long, device=device)
+    group_offsets = np.asarray([0] + list(itertools.accumulate(group_sizes[:-1])), dtype=np.int64)
     active = chosen >= 0
-    rows = (chosen + group_offsets).view(-1)
-    cols = torch.arange(num_clones, device=device).view(-1, 1).expand(-1, len(group_sizes)).reshape(-1)
-    active_flat = active.view(-1)
+    rows = (chosen + group_offsets).reshape(-1)
+    cols = np.broadcast_to(np.arange(num_clones)[:, None], chosen.shape).reshape(-1)
+    active_flat = active.reshape(-1)
 
     num_rows = sum(group_sizes)
-    clone_mask = torch.zeros((num_rows, num_clones), dtype=torch.bool, device=device)
+    clone_mask = np.zeros((num_rows, num_clones), dtype=np.bool_)
     if active_flat.any():
         clone_mask[rows[active_flat], cols[active_flat]] = True
 
@@ -406,11 +380,12 @@ def make_clone_plan(
     for cfg, spawn_cfg, destination, count in groups:
         cfg_rows[id(cfg)] = tuple(range(row, row + count))
         group_mask = clone_mask[row : row + count]
-        env_ids_assigned = group_mask.to(torch.int).argmax(dim=1).tolist()
-        active = group_mask.any(dim=1).tolist()
-        populated_rows.update(row + i for i, is_active in enumerate(active) if is_active)
+        env_ids_assigned = group_mask.argmax(axis=1)
+        active_variants = group_mask.any(axis=1)
+        populated_rows.update(row + i for i, is_active in enumerate(active_variants) if is_active)
         paths = [
-            destination.format(env_id) if is_active else None for env_id, is_active in zip(env_ids_assigned, active)
+            destination.format(int(env_id)) if is_active else None
+            for env_id, is_active in zip(env_ids_assigned, active_variants)
         ]
         for i, path in enumerate(paths):
             destinations_list.append(destination)
@@ -436,8 +411,7 @@ def clone_plan_from_env_0(
     source: str,
     destination: str,
     num_clones: int,
-    device: str,
-    positions: torch.Tensor | None = None,
+    positions: np.ndarray | None = None,
     global_paths: tuple[str, ...] = (),
 ) -> ClonePlan:
     """Build a single-source clone plan that targets every env from one source row.
@@ -453,7 +427,6 @@ def clone_plan_from_env_0(
         source: Source prim path (typically ``/World/envs/env_0``).
         destination: Destination template with ``"{}"`` for the env id.
         num_clones: Number of target envs.
-        device: Torch device for the mask and env id buffers.
         positions: Optional per-env world positions [m], shape ``[num_clones, 3]``.
         global_paths: Complete shared-asset roots for the hand-built scene. Defaults to none.
 
@@ -464,12 +437,12 @@ def clone_plan_from_env_0(
 
     queued = tuple(REPLICATION_QUEUE)
     cfg_rows = {id(cfg): (0,) for cfg in queued if match(cfg.prim_path, destination) is not None}
-    clone_mask = torch.ones((1, num_clones), dtype=torch.bool, device=device)
+    clone_mask = np.ones((1, num_clones), dtype=np.bool_)
     return ClonePlan(
         sources=(source,),
         destinations=(destination,),
         clone_mask=clone_mask,
-        env_ids=torch.arange(num_clones, dtype=torch.long, device=device),
+        env_ids=np.arange(num_clones, dtype=np.int64),
         positions=positions,
         cfg_rows=cfg_rows,
         context_rows=_context_rows(queued, cfg_rows, {0}),

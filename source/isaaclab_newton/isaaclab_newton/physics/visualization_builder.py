@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-import torch
+import numpy as np
 from newton import ModelBuilder
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
@@ -124,12 +124,12 @@ def build_visualization_builder_from_stage_envs(
 
     sources = tuple(clone_plan.sources)
     destinations = tuple(clone_plan.destinations)
-    env_ids = clone_plan.env_ids.detach().cpu()
-    mapping = clone_plan.clone_mask.detach().cpu()
+    env_ids = clone_plan.env_ids
+    mapping = clone_plan.clone_mask
 
-    poses = [resolve_prim_pose(stage.GetPrimAtPath(env_path_by_id[int(env_id)])) for env_id in env_ids.tolist()]
-    positions = torch.tensor([pos for pos, _ in poses], dtype=torch.float32)
-    quaternions = torch.tensor([quat for _, quat in poses], dtype=torch.float32)
+    poses = [resolve_prim_pose(stage.GetPrimAtPath(env_path_by_id[int(env_id)])) for env_id in env_ids]
+    positions = np.asarray([pos for pos, _ in poses], dtype=np.float32)
+    quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
     # Ignore every deformable on the stage for the world import — not only those under
     # clone sources. Otherwise a non-env deformable (e.g. ``/World/Assets/Cloth``) is
     # imported here and added again by ``add_shadow_deformables_to_builder``.
@@ -155,7 +155,16 @@ def build_visualization_builder_from_stage_envs(
         visual_builder.shape_collision_filter_pairs = []
         visual_builder.shape_collision_group[:] = [0] * visual_builder.shape_count
     builder.add_builder(global_builder)
-    replicate_builder_mapping(builder, sources, mapping, positions, quaternions, source_builders, destinations, env_ids)
+    replicate_builder_mapping(
+        builder=builder,
+        sources=sources,
+        mapping=mapping,
+        positions=positions,
+        quaternions=quaternions,
+        source_builders=source_builders,
+        destinations=destinations,
+        env_ids=env_ids,
+    )
     shadow_entities, registry_groups = add_shadow_deformables_to_builder(
         builder, stage, env_paths, device=device, entries=deformable_entries, clone_plan=clone_plan
     )

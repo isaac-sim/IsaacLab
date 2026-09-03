@@ -12,6 +12,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -183,7 +184,7 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
 
 
 def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
-    """A cfg-driven scene forwards its plan and physics policy to cloner.replicate.
+    """A cfg-driven scene forwards its plan and tracks the latest published layout.
 
     Uses a test-seam fake to isolate this unit test from real backend dispatch; queue
     lifecycle is owned by :func:`replicate` itself (snapshot-and-clear) and does not
@@ -200,7 +201,10 @@ def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
 
     with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
         sim._app_control_on_stop_handle = None
-        InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
+        scene = InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
+        replacement = replace(captured[0][0], positions=captured[0][0].positions + 1.0)
+        sim.set_clone_plan(replacement)
+        torch.testing.assert_close(scene.env_origins, torch.from_numpy(replacement.positions))
 
     assert len(captured) == 1
     plan, replicate_physics = captured[0]

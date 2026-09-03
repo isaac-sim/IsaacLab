@@ -15,12 +15,12 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
-import torch
 
-from pxr import Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -64,13 +64,13 @@ def test_usd_replicate_with_positions_and_mask(sim):
 
     # Prepare destination env namespaces
     num_envs = 3
-    env_ids = torch.arange(num_envs, dtype=torch.long)
+    env_ids = np.arange(num_envs, dtype=np.int64)
     sim_utils.create_prim("/World/envs", "Xform")
     for i in range(num_envs):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
 
     # Map A -> env 0 and 2; B -> env 1 only
-    mask = torch.zeros((2, num_envs), dtype=torch.bool)
+    mask = np.zeros((2, num_envs), dtype=np.bool_)
     mask[0, [0, 2]] = True
     mask[1, [1]] = True
 
@@ -107,9 +107,9 @@ def test_usd_replicate_context_consumes_plan(sim):
     plan = ClonePlan(
         sources=("/World/template/A",),
         destinations=("/World/envs/env_{}",),
-        clone_mask=torch.tensor([[False, True]]),
-        env_ids=torch.tensor([10, 20]),
-        positions=torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+        clone_mask=np.asarray([[False, True]], dtype=np.bool_),
+        env_ids=np.asarray([10, 20], dtype=np.int64),
+        positions=np.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32),
         context_rows={UsdReplicateContext: (0,)},
     )
     ctx.replicate(plan)
@@ -124,8 +124,8 @@ def test_usd_replicate_nested_asset_preserves_local_offset_with_positions(sim):
     """Grid positions are authored on env roots but not on nested replicated assets."""
     camera_offset = (0.57, -0.8, 0.5)
     num_envs = 2
-    env_ids = torch.arange(num_envs, dtype=torch.long)
-    positions, _ = grid_transforms(num_envs, 3.0, device=sim.cfg.device)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    positions, _ = grid_transforms(num_envs, 3.0)
 
     sim_utils.create_prim("/World/envs", "Xform")
     sim_utils.create_prim("/World/envs/env_0", "Xform")
@@ -195,7 +195,7 @@ def test_usd_replicate_depth_order_parent_child(sim):
     sim_utils.create_prim("/World/template/Parent/Child", "Xform")
 
     # Destinations (single env)
-    env_ids = torch.tensor([0, 1], dtype=torch.long)
+    env_ids = np.asarray([0, 1], dtype=np.int64)
     sim_utils.create_prim("/World/envs", "Xform")
     sim_utils.create_prim("/World/envs/env_0", "Xform")
     sim_utils.create_prim("/World/envs/env_1", "Xform")
@@ -216,10 +216,6 @@ def test_usd_replicate_depth_order_parent_child(sim):
 
 def test_usd_replicate_self_copy_skips_copy_spec(sim):
     """usd_replicate must not call Sdf.CopySpec when source and destination paths are identical."""
-    from unittest.mock import patch
-
-    import isaaclab.cloner.usd as _cloner_mod
-
     stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/envs", "Xform")
     sim_utils.create_prim("/World/envs/env_0", "Xform")
@@ -228,19 +224,19 @@ def test_usd_replicate_self_copy_skips_copy_spec(sim):
     sim_utils.create_prim("/World/envs/env_1", "Xform")
 
     copy_calls: list[tuple[str, str]] = []
-    real_copy_spec = _cloner_mod.Sdf.CopySpec
+    real_copy_spec = Sdf.CopySpec
 
     def capturing_copy_spec(src_layer, src_path, dst_layer, dst_path, *args):
         copy_calls.append((str(src_path), str(dst_path)))
         return real_copy_spec(src_layer, src_path, dst_layer, dst_path, *args)
 
-    with patch.object(_cloner_mod.Sdf, "CopySpec", capturing_copy_spec):
+    with patch.object(Sdf, "CopySpec", capturing_copy_spec):
         usd_replicate(
             stage,
             sources=["/World/envs/env_0"],
             destinations=["/World/envs/env_{}"],
-            env_ids=torch.tensor([0, 1], dtype=torch.long),
-            mask=torch.ones((1, 2), dtype=torch.bool),
+            env_ids=np.asarray([0, 1], dtype=np.int64),
+            mask=np.ones((1, 2), dtype=np.bool_),
         )
 
     assert all(src != dst for src, dst in copy_calls), f"Self-copy detected in CopySpec calls: {copy_calls}"
@@ -334,7 +330,6 @@ def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
         cfgs=[cube],
         num_clones=4,
         env_spacing=1.0,
-        device=sim.cfg.device,
         global_paths=("/World/Ground",),
     )
 
@@ -361,9 +356,9 @@ def test_resolve_matching_prims_from_source_searches_only_plan_source(sim, monke
     plan = ClonePlan(
         sources=("/World/envs/env_0/Robot",),
         destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool, device=sim.cfg.device),
-        env_ids=torch.arange(2, dtype=torch.long, device=sim.cfg.device),
-        positions=torch.zeros((2, 3), device=sim.cfg.device),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.arange(2, dtype=np.int64),
+        positions=np.zeros((2, 3), dtype=np.float32),
     )
     sim.set_clone_plan(plan)
 
@@ -415,7 +410,6 @@ def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
         cfgs=[multi_cfg, plain_cfg],
         num_clones=4,
         env_spacing=1.0,
-        device=sim.cfg.device,
         global_paths=("/World/Ground",),
         clone_strategy=sequential,
     )
@@ -438,7 +432,6 @@ def test_make_clone_plan_records_globals_outside_replication_rows(sim):
         cfgs=[],
         num_clones=3,
         env_spacing=1.0,
-        device=sim.cfg.device,
         global_paths=("/World/global/Robot", "/World/ground"),
     )
 
@@ -460,15 +453,15 @@ def test_clone_plan_from_env_0_populates_cfg_rows_and_global_paths(sim):
         queue_replication(cfg)
 
     src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-    pos = grid_transforms(4, 1.0, device=sim.cfg.device)[0]
-    plan = cloner.clone_plan_from_env_0(src, dest, 4, sim.cfg.device, pos, global_paths=("/World/global/Light",))
+    pos = grid_transforms(4, 1.0)[0]
+    plan = cloner.clone_plan_from_env_0(src, dest, 4, pos, global_paths=("/World/global/Light",))
 
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
     assert plan.cfg_rows == {id(env_cfg_a): (0,), id(env_cfg_b): (0,)}
     assert plan.global_paths == ("/World/global/Light",)
     assert plan.clone_mask.all() and plan.clone_mask.shape == (1, 4)
-    assert torch.equal(plan.env_ids, torch.arange(4, dtype=torch.long, device=sim.cfg.device))
+    np.testing.assert_array_equal(plan.env_ids, np.arange(4, dtype=np.int64))
 
 
 def test_replicate_session_clears_queue_when_asset_init_fails(sim):
@@ -485,7 +478,6 @@ def test_replicate_session_clears_queue_when_asset_init_fails(sim):
             cfgs=[],
             num_clones=2,
             env_spacing=1.0,
-            device=sim.cfg.device,
         ):
             leaked_cfg.cloning_contexts = (sentinel_cls,)
             REPLICATION_QUEUE.append(leaked_cfg)

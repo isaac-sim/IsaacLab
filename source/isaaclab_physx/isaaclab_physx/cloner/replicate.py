@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
+import numpy as np
 
 from omni.physx import get_physx_replicator_interface
 from pxr import Sdf, Usd, UsdUtils
@@ -52,42 +52,45 @@ class PhysxReplicateContext:
             row for context, routed in plan.context_rows.items() if context is not type(self) for row in routed
         }
         self._replicate_mapping(
-            tuple(plan.sources[row] for row in rows),
-            tuple(plan.destinations[row] for row in rows),
-            plan.env_ids,
-            plan.clone_mask[list(rows)],
-            bool(other_rows - native_rows),
-            True,
+            sources=tuple(plan.sources[row] for row in rows),
+            destinations=tuple(plan.destinations[row] for row in rows),
+            env_ids=plan.env_ids,
+            mapping=plan.clone_mask[list(rows)],
+            has_usd_only_rows=bool(other_rows - native_rows),
+            exclude_self_replication=True,
         )
 
     def _replicate_mapping(
         self,
         sources: Sequence[str],
         destinations: Sequence[str],
-        env_ids: torch.Tensor,
-        mapping: torch.Tensor,
+        env_ids: np.ndarray,
+        mapping: np.ndarray,
         has_usd_only_rows: bool,
         exclude_self_replication: bool,
     ) -> None:
         """Register one raw source-to-environment mapping with PhysX."""
         physx_queue: list[tuple[str, str, tuple[int, ...]]] = []
 
-        if mapping.size(1) <= 1:
+        expected_shape = (len(sources), len(env_ids))
+        if mapping.shape != expected_shape:
+            raise ValueError(f"mapping must have shape {expected_shape}, got {mapping.shape}.")
+        if mapping.shape[1] <= 1:
             return
 
         native_paths: list[str] = []
 
         for i, src in enumerate(sources):
-            worlds = env_ids[mapping[i].to(dtype=torch.bool)].tolist()
+            worlds = tuple(map(int, env_ids[np.flatnonzero(mapping[i])]))
             if has_usd_only_rows:
                 native_paths.append(src)
-                native_paths.extend(destinations[i].format(int(world)) for world in worlds)
+                native_paths.extend(destinations[i].format(world) for world in worlds)
             if exclude_self_replication:
                 matched = cloner.path.match(src, destinations[i])
                 if matched is not None and matched.instance.isdigit():
-                    filtered = [world for world in worlds if world != int(matched.instance)]
+                    filtered = tuple(world for world in worlds if world != int(matched.instance))
                     worlds = filtered if filtered else worlds
-            physx_queue.append((src, destinations[i], tuple(map(int, worlds))))
+            physx_queue.append((src, destinations[i], worlds))
 
         # Fully-heterogeneous 1:1 layouts have every source mapped only to its own
         # environment (no cross-env replication needed). Calling rep.replicate() once
@@ -141,14 +144,31 @@ def physx_replicate(
     stage: Usd.Stage,
     sources: Sequence[str],
     destinations: Sequence[str],
-    env_ids: torch.Tensor,
-    mapping: torch.Tensor,
-    positions: torch.Tensor | None = None,
-    quaternions: torch.Tensor | None = None,
-    device: str = "cpu",
+    env_ids: np.ndarray,
+    mapping: np.ndarray,
+    positions: np.ndarray | None = None,
+    quaternions: np.ndarray | None = None,
     exclude_self_replication: bool = True,
 ) -> None:
-    """Replicate a raw source-to-environment mapping through PhysX."""
-    del positions, quaternions, device
+    """Replicate a raw source-to-environment mapping through PhysX.
+
+    Args:
+        stage: USD stage containing the source prims.
+        sources: Source prim paths, one per mapping row.
+        destinations: Destination templates containing ``"{}"``, one per mapping row.
+        env_ids: Integer environment identifiers, shape ``[num_envs]``.
+        mapping: Boolean source-to-environment selection, shape ``[len(sources), num_envs]``.
+        positions: Optional environment positions [m], shape ``[num_envs, 3]``. Unused by PhysX.
+        quaternions: Optional environment orientations in xyzw order, shape ``[num_envs, 4]``. Unused by PhysX.
+        exclude_self_replication: Whether to omit a source environment from its own targets.
+    """
+    del positions, quaternions
     context = PhysxReplicateContext(stage)
-    context._replicate_mapping(sources, destinations, env_ids, mapping, False, exclude_self_replication)
+    context._replicate_mapping(
+        sources=sources,
+        destinations=destinations,
+        env_ids=env_ids,
+        mapping=mapping,
+        has_usd_only_rows=False,
+        exclude_self_replication=exclude_self_replication,
+    )

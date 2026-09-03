@@ -87,7 +87,7 @@ class PhysicsManager(ABC):
     _callbacks: ClassVar[dict[int, tuple[Any, Callable, int, str | None, Any]]] = {}
     _callback_id: ClassVar[int] = 0
     views: ClassVar[dict[tuple[type, str], Any]] = {}
-    clone_context_type: ClassVar[type[object] | str | None] = None
+    clone_context_type: ClassVar[type[object] | None] = None
 
     @classmethod
     def _prepare_stage_creation(cls) -> None:

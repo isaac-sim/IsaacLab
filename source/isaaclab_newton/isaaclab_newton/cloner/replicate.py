@@ -9,9 +9,9 @@ import contextlib
 import copy
 import re
 from collections.abc import Callable, Iterator, Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-import torch
+import numpy as np
 import warp as wp
 from newton import ModelBuilder
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
@@ -63,7 +63,7 @@ def copy_newton_clone_source(source_path: str, xform: wp.transform | None = None
 
 @contextlib.contextmanager
 def newton_builder_world_hook(
-    hook: Callable[[ModelBuilder, int, list[float], list[float]], None],
+    hook: Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None],
 ) -> Iterator[None]:
     """Temporarily extend every world built by Newton replication.
 
@@ -71,8 +71,8 @@ def newton_builder_world_hook(
     only its callback and preserves hooks owned by other callers.
 
     Args:
-        hook: Callback receiving the builder, world index, world position [m],
-            and world orientation quaternion in xyzw order during replication.
+        hook: Callback receiving the builder, world index, world position [m] as a NumPy array,
+            and world orientation quaternion in xyzw order as a NumPy array during replication.
 
     Yields:
         Control while the callback is registered.
@@ -95,19 +95,19 @@ def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
     sources: Sequence[str],
     destinations: Sequence[str],
-    env_ids: torch.Tensor,
-    mapping: torch.Tensor,
-    positions: torch.Tensor | None = None,
-    quaternions: torch.Tensor | None = None,
+    env_ids: np.ndarray,
+    mapping: np.ndarray,
+    positions: np.ndarray | None = None,
+    quaternions: np.ndarray | None = None,
     up_axis: str = "Z",
     load_visual_shapes: bool = True,
     global_paths: tuple[str, ...] = (),
 ) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder], list[tuple[str, int]]]:
     """Build a Newton model builder from clone mapping inputs and retain its source builders."""
     if positions is None:
-        positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
+        positions = np.zeros((mapping.shape[1], 3), dtype=np.float32)
     if quaternions is None:
-        quaternions = torch.zeros((mapping.size(1), 4), device=mapping.device, dtype=torch.float32)
+        quaternions = np.zeros((mapping.shape[1], 4), dtype=np.float32)
         quaternions[:, 3] = 1.0
 
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
@@ -160,11 +160,15 @@ def _build_newton_builder_from_mapping(
     # Inject registered sites into source builders (and global sites into main builder).
     global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
 
-    replicate_args = (builder, sources, mapping, positions, quaternions, source_builders)
     local_site_map, world_xforms, fabric_body_bindings = replicate_builder_mapping(
-        *replicate_args,
-        destinations,
-        env_ids,
+        builder=builder,
+        sources=sources,
+        mapping=mapping,
+        positions=positions,
+        quaternions=quaternions,
+        source_builders=source_builders,
+        destinations=destinations,
+        env_ids=env_ids,
         source_site_indices=source_sites,
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
@@ -192,10 +196,10 @@ def _replicate_newton(
     stage: Usd.Stage,
     sources: Sequence[str],
     destinations: Sequence[str],
-    env_ids: torch.Tensor,
-    mapping: torch.Tensor,
-    positions: torch.Tensor | None,
-    quaternions: torch.Tensor | None,
+    env_ids: np.ndarray,
+    mapping: np.ndarray,
+    positions: np.ndarray | None,
+    quaternions: np.ndarray | None,
     up_axis: str,
     load_visual_shapes: bool,
     global_paths: tuple[str, ...],
@@ -203,16 +207,16 @@ def _replicate_newton(
     """Build one Newton model and publish its plan-derived lookup data."""
     builder, stage_info, site_index_map, world_xforms, source_builders, fabric_body_bindings = (
         _build_newton_builder_from_mapping(
-            stage,
-            sources,
-            destinations,
-            env_ids,
-            mapping,
-            positions,
-            quaternions,
-            up_axis,
-            load_visual_shapes,
-            global_paths,
+            stage=stage,
+            sources=sources,
+            destinations=destinations,
+            env_ids=env_ids,
+            mapping=mapping,
+            positions=positions,
+            quaternions=quaternions,
+            up_axis=up_axis,
+            load_visual_shapes=load_visual_shapes,
+            global_paths=global_paths,
         )
     )
     NewtonManager._cl_site_index_map = site_index_map
@@ -220,7 +224,7 @@ def _replicate_newton(
     NewtonManager._world_xforms = world_xforms
     NewtonManager._cl_protos = source_builders
     NewtonManager.set_builder(builder)
-    NewtonManager._num_envs = mapping.size(1)
+    NewtonManager._num_envs = mapping.shape[1]
     return builder, stage_info, site_index_map
 
 
@@ -242,16 +246,16 @@ class NewtonReplicateContext:
         cfg = self._sim.cfg.physics
         load_visual_shapes = cfg.load_visual_shapes if isinstance(cfg, NewtonCfg) else None
         return _replicate_newton(
-            self._sim.stage,
-            tuple(plan.sources[row] for row in rows),
-            tuple(plan.destinations[row] for row in rows),
-            plan.env_ids,
-            plan.clone_mask[list(rows)],
-            plan.positions,
-            None,
-            self.up_axis,
-            _renderer_wants_visual_shapes() if load_visual_shapes is None else load_visual_shapes,
-            plan.global_paths,
+            stage=self._sim.stage,
+            sources=tuple(plan.sources[row] for row in rows),
+            destinations=tuple(plan.destinations[row] for row in rows),
+            env_ids=plan.env_ids,
+            mapping=plan.clone_mask[list(rows)],
+            positions=plan.positions,
+            quaternions=None,
+            up_axis=self.up_axis,
+            load_visual_shapes=_renderer_wants_visual_shapes() if load_visual_shapes is None else load_visual_shapes,
+            global_paths=plan.global_paths,
         )
 
 
@@ -259,14 +263,13 @@ def newton_physics_replicate(
     stage: Usd.Stage,
     sources: Sequence[str],
     destinations: Sequence[str],
-    env_ids: torch.Tensor,
-    mapping: torch.Tensor,
-    positions: torch.Tensor | None = None,
-    quaternions: torch.Tensor | None = None,
-    device: str = "cpu",
+    env_ids: np.ndarray,
+    mapping: np.ndarray,
+    positions: np.ndarray | None = None,
+    quaternions: np.ndarray | None = None,
     up_axis: str = "Z",
     global_paths: tuple[str, ...] = (),
-):
+) -> tuple[ModelBuilder, dict[str, Any]]:
     """Replicate prims into a Newton ``ModelBuilder`` using a per-source mapping.
 
     Args:
@@ -277,26 +280,24 @@ def newton_physics_replicate(
         mapping: Boolean source-to-environment mapping matrix.
         positions: Optional per-environment world positions.
         quaternions: Optional per-environment orientations in xyzw order.
-        device: Device used by the finalized Newton model builder.
         up_axis: Up axis for the Newton model builder.
         global_paths: Shared scene-asset roots imported once. Defaults to none.
 
     Returns:
         Tuple of the populated Newton model builder and stage metadata.
     """
-    del device
     cfg = PhysicsManager._cfg
     load_visual_shapes = cfg.load_visual_shapes if isinstance(cfg, NewtonCfg) else None
     builder, stage_info, _ = _replicate_newton(
-        stage,
-        sources,
-        destinations,
-        env_ids,
-        mapping,
-        positions,
-        quaternions,
-        up_axis,
-        _renderer_wants_visual_shapes() if load_visual_shapes is None else load_visual_shapes,
-        global_paths,
+        stage=stage,
+        sources=sources,
+        destinations=destinations,
+        env_ids=env_ids,
+        mapping=mapping,
+        positions=positions,
+        quaternions=quaternions,
+        up_axis=up_axis,
+        load_visual_shapes=_renderer_wants_visual_shapes() if load_visual_shapes is None else load_visual_shapes,
+        global_paths=global_paths,
     )
     return builder, stage_info

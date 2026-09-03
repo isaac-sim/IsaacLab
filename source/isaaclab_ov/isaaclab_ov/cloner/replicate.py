@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
+import numpy as np
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
@@ -45,10 +45,10 @@ def _clone_recipes(
     stage: Usd.Stage,
     sources: Sequence[str],
     destinations: Sequence[str],
-    env_ids: torch.Tensor,
-    mapping: torch.Tensor,
-    positions: torch.Tensor | None,
-    quaternions: torch.Tensor | None,
+    env_ids: np.ndarray,
+    mapping: np.ndarray,
+    positions: np.ndarray | None,
+    quaternions: np.ndarray | None,
 ) -> list[tuple[str, list[str], list[CloneTransform]]]:
     """Build OvPhysX clone recipes from one flat mapping."""
     if positions is not None and positions.shape != (len(env_ids), 3):
@@ -57,18 +57,15 @@ def _clone_recipes(
         raise ValueError(f"quaternions must have shape [num_envs, 4], got {list(quaternions.shape)}.")
 
     columns_by_row = [[] for _ in range(mapping.shape[0])]
-    for row, column in mapping.detach().to(dtype=torch.bool).nonzero(as_tuple=False).cpu().tolist():
+    for row, column in np.argwhere(mapping):
         columns_by_row[row].append(column)
-    env_ids_cpu = env_ids.detach().cpu().tolist()
-    positions_cpu = None if positions is None else positions.detach().cpu().tolist()
-    quaternions_cpu = None if quaternions is None else quaternions.detach().cpu().tolist()
     xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
     recipes = []
     for row, source in enumerate(sources):
         columns = columns_by_row[row]
         if not columns:
             continue
-        active_env_ids = [env_ids_cpu[column] for column in columns]
+        active_env_ids = env_ids[columns]
         matched = cloner.path.match(source, destinations[row])
         self_env_id = int(matched.instance) if matched is not None and matched.instance.isdigit() else None
 
@@ -90,14 +87,15 @@ def _clone_recipes(
         targets = []
         target_transforms = []
         for env_id, column in zip(active_env_ids, columns):
+            env_id = int(env_id)
             if env_id == self_env_id:
                 continue
             targets.append(destinations[row].format(env_id))
             target_env_world = Gf.Matrix4d(1.0)
-            if positions_cpu is not None:
-                target_env_world.SetTranslateOnly(Gf.Vec3d(*map(float, positions_cpu[column])))
-            if quaternions_cpu is not None:
-                q = quaternions_cpu[column]
+            if positions is not None:
+                target_env_world.SetTranslateOnly(Gf.Vec3d(*map(float, positions[column])))
+            if quaternions is not None:
+                q = quaternions[column]
                 target_env_world.SetRotateOnly(Gf.Quatd(float(q[3]), Gf.Vec3d(*map(float, q[:3]))))
             target_transforms.append(_matrix_to_clone_transform(source_relative * target_env_world))
         if targets:
@@ -135,13 +133,13 @@ class OvPhysxReplicateContext:
             raise ValueError("ClonePlan.env_ids is required for replication.")
         rows = plan.context_rows[type(self)]
         recipes = _clone_recipes(
-            self.stage,
-            tuple(plan.sources[row] for row in rows),
-            tuple(plan.destinations[row] for row in rows),
-            plan.env_ids,
-            plan.clone_mask[list(rows)],
-            plan.positions,
-            None,
+            stage=self.stage,
+            sources=tuple(plan.sources[row] for row in rows),
+            destinations=tuple(plan.destinations[row] for row in rows),
+            env_ids=plan.env_ids,
+            mapping=plan.clone_mask[list(rows)],
+            positions=plan.positions,
+            quaternions=None,
         )
         for source, targets, transforms in recipes:
             self._sim.physics_manager._register_clone_transforms(source, targets, transforms)
@@ -151,15 +149,35 @@ def ovphysx_replicate(
     stage: Usd.Stage,
     sources: Sequence[str],
     destinations: Sequence[str],
-    env_ids: torch.Tensor,
-    mapping: torch.Tensor,
-    positions: torch.Tensor | None = None,
-    quaternions: torch.Tensor | None = None,
-    device: str = "cpu",
+    env_ids: np.ndarray,
+    mapping: np.ndarray,
+    positions: np.ndarray | None = None,
+    quaternions: np.ndarray | None = None,
 ) -> None:
-    """Publish OvPhysX clone recipes from one raw source-to-environment mapping."""
-    del device
-    recipes = _clone_recipes(stage, sources, destinations, env_ids, mapping, positions, quaternions)
+    """Publish OvPhysX clone recipes from one raw source-to-environment mapping.
+
+    Args:
+        stage: USD stage containing the source prims.
+        sources: Source prim paths, one per mapping row.
+        destinations: Destination templates containing ``"{}"``, one per mapping row.
+        env_ids: Integer environment identifiers, shape ``[num_envs]``.
+        mapping: Boolean source-to-environment selection, shape ``[len(sources), num_envs]``.
+        positions: Optional environment positions [m], shape ``[num_envs, 3]``.
+        quaternions: Optional environment orientations in xyzw order, shape ``[num_envs, 4]``.
+
+    Raises:
+        RuntimeError: If no simulation context is active.
+        ValueError: If transforms are malformed or a source or source anchor is invalid.
+    """
+    recipes = _clone_recipes(
+        stage=stage,
+        sources=sources,
+        destinations=destinations,
+        env_ids=env_ids,
+        mapping=mapping,
+        positions=positions,
+        quaternions=quaternions,
+    )
     sim = PhysicsManager._sim
     if sim is None:
         raise RuntimeError("OvPhysX replication requires an active SimulationContext.")

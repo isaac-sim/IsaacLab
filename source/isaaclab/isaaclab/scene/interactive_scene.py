@@ -10,6 +10,8 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 if TYPE_CHECKING:
     from isaaclab_physx.assets import SurfaceGripper
 
@@ -118,8 +120,8 @@ class InteractiveScene:
         scene = InteractiveScene(cfg=InteractiveSceneCfg(num_envs=128, replicate_physics=True))
         robot = Articulation(robot_cfg)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing, device=scene.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, scene.num_envs, scene.device, pos)
+        pos = cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing)[0]
+        plan = cloner.clone_plan_from_env_0(src, dest, scene.num_envs, pos)
         cloner.replicate(plan)
 
     .. note::
@@ -162,28 +164,14 @@ class InteractiveScene:
         self._physics_scene_path = None
         # prepare cloner for environment replication
         self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
-        self.cloner_cfg.device = self.device
         self.cloner_cfg.replicate_physics = self.cfg.replicate_physics
         # the template is authoritative; the regex form is the same namespace spelled for matching
         self._env_fmt = self.cloner_cfg.clone_template
         self.env_prim_paths = [self._env_fmt.format(i) for i in range(self.cfg.num_envs)]
         self._scene_asset_names: list[str] = []
-        self._clone_valid_set: torch.Tensor | None = None
+        self._clone_valid_set: np.ndarray | None = None
 
-        # create source prim
-        self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
-        # allocate env indices
         self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
-        # clone env_0 xform to env_1..env_{N-1} at grid origins
-        env_origins, _ = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing, device=self.device)
-        with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
-            cloner.usd_replicate(
-                self.stage,
-                [self.env_prim_paths[0]],
-                [self._env_fmt],
-                self._ALL_INDICES,
-                positions=env_origins,
-            )
 
         # Always enter so a ClonePlan is published even when the scene cfg has no entities.
         self._global_prim_paths = list()
@@ -192,15 +180,25 @@ class InteractiveScene:
             clone_cfgs,
             num_clones=self.num_envs,
             env_spacing=self.cfg.env_spacing,
-            device=self.device,
             global_paths=global_paths,
             env_template=self._env_fmt,
             clone_strategy=self.cloner_cfg.clone_strategy,
             valid_set=self._clone_valid_set,
             replicate_physics=self.cloner_cfg.replicate_physics,
-        ):
+        ) as session:
+            self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
+            with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
+                cloner.usd_replicate(
+                    self.stage,
+                    [self.env_prim_paths[0]],
+                    [self._env_fmt],
+                    session.plan.env_ids,
+                    positions=session.plan.positions,
+                )
             if self._is_scene_setup_from_cfg():
                 self._add_entities_from_cfg()
+        self._env_origins_plan = session.plan
+        self._env_origins = torch.as_tensor(session.plan.positions, device=self.device)
 
         # Every sensor exists by now, so all visualizer and camera-renderer requirements are visible.
         cam_types = [s.cfg.renderer_cfg.renderer_type for s in self._sensors.values() if isinstance(s.cfg, CameraCfg)]
@@ -273,7 +271,6 @@ class InteractiveScene:
                 clone_asset_names,
                 variant_counts,
                 self.cloner_cfg.clone_combinations,
-                self.device,
                 all_asset_names=self._scene_asset_names,
             )
         else:
@@ -383,7 +380,13 @@ class InteractiveScene:
         """
         if self._terrain is not None:
             return self._terrain.env_origins
-        return self.sim.get_clone_plan().positions
+        plan = self.clone_plan
+        if plan is None or plan.positions is None:
+            raise RuntimeError("Environment origins require a published clone plan with positions.")
+        if plan is not self._env_origins_plan:
+            self._env_origins = torch.as_tensor(plan.positions, device=self.device)
+            self._env_origins_plan = plan
+        return self._env_origins
 
     @property
     def terrain(self) -> TerrainImporter | None:

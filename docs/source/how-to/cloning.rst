@@ -29,15 +29,16 @@ and tests and deliberately have parallel signatures:
 
 .. code-block:: text
 
-    backend_replicate(stage, sources, destinations, env_ids, mask, positions=None, quaternions=None, ...)
+    backend_replicate(stage, sources, destinations, env_ids, selection, positions=None, quaternions=None, ...)
 
 The arguments are parallel arrays describing the layout:
 
 * ``sources`` — source prim paths already authored on the stage.
 * ``destinations`` — destination templates containing ``"{}"``, formatted with each env id.
-* ``env_ids`` — long tensor of target env indices.
-* ``mask`` — bool tensor of shape ``[len(sources), num_envs]``; ``mask[i, j]`` is
-  ``True`` when env ``j`` should be populated from source ``i``.
+* ``env_ids`` — NumPy integer array of target env indices.
+* ``selection`` — NumPy boolean array of shape ``[len(sources), num_envs]``;
+  ``selection[i, j]`` is ``True`` when env ``j`` should be populated from source ``i``.
+  The raw USD function names this argument ``mask``; physics functions name it ``mapping``.
 * ``positions`` / ``quaternions`` — optional per-env world transforms.
 
 Production scene construction stores those arrays once in a
@@ -57,7 +58,7 @@ control. Production code reaches for one of the ways in
 
 .. code-block:: python
 
-    import torch
+    import numpy as np
     import isaaclab.sim as sim_utils
     from isaaclab.cloner import usd_replicate
 
@@ -65,13 +66,17 @@ control. Production code reaches for one of the ways in
     stage = sim_utils.get_current_stage()
     cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
     cube_cfg.func("/World/envs/env_0/Cube", cube_cfg)
+    sources = ("/World/envs/env_0/Cube",)
+    destinations = ("/World/envs/env_{}/Cube",)
+    env_ids = np.arange(num_envs)
+    mapping = np.ones((1, num_envs), dtype=np.bool_)
 
     usd_replicate(
         stage,
-        sources=["/World/envs/env_0/Cube"],
-        destinations=["/World/envs/env_{}/Cube"],
-        env_ids=torch.arange(num_envs, device="cuda:0"),
-        mask=torch.ones((1, num_envs), dtype=torch.bool, device="cuda:0"),
+        sources=sources,
+        destinations=destinations,
+        env_ids=env_ids,
+        mask=mapping,
     )
 
 **PhysX** — call PhysX and USD on the same sources and destinations (either order):
@@ -80,8 +85,8 @@ control. Production code reaches for one of the ways in
 
     from isaaclab_physx.cloner import physx_replicate
 
-    physx_replicate(stage, sources, destinations, env_ids, mask)
-    usd_replicate(stage, sources, destinations, env_ids, mask)
+    physx_replicate(stage, sources, destinations, env_ids, mapping=mapping)
+    usd_replicate(stage, sources, destinations, env_ids, mask=mapping)
 
 **Newton**:
 
@@ -89,7 +94,7 @@ control. Production code reaches for one of the ways in
 
     from isaaclab_newton.cloner import newton_physics_replicate
 
-    newton_physics_replicate(stage, sources, destinations, env_ids, mapping=mask)
+    newton_physics_replicate(stage, sources, destinations, env_ids, mapping=mapping)
 
 **OvPhysX**:
 
@@ -97,7 +102,7 @@ control. Production code reaches for one of the ways in
 
     from isaaclab_ov.cloner import ovphysx_replicate
 
-    ovphysx_replicate(stage, sources, destinations, env_ids, mapping=mask)
+    ovphysx_replicate(stage, sources, destinations, env_ids, mapping=mapping)
 
 
 Cloning in a Backend-Agnostic Way
@@ -133,9 +138,9 @@ fields listed below are that table's columns:
    * - ``destinations``
      - Destination templates with ``"{}"`` for the env id, one per row.
    * - ``clone_mask``
-     - Bool tensor ``[len(sources), num_envs]``; ``True`` when env ``j`` comes from row ``i``.
+     - NumPy boolean array ``[len(sources), num_envs]``; ``True`` when env ``j`` comes from row ``i``.
    * - ``env_ids``
-     - Optional long tensor of target env ids; execution requires it.
+     - Optional NumPy integer array of target env ids; execution requires it.
    * - ``positions``
      - Optional per-env world positions [m], shape ``[num_envs, 3]``.
    * - ``global_paths``
@@ -228,7 +233,7 @@ and exiting the block clears those constructor registrations and dispatches the 
 
 .. code-block:: python
 
-    with cloner.ReplicateSession(cfgs, num_clones=N, env_spacing=2.0, device=device):
+    with cloner.ReplicateSession(cfgs, num_clones=N, env_spacing=2.0):
         for cfg in cfgs:
             cfg.class_type(cfg)
 
@@ -263,7 +268,7 @@ intervene before replication actually happens:
 
 .. code-block:: python
 
-    plan = cloner.make_clone_plan(cfgs, num_clones=N, env_spacing=2.0, device=device)
+    plan = cloner.make_clone_plan(cfgs, num_clones=N, env_spacing=2.0)
     for cfg in cfgs:
         cfg.class_type(cfg)
     cloner.replicate(plan)
@@ -286,9 +291,9 @@ subclasses use — they author the env-0 prototype prim by prim in
         # ... any other assets ...
 
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
         global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos, global_paths=global_paths)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
         cloner.replicate(plan)
 
 Every env receives the same prototype. When envs need to differ, use one of the

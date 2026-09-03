@@ -92,7 +92,7 @@ from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_c
 from isaaclab.sim.utils.queries import has_deformable_curve_api
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
-from isaaclab.utils.string import resolve_matching_names, string_to_callable
+from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
@@ -411,8 +411,6 @@ class NewtonManager(PhysicsManager):
         which subclass is active.
     """
 
-    clone_context_type = "isaaclab_newton.cloner:NewtonReplicateContext"
-
     _solver_dt: float = 1.0 / 200.0
     _num_substeps: int = 1
     _decimation: int = 1
@@ -559,7 +557,7 @@ class NewtonManager(PhysicsManager):
     # model from these and resolve it via ``query.path_to_source``.
     _cl_protos: dict[str, ModelBuilder] = {}
     _deformable_registry: list = []
-    _per_world_builder_hooks: list[Callable[[ModelBuilder, int, list[float], list[float]], None]] = []
+    _per_world_builder_hooks: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -569,8 +567,12 @@ class NewtonManager(PhysicsManager):
             sim_context: Parent simulation context.
         """
         super().initialize(sim_context)
-        context_type = string_to_callable(cls.clone_context_type)
-        sim_context.get_or_create_backend(context_type, sim_context)
+
+        # This context imports NewtonManager, so it can only be imported after this module initializes.
+        from isaaclab_newton.cloner import NewtonReplicateContext  # noqa: PLC0415
+
+        cls.clone_context_type = NewtonReplicateContext
+        sim_context.get_or_create_backend(NewtonReplicateContext, sim_context)
 
         # Newton-specific setup: get gravity from SimulationCfg (not physics manager cfg)
         sim = PhysicsManager._sim
@@ -1966,7 +1968,12 @@ class NewtonManager(PhysicsManager):
             import_builder_visual_material_paths(builder, stage)
             NewtonManager._world_xforms = [wp.transform()]
             for hook in cls._per_world_builder_hooks:
-                hook(builder, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
+                hook(
+                    builder,
+                    0,
+                    np.zeros(3, dtype=np.float32),
+                    np.asarray((0.0, 0.0, 0.0, 1.0), dtype=np.float32),
+                )
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
             # and any terrain colliders already added as heightfields above.
@@ -2006,12 +2013,16 @@ class NewtonManager(PhysicsManager):
                     )
                 )
 
-            positions = torch.tensor([pos for pos, _ in poses], dtype=torch.float32)
-            quaternions = torch.tensor([quat for _, quat in poses], dtype=torch.float32)
-            mapping = torch.ones((1, len(env_paths)), dtype=torch.bool)
-            replicate_args = (builder, (proto_path,), mapping, positions, quaternions, source_builders)
+            positions = np.asarray([pos for pos, _ in poses], dtype=np.float32)
+            quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
+            mapping = np.ones((1, len(env_paths)), dtype=np.bool_)
             local_site_map, world_xforms, _ = replicate_builder_mapping(
-                *replicate_args,
+                builder=builder,
+                sources=(proto_path,),
+                mapping=mapping,
+                positions=positions,
+                quaternions=quaternions,
+                source_builders=source_builders,
                 source_site_indices=source_site_indices,
                 env_root_sites=env_root_sites,
                 per_world_builder_hooks=cls._per_world_builder_hooks,

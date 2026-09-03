@@ -6,15 +6,15 @@
 """Tests for the cloner path/query algebra.
 
 These exercise :mod:`isaaclab.cloner.path` and :mod:`isaaclab.cloner.query`, which are pure
-string/tensor operations over a :class:`~isaaclab.cloner.ClonePlan`. They need no stage, no
+string/array operations over a :class:`~isaaclab.cloner.ClonePlan`. They need no stage, no
 simulator and no USD, so they live outside ``test/sim/``.
 """
 
 import subprocess
 import sys
 
+import numpy as np
 import pytest
-import torch
 
 from isaaclab import cloner
 from isaaclab.cloner import ClonePlan
@@ -149,7 +149,7 @@ def _plan(sources, destinations, mask) -> ClonePlan:
     return ClonePlan(
         sources=tuple(sources),
         destinations=tuple(destinations),
-        clone_mask=torch.tensor(mask, dtype=torch.bool),
+        clone_mask=np.asarray(mask, dtype=np.bool_),
     )
 
 
@@ -160,7 +160,7 @@ def _robot_plan(mask_row=(True, True, True, True)) -> ClonePlan:
 
 def _wide_env_id_plan() -> ClonePlan:
     """Two variants of one asset over 12 envs, the second starting at a two-digit env id."""
-    mask = torch.zeros((2, 12), dtype=torch.bool)
+    mask = np.zeros((2, 12), dtype=np.bool_)
     mask[0, :10] = True
     mask[1, 10:] = True
     return ClonePlan(
@@ -497,8 +497,8 @@ def test_query_translates_env_ids_through_the_plan():
     plan = ClonePlan(
         sources=("/World/envs/env_2/Robot",),
         destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=torch.tensor([[True, True]], dtype=torch.bool),
-        env_ids=torch.tensor([2, 5], dtype=torch.long),
+        clone_mask=np.asarray([[True, True]], dtype=np.bool_),
+        env_ids=np.asarray([2, 5], dtype=np.int64),
     )
     path = "/World/envs/env_2/Robot/base"
 
@@ -510,21 +510,6 @@ def test_query_translates_env_ids_through_the_plan():
 
     source, _glob, suffix = cloner.query.path_to_source(plan, "/World/envs/env_5/Robot/base")
     assert source + suffix == path
-
-
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is unavailable")
-def test_query_gathers_env_ids_across_devices():
-    """Environment ids can remain on CPU when the clone mask is on CUDA."""
-    plan = ClonePlan(
-        sources=("/World/envs/env_2/Robot",),
-        destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=torch.tensor([[True, False, True]], dtype=torch.bool, device="cuda"),
-        env_ids=torch.tensor([2, 5, 8], dtype=torch.long),
-    )
-    path = "/World/envs/env_2/Robot/base"
-
-    assert cloner.query.path_env_ids(plan, path) == (2, 8)
-    assert next(iter(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Robot")))[3] == (2, 8)
 
 
 @pytest.mark.parametrize("env_id", [-1, 4, 99])
@@ -557,7 +542,7 @@ def test_query_agrees_across_duplicate_source_rows():
 
 
 def test_env_0_plan_defaults_to_no_global_paths():
-    plan = cloner.clone_plan_from_env_0("/World/envs/env_0", "/World/envs/env_{}", 2, "cpu")
+    plan = cloner.clone_plan_from_env_0("/World/envs/env_0", "/World/envs/env_{}", 2)
     assert plan.global_paths == ()
 
 

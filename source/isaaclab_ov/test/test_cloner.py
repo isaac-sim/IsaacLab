@@ -8,8 +8,8 @@
 import math
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
-import torch
 from isaaclab_ov.cloner import OvPhysxReplicateContext, ovphysx_replicate
 from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
 
@@ -50,19 +50,23 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
         stage,
         sources=["/World/envs/env_0/Robot", "/World/envs/env_9/Inactive"],
         destinations=["/World/envs/env_{}/Robot", "/World/envs/env_{}/Inactive"],
-        env_ids=torch.tensor([0, 1]),
-        mapping=torch.tensor([[True, True], [False, False]]),
-        positions=torch.tensor([[4.0, 5.0, 6.0], [10.0, 20.0, 30.0]]),
-        quaternions=torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, target_half_angle_sin, target_half_angle_cos]]),
+        env_ids=np.array([0, 1], dtype=np.int64),
+        mapping=np.array([[True, True], [False, False]], dtype=np.bool_),
+        positions=np.array([[4.0, 5.0, 6.0], [10.0, 20.0, 30.0]], dtype=np.float32),
+        quaternions=np.array(
+            [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, target_half_angle_sin, target_half_angle_cos]],
+            dtype=np.float32,
+        ),
     )
 
-    expected_orientation = torch.tensor(
+    expected_orientation = np.array(
         [
             target_half_angle_cos * source_half_angle_sin,
             target_half_angle_sin * source_half_angle_sin,
             target_half_angle_sin * source_half_angle_cos,
             target_half_angle_cos * source_half_angle_cos,
-        ]
+        ],
+        dtype=np.float32,
     )
     expected_transform = (10.0 - half_sqrt_two, 20.0 + half_sqrt_two, 32.0, *expected_orientation.tolist())
 
@@ -72,8 +76,8 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     assert pending_targets == ["/World/envs/env_1/Robot"]
     assert len(pending_transforms) == 1
     assert pending_transforms[0][:3] == pytest.approx(expected_transform[:3])
-    orientation = torch.tensor(pending_transforms[0][3:])
-    if torch.dot(orientation, expected_orientation) < 0.0:
+    orientation = np.asarray(pending_transforms[0][3:], dtype=np.float32)
+    if np.dot(orientation, expected_orientation) < 0.0:
         orientation = -orientation
     assert orientation.tolist() == pytest.approx(expected_orientation.tolist())
 
@@ -89,9 +93,9 @@ def test_ovphysx_context_consumes_plan():
     plan = ClonePlan(
         sources=("/World/envs/env_10/Robot",),
         destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool),
-        env_ids=torch.tensor([10, 20]),
-        positions=torch.tensor([[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]]),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.array([10, 20], dtype=np.int64),
+        positions=np.array([[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]], dtype=np.float32),
         context_rows={OvPhysxReplicateContext: (0,)},
     )
 
@@ -121,8 +125,8 @@ def test_raw_replicate_rejects_invalid_source_prim():
             stage,
             sources=["/World/envs/env_0/Robot"],
             destinations=["/World/envs/env_{}/Robot"],
-            env_ids=torch.tensor([0, 1]),
-            mapping=torch.tensor([[True, True]]),
+            env_ids=np.array([0, 1], dtype=np.int64),
+            mapping=np.array([[True, True]], dtype=np.bool_),
         )
 
 
@@ -142,17 +146,17 @@ def test_raw_replicate_rejects_invalid_source_anchor():
             StageWithoutAnchor(),
             sources=["/World/envs/env_0/Robot"],
             destinations=["/World/envs/env_{}/Robot"],
-            env_ids=torch.tensor([0, 1]),
-            mapping=torch.tensor([[True, True]]),
+            env_ids=np.array([0, 1], dtype=np.int64),
+            mapping=np.array([[True, True]], dtype=np.bool_),
         )
 
 
 @pytest.mark.parametrize(
     ("name", "value"),
-    [("positions", torch.zeros((1, 3))), ("quaternions", torch.zeros((1, 4)))],
+    [("positions", np.zeros((1, 3), dtype=np.float32)), ("quaternions", np.zeros((1, 4), dtype=np.float32))],
 )
-def test_raw_replicate_rejects_pose_tensor_missing_selected_environment(name, value):
-    """Provided pose tensors include every selected environment."""
+def test_raw_replicate_rejects_pose_array_missing_selected_environment(name, value):
+    """Provided pose arrays include every selected environment."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
     with pytest.raises(ValueError, match=name):
@@ -160,18 +164,18 @@ def test_raw_replicate_rejects_pose_tensor_missing_selected_environment(name, va
             stage,
             sources=["/World/envs/env_0/Robot"],
             destinations=["/World/envs/env_{}/Robot"],
-            env_ids=torch.tensor([0, 1]),
-            mapping=torch.tensor([[True, True]]),
+            env_ids=np.array([0, 1], dtype=np.int64),
+            mapping=np.array([[True, True]], dtype=np.bool_),
             **{name: value},
         )
 
 
 @pytest.mark.parametrize(
     ("name", "value"),
-    [("positions", torch.zeros((2, 2))), ("quaternions", torch.zeros((2, 3)))],
+    [("positions", np.zeros((2, 2), dtype=np.float32)), ("quaternions", np.zeros((2, 3), dtype=np.float32))],
 )
-def test_raw_replicate_rejects_malformed_pose_tensor(name, value):
-    """Provided pose tensors use the documented component counts."""
+def test_raw_replicate_rejects_malformed_pose_array(name, value):
+    """Provided pose arrays use the documented component counts."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
     with pytest.raises(ValueError, match=rf"{name} must have shape"):
@@ -179,7 +183,7 @@ def test_raw_replicate_rejects_malformed_pose_tensor(name, value):
             stage,
             sources=["/World/envs/env_0/Robot"],
             destinations=["/World/envs/env_{}/Robot"],
-            env_ids=torch.tensor([0, 1]),
-            mapping=torch.tensor([[True, True]]),
+            env_ids=np.array([0, 1], dtype=np.int64),
+            mapping=np.array([[True, True]], dtype=np.bool_),
             **{name: value},
         )
