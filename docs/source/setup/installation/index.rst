@@ -640,7 +640,7 @@ have dedicated commands below.
      - Both OV backends: OV PhysX and OV RTX.
    * - ``ovphysx`` / ``ovrtx``
      - OV PhysX only / OV RTX only.
-   * - ``rl-games`` / ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf``
+   * - ``rl-games`` / ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf`` / ``torchrl``
      - The corresponding RL framework.
    * - ``rerun`` / ``viser``
      - The corresponding visualizer.

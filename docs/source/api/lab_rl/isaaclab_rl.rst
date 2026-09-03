@@ -66,3 +66,11 @@ Stable-Baselines3 Wrapper
 .. automodule:: isaaclab_rl.sb3
    :members:
    :show-inheritance:
+
+TorchRL Wrapper
+---------------
+
+.. automodule:: isaaclab_rl.torchrl
+   :members:
+   :imported-members:
+   :show-inheritance:

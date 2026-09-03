@@ -153,6 +153,8 @@ rl-games = [
 
 rsl-rl = ["rsl-rl-lib==5.4.1", "onnxscript>=0.5"]
 
+torchrl = ["torchrl>=0.13"]
+
 viser = ["viser>=1.0.16"]
 
 rerun = [

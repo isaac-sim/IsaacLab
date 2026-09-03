@@ -95,6 +95,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras():
 
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
+        "torchrl",
         "isaacsim",
         "importers",
         "mimic",
