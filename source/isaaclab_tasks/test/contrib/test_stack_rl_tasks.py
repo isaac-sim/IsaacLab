@@ -34,7 +34,6 @@ from isaaclab_tasks.contrib.stack.mdp.runtime_state import (
 )
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
-
 FRANKA_STATE_TASK = "IsaacContrib-Stack-Cube-Franka-RL"
 FRANKA_CAMERA_TASK = "IsaacContrib-Stack-Cube-Franka-RL-Camera"
 FRANKA_DISTILLATION_TASK = "IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation"

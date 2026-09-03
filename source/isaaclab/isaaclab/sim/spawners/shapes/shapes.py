@@ -14,7 +14,14 @@ from pxr import Usd, UsdGeom
 from isaaclab.sim import schemas
 from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
 from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
-from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
+from isaaclab.sim.utils import (
+    bind_physics_material,
+    bind_visual_material,
+    clone,
+    create_prim,
+    get_current_stage,
+    set_prim_visibility,
+)
 
 if TYPE_CHECKING:
     from . import shapes_cfg
@@ -353,6 +360,7 @@ def _spawn_geom_from_prim_type(
 
     # create the geometry prim
     create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes, stage=stage)
+    set_prim_visibility(stage.GetPrimAtPath(prim_path), cfg.visible)
     if geometry_schema_func is not None:
         geometry_schema_func(mesh_prim_path, stage=stage)
     # apply collision properties
