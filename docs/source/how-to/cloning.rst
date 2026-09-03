@@ -66,17 +66,13 @@ control. Production code reaches for one of the ways in
     stage = sim_utils.get_current_stage()
     cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
     cube_cfg.func("/World/envs/env_0/Cube", cube_cfg)
-    sources = ("/World/envs/env_0/Cube",)
-    destinations = ("/World/envs/env_{}/Cube",)
-    env_ids = np.arange(num_envs)
-    mapping = np.ones((1, num_envs), dtype=np.bool_)
 
     usd_replicate(
         stage,
-        sources=sources,
-        destinations=destinations,
-        env_ids=env_ids,
-        mask=mapping,
+        sources=("/World/envs/env_0/Cube",),
+        destinations=("/World/envs/env_{}/Cube",),
+        env_ids=np.arange(num_envs),
+        mask=np.ones((1, num_envs), dtype=np.bool_),
     )
 
 **PhysX** — call PhysX and USD on the same sources and destinations (either order):
@@ -85,6 +81,10 @@ control. Production code reaches for one of the ways in
 
     from isaaclab_physx.cloner import physx_replicate
 
+    sources = ("/World/envs/env_0/Cube",)
+    destinations = ("/World/envs/env_{}/Cube",)
+    env_ids = np.arange(num_envs)
+    mapping = np.ones((1, num_envs), dtype=np.bool_)
     physx_replicate(stage, sources, destinations, env_ids, mapping=mapping)
     usd_replicate(stage, sources, destinations, env_ids, mask=mapping)
 
