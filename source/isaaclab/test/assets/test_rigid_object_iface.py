@@ -1170,3 +1170,82 @@ class TestOvPhysxRigidObjectSubmissionFrame:
         assert calls == [], "OvPhysX read body poses for a global-at-CoM wrench"
         actual = wp.to_torch(obj._wrench_buf).reshape(num_instances, -1)[:, :6]
         torch.testing.assert_close(actual, expected, atol=1e-5, rtol=1e-5)
+
+
+# ---------------------------------------------------------------------------
+# Tests: resolve_submission cross-backend equivalence
+# ---------------------------------------------------------------------------
+
+
+@wp.kernel
+def _rotate_inv_kernel(
+    link_quat_w: wp.array2d(dtype=wp.quatf),
+    world_force: wp.array2d(dtype=wp.vec3f),
+    world_torque: wp.array2d(dtype=wp.vec3f),
+    out_force_b: wp.array2d(dtype=wp.vec3f),
+    out_torque_b: wp.array2d(dtype=wp.vec3f),
+):
+    """Rotate world-frame force/torque into the body frame, mirroring ``compose_wrench_to_body_frame``."""
+    tid_env, tid_body = wp.tid()
+    out_force_b[tid_env, tid_body] = wp.quat_rotate_inv(link_quat_w[tid_env, tid_body], world_force[tid_env, tid_body])
+    out_torque_b[tid_env, tid_body] = wp.quat_rotate_inv(
+        link_quat_w[tid_env, tid_body], world_torque[tid_env, tid_body]
+    )
+
+
+class TestRigidObjectSubmissionEquivalence:
+    """Whatever frame ``resolve_submission`` picks, the returned wrench matches the fully composed one."""
+
+    @_production_backends
+    @pytest.mark.parametrize(
+        ("is_global", "with_positions"), [(False, False), (False, True), (True, False), (True, True)]
+    )
+    def test_submission_matches_composed_wrench(self, backend, is_global, with_positions):
+        device = "cpu"
+        num_instances = 2
+        obj, _ = get_rigid_object(backend, num_instances=num_instances, device=device)
+        composer = obj.permanent_wrench_composer
+
+        forces = torch.zeros((num_instances, 1, 3), device=device)
+        forces[:, 0, 0] = torch.tensor([1.0, 2.0], device=device)
+        positions = torch.full((num_instances, 1, 3), 0.1, device=device) if with_positions else None
+        composer.set_forces_and_torques_index(forces=forces, positions=positions, is_global=is_global)
+
+        force, torque, frame = composer.resolve_submission()
+        composer.compose_to_body_frame()
+
+        # Expected frame per the resolve_submission contract:
+        # - a local wrench is already body-frame.
+        # - a global positioned force always needs the CoM correction, so it composes to body-frame.
+        # - a global unpositioned (at-CoM) wrench stays world-frame only on consumers that accept it.
+        if not is_global or with_positions:
+            expected_frame = WrenchComposer.Frame.BODY
+        elif composer._supports_world_at_com:
+            expected_frame = WrenchComposer.Frame.WORLD_AT_COM
+        else:
+            expected_frame = WrenchComposer.Frame.BODY
+        assert frame is expected_frame
+
+        if frame is WrenchComposer.Frame.BODY:
+            torch.testing.assert_close(wp.to_torch(force), wp.to_torch(composer.out_force_b.warp))
+            torch.testing.assert_close(wp.to_torch(torque), wp.to_torch(composer.out_torque_b.warp))
+        else:
+            # Mirror `compose_wrench_to_body_frame` exactly: rotate the same world-frame arrays with
+            # the same `link_quat_w` buffer the production composer uses, then compare against the
+            # fully-composed body-frame output. This avoids re-deriving the rotation with a torch
+            # helper whose quaternion component order may not match `body_link_quat_w`.
+            link_quat_w = obj.data.body_link_quat_w.warp
+            rotated_force = wp.zeros_like(composer.out_force_b.warp)
+            rotated_torque = wp.zeros_like(composer.out_torque_b.warp)
+            wp.launch(
+                _rotate_inv_kernel,
+                dim=(num_instances, obj.num_bodies),
+                inputs=[link_quat_w, force, torque, rotated_force, rotated_torque],
+                device=device,
+            )
+            torch.testing.assert_close(
+                wp.to_torch(rotated_force), wp.to_torch(composer.out_force_b.warp), atol=1e-5, rtol=1e-5
+            )
+            torch.testing.assert_close(
+                wp.to_torch(rotated_torque), wp.to_torch(composer.out_torque_b.warp), atol=1e-5, rtol=1e-5
+            )
