@@ -24,7 +24,7 @@ import subprocess
 import tempfile
 import uuid
 from types import ModuleType
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
 from urllib.parse import urlparse
 
 from filelock import FileLock
@@ -50,45 +50,51 @@ _KIT_EXPERIENCE_PATH = os.path.normpath(
 # legacy ``cloud`` setting is only consulted for experience files that predate it.
 _KIT_ASSET_ROOT_SETTINGS = ("default", "cloud")
 
-_STORAGE_PROFILE_ENV_VAR = "ISAACSIM_STORAGE_PROFILE"
+_STORAGE_PROFILE_ENV_VAR = "ISAACSIM_ASSET_REGION_PROFILE"
 # Update this value when the China mirror moves to a new Isaac Sim asset release.
 _ISAAC_SIM_ASSET_RELEASE = "6.1"
-_CHINA_STORAGE_ENDPOINT = "simready-cn.s3.oss-cn-shanghai.aliyuncs.com"
+_CHINA_ASSET_ENDPOINT = "simready-cn.s3.oss-cn-shanghai.aliyuncs.com"
+_US_ASSET_ROOT = (
+    f"https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/{_ISAAC_SIM_ASSET_RELEASE}"
+)
 
 
 class _StorageProfile(TypedDict):
-    """OmniClient routing and asset-root values for a named storage profile."""
+    """OmniClient routing and asset-root values for a named asset region profile."""
 
-    endpoint: str
-    bucket: str
-    region: str
-    cdn_url: str
-    cdn_for_list: bool
     asset_root: str
+    endpoint: NotRequired[str]
+    bucket: NotRequired[str]
+    region: NotRequired[str]
+    cdn_url: NotRequired[str]
+    cdn_for_list: NotRequired[bool]
 
 
 _STORAGE_PROFILES: dict[str, _StorageProfile] = {
+    "us": {
+        "asset_root": _US_ASSET_ROOT,
+    },
     "china": {
-        "endpoint": _CHINA_STORAGE_ENDPOINT,
+        "endpoint": _CHINA_ASSET_ENDPOINT,
         "bucket": "simready-cn",
         "region": "oss-cn-shanghai",
         "cdn_url": "https://assets.simready.cn/",
         "cdn_for_list": False,
-        "asset_root": f"https://{_CHINA_STORAGE_ENDPOINT}/Assets/Isaac/{_ISAAC_SIM_ASSET_RELEASE}",
+        "asset_root": f"https://{_CHINA_ASSET_ENDPOINT}/Assets/Isaac/{_ISAAC_SIM_ASSET_RELEASE}",
     },
 }
 _CONFIGURED_STORAGE_PROFILES: set[str] = set()
 
 
 def _selected_storage_profile() -> tuple[str, _StorageProfile] | None:
-    """Return the storage profile selected by the environment, if it is known."""
+    """Return the asset region profile selected by the environment, if it is known."""
     profile_name = os.getenv(_STORAGE_PROFILE_ENV_VAR)
     if not profile_name:
         return None
 
     profile = _STORAGE_PROFILES.get(profile_name)
     if profile is None:
-        logger.warning("Ignoring %s: no storage profile named '%s'", _STORAGE_PROFILE_ENV_VAR, profile_name)
+        logger.warning("Ignoring %s: no asset region profile named '%s'", _STORAGE_PROFILE_ENV_VAR, profile_name)
         return None
     return profile_name, profile
 
@@ -103,32 +109,35 @@ def _configure_storage_profile(omni_client: ModuleType) -> None:
     if profile_name in _CONFIGURED_STORAGE_PROFILES:
         return
 
-    result = omni_client.set_s3_configuration(
-        url=profile["endpoint"],
-        bucket=profile["bucket"],
-        region=profile["region"],
-        cloudfrontUrl=profile["cdn_url"],
-        cloudfrontForList=profile["cdn_for_list"],
-        writeConfig=False,
-    )
-    if result != omni_client.Result.OK:
-        raise RuntimeError(f"Storage profile '{profile_name}' failed to configure {profile['endpoint']}: {result}")
+    endpoint = profile.get("endpoint")
+    if endpoint:
+        result = omni_client.set_s3_configuration(
+            url=endpoint,
+            bucket=profile.get("bucket"),
+            region=profile.get("region"),
+            cloudfrontUrl=profile.get("cdn_url"),
+            cloudfrontForList=profile.get("cdn_for_list", False),
+            writeConfig=False,
+        )
+        if result != omni_client.Result.OK:
+            raise RuntimeError(f"Asset region profile '{profile_name}' failed to configure {endpoint}: {result}")
 
     _CONFIGURED_STORAGE_PROFILES.add(profile_name)
-    logger.info("Applied storage profile '%s'", profile_name)
+    logger.info("Applied asset region profile '%s'", profile_name)
 
 
 def configure_storage_profile() -> None:
-    """Configure OmniClient routing for the selected storage profile.
+    """Configure OmniClient routing for the selected asset region profile.
 
     The configuration is applied in memory and at most once per profile. Isaac Lab
     launchers and asset helpers call this automatically. Standalone kitless scripts
     should call it before using ``omni.client`` directly.
 
     Raises:
-        RuntimeError: When OmniClient rejects the selected storage profile.
+        RuntimeError: When OmniClient rejects the selected asset region profile.
     """
-    if _selected_storage_profile() is None:
+    selected_profile = _selected_storage_profile()
+    if selected_profile is None or not selected_profile[1].get("endpoint"):
         return
 
     import omni.client  # noqa: PLC0415
@@ -136,8 +145,17 @@ def configure_storage_profile() -> None:
     _configure_storage_profile(omni.client)
 
 
+def configure_asset_region_profile() -> None:
+    """Configure the selected asset region profile.
+
+    This name matches the public Asset Region Profile terminology. The existing
+    :func:`configure_storage_profile` initializer remains supported.
+    """
+    configure_storage_profile()
+
+
 def _get_omni_client() -> ModuleType:
-    """Import OmniClient lazily and apply the selected storage profile."""
+    """Import OmniClient lazily and apply the selected asset region profile."""
     import omni.client  # noqa: PLC0415
 
     _configure_storage_profile(omni.client)
@@ -166,13 +184,13 @@ def _resolve_asset_root() -> str:
     """Resolve the configured Isaac asset root.
 
     The ``ISAACSIM_ASSET_ROOT`` environment variable follows the public Isaac Sim
-    asset-root precedence. When it is unset, the asset root from the storage profile
-    named by ``ISAACSIM_STORAGE_PROFILE`` is used. The kit file remains the fallback
+    asset-root precedence. When it is unset, the asset root from the asset region profile
+    named by ``ISAACSIM_ASSET_REGION_PROFILE`` is used. The kit file remains the fallback
     for kitless use.
 
     Returns:
         Value of ``ISAACSIM_ASSET_ROOT`` without its trailing separator, or the value
-        selected by ``ISAACSIM_STORAGE_PROFILE``, or the value configured in
+        selected by ``ISAACSIM_ASSET_REGION_PROFILE``, or the value configured in
         ``isaaclab.python.kit``.
     """
     # the value is used exactly as ``isaacsim.storage.native`` uses it, so both sides resolve
