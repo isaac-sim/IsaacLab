@@ -51,6 +51,7 @@ def test_reset_contact_sensor_kernel_clears_selected_force_matrix_history():
             last_contact_time,
             None,
             None,
+            None,
         ],
         device=device,
     )

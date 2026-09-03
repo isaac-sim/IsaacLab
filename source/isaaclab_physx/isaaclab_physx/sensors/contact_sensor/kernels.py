@@ -107,6 +107,7 @@ def reset_contact_sensor_kernel(
     current_contact_time: wp.array2d(dtype=wp.float32),
     last_contact_time: wp.array2d(dtype=wp.float32),
     friction_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
     contact_pos_w: wp.array3d(dtype=wp.vec3f),
 ):
     """Reset the contact sensor data for specified environments.
@@ -125,6 +126,8 @@ def reset_contact_sensor_kernel(
         current_contact_time: Current contact time array. Shape is (num_envs, num_sensors).
         last_contact_time: Last contact time array. Shape is (num_envs, num_sensors).
         friction_force_matrix_w: Friction forces array. Shape is (num_envs, num_sensors, num_filter_objects).
+        friction_force_matrix_w_history: Friction force history. Shape is
+            (num_envs, history_length, num_sensors, num_filter_objects).
         contact_pos_w: Contact pos array. Shape is (num_envs, num_sensors, num_filter_objects).
     """
     env, sensor = wp.tid()
@@ -156,10 +159,37 @@ def reset_contact_sensor_kernel(
     if friction_force_matrix_w:
         for f in range(num_filter_objects):
             friction_force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
+            if friction_force_matrix_w_history:
+                for i in range(history_length):
+                    friction_force_matrix_w_history[env, i, sensor, f] = wp.vec3f(0.0)
 
     if contact_pos_w:
         for f in range(num_filter_objects):
             contact_pos_w[env, sensor, f] = wp.vec3f(0.0)
+
+
+@wp.kernel
+def update_filtered_force_history_kernel(
+    history_length: int,
+    num_filter_shapes: int,
+    mask: wp.array(dtype=wp.bool),
+    force_matrix: wp.array3d(dtype=wp.vec3f),
+    force_matrix_history: wp.array4d(dtype=wp.vec3f),
+):
+    """Roll filtered force history newest-first after updating the current force matrix.
+
+    Launch with dim=(num_envs, num_sensors).
+    """
+    env, sensor = wp.tid()
+
+    if mask:
+        if not mask[env]:
+            return
+
+    for f in range(num_filter_shapes):
+        for i in range(history_length - 1, 0, -1):
+            force_matrix_history[env, i, sensor, f] = force_matrix_history[env, i - 1, sensor, f]
+        force_matrix_history[env, 0, sensor, f] = force_matrix[env, sensor, f]
 
 
 @wp.kernel

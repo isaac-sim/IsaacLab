@@ -104,6 +104,7 @@ def reset_contact_sensor_kernel(
     current_contact_time: wp.array2d(dtype=wp.float32),
     last_contact_time: wp.array2d(dtype=wp.float32),
     friction_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
     contact_pos_w: wp.array3d(dtype=wp.vec3f),
 ):
     """Reset the contact sensor data for specified environments.
@@ -124,6 +125,8 @@ def reset_contact_sensor_kernel(
         current_contact_time: Current contact time array. Shape is (num_envs, num_sensors).
         last_contact_time: Last contact time array. Shape is (num_envs, num_sensors).
         friction_force_matrix_w: Friction forces array. Shape is (num_envs, num_sensors, num_filter_objects).
+        friction_force_matrix_w_history: Friction force history. Shape is
+            (num_envs, history_length, num_sensors, num_filter_objects).
         contact_pos_w: Contact pos array. Shape is (num_envs, num_sensors, num_filter_objects).
     """
     env, sensor = wp.tid()
@@ -160,6 +163,9 @@ def reset_contact_sensor_kernel(
     if friction_force_matrix_w:
         for f in range(num_filter_objects):
             friction_force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
+            if friction_force_matrix_w_history:
+                for i in range(history_length):
+                    friction_force_matrix_w_history[env, i, sensor, f] = wp.vec3f(0.0)
 
     if contact_pos_w:
         for f in range(num_filter_objects):

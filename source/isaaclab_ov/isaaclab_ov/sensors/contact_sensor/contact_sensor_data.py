@@ -147,6 +147,11 @@ class ContactSensorData(BaseContactSensorData):
         raise NotImplementedError("net_friction_forces_w is not supported by the OVPhysX contact sensor.")
 
     @property
+    def net_friction_forces_w_history(self) -> ProxyArray | None:
+        """Not supported by the OVPhysX contact sensor."""
+        raise NotImplementedError("net_friction_forces_w_history is not supported by the OVPhysX contact sensor.")
+
+    @property
     def friction_force_matrix_w(self) -> ProxyArray | None:
         """Friction contact forces [N] filtered between sensor and filtered bodies.
 
@@ -160,6 +165,21 @@ class ContactSensorData(BaseContactSensorData):
         if self._friction_force_matrix_w_ta is None:
             self._friction_force_matrix_w_ta = ProxyArray(self._friction_force_matrix_w)
         return self._friction_force_matrix_w_ta
+
+    @property
+    def friction_force_matrix_w_history(self) -> ProxyArray | None:
+        """History of filtered friction contact forces [N].
+
+        Shape is (num_instances, history_length, num_sensors, num_filter_shapes), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, history_length, num_sensors, num_filter_shapes, 3).
+
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False.
+        """
+        if self._friction_force_matrix_w_history is None:
+            return None
+        if self._friction_force_matrix_w_history_ta is None:
+            self._friction_force_matrix_w_history_ta = ProxyArray(self._friction_force_matrix_w_history)
+        return self._friction_force_matrix_w_history_ta
 
     @property
     def last_air_time(self) -> ProxyArray | None:
@@ -308,8 +328,12 @@ class ContactSensorData(BaseContactSensorData):
             self._friction_force_matrix_w = wp.zeros(
                 (num_envs, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device
             )
+            self._friction_force_matrix_w_history = wp.zeros(
+                (num_envs, effective_history, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device
+            )
         else:
             self._friction_force_matrix_w = None
+            self._friction_force_matrix_w_history = None
 
         # -- Pinned ProxyArray cache (one per read property, lazily created on first access)
         self._pose_w_ta: ProxyArray | None = None
@@ -321,6 +345,7 @@ class ContactSensorData(BaseContactSensorData):
         self._normal_force_matrix_w_history_ta: ProxyArray | None = None
         self._contact_pos_w_ta: ProxyArray | None = None
         self._friction_force_matrix_w_ta: ProxyArray | None = None
+        self._friction_force_matrix_w_history_ta: ProxyArray | None = None
         self._last_air_time_ta: ProxyArray | None = None
         self._current_air_time_ta: ProxyArray | None = None
         self._last_contact_time_ta: ProxyArray | None = None

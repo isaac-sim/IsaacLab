@@ -7,7 +7,8 @@
 
 # pyright: reportPrivateUsage=none
 
-import pytest
+import warnings
+
 import torch
 import warp as wp
 from isaaclab_newton.sensors.contact_sensor.contact_sensor_data import ContactSensorData
@@ -34,12 +35,20 @@ def test_force_matrix_history_rolls_newest_first_and_honors_mask():
                 1,
                 0.0,
                 wp.array(mask_values, dtype=wp.bool, device="cpu"),
+                data._net_forces_w,
+                data._force_matrix_w,
                 data._net_normal_forces_w,
                 data._normal_force_matrix_w,
+                data._net_friction_forces_w,
+                data._friction_force_matrix_w,
                 timestamp,
                 timestamp_last_update,
+                data._net_forces_w_history,
+                data._force_matrix_w_history,
                 data._net_normal_forces_w_history,
                 data._normal_force_matrix_w_history,
+                data._net_friction_forces_w_history,
+                data._friction_force_matrix_w_history,
                 None,
                 None,
                 None,
@@ -88,7 +97,9 @@ def test_copy_from_newton_decomposes_normal_and_friction_forces():
             wp.ones((1,), dtype=wp.float32, device="cpu"),
         ],
         outputs=[
+            data._net_forces_w,
             data._net_normal_forces_w,
+            data._force_matrix_w,
             data._normal_force_matrix_w,
             data._net_friction_forces_w,
             data._friction_force_matrix_w,
@@ -97,8 +108,13 @@ def test_copy_from_newton_decomposes_normal_and_friction_forces():
         device="cpu",
     )
 
+    torch.testing.assert_close(wp.to_torch(data._net_forces_w), torch.tensor([[[3.0, 4.0, 0.0]]]))
     torch.testing.assert_close(data.net_normal_forces_w.torch, torch.tensor([[[3.0, 0.0, 0.0]]]))
     torch.testing.assert_close(data.net_friction_forces_w.torch, torch.tensor([[[0.0, 4.0, 0.0]]]))
+    torch.testing.assert_close(
+        wp.to_torch(data._force_matrix_w),
+        torch.tensor([[[[1.0, 2.0, 0.0], [0.0, 0.0, 3.0]]]]),
+    )
     torch.testing.assert_close(
         data.normal_force_matrix_w.torch,
         torch.tensor([[[[1.0, 0.0, 0.0], [0.0, 0.0, 2.0]]]]),
@@ -109,18 +125,74 @@ def test_copy_from_newton_decomposes_normal_and_friction_forces():
     )
 
 
-def test_deprecated_force_names_alias_renamed_fields():
-    """Test that renamed fields retain warning-backed compatibility aliases."""
+def test_net_forces_w_is_newton_total_without_warning():
+    """Test Newton total-force properties return totals without a warning."""
     data = ContactSensorData()
     data.create_buffers(1, 1, 1, 1, True, False, False, "cpu", track_friction_forces=True)
+    wp.to_torch(data._net_forces_w).fill_(7.0)
+    wp.to_torch(data._force_matrix_w).fill_(8.0)
+    wp.to_torch(data._friction_force_matrix_w).fill_(9.0)
 
-    for old_name, new_name in (
-        ("net_forces_w", "net_normal_forces_w"),
-        ("net_forces_w_history", "net_normal_forces_w_history"),
-        ("force_matrix_w", "normal_force_matrix_w"),
-        ("force_matrix_w_history", "normal_force_matrix_w_history"),
-        ("friction_forces_w", "friction_force_matrix_w"),
-    ):
-        with pytest.warns(DeprecationWarning):
-            old_value = getattr(data, old_name)
-        assert old_value is getattr(data, new_name)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        total = data.net_forces_w
+        matrix = data.force_matrix_w
+        history = data.net_forces_w_history
+        matrix_history = data.force_matrix_w_history
+        friction = data.friction_forces_w
+    assert total is not None
+    assert matrix is not None
+    assert history is not None
+    assert matrix_history is not None
+    assert friction is data.net_friction_forces_w
+    assert not [item for item in caught if issubclass(item.category, UserWarning)]
+
+
+def test_friction_force_history_rolls_newest_first():
+    """Test friction history buffers roll newest-first."""
+    data = ContactSensorData()
+    data.create_buffers(1, 1, 1, 3, True, False, False, "cpu", track_friction_forces=True)
+    timestamp = wp.ones((1,), dtype=wp.float32, device="cpu")
+    timestamp_last_update = wp.zeros((1,), dtype=wp.float32, device="cpu")
+
+    for value in (1.0, 2.0, 3.0):
+        wp.to_torch(data._net_friction_forces_w).fill_(value)
+        wp.to_torch(data._friction_force_matrix_w).fill_(value)
+        wp.launch(
+            update_contact_sensor_kernel,
+            dim=(1, 1),
+            inputs=[
+                3,
+                1,
+                0.0,
+                wp.array([True], dtype=wp.bool, device="cpu"),
+                data._net_forces_w,
+                data._force_matrix_w,
+                data._net_normal_forces_w,
+                data._normal_force_matrix_w,
+                data._net_friction_forces_w,
+                data._friction_force_matrix_w,
+                timestamp,
+                timestamp_last_update,
+                data._net_forces_w_history,
+                data._force_matrix_w_history,
+                data._net_normal_forces_w_history,
+                data._normal_force_matrix_w_history,
+                data._net_friction_forces_w_history,
+                data._friction_force_matrix_w_history,
+                None,
+                None,
+                None,
+                None,
+            ],
+            device="cpu",
+        )
+
+    torch.testing.assert_close(
+        data.net_friction_forces_w_history.torch,
+        torch.tensor([[[[3.0, 3.0, 3.0]], [[2.0, 2.0, 2.0]], [[1.0, 1.0, 1.0]]]]),
+    )
+    torch.testing.assert_close(
+        data.friction_force_matrix_w_history.torch,
+        torch.tensor([[[[[3.0, 3.0, 3.0]]], [[[2.0, 2.0, 2.0]]], [[[1.0, 1.0, 1.0]]]]]),
+    )

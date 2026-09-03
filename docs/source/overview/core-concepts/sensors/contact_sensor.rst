@@ -18,9 +18,11 @@ The aggregate normal force is reported as ``net_normal_forces_w``. When supporte
 
    \boldsymbol{f}_{total} = \boldsymbol{f}_{normal} + \boldsymbol{f}_{friction}.
 
+On Newton, ``net_forces_w`` is this total. PhysX and OVPhysX cannot compute a total contact force, so ``net_forces_w`` returns ``net_normal_forces_w`` and warns; this is a known limitation planned to be fixed in a later release. Use the explicit normal / friction properties when the split matters. History buffers are available for both normal and friction quantities (``net_normal_forces_w_history``, ``net_friction_forces_w_history``, ``normal_force_matrix_w_history``, and ``friction_force_matrix_w_history``).
+
 Your application may only care about contact forces due to specific objects. Retrieving contact forces from specific objects requires filtering. The per-filter normal and friction values are exposed as ``normal_force_matrix_w`` and ``friction_force_matrix_w``. Summing a force matrix over its filter dimension only reconstructs the corresponding net force when the filters cover every contacting object.
 
-PhysX does not expose an unfiltered aggregate friction force through its tensor API, so accessing ``net_friction_forces_w`` raises ``NotImplementedError`` with that backend. Newton exposes both aggregate and filtered friction forces.
+PhysX does not expose an unfiltered aggregate friction force through its tensor API. Accessing ``net_friction_forces_w`` raises ``NotImplementedError``. ``friction_forces_w`` is that aggregate quantity; on PhysX it returns ``friction_force_matrix_w`` and warns. Newton exposes both aggregate and filtered friction forces.
 
 Consider a simple environment with an Anymal Quadruped and a block
 

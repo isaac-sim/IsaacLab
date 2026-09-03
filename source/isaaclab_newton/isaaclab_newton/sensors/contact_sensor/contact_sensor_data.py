@@ -23,12 +23,18 @@ class ContactSensorData(BaseContactSensorData):
     _pos_w: wp.array | None
     _quat_w: wp.array | None
 
+    _net_forces_w: wp.array | None
+    _net_forces_w_history: wp.array | None
+    _force_matrix_w: wp.array | None
+    _force_matrix_w_history: wp.array | None
     _net_normal_forces_w: wp.array | None
     _net_normal_forces_w_history: wp.array | None
     _normal_force_matrix_w: wp.array | None
     _normal_force_matrix_w_history: wp.array | None
     _net_friction_forces_w: wp.array | None
+    _net_friction_forces_w_history: wp.array | None
     _friction_force_matrix_w: wp.array | None
+    _friction_force_matrix_w_history: wp.array | None
     _contact_pos_w: wp.array | None
     _last_air_time: wp.array | None
     _current_air_time: wp.array | None
@@ -72,6 +78,67 @@ class ContactSensorData(BaseContactSensorData):
         if self._quat_w_ta is None:
             self._quat_w_ta = ProxyArray(self._quat_w)
         return self._quat_w_ta
+
+    @property
+    def net_forces_w(self) -> ProxyArray | None:
+        """The net total contact forces [N] in world frame.
+
+        `wp.vec3f` array whose shape is (N, S) where N is the number of environments and S is the number of sensors.
+        Note, that when casted to as a `torch.Tensor`, the shape will be (N, S, 3).
+
+        This is the total contact force (normal + friction). Use :attr:`net_normal_forces_w` and
+        :attr:`net_friction_forces_w` when the normal / friction split is needed.
+        """
+        if self._net_forces_w is None:
+            return None
+        if self._net_forces_w_ta is None:
+            self._net_forces_w_ta = ProxyArray(self._net_forces_w)
+        return self._net_forces_w_ta
+
+    @property
+    def net_forces_w_history(self) -> ProxyArray | None:
+        """History of net total contact forces [N] in world frame.
+
+        `wp.vec3f` array whose shape is (N, T, S). In the history dimension, the first index is the most
+        recent and the last index is the oldest.
+        """
+        if self._net_forces_w_history is None:
+            return None
+        if self._net_forces_w_history_ta is None:
+            self._net_forces_w_history_ta = ProxyArray(self._net_forces_w_history)
+        return self._net_forces_w_history_ta
+
+    @property
+    def force_matrix_w(self) -> ProxyArray | None:
+        """The total contact forces [N] between sensors and filter objects in world frame.
+
+        `wp.vec3f` array whose shape is (N, S, F). Use :attr:`normal_force_matrix_w` and
+        :attr:`friction_force_matrix_w` when the normal / friction split is needed.
+
+        Note:
+            If the :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty, then this quantity is None.
+        """
+        if self._force_matrix_w is None:
+            return None
+        if self._force_matrix_w_ta is None:
+            self._force_matrix_w_ta = ProxyArray(self._force_matrix_w)
+        return self._force_matrix_w_ta
+
+    @property
+    def force_matrix_w_history(self) -> ProxyArray | None:
+        """History of total filtered contact forces [N] in world frame.
+
+        `wp.vec3f` array whose shape is (N, T, S, F). In the history dimension, the first index is the
+        most recent and the last index is the oldest.
+
+        Note:
+            If the :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty, then this quantity is None.
+        """
+        if self._force_matrix_w_history is None:
+            return None
+        if self._force_matrix_w_history_ta is None:
+            self._force_matrix_w_history_ta = ProxyArray(self._force_matrix_w_history)
+        return self._force_matrix_w_history_ta
 
     @property
     def net_normal_forces_w(self) -> ProxyArray | None:
@@ -153,6 +220,32 @@ class ContactSensorData(BaseContactSensorData):
         return self._net_friction_forces_w_ta
 
     @property
+    def friction_forces_w(self) -> ProxyArray | None:
+        """The net total friction contact forces [N] in world frame.
+
+        `wp.vec3f` array whose shape is (N, S). This is the aggregate friction force, the same
+        quantity as :attr:`net_friction_forces_w`.
+
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False.
+        """
+        return self.net_friction_forces_w
+
+    @property
+    def net_friction_forces_w_history(self) -> ProxyArray | None:
+        """History of net friction contact forces [N] in world frame.
+
+        `wp.vec3f` array whose shape is (N, T, S). In the history dimension, the first index is the most
+        recent and the last index is the oldest.
+
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False.
+        """
+        if self._net_friction_forces_w_history is None:
+            return None
+        if self._net_friction_forces_w_history_ta is None:
+            self._net_friction_forces_w_history_ta = ProxyArray(self._net_friction_forces_w_history)
+        return self._net_friction_forces_w_history_ta
+
+    @property
     def contact_pos_w(self) -> ProxyArray | None:
         """Average position of contact points [m] in world frame.
 
@@ -187,6 +280,21 @@ class ContactSensorData(BaseContactSensorData):
         if self._friction_force_matrix_w_ta is None:
             self._friction_force_matrix_w_ta = ProxyArray(self._friction_force_matrix_w)
         return self._friction_force_matrix_w_ta
+
+    @property
+    def friction_force_matrix_w_history(self) -> ProxyArray | None:
+        """History of per-counterpart friction contact forces [N] in world frame.
+
+        `wp.vec3f` array whose shape is (N, T, S, F). In the history dimension, the first index is the most
+        recent and the last index is the oldest.
+
+        None if friction tracking is disabled or no filter objects are configured.
+        """
+        if self._friction_force_matrix_w_history is None:
+            return None
+        if self._friction_force_matrix_w_history_ta is None:
+            self._friction_force_matrix_w_history_ta = ProxyArray(self._friction_force_matrix_w_history)
+        return self._friction_force_matrix_w_history_ta
 
     @property
     def last_air_time(self) -> ProxyArray | None:
@@ -292,6 +400,10 @@ class ContactSensorData(BaseContactSensorData):
         # Ensure history_length >= 1 for consistent buffer shapes across backends.
         effective_history = max(history_length, 1)
 
+        # Total forces from Newton (always tracked) - shape: (num_envs, num_sensors)
+        self._net_forces_w = wp.zeros((num_envs, num_sensors), dtype=wp.vec3f, device=device)
+        self._net_forces_w_history = wp.zeros((num_envs, effective_history, num_sensors), dtype=wp.vec3f, device=device)
+
         # Create owned buffer for net normal forces - shape: (num_envs, num_sensors)
         self._net_normal_forces_w = wp.zeros((num_envs, num_sensors), dtype=wp.vec3f, device=device)
         self._net_normal_forces_w_history = wp.zeros(
@@ -301,6 +413,10 @@ class ContactSensorData(BaseContactSensorData):
         # Create owned buffer for force matrix - shape: (num_envs, num_sensors, num_filter_objects)
         # None if no filter objects configured
         if num_filter_objects > 0:
+            self._force_matrix_w = wp.zeros((num_envs, num_sensors, num_filter_objects), dtype=wp.vec3f, device=device)
+            self._force_matrix_w_history = wp.zeros(
+                (num_envs, effective_history, num_sensors, num_filter_objects), dtype=wp.vec3f, device=device
+            )
             self._normal_force_matrix_w = wp.zeros(
                 (num_envs, num_sensors, num_filter_objects), dtype=wp.vec3f, device=device
             )
@@ -308,20 +424,31 @@ class ContactSensorData(BaseContactSensorData):
                 (num_envs, effective_history, num_sensors, num_filter_objects), dtype=wp.vec3f, device=device
             )
         else:
+            self._force_matrix_w = None
+            self._force_matrix_w_history = None
             self._normal_force_matrix_w = None
             self._normal_force_matrix_w_history = None
 
         if track_friction_forces:
             self._net_friction_forces_w = wp.zeros((num_envs, num_sensors), dtype=wp.vec3f, device=device)
+            self._net_friction_forces_w_history = wp.zeros(
+                (num_envs, effective_history, num_sensors), dtype=wp.vec3f, device=device
+            )
             if num_filter_objects > 0:
                 self._friction_force_matrix_w = wp.zeros(
                     (num_envs, num_sensors, num_filter_objects), dtype=wp.vec3f, device=device
                 )
+                self._friction_force_matrix_w_history = wp.zeros(
+                    (num_envs, effective_history, num_sensors, num_filter_objects), dtype=wp.vec3f, device=device
+                )
             else:
                 self._friction_force_matrix_w = None
+                self._friction_force_matrix_w_history = None
         else:
             self._net_friction_forces_w = None
+            self._net_friction_forces_w_history = None
             self._friction_force_matrix_w = None
+            self._friction_force_matrix_w_history = None
 
         # Track contact point positions if requested - filled with NaN (no contact)
         if track_contact_points and num_filter_objects > 0:
@@ -348,6 +475,8 @@ class ContactSensorData(BaseContactSensorData):
             self._first_transition_ta = None
 
         # -- Pin ProxyArray instances for pre-allocated buffers
+        self._net_forces_w_ta = ProxyArray(self._net_forces_w)
+        self._net_forces_w_history_ta = ProxyArray(self._net_forces_w_history)
         self._net_normal_forces_w_ta = ProxyArray(self._net_normal_forces_w)
         self._net_normal_forces_w_history_ta = (
             ProxyArray(self._net_normal_forces_w_history) if self._net_normal_forces_w_history is not None else None
@@ -355,10 +484,14 @@ class ContactSensorData(BaseContactSensorData):
         # -- Lazy ProxyArray instances for nullable buffers (pinned on first access)
         self._pos_w_ta: ProxyArray | None = None
         self._quat_w_ta: ProxyArray | None = None
+        self._force_matrix_w_ta: ProxyArray | None = None
+        self._force_matrix_w_history_ta: ProxyArray | None = None
         self._normal_force_matrix_w_ta: ProxyArray | None = None
         self._normal_force_matrix_w_history_ta: ProxyArray | None = None
         self._net_friction_forces_w_ta: ProxyArray | None = None
+        self._net_friction_forces_w_history_ta: ProxyArray | None = None
         self._friction_force_matrix_w_ta: ProxyArray | None = None
+        self._friction_force_matrix_w_history_ta: ProxyArray | None = None
         self._contact_pos_w_ta: ProxyArray | None = None
         # -- Pin ProxyArray instances for air/contact time buffers (eagerly when allocated)
         self._last_air_time_ta = ProxyArray(self._last_air_time) if self._last_air_time is not None else None

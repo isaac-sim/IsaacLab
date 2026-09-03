@@ -417,6 +417,7 @@ class ContactSensor(BaseContactSensor):
                 self._data._current_contact_time,
                 self._data._last_contact_time,
                 self._data._friction_force_matrix_w,
+                self._data._friction_force_matrix_w_history,
                 self._data._contact_pos_w,
             ],
             device=self._device,

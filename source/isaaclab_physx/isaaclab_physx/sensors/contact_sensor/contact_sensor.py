@@ -34,6 +34,7 @@ from .kernels import (
     reset_contact_sensor_kernel,
     split_flat_pose_to_pos_quat,
     unpack_contact_buffer_data,
+    update_filtered_force_history_kernel,
     update_net_forces_kernel,
 )
 
@@ -212,6 +213,7 @@ class ContactSensor(BaseContactSensor):
                 self._data._current_contact_time,
                 self._data._last_contact_time,
                 self._data._friction_force_matrix_w,
+                self._data._friction_force_matrix_w_history,
                 self._data._contact_pos_w,
             ],
             device=self._device,
@@ -598,6 +600,18 @@ class ContactSensor(BaseContactSensor):
                     0.0,
                 ],
                 outputs=[self._data._friction_force_matrix_w],
+                device=self.device,
+            )
+            wp.launch(
+                update_filtered_force_history_kernel,
+                dim=(self._num_envs, self._num_sensors),
+                inputs=[
+                    self._history_length,
+                    self._num_filter_shapes,
+                    self._env_mask,
+                    self._data._friction_force_matrix_w,
+                    self._data._friction_force_matrix_w_history,
+                ],
                 device=self.device,
             )
 
