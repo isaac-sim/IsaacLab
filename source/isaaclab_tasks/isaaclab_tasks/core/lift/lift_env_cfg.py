@@ -8,6 +8,7 @@ from dataclasses import MISSING
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -21,7 +22,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialCfg
+from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
@@ -42,7 +43,7 @@ TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
 
 
 OBJECT_PHYSICS = {
-    "physics_material": RigidBodyMaterialCfg(static_friction=0.5),
+    "physics_material": PhysxRigidBodyMaterialCfg(static_friction=0.5, compliant_contact_stiffness=300.0, compliant_contact_damping=30.0),
     "collision_props": sim_utils.CollisionPropertiesCfg(contact_offset=0.002),
 }
 
@@ -80,7 +81,7 @@ class ObjectCfg(PresetCfg):
     )
     cube = sim_utils.CuboidCfg(
         size=(0.05, 0.05, 0.05),
-        physics_material=RigidBodyMaterialCfg(static_friction=0.5),
+        physics_material=PhysxRigidBodyMaterialCfg(static_friction=0.5, compliant_contact_stiffness=300.0, compliant_contact_damping=30.0),
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             solver_position_iteration_count=16,
             solver_velocity_iteration_count=0,
@@ -237,29 +238,9 @@ class ObservationsCfg:
 class EventCfg:
     """Reset-mode events (shared by all physics backends)."""
 
-    robot_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": [0.5, 1.0],
-            "dynamic_friction_range": [0.5, 1.0],
-            "restitution_range": [0.0, 0.0],
-            "num_buckets": 250,
-        },
-    )
+    robot_physics_material = None
 
-    object_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("object", body_names=".*"),
-            "static_friction_range": [0.5, 1.0],
-            "dynamic_friction_range": [0.5, 1.0],
-            "restitution_range": [0.0, 0.0],
-            "num_buckets": 250,
-        },
-    )
+    object_physics_material = None
 
     object_physics_inertia = EventTerm(
         func=mdp.randomize_rigid_body_inertia,
