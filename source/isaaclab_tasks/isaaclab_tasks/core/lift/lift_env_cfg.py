@@ -17,6 +17,7 @@ from isaaclab_newton.physics import (
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
+from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, VisualMaterialCfg
@@ -29,7 +30,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialBaseCfg
+from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
@@ -53,7 +54,7 @@ TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
 """Table the object rests on."""
 
 OBJECT_PHYSICS = {
-    "physics_material": RigidBodyMaterialBaseCfg(static_friction=0.5),
+    "physics_material": PhysxRigidBodyMaterialCfg(static_friction=0.5, compliant_contact_stiffness=300.0, compliant_contact_damping=30.0),
     "collision_props": [PhysxCollisionCfg(contact_offset=0.002)],
 }
 """Physics properties shared by the graspable object shapes."""
@@ -93,7 +94,7 @@ class ObjectCfg(PresetCfg):
     )
     cube = sim_utils.CuboidCfg(
         size=(0.05, 0.05, 0.05),
-        physics_material=RigidBodyMaterialBaseCfg(static_friction=0.5),
+        physics_material=PhysxRigidBodyMaterialCfg(static_friction=0.5, compliant_contact_stiffness=300.0, compliant_contact_damping=30.0),
         rigid_props=PhysxRigidBodyCfg(
             solver_position_iteration_count=16, solver_velocity_iteration_count=0, disable_gravity=False
         ),
