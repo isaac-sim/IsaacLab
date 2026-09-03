@@ -1208,8 +1208,11 @@ class TestRigidObjectSubmissionEquivalence:
 
         forces = torch.zeros((num_instances, 1, 3), device=device)
         forces[:, 0, 0] = torch.tensor([1.0, 2.0], device=device)
+        # Torque on a different axis than the force so an axis mix-up in the rotation cannot hide.
+        torques = torch.zeros((num_instances, 1, 3), device=device)
+        torques[:, 0, 2] = torch.tensor([0.5, 1.5], device=device)
         positions = torch.full((num_instances, 1, 3), 0.1, device=device) if with_positions else None
-        composer.set_forces_and_torques_index(forces=forces, positions=positions, is_global=is_global)
+        composer.set_forces_and_torques_index(forces=forces, torques=torques, positions=positions, is_global=is_global)
 
         force, torque, frame = composer.resolve_submission()
         composer.compose_to_body_frame()
