@@ -37,6 +37,7 @@ def test_asset_root_falls_back_to_kit_file(monkeypatch):
     """Test kitless asset-root resolution when the environment override is absent."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
     monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
+    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
@@ -59,6 +60,27 @@ def test_asset_root_uses_us_asset_region_profile(monkeypatch):
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
     monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "us")
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == assets_utils._US_ASSET_ROOT
+
+
+def test_asset_root_supports_legacy_storage_profile(monkeypatch, caplog):
+    """Test the released storage-profile variable remains a deprecated fallback."""
+    monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+    monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+
+    with caplog.at_level(logging.WARNING, logger=assets_utils.logger.name):
+        assert assets_utils._resolve_asset_root() == assets_utils._STORAGE_PROFILES["china"]["asset_root"]
+
+    assert "ISAACSIM_STORAGE_PROFILE is deprecated; use ISAACSIM_ASSET_REGION_PROFILE instead" in caplog.text
+
+
+def test_asset_region_profile_takes_precedence_over_legacy_variable(monkeypatch):
+    """Test the documented selector wins when both profile variables are set."""
+    monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "us")
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
 
     assert assets_utils._resolve_asset_root() == assets_utils._US_ASSET_ROOT
 
@@ -131,6 +153,7 @@ def test_configure_storage_profile_reports_client_failure(monkeypatch):
 def test_configure_storage_profile_is_lazy_without_selection(monkeypatch):
     """Test the initializer does not import OmniClient when no profile is selected."""
     monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
+    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
     original_omni_client = sys.modules.pop("omni.client", None)
     try:
         assets_utils.configure_storage_profile()
@@ -173,6 +196,7 @@ def test_asset_root_ignores_empty_environment_override(monkeypatch):
     """Test an empty override falls back, matching when ``isaacsim.storage.native`` skips it."""
     monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "")
     monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
+    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
