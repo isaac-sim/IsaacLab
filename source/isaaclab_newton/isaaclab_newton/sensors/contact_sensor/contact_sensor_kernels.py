@@ -229,9 +229,7 @@ def update_contact_sensor_kernel(
     if friction_force_matrix_history:
         for f in range(num_filter_objects):
             for i in range(history_length - 1, 0, -1):
-                friction_force_matrix_history[env, i, sensor, f] = friction_force_matrix_history[
-                    env, i - 1, sensor, f
-                ]
+                friction_force_matrix_history[env, i, sensor, f] = friction_force_matrix_history[env, i - 1, sensor, f]
             friction_force_matrix_history[env, 0, sensor, f] = friction_force_matrix[env, sensor, f]
 
     # Update air/contact time tracking from normal force magnitude.
