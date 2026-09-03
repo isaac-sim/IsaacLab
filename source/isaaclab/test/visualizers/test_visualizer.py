@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for visualizer config factory and base visualizer behavior."""
+"""Unit tests for visualizer config construction and base visualizer behavior."""
 
 from __future__ import annotations
 
@@ -13,54 +13,56 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+import isaaclab.visualizers as visualizers
 from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins, prim_world_positions
+from isaaclab.utils.string import ResolvableString
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer import Visualizer
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 #
-# Config factory
+# Config construction
 #
 
 
-def test_create_visualizer_raises_for_base_cfg():
-    cfg = VisualizerCfg()
-    with pytest.raises(ValueError, match="Cannot create visualizer from base VisualizerCfg class"):
-        cfg.create_visualizer()
+@pytest.mark.parametrize(
+    "module_name,cfg_name,implementation",
+    [
+        ("isaaclab_visualizers.kit", "KitVisualizerCfg", "KitVisualizer"),
+        ("isaaclab_visualizers.newton", "NewtonGLVisualizerCfg", "NewtonGLVisualizer"),
+        ("isaaclab_visualizers.newton", "NewtonRTXVisualizerCfg", "NewtonRTXVisualizer"),
+        ("isaaclab_visualizers.rerun", "RerunVisualizerCfg", "RerunVisualizer"),
+        ("isaaclab_visualizers.viser", "ViserVisualizerCfg", "ViserVisualizer"),
+    ],
+)
+def test_visualizer_cfg_names_its_implementation(module_name, cfg_name, implementation):
+    cfg_type = getattr(pytest.importorskip(module_name), cfg_name)
+    class_type = cfg_type().class_type
+    assert isinstance(class_type, ResolvableString)
+    assert class_type.__name__ == implementation
 
 
-def test_visualizer_cfg_tiled_camera_view_is_opt_in():
+def test_visualizer_construction_has_no_factory_api():
+    assert not hasattr(visualizers, "Visualizer")
+    assert not any(
+        hasattr(VisualizerCfg, name)
+        for name in ("build", "build_visualizer", "clone_context", "create_visualizer", "get_visualizer_type")
+    )
+
+
+def test_visualizer_cfg_streaming_view_is_opt_in():
     cfg = VisualizerCfg()
     assert cfg.focal_length == 12.0
-    assert cfg.tiled_cam_view is False
-    assert cfg.tiled_cam_num == 16
+    assert cfg.streaming_view is False
+    assert cfg.streaming_envs == 32
 
 
-def test_create_visualizer_raises_for_unknown_type():
-    cfg = VisualizerCfg(visualizer_type="unknown-backend")
-    with pytest.raises(ValueError, match="not registered"):
-        cfg.create_visualizer()
-
-
-def test_create_visualizer_raises_import_error_when_backend_unavailable(monkeypatch):
-    monkeypatch.setattr(Visualizer, "_get_module_name", classmethod(lambda cls, backend: "does.not.exist"))
-    cfg = VisualizerCfg(visualizer_type="newton")
-    with pytest.raises(ImportError, match="isaaclab_visualizers"):
-        cfg.create_visualizer()
-
-
-def test_create_visualizer_rerun_import_error_recommends_uv_extra(monkeypatch):
-    monkeypatch.delitem(Visualizer._registry, "rerun", raising=False)
-    monkeypatch.setattr(Visualizer, "_get_module_name", classmethod(lambda cls, backend: "does.not.exist"))
-    cfg = VisualizerCfg(visualizer_type="rerun")
-
-    with pytest.raises(ImportError, match=r"uv run --extra rerun <command>") as exc_info:
-        cfg.create_visualizer()
-
-    assert "Original error:" in str(exc_info.value)
-    assert "pip install isaaclab_visualizers" not in str(exc_info.value)
+def test_streaming_cfg_fields_on_visualizer_cfg():
+    """streaming_view is opt-in (False) and streaming_cam_renderer defaults to None."""
+    cfg = VisualizerCfg()
+    assert cfg.streaming_view is False
+    assert cfg.streaming_cam_renderer is None
 
 
 #
@@ -148,7 +150,7 @@ def test_prim_world_positions_prefers_scene_articulation_state():
         ]
     )
     articulation = SimpleNamespace(
-        cfg=SimpleNamespace(prim_path="/World/envs/env_.*/Robot"),
+        cfg=SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot"),
         body_names=["base", "foot"],
         data=SimpleNamespace(
             root_pos_w=SimpleNamespace(torch=torch.zeros((2, 3))),

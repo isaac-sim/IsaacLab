@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
@@ -141,7 +142,7 @@ class Camera(SensorBase):
 
         Raises:
             RuntimeError: If no camera prim is found at the given path.
-            ValueError: If the provided data types are not supported by the camera.
+            ValueError: If the provided data types are not supported by the camera or active renderer.
         """
         # perform check on supported data types
         self._check_supported_data_types(cfg)
@@ -213,17 +214,37 @@ class Camera(SensorBase):
         self._sensor_prims: list[UsdGeom.Camera] = list()
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
-        # Renderer and render data — assigned in _initialize_impl.
+        # The backend's ``__init__`` is its pre-physics phase, so it has to exist before
+        # ``sim.reset()``; sensor initialization only runs on ``PhysicsEvent.PHYSICS_READY``, which is
+        # too late. Backends are shared per renderer config, so this stays cheap for many cameras.
         self._renderer: BaseRenderer | None = None
+        if sim_ctx is not None:
+            self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
+            with force_log_level(logging.INFO):
+                logger.info("Using renderer: %s", type(self._renderer).__name__)
+        # Render data — assigned in _initialize_impl.
         self._render_data = None
+        # Frame view — assigned in _initialize_impl.
+        self._view: FrameView | None = None
 
-    def __del__(self):
-        """Unsubscribes from callbacks and cleans up renderer resources."""
+    def __del__(self, _sys=sys):
+        """Unsubscribes from callbacks and cleans up renderer resources.
+
+        Skips cleanup during interpreter shutdown so destructor-time imports or renderer teardown
+        cannot raise ``ImportError: sys.meta_path is None`` and mask the original exception.
+        """
+        if _sys.is_finalizing() or _sys.meta_path is None:
+            return
         # unsubscribe callbacks
         super().__del__()
+
+        # release the frame view's backend state, getattr covers partial initialization
+        if getattr(self, "_view", None) is not None:
+            self._view.close()
+            self._view = None
         # cleanup render resources (renderer may be None if never initialized)
-        if self._renderer is not None:
-            self._renderer.cleanup(self._render_data)
+        if getattr(self, "_renderer", None) is not None:
+            self._renderer.cleanup(getattr(self, "_render_data", None))
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -406,6 +427,9 @@ class Camera(SensorBase):
         idx_wp = self._resolve_env_ids_wp(env_ids)
         with self._view.xform_world_space_writer() as writer:
             writer.set_poses(pos_wp, ori_wp, idx_wp)
+        # write through to the data buffers so explicitly set poses are never stale,
+        # regardless of :attr:`CameraCfg.update_latest_camera_pose`
+        self._update_poses(env_ids=idx_wp, frame_op=0)
 
     def set_world_poses_from_view(
         self, eyes: torch.Tensor, targets: torch.Tensor, env_ids: Sequence[int] | None = None
@@ -469,6 +493,9 @@ class Camera(SensorBase):
                 wp.from_torch(orientations.contiguous(), dtype=wp.vec4f),
                 idx_wp,
             )
+        # write through to the data buffers so explicitly set poses are never stale,
+        # regardless of :attr:`CameraCfg.update_latest_camera_pose`
+        self._update_poses(env_ids=idx_wp, frame_op=0)
 
     """
     Operations
@@ -496,10 +523,9 @@ class Camera(SensorBase):
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers.
 
-        This function obtains the simulation-scoped :class:`~isaaclab.renderers.base_renderer.BaseRenderer`
-        from :attr:`~isaaclab.sim.simulation_context.SimulationContext.render_context` using the configured
-        :attr:`~isaaclab.sensors.camera.CameraCfg.renderer_cfg` and delegates all render-product
-        and annotator management to it. It also initializes the internal buffers to store the data.
+        This function delegates all render-product and annotator management to the
+        :class:`~isaaclab.renderers.base_renderer.BaseRenderer` created in :meth:`__init__`. It also
+        initializes the internal buffers to store the data.
 
         Raises:
             RuntimeError: If the number of camera prims in the view does not match the number of environments.
@@ -512,9 +538,9 @@ class Camera(SensorBase):
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is None:
             raise RuntimeError("SimulationContext is not initialized.")
-        self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
-        with force_log_level(logging.INFO):
-            logger.info("Using renderer: %s", type(self._renderer).__name__)
+        # Normally created in ``__init__``; only missing when the camera was built without a simulation.
+        if self._renderer is None:
+            self._renderer = sim_ctx.render_context.get_renderer(self.cfg.renderer_cfg)
 
         # Build the render spec early — both the wrapper ISP (which delegates
         # any renderer-side per-camera setup) and ``create_render_data`` consume
@@ -632,8 +658,9 @@ class Camera(SensorBase):
     def _create_buffers(self):
         """Create buffers for storing data."""
         specs = self._renderer.supported_output_types()
-        # Split requested names into known/unsupported; warn once for any the renderer can't produce.
+        # Split requested names into known, unknown, and unsupported types.
         known: list[str] = []
+        unknown: list[str] = []
         unsupported: list[str] = []
         for name in self.cfg.data_types:
             try:
@@ -642,13 +669,18 @@ class Camera(SensorBase):
                 else:
                     unsupported.append(name)
             except ValueError:
-                unsupported.append(name)
+                unknown.append(name)
+        errors = []
+        if unknown:
+            errors.append(f"Unknown camera data types: {unknown}.")
         if unsupported:
-            logger.warning(
-                "Renderer %s does not support the following requested data types and will not produce them: %s",
-                type(self._renderer).__name__,
-                unsupported,
+            errors.append(
+                f"Renderer {type(self._renderer).__name__} does not support the following requested data types:"
+                f" {unsupported}."
+                f"\n\tSupported data types: {sorted(str(kind) for kind in specs)}"
             )
+        if errors:
+            raise ValueError("\n".join(errors))
         device_str = self._device if isinstance(self._device, str) else str(self._device)
         self._data = CameraData.allocate(
             data_types=known,
@@ -901,5 +933,7 @@ class Camera(SensorBase):
         self._renderer = None
         # call parent
         super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        self._view = None
+        # release backend state deterministically, then invalidate the view
+        if self._view is not None:
+            self._view.close()
+            self._view = None

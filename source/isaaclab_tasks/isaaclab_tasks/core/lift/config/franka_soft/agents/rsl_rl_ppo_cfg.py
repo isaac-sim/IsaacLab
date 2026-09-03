@@ -9,7 +9,6 @@ from isaaclab_rl.rsl_rl import (
     RslRlCNNModelCfg,
     RslRlMLPModelCfg,
     RslRlOnPolicyRunnerCfg,
-    RslRlPpoActorCriticCfg,
     RslRlPpoAlgorithmCfg,
 )
 
@@ -32,24 +31,41 @@ ALGO_CFG = RslRlPpoAlgorithmCfg(
 @configclass
 class FrankaDeformablePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 50000
+    max_iterations = 3000
     save_interval = 50
-    experiment_name = "franka_deformable"
-    policy = RslRlPpoActorCriticCfg(
-        init_noise_std=1.0,
-        actor_obs_normalization=False,
-        critic_obs_normalization=False,
-        actor_hidden_dims=[256, 128, 64],
-        critic_hidden_dims=[256, 128, 64],
+    experiment_name = "franka_soft"
+    obs_groups = {
+        "actor": ["policy"],
+        "critic": ["policy"],
+    }
+    actor = RslRlMLPModelCfg(
+        hidden_dims=[256, 128, 64],
         activation="elu",
+        obs_normalization=True,
+        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
     )
-    algorithm = ALGO_CFG
+    critic = RslRlMLPModelCfg(
+        hidden_dims=[256, 128, 64],
+        activation="elu",
+        obs_normalization=True,
+    )
+    algorithm = ALGO_CFG.replace(learning_rate=1.0e-3)
+
+
+@configclass
+class FrankaClothPPORunnerCfg(FrankaDeformablePPORunnerCfg):
+    experiment_name = "lift_cloth"
+
+
+@configclass
+class FrankaCablePPORunnerCfg(FrankaDeformablePPORunnerCfg):
+    experiment_name = "lift_cable"
 
 
 @configclass
 class FrankaDeformableCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 50000
+    max_iterations = 5000
     save_interval = 50
     experiment_name = "franka_deformable_camera"
     obs_groups = {
@@ -74,3 +90,8 @@ class FrankaDeformableCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         activation="elu",
     )
     algorithm = ALGO_CFG.replace(num_mini_batches=8)
+
+
+@configclass
+class FrankaCableCameraPPORunnerCfg(FrankaDeformableCameraPPORunnerCfg):
+    experiment_name = "lift_cable_camera"

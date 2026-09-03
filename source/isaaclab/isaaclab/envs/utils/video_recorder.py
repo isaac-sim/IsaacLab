@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -78,7 +79,7 @@ class VideoRecorder:
         self._frames: list[np.ndarray] = []
         self._step_count = 0
         self._frames_step_count = 0
-        self._clip_index = 0
+        self._clip_index = self._next_clip_index()
         self._recording = False
         # Set to True after the first unrecoverable frame-capture error so that
         # subsequent steps do not propagate the exception or repeat the log message.
@@ -132,13 +133,13 @@ class VideoRecorder:
             if kind == "visualizer":
                 return self._frame_from_visualizer(type_or_name, sub)
             if kind == "sensor":
-                return self._frame_from_sensor(type_or_name)
+                return self._frame_from_sensor(type_or_name, gt_type=sub)
             # Unreachable: kind was validated in __init__, but keeps type checkers happy.
             return None  # pragma: no cover
         except RuntimeError as exc:
             logger.error(
-                "[VideoRecorder] Frame capture failed; recording will be disabled for this stream. "
-                "source=%r  error: %s",
+                "[VideoRecorder] Frame capture failed for source=%r: %s  "
+                "Further capture attempts for this stream will be suppressed.",
                 self.cfg.source,
                 exc,
             )
@@ -155,7 +156,14 @@ class VideoRecorder:
         visualizers = getattr(sim, "visualizers", [])
 
         if viz_type:
-            candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) == viz_type]
+            # "newton" is a backward-compatible alias for the newton_gl visualizer type.
+            # The canonical visualizer_type on NewtonGLVisualizerCfg is "newton_gl", but
+            # source strings in tutorials and docs use the shorter "newton" form.
+            _newton_aliases = ("newton_gl",)
+            if viz_type == "newton":
+                candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) in _newton_aliases]
+            else:
+                candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) == viz_type]
             if not candidates:
                 active = [getattr(v.cfg, "visualizer_type", "unknown") for v in visualizers]
                 raise RuntimeError(
@@ -171,7 +179,8 @@ class VideoRecorder:
                 raise RuntimeError(
                     "[VideoRecorder] source='visualizer' found no recording-capable visualizer "
                     f"(active: {active or ['none']}). "
-                    "Pass --viz kit or --viz newton, or use source='sensor:<name>' to record from a scene sensor."
+                    "Pass --viz kit, --viz newton_gl, or --viz newton_rtx, or use "
+                    "source='sensor:<name>' to record from a scene sensor."
                 )
 
         # Kit Replicator requires cubric to propagate Newton Fabric transforms to RTX's
@@ -187,26 +196,58 @@ class VideoRecorder:
                 )
 
         viz = candidates[0]
-        if sub == "tiled":
-            if viz_type == "newton":
-                # Newton captures its entire GL viewport (which shows the tiled camera panel
-                # when tiled_cam_view=True on NewtonVisualizerCfg).  There is no separate
-                # render_tiled_rgb_array() path for Newton.
-                return viz.render_rgb_array()
+        if sub == "streaming_view":
             if not hasattr(viz, "render_tiled_rgb_array"):
                 raise RuntimeError(
-                    f"[VideoRecorder] source='visualizer:{viz_type}:tiled' requested but the "
-                    f"'{viz_type}' visualizer does not support tiled capture."
+                    f"[VideoRecorder] source='visualizer:{viz_type}:streaming_view' requested but the "
+                    f"'{viz_type}' visualizer does not support streaming view capture."
+                )
+            if not getattr(getattr(viz, "cfg", None), "streaming_view", False):
+                cfg_name = {
+                    "kit": "KitVisualizerCfg",
+                    "newton_gl": "NewtonGLVisualizerCfg",
+                    "newton": "NewtonGLVisualizerCfg",
+                }.get(viz_type or "", "VisualizerCfg")
+                raise RuntimeError(
+                    f"[VideoRecorder] source='visualizer:{viz_type}:streaming_view' requested but "
+                    f"streaming_view is not enabled on the '{viz_type}' visualizer. "
+                    f"Enable it by setting streaming_view=True on the visualizer config:\n\n"
+                    f"    {cfg_name}(streaming_view=True, ...)\n\n"
+                    f"A streaming camera is auto-created from the streaming_cam_* fields. "
+                    f"To use an existing scene camera, set streaming_sensor_prim_path instead."
                 )
             return viz.render_tiled_rgb_array()
 
-        return viz.render_rgb_array()
+        if not hasattr(viz, "render_rgb_array"):
+            raise RuntimeError(
+                f"[VideoRecorder] source='visualizer:{viz_type or '<auto>'}' does not support frame "
+                "capture: the visualizer has no render_rgb_array() implementation."
+            )
 
-    def _frame_from_sensor(self, name: str) -> np.ndarray | None:
-        # Note: only the "rgb" channel is currently supported for sensor sources.
-        # Sub-channel specifiers such as "sensor:<name>:depth" are parsed but the sub
-        # field is ignored — depth colorization is not implemented.  To record depth,
-        # retrieve the depth tensor manually in a custom recorder subclass.
+        frame = viz.render_rgb_array()
+        if frame is None:
+            viz_type_name = getattr(getattr(viz, "cfg", None), "visualizer_type", "unknown")
+            raise RuntimeError(
+                f"[VideoRecorder] render_rgb_array() returned None for '{viz_type_name}' visualizer. "
+                "Use a capture-capable visualizer or source='sensor:<name>' instead."
+            )
+        return frame
+
+    def _frame_from_sensor(self, name: str, gt_type: str = "rgb") -> np.ndarray | None:
+        from isaaclab.envs.utils.camera_colorizer import (
+            SUPPORTED_GT_TYPES,
+            CameraFrameColorizer,
+            sensor_key_for_gt_type,
+        )
+
+        gt_type = gt_type or "rgb"
+        if gt_type not in SUPPORTED_GT_TYPES:
+            raise RuntimeError(
+                f"[VideoRecorder] Unsupported GT type '{gt_type}' in sensor source. "
+                f"Valid types: {sorted(SUPPORTED_GT_TYPES)}. "
+                f"Use source='sensor:{name}:<type>' where <type> is one of the valid types."
+            )
+
         scene = getattr(self._env, "scene", None)
         if scene is None:
             raise RuntimeError(
@@ -230,24 +271,50 @@ class VideoRecorder:
                 f"(available: [{', '.join(repr(s) for s in truncated)}{suffix}]).{hint}"
             )
         output = getattr(getattr(sensor, "data", None), "output", None)
-        if output is None or "rgb" not in output:
+        if output is None:
             raise RuntimeError(
-                f"[VideoRecorder] Sensor '{name}' has no 'rgb' output. Ensure the sensor's data_types includes 'rgb'."
+                f"[VideoRecorder] Sensor '{name}' has no data output. "
+                "Ensure the sensor is initialized and has been stepped at least once."
             )
-        data = output["rgb"]
+        available_keys = frozenset(output.keys())
+        try:
+            sensor_key = sensor_key_for_gt_type(gt_type, available_keys)
+        except (ValueError, KeyError):
+            raise RuntimeError(
+                f"[VideoRecorder] Sensor '{name}' has no '{gt_type}' output "
+                f"(available: {sorted(available_keys)}). "
+                f"Ensure the sensor's data_types includes '{gt_type}'."
+            )
+        data = output[sensor_key]
         # ProxyArray or torch.Tensor: shape (N, H, W, C)
-        if hasattr(data, "torch"):
-            tensor = data.torch
-        else:
-            tensor = data
-        frame = tensor[0].cpu().numpy().astype(np.uint8)
-        return frame[:, :, :3] if frame.ndim == 3 and frame.shape[2] >= 3 else frame
+        raw = data.torch if hasattr(data, "torch") else data
+        return CameraFrameColorizer.colorize(
+            raw[0],
+            gt_type,
+            depth_min=self.cfg.depth_colormap_min,
+            depth_max=self.cfg.depth_colormap_max,
+        )
 
     def _effective_output_dir(self) -> str:
         return self.cfg.output_dir or "videos"
 
     def _clip_path(self, index: int) -> str:
         return os.path.join(self._effective_output_dir(), f"{self.cfg.output_filename_prefix}_{index:04d}.mp4")
+
+    def _next_clip_index(self) -> int:
+        return max(self._existing_clip_indices(), default=-1) + 1
+
+    def _existing_clip_indices(self) -> list[int]:
+        output_dir = self._effective_output_dir()
+        if not os.path.isdir(output_dir):
+            return []
+
+        pattern = re.compile(rf"^{re.escape(str(self.cfg.output_filename_prefix))}_(?P<index>\d+)\.mp4$")
+        return [
+            int(match.group("index"))
+            for filename in os.listdir(output_dir)
+            if (match := pattern.match(filename)) is not None
+        ]
 
     def _close_clip(self) -> None:
         if not self._frames:
@@ -264,6 +331,19 @@ class VideoRecorder:
                     base_fps = round(1.0 / step_dt) if step_dt else 30
                 # frame_stride subsamples: one frame every N steps, so playback fps scales down.
                 fps = max(1, round(base_fps / self.cfg.frame_stride))
+            # Warn if the clip appears to be all-black (mean pixel < 2/255).
+            # This can happen with Kit+Newton when cubric is unavailable.
+            sample = self._frames[len(self._frames) // 2]
+            mean_pixel = float(np.mean(sample))
+            if mean_pixel < 2.0:
+                logger.warning(
+                    "[VideoRecorder] source=%r: sampled frame appears mostly black "
+                    "(mean pixel value %.1f/255). For Kit+Newton, ensure cubric is available "
+                    "to propagate Fabric transforms to the RTX renderer, or switch to "
+                    "source='visualizer:newton_gl' for guaranteed capture.",
+                    self.cfg.source,
+                    mean_pixel,
+                )
             clip = ImageSequenceClip(self._frames, fps=fps)
             clip.write_videofile(path, codec="libx264", audio=False, logger=None)
             logger.info("[VideoRecorder] Wrote %d frames to %s", len(self._frames), path)
@@ -279,7 +359,9 @@ class VideoRecorder:
         if self.cfg.keep_last_n_clips is None:
             return
         cutoff = self._clip_index - self.cfg.keep_last_n_clips
-        for index in range(max(0, cutoff)):
+        for index in self._existing_clip_indices():
+            if index >= cutoff:
+                continue
             path = self._clip_path(index)
             try:
                 os.remove(path)

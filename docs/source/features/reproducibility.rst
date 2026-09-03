@@ -20,8 +20,8 @@ simulation results are reproducible across different runs. The seed is set into 
 parameters :attr:`isaaclab.envs.ManagerBasedEnvCfg.seed` or :attr:`isaaclab.envs.DirectRLEnvCfg.seed`
 depending on the manager-based or direct environment implementation respectively.
 
-App-level deterministic rendering via ``AppLauncher``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The ``--deterministic`` flag
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``--deterministic`` flag is provided by :meth:`isaaclab.app.AppLauncher.add_app_launcher_args`.
 :class:`~isaaclab.app.app_launcher.AppLauncher` publishes ``/isaaclab/render/deterministic``.
@@ -33,11 +33,19 @@ The Isaac RTX backend reads it on init and applies
 for **RL-Games**, **skrl**, **RSL-RL**, and **Stable-Baselines3**: each calls
 :meth:`~isaaclab.utils.seed.configure_seed` after constructing its framework runner or agent object
 so library initialization is not disturbed, then training proceeds with the requested global RNG and
-optional PyTorch deterministic algorithms. Whether you need ``--deterministic`` at the app level
-depends on the workload: **physics-only** simulation does not require it; **RTX** rendering
-(non-minimal mode) does require it for reproducible imagery; **Newton** rendering does not require it.
+optional PyTorch deterministic algorithms. Whether the **rendering** half of the flag matters depends
+on the workload: **physics-only** simulation does not render at all; **RTX** rendering (non-minimal
+mode) needs it for reproducible imagery; **Newton** rendering is already deterministic.
 
-Pass ``--deterministic`` to enable reproducible rendering from the app launcher. (Isaac RTX only)
+**Physics determinism** comes from the same flag in the Isaac Lab RL training entrypoints, which
+set :attr:`~isaaclab.physics.PhysicsCfg.deterministic` on the backend resolved by presets. That
+field is the backend-agnostic request: each physics manager translates it into its own settings
+when the simulation starts, and raises when its configuration cannot provide the guarantee. Newton
+selects ``deterministic_mode="run_to_run"`` and applies the MJWarp prerequisite; PhysX and OvPhysX
+enable enhanced determinism, which is best-effort on OvPhysX and not verified end to end. Set
+:attr:`~isaaclab.physics.PhysicsCfg.deterministic` directly to get the same behavior from a script
+that does not use the RL entrypoints; ``--deterministic`` alone configures Torch and rendering
+only.
 
 .. tab-set::
 
@@ -45,7 +53,7 @@ Pass ``--deterministic`` to enable reproducible rendering from the app launcher.
 
       .. code-block:: bash
 
-        uv run isaaclab train --rl_library rl_games \
+        uv run --extra rl-games isaaclab train --rl_library rl_games \
           --task Isaac-Cartpole-Camera --deterministic
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
@@ -54,6 +62,45 @@ Pass ``--deterministic`` to enable reproducible rendering from the app launcher.
 
         ./isaaclab.sh train --rl_library rl_games \
           --task Isaac-Cartpole-Camera --deterministic
+
+Newton physics determinism
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set :attr:`isaaclab_newton.physics.NewtonCfg.deterministic_mode` to
+``"gpu_to_gpu"`` to request reproducibility across GPU architectures, or to
+``"run_to_run"`` to request reproducibility on one GPU. Newton applies the
+selected mode to supported solver kernels and enables deterministic contact
+ordering in its collision pipeline. Deterministic execution can increase
+memory use and reduce simulation performance. MJWarp on the GPU with
+:attr:`isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` set to ``True``,
+XPBD, and Featherstone are supported; selecting an unsupported solver raises
+an error. MuJoCo on the CPU
+(:attr:`isaaclab_newton.physics.MJWarpSolverCfg.use_mujoco_cpu`) is already
+reproducible and is left unchanged. Set this attribute directly to request the
+stronger ``"gpu_to_gpu"`` guarantee, which takes precedence over
+:attr:`isaaclab.physics.PhysicsCfg.deterministic`. Setting it to
+``"not_guaranteed"`` does not opt out, because that is indistinguishable from
+the default; clear :attr:`isaaclab.physics.PhysicsCfg.deterministic` instead.
+
+.. note::
+
+   ``disable_sensors`` is required rather than optional: MuJoCo Warp's tactile
+   sensor kernel applies two atomic reduction families to one output array, which
+   Warp's deterministic code generation cannot lower, so the sensor module fails
+   to compile under a determinism guarantee. Disabling it also skips the
+   ``rne_postconstraint`` stage, which fills the Newton ``body_qdd`` and
+   ``body_parent_f`` state. The IMU, PVA, and joint-wrench sensors read that
+   state, so Newton raises rather than let them report stale values: remove those
+   sensors, or drop the determinism request. Integrations
+   that consume native MJWarp sensor outputs directly are affected too, and are
+   not detected.
+
+.. warning::
+
+   Deterministic contact ordering adds sorting work and allocates buffers sized
+   for the configured maximum contact count. Runtime and memory overhead
+   therefore grow with contact capacity. Enable this mode only when its
+   reproducibility guarantee is required.
 
 For results on our determinacy testing for RL training, please check the GitHub Pull Request `#940`_.
 

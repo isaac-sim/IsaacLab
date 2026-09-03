@@ -880,6 +880,23 @@ def test_go2_rough_legacy_newton_alias_resolves_to_newton_mjwarp():
     assert env_cfg.scene.robot.actuators["base_legs"].armature == 0.02
 
 
+def test_velocity_events_newton_mjwarp_keeps_base_com_randomization():
+    """MJWarp velocity configs should retain base center-of-mass randomization."""
+    from isaaclab_tasks.core.velocity import mdp
+    from isaaclab_tasks.core.velocity.velocity_env_cfg import EventsCfg
+
+    events = resolve_presets(EventsCfg(), {"newton_mjwarp"})
+
+    assert events.base_com is not None
+    assert events.base_com.func is mdp.randomize_rigid_body_com
+    assert events.base_com.mode == "startup"
+    assert events.base_com.params["com_range"] == {
+        "x": (-0.05, 0.05),
+        "y": (-0.05, 0.05),
+        "z": (-0.01, 0.01),
+    }
+
+
 # =============================================================================
 # Tests: PresetCfg inside deeply nested dicts (e.g., event term params)
 # =============================================================================
@@ -1338,6 +1355,36 @@ def test_scalar_override_within_preset_path(class_presets):
     assert isinstance(env_cfg.backend, NewtonCfg)
     assert env_cfg.backend.dt == 0.001
     assert env_cfg.backend.substeps == 4
+
+
+def test_scalar_override_kamino_solver_config():
+    """Concrete Kamino solver fields can be overridden through Hydra scalar paths."""
+    from isaaclab_newton.physics import KaminoPADMMSolverCfg, NewtonCfg
+
+    @configclass
+    class KaminoPhysicsPreset(PresetCfg):
+        default: NewtonCfg = NewtonCfg()
+        newton_kamino: NewtonCfg = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True))
+
+    @configclass
+    class KaminoEnvCfg:
+        physics: KaminoPhysicsPreset = KaminoPhysicsPreset()
+
+    env_cfg = KaminoEnvCfg()
+    agent_cfg = PresetCfgAgentCfg()
+    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
+    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+    apply_overrides(
+        env_cfg,
+        agent_cfg,
+        hydra_cfg,
+        ["newton_kamino"],
+        [],
+        [("env.physics.solver_cfg.dynamics_solver_cfg.max_iterations", "25")],
+        presets,
+    )
+    assert isinstance(env_cfg.physics.solver_cfg, KaminoPADMMSolverCfg)
+    assert env_cfg.physics.solver_cfg.dynamics_solver_cfg.max_iterations == 25
 
 
 # =============================================================================

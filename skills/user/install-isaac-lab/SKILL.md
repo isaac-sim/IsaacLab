@@ -1,6 +1,6 @@
 ---
 name: isaaclab-installing-isaac-lab
-description: Installs Isaac Lab end-to-end with minimal user interaction. Auto-detects the system with read-only checks, picks the right install method (automatic uv, downloaded Isaac Sim, source build, Isaac Lab wheel, legacy isaaclab.sh, managed Python env, or Docker) from the install docs, shows one consolidated plan, and after a single confirmation executes the docs-prescribed commands unattended through verification. Use when installing Isaac Lab for the first time, picking between install combinations, or asking for install commands for a specific platform.
+description: Installs Isaac Lab end-to-end with minimal user interaction. Auto-detects the system with read-only checks, picks the right install method (automatic uv, downloaded Isaac Sim, source build, Isaac Lab wheel, legacy isaaclab.sh, managed Python env, or Docker) from the install docs, applies the documented China storage profile when requested, shows one consolidated plan, and after a single confirmation executes the docs-prescribed commands unattended through verification. Use when installing Isaac Lab for the first time, picking between install combinations, configuring China asset access during installation, or asking for install commands for a specific platform.
 audience: user
 status: experimental
 owners:
@@ -23,15 +23,15 @@ Do not vendor install commands, version pins, or troubleshooting steps into this
 
 The express flow asks the user at most one question: the final go/no-go. Do not interview the user about use case, env manager, or install method unless a rule below explicitly says to ask.
 
-1. Run the read-only preflight detection commands listed in [reference.md](reference.md) to gather OS, arch, GLIBC, GPU and driver, Python, env managers, RAM, disk, and existing install artifacts. Nothing in this step changes system state.
+1. Run the read-only preflight detection commands listed in [reference.md](reference.md) to gather OS, arch, GLIBC, GPU and driver, Python, env managers, RAM, disk, existing install artifacts, and asset-root environment overrides. Nothing in this step changes system state.
 2. Read the "System requirements" section and the install-method comparison from `docs/source/setup/installation/index.rst` in the checkout — never from memory — compare against the detected facts, and route to the correct section anchor in `index.rst` using the mapping in [reference.md](reference.md).
 3. If a hard blocker exists (no NVIDIA GPU or driver, driver below the documented minimum, insufficient disk), stop before any state-changing command. Report each blocker with its fix and the documented alternative (the legacy Newton-only installer at `installation-legacy-installer` for no-Isaac-Sim machines). Do not attempt driver installs unattended. If existing install artifacts were found, hand off to `isaaclab-setup-troubleshooting` instead of reinstalling over them.
-4. Auto-pick the remaining choices, honoring stated preferences. A preference the user already stated (conda, Docker, source build, Newton-only, a specific env name or directory) always wins and must not be re-asked. Otherwise pick without asking: the docs-Recommended method (automatic uv from the checkout); uv if present, else conda if present, else the docs' uv install step; install into the current checkout with the docs-default env name.
-5. Read the routed section of `index.rst` (and any `.inc` fragments it includes) from the checkout and extract its commands verbatim for this platform. Do not paraphrase, reorder, or substitute steps.
-6. Show one consolidated confirmation: detected system in two or three lines, chosen method and why, the exact commands in order, which steps need sudo, and rough download size. Ask one go/no-go question. This is the only question in the flow.
+4. Auto-pick the remaining choices, honoring stated preferences. A preference the user already stated (conda, Docker, source build, Newton-only, a specific env name or directory, or China storage) always wins and must not be re-asked. Otherwise pick without asking: the docs-Recommended method (automatic uv from the checkout); uv if present, else conda if present, else the docs' uv install step; install into the current checkout with the docs-default env name.
+5. Read the routed section of `index.rst` (and any `.inc` fragments it includes) from the checkout and extract its commands verbatim for this platform. When the user requests China storage, also read `asset_caching_details.inc` and follow the China Storage Profile rules in [reference.md](reference.md). Do not paraphrase, reorder, or substitute steps.
+6. Show one consolidated confirmation: detected system in two or three lines, chosen method and why, selected storage profile when applicable, the exact commands in order, which steps need sudo, and rough download size. Ask one go/no-go question. This is the only question in the flow.
 7. On yes, execute every step in order without further prompts, streaming output and appending everything to `~/.isaaclab/logs/install-<timestamp>.log`. Announce sudo steps as they run; the password prompt is expected, not a question. On the "Downloaded Isaac Sim package" route only, pause at the manual Isaac Sim download step with the URL from the docs section and resume when the user confirms — the one unavoidable manual step.
 8. On a step failure, check the failure routing table in [reference.md](reference.md), apply at most one documented fix, and retry the step once. If it still fails, stop and hand off to `isaaclab-setup-troubleshooting` with the log path.
-9. Run the docs-defined minimal verification command for the chosen method, then hand over: how to activate the env, how to run a first demo from the docs quickstart, and the log file path. Save a short summary of facts, route, and commands run to `~/.isaaclab/install_profile.yaml` for reproducibility.
+9. Run the docs-defined minimal verification command for the chosen method, with the selected storage-profile environment when applicable, then hand over: how to activate the env, how to select the profile for future commands, how to run a first demo from the docs quickstart, and the log file path. Save a short summary of facts, route, storage profile, and commands run to `~/.isaaclab/install_profile.yaml` for reproducibility.
 
 ## Validation
 
@@ -43,7 +43,8 @@ Use this checklist:
 4. Exactly one confirmation question was asked before execution (plus the binary-download pause when on the binary route).
 5. Commands came verbatim from the routed install page in the checkout.
 6. The docs-defined minimal verification command ran before any examples, training, or rendering. Use the command documented by the chosen install page — for binary installs, that's the bundled-Python verification on the binary page (not `uv run`); for Docker installs, run the documented verification inside the container.
-7. If verification fails, hand off to `isaaclab-setup-troubleshooting` with the install log path.
+7. When China storage was requested, the documented profile setting was applied without hard-coding service endpoints, every asset-bearing example was checked against the current manifest, and the result did not claim that runtime verification proves complete mirror availability.
+8. If verification fails, hand off to `isaaclab-setup-troubleshooting` with the install log path.
 
 For skill changes, run:
 
@@ -57,13 +58,12 @@ Keep this skill synchronized with the following install docs. If commands or ver
 
 - `docs/source/setup/installation/index.rst` — the installation entrypoint. Every install method is a section on this page with a stable ref anchor. Contains "System requirements" (driver minimums, GLIBC, Python, OS support), the method-picker cards, and the per-method command sequences.
 - `docs/source/setup/installation/index.rst` — includes the automatic uv setup steps under `installation-method-uv`.
-- `docs/source/setup/installation/legacy_installer_details.inc` — steps included by `installation-legacy-installer` (Newton-only default without Isaac Sim).
-- `docs/source/setup/installation/pip_details.inc` — steps included by `installation-method-python-env` (managed venv/conda + pip Isaac Sim).
-- `docs/source/setup/installation/wheel_details.inc` — steps included by `installation-method-wheel` (Isaac Lab Python package for external projects).
-- `docs/source/setup/installation/binaries_details.inc` — steps included by `installation-method-binary` (downloaded Isaac Sim package).
-- `docs/source/setup/installation/source_details.inc` — steps included by `installation-method-source` (Isaac Sim source build).
+- `docs/source/setup/installation/index.rst` — `installation-legacy-installer` steps (Newton-only default without Isaac Sim).
+- `docs/source/setup/installation/index.rst` — `installation-method-python-env` steps (managed venv/conda + pip Isaac Sim).
+- `docs/source/setup/installation/index.rst` — `installation-method-wheel` steps (Isaac Lab Python package for external projects).
+- `docs/source/setup/installation/index.rst` — `installation-method-binary` steps (downloaded Isaac Sim package).
+- `docs/source/setup/installation/index.rst` — `installation-method-source` steps (Isaac Sim source build).
 - `docs/source/setup/installation/asset_caching_details.inc` — asset caching notes.
-- `docs/source/setup/installation/include/` — verification and shared helper snippets.
 - `docs/source/features/docker_cloud.rst` — Docker and cloud-workstation deep dive; complements `installation-method-container` and `installation-method-cloud` in `index.rst`.
 - `docs/source/refs/troubleshooting.rst` — hand-off target for post-install diagnostics.
 

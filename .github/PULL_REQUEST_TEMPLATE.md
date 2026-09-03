@@ -26,6 +26,10 @@ is demanded by more than one party. -->
 - Breaking change (existing functionality will not work without user modification)
 - Documentation update
 
+## Release backport
+
+- [ ] <!-- backport-active-release --> Backport this pull request to the active release branch after it merges into `develop`
+
 ## Screenshots
 
 Please attach before and after screenshots of the change if applicable.
@@ -41,6 +45,9 @@ To upload images to a PR -- simply drag and drop an image while in edit mode and
 -->
 
 ## Checklist
+
+Docker and GPU tests run on demand. Push the commits you want tested, then
+comment `run-ci` on the pull request.
 
 - [ ] I have read and understood the [contribution guidelines](https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html)
 - [ ] I have run the [`pre-commit` checks](https://pre-commit.com/) with `./isaaclab.sh --format`

@@ -5,67 +5,20 @@
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable, Sequence
 from typing import Any
 
 import numpy as np
 import torch
 import warp as wp
-from newton import GeoType, ModelBuilder, ShapeFlags, solvers
+from newton import GeoType, ModelBuilder, ShapeFlags
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
+from isaaclab.cloner import path as clone_path
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
-# USD ``physics:approximation`` token (lower case) -> Newton remeshing method.
-# Mirrors Newton's own importer mapping; ``none`` keeps the raw trimesh.
-_APPROXIMATION_TO_REMESHING_METHOD = {
-    "convexdecomposition": "coacd",
-    "convexhull": "convex_hull",
-    "boundingsphere": "bounding_sphere",
-    "boundingcube": "bounding_box",
-    "meshsimplification": "quadratic",
-}
-
-
-def _authored_collision_approximations(stage: Usd.Stage) -> dict[str, str]:
-    """Prim path -> authored ``physics:approximation`` token (lower case).
-
-    SDF collision prims are excluded: the attribute has no meaning on a shape with
-    ``NewtonSDFCollisionAPI`` applied (matching Newton's importer semantics).
-    """
-    authored: dict[str, str] = {}
-    for prim in stage.Traverse():
-        attr = UsdPhysics.MeshCollisionAPI(prim).GetApproximationAttr()
-        if attr and attr.HasAuthoredValue() and "NewtonSDFCollisionAPI" not in prim.GetAppliedSchemas():
-            authored[prim.GetPath().pathString] = str(attr.Get()).lower()
-    return authored
-
-
-def _apply_authored_approximations(builder: ModelBuilder, path_shape_map: dict, authored: dict[str, str]) -> set[int]:
-    """Remesh authored collision shapes (visual shapes preserved); return their indices."""
-    authored_shape_indices: set[int] = set()
-    for path, mode in authored.items():
-        index = path_shape_map.get(path)
-        if index is None:
-            continue
-        authored_shape_indices.add(index)
-        method = _APPROXIMATION_TO_REMESHING_METHOD.get(mode)
-        if method is not None:
-            builder.approximate_meshes(method, shape_indices=[index], keep_visual_shapes=True)
-    return authored_shape_indices
-
-
-def _unauthored_collision_mesh_shapes(builder: ModelBuilder, authored_shape_indices: set[int]) -> list[int]:
-    """Colliding mesh shapes not covered by an authored ``physics:approximation``."""
-    return [
-        index
-        for index, shape_type in enumerate(builder.shape_type)
-        if shape_type == GeoType.MESH
-        and (builder.shape_flags[index] & ShapeFlags.COLLIDE_SHAPES)
-        and index not in authored_shape_indices
-    ]
+from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
 
 
 def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> bool:
@@ -145,16 +98,14 @@ def build_source_builders(
     schema_resolvers: Sequence[Any],
     *,
     ignore_paths: Sequence[str] | None = None,
-    simplify_meshes: bool = True,
     load_visual_shapes: bool = True,
 ) -> dict[str, ModelBuilder]:
     """Build one Newton builder for each clone source prim path.
 
-    USD-authored ``physics:approximation`` modes are honored (applied after import so
-    visual shapes are preserved for visualization/rendering). Exception: when the
-    honored modes leave multiple sources with differing shape-type sequences (e.g.
-    heterogeneous asset variants), every mesh falls back to the uniform convex-hull
-    treatment, because :class:`SolverMuJoCo` requires homogeneous worlds.
+    The cloner approximates nothing. Collision geometry is whatever the asset authored:
+    Newton's importer applies each shape's ``physics:approximation`` while importing, and
+    USD defaults that token to ``none``, meaning "use the mesh as-is". Change it where it
+    is authored -- the mesh-collision schema fragments on the spawner -- not here.
 
     Args:
         stage: USD stage containing the source prims.
@@ -162,43 +113,14 @@ def build_source_builders(
         create_builder: Factory returning a fresh :class:`ModelBuilder`.
         schema_resolvers: Schema resolvers forwarded to Newton's USD importer.
         ignore_paths: Prim paths skipped during import.
-        simplify_meshes: Whether to run convex-hull mesh approximation.
         load_visual_shapes: Whether to import visual-only geometry. Importing it costs
             USD parse time and memory that only pays off when the shapes are rendered
             or ray cast.
     """
-    authored = _authored_collision_approximations(stage)
-    builders = {
-        source: _build_source_builder(
-            stage, source, create_builder, schema_resolvers, ignore_paths, simplify_meshes, authored, load_visual_shapes
-        )
+    return {
+        source: _build_source_builder(stage, source, create_builder, schema_resolvers, ignore_paths, load_visual_shapes)
         for source in sources
     }
-
-    if authored and len(builders) > 1:
-        shape_sequences = {tuple(int(t) for t in b.shape_type) for b in builders.values()}
-        if len(shape_sequences) > 1:
-            warnings.warn(
-                "Clone sources have differing collision shape sequences after honoring authored"
-                " physics:approximation modes, which SolverMuJoCo's homogeneous-worlds requirement"
-                " does not support. Falling back to uniform convex-hull approximation for all"
-                " collision meshes.",
-                stacklevel=2,
-            )
-            builders = {
-                source: _build_source_builder(
-                    stage,
-                    source,
-                    create_builder,
-                    schema_resolvers,
-                    ignore_paths,
-                    simplify_meshes,
-                    {},
-                    load_visual_shapes,
-                )
-                for source in sources
-            }
-    return builders
 
 
 def _build_source_builder(
@@ -207,37 +129,25 @@ def _build_source_builder(
     create_builder: Callable[[], ModelBuilder],
     schema_resolvers: Sequence[Any],
     ignore_paths: Sequence[str] | None,
-    simplify_meshes: bool,
-    authored: dict[str, str],
     load_visual_shapes: bool = True,
 ) -> ModelBuilder:
-    """Build one source builder; an empty ``authored`` map restores hull-everything."""
+    """Build one source builder."""
     builder = create_builder()
-    solvers.SolverMuJoCo.register_custom_attributes(builder)
-    solvers.SolverKamino.register_custom_attributes(builder)
     import_result = builder.add_usd(
         stage,
         root_path=source,
         load_visual_shapes=load_visual_shapes,
         hide_collision_shapes=True,
-        skip_mesh_approximation=True,
+        skip_mesh_approximation=False,
         schema_resolvers=schema_resolvers,
         ignore_paths=ignore_paths,
     )
     _restore_visible_colliders_without_visual_shapes(
         builder, stage, import_result["path_shape_map"], load_visual_shapes
     )
-    if authored:
-        authored_shape_indices = _apply_authored_approximations(builder, import_result["path_shape_map"], authored)
-        if simplify_meshes:
-            builder.approximate_meshes(
-                "convex_hull",
-                shape_indices=_unauthored_collision_mesh_shapes(builder, authored_shape_indices),
-                keep_visual_shapes=True,
-            )
-    elif simplify_meshes:
-        builder.approximate_meshes("convex_hull", keep_visual_shapes=True)
     replace_newton_builder_shape_colors(builder, stage)
+    if load_visual_shapes:
+        import_builder_visual_material_paths(builder, stage)
     return builder
 
 
@@ -408,7 +318,6 @@ def rename_builder_labels(
 
     for source_index, source in enumerate(sources):
         source_root = source.rstrip("/") or "/"
-        source_root_len = len(source_root)
         world_cols = torch.nonzero(mapping[source_index], as_tuple=True)[0].tolist()
         # Pre-normalize the destination roots
         destination = destinations[source_index]
@@ -417,14 +326,17 @@ def rename_builder_labels(
             for env_id in (env_ids_list[col] for col in world_cols)
         }
 
-        def _rename_pair(values, worlds, *, collect_body_bindings: bool = False):
-            for index, (value, world) in enumerate(zip(values, worlds, strict=True)):
-                if world is None or not isinstance(value, str) or not value.startswith(source_root):
+        def _rename_pair(values, worlds, src_root=source_root, roots=world_roots, *, collect_body_bindings=False):
+            rows = (
+                ((index, value, worlds[index]) for index, value in values.items())
+                if isinstance(values, dict)
+                else ((index, value, world) for index, (value, world) in enumerate(zip(values, worlds, strict=True)))
+            )
+            for index, value, world in rows:
+                suffix = clone_path.relative_to(value, src_root) if isinstance(value, str) else None
+                if world is None or suffix is None:
                     continue
-                suffix = value[source_root_len:]
-                if suffix and not suffix.startswith("/"):
-                    continue
-                world_root = world_roots.get(int(world))
+                world_root = roots.get(int(world))
                 if world_root is None:
                     continue
                 renamed_value = world_root + suffix
@@ -446,7 +358,11 @@ def rename_builder_labels(
         custom_attrs = builder.custom_attributes.values()
         worlds_by_freq = {attr.frequency: attr.values for attr in custom_attrs if attr.references == "world"}
         for attr in custom_attrs:
-            if attr.dtype is str and attr.values and (worlds := worlds_by_freq.get(attr.frequency)):
+            if attr.dtype is not str or not attr.values:
+                continue
+            if attr.namespace == "isaaclab" and attr.name == "visual_material_path":
+                _rename_pair(attr.values, builder.shape_world)
+            elif worlds := worlds_by_freq.get(attr.frequency):
                 _rename_pair(attr.values, worlds)
 
     fabric_body_bindings.extend(

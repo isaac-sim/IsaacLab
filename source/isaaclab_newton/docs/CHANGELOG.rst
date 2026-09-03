@@ -1,6 +1,323 @@
 Changelog
 ---------
 
+5.5.1 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added translation of :attr:`~isaaclab.physics.PhysicsCfg.deterministic` in ``NewtonManager``.
+  The request selects ``deterministic_mode="run_to_run"`` and sets ``MJWarpSolverCfg.disable_sensors``
+  on the MJWarp GPU path. An explicitly set ``deterministic_mode`` takes precedence. MuJoCo on the
+  CPU is left unchanged: Warp's deterministic mode does not reach that path, and the request is
+  logged instead of applied.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` rejecting
+  non-colliding Newton shape records, including MJCF sites and visual-only
+  shapes, after model finalization while keeping collision shape expressions
+  rejected before and after finalization.
+* Fixed Newton body pose synchronization dropping authored USD scale from Kit viewport and Isaac RTX
+  rendering, which caused scaled rigid assets to render at unit scale.
+* Fixed a determinism request silently starving the IMU, PVA, and joint-wrench sensors. Disabling
+  MuJoCo Warp's sensors also skips the ``rne_postconstraint`` stage that fills ``body_qdd`` and
+  ``body_parent_f``, so those sensors reported stale values. ``NewtonManager`` now raises at solver
+  initialization when a scene requests both.
+
+
+5.5.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to ``NewtonWarpRendererCfg`` through its ``class_type`` field.
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab_newton.sim.schemas.apply_mujoco_fixed_tendon` to author on
+  the given prim only. Target selection, including subtree matching via prim path
+  expressions, is now owned by the core family writer
+  :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`; pass
+  ``f"{prim_path}(/.*)?"`` to it to reach descendant ``MjcTendon`` prims.
+
+
+5.4.1 (2026-08-23)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Newton replication to import the physics scene and explicitly declared
+  :attr:`isaaclab.cloner.ClonePlan.global_paths` without stage discovery. Hand-built clone plans must declare
+  every shared USD asset root.
+* Built the shared shape BVH with collision geometry during model finalization when a raycast sensor is present,
+  instead of rebuilding the BVH when the sensor task initializes.
+* Registered builder attributes only for the active Newton solver instead of importing and allocating inactive
+  solver data.
+* Reused target-mode resolution across identical articulation clones and one canonical articulation view between
+  each articulation and its joint-wrench sensor.
+
+Fixed
+^^^^^
+
+* **Breaking:** Fixed Newton contact sensors matching their body and shape expressions as globs
+  instead of regular expressions, which silently dropped alternation and let the segment-safe
+  ``[^/]*`` cross path separators. Expressions are now compiled and full-matched, as
+  :func:`~isaaclab.utils.string.resolve_matching_names` already does elsewhere. An expression that
+  relied on the widened wildcard to reach the shapes below a body now selects nothing and fails at
+  sensor initialization; spell the descendant segments explicitly to migrate, so
+  ``sensor_shape_prim_expr=["{ENV_REGEX_NS}/Object[^/]*"]`` becomes
+  ``["{ENV_REGEX_NS}/Object[^/]*/.*"]``. The same applies to ``filter_shape_prim_expr``.
+* **Breaking:** Removed the contact sensor's bare-label fallback, which rewrote a path expression
+  down to its final segment when no model label contained a separator. It dated from Newton's
+  pre-hierarchical label API. Spell body and shape expressions as full paths to migrate, so
+  ``["fingertip_.*"]`` becomes ``["{ENV_REGEX_NS}/Robot/fingertip_[^/]*/.*"]``.
+* Migrated the Newton contact sensor off the deprecated ``sensing_obj_*`` names onto the
+  replacements Newton 1.4 introduced.
+
+
+5.4.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added one-launch GPU writes from scene material colors and per-link randomization events to
+  Newton shape-color storage.
+
+Fixed
+^^^^^
+
+* Fixed stale Newton visualization models being reused across sequential PhysX scenes.
+
+
+5.3.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added explicit state-buffer advancement so Newton actuator adapters can be
+  replayed from backend-owned CUDA graphs.
+* Added Newton cable discovery and Fabric curve sync so rendered cable curves follow
+  simulated segment endpoints.
+
+Changed
+^^^^^^^
+
+* Routed Newton articulation actuator setup, compute, reset, and command
+  submission through :class:`~isaaclab.actuators.ActuatorCollection`.
+* Changed host-adapter execution of Newton actuators on PhysX and OVPhysX to
+  aggregate structurally compatible joints while retaining their per-joint
+  parameters.
+
+Fixed
+^^^^^
+
+* Fixed Newton-native execution with non-graphable actuators to keep solver
+  stepping in a CUDA graph.
+* Fixed :attr:`~isaaclab.sensors.ContactSensorData.force_matrix_w_history` on
+  Newton to retain filtered contact forces across sensor updates like PhysX.
+* Made MPM particle visualization available to non-Kit renderers and visualizers.
+* Fixed the Newton Warp renderer reporting UNLABELLED semantic and instance segmentation for every
+  environment but the prototype when the scene spawns only the prototype
+  (:attr:`~isaaclab.sim.spawners.SpawnerCfg.spawn_path`) and relies on backend replication. Shapes
+  cloned by the physics backend now resolve their labels through the prototype environment recorded
+  in the clone plan, with the matched ancestor rebased into the cloned environment so instance ids
+  stay distinct per environment.
+
+
+5.2.0 (2026-08-15)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.NewtonVBDManager`,
+  :class:`~isaaclab_newton.physics.VBDSolverCfg`, and
+  :class:`~isaaclab_newton.physics.NewtonSoftContactCfg` to the core Newton
+  physics package.
+
+
+5.1.0 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added isolated multi-world and bounded sparse-grid configuration to
+  :class:`~isaaclab_newton.physics.MPMSolverCfg`.
+* Added standard visual-material binding for MPM particle spawners.
+* Added opt-in cell-centered particle placement to
+  :class:`~isaaclab_newton.sim.spawners.mpm.MPMGridCfg` while preserving its
+  existing boundary-placement default.
+* Added graph-captured bounded-sparse MPM snowball-smash and teapot-fill demos,
+  including a rigid-MPM proxy-coupling example.
+* Added an implicit MPM authoring and tuning guide.
+* Enabled CUDA graph capture for capacity-bounded rebuildable sparse MPM,
+  including nested coupled-solver entries.
+* Added a safe copy helper for Newton clone-source builders used by offline IK
+  and collision screening.
+
+Changed
+^^^^^^^
+
+* Renamed ``scripts/demos/mpm/particle_pour.py`` to
+  ``scripts/demos/mpm/teapot_fill.py``. Invoke the teapot-fill path for the
+  maintained container-filling example. Use the canonical ``--max_steps``,
+  ``--voxel_size``, and ``--container_usd`` options.
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``"instantaneous"`` and ``"finite_difference"`` values of
+  :attr:`~isaaclab_newton.physics.MPMSolverCfg.collider_velocity_mode` in favor
+  of ``"forward"`` and ``"backward"``, respectively.
+
+Fixed
+^^^^^
+
+* Kept kitless MPM particle visuals on their fallback display color when
+  Kit-only render materials are unavailable.
+* Fixed stale solver-owned history during task-driven resets on both active
+  state buffers through Newton's shared local/global reset-mask contract.
+* Prevented the first deferred CUDA graph capture from advancing physics twice.
+* Preserved eager fallback for dense and unbounded sparse MPM grids when CUDA
+  graphs are enabled.
+* Surfaced asynchronous sparse-grid rebuild failures after CUDA graph replay.
+* Deferred automatic coupled MPM history resets until tasks finish rewriting
+  state, while allowing isolated-world tasks to reset selected worlds exactly.
+* Fixed :class:`~isaaclab.sensors.MultiMeshRayCaster` raising ``KeyError`` on a tracked ray-cast
+  target under Newton, because the environment slot was spelled one way when the target was
+  registered and another when it was looked up.
+
+
+5.0.0 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Replaced :class:`~isaaclab_newton.physics.KaminoSolverCfg` with
+  :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` and
+  :class:`~isaaclab_newton.physics.KaminoDVISolverCfg`. Select P-ADMM or DVI by
+  constructing the matching config, and migrate solver settings to
+  ``solver_cfg.dynamics_solver_cfg.<setting>``.
+* Changed the default Kamino P-ADMM configuration to use Moreau integration,
+  automatic sparse-Jacobian selection, ``constraints.alpha=0.1``,
+  ``max_iterations=100``, tolerances of ``1e-4``, ``rho_0=0.05``,
+  ``contact_warmstart_method="geom_pair_net_force"``, and
+  ``use_graph_conditionals=False``. Set the corresponding nested configuration
+  fields explicitly to retain the previous behavior.
+
+
+4.0.0 (2026-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed Newton overrides of the unused physics and renderer capability methods, along with the
+  empty ``isaaclab_newton.video_recording`` package.
+
+
+3.2.1 (2026-08-10)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the default of
+  :attr:`~isaaclab_newton.renderers.NewtonWarpRendererCfg.enable_backface_culling`
+  from ``True`` to ``False`` so double-sided surfaces remain visible by default.
+  Set ``enable_backface_culling=True`` to restore the previous culling behavior.
+
+Fixed
+^^^^^
+
+* Fixed intermittent segmentation faults after a CUDA graph capture by restoring the full
+  collection that runs when the capture window ends. Scoping it to generation 0 left cycles
+  that were promoted before the window but became unreachable during it -- a previous
+  ``wp.Graph``/``State`` released on a hard reset, for instance -- to the periodic collector,
+  which freed their Warp arrays long after the capture stream was destroyed.
+
+
+3.2.0 (2026-08-09)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg.enable_rigid_soft_full_surface_contact`
+  to generate edge and triangle-interior soft contacts against full-surface-capable rigid colliders.
+  Analytic shapes work directly; mesh and convex colliders require a volume SDF.
+* Added :attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode` to apply
+  one determinism setting to supported Newton solvers and collision handling.
+* Added :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` so
+  deterministic MJWarp simulations can skip unsupported internal sensor kernels.
+
+Fixed
+^^^^^
+
+* Fixed articulation target bindings for the Newton 1.5 control API.
+* Fixed the ``isaaclab_ppisp`` import error raised by
+  :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` when ``CameraCfg.isp_cfg`` is
+  set. It pointed at ``pip install isaaclab[all]``, but the ``all`` extra never carried
+  ``isaaclab_ppisp`` -- the extension ships with the base ``isaaclab`` wheel.
+* Fixed shadow deformable visualization for clone-planned PhysX environments.
+
+
+3.1.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added support for applying Newton visualizer dragging forces during
+  rigid-body solver substeps.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``isaaclab_newton.video_recording.recording_hooks`` (dead stub, never
+  wired into the dispatch path). No migration needed.
+
+* Added :meth:`~isaaclab_newton.physics.NewtonManager.video_capture_backend` classmethod
+  (returns ``"newton_gl"``), used by
+  :class:`~isaaclab.envs.utils.VideoRecorder` to select the Newton GL capture backend.
+* Changed the model finalization, solver initialization, and CUDA graph capture timers to name the
+  step they run, so :class:`~isaaclab.app.LoadingScreen` can show it while it happens rather than
+  after it finishes.
+
+Fixed
+^^^^^
+
+* Fixed articulation target bindings to use Newton's canonical joint target attributes.
+* Fixed Newton external wrenches so body-frame forces and torques are rotated
+  into the world frame before simulation.
+
+
+3.0.0 (2026-08-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``NewtonCfg.simplify_meshes``. Newton replication no longer
+  approximates mesh colliders, so a USD-authored collision approximation survives
+  cloning. Author the approximation on the asset instead, via
+  :attr:`~isaaclab.sim.schemas.CollisionBaseCfg.mesh_collision_property` on the
+  spawner config.
+
+
 2.6.0 (2026-08-05)
 ~~~~~~~~~~~~~~~~~~
 

@@ -81,7 +81,7 @@ def _make_env(visualizers=(), sensors: dict | None = None):
     [
         ("visualizer", ("visualizer", "", "")),
         ("visualizer:kit", ("visualizer", "kit", "")),
-        ("visualizer:newton:tiled", ("visualizer", "newton", "tiled")),
+        ("visualizer:newton:streaming_view", ("visualizer", "newton", "streaming_view")),
         ("sensor:tiled_camera", ("sensor", "tiled_camera", "")),
         ("  visualizer:kit  ", ("visualizer", "kit", "")),
     ],
@@ -104,6 +104,28 @@ def test_init_raises_import_error_when_moviepy_missing():
     with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", None):
         with pytest.raises(ImportError, match="moviepy"):
             VideoRecorder(_cfg(), _make_env())
+
+
+def test_init_continues_clip_index_after_existing_files(tmp_path):
+    output_dir = tmp_path / "videos"
+    output_dir.mkdir()
+    (output_dir / "clip_0000.mp4").touch()
+    (output_dir / "clip_0007.mp4").touch()
+    (output_dir / "clip_final.mp4").touch()
+    (output_dir / "other_0008.mp4").touch()
+
+    recorder = VideoRecorder(_cfg(output_dir=str(output_dir), output_filename_prefix="clip"), _make_env())
+
+    assert recorder._clip_index == 8
+
+
+def test_init_starts_clip_index_at_zero_for_empty_output_dir(tmp_path):
+    output_dir = tmp_path / "videos"
+    output_dir.mkdir()
+
+    recorder = VideoRecorder(_cfg(output_dir=str(output_dir)), _make_env())
+
+    assert recorder._clip_index == 0
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +259,15 @@ def test_kit_visualizer_newton_physics_logs_warning(caplog):
     assert any("source='visualizer:newton'" in r.message for r in caplog.records)
     # The recorder attempts capture rather than short-circuiting.
     assert kit_viz.render_calls == 1
+
+
+def test_visualizer_newton_alias_resolves_newton_gl():
+    """source='visualizer:newton' should match a visualizer with visualizer_type='newton_gl'."""
+    viz = _FakeViz("newton_gl")
+    recorder = VideoRecorder(_cfg(source="visualizer:newton"), _make_env(visualizers=[viz]))
+    frame = recorder._get_frame()
+    assert viz.render_calls == 1
+    assert frame is not None
 
 
 # ---------------------------------------------------------------------------
@@ -410,22 +441,46 @@ def test_keep_last_n_clips_prunes_old_clips():
         _cfg(output_dir="/tmp/test_prune", keep_last_n_clips=2),
         _make_env(),
     )
+    recorder._clip_index = 3
     removed = []
 
     def fake_remove(path):
         removed.append(path)
 
-    mock_clip = MagicMock()
-    with patch("isaaclab.envs.utils.video_recorder.ImageSequenceClip", return_value=mock_clip):
-        with patch("isaaclab.envs.utils.video_recorder.os.makedirs"):
+    with patch("isaaclab.envs.utils.video_recorder.os.path.isdir", return_value=True):
+        with patch(
+            "isaaclab.envs.utils.video_recorder.os.listdir",
+            return_value=["clip_0000.mp4", "clip_0001.mp4", "clip_0002.mp4"],
+        ):
             with patch("isaaclab.envs.utils.video_recorder.os.remove", side_effect=fake_remove):
-                for i in range(3):
-                    recorder._frames = [_FRAME.copy()]
-                    recorder._recording = True
-                    recorder._close_clip()
+                recorder._maybe_delete_old_clips()
 
     # After 3 clips with keep_last_n_clips=2, clip index 0 should be removed.
     assert any("_0000.mp4" in p for p in removed), f"Expected clip 0 to be removed, got: {removed}"
+
+
+def test_keep_last_n_clips_prunes_only_existing_sparse_clips():
+    """Sparse clip indices must not trigger one deletion attempt per missing index."""
+
+    recorder = VideoRecorder(
+        _cfg(output_dir="/tmp/test_sparse_prune", keep_last_n_clips=2),
+        _make_env(),
+    )
+    recorder._clip_index = 10_000
+    removed = []
+
+    def fake_remove(path):
+        removed.append(path)
+
+    with patch("isaaclab.envs.utils.video_recorder.os.path.isdir", return_value=True):
+        with patch(
+            "isaaclab.envs.utils.video_recorder.os.listdir",
+            return_value=["clip_0001.mp4", "clip_9997.mp4", "clip_9998.mp4", "other_0000.mp4"],
+        ):
+            with patch("isaaclab.envs.utils.video_recorder.os.remove", side_effect=fake_remove):
+                recorder._maybe_delete_old_clips()
+
+    assert removed == ["/tmp/test_sparse_prune/clip_0001.mp4", "/tmp/test_sparse_prune/clip_9997.mp4"]
 
 
 # ---------------------------------------------------------------------------

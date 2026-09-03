@@ -23,13 +23,21 @@ class VideoRecorderCfg:
     --------------------
     Fields are colon-separated: ``"<kind>:<type>:<sub>"``.
 
-    * ``"visualizer"``              – first active recording-capable visualizer, interactive camera.
-    * ``"visualizer:kit"``          – Kit visualizer, interactive viewport camera.
-    * ``"visualizer:newton"``       – Newton GL visualizer, interactive camera.
-    * ``"visualizer:newton:tiled"`` – Newton GL visualizer, tiled camera panel.
-    * ``"sensor:<name>"``           – ``env.scene.sensors[<name>]``, rgb channel.
+    * ``"visualizer"``                        – first active recording-capable visualizer.
+    * ``"visualizer:kit"``                    – Kit visualizer, interactive viewport camera.
+    * ``"visualizer:newton"``                 – Newton GL visualizer, interactive camera.
+    * ``"visualizer:newton_rtx"``             – Newton OVRTX path-traced interactive camera.
+    * ``"visualizer:newton:streaming_view"``  – Newton GL streaming camera panel (requires
+      ``streaming_view=True`` on :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`).
+    * ``"visualizer:kit:streaming_view"``     – Kit streaming camera panel (requires
+      ``streaming_view=True`` on :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`).
+    * ``"sensor:<name>"``                     – scene sensor, RGB channel (default).
+    * ``"sensor:<name>:rgb"``                 – scene sensor, RGB.
+    * ``"sensor:<name>:depth"``               – scene sensor, depth colorized via turbo colormap.
+    * ``"sensor:<name>:segmentation"``        – scene sensor, segmentation colorized.
+    * ``"sensor:<name>:normals"``             – scene sensor, surface normals colorized.
 
-    The camera position and window resolution are configured on the visualizer cfg
+    The camera position and resolution are configured on the visualizer cfg
     (e.g. :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`), not here.
     """
 
@@ -88,6 +96,14 @@ class VideoRecorderCfg:
 
     produces ``videos/viewport_0000.mp4`` and ``videos/wrist_0000.mp4`` side-by-side.
     """
+
+    depth_colormap_min: float = 0.1
+    """Near-clip [m] for the turbo depth colormap used when ``source`` ends with ``:depth``.
+    Values closer than this are clamped to the minimum color."""
+
+    depth_colormap_max: float = 10.0
+    """Far-clip [m] for the turbo depth colormap used when ``source`` ends with ``:depth``.
+    Values farther than this are clamped to the maximum color."""
 
     keep_last_n_clips: int | None = None
     """If set, delete older clips so that at most this many clips are kept on disk at any

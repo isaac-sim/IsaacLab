@@ -3,52 +3,39 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration gates for the unified dexterous Lift and Reorient tasks."""
+"""Behavioral tests for the unified dexterous Lift and Reorient tasks."""
 
+from types import SimpleNamespace
+
+import pytest
 import torch
 
+from isaaclab.managers import CommandTerm
+
 from isaaclab_tasks.core.lift import mdp
-from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg
-from isaaclab_tasks.core.lift.config.kuka_allegro.agents.rsl_rl_ppo_cfg import KukaAllegroPPORunnerCfg
-from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_env_cfg import (
-    KukaAllegroLiftEnvCfg,
-    KukaAllegroReorientEnvCfg,
+from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
+    CableUniformPoseCommand,
+    DeformableUniformPoseCommand,
+    ObjectUniformPoseCommand,
 )
-from isaaclab_tasks.utils import resolve_presets
 
 
-def test_lift_keeps_the_upstream_reset_and_progress_training_terms() -> None:
-    """The package move must retain the rewritten reset bank and progress rewards."""
-    for raw_env_cfg in (FrankaLiftEnvCfg(), KukaAllegroLiftEnvCfg()):
-        env_cfg = resolve_presets(raw_env_cfg)
-        reset_params = env_cfg.events.conditional_reset.params
+class _MarkerSpy:
+    def __init__(self, _cfg=None):
+        self.calls: list[tuple[tuple, dict]] = []
 
-        assert reset_params["success_monitor"].target_success_rate == 0.5
-        assert reset_params["diversity_feature"] is not None
-        assert env_cfg.rewards.position_tracking.func is mdp.position_command_progress
-        assert env_cfg.rewards.orientation_tracking is None
-        assert len(env_cfg.scene.object.spawn.assets_cfg) > 1
+    def set_visibility(self, _visible: bool) -> None:
+        pass
+
+    def visualize(self, *args, **kwargs) -> None:
+        self.calls.append((args, kwargs))
 
 
-def test_reorient_keeps_orientation_progress_separate_from_lift() -> None:
-    """Reorient must retain orientation tracking while Lift disables only that term."""
-    env_cfg = KukaAllegroReorientEnvCfg()
-
-    assert env_cfg.rewards.position_tracking.func is mdp.position_command_progress
-    assert env_cfg.rewards.orientation_tracking.func is mdp.orientation_command_progress
-    assert env_cfg.commands.object_pose.position_only is False
-
-
-def test_camera_runner_keeps_the_stable_encoder_settings() -> None:
-    """Camera presets must retain the fixed-rate spatial-softmax training configuration."""
-    runner_cfg = KukaAllegroPPORunnerCfg()
-
-    assert runner_cfg.single_camera.algorithm.schedule == "fixed"
-    assert runner_cfg.single_camera.algorithm.learning_rate == 7.0e-5
-    assert runner_cfg.duo_camera.actor.class_name == (
-        "isaaclab_tasks.core.lift.config.kuka_allegro.agents.models:SpatialSoftmaxCNNModel"
-    )
-    assert runner_cfg.duo_camera.actor.cnn_cfg.output_channels == [16, 32, 32]
+class _FakeScene(dict):
+    def __init__(self, environment_ids: torch.Tensor, **assets):
+        super().__init__(assets)
+        self._ALL_INDICES = environment_ids
+        self.env_origins = torch.zeros((len(environment_ids), 3))
 
 
 def test_camera_normalization_is_stationary() -> None:
@@ -58,3 +45,106 @@ def test_camera_normalization_is_stationary() -> None:
 
     assert torch.allclose(mdp.vision_camera._rgb_norm(None, rgb), torch.tensor([-0.5, 0.0, 0.5]))
     assert torch.allclose(mdp.vision_camera._depth_norm(None, depth), torch.tanh(depth / 2) - 0.5)
+
+
+def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every lift pose, goal, and success marker should retain its environment ownership."""
+    num_envs = 3
+    environment_ids = torch.arange(num_envs)
+    identity_quat = torch.zeros((num_envs, 4))
+    identity_quat[:, 0] = 1.0
+    root_pos_w = torch.zeros((num_envs, 3))
+    root_pose_w = torch.cat((root_pos_w, identity_quat), dim=-1)
+
+    robot = SimpleNamespace(
+        is_initialized=True,
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=root_pos_w),
+            root_quat_w=SimpleNamespace(torch=identity_quat),
+        ),
+    )
+    object_asset = SimpleNamespace(
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=root_pos_w),
+            root_quat_w=SimpleNamespace(torch=identity_quat),
+            root_link_pose_w=SimpleNamespace(torch=root_pose_w),
+        )
+    )
+    success_asset = SimpleNamespace(data=SimpleNamespace(root_pos_w=SimpleNamespace(torch=root_pos_w)))
+    scene = _FakeScene(environment_ids, robot=robot, object=object_asset, table=success_asset)
+    env = SimpleNamespace(num_envs=num_envs, device="cpu", scene=scene)
+    cfg = SimpleNamespace(
+        asset_name="robot",
+        object_name="object",
+        success_vis_asset_name="table",
+        success_visualizer_cfg=object(),
+        goal_pose_visualizer_cfg=object(),
+        curr_pose_visualizer_cfg=object(),
+        position_only=True,
+        cmd_kind=None,
+        element_names=None,
+    )
+
+    def _initialize_command_term(command, command_cfg, command_env) -> None:
+        command.cfg = command_cfg
+        command._env = command_env
+        command.metrics = {}
+
+    monkeypatch.setattr(CommandTerm, "__init__", _initialize_command_term)
+    monkeypatch.setattr("isaaclab.markers.VisualizationMarkers", _MarkerSpy)
+
+    command = ObjectUniformPoseCommand(cfg, env)
+    command._set_debug_vis_impl(True)
+    command._debug_vis_callback(None)
+    command.cfg.position_only = False
+    command._debug_vis_callback(None)
+    command._update_metrics()
+    DeformableUniformPoseCommand._update_metrics(command)
+    command._segment_position_w = lambda: root_pos_w
+    CableUniformPoseCommand._update_metrics(command)
+    CableUniformPoseCommand._debug_vis_callback(command, None)
+
+    expected_call_counts = {
+        command.success_visualizer: 4,
+        command.goal_visualizer: 3,
+        command.curr_visualizer: 3,
+    }
+    for visualizer, expected_count in expected_call_counts.items():
+        assert len(visualizer.calls) == expected_count
+        for _, kwargs in visualizer.calls:
+            assert torch.equal(kwargs["environment_ids"], environment_ids)
+
+
+def test_lift_point_cloud_markers_repeat_environment_ids_per_point() -> None:
+    """Flattened point-cloud markers should retain env-major ownership."""
+    num_envs = 3
+    num_points = 4
+    identity_quat = torch.zeros((num_envs, 4))
+    identity_quat[:, 0] = 1.0
+    root_pos_w = torch.zeros((num_envs, 3))
+    points_local = torch.arange(num_envs * num_points * 3, dtype=torch.float32).view(num_envs, num_points, 3)
+
+    term = object.__new__(mdp.object_point_cloud_b)
+    term.object = SimpleNamespace(
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=root_pos_w),
+            root_quat_w=SimpleNamespace(torch=identity_quat),
+        )
+    )
+    term.ref_asset = SimpleNamespace(
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=root_pos_w),
+            root_quat_w=SimpleNamespace(torch=identity_quat),
+        )
+    )
+    term.points_local = points_local
+    term.points_w = torch.zeros_like(points_local)
+    term.visualizer = _MarkerSpy()
+    env = SimpleNamespace(num_envs=num_envs)
+
+    term(env, num_points=num_points, visualize=True)
+
+    assert len(term.visualizer.calls) == 1
+    _, kwargs = term.visualizer.calls[0]
+    assert torch.equal(kwargs["translations"], term.points_w.view(-1, 3))
+    assert torch.equal(kwargs["environment_ids"], torch.arange(num_envs).repeat_interleave(num_points))

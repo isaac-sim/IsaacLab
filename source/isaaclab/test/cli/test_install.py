@@ -18,6 +18,8 @@ from isaaclab.cli.utils import (
     extract_isaacsim_path,
     extract_python_exe,
     get_pip_command,
+    run_command,
+    run_python_command,
 )
 
 pytestmark = pytest.mark.unit
@@ -33,6 +35,90 @@ def _python_for_conda(base: Path) -> Path:
     if sys.platform == "win32":
         return base / "python.exe"
     return base / "bin" / "python"
+
+
+# ---------------------------------------------------------------------------
+# run_command
+# ---------------------------------------------------------------------------
+
+
+def test_run_command_retries_a_failed_process():
+    """A command-level retry reruns a failed package-manager process."""
+    failure = subprocess.CalledProcessError(returncode=1, cmd=["pip", "install", "example"])
+    success = subprocess.CompletedProcess(args=["pip", "install", "example"], returncode=0)
+
+    with (
+        mock.patch("isaaclab.cli.utils.subprocess.run", side_effect=[failure, success]) as subprocess_run,
+        mock.patch("isaaclab.cli.utils.time.sleep") as sleep,
+    ):
+        result = run_command(
+            ["pip", "install", "example"],
+            retry_attempts=3,
+            retry_delay_seconds=3.0,
+        )
+
+    assert result is success
+    assert subprocess_run.call_count == 2
+    sleep.assert_called_once_with(3.0)
+
+
+def test_run_python_command_uses_live_isaac_sim_with_active_python(tmp_path):
+    """Direct uv launches must combine the live source build with the active Python."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    python_launcher = local_sim / "python.sh"
+    python_launcher.touch()
+    (local_sim / ".isaaclab_source_build").touch()
+    active_python = str(tmp_path / ".venv" / "bin" / "python")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=active_python),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {}, clear=True),
+    ):
+        run_python_command("train.py", ["--task", "Cartpole"])
+
+    command = run.call_args.args[0]
+    assert command[0] == str(python_launcher)
+    assert Path(command[1]).name == "train.py"
+    assert command[2:] == ["--task", "Cartpole"]
+    assert run.call_args.kwargs["env"]["PYTHONEXE"] == active_python
+
+
+def test_run_python_command_does_not_wrap_an_active_isaac_sim_environment(tmp_path):
+    """The legacy wrapper path must not source the same Isaac Sim environment twice."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    (local_sim / ".isaaclab_source_build").touch()
+    active_python = str(tmp_path / ".venv" / "bin" / "python")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=active_python),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {"ISAAC_PATH": str(local_sim)}, clear=True),
+    ):
+        run_python_command("script.py", [])
+
+    assert run.call_args.args[0] == [active_python, "script.py"]
+
+
+def test_run_python_command_rejects_downloaded_isaac_sim_with_virtual_environment(tmp_path):
+    """Downloaded Isaac Sim packages must not run through a virtual environment."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    active_python = str(tmp_path / ".venv" / "bin" / "python")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=active_python),
+        mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path / ".venv")}, clear=True),
+        pytest.raises(SystemExit, match="1"),
+    ):
+        run_python_command("train.py", ["--task", "Cartpole"])
 
 
 # ---------------------------------------------------------------------------
@@ -235,18 +321,19 @@ class TestEnsureNewton:
     """Tests for :func:`~isaaclab.cli.commands.install._ensure_newton`.
 
     Isaac Sim bundles ``newton[sim]==1.2.0``; the install CLI must force the pinned
-    Newton git build (sourced from ``[tool.uv].override-dependencies``) over it.
+    Newton release (sourced from ``[tool.uv].override-dependencies``) over it.
     """
 
     @staticmethod
     def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess:
         return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
 
-    def test_installs_pinned_git_build_when_absent(self):
-        """When the pinned commit is not installed, uninstall newton then install the git build."""
+    def test_installs_pinned_release_when_absent(self):
+        """When the pinned release is not installed, uninstall Newton then install it."""
         from isaaclab.cli.commands import install
 
-        commit = install._pinned_version("newton")
+        overrides = install._load_root_pyproject()["tool"]["uv"]["override-dependencies"]
+        requirement = next(r for r in overrides if install._requirement_name(r) == "newton")
         calls = []
 
         def fake_run(cmd, *args, **kwargs):
@@ -264,32 +351,45 @@ class TestEnsureNewton:
         install_cmds = [cmd for cmd in calls if "install" in cmd]
         assert install_cmds, "expected a pip install call"
         install_args = install_cmds[-1]
-        assert any(arg.startswith("newton[sim,importers]") and arg.endswith(commit) for arg in install_args)
+        assert requirement in install_args
         assert any(arg.startswith("newton-usd-schemas") for arg in install_args), "schemas must be forced too"
 
-    def test_skips_when_commit_already_installed(self):
-        """When freeze already reports the pinned commit, do not reinstall."""
+    @pytest.mark.parametrize(
+        ("requirement", "freeze_line"),
+        [
+            ("newton[sim]==1.5.1", "newton==1.5.1"),
+            (
+                "newton[sim] @ git+https://github.com/newton-physics/newton.git@cca3bb8",
+                "newton @ git+https://github.com/newton-physics/newton.git@cca3bb8",
+            ),
+        ],
+    )
+    def test_skips_when_pin_already_installed(self, requirement, freeze_line):
+        """When freeze already reports the pinned build, do not reinstall."""
         from isaaclab.cli.commands import install
 
-        commit = install._pinned_version("newton")
         calls = []
 
         def fake_run(cmd, *args, **kwargs):
             calls.append(cmd)
             if cmd[-1] == "freeze":
-                stdout = f"newton @ git+https://github.com/newton-physics/newton.git@{commit}\n"
-                return self._completed(stdout=stdout)
+                return self._completed(stdout=f"{freeze_line}\n")
             return self._completed()
 
         with (
+            mock.patch.object(
+                install,
+                "_load_root_pyproject",
+                return_value={"tool": {"uv": {"override-dependencies": [requirement]}}},
+            ),
             mock.patch.object(install, "extract_python_exe", return_value="python"),
             mock.patch.object(install, "get_pip_command", return_value=["uv", "pip"]),
             mock.patch.object(install, "run_command", side_effect=fake_run),
         ):
             install._ensure_newton()
 
-        assert not any("install" in cmd for cmd in calls), "should not install when commit already present"
-        assert not any("uninstall" in cmd for cmd in calls), "should not uninstall when commit already present"
+        assert not any("install" in cmd for cmd in calls), "should not install when release already present"
+        assert not any("uninstall" in cmd for cmd in calls), "should not uninstall when release already present"
 
 
 def test_no_shadowing_prebundled_torch_in_isaac_sim():

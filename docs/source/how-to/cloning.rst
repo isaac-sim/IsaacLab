@@ -130,6 +130,8 @@ this page:
      - Long tensor of target env ids.
    * - ``positions``
      - Optional per-env world positions [m], shape ``[num_envs, 3]``.
+   * - ``global_paths``
+     - Unique prim paths for scene assets shared by every env and therefore not replicated.
 
 The plan is stage-agnostic by design — the same instance can be replayed against a
 different stage, inspected by tooling, or serialized.
@@ -141,6 +143,7 @@ When every env is a copy of env_0:
     sources      = ("/World/envs/env_0",)
     destinations = ("/World/envs/env_{}",)
     clone_mask   = [[True, True, ..., True]]
+    global_paths = ("/World/Ground", "/World/Light")
 
 When envs differ — say a cartpole in every env plus a 2-variant obstacle (box into
 envs 0/1, sphere into envs 2/3):
@@ -215,8 +218,7 @@ and exiting the block drains every registration against the plan:
 
 .. code-block:: python
 
-    with cloner.ReplicateSession(cfgs, num_clones=N, env_spacing=2.0,
-                                 device=device, stage=stage):
+    with cloner.ReplicateSession(cfgs, num_clones=N, env_spacing=2.0, device=device, stage=stage):
         for cfg in cfgs:
             cfg.class_type(cfg)
 
@@ -264,7 +266,7 @@ Shortcut for the case where every env is just a copy of env_0.
 one line by pointing at the prototype, and :func:`~isaaclab.cloner.replicate`
 finishes the setup. This is the pattern most :class:`~isaaclab.envs.DirectRLEnv`
 subclasses use — they author the env-0 prototype prim by prim in
-``_setup_scene`` and end the method with these four lines:
+``_setup_scene`` and end the method with this sequence:
 
 .. code-block:: python
 
@@ -275,11 +277,13 @@ subclasses use — they author the env-0 prototype prim by prim in
 
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        global_paths = ("/World/ground",)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos, global_paths=global_paths)
         cloner.replicate(plan, stage=self.scene.stage)
 
 Every env receives the same prototype. When envs need to differ, use one of the
-other two.
+other two. Hand-built scenes must pass every shared asset root in ``global_paths``;
+use ``()`` when there are none.
 
 
 Under the Hood
@@ -338,10 +342,11 @@ dispatch. The physics side comes from the cfg's
 :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` when set, otherwise the
 active backend's default physics context, which each backend cloner exports as
 ``PHYSICS_CONTEXT`` (PhysX and Newton replicate natively; OvPhysX replays its
-own clones). :class:`~isaaclab.cloner.UsdReplicateContext` is never authored by
-assets — :func:`~isaaclab.cloner.replicate` adds it automatically whenever a cfg
-has a spawner and Kit is available, so USD clones accompany physics replication
-under Kit and are skipped in headless runs. With
+own clones). :func:`~isaaclab.cloner.replicate` adds
+:class:`~isaaclab.cloner.UsdReplicateContext` automatically whenever a cfg has a
+spawner and Kit is available, so USD clones accompany physics replication under
+Kit and are skipped by default in headless runs. An explicit cfg override may
+still request USD replication without Kit. With
 :attr:`~isaaclab.cloner.CloneCfg.replicate_physics` disabled, cloning is
 USD-only: every physics context is dropped and the physics engine parses the
 per-env USD prims directly.

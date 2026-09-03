@@ -16,6 +16,7 @@ from isaaclab.utils.string import string_to_callable
 from isaaclab.utils.version import has_kit
 
 from .clone_plan import make_clone_plan
+from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .cloner_strategies import sequential
 from .usd import UsdReplicateContext
 
@@ -51,13 +52,14 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
     Physics contexts come from :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` when
     set, otherwise from the backend's ``PHYSICS_CONTEXT`` class.
     :class:`~isaaclab.cloner.UsdReplicateContext` is added automatically when the cfg has a
-    spawner and Kit is available, and is dropped entirely without Kit (nothing composes or
-    renders the replicated prims there). With ``replicate_physics=False`` physics contexts
-    are dropped; USD replication still fires when the spawner+Kit condition is met.
+    spawner and Kit is available. Explicit contexts are honored regardless of Kit availability.
+    With ``replicate_physics=False`` physics contexts are dropped; USD replication still fires
+    when the spawner+Kit condition is met or the cfg explicitly requests it.
 
     Cfgs absent from ``plan.cfg_rows`` are silently skipped. Backend contexts run in
     ascending ``replicate_priority`` order. The queue is cleared up front, so a backend
-    failure cannot leak stale entries into the next call.
+    failure cannot leak stale entries into the next call. Every context receives the plan's
+    explicitly declared shared assets when it is constructed.
 
     Args:
         plan: Replication layout to dispatch.
@@ -70,9 +72,8 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
     queued = REPLICATION_QUEUE.copy()
     REPLICATION_QUEUE.clear()
 
-    backend_physics_ctx = getattr(
-        importlib.import_module(f"isaaclab_{FactoryBase._get_backend()}.cloner"), "PHYSICS_CONTEXT", None
-    )
+    backend_package = FactoryBase._get_package_name(FactoryBase._get_backend())
+    backend_physics_ctx = importlib.import_module(f"{backend_package}.cloner").PHYSICS_CONTEXT
 
     # Group queued cfgs by backend, taking the union of row indices each backend owns.
     # In the homogeneous plan every cfg maps to row 0, so multiple queue_replication
@@ -85,20 +86,20 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
         if rows is None:
             continue
         if cfg.cloning_contexts is None:
-            contexts = [backend_physics_ctx] if backend_physics_ctx else []
+            contexts = [backend_physics_ctx]
         else:
             contexts = [string_to_callable(c) if isinstance(c, str) else c for c in cfg.cloning_contexts]
         if not replicate_physics:
             contexts = [c for c in contexts if c is UsdReplicateContext]
         ctx_set = dict.fromkeys(contexts)
-        if getattr(cfg, "spawn", None) is not None and kit_available:
+        if cfg.spawn is not None and kit_available:
             ctx_set.setdefault(UsdReplicateContext, None)
         for BackendCtxCls in ctx_set:
             backend_rows.setdefault(BackendCtxCls, set()).update(rows)
 
     backend_ctxs: dict[type, Any] = {}
     for BackendCtxCls, row_set in backend_rows.items():
-        ctx = BackendCtxCls(stage)
+        ctx = BackendCtxCls(stage, global_paths=plan.global_paths)
         backend_ctxs[BackendCtxCls] = ctx
         row_list = sorted(row_set)
         ctx.queue_mapping(
@@ -109,7 +110,7 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
             positions=plan.positions,
         )
 
-    for ctx in sorted(backend_ctxs.values(), key=lambda c: getattr(c, "replicate_priority", 0)):
+    for ctx in sorted(backend_ctxs.values(), key=lambda ctx: ctx.replicate_priority):
         ctx.replicate()
 
     SimulationContext.instance().set_clone_plan(plan)
@@ -139,9 +140,11 @@ class ReplicateSession:
         device: str,
         *,
         stage: Usd.Stage,
+        global_paths: tuple[str, ...] = (),
         clone_strategy: Callable = sequential,
         valid_set: torch.Tensor | None = None,
         replicate_physics: bool = True,
+        env_template: str = DEFAULT_ENV_TEMPLATE,
     ):
         """Capture arguments for :func:`make_clone_plan` and :func:`replicate`.
 
@@ -151,11 +154,13 @@ class ReplicateSession:
             env_spacing: Grid spacing between env origins [m].
             device: Torch device for plan tensors.
             stage: USD stage to author replicated prim specs into.
+            global_paths: Complete shared-asset roots declared by the composition root. Defaults to none.
             clone_strategy: Prototype-to-env assignment function.
             valid_set: Optional ``[num_combos, num_groups]`` long tensor of valid
                 prototype combinations; ``None`` uses the full cartesian product.
             replicate_physics: Whether physics replication clones each environment;
                 forwarded to :func:`replicate`.
+            env_template: Path template for a replicated env prim, ``{}`` marking the env index.
         """
         self._cfgs = cfgs
         self._stage = stage
@@ -164,8 +169,10 @@ class ReplicateSession:
             num_clones=num_clones,
             env_spacing=env_spacing,
             device=device,
+            global_paths=global_paths,
             clone_strategy=clone_strategy,
             valid_set=valid_set,
+            env_template=env_template,
         )
         self._plan: ClonePlan | None = None
 

@@ -52,11 +52,13 @@ def normalize_camera_image(
 
     Dispatch (in order of check):
 
-    - :func:`is_rgb_like` and ``images.dtype == torch.uint8`` and contiguous 4D: routes to the
+    - :func:`is_rgb_like` or colorized ``"semantic_segmentation"`` (``uint8``) and contiguous
+      4D: routes to the
       fused Warp kernel via :func:`~isaaclab.utils.warp.ops.normalize_image_uint8`. ``out`` and
       ``channel_dim`` are forwarded so callers can reuse a pre-allocated float32 buffer and
       select the image layout.
-    - :func:`is_rgb_like` and any other dtype/shape: pure-PyTorch ``(x.float() / 255.0) - mean``
+    - :func:`is_rgb_like` or colorized ``"semantic_segmentation"`` and any other dtype/shape:
+      pure-PyTorch ``(x.float() / 255.0) - mean``
       with the same math. ``out`` is ignored on this branch; ``channel_dim`` selects the spatial
       reduction axes.
     - :func:`is_depth_like`: in-place ``images[images == inf] = 0``. ``images`` is returned as-is.
@@ -65,21 +67,23 @@ def normalize_camera_image(
 
     Args:
         images: The camera-observation tensor. Shape and dtype vary by ``data_type``; the
-            RGB-like Warp fast path requires 4D contiguous uint8 with the channel axis at
-            position ``channel_dim``.
+        RGB-like and colorized semantic-segmentation Warp fast paths require 4D contiguous uint8
+            with the channel axis at position ``channel_dim``.
         data_type: The camera data-type string. Drives the dispatch.
         out: Optional pre-allocated float32 output for the RGB-like Warp fast path. Reused
             across steps to eliminate per-step allocation. Ignored on the PyTorch fallback
             and on non-RGB branches. Defaults to None.
-        channel_dim: Position of the channel axis for the RGB-like branches. ``-1`` (BHWC,
-            default) or ``-3`` / ``1`` (BCHW). Ignored on non-RGB branches.
+        channel_dim: Position of the channel axis for the RGB-like and colorized semantic-
+            segmentation branches. ``-1`` (BHWC, default) or ``-3`` / ``1`` (BCHW). Ignored on
+            other branches.
 
     Returns:
-        The normalized tensor. For RGB-like input this is a fresh (or pre-allocated) float32
-        tensor; for depth-like input it is ``images`` itself (mutated in place); for
-        normals-like input it is a new tensor; for anything else, ``images`` unchanged.
+        The normalized tensor. For RGB-like and colorized semantic-segmentation input this is a
+        fresh (or pre-allocated) float32 tensor; for depth-like input it is ``images`` itself
+        (mutated in place); for normals-like input it is a new tensor; for anything else,
+        ``images`` unchanged.
     """
-    if is_rgb_like(data_type):
+    if is_rgb_like(data_type) or (data_type == "semantic_segmentation" and images.dtype == torch.uint8):
         if images.dtype == torch.uint8 and images.ndim == 4 and images.is_contiguous():
             return normalize_image_uint8(images, channel_dim=channel_dim, out=out)
         # PyTorch fallback for callers that pre-floated or pass a strided view.
@@ -101,6 +105,7 @@ def normalize_camera_output_for_display(tensor: torch.Tensor, data_type: str) ->
     normalized = tensor.float()
 
     if data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
+        normalized = torch.nan_to_num(normalized, nan=0.0, posinf=0.0, neginf=0.0)
         max_val = normalized.max()
         if max_val > 0:
             normalized = normalized / max_val
@@ -109,16 +114,12 @@ def normalize_camera_output_for_display(tensor: torch.Tensor, data_type: str) ->
     elif data_type in {"normals"}:
         normalized = (normalized + 1.0) * 0.5
     elif data_type in {"motion_vectors"}:
-        # Motion vectors are per-pixel (u, v) offsets that can be positive or negative. Normalize by the
-        # peak magnitude to map into [-1, 1], remap to [0, 1], and pack the two channels into an RGB image
-        # (u -> R, v -> G, unused B -> 0) so the result can be composed into a grid and saved as an image.
-        uv = normalized[..., :2]
-        max_mag = uv.abs().max()
-        if max_mag > 0:
-            uv = uv / max_mag
+        # Motion vectors are per-pixel (u, v) offsets that can be positive or negative. Clamp to [-1, 1],
+        # remap to [0, 1], and pack the two channels into an RGB image (u -> R, v -> G, unused B -> 0)
+        # so the result can be composed into a grid and saved as an image.
+        uv = normalized[..., :2].clamp(-1.0, 1.0)
         uv = (uv + 1.0) * 0.5
-        blue = torch.zeros_like(uv[..., :1])
-        normalized = torch.cat([uv, blue], dim=-1)
+        normalized = torch.cat([uv, torch.zeros_like(uv[..., :1])], dim=-1)
     else:
         normalized = normalized / 255.0
 

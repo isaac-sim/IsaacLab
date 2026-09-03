@@ -26,7 +26,9 @@ def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> t
 class PhysxReplicateContext:
     """Queue and run PhysX replication work for one stage."""
 
-    def __init__(self, stage: Usd.Stage):
+    replicate_priority = 0
+
+    def __init__(self, stage: Usd.Stage, global_paths: tuple[str, ...] = ()):
         """Initialize the context.
 
         Args:

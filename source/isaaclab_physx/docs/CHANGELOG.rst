@@ -1,6 +1,178 @@
 Changelog
 ---------
 
+5.3.1 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added translation of :attr:`~isaaclab.physics.PhysicsCfg.deterministic` in ``PhysxManager``, which
+  enables :attr:`~isaaclab_physx.physics.PhysxCfg.enable_enhanced_determinism`.
+
+
+5.3.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to ``IsaacRtxRendererCfg`` through its ``class_type`` field.
+
+Changed
+^^^^^^^
+
+* Changed the tendon fragment functions (e.g. the ``func`` behind
+  :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonCfg`) to author on the given prim
+  only. Target selection, including subtree matching via prim path expressions, is now
+  owned by the core family writers such as
+  :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`; pass
+  ``f"{prim_path}(/.*)?"`` to those writers to reach descendant tendon prims.
+
+
+5.2.1 (2026-08-27)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed PhysX scene-data rigid-body views resolving same-named USD joint prims
+  when synchronizing PhysX simulations with Newton visualizers.
+
+
+5.2.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added batched GPU material-channel writes through Fabric for Isaac RTX rendering.
+
+
+5.1.1 (2026-08-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** The Isaac RTX renderer now raises an error for albedo and simple-shading outputs on Isaac Sim
+  versions before 6.0, rather than silently omitting them. Upgrade Isaac Sim or remove those data types.
+
+
+5.1.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``IsaacRtxRendererCfg.enable_scene_partitioning`` and
+  ``IsaacRtxRendererGlobalSettingsCfg.show_all_partitions_by_default`` settings.
+  The latter optionally overrides AppLauncher's visualization-scoped spectator
+  setting and requires spatially separated environments when enabled.
+* Added CUDA graph replay for graphable Newton actuators running on the PhysX
+  backend.
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab_physx.renderers.IsaacRtxRenderer.prepare_stage` to
+  author per-environment scene-partition attributes according to
+  ``IsaacRtxRendererCfg.enable_scene_partitioning``, which defaults to enabled.
+  Set ``IsaacRtxRendererCfg(enable_scene_partitioning=False)`` to preserve the
+  previous unpartitioned behavior.
+* Routed PhysX articulation actuator setup, compute, reset, and command
+  submission through :class:`~isaaclab.actuators.ActuatorCollection`.
+* Prevented stateful Newton actuators from running inside caller-owned CUDA
+  graph captures; let the PhysX adapter manage their alternating graphs.
+
+Fixed
+^^^^^
+
+* Fixed importing the rigid-object-collection kernels when runtime type annotations include both
+  Warp arrays and PyTorch tensors.
+
+
+5.0.1 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+Fixed
+^^^^^
+
+* Fixed physics views receiving a regular expression where the engine expects a glob. The
+  conversion rewrote only ``.*`` and left a segment-safe wildcard untouched, so the view matched
+  no bodies; it now goes through :func:`~isaaclab.sim.utils.path_expr_to_glob`.
+* Fixed :class:`~isaaclab_physx.sensors.FrameTransformer` corrupting a prim path expression while
+  stripping the environment segment, which split a ``[^/]`` character class in half.
+
+
+5.0.0 (2026-08-11)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the Isaac RTX override of the unused temporal-camera-data capability method and the
+  empty ``isaaclab_physx.video_recording`` package.
+
+Fixed
+^^^^^
+
+* Fixed PhysX IMU and PVA acceleration for lazy reads and nonzero update periods.
+
+
+4.2.1 (2026-08-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton 1.5 actuator target bindings on the PhysX backend.
+* Fixed the ``isaaclab_ppisp`` import error raised by
+  :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` when ``CameraCfg.isp_cfg`` is set.
+  It pointed at ``pip install isaaclab[all]``, but the ``all`` extra never carried
+  ``isaaclab_ppisp`` -- the extension ships with the base ``isaaclab`` wheel.
+
+
+4.2.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`close` to the PhysX Fabric frame view, removing its per-view Fabric
+  index attributes so that views recreated over the same prims no longer accumulate
+  attributes. Views dropped without closing are cleaned up on garbage collection,
+  with a warning.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed ``eye`` and ``lookat`` fields from the Kit perspective video recorder
+  config.  The Kit perspective recorder no longer repositions the viewport camera; camera
+  placement is the sole responsibility of :class:`~isaaclab_visualizers.kit.KitVisualizer`.
+
+* Added :meth:`~isaaclab_physx.physics.PhysxManager.video_capture_backend` classmethod
+  (returns ``"kit"``). The headless video pump is now registered via
+  :meth:`~isaaclab.sim.SimulationContext.add_render_callback` in
+  :meth:`~isaaclab_physx.physics.PhysxManager.initialize` instead of the
+  deleted ``recording_hooks`` module.
+
+Fixed
+^^^^^
+
+* Fixed camera world-pose resolution stalling at high environment counts under the
+  PhysX backend, which caused multi-second pauses between rendered frames and
+  benchmark timeouts.
+* Fixed Newton actuator target forwarding on the PhysX backend.
+
+
 4.1.0 (2026-08-05)
 ~~~~~~~~~~~~~~~~~~
 

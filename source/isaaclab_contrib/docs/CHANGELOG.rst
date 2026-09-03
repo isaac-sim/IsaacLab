@@ -1,6 +1,96 @@
 Changelog
 ---------
 
+2.0.1 (2026-08-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Registered every configured child solver's builder attributes for coupled Newton models.
+
+
+2.0.0 (2026-08-15)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Moved the standalone VBD solver from
+  ``isaaclab_contrib.deformable`` to :mod:`isaaclab_newton.physics`. Import
+  :class:`~isaaclab_newton.physics.NewtonVBDManager` and
+  :class:`~isaaclab_newton.physics.VBDSolverCfg` from their new location, and
+  move ``NewtonModelCfg`` and ``NewtonModelSolverCfg`` soft-contact settings to
+  :attr:`~isaaclab_newton.physics.NewtonCfg.soft_contact_cfg`.
+* **Breaking:** Removed the
+  ``isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg`` compatibility
+  alias. Import
+  :class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` instead.
+
+
+1.4.0 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Enabled CUDA graph capture for coupled MPM entries that use
+  capacity-bounded sparse grids.
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+Fixed
+^^^^^
+
+* Fixed single-world coupled MPM reset handling.
+* Avoided per-step host synchronization in single-world coupled scenes without
+  MPM entries.
+* Surfaced asynchronous rebuild failures from nested MPM solvers after CUDA
+  graph replay.
+
+
+1.3.1 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated Newton coupler configuration checks to support
+  :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` and
+  :class:`~isaaclab_newton.physics.KaminoDVISolverCfg`.
+
+
+1.3.0 (2026-08-09)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_contrib.deformable.VBDSolverCfg.rigid_body_particle_contact_buffer_size`
+  to size each body's particle, edge, and face soft-contact list. Contacts past the buffer are
+  dropped from the body's reaction list, which can inject energy.
+
+
+1.2.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton visualizer rigid-body dragging support to VBD and
+  :class:`~isaaclab_contrib.coupling.NewtonCouplerManager`.
+
+Fixed
+^^^^^
+
+* Fixed single-world coupled MPM resets by promoting the only local world to a full-grid reset.
+
+
 1.1.0 (2026-08-04)
 ~~~~~~~~~~~~~~~~~~
 

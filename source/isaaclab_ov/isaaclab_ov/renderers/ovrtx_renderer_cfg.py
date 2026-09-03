@@ -5,11 +5,17 @@
 
 """Configuration for OVRTX Renderer."""
 
+from __future__ import annotations
+
 import os
 import tempfile
+from typing import TYPE_CHECKING
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.configclass import configclass
+
+if TYPE_CHECKING:
+    from .ovrtx_renderer import OVRTXRenderer
 
 
 @configclass
@@ -22,6 +28,9 @@ class OVRTXRendererCfg(RendererCfg):
     :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data` is called
     (same pattern as Isaac RTX).
     """
+
+    class_type: type[OVRTXRenderer] | str = "{DIR}.ovrtx_renderer:OVRTXRenderer"
+    """Renderer implementation class."""
 
     renderer_type: str = "ovrtx"
     """Type identifier for OVRTX renderer."""
@@ -39,6 +48,19 @@ class OVRTXRendererCfg(RendererCfg):
 
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
     """Path for OVRTX log file. Defaults to ``<system temp>/ovrtx_renderer.log``."""
+
+    enable_shadows: bool = False
+    """Whether lights cast shadows in RTX Minimal mode. Defaults to False.
+
+    Shadow rays cost render time that rarely changes what a policy learns, so they are turned off
+    and opted back into for visually faithful renders.
+
+    Only the ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl`` and
+    ``simple_shading_full_mdl`` data types are affected, because those are the ones that put the
+    render product into RTX Minimal mode, whose ``omni:rtx:minimal:castShadows`` switch this drives.
+    OVRTX's path-traced modes offer no equivalent switch and always cast shadows, so this setting
+    does not change ``rgb`` and the other AOV outputs.
+    """
 
     colorize_semantic_segmentation: bool = True
     """Whether to colorize semantic segmentation output. Defaults to True.

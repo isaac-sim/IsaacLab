@@ -169,8 +169,8 @@ def joint_effort_out_of_limit(
     asset: Articulation = env.scene[asset_cfg.name]
     # check if any joint effort is out of limit
     out_of_limits = ~torch.isclose(
-        asset.data.computed_torque.torch[:, asset_cfg.joint_ids],
-        asset.data.applied_torque.torch[:, asset_cfg.joint_ids],
+        asset.actuators.computed_effort.torch[:, asset_cfg.joint_ids],
+        asset.actuators.applied_effort.torch[:, asset_cfg.joint_ids],
     )
     return torch.any(out_of_limits, dim=1)
 

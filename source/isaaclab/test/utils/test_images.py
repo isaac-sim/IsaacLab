@@ -146,6 +146,23 @@ class TestNormalizeCameraImageRGBLike:
         torch.testing.assert_close(out, expected)
 
 
+class TestNormalizeCameraImageColorizedSegmentation:
+    """Colorized segmentation dispatch."""
+
+    def test_colorized_semantic_segmentation_is_normalized(self, device):
+        """RGBA uint8 semantic segmentation produces a float32 normalized image."""
+        from isaaclab.utils.images import normalize_camera_image
+
+        torch.manual_seed(0)
+        src = torch.randint(0, 255, (2, 8, 8, 4), dtype=torch.uint8, device=device)
+        out = normalize_camera_image(src, "semantic_segmentation")
+
+        expected = src.float() / 255.0
+        expected = expected - torch.mean(expected, dim=(1, 2), keepdim=True)
+        torch.testing.assert_close(out, expected, atol=1e-5, rtol=1e-5)
+        assert out.dtype == torch.float32
+
+
 class TestNormalizeCameraImageDepth:
     """Depth-like dispatch: in-place ``inf -> 0``."""
 
@@ -214,10 +231,11 @@ class TestNormalizeCameraOutputForDisplay:
     def test_motion_vectors_map_uv_to_rgb(self, device):
         from isaaclab.utils.images import normalize_camera_output_for_display
 
-        # (u, v) offsets; peak magnitude is 4.0, so values map to [-1, 1] -> [0, 1] and gain a zero B channel.
+        # (u, v) offsets are clamped to [-1, 1], remapped to [0, 1], and packed with a zero B channel.
+        # Values outside [-1, 1] saturate (e.g. 4.0 -> 1.0, -2.0 -> 0.0 after remap).
         src = torch.tensor([[[[4.0, -2.0], [0.0, 4.0]]]], device=device)
         out = normalize_camera_output_for_display(src, "motion_vectors")
-        expected = torch.tensor([[[[1.0, 0.25, 0.0], [0.5, 1.0, 0.0]]]], device=device)
+        expected = torch.tensor([[[[1.0, 0.0, 0.0], [0.5, 1.0, 0.0]]]], device=device)
         assert out.shape[-1] == 3
         torch.testing.assert_close(out, expected)
 

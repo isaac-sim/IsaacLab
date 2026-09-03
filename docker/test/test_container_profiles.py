@@ -162,6 +162,7 @@ def test_build_uses_profile_dependency_chain(
 ):
     """Build only the services required by the selected profile."""
     run = MagicMock()
+    run.return_value.returncode = 0
     monkeypatch.setattr("docker.utils.container_interface.subprocess.run", run)
 
     make_interface(profile).build()
@@ -174,6 +175,7 @@ def test_kitless_start_does_not_build_base(
 ):
     """Starting kit-less invokes only its standalone Compose profile."""
     run = MagicMock()
+    run.return_value.returncode = 0
     monkeypatch.setattr("docker.utils.container_interface.subprocess.run", run)
 
     make_interface("kitless").start()
@@ -202,6 +204,7 @@ def test_kitless_enter_and_stop_target_profile_container(
     """Enter and stop use the kit-less service name, environment, and display."""
     interface = make_interface("kitless")
     run = MagicMock()
+    run.return_value.returncode = 0
     monkeypatch.setenv("DISPLAY", ":99")
     monkeypatch.setattr("docker.utils.container_interface.subprocess.run", run)
     monkeypatch.setattr(interface, "is_container_running", MagicMock(return_value=True))

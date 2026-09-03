@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
 import re
 from collections import deque
@@ -22,6 +21,18 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from pxr import Usd
+
+REQUIRES_STAGE_AND_MODEL: dict[str, tuple[bool, bool]] = {
+    "kit": (True, False),
+    "newton_gl": (False, True),
+    "newton": (False, True),
+    "newton_rtx": (False, True),
+    "rerun": (False, True),
+    "viser": (False, True),
+    "isaac_rtx": (True, False),
+    "newton_warp": (False, True),
+    "ovrtx": (True, True),
+}
 
 
 class SceneDataProvider:
@@ -213,10 +224,13 @@ class SceneDataProvider:
             paths or if no mapping is needed.
         """
         if input_paths := self.backend.transform_paths:
-            mapping = [-1] * len(input_paths)
-            for i, path in enumerate(input_paths):
-                with contextlib.suppress(ValueError):
-                    mapping[i] = paths.index(path)
+            # The map keeps resolution linear in the number of paths. For duplicate
+            # paths the first occurrence wins, matching ``list.index``.
+            path_to_out: dict[str | None, int] = {}
+            for out_idx, out_path in enumerate(paths):
+                if out_path not in path_to_out:
+                    path_to_out[out_path] = out_idx
+            mapping = [path_to_out.get(path, -1) for path in input_paths]
             if not np.array_equal(mapping, np.arange(len(input_paths))):
                 return wp.array(mapping, dtype=wp.int32)
         return None

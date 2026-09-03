@@ -28,8 +28,11 @@ from isaaclab_rl.entrypoints.common import (
     add_frontend_args,
     apply_video_recording,
     create_isaaclab_env,
+    pre_launch_video_config,
     resolve_checkpoint_selector,
     resolve_play_task_name,
+    show_run_summary,
+    startup_screen,
 )
 from isaaclab_rl.rsl_rl import (
     RslRlBaseRunnerCfg,
@@ -38,7 +41,10 @@ from isaaclab_rl.rsl_rl import (
     export_policy_as_onnx,
     handle_deprecated_rsl_rl_cfg,
 )
-from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+from isaaclab_rl.utils.pretrained_checkpoint import (
+    get_pretrained_checkpoint_backend_names,
+    get_published_pretrained_checkpoint,
+)
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
@@ -75,11 +81,6 @@ parser.add_argument(
     "--agent", type=str, default="rsl_rl_cfg_entry_point", help="Name of the RL agent configuration entry point."
 )
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
-parser.add_argument(
-    "--use_pretrained_checkpoint",
-    action="store_true",
-    help="Use the pre-trained checkpoint from Nucleus.",
-)
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
     "--train_env_cfg",
@@ -115,122 +116,135 @@ installed_version = metadata.version("rsl-rl-lib")
 @hydra_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
     """Play with RSL-RL agent."""
-    with launch_simulation(env_cfg, args_cli):
-        task_name = args_cli.task.split(":")[-1]
-        train_task_name = task_name.replace("-Play", "")
+    pre_launch_video_config(env_cfg, args_cli=args_cli)
+    with startup_screen(args_cli, num_stages=3) as screen:
+        show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="play")
+        screen.stage("Launching simulation")
+        with launch_simulation(env_cfg, args_cli):
+            task_name = args_cli.task.split(":")[-1]
+            train_task_name = task_name.replace("-Play", "")
 
-        agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
-        env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+            agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
+            env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
 
-        agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
+            agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
 
-        # note: certain randomizations occur in the environment initialization so we set the seed here
-        env_cfg.seed = agent_cfg.seed
-        env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+            # note: certain randomizations occur in the environment initialization so we set the seed here
+            env_cfg.seed = agent_cfg.seed
+            env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
-        log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
-        log_root_path = os.path.abspath(log_root_path)
-        print(f"[INFO] Loading experiment from directory: {log_root_path}")
-        if args_cli.use_pretrained_checkpoint:
-            resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name)
-            if not resume_path:
-                print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
-                return
-        elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
-            resume_path = resolve_checkpoint_selector(
-                log_root_path,
-                args_cli.checkpoint,
-                library="rsl_rl",
-                task=train_task_name,
-                checkpoint_pattern=r"model_.*\.pt",
-                metadata={"agent": args_cli.agent},
+            log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
+            log_root_path = os.path.abspath(log_root_path)
+            print(f"[INFO] Loading experiment from directory: {log_root_path}")
+            if args_cli.checkpoint == "pretrained":
+                backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+                resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name, *backend_names)
+                if not resume_path:
+                    return
+            elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
+                resume_path = resolve_checkpoint_selector(
+                    log_root_path,
+                    args_cli.checkpoint,
+                    library="rsl_rl",
+                    task=train_task_name,
+                    checkpoint_pattern=r"model_.*\.pt",
+                    metadata={"agent": args_cli.agent},
+                )
+            elif args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
+                resume_path = get_checkpoint_path(
+                    os.path.dirname(args_cli.checkpoint),
+                    os.path.basename(args_cli.checkpoint),
+                    agent_cfg.load_checkpoint,
+                )
+            elif args_cli.checkpoint:
+                resume_path = retrieve_file_path(args_cli.checkpoint)
+            else:
+                resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+
+            log_dir = os.path.dirname(resume_path)
+
+            env_cfg.log_dir = log_dir
+            apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
+
+            screen.stage("Creating environment")
+            env = create_isaaclab_env(
+                args_cli.task,
+                env_cfg,
+                args_cli,
+                convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
-        elif args_cli.checkpoint:
-            resume_path = retrieve_file_path(args_cli.checkpoint)
-        else:
-            resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
 
-        log_dir = os.path.dirname(resume_path)
+            screen.stage("Loading policy")
+            env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
-        env_cfg.log_dir = log_dir
-        apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
-
-        env = create_isaaclab_env(
-            args_cli.task,
-            env_cfg,
-            args_cli,
-            convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
-        )
-
-        env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-
-        print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-        if agent_cfg.class_name == "OnPolicyRunner":
-            runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
-        elif agent_cfg.class_name == "DistillationRunner":
-            runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
-        else:
-            raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-        # configure_seed must run after runner construction so torch determinism does not disturb its initialization
-        if args_cli.deterministic:
-            configure_seed(env_cfg.seed, torch_deterministic=True)
-        runner.load(resume_path)
-
-        policy = runner.get_inference_policy(device=env.unwrapped.device)
-
-        export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
-
-        if version.parse(installed_version) >= version.parse("4.0.0"):
-            runner.export_policy_to_jit(path=export_model_dir, filename="policy.pt")
-            runner.export_policy_to_onnx(path=export_model_dir, filename="policy.onnx")
-            policy_nn = None  # Not needed for rsl-rl >= 4.0.0
-        else:
-            if version.parse(installed_version) >= version.parse("2.3.0"):
-                policy_nn = runner.alg.policy
+            print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+            if agent_cfg.class_name == "OnPolicyRunner":
+                runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+            elif agent_cfg.class_name == "DistillationRunner":
+                runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
             else:
-                policy_nn = runner.alg.actor_critic
+                raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+            # configure_seed must run after runner construction so torch determinism does not disturb its initialization
+            if args_cli.deterministic:
+                configure_seed(env_cfg.seed, torch_deterministic=True)
+            runner.load(resume_path)
 
-            if hasattr(policy_nn, "actor_obs_normalizer"):
-                normalizer = policy_nn.actor_obs_normalizer
-            elif hasattr(policy_nn, "student_obs_normalizer"):
-                normalizer = policy_nn.student_obs_normalizer
+            policy = runner.get_inference_policy(device=env.unwrapped.device)
+
+            export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
+
+            if version.parse(installed_version) >= version.parse("4.0.0"):
+                runner.export_policy_to_jit(path=export_model_dir, filename="policy.pt")
+                runner.export_policy_to_onnx(path=export_model_dir, filename="policy.onnx")
+                policy_nn = None  # Not needed for rsl-rl >= 4.0.0
             else:
-                normalizer = None
+                if version.parse(installed_version) >= version.parse("2.3.0"):
+                    policy_nn = runner.alg.policy
+                else:
+                    policy_nn = runner.alg.actor_critic
 
-            export_policy_as_jit(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.pt")
-            export_policy_as_onnx(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.onnx")
+                if hasattr(policy_nn, "actor_obs_normalizer"):
+                    normalizer = policy_nn.actor_obs_normalizer
+                elif hasattr(policy_nn, "student_obs_normalizer"):
+                    normalizer = policy_nn.student_obs_normalizer
+                else:
+                    normalizer = None
 
-        dt = env.unwrapped.step_dt
+                export_policy_as_jit(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.pt")
+                export_policy_as_onnx(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.onnx")
 
-        obs = env.get_observations()
-        timestep = 0
-        try:
-            while True:
-                start_time = time.time()
-                with torch.inference_mode():
-                    actions = policy(obs)
-                    obs, _, dones, _ = env.step(actions)
-                    # reset recurrent states for episodes that have terminated
-                    if version.parse(installed_version) >= version.parse("4.0.0"):
-                        policy.reset(dones)
-                    else:
-                        policy_nn.reset(dones)
-                if args_cli.video:
-                    timestep += 1
-                    video_stop = args_cli.video_length
-                    if video_stop is None:
-                        recorders = getattr(env_cfg, "video_recorders", [])
-                        video_stop = recorders[0].video_length if recorders else None
-                    if video_stop is not None and timestep >= video_stop:
-                        break
+            dt = env.unwrapped.step_dt
 
-                sleep_time = dt - (time.time() - start_time)
-                if args_cli.real_time and sleep_time > 0:
-                    time.sleep(sleep_time)
+            screen.close()
+            obs = env.get_observations()
+            timestep = 0
+            try:
+                while True:
+                    start_time = time.time()
+                    with torch.inference_mode():
+                        actions = policy(obs)
+                        obs, _, dones, _ = env.step(actions)
+                        # reset recurrent states for episodes that have terminated
+                        if version.parse(installed_version) >= version.parse("4.0.0"):
+                            policy.reset(dones)
+                        else:
+                            policy_nn.reset(dones)
+                    if args_cli.video:
+                        timestep += 1
+                        video_stop = args_cli.video_length
+                        if video_stop is None:
+                            recorders = getattr(env_cfg, "video_recorders", [])
+                            video_stop = recorders[0].video_length if recorders else None
+                        if video_stop is not None and timestep >= video_stop:
+                            break
 
-            env.close()
-        except KeyboardInterrupt:
-            pass
+                    sleep_time = dt - (time.time() - start_time)
+                    if args_cli.real_time and sleep_time > 0:
+                        time.sleep(sleep_time)
+
+                env.close()
+            except KeyboardInterrupt:
+                pass
 
 
 if __name__ == "__main__":

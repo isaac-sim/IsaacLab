@@ -37,10 +37,11 @@ if TYPE_CHECKING:
 
 def _row_env_ids(plan: ClonePlan, row: int) -> tuple[int, ...]:
     """Env ids populated from a plan row: the plan's env ids at the row's ``True`` columns."""
-    columns = plan.clone_mask[row].nonzero(as_tuple=False).flatten().tolist()
+    columns = plan.clone_mask[row].nonzero(as_tuple=False).flatten()
     if plan.env_ids is None:
-        return tuple(int(column) for column in columns)
-    return tuple(int(plan.env_ids[column]) for column in columns)
+        return tuple(columns.tolist())
+    columns = columns.to(plan.env_ids.device)
+    return tuple(plan.env_ids[columns].tolist())
 
 
 def _column_for_env_id(plan: ClonePlan, env_id: int) -> int | None:
@@ -82,7 +83,7 @@ def _clone_rows(plan: ClonePlan, path_expr: str, *, populated_only: bool) -> lis
     for row, template in enumerate(plan.destinations):
         if "{}" not in template:
             continue
-        if populated_only and not _row_env_ids(plan, row):
+        if populated_only and not plan.clone_mask[row].any():
             continue
         matched = pth.match(path_expr, template)
         if matched is None:
@@ -162,25 +163,26 @@ def path_to_source(plan: ClonePlan, path_expr: str, env_id: int | None = None) -
     A *concrete* clone path names its environment in the template's clone slot, and that
     environment selects which variant to report — which is what lets this undo
     :func:`path_to_clone` for a heterogeneous asset. A *wildcard* expression
-    (``.../env_.*/...``) names no environment and stands for all of them, so it resolves to
+    (``.../env_[^/]+/...``) names no environment and stands for all of them, so it resolves to
     the first populated variant unless ``env_id`` says which one to take.
 
     Args:
         plan: Active clone plan.
-        path_expr: Clone-side path expression (e.g. a sensor's ``prim_path``, with ``.*`` env
-            wildcard) or a concrete clone path.
+        path_expr: Clone-side path expression (e.g. a sensor's ``prim_path``, with a segment
+            wildcard in the env slot) or a concrete clone path.
         env_id: Environment whose variant to resolve. Defaults to the one ``path_expr`` names
             when it is concrete, and to no particular environment otherwise.
 
     Returns:
-        A ``(source_path, destination_glob, asset_suffix)`` tuple, where ``asset_suffix`` is
-        the part of ``path_expr`` below the owning template. ``None`` when ``path_expr``
-        matches no row, or no matching row populates the requested environment, letting
-        callers fall back to direct stage resolution.
+        A ``(source_path, destination_expr, asset_suffix)`` tuple, where ``destination_expr``
+        spells the clone slot ``[^/]+`` so it reads as a path expression like every other one,
+        and ``asset_suffix`` is the part of ``path_expr`` below the owning template. ``None``
+        when ``path_expr`` matches no row, or no matching row populates the requested
+        environment, letting callers fall back to direct stage resolution.
 
         Partial-env coverage is supported: when the matching rows cover only a subset of envs
         (an asset present in some envs but not others, as in heterogeneous scenes), the
-        returned glob resolves to just those envs.
+        returned expression resolves to just those envs.
 
     Raises:
         ValueError: When ``path_expr`` is owned by multiple distinct, equally near templates.
@@ -202,7 +204,7 @@ def path_to_source(plan: ClonePlan, path_expr: str, env_id: int | None = None) -
         rows = [row for row in rows if bool(plan.clone_mask[row][column])]
     if not rows:
         return None
-    return plan.sources[rows[0]], template.replace("{}", "*"), matched.suffix
+    return plan.sources[rows[0]], template.format("[^/]+"), matched.suffix
 
 
 def iter_sources(plan: ClonePlan, path_expr: str) -> Iterator[tuple[str, str, str, tuple[int, ...]]]:
@@ -214,7 +216,7 @@ def iter_sources(plan: ClonePlan, path_expr: str) -> Iterator[tuple[str, str, st
     Example:
         For a row with prototype root ``"/World/source/Robot"``, destination template
         ``"/World/scenes/{}/Robot"`` and env ids ``(0, 2)``, querying
-        ``"/World/scenes/.*/Robot/base"`` yields ``("/World/source/Robot",
+        ``"/World/scenes/[^/]+/Robot/base"`` yields ``("/World/source/Robot",
         "/World/scenes/{}/Robot", "/World/source/Robot/base", (0, 2))``.
 
     Args:

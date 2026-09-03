@@ -31,13 +31,26 @@ optional arguments:
 
 """Launch Isaac Sim Simulator first."""
 
+# Isaac Lab does not use Warp autodiff; skipping adjoint codegen roughly halves the
+# time spent building kernels on a cold kernel cache.
+import warp as wp
+
+wp.config.enable_backward = False
+
 # Standard library imports
 import argparse
 import contextlib
+import sys
+from typing import TYPE_CHECKING
 
 # Isaac Lab AppLauncher
 from isaaclab.app import AppLauncher
 from isaaclab.utils.string import list_intersection, string_to_callable
+
+from isaaclab_tasks.utils import setup_preset_cli
+
+if TYPE_CHECKING:
+    from isaaclab_teleop import XrCameraFeedSession
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Record demonstrations for Isaac Lab environments.")
@@ -123,7 +136,7 @@ parser.add_argument(
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
-args_cli, remaining_args = parser.parse_known_args()
+args_cli, hydra_args = setup_preset_cli(parser)
 
 # Validate required arguments
 if args_cli.task is None:
@@ -145,10 +158,9 @@ if args_cli.external_callback:
     external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
     remaining_args_env_registration = external_callback_function()
 
-# Error on unrecognized arguments.
-unrecognized_args = list_intersection(remaining_args, remaining_args_env_registration)
-if unrecognized_args:
-    parser.error(f"unrecognized arguments: {' '.join(unrecognized_args)}")
+# Hand arguments consumed by neither this parser nor the callback over to Hydra.
+hydra_args = list_intersection(hydra_args, remaining_args_env_registration)
+sys.argv = [sys.argv[0]] + hydra_args
 
 """Rest everything follows."""
 
@@ -180,7 +192,8 @@ import isaaclab_mimic.envs  # noqa: F401
 from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subtask_instructions
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
+from isaaclab_tasks.utils import resolve_task_config
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 logger = logging.getLogger(__name__)
 
@@ -316,9 +329,11 @@ def create_environment_config(
     Raises:
         Exception: If parsing the environment configuration fails
     """
-    # parse configuration
+    # Resolve the task configuration through Hydra so CLI presets are applied.
     try:
-        env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=1)
+        env_cfg, _ = resolve_task_config(args_cli.task, "")
+        env_cfg.sim.device = args_cli.device
+        env_cfg.scene.num_envs = 1
         env_cfg.env_name = args_cli.task.split(":")[-1]
     except Exception as e:
         logger.error(f"Failed to parse environment configuration: {e}")
@@ -380,7 +395,7 @@ def create_environment(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg) -> gym.En
 
     Args:
         env_cfg: The environment configuration object that defines the environment properties.
-            This should be an instance of EnvCfg created by parse_env_cfg().
+            This should be an instance of EnvCfg created by resolve_task_config().
 
     Returns:
         gym.Env: A Gymnasium environment instance for the specified task.
@@ -575,6 +590,7 @@ def run_simulation_loop(  # noqa: C901
     teleop_interface: object | None,
     success_term: object | None,
     rate_limiter: RateLimiter | None,
+    camera_feed_session: "XrCameraFeedSession",
     use_isaac_teleop: bool = False,
 ) -> int:
     """Run the main simulation loop for collecting demonstrations.
@@ -588,6 +604,7 @@ def run_simulation_loop(  # noqa: C901
         teleop_interface: Optional teleop interface (will be created if None)
         success_term: The success termination object or None if not available
         rate_limiter: Optional rate limiter to control simulation speed
+        camera_feed_session: Shared XR camera-feed lifecycle
         use_isaac_teleop: Whether to use IsaacTeleop stack
 
     Returns:
@@ -694,7 +711,7 @@ def run_simulation_loop(  # noqa: C901
         if use_isaac_teleop:
             from isaaclab_teleop import poll_control_events
 
-        with contextlib.suppress(KeyboardInterrupt), torch.inference_mode():
+        with contextlib.suppress(KeyboardInterrupt), torch.inference_mode(), camera_feed_session.bind(env):
             while simulation_app.is_running():
                 # Get teleop command (may be None while waiting for session start)
                 action = teleop_interface.advance()
@@ -764,6 +781,7 @@ def run_simulation_loop(  # noqa: C901
                     success_step_count = handle_reset(
                         env, success_step_count, instruction_display, label_text, teleop_interface
                     )
+                    camera_feed_session.refresh()
                     should_reset_recording_instance = False
 
                 # Check if simulation is stopped
@@ -804,6 +822,20 @@ def main() -> None:
     global env_cfg  # Make env_cfg available to setup_teleop_device
     env_cfg, success_term, use_isaac_teleop = create_environment_config(output_dir, output_file_name)
 
+    from isaaclab_teleop import XrCameraFeedSession
+
+    camera_feed_session = XrCameraFeedSession.prepare(
+        env_cfg,
+        enabled=args_cli.xr and use_isaac_teleop,
+        camera_rendering_enabled=not args_cli.disable_external_cameras,
+    )
+    if camera_feed_session.requires_responsive_denoising:
+        apply_isaac_rtx_global_settings(
+            IsaacRtxRendererGlobalSettingsCfg(
+                carb_settings={"/rtx/dldenoiser/responsiveDenoising": True},
+            )
+        )
+
     # With --xr, rate limiting is achieved via OpenXR and the XR visualization
     # manager is installed. Without --xr (including standalone IsaacTeleop I/O),
     # fall back to the software rate limiter and skip the XR viz stack.
@@ -820,7 +852,9 @@ def main() -> None:
     env = create_environment(env_cfg)
 
     # Run simulation loop
-    current_recorded_demo_count = run_simulation_loop(env, None, success_term, rate_limiter, use_isaac_teleop)
+    current_recorded_demo_count = run_simulation_loop(
+        env, None, success_term, rate_limiter, camera_feed_session, use_isaac_teleop
+    )
 
     # Clean up
     env.close()

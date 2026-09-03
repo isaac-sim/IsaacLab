@@ -25,9 +25,9 @@ use the Omniverse Kit to edit the asset and export it to other file formats. Isa
 these importers by default. They can also be enabled manually in Omniverse Kit.
 
 Isaac Lab's URDF and MJCF converter utilities first use the importer APIs from
-Isaac Sim when the full runtime is installed. In kit-less environments, install
-the standalone importer wheel as described in
-:ref:`Standalone URDF/MJCF importers <installation-standalone-importers>`.
+Isaac Sim when the full runtime is installed. In kit-less environments they fall back
+to the standalone importers described in
+:ref:`installation-standalone-importers` below.
 The Kit visualizer and GUI import dialogs still require an Omniverse Kit runtime.
 
 
@@ -36,6 +36,30 @@ are in `instanceable`_ format. This allows the asset to be efficiently loaded
 into memory and used multiple times in a scene. Otherwise, the asset will be
 loaded into memory multiple times, which can cause performance issues.
 For more details on instanceable assets, please check the Isaac Sim `documentation`_.
+
+
+.. _installation-standalone-importers:
+
+Standalone URDF/MJCF importers
+------------------------------
+
+The URDF and MJCF converter scripts run without Isaac Sim. The standalone
+importers are optional; install them with the ``isaaclab[importers]`` command in
+:ref:`installation-importers-extra` before running these scripts.
+Optionally pass ``--viz newton`` (or ``rerun`` / ``viser``) to preview the converted asset in a
+kit-less Isaac Lab visualizer:
+
+.. code-block:: bash
+
+   uv run --extra importers python scripts/tools/convert_urdf.py \
+     path/to/robot.urdf path/to/output_dir --merge_joints
+
+   uv run --extra importers python scripts/tools/convert_mjcf.py \
+     path/to/model.xml path/to/output.usd --merge_mesh
+
+If Isaac Sim is installed in the same environment, Isaac Lab uses the Isaac Sim importer
+extensions first. The standalone wheel is used only when the full Isaac Sim runtime is not
+available.
 
 
 Using URDF Importer

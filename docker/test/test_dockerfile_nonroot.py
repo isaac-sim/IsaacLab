@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 import pytest
+import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCKER_DIR = REPO_ROOT / "docker"
@@ -109,21 +110,40 @@ def test_ros2_dockerfile_restores_non_root_runtime_user():
     assert _user_directives(dockerfile_text) == ["root", "isaaclab"]
 
 
-def test_kitless_dockerfile_installs_newton_rl_and_ovrtx_without_isaac_sim_or_ovphysx():
-    """The kit-less image installs Newton, OVRTX, and all core RL frameworks."""
+def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_sim():
+    """The kit-less image installs its runtime features and importers without the full Isaac Sim runtime."""
     dockerfile_text = (DOCKER_DIR / "Dockerfile.kitless").read_text(encoding="utf-8")
+    with (REPO_ROOT / "pyproject.toml").open("rb") as file:
+        extras = tomllib.load(file)["project"]["optional-dependencies"]
 
     assert (
         "FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a2c40c38c905cf3a0d70131a6 AS uv"
         in dockerfile_text
     )
-    # Installed through the same entry point as Dockerfile.base/Dockerfile.curobo.
-    assert '"${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[ovrtx]' in dockerfile_text
+    # Installed from the lock rather than through isaaclab.sh: only the lock applies
+    # ``[tool.uv] override-dependencies``, the table that holds ``packaging`` above ovphysx's
+    # ``<24`` pin. ``all`` carries rl/visualizer/ov, ``importers`` the standalone wheels.
+    assert "uv sync --frozen --inexact --extra all --extra importers" in dockerfile_text
+    assert "importers" in extras
+    # ``all`` must not drag in the Isaac Sim runtime, or the kit-less image means nothing.
+    assert "isaacsim" not in "".join(extras["all"])
+    # The interpreter must sit outside ISAACLAB_PATH. CI bind-mounts the checkout over that path,
+    # so a venv beneath it is masked and isaaclab.sh execs a missing interpreter (exit 127).
+    assert "ARG VENV_PATH_ARG=/opt/isaaclab-venv" in dockerfile_text
+    assert "ENV VIRTUAL_ENV=${VENV_PATH_ARG}" in dockerfile_text
+    # ``uv sync`` honours the project's ``only-managed`` preference and would rebuild the venv
+    # against a downloaded interpreter the runtime stage never receives, leaving bin/python
+    # dangling. The image must pin uv to the system interpreter.
+    assert "ENV UV_PYTHON=/usr/bin/python3.12" in dockerfile_text
+    assert "ENV UV_PYTHON_PREFERENCE=only-system" in dockerfile_text
     assert "COPY isaaclab.sh ./" in dockerfile_text
-    assert "ov[ovphysx]" not in dockerfile_text
     assert "'isaacsim' not in names" in dockerfile_text
-    assert "'ovphysx' not in names" in dockerfile_text
+    assert "'isaacsim-asset-isolated' in names" in dockerfile_text
+    assert "'ovphysx' in names" in dockerfile_text
     assert "'ovrtx' in names" in dockerfile_text
+    assert "'viser' in names" in dockerfile_text
+    assert "'rerun-sdk' in names" in dockerfile_text
+    assert "libxrender1" in dockerfile_text
     assert 'test ! -e "${ISAACLAB_PATH}/_isaac_sim"' in dockerfile_text
     assert "COPY docker/docker-compose.yaml docker/docker-compose.yaml" in dockerfile_text
     assert "COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py" in dockerfile_text
@@ -206,3 +226,32 @@ def test_dockerfile_prepares_volume_mounts_from_compose(dockerfile_name: str, vo
     assert "chown -R isaaclab:isaaclab ${dirs}" in text
     if volumes_key != "x-default-isaac-lab-volumes":
         assert f"--volumes_key {volumes_key}" in text
+
+
+@pytest.mark.parametrize("dockerfile_name", ["Dockerfile.base", "Dockerfile.curobo"])
+def test_isaac_sim_dockerfiles_chown_the_omnihub_cache(dockerfile_name: str):
+    """OmniHub's cache belongs to the isaac-sim user, so the runtime user must be given it.
+
+    Without this, OmniHub cannot write the cache it is pointed at once it is allowed to
+    start.
+    """
+    dockerfile_text = _find_dockerfile(dockerfile_name).read_text(encoding="utf-8")
+
+    chown_block = re.search(r"chown -R isaaclab:isaaclab((?:\s*\\\s*\S+)+)", dockerfile_text)
+    assert chown_block, f"{dockerfile_name} has no 'chown -R isaaclab:isaaclab' block"
+    assert "/var/cache/hub" in chown_block.group(1)
+
+
+@pytest.mark.parametrize("dockerfile_name", ["Dockerfile.base", "Dockerfile.curobo"])
+def test_isaac_sim_dockerfiles_let_omnihub_start(dockerfile_name: str):
+    """The Isaac Sim image sets ``HUB__ARGS__DETECT_ONLY=true``, forbidding OmniHub to start.
+
+    omni.client asks it to launch anyway, so every Kit startup retries ~39 times. The value
+    must be exactly ``false``: ``--detect-only`` takes a value, so clearing it with
+    ``ENV HUB__ARGS__DETECT_ONLY=`` aborts hub with "a value is required" instead.
+    """
+    dockerfile_text = _find_dockerfile(dockerfile_name).read_text(encoding="utf-8")
+
+    assert re.search(r"^ENV HUB__ARGS__DETECT_ONLY=false$", dockerfile_text, re.MULTILINE), (
+        f"{dockerfile_name} must set 'ENV HUB__ARGS__DETECT_ONLY=false' exactly"
+    )

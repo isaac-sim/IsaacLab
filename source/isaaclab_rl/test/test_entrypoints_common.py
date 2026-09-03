@@ -336,3 +336,107 @@ def test_resolve_play_task_name_keeps_registered_and_unknown_tasks() -> None:
     assert resolve_play_task_name("Isaac-DoesNotExist-Play") == "Isaac-DoesNotExist-Play"
     assert resolve_play_task_name("Isaac-Something") == "Isaac-Something"
     assert resolve_play_task_name(None) is None
+
+
+class _RecordingScreen:
+    """Loading screen stand-in that keeps the summary fields instead of drawing them."""
+
+    def __init__(self) -> None:
+        self.fields: dict[str, str] = {}
+
+    def summary(self, title: str, fields: dict[str, str]) -> None:
+        self.fields = fields
+
+
+@pytest.mark.parametrize(
+    "selectors, expected_physics, expected_renderer",
+    [
+        (["physics=ovphysx", "renderer=rtx"], "ovphysx", "rtx (ovrtx)"),
+        (["physics=isaacsim_physx", "renderer=rtx"], "isaacsim_physx", "rtx (isaacsim_rtx)"),
+        # ``physx`` reaches the physics backend the same way ``rtx`` reaches the renderer
+        (["physics=physx", "renderer=rtx"], "physx (ovphysx)", "rtx (ovrtx)"),
+        ([], "newton_mjwarp", "newton_renderer"),
+        (["physics=physx", "presets=depth"], "physx (ovphysx)", "newton_renderer"),
+    ],
+)
+def test_run_summary_reports_concrete_backends(
+    selectors: list[str],
+    expected_physics: str,
+    expected_renderer: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The summary reports concrete backends and launcher-owned automatic choices."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import resolve_task_config
+
+    task = "Isaac-Cartpole-Camera-Direct"
+    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py", *selectors])
+    env_cfg, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point")
+    screen = _RecordingScreen()
+    args_cli = argparse.Namespace(task=task, device=None, num_envs=None, visualizer=None)
+
+    _rl_common.show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
+
+    assert screen.fields["Physics"] == expected_physics
+    assert screen.fields["Renderer"] == expected_renderer
+    assert "Presets" not in screen.fields
+
+
+def _fake_physics_cfg(class_name: str, **attrs: Any) -> Any:
+    """Build a physics-config stand-in carrying the backend-agnostic determinism field."""
+    return type(class_name, (), {"deterministic": False, **attrs})()
+
+
+def test_apply_env_overrides_records_the_deterministic_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``--deterministic`` reaches the physics config, which the AppLauncher flag never did."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import resolve_task_config
+
+    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py"])
+    env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera", "rl_games_cfg_entry_point")
+    # Guard the premise: the shipped defaults request no guarantee.
+    assert env_cfg.sim.physics.deterministic is False
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert env_cfg.sim.physics.deterministic is True
+    # Translation belongs to the backend, so nothing backend-specific is touched here.
+    assert env_cfg.sim.physics.deterministic_mode == "not_guaranteed"
+    assert env_cfg.sim.physics.solver_cfg.disable_sensors is False
+
+
+def test_apply_env_overrides_leaves_physics_alone_without_the_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without ``--deterministic`` the physics config is untouched."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import resolve_task_config
+
+    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py"])
+    env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera", "rl_games_cfg_entry_point")
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=False)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert env_cfg.sim.physics.deterministic is False
+
+
+@pytest.mark.parametrize("class_name", ["PhysxCfg", "OvPhysxCfg", "NewtonCfg", "SomeFutureBackendCfg"])
+def test_apply_env_overrides_records_the_request_for_every_backend(class_name: str) -> None:
+    """The request is backend-agnostic, so the entrypoint needs no per-backend knowledge."""
+    physics = _fake_physics_cfg(class_name)
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert physics.deterministic is True
+
+
+def test_apply_env_overrides_tolerates_a_config_without_physics() -> None:
+    """A config that never resolved a physics backend is left alone rather than failing."""
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=None))
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert env_cfg.sim.physics is None

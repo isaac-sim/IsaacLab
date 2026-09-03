@@ -15,10 +15,13 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from .api import BenchmarkLauncherConfig, BenchmarkRequest, BenchmarkResult
 
-_WORKFLOW_MODULES = {
+WORKFLOW_MODULES = {
     "runtime": "isaaclab.benchmark.entrypoints.runtime",
     "startup": "isaaclab.benchmark.entrypoints.startup",
 }
+"""Single-process workflows that need no reinforcement-learning backend."""
+
+
 _RL_WORKFLOW_MODULES = {
     "training": {
         "rl_games": "isaaclab.benchmark.entrypoints.backends.rl_games.benchmark_train_rl_games",
@@ -65,18 +68,41 @@ def run_benchmark_request(request: BenchmarkRequest) -> BenchmarkResult:
 
 
 def run_benchmark_cli(argv: list[str] | None = None) -> int:
-    """Run a runtime, startup, training, or play benchmark from CLI arguments."""
+    """Run a runtime, startup, training, or play benchmark from CLI arguments.
+
+    Appending ``_multigpu`` to a workflow name runs it across several GPUs; see
+    :mod:`isaaclab.benchmark.entrypoints.multigpu`.
+    """
+    from .entrypoints import multigpu
+
     if argv is None:
         argv = sys.argv[1:]
     argv = _fuse_kit_args(argv)
+    multigpu_workflows = tuple(f"{name}{multigpu.MULTIGPU_SUFFIX}" for name in multigpu.MULTIGPU_WORKFLOWS)
+    legacy_multigpu_workflows = tuple(
+        f"{name}{multigpu.LEGACY_MULTIGPU_SUFFIX}" for name in multigpu.MULTIGPU_WORKFLOWS
+    )
     parser = argparse.ArgumentParser(description="Run an Isaac Lab benchmark.")
-    parser.add_argument("workflow", choices=(*_WORKFLOW_MODULES, *_RL_WORKFLOW_MODULES))
+    parser.add_argument(
+        "workflow",
+        choices=(*WORKFLOW_MODULES, *_RL_WORKFLOW_MODULES, *multigpu_workflows, *legacy_multigpu_workflows),
+    )
     if not argv or argv[0] in ("-h", "--help"):
         parser.parse_args(argv)
     selected = parser.parse_args(argv[:1])
+    if selected.workflow in multigpu_workflows:
+        workflow = selected.workflow[: -len(multigpu.MULTIGPU_SUFFIX)]
+        return multigpu.run_multigpu_benchmark_cli(workflow, argv[1:])
+    if selected.workflow in legacy_multigpu_workflows:
+        workflow = selected.workflow[: -len(multigpu.LEGACY_MULTIGPU_SUFFIX)]
+        print(
+            f"'{selected.workflow}' is deprecated. Use '{workflow}{multigpu.MULTIGPU_SUFFIX}' instead.",
+            file=sys.stderr,
+        )
+        return multigpu.run_multigpu_benchmark_cli(workflow, argv[1:])
     if selected.workflow in _RL_WORKFLOW_MODULES:
         return _run_rl_cli(selected.workflow, argv[1:])
-    module = importlib.import_module(_WORKFLOW_MODULES[selected.workflow])
+    module = importlib.import_module(WORKFLOW_MODULES[selected.workflow])
     module.run(argv[1:])
     return 0
 
@@ -114,8 +140,8 @@ def _run_rl_cli(workflow: str, argv: list[str] | None) -> int:
 
 
 def _workflow_module(workflow: str, backend: str | None) -> str:
-    if workflow in _WORKFLOW_MODULES:
-        return _WORKFLOW_MODULES[workflow]
+    if workflow in WORKFLOW_MODULES:
+        return WORKFLOW_MODULES[workflow]
     if workflow not in _RL_WORKFLOW_MODULES:
         raise ValueError(f"Unsupported benchmark workflow: {workflow!r}")
     if backend not in _RL_WORKFLOW_MODULES[workflow]:

@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.physics import (
-    KaminoSolverCfg,
+    KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
@@ -49,11 +49,11 @@ class PhysicsCfg(PresetCfg):
             use_mujoco_contacts=False,
         ),
         collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
-        num_substeps=1,
+        num_substeps=2,
         debug_mode=False,
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
-    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
+    newton_kamino = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64))
 
 
 ##

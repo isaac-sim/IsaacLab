@@ -47,12 +47,18 @@ _SSIM_THRESHOLD_BY_VISUALIZER: dict[str, float] = {
 # Scene-specific keys take precedence over scene-agnostic ones.
 _MAX_DIFF_PCT_OVERRIDES: dict[str, float] = {
     "kit-tiled": 2.0,
+    # RTX PRO 6000 Blackwell differs from the L40S golden by ~2.5% while retaining SSIM ~0.98.
+    "cartpole-kit-tiled": 3.0,
     # RTX TAA history from prior tiled tests contaminates the viewport; observed 1.35–5.83%.
     "cartpole-kit-viewport": 7.0,
     # AnymalD: golden captured warm, first attempt runs cold; observed up to 9.61%.
     "anymal_d-kit-tiled": 12.0,
     "anymal_d-kit-viewport": 4.5,
-    "shadow_hand-kit-tiled": 3.0,
+    # Newton GL tiled output differs by 0.64% between the L40S CI runner and the golden.
+    # Keep this narrow 1.0% tolerance paired with an SSIM guard for scene regressions.
+    "anymal_d-newton-tiled": 1.0,
+    # RTX PRO 6000 Blackwell differs by up to 6.5% while preserving the expected pose.
+    "shadow_hand-kit-tiled": 7.0,
     "shadow_hand-kit-viewport": 2.0,
     # Newton GL is deterministic on the same GPU but shows ~1–2% cross-GPU variation
     # (golden images captured on RTX PRO 4500, CI runner uses L40S).  SSIM ≥ 0.97
@@ -75,9 +81,15 @@ _SSIM_THRESHOLD_OVERRIDES: dict[str, float] = {
     # 0.910 lets attempt 1 pass with a large gap above wrong-pose regressions (~0.69).
     "anymal_d-kit-tiled": 0.910,
     "anymal_d-kit-viewport": 0.960,
-    # Cross-GPU RTX variation; observed SSIM 0.981 on RTX PRO 4500 vs L40S goldens.
+    # The L40S comparison reaches SSIM 0.9883; retain a structural threshold well above
+    # known pose regressions while accepting this cross-GPU rasterization variation.
+    "anymal_d-newton-tiled": 0.980,
+    # Cross-GPU RTX variation; observed SSIM 0.941 on RTX PRO 6000 Blackwell vs L40S goldens.
+    # Wrong-pose regressions drop SSIM below 0.90.
+    "shadow_hand-kit-tiled": 0.935,
+    # Cross-GPU RTX variation; observed SSIM 0.957 on RTX PRO 6000 Blackwell vs L40S goldens.
     # Wrong-pose regressions (e.g. submerged robot) drop SSIM below 0.90.
-    "shadow_hand-kit-viewport": 0.975,
+    "shadow_hand-kit-viewport": 0.950,
     # Newton GL cross-GPU variation; observed SSIM 0.977–0.985 across GPU models.
     "shadow_hand-newton-tiled": 0.970,
     "shadow_hand-newton-viewport": 0.970,
@@ -376,8 +388,8 @@ def run_visualizer_golden_cartpole(
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
         assert viewer is not None, "NewtonVisualizer did not create a viewer."
-        _viz_utils._warm_newton_viewer(newton_viz, viewer)
-        return _viz_utils._frame_to_numpy(viewer.get_frame())
+        _viz_utils._warm_newton_viewer(newton_viz)
+        return newton_viz.render_rgb_array()
 
     env = None
     try:
@@ -444,8 +456,8 @@ def run_visualizer_golden_shadow_hand(
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
         assert viewer is not None, "NewtonVisualizer did not create a viewer."
-        _viz_utils._warm_newton_viewer(newton_viz, viewer)
-        return _viz_utils._frame_to_numpy(viewer.get_frame())
+        _viz_utils._warm_newton_viewer(newton_viz)
+        return newton_viz.render_rgb_array()
 
     env = None
     try:
@@ -520,8 +532,8 @@ def run_visualizer_golden_anymal_d(
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
         assert viewer is not None, "NewtonVisualizer did not create a viewer."
-        _viz_utils._warm_newton_viewer(newton_viz, viewer)
-        return _viz_utils._frame_to_numpy(viewer.get_frame())
+        _viz_utils._warm_newton_viewer(newton_viz)
+        return newton_viz.render_rgb_array()
 
     env = None
     try:
@@ -595,8 +607,8 @@ def run_visualizer_golden_franka_cloth(
         newton_viz = _get_active_visualizer(env, "newton")
         viewer = getattr(newton_viz, "_viewer", None)
         assert viewer is not None, "NewtonVisualizer did not create a viewer."
-        _viz_utils._warm_newton_viewer(newton_viz, viewer)
-        return _viz_utils._frame_to_numpy(viewer.get_frame())
+        _viz_utils._warm_newton_viewer(newton_viz)
+        return newton_viz.render_rgb_array()
 
     env = None
     try:

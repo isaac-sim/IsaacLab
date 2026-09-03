@@ -86,26 +86,12 @@ class PhysicsManager(ABC):
     _sim_time: ClassVar[float] = 0.0
     _callbacks: ClassVar[dict[int, tuple[Any, Callable, int, str | None, Any]]] = {}
     _callback_id: ClassVar[int] = 0
+    views: ClassVar[dict[tuple[type, str], Any]] = {}
 
     @classmethod
     def _prepare_stage_creation(cls) -> None:
         """Perform backend-specific setup required before the USD stage is created."""
         pass
-
-    @classmethod
-    def provides_implicit_damping(cls) -> bool:
-        """Whether this backend's integrator has implicit numerical damping.
-
-        With implicit damping (PhysX, OV-PhysX) a camera policy can infer velocity from a
-        single frame. Without it (Newton's symplectic integrator) the policy needs a temporal
-        cue in the observation (e.g. frame stacking).
-
-        The base default is ``True``; backends without implicit damping override to ``False``.
-
-        Returns:
-            Whether the backend's integrator has implicit numerical damping.
-        """
-        return True
 
     @classmethod
     def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
@@ -165,13 +151,21 @@ class PhysicsManager(ABC):
                 f"Cannot relocate '{articulation_prim.GetPath()}' to existing articulation root '{new_root.GetPath()}'."
             )
 
+        # Keep this import local for the same reason as the pxr imports above.
+        from isaaclab.sim.schemas._backend_hooks import _articulation_root_companion_namespace  # noqa: PLC0415
+
         registry = Usd.SchemaRegistry()
         root_schema = UsdPhysics.Tokens.PhysicsArticulationRootAPI
         schemas_to_move = []
         for schema_name in articulation_prim.GetPrimTypeInfo().GetAppliedAPISchemas():
             definition = registry.FindAppliedAPIPrimDefinition(schema_name)
+            companion_namespace_override = _articulation_root_companion_namespace(schema_name)
             if schema_name == companion_schema:
                 properties = list(articulation_prim.GetAuthoredPropertiesInNamespace(companion_namespace))
+            elif companion_namespace_override is not None:
+                # a backend-registered schema, possibly an unregistered token the registry cannot
+                # describe, so take the namespace the backend declared for it
+                properties = list(articulation_prim.GetAuthoredPropertiesInNamespace(companion_namespace_override))
             elif schema_name == root_schema or (
                 definition is not None and root_schema in definition.GetAppliedAPISchemas()
             ):
@@ -303,12 +297,16 @@ class PhysicsManager(ABC):
         Returns:
             Wrapped callback if it's a bound method, otherwise original.
         """
-        if hasattr(callback, "__self__"):
-            obj_ref = weakref.proxy(callback.__self__)
+        owner = getattr(callback, "__self__", None)
+        if owner is not None:
+            obj_ref = weakref.ref(owner)
             method_name = callback.__name__
 
             def weak_callback(payload: Any) -> Any:
-                return getattr(obj_ref, method_name)(payload)
+                obj = obj_ref()
+                if obj is None:
+                    return None
+                return getattr(obj, method_name)(payload)
 
             return weak_callback
         return callback
@@ -446,7 +444,13 @@ class PhysicsManager(ABC):
     def close(cls) -> None:
         """Clean up physics resources.
 
-        Subclasses should call super().close() after backend-specific cleanup.
+        Subclasses whose STOP listeners own backend handles should call
+        ``super().close()`` before backend-specific cleanup so those listeners
+        can invalidate their handles while the backend is still live.
+
+        All STOP listeners are given a chance to run. If one or more listeners
+        fail, callback and shared simulation state is still cleared before an
+        aggregate :class:`RuntimeError` is raised from the first failure.
         """
         sim = PhysicsManager._sim
         # A config may declare its manager lazily as a ``"module:Class"`` string, which proxies
@@ -456,14 +460,48 @@ class PhysicsManager(ABC):
         is_active_manager = sim is not None and (
             sim.physics_manager is cls or sim.physics_manager == f"{cls.__module__}:{cls.__qualname__}"
         )
-        if is_active_manager:
-            cls.dispatch_event(PhysicsEvent.STOP)  # notify listeners before cleanup
+        callback_errors = cls._dispatch_event_collect_errors(PhysicsEvent.STOP) if is_active_manager else []
 
-        cls.clear_callbacks()
-        if is_active_manager:
-            PhysicsManager._sim = None
-            PhysicsManager._cfg = None
-            PhysicsManager._sim_time = 0.0
+        try:
+            cls.clear_callbacks()
+        finally:
+            if is_active_manager:
+                PhysicsManager.views.clear()
+                PhysicsManager._sim = None
+                PhysicsManager._cfg = None
+                PhysicsManager._sim_time = 0.0
+
+        if callback_errors:
+            raise RuntimeError(
+                f"{len(callback_errors)} callback(s) failed during PhysicsEvent.STOP dispatch."
+            ) from callback_errors[0]
+
+    @classmethod
+    def _dispatch_event_collect_errors(cls, event: PhysicsEvent, payload: Any = None) -> list[Exception]:
+        """Dispatch an event to every listener and collect direct or backend-stored failures."""
+        matching = [
+            (callback, order)
+            for registered_event, callback, order, _name, _subscription in cls._callbacks.values()
+            if registered_event == event
+        ]
+        matching.sort(key=lambda item: item[1])
+        callback_errors: list[Exception] = []
+        raise_stored = getattr(cls, "raise_callback_exception_if_any", None)
+
+        def drain_stored_error() -> None:
+            if callable(raise_stored):
+                try:
+                    raise_stored()
+                except Exception as exc:
+                    callback_errors.append(exc)
+
+        for callback, _order in matching:
+            try:
+                callback(payload)
+            except Exception as exc:
+                callback_errors.append(exc)
+            drain_stored_error()
+        return callback_errors
 
     @classmethod
     def get_physics_dt(cls) -> float:

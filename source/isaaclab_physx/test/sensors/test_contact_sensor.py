@@ -512,7 +512,7 @@ def test_nested_rigid_body_hierarchy(setup_simulation, device, num_envs):
             _author_nested_chain(f"/World/envs/env_{env_id}/Robot")
         contact_sensor = ContactSensor(
             ContactSensorCfg(
-                prim_path="/World/envs/env_.*/Robot/.*",
+                prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
                 track_pose=True,
                 debug_vis=False,
                 update_period=0.0,

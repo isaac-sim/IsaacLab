@@ -1,6 +1,178 @@
 Changelog
 ---------
 
+1.10.1 (2026-09-03)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the Newton GL visualizer's "Pause Rendering" button not reflecting the paused
+  state after pressing :kbd:`Space`. Both controls now toggle the same underlying flag, so
+  the button label and :meth:`~isaaclab_visualizers.newton.newton_visualizer.NewtonViewerGL.is_rendering_paused`
+  stay in sync regardless of whether rendering was paused via the button or the keyboard shortcut.
+  Also clarified the on-screen control hint from "Space - Pause/Resume" to "Space - Pause/Resume
+  Rendering".
+
+
+1.10.0 (2026-09-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`, which authors arbitrary RTX
+  attributes onto the OVRTX render product as ``{name: (usd_type_name, value)}``. ``ViewerRTX`` hard-codes its render
+  product and exports the stage before the renderer reads it, so these are applied in the only window that reaches the
+  renderer. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's quality convergence
+  loop, which ``ViewerRTX`` otherwise disables to keep interactive latency down.
+
+
+1.9.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to every concrete visualizer config through its ``class_type`` field.
+
+
+1.8.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added renderer-owned visual-material writers to the Kit and Newton visualizers.
+
+
+1.7.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a camera speed-boost mode to the Newton GL and RTX visualizers: holding
+  Shift while flying the free camera with WASD doubles the camera translation
+  speed, matching the Kit visualizer's speed-up behavior.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_visualizers.kit.KitVisualizer` to leave its viewport
+  camera unpartitioned when AppLauncher enables the all-environment spectator
+  view. Otherwise, the viewport camera is assigned to the first visible
+  environment.
+
+Fixed
+^^^^^
+
+* Fixed global Kit/USD visualization-marker instances appearing across tiled
+  environments when per-instance environment IDs are provided.
+
+
+1.6.0 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added per-group visibility controls for Isaac Lab visualization markers in
+  Newton GL.
+* Added native framebuffer capture to the Newton RTX visualizer.
+
+Fixed
+^^^^^
+
+* Fixed the streaming camera grid layout producing a portrait-oriented composite instead of
+  filling the visualizer panel. :func:`~isaaclab.envs.utils.camera_view.compose_streaming_grid`
+  now accepts a ``target_aspect`` parameter; the Kit and Newton GL visualizers pass
+  ``window_width / window_height`` so the tile grid matches the panel aspect ratio.
+
+* Fixed the Newton GL viewer **Show Contacts**, **Show Particles**, **Show Springs**, and
+  **Show Cloth** checkboxes remaining interactive when the model contains no elements of
+  that type.  Checkboxes are now greyed out with an explanatory tooltip.
+
+
+1.5.2 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed duplicate Simulation panels in the Newton RTX viewer.
+
+
+1.5.1 (2026-08-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed velocity visualization markers clipping through humanoid robot bodies by making
+  :attr:`~isaaclab.visualizers.VisualizerCfg.streaming_cam_target_prim_path` default to
+  ``None``. When ``None``, visualizers now adopt the first scene camera discovered at
+  initialisation instead of failing on a hardcoded ``/World/envs/*/Robot`` prim that
+  does not exist in non-robot scenes. Also hides the non-functional Rerun timeline panel
+  (``state="hidden"``) across all blueprint configurations.
+
+
+1.5.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg` (``--viz newton_rtx``) — an
+  OVRTX path-tracer backend with studio lighting.  Shares the full Isaac Lab HUD with
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizer` via a common mixin.
+  Visualization markers, live plots, and the streaming camera panel are not yet supported
+  in this release.
+* Added streaming camera panel to all visualizers (Newton GL, Kit, Rerun, Viser) via the
+  ``streaming_view=True`` option on :class:`~isaaclab.visualizers.VisualizerCfg`.  The panel
+  composites per-environment camera frames for RGB, depth (turbo colormap), segmentation
+  (golden-ratio palette), and surface normals.
+* Added ``origin_type``, ``origin_env_index``, and ``origin_track_path`` fields to
+  :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`. These replace the removed
+  :class:`~isaaclab.envs.common.ViewerCfg` / ``ViewportCameraController`` and allow the Kit
+  viewport camera to track a world origin, an environment origin, or an asset root / body
+  across simulation steps.  Tracking path format: ``"robot"`` for asset root,
+  ``"robot/panda_hand"`` for a specific body.
+* Added right-click rigid-body dragging to the Newton visualizer with Newton
+  rigid-body solvers.
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` now defaults
+  ``streaming_view=True`` so the streaming camera panel is active without explicit
+  configuration.
+* Newton GL sidebar layout: renamed the **Isaac Lab** section to **Simulation** and promoted
+  **Streaming View** to a standalone top-level section (same level as Simulation, Live Plots,
+  and Visualization Markers).  The section now opens expanded by default and contains a
+  **Toggle** combo (open/hide the floating panel) and a **Source Camera** dropdown to switch
+  between scene cameras at runtime.
+* The streaming camera panel floating window now opens sized to the actual composite
+  aspect ratio of the grid (e.g. 4:3 for 12 environments) rather than always square.
+* Added runtime camera-selector dropdown (**Source Camera**) to the Newton GL streaming view,
+  allowing users to switch between scene cameras (e.g. ``base_camera`` / ``wrist_camera``)
+  without restarting the simulation.
+* Renamed :class:`~isaaclab_visualizers.newton.NewtonVisualizer` to
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg` to
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`.  The old names are kept as
+  deprecated aliases.
+
+Deprecated
+^^^^^^^^^^
+
+* :class:`~isaaclab_visualizers.newton.NewtonVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg` are deprecated in favor of
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`.
+
+
 1.4.0 (2026-08-05)
 ~~~~~~~~~~~~~~~~~~
 

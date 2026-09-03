@@ -5,8 +5,6 @@
 
 import math
 
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
 import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -36,7 +34,7 @@ class CartpoleTiledCameraCfg(PresetCfg):
 
     @configclass
     class BaseCartpoleTiledCameraCfg(CameraCfg):
-        prim_path: str = "/World/envs/env_.*/Camera"
+        prim_path: str = "{ENV_REGEX_NS}/Camera"
         offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
             pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"
         )
@@ -46,7 +44,7 @@ class CartpoleTiledCameraCfg(PresetCfg):
         )
         width: int = 96
         height: int = 96
-        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg(newton_renderer=NewtonWarpRendererCfg())
+        renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
 
     default = BaseCartpoleTiledCameraCfg(data_types=["rgb"])
     depth = BaseCartpoleTiledCameraCfg(data_types=["depth"])

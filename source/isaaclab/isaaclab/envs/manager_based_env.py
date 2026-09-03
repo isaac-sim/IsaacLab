@@ -14,11 +14,11 @@ from typing import Any
 
 import torch
 
+from isaaclab.app.loading_screen import report_activity
 from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
@@ -88,9 +88,6 @@ class ManagerBasedEnv:
 
         # check that the config is valid
         cfg.validate()
-        # Resolve any preset-wrapper fields (PresetCfg subclasses or old-style ``presets`` dicts)
-        # to their default variant so that managers and scene builders see concrete cfg objects.
-        resolve_cfg_presets(cfg)
         # store inputs to class
         self.cfg = cfg
         # initialize internal variables
@@ -171,11 +168,10 @@ class ManagerBasedEnv:
         self.extras = {}
 
         # generate scene
-        with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
+        with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
-                self.scene.initialize_renderers()
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
@@ -193,7 +189,7 @@ class ManagerBasedEnv:
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
-        with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
+        with Timer("[INFO]: Time taken for simulation start", "simulation_start", activity="Starting physics"):
             # since the reset can trigger callbacks which use the stage,
             # we need to set the stage context here
             with use_stage(self.sim.stage):
@@ -208,7 +204,9 @@ class ManagerBasedEnv:
         self.sim.physics_manager.set_decimation(self.cfg.decimation)
         self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
         # add timeline event to load managers
+        report_activity("Setting up managers")
         self.load_managers()
+        report_activity(None)
 
         # Wire live plots into all active visualizers (Newton, Rerun, Viser) and create
         # Kit omni.ui ManagerLiveVisualizer widgets when a GUI window is present.
@@ -247,7 +245,8 @@ class ManagerBasedEnv:
 
     def __del__(self, _sys=sys):
         """Cleanup for the environment."""
-        if not self._is_closed and not _sys.is_finalizing() and _sys.meta_path is not None:
+        # ``_is_closed`` is missing if ``__init__`` raised before assigning it.
+        if not getattr(self, "_is_closed", True) and not _sys.is_finalizing() and _sys.meta_path is not None:
             self.close()
 
     """

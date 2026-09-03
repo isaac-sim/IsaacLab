@@ -12,7 +12,10 @@ from contextlib import contextmanager
 from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from isaaclab.actuators import ActuatorCollection
 from isaaclab.benchmark.asset_suites.types import AssetBenchmarkTargets
+
+from isaaclab_physx.assets.articulation.actuator_control import PhysxActuatorControl
 
 args = SimpleNamespace(no_shape_checks=False)
 
@@ -24,7 +27,7 @@ def _initialize_mock_asset(asset) -> None:
 
 def _load_runtime_symbols() -> None:
     global Articulation, ArticulationCfg, ArticulationData, MockArticulationViewWarp
-    global MockRigidBodyViewWarp, MockWrenchComposer, PhysxManager, RigidObject, RigidObjectCfg
+    global MockRigidBodyViewWarp, WrenchComposer, PhysxManager, RigidObject, RigidObjectCfg
     global RigidObjectCollection, RigidObjectCollectionCfg, RigidObjectCollectionData, RigidObjectData
     global np, torch, wp
 
@@ -53,7 +56,7 @@ def _load_runtime_symbols() -> None:
         from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
         from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
         from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
-        from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
+        from isaaclab.utils.wrench_composer import WrenchComposer
 
         from isaaclab_physx.assets.articulation.articulation import Articulation
         from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
@@ -62,7 +65,7 @@ def _load_runtime_symbols() -> None:
         from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection import RigidObjectCollection
         from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData
         from isaaclab_physx.physics import PhysxManager
-        from isaaclab_physx.test.mock_interfaces.views import MockArticulationViewWarp, MockRigidBodyViewWarp
+        from isaaclab_physx.test.fixtures.views import MockArticulationViewWarp, MockRigidBodyViewWarp
     finally:
         for name, module in previous_modules.items():
             if module is missing:
@@ -112,14 +115,15 @@ def create_test_articulation(
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
+    object.__setattr__(articulation, "_sim_cfg", SimpleNamespace(use_newton_actuators=False))
 
     # Create ArticulationData instance (SimulationManager already mocked at module level)
     data = ArticulationData(mock_view, device)
     object.__setattr__(articulation, "_data", data)
 
     # Create mock wrench composers (pass articulation which has num_instances, num_bodies, device properties)
-    mock_inst_wrench = MockWrenchComposer(articulation)
-    mock_perm_wrench = MockWrenchComposer(articulation)
+    mock_inst_wrench = WrenchComposer(articulation)
+    mock_perm_wrench = WrenchComposer(articulation)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -140,11 +144,6 @@ def create_test_articulation(
     # Warp arrays for set_external_force_and_torque
     object.__setattr__(articulation, "_ALL_INDICES_WP", all_indices_wp)
     object.__setattr__(articulation, "_ALL_BODY_INDICES_WP", all_body_indices_wp)
-
-    # Initialize joint targets
-    object.__setattr__(articulation, "_joint_pos_target_sim", torch.zeros(num_instances, num_joints, device=device))
-    object.__setattr__(articulation, "_joint_vel_target_sim", torch.zeros(num_instances, num_joints, device=device))
-    object.__setattr__(articulation, "_joint_effort_target_sim", torch.zeros(num_instances, num_joints, device=device))
 
     # Cached .view() wrappers
     object.__setattr__(articulation, "_root_link_pose_w_f32", None)
@@ -185,6 +184,10 @@ def create_test_articulation(
     object.__setattr__(
         articulation, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True)
     )
+
+    control = PhysxActuatorControl(articulation)
+    object.__setattr__(articulation, "actuators", ActuatorCollection({}, control))
+    data.bind_actuator_collection(articulation.actuators)
 
     return articulation, mock_view, None
 

@@ -1,0 +1,93 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""
+Setup:
+    - (wheel supplied by runner: tools/run_install_ci.py --build-wheel or --wheel <path>)
+    - ./isaaclab.sh -u
+    - uv --no-config pip install <wheel>[all]
+    - uv pip install --reinstall-package torch --reinstall-package torchvision
+        torch==<pinned> torchvision==<pinned> --index-url <cu128|cu130>
+        (versions read from [tool.isaaclab.versions] in the root pyproject.)
+        (cu128 on x86_64, cu130 on aarch64; per docs/source/setup/installation/pip_installation.rst.
+         Reinstall AFTER the wheel install: unsafe-best-match re-resolves torch from PyPI to CPU.)
+    - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
+Tests:
+    - python -c "import importlib.metadata as m; assert m.version('newton') == '1.5.1'"
+        -> verify the wheel resolves Newton 1.5
+    - uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16
+        presets=newton_mjwarp --max_iterations 5; uv run isaaclab train --rl_library rsl_rl
+        --task Isaac-Cartpole-Camera-Direct --num_envs 16 presets=newton_mjwarp,newton_renderer --max_iterations 2
+ -> verify state training, camera rendering, and camera training work
+"""
+
+from __future__ import annotations
+
+import shutil
+
+import pytest
+from utils import UV_Mixin, cuda_torch_index_url, pinned_torch_specs
+
+
+@pytest.mark.install_path_uv_pip
+class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
+    """Build the wheel, ``uv pip install <wheel>[all]``, verify cartpole training."""
+
+    @classmethod
+    def setup_class(cls):
+        if not shutil.which("uv"):
+            pytest.skip("uv is not available")
+
+    @pytest.mark.docker
+    @pytest.mark.smoke
+    @pytest.mark.uv
+    @pytest.mark.slow
+    @pytest.mark.gpu
+    @pytest.mark.timeout(4800)
+    def test_uv_pip_install_isaaclab_all_trains_cartpole(self, isaaclab_root, wheel, cartpole_smoke_script):
+        """Install the runner-supplied wheel with ``[all]`` via ``uv pip``, then train."""
+        try:
+            self.create_uv_env(isaaclab_root)
+
+            result = self.run_in_uv_env(
+                ["uv", "--no-config", "pip", "install", f"{wheel}[all]"], cwd=isaaclab_root, timeout=1800
+            )
+            assert result.returncode == 0, f"uv pip install {wheel}[all] failed:\n{result.stdout}\n{result.stderr}"
+
+            result = self.run_in_uv_env(
+                ["python", "-c", "import importlib.metadata as m; assert m.version('newton') == '1.5.1'"],
+                cwd=isaaclab_root,
+            )
+            assert result.returncode == 0, (
+                f"isaaclab[all] did not resolve Newton 1.5:\n{result.stdout}\n{result.stderr}"
+            )
+
+            # Restore the CUDA build selected for this architecture.
+            result = self.run_in_uv_env(
+                [
+                    "uv",
+                    "pip",
+                    "install",
+                    "--reinstall-package",
+                    "torch",
+                    "--reinstall-package",
+                    "torchvision",
+                    *pinned_torch_specs(),
+                    "--index-url",
+                    cuda_torch_index_url(),
+                ],
+                cwd=isaaclab_root,
+                timeout=1800,
+            )
+            assert result.returncode == 0, f"uv pip install CUDA torch failed:\n{result.stdout}\n{result.stderr}"
+
+            result = self.run_in_uv_env(
+                [str(self.python), str(cartpole_smoke_script)],
+                cwd=isaaclab_root,
+                timeout=3000,
+            )
+            assert result.returncode == 0, f"Cartpole smoke failed:\n{result.stdout}\n{result.stderr}"
+        finally:
+            self.destroy_uv_env()

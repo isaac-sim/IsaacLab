@@ -4,8 +4,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # region help
-# Every test job runs on every PR and merge queue candidate. Pushes to protected branches run the
-# post-merge integration tests.
+# Docker builds and their dependent tests run only on a labeled PR event, a push to a protected
+# branch, or a manual workflow dispatch. Do not filter the label with a job-level ``if``:
+# GitHub treats skipped required jobs as successful status checks.
+#
+# GitHub cannot filter label names at trigger time, so adding any label to a PR
+# starts this workflow. Only a ``ci:run-docker`` event cancels an in-flight run;
+# other label events queue behind it so that a triage label cannot cancel a
+# build whose required checks have already been reported.
+#
+# Pushes to protected branches still run the post-merge integration tests.
 #
 # =============================================================================
 # CI DEBUGGING TIPS
@@ -53,7 +61,7 @@ on:
       - develop
       - 'release/**'
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [labeled]
     branches:
       - main
       - develop
@@ -63,7 +71,9 @@ on:
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Push and workflow_dispatch events carry no label, so this stays false for them and
+  # preserves the post-merge runs that ``github.event_name == 'pull_request'`` used to protect.
+  cancel-in-progress: ${{ github.event.label.name == 'ci:run-docker' }}
 
 permissions:
   contents: read
@@ -103,6 +113,7 @@ jobs:
           ^apps/ :: Standalone apps
           ^scripts/ :: Standalone scripts
           ^\.dockerignore$ :: Docker build context filter
+          ^conftest\.py$ :: Root pytest configuration
           ^pyproject\.toml$ :: Root Python project (Docker copy)
           ^environment\.yml$ :: Conda env (Docker copy)
           ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
@@ -226,7 +237,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        exclude-pattern: "test_rendering_"
+        exclude-pattern: "test_rendering_,test_video_recording.py"
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "0"
         shard-count: "3"
@@ -253,7 +264,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        exclude-pattern: "test_rendering_"
+        exclude-pattern: "test_rendering_,test_video_recording.py"
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "1"
         shard-count: "3"
@@ -280,7 +291,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        exclude-pattern: "test_rendering_"
+        exclude-pattern: "test_rendering_,test_video_recording.py"
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "2"
         shard-count: "3"
@@ -359,29 +370,52 @@ jobs:
         warp-cache: restore
         container-name: isaac-lab-core-3-test
 
-  test-standalone-demos:
-    name: standalone demos (headless, ${{ matrix.runtime-label }})
+  # Kit and non-Kit are written out rather than expressed as a matrix: these job
+  # names are required status checks, and a skipped matrix job publishes its
+  # check run with the matrix expression unexpanded, so the required context
+  # never appears and branch protection blocks the pull request.
+  test-standalone-demos-kit:
+    name: standalone demos (headless, Kit)
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
       needs.build.result == 'success'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-        - runtime-group: kit
-          runtime-label: Kit
-        - runtime-group: non-kit
-          runtime-label: non-Kit
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        # deformables.py tetrahedralizes its volume meshes at startup
+        extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
+        include-files: "test_standalone_scripts.py"
+        standalone-script-scope: "demos"
+        standalone-script-visualizer: "none"
+        standalone-script-runtime-group: kit
+        result-file: "test-standalone-demos-kit-report.xml"
+        container-name: isaac-lab-standalone-demos-kit-test
+        omni-github-test-type: standalone-demo
+
+  test-standalone-demos-non-kit:
+    name: standalone demos (headless, non-Kit)
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
         lfs: true
     - name: Resolve OVPhysX runtime pin from pyproject
-      if: matrix.runtime-group == 'non-kit'
       uses: ./.github/actions/resolve-ov-pins
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
@@ -396,9 +430,9 @@ jobs:
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
-        standalone-script-runtime-group: ${{ matrix.runtime-group }}
-        result-file: "test-standalone-demos-${{ matrix.runtime-group }}-report.xml"
-        container-name: isaac-lab-standalone-demos-${{ matrix.runtime-group }}-test
+        standalone-script-runtime-group: non-kit
+        result-file: "test-standalone-demos-non-kit-report.xml"
+        container-name: isaac-lab-standalone-demos-non-kit-test
         omni-github-test-type: standalone-demo
 
   test-isaaclab-rl:
@@ -528,6 +562,27 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_assets"
         container-name: isaac-lab-assets-test
+
+  test-isaaclab-experimental:
+    name: isaaclab_experimental
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [build, config]
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "isaaclab_experimental"
+        container-name: isaac-lab-experimental-test
 
   test-isaaclab-newton:
     name: isaaclab_newton
@@ -679,8 +734,8 @@ jobs:
           exit 1
         fi
 
-  test-skillgen:
-    name: test-skillgen
+  test-contrib-environments:
+    name: test-contrib-environments
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
@@ -700,32 +755,8 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
-        include-files: "test_generate_dataset_skillgen.py,test_environments_skillgen.py,test_environments_automate.py"
-        container-name: isaac-lab-skillgen-test
-
-  test-environments-training:
-    name: "environments_training"
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 300
-    continue-on-error: true
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
-        include-files: "test_environments_training.py"
-        container-name: isaac-lab-environments-training-test
-        omni-github-test-type: training-e2e
+        include-files: "test_generate_dataset_skillgen.py,test_contrib_environments.py"
+        container-name: isaac-lab-contrib-environments-test
 
   test-record-video:
     name: "record-video"
@@ -747,8 +778,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        include-files: "test_record_video.py"
-        test-k-expr: "Cartpole"
+        include-files: "test_video_recording.py"
         extra-uv-packages: "moviepy>=1.0.3,<2.0.0.dev0 decorator<5"
         container-name: isaac-lab-record-video-test
         omni-github-test-type: video-e2e
@@ -778,29 +808,27 @@ jobs:
           test_rendering_lift_kuka_homo.py,
           test_rendering_franka_cloth.py,
           test_rendering_franka_soft.py,
+          test_rendering_franka_cable.py,
           test_rendering_registered_tasks.py,
           test_rendering_shadow_hand.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
+        warp-cache: restore
         container-name: isaac-lab-rendering-correctness-test
         omni-github-test-type: rendering-correctness
 
-  test-rendering-correctness-kitless:
-    name: "rendering-correctness-kitless (${{ matrix.variant }})"
+  # Written out per variant rather than as a matrix: `rendering-correctness-kitless
+  # (legacy)` is a required status check, and a skipped matrix job publishes its
+  # check run with the matrix expression unexpanded. Writing the variants out also
+  # lets ovstage carry its own `if:`, which a matrix could only express through a
+  # synthetic event_name axis plus an exclude entry.
+  test-rendering-correctness-kitless-legacy:
+    name: "rendering-correctness-kitless (legacy)"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
-    continue-on-error: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && matrix.variant == 'ovstage') }}
+    continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
     if: needs.build.result == 'success'
-    strategy:
-      fail-fast: false
-      matrix:
-        variant: [legacy, ovstage]
-        event_name:
-        - ${{ github.event_name }}
-        exclude:
-        - variant: ovstage
-          event_name: pull_request
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
@@ -828,18 +856,65 @@ jobs:
           test_rendering_lift_kuka_homo_kitless.py,
           test_rendering_franka_cloth_kitless.py,
           test_rendering_franka_soft_kitless.py,
+          test_rendering_franka_cable_kitless.py,
           test_rendering_shadow_hand_kitless.py
-        test-k-expr: ${{ matrix.variant }}
+        test-k-expr: legacy
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
-        test-node-ids-key: ${{ github.event_name == 'push' && format('rendering-correctness-kitless-{0}', matrix.variant) || '' }}
-        container-name: "isaac-lab-rendering-correctness-kitless-${{ matrix.variant }}-test"
-        omni-github-test-type: "rendering-correctness-kitless-${{ matrix.variant }}"
+        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
+        warp-cache: restore
+        container-name: "isaac-lab-rendering-correctness-kitless-legacy-test"
+        omni-github-test-type: "rendering-correctness-kitless-legacy"
+
+  # ovstage is post-merge only; it never ran on pull requests.
+  test-rendering-correctness-kitless-ovstage:
+    name: "rendering-correctness-kitless (ovstage)"
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+    continue-on-error: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: [build, config]
+    if: >-
+      github.event_name != 'pull_request' &&
+      needs.build.result == 'success'
+    env:
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_image != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - name: Resolve OV runtime pins from pyproject
+      uses: ./.github/actions/resolve-ov-pins
+      id: ov_pins
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        filter-pattern: "isaaclab_tasks"
+        extra-pip-packages: >-
+          pytetwild[all]>=0.3.0,<0.4
+          ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
+        wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
+        wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
+        include-files: >-
+          test_rendering_cartpole_kitless.py,
+          test_rendering_lift_kuka_hetero_kitless.py,
+          test_rendering_lift_kuka_homo_kitless.py,
+          test_rendering_franka_cloth_kitless.py,
+          test_rendering_franka_soft_kitless.py,
+          test_rendering_franka_cable_kitless.py,
+          test_rendering_shadow_hand_kitless.py
+        test-k-expr: ovstage
+        test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
+        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
+        container-name: "isaac-lab-rendering-correctness-kitless-ovstage-test"
+        omni-github-test-type: "rendering-correctness-kitless-ovstage"
 
   # Publishes the shared Warp kernel cache the test jobs restore. Needed as its
   # own job because a cache written from a PR is readable only by that PR, and
-  # no solver-heavy test job runs on push. Does not restore before saving:
-  # appending to the previous run grows the cache without bound, which is what
-  # exhausted the repository quota last time.
+  # no solver-heavy test job runs on push. Restores the newest compatible
+  # snapshot so coverage accumulates, but only publishes when its contents
+  # change to avoid filling the repository quota with duplicate snapshots.
   warm-warp-cache:
     name: "warp-cache-warm"
     runs-on: [self-hosted, gpu]
@@ -874,19 +949,16 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        # MJWarp specializes kernels per model config (@cache_kernel in
-        # mujoco_warp/_src/warp_util.py keys on array sizes; ~250 wp.static uses
-        # feed Warp's module hash), so these span specialization axes rather than
-        # maximize task count: Cartpole (primitives, contact-free, + camera),
-        # Drawer (mesh collision), AnymalD (contact-rich locomotion), Handover
-        # (dexterous, many contacts). Deformable/MPM kernels are not covered;
-        # widen if a test job reports large cache growth.
+        # Warm every supported rigid core environment on Newton. MJWarp
+        # specializes kernels per model config, so a small representative task
+        # set leaves most of the cache to be compiled again by each PR test
+        # shard. The multi-agent suite supplies Handover.
         include-files: >-
-          test_environments.py,
-          test_environments_newton.py
-        # No Soft/Cloth: the deformable envs depend on optional extras the CI
-        # image does not install (Soft needs pytetwild), so they only ever fail.
-        test-k-expr: "Cartpole or Drawer or AnymalD or Handover"
+          test_environments_newton.py,
+          test_multi_agent_environments.py
+        # Deformable tasks need optional dependencies that are not installed in
+        # this image.
+        test-k-expr: "test_environments and not (Soft or Cloth or Cable)"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-warp-cache-warm
         omni-github-test-type: warp-cache-warm

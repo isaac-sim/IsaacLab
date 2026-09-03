@@ -24,6 +24,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
+from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
 
 
 def _deformable_ignore_paths(
@@ -109,8 +110,9 @@ def build_visualization_builder_from_stage_envs(
             ignore_paths=deformable_ignore_paths or None,
         )
         _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
+        import_builder_visual_material_paths(builder, stage)
         shadow_entities, registry_groups = add_shadow_deformables_to_builder(
-            builder, stage, env_paths, device=device, entries=deformable_entries
+            builder, stage, env_paths, device=device, entries=deformable_entries, clone_plan=clone_plan
         )
         return builder, (shadow_entities, registry_groups)
 
@@ -137,6 +139,7 @@ def build_visualization_builder_from_stage_envs(
         schema_resolvers=schema_resolvers,
     )
     _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
+    import_builder_visual_material_paths(builder, stage)
     source_deformable_ignore_paths = _deformable_ignore_paths(stage, sources, entries=deformable_entries)
     source_builders = build_source_builders(
         stage,
@@ -144,11 +147,10 @@ def build_visualization_builder_from_stage_envs(
         lambda: ModelBuilder(up_axis=up_axis),
         schema_resolvers,
         ignore_paths=source_deformable_ignore_paths or None,
-        simplify_meshes=False,
     )
     replicate_builder_mapping(builder, sources, mapping, positions, quaternions, source_builders)
     rename_builder_labels(builder, sources, destinations, env_ids, mapping)
     shadow_entities, registry_groups = add_shadow_deformables_to_builder(
-        builder, stage, env_paths, device=device, entries=deformable_entries
+        builder, stage, env_paths, device=device, entries=deformable_entries, clone_plan=clone_plan
     )
     return builder, (shadow_entities, registry_groups)

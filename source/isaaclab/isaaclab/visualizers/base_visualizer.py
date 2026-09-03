@@ -16,7 +16,10 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from isaaclab.managers import ManagerBase
+    from isaaclab.renderers.base_renderer import VisualMaterialBatch
     from isaaclab.scene_data import SceneDataProvider
 
     from .visualizer_cfg import VisualizerCfg
@@ -43,11 +46,21 @@ class BaseVisualizer(ABC):
         self._scene_data_provider = None
         self._is_initialized = False
         self._is_closed = False
+        self._env_ids: list[int] | None = None
         self._deferred_startup_messages: list[str] = []
         self._live_plot_sources: list = []
         self._live_plot_env_idx: int = 0
         self._live_plots_step_counter: int = 0
         self._reset_requested: bool = False
+
+    @property
+    def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:
+        """Return the backend's shared material-writer factory, if supported.
+
+        Its writer accepts ``None`` for a full sync or channel-to-material-offset device arrays plus
+        one environment-id device array for partial writes, and provides an idempotent ``close()``.
+        """
+        return None
 
     @abstractmethod
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
@@ -140,8 +153,11 @@ class BaseVisualizer(ABC):
             Backend name string, or ``None`` when no simulation context is active yet.
         """
         try:
+            from isaaclab.sim.simulation_context import SimulationContext
             from isaaclab.utils.backend_utils import FactoryBase
 
+            if SimulationContext.instance() is None:
+                return None
             return FactoryBase._get_backend()
         except Exception:
             return None
