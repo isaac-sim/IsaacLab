@@ -14,7 +14,7 @@ import trimesh.transformations
 from pxr import Usd, UsdPhysics
 
 from isaaclab.sim import schemas
-from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
+from isaaclab.sim.spawners._utils import fragment_mapping, props_expr, resolve_deformable_slot
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
 
 from ..materials import (
@@ -349,6 +349,55 @@ Helper functions.
 """
 
 
+def _apply_mesh_deformable_slot(prim_path: str, cfg: meshes_cfg.MeshCfg, deformable_slot, stage) -> None:
+    """Author an active deformable dict slot (and any collision tuning) on a spawned mesh.
+
+    Runs the ``volume``/``surface`` writer over each mapping entry (creating missing setups), then
+    applies any ``collision_props`` mapping keyed to the created simulation mesh (anchored at the
+    spawn prim, e.g. ``{"/sim_mesh": [...]}``).
+
+    Args:
+        prim_path: The path of the spawn prim that anchors the target patterns.
+        cfg: The mesh spawner configuration carrying the schema fields.
+        deformable_slot: The active ``(kind, mapping)`` slot from
+            :func:`~isaaclab.sim.spawners._utils.resolve_deformable_slot`.
+        stage: The stage where to author the properties.
+
+    Raises:
+        ValueError: If ``mass_props`` is set, which is not supported for deformable bodies.
+    """
+    deformable_type, mapping = deformable_slot
+    writer = (
+        schemas.apply_volume_deformable_properties
+        if deformable_type == "volume"
+        else schemas.apply_surface_deformable_properties
+    )
+    # the spawner binds ``physics_material`` after this authoring pass, so suppress the writer's
+    # missing-material advisory when a material is configured to avoid a spurious warning
+    warn_missing_material = cfg.physics_material is None
+    for pattern, fragments in mapping.items():
+        writer(
+            props_expr(prim_path, pattern),
+            fragments,
+            create_if_missing=True,
+            stage=stage,
+            warn_missing_material=warn_missing_material,
+        )
+    # collision tuning rides the collision family, anchored at the spawn prim so the created
+    # sim mesh child is reachable (e.g. {"/sim_mesh": [...]})
+    collision_props_mapping = fragment_mapping(cfg.collision_props)
+    if collision_props_mapping is not None:
+        for pattern, fragments in collision_props_mapping.items():
+            schemas.apply_collision_properties(
+                props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
+            )
+    if cfg.mass_props is not None:
+        raise ValueError(
+            """MassPropertiesCfg are not supported for deformable bodies
+            and should be set through the deformable fragments with mass=<value>."""
+        )
+
+
 def _apply_deformable_collision_props(prim_path: str, collision_props, stage: Usd.Stage) -> None:
     """Apply collision fragments to the simulation mesh of a deformable body.
 
@@ -421,7 +470,8 @@ def _spawn_mesh_geom_from_mesh(
     else:
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     # check that invalid schema types are not used
-    if cfg.deformable_props is not None and cfg.rigid_props is not None:
+    deformable_slot = resolve_deformable_slot(cfg)
+    if (deformable_slot is not None or cfg.deformable_props is not None) and cfg.rigid_props is not None:
         raise ValueError("Cannot use both deformable and rigid properties at the same time.")
     if cfg.deformable_props is not None and cfg.collision_props is not None:
         # only fragments resolve onto the simulation mesh, legacy cfgs would target the inert body prim
@@ -442,7 +492,7 @@ def _spawn_mesh_geom_from_mesh(
         physics_material_frags = (
             cfg.physics_material if isinstance(cfg.physics_material, (list, tuple)) else [cfg.physics_material]
         )
-        is_rigid_material = isinstance(cfg.physics_material, RigidBodyMaterialBaseCfg) or all(
+        is_rigid_material = isinstance(cfg.physics_material, RigidBodyMaterialBaseCfg) or any(
             isinstance(frag, RigidBodyMaterialFragment) for frag in physics_material_frags
         )
         if not is_rigid_material:
@@ -466,7 +516,9 @@ def _spawn_mesh_geom_from_mesh(
         stage=stage,
     )
 
-    if cfg.deformable_props is not None:
+    if deformable_slot is not None:
+        _apply_mesh_deformable_slot(prim_path, cfg, deformable_slot, stage)
+    elif cfg.deformable_props is not None:
         # apply deformable body properties
         deformable_type = (
             "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"

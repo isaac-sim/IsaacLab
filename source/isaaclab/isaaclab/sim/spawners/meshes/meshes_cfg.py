@@ -62,14 +62,16 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     physics_material: (
         materials.PhysicsMaterialCfg
         | materials.RigidBodyMaterialFragment
-        | list[materials.RigidBodyMaterialFragment]
+        | materials.DeformableMaterialFragment
+        | list[materials.RigidBodyMaterialFragment | materials.DeformableMaterialFragment]
         | None
     ) = None
     """Physics material properties.
 
     Accepts either a legacy material cfg, a single
-    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`, or a list of such
-    single-namespace fragments.
+    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` or
+    :class:`~isaaclab.sim.spawners.materials.DeformableMaterialFragment`, or a list of such
+    single-namespace fragments (rigid and deformable fragments may be mixed in one list).
 
     Note:
         If None, then no physics material will be added.

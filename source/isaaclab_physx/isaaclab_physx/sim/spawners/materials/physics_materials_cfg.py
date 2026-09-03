@@ -11,6 +11,7 @@ from typing import ClassVar, Literal
 
 from isaaclab.sim.spawners.materials.physics_materials_cfg import (
     DeformableBodyMaterialBaseCfg,
+    DeformableMaterialFragment,
     RigidBodyMaterialBaseCfg,
     RigidBodyMaterialFragment,
     SurfaceDeformableBodyMaterialBaseCfg,
@@ -79,6 +80,28 @@ class PhysXDeformableMaterialCfg:
 
     elasticity_damping: float = 0.005
     """The elasticity damping for the deformable material. Defaults to 0.005."""
+
+
+@configclass
+class PhysxDeformableMaterialCfg(DeformableMaterialFragment):
+    """``physxDeformableMaterial:*`` attributes from ``PhysxDeformableMaterialAPI``."""
+
+    _usd_namespace: ClassVar[str | None] = "physxDeformableMaterial"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxDeformableMaterialAPI"
+
+    elasticity_damping: float | None = None
+    """Damping acting against elastic deformation velocity [1/s]."""
+
+
+@configclass
+class PhysxSurfaceDeformableMaterialCfg(DeformableMaterialFragment):
+    """``physxDeformableMaterial:*`` surface attributes from ``PhysxSurfaceDeformableMaterialAPI``."""
+
+    _usd_namespace: ClassVar[str | None] = "physxDeformableMaterial"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxSurfaceDeformableMaterialAPI"
+
+    bend_damping: float | None = None
+    """Damping acting against bend-resistance forces [1/s]."""
 
 
 @configclass
