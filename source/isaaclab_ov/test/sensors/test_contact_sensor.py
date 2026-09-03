@@ -609,6 +609,62 @@ def test_nested_rigid_body_hierarchy(device, num_envs):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("num_envs", [1, 3])
+def test_mid_path_wildcard_dedup(device, num_envs):
+    """Checks that a mid-path wildcard prim path resolves each leaf body exactly once.
+
+    Regression test for body discovery: a mid-path wildcard prim path
+    (``Robot/.*/left_knee``) makes ``resolve_matching_prims_from_source`` return the same
+    leaf body once per matching ancestor (``pelvis`` and ``pelvis/left_hip`` both carry it as
+    a descendant). Without a dedup by prim path the single ``left_knee`` body is registered
+    multiple times, which inflates ``num_sensors`` and trips the physics-cloned init guard.
+
+    The source chain is authored under ``env_0`` and replicated through the OVPhysX clone
+    path so the check also covers the multi-environment binding.
+    """
+    with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
+        stage = get_current_stage()
+        env_positions, _ = cloner.grid_transforms(num_envs, spacing=3.0, device=device)
+        env_0 = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+        env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
+        _author_nested_chain("/World/envs/env_0/Robot")
+
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        clone_plan = cloner.clone_plan_from_env_0(src, dest, num_envs, device, env_positions)
+        assert clone_plan.env_ids is not None
+        ovphysx_replicate(
+            stage,
+            clone_plan.sources,
+            clone_plan.destinations,
+            clone_plan.env_ids,
+            clone_plan.clone_mask,
+            positions=clone_plan.positions,
+        )
+        sim.set_clone_plan(clone_plan)
+
+        contact_sensor = ContactSensor(
+            ContactSensorCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/.*/left_knee",
+                track_pose=False,
+                debug_vis=False,
+                update_period=0.0,
+            )
+        )
+        sim.reset()
+
+        # the mid-path wildcard matches two ancestors but the leaf must be registered once
+        assert contact_sensor.num_sensors == 1
+        assert contact_sensor.body_names == ["left_knee"]
+
+        # step to fill the sensor buffers; kinematic bodies generate no contact forces
+        for _ in range(2):
+            sim.step()
+            contact_sensor.update(_SIM_DT, force_recompute=True)
+        net_forces = contact_sensor.data.net_forces_w.torch
+        assert net_forces.shape == (num_envs, 1, 3)
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_sensor_print(device):
     """Test sensor print is working correctly."""
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
