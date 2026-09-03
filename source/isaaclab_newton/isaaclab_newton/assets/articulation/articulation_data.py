@@ -10,7 +10,6 @@ import weakref
 from typing import TYPE_CHECKING
 
 import numpy as np
-import torch
 import warp as wp
 
 from isaaclab.assets.articulation import ordering_kernels
@@ -159,17 +158,18 @@ class ArticulationData(BaseArticulationData):
         """
         if not self._joint_coord_map.required:
             return
-        if env_ids is not None:
-            selection = as_warp_indices(env_ids)
-        elif env_mask is not None:
-            selection = as_warp_indices(wp.to_torch(env_mask).nonzero().flatten().to(torch.int32))
+        if env_mask is not None:
+            self._joint_coord_map.scatter(self._sim_bind_joint_pos, self._sim_bind_joint_coords, env_mask=env_mask)
         else:
-            if getattr(self, "_all_env_indices", None) is None:
-                self._all_env_indices = wp.array(
-                    np.arange(self._num_instances, dtype=np.int32), dtype=wp.int32, device=self.device
-                )
-            selection = self._all_env_indices
-        self._joint_coord_map.scatter(self._sim_bind_joint_pos, self._sim_bind_joint_coords, selection)
+            if env_ids is not None:
+                selection = as_warp_indices(env_ids)
+            else:
+                if getattr(self, "_all_env_indices", None) is None:
+                    self._all_env_indices = wp.array(
+                        np.arange(self._num_instances, dtype=np.int32), dtype=wp.int32, device=self.device
+                    )
+                selection = self._all_env_indices
+            self._joint_coord_map.scatter(self._sim_bind_joint_pos, self._sim_bind_joint_coords, env_index=selection)
         self._joint_pos_timestamp = self._sim_timestamp
 
     def _ensure_fk_fresh(self) -> None:
@@ -1641,7 +1641,12 @@ class ArticulationData(BaseArticulationData):
             # ``num_joints`` whenever the articulation has one. IsaacLab addresses joints by DOF
             # index everywhere, so keep the coordinate array separate and publish a DOF-space view.
             self._sim_bind_joint_coords = self._root_view.get_dof_positions(SimulationManager.get_state_0())[:, 0]
-            self._joint_coord_map = JointCoordinateMap(SimulationManager.get_model(), self._num_joints, self.device)
+            model = SimulationManager.get_model()
+            # A heterogeneous scene may register another articulation ahead of this one, so the
+            # coordinate walk has to start at this view's own first joint.
+            first_art = int(self._root_view.articulation_ids.numpy().reshape(-1)[0])
+            first_joint = int(model.articulation_start.numpy()[first_art])
+            self._joint_coord_map = JointCoordinateMap(model, self._num_joints, first_joint, self.device)
             if self._joint_coord_map.required:
                 self._sim_bind_joint_pos = wp.zeros(
                     (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
@@ -1687,7 +1692,12 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_effort_limits_sim = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
-            self._sim_bind_joint_pos = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            # No joints: keep the coordinate map inert so the refresh and flush stay no-ops.
+            self._sim_bind_joint_coords = self._sim_bind_joint_pos = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
+            self._joint_coord_map = JointCoordinateMap.inert()
+            self._joint_pos_timestamp = -1.0
             self._sim_bind_joint_vel = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_effort = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_act = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)

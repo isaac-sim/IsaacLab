@@ -74,31 +74,16 @@ def gather_ball_dofs(
     dofs[env, d + 2] = axis[2] * scale
 
 
-@wp.kernel(enable_backward=False)
-def scatter_single_coord_dofs(
+@wp.func
+def _scatter_ball(
     dofs: wp.array2d(dtype=wp.float32),
-    env_index: wp.array(dtype=Any),
+    env: wp.int32,
+    i: wp.int32,
     dof_index: wp.array(dtype=wp.int32),
     coord_index: wp.array(dtype=wp.int32),
     coords: wp.array2d(dtype=wp.float32),
 ):
-    """Inverse of :func:`gather_single_coord_dofs`, for the selected environments."""
-    e, i = wp.tid()
-    env = wp.int32(env_index[e])
-    coords[env, coord_index[i]] = dofs[env, dof_index[i]]
-
-
-@wp.kernel(enable_backward=False)
-def scatter_ball_dofs(
-    dofs: wp.array2d(dtype=wp.float32),
-    env_index: wp.array(dtype=Any),
-    dof_index: wp.array(dtype=wp.int32),
-    coord_index: wp.array(dtype=wp.int32),
-    coords: wp.array2d(dtype=wp.float32),
-):
-    """Rotation vector -> quaternion for each ball joint, for the selected environments."""
-    e, i = wp.tid()
-    env = wp.int32(env_index[e])
+    """Rotation vector -> quaternion for one ball joint of one environment."""
     c = coord_index[i]
     d = dof_index[i]
     axis = wp.vec3(dofs[env, d + 0], dofs[env, d + 1], dofs[env, d + 2])
@@ -116,15 +101,80 @@ def scatter_ball_dofs(
         coords[env, c + 3] = wp.cos(0.5 * angle)
 
 
+@wp.kernel(enable_backward=False)
+def scatter_single_coord_dofs(
+    dofs: wp.array2d(dtype=wp.float32),
+    env_index: wp.array(dtype=Any),
+    dof_index: wp.array(dtype=wp.int32),
+    coord_index: wp.array(dtype=wp.int32),
+    coords: wp.array2d(dtype=wp.float32),
+):
+    """Inverse of :func:`gather_single_coord_dofs`, for the selected environments."""
+    e, i = wp.tid()
+    env = wp.int32(env_index[e])
+    coords[env, coord_index[i]] = dofs[env, dof_index[i]]
+
+
+@wp.kernel(enable_backward=False)
+def scatter_single_coord_dofs_masked(
+    dofs: wp.array2d(dtype=wp.float32),
+    env_mask: wp.array(dtype=wp.bool),
+    dof_index: wp.array(dtype=wp.int32),
+    coord_index: wp.array(dtype=wp.int32),
+    coords: wp.array2d(dtype=wp.float32),
+):
+    """Mask-selected counterpart, launched over every environment so it stays graph-capturable."""
+    env, i = wp.tid()
+    if env_mask[env]:
+        coords[env, coord_index[i]] = dofs[env, dof_index[i]]
+
+
+@wp.kernel(enable_backward=False)
+def scatter_ball_dofs(
+    dofs: wp.array2d(dtype=wp.float32),
+    env_index: wp.array(dtype=Any),
+    dof_index: wp.array(dtype=wp.int32),
+    coord_index: wp.array(dtype=wp.int32),
+    coords: wp.array2d(dtype=wp.float32),
+):
+    """Rotation vector -> quaternion for each ball joint, for the selected environments."""
+    e, i = wp.tid()
+    env = wp.int32(env_index[e])
+    _scatter_ball(dofs, env, i, dof_index, coord_index, coords)
+
+
+@wp.kernel(enable_backward=False)
+def scatter_ball_dofs_masked(
+    dofs: wp.array2d(dtype=wp.float32),
+    env_mask: wp.array(dtype=wp.bool),
+    dof_index: wp.array(dtype=wp.int32),
+    coord_index: wp.array(dtype=wp.int32),
+    coords: wp.array2d(dtype=wp.float32),
+):
+    """Mask-selected counterpart, launched over every environment so it stays graph-capturable."""
+    env, i = wp.tid()
+    if env_mask[env]:
+        _scatter_ball(dofs, env, i, dof_index, coord_index, coords)
+
+
 class JointCoordinateMap:
     """Per-articulation index tables mapping joint coordinates to DOFs and back.
 
     Offsets are local to the articulation's joint-coordinate slice -- the array
     ``ArticulationView.get_dof_positions`` returns, which excludes the free root joint -- so they
-    are accumulated from zero rather than read off the model's global ``joint_q_start``.
+    are accumulated from zero rather than read off the model's global ``joint_q_start``. The walk
+    starts at the view's own first joint, since a heterogeneous scene may register another
+    articulation ahead of this one.
     """
 
-    def __init__(self, model, num_dofs: int, device):
+    @classmethod
+    def inert(cls) -> JointCoordinateMap:
+        """A map that converts nothing, for articulations that carry no joints."""
+        obj = cls.__new__(cls)
+        obj.required = False
+        return obj
+
+    def __init__(self, model, num_dofs: int, first_joint: int, device):
         single_dof: list[int] = []
         single_coord: list[int] = []
         ball_dof: list[int] = []
@@ -134,7 +184,7 @@ class JointCoordinateMap:
         q_start = model.joint_q_start.numpy()
         qd_start = model.joint_qd_start.numpy()
         coord, dof = 0, 0
-        for j in range(len(joint_type) - 1):
+        for j in range(first_joint, len(joint_type) - 1):
             n_coords = int(q_start[j + 1]) - int(q_start[j])
             n_dofs = int(qd_start[j + 1]) - int(qd_start[j])
             if n_dofs == 0 or int(joint_type[j]) == int(JointType.FREE):
@@ -176,7 +226,13 @@ class JointCoordinateMap:
             device=coords.device,
         )
 
-    def scatter(self, dofs: wp.array, coords: wp.array, env_index: wp.array) -> None:
+    def scatter(
+        self,
+        dofs: wp.array,
+        coords: wp.array,
+        env_index: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
         """Write ``dofs`` back into ``coords`` for the given environments.
 
         Restricting this to the written environments matters: resets are staggered, so an
@@ -186,17 +242,30 @@ class JointCoordinateMap:
         Args:
             dofs: DOF-space joint positions [rad or m, depending on joint type].
             coords: Newton's joint coordinate array to write into.
-            env_index: Environment indices that were written.
+            env_index: Environment indices that were written. Mutually exclusive with ``env_mask``.
+            env_mask: Per-environment boolean selection. Mutually exclusive with ``env_index``.
+                Taken by the mask write paths, which are documented as graph-capturable, so it is
+                consumed directly rather than compacted to indices on the host.
         """
-        wp.launch(
-            scatter_single_coord_dofs,
-            dim=(env_index.shape[0], self.single_dof.shape[0]),
-            inputs=[dofs, env_index, self.single_dof, self.single_coord, coords],
-            device=coords.device,
-        )
-        wp.launch(
-            scatter_ball_dofs,
-            dim=(env_index.shape[0], self.ball_dof.shape[0]),
-            inputs=[dofs, env_index, self.ball_dof, self.ball_coord, coords],
-            device=coords.device,
-        )
+        if env_mask is not None:
+            for kernel, dof_index, coord_index in (
+                (scatter_single_coord_dofs_masked, self.single_dof, self.single_coord),
+                (scatter_ball_dofs_masked, self.ball_dof, self.ball_coord),
+            ):
+                wp.launch(
+                    kernel,
+                    dim=(env_mask.shape[0], dof_index.shape[0]),
+                    inputs=[dofs, env_mask, dof_index, coord_index, coords],
+                    device=coords.device,
+                )
+            return
+        for kernel, dof_index, coord_index in (
+            (scatter_single_coord_dofs, self.single_dof, self.single_coord),
+            (scatter_ball_dofs, self.ball_dof, self.ball_coord),
+        ):
+            wp.launch(
+                kernel,
+                dim=(env_index.shape[0], dof_index.shape[0]),
+                inputs=[dofs, env_index, dof_index, coord_index, coords],
+                device=coords.device,
+            )

@@ -11,7 +11,6 @@ from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.managers import (
-    EventTermCfg,
     ObservationGroupCfg,
     ObservationTermCfg,
     RewardTermCfg,
@@ -29,34 +28,22 @@ from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, DIGIT_V4_CFG, LEG_JOINT_NAMES
 
-from . import _strip_visual_colliders
+from ._strip_visual_colliders import spawn_digit
 
-_strip_visual_colliders.install()
-
-
-# The stability bound is c*h/2 = 0.0716 for Digit's damping and substep; this leaves margin.
+# MJWarp integrates actuator damping explicitly, so a joint runs away once c*h/I > 2. These ten
+# ship below the bound -- wrist_yaw at I = 0.01822 [kg m^2] gives 7.86 and grows 6.9x per substep,
+# the other eight at 0.05228 give 2.74. The stability bound is c*h/2 = 0.0716; 0.10 leaves margin.
+# Together these cover exactly ``LEG_JOINT_NAMES + ARM_JOINT_NAMES``.
+_LOW_ARMATURE_JOINT_NAMES = [".*_arm_wrist_.*", ".*_toe_a", ".*_toe_b"]
+_STABLE_ARMATURE_JOINT_NAMES = [
+    ".*_hip_roll",
+    ".*_hip_yaw",
+    ".*_hip_pitch",
+    ".*_knee",
+    ".*_arm_shoulder_.*",
+    ".*_arm_elbow",
+]
 _MIN_STABLE_ARMATURE = 0.10
-
-
-def _raise_low_armature(env, env_ids, floor: float):
-    """Clamp joint armature up to ``floor`` wherever the actuator damping would be unstable.
-
-    ``wrist_yaw`` ships at I = 0.01822 [kg m^2] against c = 57.3 and h = 0.0025 s, giving
-    c*h/I = 7.86 and a measured 6.9x growth per substep; eight more joints sit at 2.74.
-
-    Args:
-        env: The environment instance.
-        env_ids: Unused; the clamp applies to every environment at startup.
-        floor: Minimum armature [kg m^2] for any joint with non-zero damping.
-    """
-    import torch
-
-    asset = env.scene["robot"]
-    armature = asset.data.joint_armature.torch.clone()
-    needs = (asset.data.joint_damping.torch > 0.0) & (armature < floor)
-    if not bool(needs.any()):
-        return
-    asset.write_joint_armature_to_sim_index(armature=torch.where(needs, torch.full_like(armature, floor), armature))
 
 
 @configclass
@@ -291,6 +278,9 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # scene
         self.scene.robot = DIGIT_V4_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        # digit_v4.usd applies CollisionAPI to 32 RealSense camera decoration meshes; this spawner
+        # clears it on the prims it just created. See :mod:`._strip_visual_colliders`.
+        self.scene.robot.spawn.func = spawn_digit
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_base"
         self.scene.contact_forces.history_length = self.decimation
         self.scene.contact_forces.update_period = self.sim.dt
@@ -298,9 +288,17 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # target only actuated joints explicitly — ".*" mis-indexes Digit's ball-joint DoFs
         self.scene.robot.actuators = {
             "legs_arms": ImplicitActuatorCfg(
-                joint_names_expr=LEG_JOINT_NAMES + ARM_JOINT_NAMES,
+                joint_names_expr=_STABLE_ARMATURE_JOINT_NAMES,
                 stiffness=None,
                 damping=None,
+            ),
+            # Split out purely so the armature floor can be expressed as configuration; the
+            # actuator model is the same. ``None`` keeps the value the USD prim authors.
+            "low_armature": ImplicitActuatorCfg(
+                joint_names_expr=_LOW_ARMATURE_JOINT_NAMES,
+                stiffness=None,
+                damping=None,
+                armature=preset(default=None, newton_mjwarp=_MIN_STABLE_ARMATURE),
             ),
         }
         # commands
@@ -315,16 +313,6 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # base_com carries a single preset branch; collapse it so the body name can be set.
         self.events.base_com = self.events.base_com.default
         self.events.base_com.params["asset_cfg"].body_names = "torso_base"
-        # MJWarp integrates actuator damping explicitly, so a joint runs away once c*h/I > 2.
-        # digit_v4.usd ships ten joints between 2.74 and 7.86; clamp those up at startup. A
-        # scalar ``ImplicitActuatorCfg.armature`` cannot express this -- it would also pull the
-        # joints that are already fine down to the floor.
-        self.events.raise_low_armature = preset(
-            default=None,
-            newton_mjwarp=EventTermCfg(
-                func=_raise_low_armature, mode="startup", params={"floor": _MIN_STABLE_ARMATURE}
-            ),
-        )
         # The asset authors no articulation_props, so Newton filters every intra-articulation
         # shape pair -- 253 of them, exactly C(23,2) for its 23 colliding shapes -- and the legs
         # pass through each other. Which links carry colliders is left as the asset authored it.

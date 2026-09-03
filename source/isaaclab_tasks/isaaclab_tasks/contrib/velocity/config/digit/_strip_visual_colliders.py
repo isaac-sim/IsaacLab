@@ -3,44 +3,63 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Remove CollisionAPI from Digit's RealSense *visual* decoration meshes before the model is built.
+"""Spawner that drops the collision role from Digit's RealSense decoration meshes.
 
-digit_v4.usd authors UsdPhysics.CollisionAPI on 32 prims, every one of them under a `/Visual`
-scope of a RealSense camera mount (Glass, USB_C, Case_front, Case_back, Mount, Camera_module,
-Front_mask, camera_mask, x4 mounts). They become 32 CONVEX_MESH colliders -- 57% of the robot's 56
-shapes -- while the arms, hips and rods carry none. Colliders on a camera's glass and USB
-connector are an authoring error, not a modelling choice.
+``digit_v4.usd`` applies ``UsdPhysics.CollisionAPI`` to 32 prims, every one of them under a
+``/Visual/`` scope of a RealSense camera mount -- ``Glass``, ``USB_C``, ``Case_front``,
+``Case_back``, ``Mount``, ``Camera_module``, ``Front_mask``, ``camera_mask`` on each of the four
+mounts. They become 32 convex-mesh colliders, 57% of the robot's shapes, while the arms, hips and
+rods carry none, and on generated terrain they produced contact forces of 3e7 N on bodies 1.4 m
+above the ground. Colliders on a camera's glass and USB connector are an authoring error.
 
-The strip has to happen before NewtonManager.instantiate_builder_from_stage() reads the stage;
-clearing shape_flags afterwards is too late because MuJoCo has already compiled the geoms.
+Only the collision role is removed; the meshes still render.
+
+The removal has to happen before the physics backend reads the stage, and it has to stay scoped to
+the prims this asset spawned, so it runs as the asset's own spawner rather than as a hook on the
+scene builder.
 """
+
 from __future__ import annotations
 
-_INSTALLED = False
-PATTERN = "/Visual/"
+from typing import TYPE_CHECKING
+
+from isaaclab.sim.spawners.from_files import spawn_from_usd
+
+if TYPE_CHECKING:
+    from pxr import Usd
+
+    from isaaclab.sim.spawners.from_files import UsdFileCfg
+
+_VISUAL_SCOPE = "/Visual/"
+_MOUNT_SCOPE = "camera_mount"
 
 
-def install(pattern: str = PATTERN, require: str = "camera_mount"):
-    global _INSTALLED
-    if _INSTALLED:
-        return
-    # Multi-env scenes build the Newton model through the cloner, not
-    # NewtonManager.instantiate_builder_from_stage, so hook the function that actually reads the
-    # stage into a ModelBuilder.
-    from isaaclab_newton.cloner import replicate as _rep
+def spawn_digit(
+    prim_path: str,
+    cfg: UsdFileCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Spawn Digit, then clear ``CollisionAPI`` from its camera decoration meshes.
 
-    original = _rep._build_newton_builder_from_mapping
+    Args:
+        prim_path: Prim path (or expression) to spawn the asset at.
+        cfg: Spawner configuration.
+        translation: Translation [m] to apply to the spawned prim.
+        orientation: Orientation ``(w, x, y, z)`` to apply to the spawned prim.
+        **kwargs: Forwarded to :func:`~isaaclab.sim.spawners.from_files.spawn_from_usd`.
 
-    def patched(stage, *args, **kwargs):
-        from pxr import UsdPhysics
+    Returns:
+        The spawned source prim.
+    """
+    from pxr import UsdPhysics
 
-        removed = []
-        for prim in stage.Traverse():
-            path = prim.GetPath().pathString
-            if pattern in path and require in path and prim.HasAPI(UsdPhysics.CollisionAPI):
-                prim.RemoveAPI(UsdPhysics.CollisionAPI)
-                removed.append(path)
-        return original(stage, *args, **kwargs)
-
-    _rep._build_newton_builder_from_mapping = patched
-    _INSTALLED = True
+    prim = spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
+    for child in prim.GetStage().Traverse():
+        path = child.GetPath().pathString
+        if not path.startswith(prim.GetPath().pathString):
+            continue
+        if _VISUAL_SCOPE in path and _MOUNT_SCOPE in path and child.HasAPI(UsdPhysics.CollisionAPI):
+            child.RemoveAPI(UsdPhysics.CollisionAPI)
+    return prim
