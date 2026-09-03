@@ -10,6 +10,7 @@ import dataclasses
 import logging
 import math
 from collections.abc import Callable, Iterable
+from dataclasses import MISSING
 
 import numpy as np
 import warp as wp
@@ -216,6 +217,57 @@ def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
             prim.AddAppliedSchema(applied_schema)
         for usd_attr, value in writes:
             safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
+
+
+def apply_multi_apply(cfg: schemas_cfg.MultiApplyFragment, prim_path: str, stage: Usd.Stage | None = None) -> bool:
+    """Tune the instances of a multiple-apply schema that a fragment selects on one prim.
+
+    The fragment's class metadata names the schema token that selects instances and the template
+    that spells an attribute; ``instance_names`` picks among the instances the prim carries. Applies
+    no schema (the instances are authored in the source asset) and leaves ``None`` fields unchanged.
+    A prim carrying none of the selected instances is passed over, so one name selects one tendon
+    under the spawner's subtree pattern.
+
+    Args:
+        cfg: The multiple-apply fragment to apply.
+        prim_path: The prim path to author on.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if at least one instance was written, False if the prim carries no selected instance.
+
+    Raises:
+        ValueError: If the prim does not exist, or ``instance_names`` is unset or an empty selection.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # check on input contract
+    selection = cfg.instance_names
+    if isinstance(selection, type(MISSING)) or (selection is not None and not selection):
+        raise ValueError(
+            f"'{type(cfg).__name__}.instance_names' must name the instances to tune; pass None for every instance."
+        )
+    # get filtered targets
+    instances = resolve_applied_schema_instances(prim.GetAppliedSchemas(), type(cfg)._usd_multi_apply_schema)
+    if selection is not None:
+        names = [selection] if isinstance(selection, str) else selection
+        instances = [name for name in instances if name in names]
+    if not instances:
+        return False
+    # author each set field on each instance, spelling the attribute from the fragment's template.
+    template = type(cfg)._usd_multi_apply_template
+    for f in dataclasses.fields(cfg):
+        value = getattr(cfg, f.name)
+        if f.name in ("func", "instance_names") or value is None:
+            continue
+        for instance in instances:
+            attribute = template.format(instance=instance, prop=to_camel_case(f.name, "cC"))
+            safe_set_attribute_on_usd_prim(prim, attribute, value, camel_case=False)
+    return True
 
 
 def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd.Stage | None = None) -> bool:
@@ -1629,6 +1681,26 @@ Fixed tendon properties.
 """
 
 
+def resolve_applied_schema_instances(applied_schemas: Iterable[str], schema_name: str) -> list[str]:
+    """Return the instance names of a multi-apply schema applied to a prim.
+
+    A multi-apply schema is applied as ``<SchemaName>:<instance>``, and the instance -- not the
+    prim it sits on -- is the entity's identity. Fixed tendons are the motivating case: naming one
+    after the joint prim carrying its root gives the same tendon a different name on each physics
+    engine, and collapses several tendons on one prim into a single entry.
+
+    Args:
+        applied_schemas: The prim's applied API schemas, as returned by ``GetAppliedSchemas()``.
+        schema_name: The multi-apply schema to match, without an instance (e.g.
+            ``"PhysxTendonAxisRootAPI"``).
+
+    Returns:
+        The instance names, in the order the prim declares them. Empty if the schema is not applied.
+    """
+    prefix = f"{schema_name}:"
+    return [str(name).removeprefix(prefix) for name in applied_schemas if str(name).startswith(prefix)]
+
+
 def _is_fixed_tendon_target(prim: Usd.Prim) -> bool:
     """Whether a prim carries a fixed-tendon representation (PhysX multi-apply instance or MjcTendon prim)."""
     if prim.GetTypeName() == "MjcTendon":
@@ -1743,20 +1815,13 @@ def modify_fixed_tendon_properties(
     if not any("PhysxTendonAxisRootAPI" in s for s in applied_schemas) and prim_type != "MjcTendon":
         return False
 
-    # resolve all available instances of the schema since it is multi-instance
     cfg = cfg.to_dict()
     if prim_type != "MjcTendon":
-        for schema_name in applied_schemas:
-            if "PhysxTendonAxisRootAPI" not in schema_name:
-                continue
-            # set into PhysX API by attribute prefix schema_name: (e.g. PhysxTendonAxisRootAPI:default:stiffness)
+        # the property namespace is declared by the schema, so resolve it through USD per instance
+        for instance_name in resolve_applied_schema_instances(applied_schemas, "PhysxTendonAxisRootAPI"):
             for attr_name, value in cfg.items():
-                safe_set_attribute_on_usd_prim(
-                    tendon_prim,
-                    f"{schema_name}:{to_camel_case(attr_name, 'cC')}",
-                    value,
-                    camel_case=False,
-                )
+                attribute = f"physxTendon:{instance_name}:{to_camel_case(attr_name, 'cC')}"
+                safe_set_attribute_on_usd_prim(tendon_prim, attribute, value, camel_case=False)
     else:
         # NOTE: ``mjc:*`` branch (``MjcTendon`` prim) kept inline; future split candidate into isaaclab_newton.
         # only stiffness and damping in the cfg map to mjc attributes
@@ -1877,18 +1942,14 @@ def modify_spatial_tendon_properties(
         return False
 
     cfg = cfg.to_dict()
-    for schema_name in applied_schemas:
-        if "PhysxTendonAttachmentRootAPI" not in schema_name and "PhysxTendonAttachmentLeafAPI" not in schema_name:
-            continue
+    wrote = False
+    # only the attachment root declares the tendon dynamics; leaf instances carry per-branch limits
+    for instance_name in resolve_applied_schema_instances(applied_schemas, "PhysxTendonAttachmentRootAPI"):
         for attr_name, value in cfg.items():
-            safe_set_attribute_on_usd_prim(
-                tendon_prim,
-                f"{schema_name}:{to_camel_case(attr_name, 'cC')}",
-                value,
-                camel_case=False,
-            )
-    # success
-    return True
+            attribute = f"physxTendon:{instance_name}:{to_camel_case(attr_name, 'cC')}"
+            safe_set_attribute_on_usd_prim(tendon_prim, attribute, value, camel_case=False)
+        wrote = True
+    return wrote
 
 
 """

@@ -20,6 +20,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     JointDriveFragment,
     MeshCollisionBaseCfg,
     MeshCollisionFragment,
+    MultiApplyFragment,
     RigidBodyBaseCfg,
     RigidBodyFragment,
     SpatialTendonFragment,
@@ -1176,6 +1177,12 @@ class PhysxFixedTendonPropertiesCfg:
     rest_length: float | None = None
     """Spring rest length of the tendon."""
 
+    lower_limit: float | None = None
+    """Lower limit of the tendon's length."""
+
+    upper_limit: float | None = None
+    """Upper limit of the tendon's length."""
+
 
 @configclass
 class FixedTendonPropertiesCfg(PhysxFixedTendonPropertiesCfg):
@@ -1257,28 +1264,29 @@ class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
 
 
 @configclass
-class PhysxFixedTendonCfg(FixedTendonFragment):
+class PhysxFixedTendonCfg(FixedTendonFragment, MultiApplyFragment):
     """PhysX fixed-tendon attributes from `PhysxTendonAxisRootAPI`_.
 
     A fixed-tendon fragment (see :class:`~isaaclab.sim.schemas.FixedTendonFragment`) for the
     PhysX fixed-tendon schema. Unlike single-namespace fragments, this is a *tune-not-apply*
-    fragment: the multi-instance ``PhysxTendonAxisRootAPI:<inst>`` schemas already exist on the
-    prim (authored in the source asset), so the fragment overrides
-    :attr:`~isaaclab.sim.schemas.SchemaFragment.func` with :func:`apply_fixed_tendon`, which
-    descends the prim subtree and tunes every existing ``PhysxTendonAxisRootAPI:<inst>`` instance
-    directly.
+    fragment: the ``PhysxTendonAxisRootAPI:<inst>`` instances already exist on the prim (authored
+    in the source asset), so the fragment names the schema and the instances through
+    :class:`~isaaclab.sim.schemas.MultiApplyFragment`, and
+    :func:`~isaaclab.sim.schemas.apply_multi_apply` tunes those instances, spelling each attribute
+    from the fragment's template.
+
+    The fields are the tendon-wide dynamics and limits the root API declares. The per-joint
+    coupling (``gearing``, ``forceCoefficient``, ``jointAxis``) defines the mechanism and is
+    authored in the asset, not tuned at spawn.
 
     Dispatched via :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`.
 
     .. _PhysxTendonAxisRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_root_a_p_i.html
     """
 
-    # Not namespace-driven: the custom applier matches the multi-instance schema explicitly, so
-    # ``_usd_namespace`` stays ``None`` -- this also guards against accidentally routing the fragment
-    # through the generic ``apply_namespaced`` (which would raise on a missing namespace).
-    _usd_namespace: ClassVar[str | None] = None
-    # override ``func``: writer iterates multi-instance ``PhysxTendonAxisRootAPI`` schemas; ``apply_namespaced`` cannot.
-    func: Callable | str = "isaaclab_physx.sim.schemas:apply_fixed_tendon"
+    _usd_multi_apply_schema: ClassVar[str] = "PhysxTendonAxisRootAPI"
+    _usd_multi_apply_template: ClassVar[str] = "physxTendon:{instance}:{prop}"
+    func: Callable | str = "isaaclab.sim.schemas:apply_multi_apply"
 
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""
@@ -1302,32 +1310,36 @@ class PhysxFixedTendonCfg(FixedTendonFragment):
     rest_length: float | None = None
     """Spring rest length of the tendon [m]."""
 
+    lower_limit: float | None = None
+    """Lower limit of the tendon's length [m]."""
+
+    upper_limit: float | None = None
+    """Upper limit of the tendon's length [m]."""
+
 
 @configclass
-class PhysxSpatialTendonCfg(SpatialTendonFragment):
+class PhysxSpatialTendonCfg(SpatialTendonFragment, MultiApplyFragment):
     """PhysX spatial-tendon attributes from `PhysxTendonAttachmentRootAPI`_.
 
     A spatial-tendon fragment (see :class:`~isaaclab.sim.schemas.SpatialTendonFragment`) for the
     PhysX spatial-tendon schema. Unlike single-namespace fragments, this is a *tune-not-apply*
-    fragment: the multi-instance ``PhysxTendonAttachmentRootAPI:<inst>`` /
-    ``PhysxTendonAttachmentLeafAPI:<inst>`` schemas already exist on the prim (authored in the
-    source asset), so the fragment overrides
-    :attr:`~isaaclab.sim.schemas.SchemaFragment.func` with :func:`apply_spatial_tendon`, which
-    descends the prim subtree and tunes every existing ``PhysxTendonAttachmentRootAPI:<inst>`` /
-    ``PhysxTendonAttachmentLeafAPI:<inst>`` instance directly.
+    fragment: the ``PhysxTendonAttachmentRootAPI:<inst>`` instances already exist on the prim
+    (authored in the source asset), so the fragment names the schema and the instances through
+    :class:`~isaaclab.sim.schemas.MultiApplyFragment`, and
+    :func:`~isaaclab.sim.schemas.apply_multi_apply` tunes those instances, spelling each attribute
+    from the fragment's template.
+
+    Only the attachment root is tuned: the fields are the tendon's dynamics, which leaf and
+    intermediate attachments do not declare (they carry per-attachment geometry and limits).
 
     Dispatched via :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`.
 
     .. _PhysxTendonAttachmentRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_root_a_p_i.html
     """
 
-    # Not namespace-driven: the custom applier matches the multi-instance schemas explicitly, so
-    # ``_usd_namespace`` stays ``None`` -- this also guards against accidentally routing the fragment
-    # through the generic ``apply_namespaced`` (which would raise on a missing namespace).
-    _usd_namespace: ClassVar[str | None] = None
-    # override ``func``: writer iterates multi-instance ``PhysxTendonAttachment{Root,Leaf}API``
-    # schemas, which the generic ``apply_namespaced`` cannot.
-    func: Callable | str = "isaaclab_physx.sim.schemas:apply_spatial_tendon"
+    _usd_multi_apply_schema: ClassVar[str] = "PhysxTendonAttachmentRootAPI"
+    _usd_multi_apply_template: ClassVar[str] = "physxTendon:{instance}:{prop}"
+    func: Callable | str = "isaaclab.sim.schemas:apply_multi_apply"
 
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""

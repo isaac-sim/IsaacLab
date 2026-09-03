@@ -5,8 +5,6 @@
 
 __all__ = [
     "apply_physx_joint",
-    "apply_fixed_tendon",
-    "apply_spatial_tendon",
     "define_deformable_body_properties",
     "modify_deformable_body_properties",
     "ArticulationRootPropertiesCfg",
@@ -50,8 +48,6 @@ __all__ = [
 
 from .schemas import (
     apply_physx_joint,
-    apply_fixed_tendon,
-    apply_spatial_tendon,
     define_deformable_body_properties,
     modify_deformable_body_properties,
 )
