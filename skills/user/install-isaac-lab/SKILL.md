@@ -64,7 +64,6 @@ Keep this skill synchronized with the following install docs. If commands or ver
 - `docs/source/setup/installation/index.rst` — `installation-method-binary` steps (downloaded Isaac Sim package).
 - `docs/source/setup/installation/index.rst` — `installation-method-source` steps (Isaac Sim source build).
 - `docs/source/setup/installation/asset_caching_details.inc` — asset caching notes.
-- `docs/source/setup/installation/include/` — verification and shared helper snippets.
 - `docs/source/features/docker_cloud.rst` — Docker and cloud-workstation deep dive; complements `installation-method-container` and `installation-method-cloud` in `index.rst`.
 - `docs/source/refs/troubleshooting.rst` — hand-off target for post-install diagnostics.
 

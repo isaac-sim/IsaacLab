@@ -26,7 +26,9 @@ Do not use this skill to duplicate backend reference material. Link to the multi
 7. Separate backend-specific differences using `PresetCfg` or existing preset helpers rather than runtime conditionals scattered through task code.
 8. Use suffixless task names in backend smoke-test and training commands.
 9. Validate each backend with a small reset/step rollout before training.
-10. Document intentional behavior differences, especially around contacts, randomization timing, CPU/GPU data paths, and renderer requirements.
+10. For backend architecture changes, resolve shared native runtimes through
+    `SimulationContext.get_or_create_backend(...)` instead of copying state between consumers.
+11. Document intentional behavior differences, especially around contacts, randomization timing, CPU/GPU data paths, and renderer requirements.
 
 ## Validation
 
