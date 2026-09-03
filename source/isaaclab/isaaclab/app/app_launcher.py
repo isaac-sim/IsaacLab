@@ -33,10 +33,10 @@ except ModuleNotFoundError:
 
 SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
-from isaaclab._paths import ISAACLAB_ROOT
 from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
+from isaaclab.paths import ISAACLAB_ROOT
 from isaaclab.utils._device import set_cuda_device
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 

@@ -65,7 +65,6 @@ def stage_package(repo_root: Path, stage_dir: Path, version: str) -> None:
     for bytecode_file in stage_dir.rglob("*.pyc"):
         bytecode_file.unlink()
 
-    shutil.copy2(builder_dir / "res" / "__main__.py", package_dir / "__main__.py")
     subprocess.run(
         [
             sys.executable,

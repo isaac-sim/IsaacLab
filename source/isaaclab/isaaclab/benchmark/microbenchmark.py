@@ -13,8 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
-from isaaclab._paths import ISAACLAB_ROOT
 from isaaclab.cli.utils import run_python_command
+from isaaclab.paths import ISAACLAB_ROOT
 
 
 @dataclass(frozen=True)

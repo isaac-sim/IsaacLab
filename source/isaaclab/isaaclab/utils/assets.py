@@ -29,7 +29,7 @@ from urllib.parse import urlparse
 
 from filelock import FileLock
 
-from isaaclab._paths import ISAACLAB_ROOT
+from isaaclab.paths import ISAACLAB_ROOT
 
 logger = logging.getLogger(__name__)
 
