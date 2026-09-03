@@ -52,6 +52,8 @@ def normalize_camera_image(
 
     Dispatch (in order of check):
 
+    - non-colorized ``"semantic_segmentation"`` (any non-``uint8`` dtype, ``int32`` label ids in
+      practice): cast to ``float32``. Label ids carry no scale, so no further normalization.
     - :func:`is_rgb_like` or colorized ``"semantic_segmentation"`` (``uint8``) and contiguous
       4D: routes to the
       fused Warp kernel via :func:`~isaaclab.utils.warp.ops.normalize_image_uint8`. ``out`` and
@@ -79,10 +81,15 @@ def normalize_camera_image(
 
     Returns:
         The normalized tensor. For RGB-like and colorized semantic-segmentation input this is a
-        fresh (or pre-allocated) float32 tensor; for depth-like input it is ``images`` itself
-        (mutated in place); for normals-like input it is a new tensor; for anything else,
-        ``images`` unchanged.
+        fresh (or pre-allocated) float32 tensor; for non-colorized semantic segmentation it is a
+        float32 view or copy of ``images``; for depth-like input it is ``images`` itself (mutated
+        in place); for normals-like input it is a new tensor; for anything else, ``images``
+        unchanged.
     """
+    if data_type == "semantic_segmentation" and images.dtype != torch.uint8:
+        # Non-colorized segmentation is an integer label map (``int32`` for every renderer). Label
+        # ids have no meaningful scale, so only cast to float32 so downstream convolutions accept it.
+        return images.float()
     if is_rgb_like(data_type) or (data_type == "semantic_segmentation" and images.dtype == torch.uint8):
         if images.dtype == torch.uint8 and images.ndim == 4 and images.is_contiguous():
             return normalize_image_uint8(images, channel_dim=channel_dim, out=out)
