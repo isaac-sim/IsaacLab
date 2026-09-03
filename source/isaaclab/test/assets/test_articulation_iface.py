@@ -14,6 +14,7 @@ The setup is a bit convoluted so that we can run these tests without requiring I
 """
 
 import warnings
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -2788,3 +2789,49 @@ class TestArticulationWritersTendonToSim:
         art.write_spatial_tendon_properties_to_sim_mask(
             spatial_tendon_mask=_make_item_mask(num_spatial_tendons, [0], device)
         )
+
+
+@pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
+class TestPhysXArticulationSubmissionFrame:
+    """PhysX submits an eligible global-at-CoM wrench in the world frame, without composing."""
+
+    @_default_devices
+    def test_global_at_com_submits_world_frame(self, device):
+        num_instances, num_bodies = 2, 3
+        art, root_view = get_articulation(
+            "physx", num_instances=num_instances, num_joints=2, num_bodies=num_bodies, device=device
+        )
+        root_view.get_link_transforms = MagicMock(side_effect=AssertionError("unexpected body-pose read"))
+        root_view.apply_forces_and_torques_at_position = MagicMock()
+
+        forces = torch.zeros((num_instances, num_bodies, 3), device=device)
+        forces[:, 1, 2] = torch.tensor([3.0, 7.0], device=device)
+        art.permanent_wrench_composer.set_forces_and_torques_index(forces=forces, is_global=True)
+
+        art.write_data_to_sim()
+
+        call = root_view.apply_forces_and_torques_at_position.call_args.kwargs
+        assert call["is_global"] is True
+        assert call["position_data"] is None
+        actual = wp.to_torch(call["force_data"]).reshape(num_instances, num_bodies, 3)
+        torch.testing.assert_close(actual, forces)
+
+    @_default_devices
+    def test_local_frame_submits_body_frame(self, device):
+        num_instances, num_bodies = 2, 3
+        art, root_view = get_articulation(
+            "physx", num_instances=num_instances, num_joints=2, num_bodies=num_bodies, device=device
+        )
+        root_view.get_link_transforms = MagicMock(side_effect=AssertionError("unexpected body-pose read"))
+        root_view.apply_forces_and_torques_at_position = MagicMock()
+
+        forces = torch.zeros((num_instances, num_bodies, 3), device=device)
+        forces[:, 1, 0] = torch.tensor([1.0, 2.0], device=device)
+        art.permanent_wrench_composer.set_forces_and_torques_index(forces=forces, is_global=False)
+
+        art.write_data_to_sim()
+
+        call = root_view.apply_forces_and_torques_at_position.call_args.kwargs
+        assert call["is_global"] is False
+        actual = wp.to_torch(call["force_data"]).reshape(num_instances, num_bodies, 3)
+        torch.testing.assert_close(actual, forces)
