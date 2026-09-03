@@ -120,6 +120,8 @@ importers = [
     "tinyobjloader==2.0.0rc13",
 ]
 
+# The test suite only. Kept free of the docs stack: Sphinx pulls docutils, which is
+# GPL-3.0-or-later and not allowed in the distributed images.
 test = [
     "pytest",
     "pytest-mock",
@@ -127,6 +129,11 @@ test = [
     "flaky",
     # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
     "coverage>=7.6.1",
+]
+
+# Everything a contributor needs: the test suite plus the documentation toolchain.
+dev = [
+    "isaaclab-dev[test]",
     "sphinx>=7.0,<9",
     "sphinx-book-theme>=1.1",
     "myst-parser",

@@ -119,7 +119,7 @@ To use the check on its own -- for example to qualify a machine before setting u
 
 .. code-block:: bash
 
-   uv run --extra teleop python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
+   uv run --extra teleop,isaacsim python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
 
 
 .. _install-isaac-teleop:
@@ -240,7 +240,7 @@ terminal or ``source`` step is needed. Launch a teleoperation session directly:
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop run \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit \
              --xr
@@ -296,7 +296,7 @@ so pair it with a hand-tracking task such as
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop run \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
              --visualizer kit \
              --xr \
@@ -459,7 +459,7 @@ choose the tab that matches your hardware.
 
                .. code-block:: bash
 
-                  uv run --extra teleop isaaclab teleop run \
+                  uv run --extra teleop,isaacsim isaaclab teleop run \
                       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                       --visualizer kit --xr \
                       --cloudxr_env avp
@@ -711,7 +711,7 @@ Launch a teleoperation session paired with a hand-tracking task, as shown in
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop run \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
              --visualizer kit --xr
 
@@ -737,11 +737,11 @@ Launch a teleoperation session paired with a hand-tracking task, as shown in
          .. code-block:: bash
 
             # Copy a shipped profile and enable push devices
-            cp $(uv run --extra teleop python -c \
+            cp $(uv run --extra teleop,isaacsim python -c \
                 "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
-            uv run --extra teleop isaaclab teleop run \
+            uv run --extra teleop,isaacsim isaaclab teleop run \
                 --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env ~/manus.env
@@ -886,7 +886,7 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop record \
+         uv run --extra teleop,isaacsim isaaclab teleop record \
            --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
            --num_demos 5 \
            --dataset_file ./datasets/dataset.hdf5 \
