@@ -89,7 +89,7 @@ from isaaclab.scene_data.deformable_vis_remap import (
 )
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob
+from isaaclab.sim.utils.queries import has_deformable_curve_api
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
@@ -120,6 +120,24 @@ if TYPE_CHECKING:
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
+
+_SENSORS_BY_STATE_ATTRIBUTE = {
+    "body_qdd": "the IMU or PVA sensor",
+    "body_parent_f": "the joint-wrench sensor",
+}
+"""Which Isaac Lab sensors read each state attribute that MuJoCo's sensor stage fills."""
+
+_SENSOR_STAGE_STATE_ATTRIBUTES = frozenset(_SENSORS_BY_STATE_ATTRIBUTE)
+"""Extended state attributes that MuJoCo Warp's sensor stage fills via ``rne_postconstraint``."""
+
+
+def _compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | None:
+    """Compile selector expressions for Newton's full label matching."""
+    if not expr:
+        return None
+    return re.compile("|".join((expr,) if isinstance(expr, str) else expr))
+
+
 logger = logging.getLogger(__name__)
 
 # Tagged union for entries in _cl_site_index_map.
@@ -128,21 +146,50 @@ logger = logging.getLogger(__name__)
 
 
 @wp.kernel(enable_backward=False)
+def _capture_fabric_scales(
+    fabric_transforms: wp.fabricarray(dtype=wp.mat44d),
+    newton_indices: wp.fabricarray(dtype=wp.uint32),
+    body_scales: wp.array(dtype=wp.vec3f),
+):
+    """Capture initialized Fabric world scales by Newton body index."""
+    i = int(wp.tid())
+    idx = int(newton_indices[i])
+    matrix = wp.mat44f(fabric_transforms[i])
+    body_scales[idx] = wp.vec3f(
+        wp.length(wp.vec3f(matrix[0, 0], matrix[0, 1], matrix[0, 2])),
+        wp.length(wp.vec3f(matrix[1, 0], matrix[1, 1], matrix[1, 2])),
+        wp.length(wp.vec3f(matrix[2, 0], matrix[2, 1], matrix[2, 2])),
+    )
+
+
+@wp.kernel(enable_backward=False)
 def _set_fabric_transforms(
     fabric_transforms: wp.fabricarray(dtype=wp.mat44d),
     newton_indices: wp.fabricarray(dtype=wp.uint32),
     newton_body_q: wp.array(ndim=1, dtype=wp.transformf),
+    body_scales: wp.array(dtype=wp.vec3f),
 ):
-    """Write Newton body transforms to Fabric world matrices.
+    """Write Newton body poses to Fabric world matrices with their initialized scale.
 
     For each Fabric prim at thread ``i``, reads the Newton body transform at
-    ``newton_body_q[newton_indices[i]]`` and stores it as a column-major
-    ``mat44d`` in ``fabric_transforms[i]``.
+    ``newton_body_q[newton_indices[i]]`` and combines its translation and rotation
+    with the corresponding scale captured from the initialized Fabric world matrix.
+    Newton transforms do not carry scale, so reapplying the captured value prevents
+    authored USD scale from being overwritten with unit scale during rendering sync.
     """
     i = int(wp.tid())
     idx = int(newton_indices[i])
     transform = newton_body_q[idx]
-    fabric_transforms[i] = wp.transpose(wp.mat44d(wp.transform_to_matrix(transform)))
+    scale = body_scales[idx]
+    fabric_transforms[i] = wp.mat44d(
+        wp.transpose(
+            wp.transform_compose(
+                wp.transform_get_translation(transform),
+                wp.transform_get_rotation(transform),
+                scale,
+            )
+        )
+    )
 
 
 @wp.kernel(enable_backward=False)
@@ -396,6 +443,7 @@ class NewtonManager(PhysicsManager):
     _newton_frame_transform_sensors: list = []  # List of SensorFrameTransform
     _newton_imu_sensors: list = []  # List of NewtonSensorIMU
     _pending_extended_state_attributes: set[str] = set()
+    _active_extended_state_attributes: set[str] = set()
     _pending_extended_contact_attributes: set[str] = set()
     _report_contacts: bool = False
     _supports_contact_sensors: bool = True
@@ -435,12 +483,14 @@ class NewtonManager(PhysicsManager):
     _sensor_state: State | None = None
     _sensor_state_dirty: bool = True
     _sensor_graph_capture_failed: bool = False
-    _sensor_bvh_has_collision_shapes: bool = False  # set once a ray-cast sensor widens the shape BVH
+    _sensor_bvh_shape_flags: ShapeFlags = ShapeFlags.VISIBLE
 
     # USD/Fabric sync
     _newton_stage_path = None
     _usdrt_stage = None
     _newton_index_attr = "newton:index"
+    # Body-indexed world scales captured before Newton first overwrites Fabric transforms.
+    _fabric_body_scales: wp.array | None = None
     _clone_physics_only = False
     _transforms_dirty: bool = False
     _transforms_may_change_on_graph_replay: bool = False
@@ -485,8 +535,7 @@ class NewtonManager(PhysicsManager):
     _shadow_deformable_batch_sync_key: tuple | None = None
     _visualization_stop_callback: CallbackHandle | None = None
 
-    # Views list for assets to register their views
-    _views: list = []
+    _builder_attribute_solvers: tuple[type[SolverBase], ...] = ()
     _mpm_object_registry: list = []
 
     # CL: Cloning / Replication logic
@@ -636,8 +685,10 @@ class NewtonManager(PhysicsManager):
         frame rather than after every physics step.
 
         Uses ``wp.fabricarray`` directly (no ``isaacsim.physics.newton`` extension needed).
-        The Warp kernel reads ``state_0.body_q[newton_index[i]]`` and writes the
-        corresponding ``mat44d`` to ``omni:fabric:worldMatrix`` for each prim.
+        On the first successful sync, a Warp kernel captures each initialized Fabric
+        world scale by Newton body index. The pose kernel then combines that scale with
+        ``state_0.body_q[newton_index[i]]`` and writes the corresponding ``mat44d`` to
+        ``omni:fabric:worldMatrix`` for each prim.
 
         When ``IFabricHierarchy.update_world_xforms_gpu_with_options`` is
         available the method mirrors PhysX's ``DirectGpuHelper`` pattern: pause
@@ -706,10 +757,22 @@ class NewtonManager(PhysicsManager):
 
                 fabric_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
                 newton_indices = wp.fabricarray(selection, cls._newton_index_attr)
+                if cls._fabric_body_scales is None:
+                    NewtonManager._fabric_body_scales = wp.empty(
+                        cls._model.body_count,
+                        dtype=wp.vec3f,
+                        device=PhysicsManager._device,
+                    )
+                    wp.launch(
+                        _capture_fabric_scales,
+                        dim=newton_indices.shape[0],
+                        inputs=[fabric_transforms, newton_indices, cls._fabric_body_scales],
+                        device=PhysicsManager._device,
+                    )
                 wp.launch(
                     _set_fabric_transforms,
                     dim=newton_indices.shape[0],
-                    inputs=[fabric_transforms, newton_indices, cls._state_0.body_q],
+                    inputs=[fabric_transforms, newton_indices, cls._state_0.body_q, cls._fabric_body_scales],
                     device=PhysicsManager._device,
                 )
                 wp.synchronize_device(PhysicsManager._device)
@@ -1045,15 +1108,8 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def get_physics_sim_view(cls) -> list:
-        """Get the list of registered views.
-
-        Assets can append their views to this list, and sensors can access them.
-        Returns a list that callers can append to.
-
-        Returns:
-            List of registered views (e.g., NewtonArticulationView instances).
-        """
-        return cls._views
+        """Return the registered articulation views."""
+        return [view for (manager, _), view in cls.views.items() if manager is NewtonManager]
 
     @classmethod
     def is_fabric_enabled(cls) -> bool:
@@ -1109,9 +1165,10 @@ class NewtonManager(PhysicsManager):
         NewtonManager._sensor_state = None
         NewtonManager._sensor_state_dirty = True
         NewtonManager._sensor_graph_capture_failed = False
-        NewtonManager._sensor_bvh_has_collision_shapes = False
+        NewtonManager._sensor_bvh_shape_flags = ShapeFlags.VISIBLE
         NewtonManager._newton_stage_path = None
         NewtonManager._usdrt_stage = None
+        NewtonManager._fabric_body_scales = None
         NewtonManager._transforms_dirty = False
         NewtonManager._transforms_may_change_on_graph_replay = False
         NewtonManager._particles_dirty = False
@@ -1142,8 +1199,10 @@ class NewtonManager(PhysicsManager):
         NewtonManager._world_xforms = None
         NewtonManager._cl_protos = {}
         NewtonManager._pending_extended_state_attributes = set()
+        NewtonManager._active_extended_state_attributes = set()
         NewtonManager._pending_extended_contact_attributes = set()
-        NewtonManager._views = []
+        for key in [key for key in NewtonManager.views if key[0] is NewtonManager]:
+            del NewtonManager.views[key]
         cls._solver_specific_clear()
 
     @classmethod
@@ -1178,6 +1237,7 @@ class NewtonManager(PhysicsManager):
             mesh_constructor=cfg.bvh_constructor_geometry if isinstance(cfg, NewtonCfg) else None,
             gaussian_constructor=cfg.bvh_constructor_gaussian if isinstance(cfg, NewtonCfg) else None,
             shape_constructor=cfg.bvh_constructor_scene if isinstance(cfg, NewtonCfg) else None,
+            shape_flags=cls._sensor_bvh_shape_flags,
         )
 
         cls._register_builder_attributes(builder)
@@ -1187,17 +1247,9 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
-        """Subclass hook to register solver-specific custom attributes on *builder*.
-
-        Override in solver subclasses (e.g. :class:`NewtonMPMManager`) that need
-        Newton-side particle, shape, or body custom attributes registered before
-        the builder is finalized. The default implementation is a no-op so
-        solvers without custom attributes do not need to override it.
-
-        Implementations should be **idempotent** — the same builder may be
-        passed multiple times across :meth:`create_builder`,
-        :meth:`instantiate_builder_from_stage`, and :meth:`start_simulation`.
-        """
+        """Register custom attributes required by the active solver."""
+        for solver_cls in cls._builder_attribute_solvers:
+            solver_cls.register_custom_attributes(builder)
 
     @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
@@ -1549,9 +1601,12 @@ class NewtonManager(PhysicsManager):
         device = PhysicsManager._device
         logger.info(f"Finalizing model on device: {device}")
         cls._builder.up_axis = Axis.from_string(cls._up_axis)
-        # Forward pending extended attribute requests to builder and clear them
+        # Forward pending extended attribute requests to builder and clear them. The requests are
+        # retained because initialize_solver() runs afterwards and must know which sensors depend
+        # on state that MuJoCo's sensor stage fills.
         if cls._pending_extended_state_attributes:
             cls._builder.request_state_attributes(*cls._pending_extended_state_attributes)
+            NewtonManager._active_extended_state_attributes |= cls._pending_extended_state_attributes
             NewtonManager._pending_extended_state_attributes = set()
         cls._prepare_builder_for_finalize(cls._builder)
         with Timer(name="newton_finalize_builder", msg="Finalize builder took:", activity="Finalizing physics model"):
@@ -1594,6 +1649,7 @@ class NewtonManager(PhysicsManager):
         if not cls._clone_physics_only:
             import usdrt
 
+            NewtonManager._fabric_body_scales = None
             body_paths = list(cls._model.body_label)
             NewtonManager._usdrt_stage = get_current_stage(fabric=True)
             body_bindings = NewtonManager._cl_fabric_body_bindings
@@ -1785,7 +1841,9 @@ class NewtonManager(PhysicsManager):
             fabric_hierarchy.update_world_xforms()
 
     @classmethod
-    def _inject_terrain_heightfields(cls, stage: Usd.Stage, builder: ModelBuilder) -> list[str]:
+    def _inject_terrain_heightfields(
+        cls, stage: Usd.Stage, builder: ModelBuilder, *, root_paths: Sequence[str]
+    ) -> list[str]:
         """Replace height-field-tagged terrain colliders with Newton heightfields.
 
         Scans the stage for prims carrying the ``newton:heightfield:resolution``
@@ -1803,13 +1861,14 @@ class NewtonManager(PhysicsManager):
         Args:
             stage: The USD stage being imported.
             builder: The Newton model builder receiving the heightfield shapes.
+            root_paths: Concrete subtree roots to scan.
 
         Returns:
             Prim paths of terrain colliders that were converted to heightfields.
         """
         ignore_paths: list[str] = []
         xform_cache = UsdGeom.XformCache()
-        for prim in stage.Traverse():
+        for prim in (prim for root_path in root_paths for prim in Usd.PrimRange(stage.GetPrimAtPath(root_path))):
             attr = prim.GetAttribute("newton:heightfield:resolution")
             if not attr or not attr.HasAuthoredValue():
                 continue
@@ -1890,7 +1949,7 @@ class NewtonManager(PhysicsManager):
         # ordering arguments are ever passed here, update the resolver
         # constants in lockstep or MJWarp resolution will silently diverge
         # from the live backend.
-        hf_ignore_paths = cls._inject_terrain_heightfields(stage, builder)
+        hf_ignore_paths = cls._inject_terrain_heightfields(stage, builder, root_paths=("/",))
         solver_ignore_paths = cls._get_usd_import_ignore_paths()
 
         if not env_paths:
@@ -2067,9 +2126,9 @@ class NewtonManager(PhysicsManager):
             kwargs["deterministic"] = NewtonManager._deterministic_mode
         return kwargs
 
-    @staticmethod
+    @classmethod
     def _validate_deterministic_solver_cfg(
-        solver_cfg: NewtonSolverCfg, deterministic_mode: wp.DeterministicMode
+        cls, solver_cfg: NewtonSolverCfg, deterministic_mode: wp.DeterministicMode
     ) -> None:
         """Validate that a solver can provide the requested determinism guarantee."""
         if deterministic_mode == wp.DeterministicMode.NOT_GUARANTEED:
@@ -2091,6 +2150,51 @@ class NewtonManager(PhysicsManager):
                 "internal sensor computation is enabled. Set MJWarpSolverCfg.disable_sensors=True or disable "
                 "deterministic mode."
             )
+        blocked = cls._active_extended_state_attributes & _SENSOR_STAGE_STATE_ATTRIBUTES
+        if isinstance(solver_cfg, MJWarpSolverCfg) and blocked:
+            sensors = sorted({_SENSORS_BY_STATE_ATTRIBUTE[attr] for attr in blocked})
+            raise ValueError(
+                f"This task does not support deterministic physics: it uses {' and '.join(sensors)},"
+                f" reading {sorted(blocked)}. Those attributes come from MuJoCo's post-constraint pass,"
+                " which runs inside the sensor stage that a determinism guarantee must disable, so the"
+                " values would never be refreshed. Remove the sensors, or drop the determinism request"
+                f" (deterministic_mode={deterministic_mode.name})."
+            )
+
+    @classmethod
+    def _apply_deterministic_request(cls, cfg: NewtonCfg) -> wp.DeterministicMode:
+        """Translate the backend-agnostic determinism request into Newton settings.
+
+        :attr:`~isaaclab.physics.PhysicsCfg.deterministic` is the generic request. An explicitly
+        set :attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode` is the more specific
+        instruction and wins. MuJoCo on the CPU is already reproducible and Warp's deterministic
+        mode does not reach it, so no mode is applied there and the request is logged instead.
+
+        Args:
+            cfg: Resolved Newton configuration.
+
+        Returns:
+            The deterministic mode to apply to the solver.
+        """
+        solver_cfg = cfg.solver_cfg
+        # MuJoCo-C is reproducible on its own and Warp's deterministic mode never reaches it, so
+        # no Newton setting applies -- report the request rather than dropping it silently.
+        if getattr(solver_cfg, "use_mujoco_cpu", False):
+            if cfg.deterministic or cfg.deterministic_mode != "not_guaranteed":
+                logger.info("MuJoCo CPU backend is already reproducible; Newton's deterministic mode is not applied.")
+            return wp.DeterministicMode.NOT_GUARANTEED
+
+        # Precedence: an explicit mode, then the generic request, then no guarantee. An explicit
+        # mode's prerequisites stay the caller's responsibility, so it is returned untouched.
+        if cfg.deterministic_mode != "not_guaranteed":
+            return cls._resolve_deterministic_mode(cfg.deterministic_mode)
+        if not cfg.deterministic:
+            return wp.DeterministicMode.NOT_GUARANTEED
+        # MuJoCo Warp cannot honour a guarantee while its internal sensor kernels run, so the
+        # generic request implies the prerequisite rather than failing on it.
+        if isinstance(solver_cfg, MJWarpSolverCfg):
+            solver_cfg.disable_sensors = True
+        return wp.DeterministicMode.RUN_TO_RUN
 
     @staticmethod
     def _resolve_deterministic_mode(deterministic_mode: str) -> wp.DeterministicMode:
@@ -2180,7 +2284,7 @@ class NewtonManager(PhysicsManager):
         with Timer(name="newton_initialize_solver", msg="Initialize solver took:", activity="Initializing solver"):
             NewtonManager._num_substeps = cfg.num_substeps  # type: ignore[union-attr]
             NewtonManager._collision_decimation = cfg.collision_decimation  # type: ignore[union-attr]
-            deterministic_mode = cls._resolve_deterministic_mode(cfg.deterministic_mode)  # type: ignore[union-attr]
+            deterministic_mode = cls._apply_deterministic_request(cfg)  # type: ignore[arg-type]
             cls._validate_deterministic_solver_cfg(cfg.solver_cfg, deterministic_mode)  # type: ignore[union-attr]
             NewtonManager._deterministic_mode = deterministic_mode
             NewtonManager._solver_dt = cls.get_physics_dt() / cls._num_substeps
@@ -2574,19 +2678,12 @@ class NewtonManager(PhysicsManager):
         return cls._contacts
 
     @classmethod
-    def _register_sensor_task(
-        cls, name: str, update_fn: Callable[[], None], *, include_collision_shapes: bool = False
-    ) -> None:
+    def _register_sensor_task(cls, name: str, update_fn: Callable[[], None]) -> None:
         """Register a graph-capturable scene-query task.
 
         Args:
             name: Unique task name.
             update_fn: Graph-capturable callable run by :meth:`_update_sensor_tasks`.
-            include_collision_shapes: Whether the task must see collision-only
-                geometry. Newton builds the shape BVH over visible shapes, which is
-                what renderers want; the first ray-cast sensor rebuilds it with
-                collision shapes added, since those must be hit even when they carry
-                no visual representation.
         """
         if name in cls._sensor_tasks:
             raise ValueError(f"Newton sensor task '{name}' is already registered.")
@@ -2594,12 +2691,8 @@ class NewtonManager(PhysicsManager):
         state = cls.get_state_0()
         if model is None or state is None:
             raise RuntimeError("Registering a Newton sensor task requires an initialized model and state.")
-        if model.shape_count > 0:
-            if include_collision_shapes and not cls._sensor_bvh_has_collision_shapes:
-                model.bvh_build_shapes(state, shape_flags=ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES)
-                NewtonManager._sensor_bvh_has_collision_shapes = True
-            elif model.bvh_shapes is None:
-                model.bvh_build_shapes(state)
+        if model.shape_count > 0 and model.bvh_shapes is None:
+            model.bvh_build_shapes(state)
         if model.particle_count > 0 and model.bvh_particles is None:
             model.bvh_build_particles(state)
         cls._sensor_tasks[name] = update_fn
@@ -3354,8 +3447,9 @@ class NewtonManager(PhysicsManager):
     ) -> tuple[str | list[str] | None, str | list[str] | None, str | list[str] | None, str | list[str] | None]:
         """Add a contact sensor for reporting contacts between bodies/shapes.
 
-        Converts Isaac Lab pattern conventions (``.*`` regex, full USD paths) to
-        fnmatch globs and delegates to :class:`newton.sensors.SensorContact`.
+        Compiles the Isaac Lab regular expressions and delegates to
+        :class:`newton.sensors.SensorContact`, which full-matches compiled patterns
+        against model labels.
 
         Args:
             body_names_expr: Expression for body names to sense.
@@ -3383,31 +3477,6 @@ class NewtonManager(PhysicsManager):
         def _hashable_key(x):
             return tuple(x) if isinstance(x, list) else x
 
-        def _to_fnmatch(expr: str | list[str] | None) -> str | list[str] | None:
-            """Convert Isaac Lab regex expressions (``.*``) to fnmatch glob (``*``)."""
-            if expr is None:
-                return None
-            if isinstance(expr, str):
-                return path_expr_to_glob(expr)
-            return [path_expr_to_glob(p) for p in expr]
-
-        def _normalize_for_labels(expr: str | list[str] | None, labels: list[str]) -> str | list[str] | None:
-            """Strip leading path components from *expr* when labels are bare names.
-
-            Model labels may be full USD paths (``/World/envs/env_0/Robot/base``) or bare
-            names (``base``).  When the labels are bare names but the user expression
-            contains slashes, we strip everything up to the last ``/``.
-            """
-            if expr is None or not labels:
-                return expr
-            label_has_paths = any("/" in lbl for lbl in labels)
-            items = [expr] if isinstance(expr, str) else list(expr)
-            expr_uses_paths = any("/" in p for p in items)
-            if label_has_paths or not expr_uses_paths:
-                return expr
-            normalized = [p.rsplit("/", 1)[-1] for p in items]
-            return normalized[0] if isinstance(expr, str) else normalized
-
         sensor_key = (
             _hashable_key(body_names_expr),
             _hashable_key(shape_names_expr),
@@ -3415,16 +3484,13 @@ class NewtonManager(PhysicsManager):
             _hashable_key(contact_partners_shape_expr),
         )
 
-        body_labels = list(cls._model.body_label)
-        shape_labels = list(cls._model.shape_label)
-
         with Timer(name="newton_contact_sensor", msg="Contact sensor construction took:"):
             sensor = NewtonContactSensor(
                 cls._model,
-                sensing_obj_bodies=_normalize_for_labels(_to_fnmatch(body_names_expr), body_labels),
-                sensing_obj_shapes=_normalize_for_labels(_to_fnmatch(shape_names_expr), shape_labels),
-                counterpart_bodies=_normalize_for_labels(_to_fnmatch(contact_partners_body_expr), body_labels),
-                counterpart_shapes=_normalize_for_labels(_to_fnmatch(contact_partners_shape_expr), shape_labels),
+                sensing_bodies=_compile_label_pattern(body_names_expr),
+                sensing_shapes=_compile_label_pattern(shape_names_expr),
+                counterpart_bodies=_compile_label_pattern(contact_partners_body_expr),
+                counterpart_shapes=_compile_label_pattern(contact_partners_shape_expr),
                 measure_total=True,
                 verbose=verbose,
             )

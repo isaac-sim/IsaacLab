@@ -23,7 +23,8 @@ import re
 import subprocess
 import tempfile
 import uuid
-from typing import Literal
+from types import ModuleType
+from typing import Literal, TypedDict
 from urllib.parse import urlparse
 
 from filelock import FileLock
@@ -49,6 +50,99 @@ _KIT_EXPERIENCE_PATH = os.path.normpath(
 # legacy ``cloud`` setting is only consulted for experience files that predate it.
 _KIT_ASSET_ROOT_SETTINGS = ("default", "cloud")
 
+_STORAGE_PROFILE_ENV_VAR = "ISAACSIM_STORAGE_PROFILE"
+# Update this value when the China mirror moves to a new Isaac Sim asset release.
+_ISAAC_SIM_ASSET_RELEASE = "6.1"
+_CHINA_STORAGE_ENDPOINT = "simready-cn.s3.oss-cn-shanghai.aliyuncs.com"
+
+
+class _StorageProfile(TypedDict):
+    """OmniClient routing and asset-root values for a named storage profile."""
+
+    endpoint: str
+    bucket: str
+    region: str
+    cdn_url: str
+    cdn_for_list: bool
+    asset_root: str
+
+
+_STORAGE_PROFILES: dict[str, _StorageProfile] = {
+    "china": {
+        "endpoint": _CHINA_STORAGE_ENDPOINT,
+        "bucket": "simready-cn",
+        "region": "oss-cn-shanghai",
+        "cdn_url": "https://assets.simready.cn/",
+        "cdn_for_list": False,
+        "asset_root": f"https://{_CHINA_STORAGE_ENDPOINT}/Assets/Isaac/{_ISAAC_SIM_ASSET_RELEASE}",
+    },
+}
+_CONFIGURED_STORAGE_PROFILES: set[str] = set()
+
+
+def _selected_storage_profile() -> tuple[str, _StorageProfile] | None:
+    """Return the storage profile selected by the environment, if it is known."""
+    profile_name = os.getenv(_STORAGE_PROFILE_ENV_VAR)
+    if not profile_name:
+        return None
+
+    profile = _STORAGE_PROFILES.get(profile_name)
+    if profile is None:
+        logger.warning("Ignoring %s: no storage profile named '%s'", _STORAGE_PROFILE_ENV_VAR, profile_name)
+        return None
+    return profile_name, profile
+
+
+def _configure_storage_profile(omni_client: ModuleType) -> None:
+    """Configure the selected profile on an imported ``omni.client`` module."""
+    selected_profile = _selected_storage_profile()
+    if selected_profile is None:
+        return
+
+    profile_name, profile = selected_profile
+    if profile_name in _CONFIGURED_STORAGE_PROFILES:
+        return
+
+    result = omni_client.set_s3_configuration(
+        url=profile["endpoint"],
+        bucket=profile["bucket"],
+        region=profile["region"],
+        cloudfrontUrl=profile["cdn_url"],
+        cloudfrontForList=profile["cdn_for_list"],
+        writeConfig=False,
+    )
+    if result != omni_client.Result.OK:
+        raise RuntimeError(f"Storage profile '{profile_name}' failed to configure {profile['endpoint']}: {result}")
+
+    _CONFIGURED_STORAGE_PROFILES.add(profile_name)
+    logger.info("Applied storage profile '%s'", profile_name)
+
+
+def configure_storage_profile() -> None:
+    """Configure OmniClient routing for the selected storage profile.
+
+    The configuration is applied in memory and at most once per profile. Isaac Lab
+    launchers and asset helpers call this automatically. Standalone kitless scripts
+    should call it before using ``omni.client`` directly.
+
+    Raises:
+        RuntimeError: When OmniClient rejects the selected storage profile.
+    """
+    if _selected_storage_profile() is None:
+        return
+
+    import omni.client  # noqa: PLC0415
+
+    _configure_storage_profile(omni.client)
+
+
+def _get_omni_client() -> ModuleType:
+    """Import OmniClient lazily and apply the selected storage profile."""
+    import omni.client  # noqa: PLC0415
+
+    _configure_storage_profile(omni.client)
+    return omni.client
+
 
 def _parse_kit_asset_root() -> str:
     """Parse the configured Isaac asset root.
@@ -72,11 +166,14 @@ def _resolve_asset_root() -> str:
     """Resolve the configured Isaac asset root.
 
     The ``ISAACSIM_ASSET_ROOT`` environment variable follows the public Isaac Sim
-    asset-root precedence. The kit file remains the fallback for kitless use.
+    asset-root precedence. When it is unset, the asset root from the storage profile
+    named by ``ISAACSIM_STORAGE_PROFILE`` is used. The kit file remains the fallback
+    for kitless use.
 
     Returns:
         Value of ``ISAACSIM_ASSET_ROOT`` without its trailing separator, or the value
-        configured in ``isaaclab.python.kit``.
+        selected by ``ISAACSIM_STORAGE_PROFILE``, or the value configured in
+        ``isaaclab.python.kit``.
     """
     # the value is used exactly as ``isaacsim.storage.native`` uses it, so both sides resolve
     # the same root; only the trailing separator is dropped, for ``/`` and for the documented
@@ -84,6 +181,11 @@ def _resolve_asset_root() -> str:
     asset_root = os.getenv("ISAACSIM_ASSET_ROOT")
     if asset_root:
         return asset_root.rstrip("/\\")
+
+    selected_profile = _selected_storage_profile()
+    if selected_profile is not None:
+        return selected_profile[1]["asset_root"]
+
     return _parse_kit_asset_root()
 
 
@@ -133,7 +235,9 @@ def retrieve_git_asset_path(
     """Return a local path for an asset stored in a git repository.
 
     Remote repositories are cached under :data:`GIT_ASSET_CACHE_DIR`. If the requested
-    asset is already cached, it is returned without running git.
+    asset is already cached, it is returned without running git. Cache population is
+    serialized, and new checkouts are published atomically so an interrupted clone cannot
+    leave an incomplete cache at the final path.
 
     Args:
         git_path: Git repository URL, SSH path, or existing local checkout directory.
@@ -188,15 +292,20 @@ def _get_git_asset_dir(git_path: str, cache_dir: str | None = None, force_update
         return git_asset_dir
 
     git_asset_dir = _get_git_asset_cache_dir(git_path, cache_dir)
-
-    if os.path.isdir(os.path.join(git_asset_dir, ".git")):
-        if force_update:
-            _run_git_command(["git", "-C", git_asset_dir, "pull", "--ff-only"])
-    elif os.path.exists(git_asset_dir):
-        raise RuntimeError(f"Git asset cache exists but is not a git repository: {git_asset_dir}")
-    else:
-        os.makedirs(os.path.dirname(git_asset_dir), exist_ok=True)
-        _run_git_command(["git", "clone", "--depth", "1", git_path, git_asset_dir])
+    with FileLock(git_asset_dir + ".lock"):
+        if os.path.isdir(os.path.join(git_asset_dir, ".git")):
+            if force_update:
+                _run_git_command(["git", "-C", git_asset_dir, "pull", "--ff-only"])
+        elif os.path.exists(git_asset_dir):
+            raise RuntimeError(f"Git asset cache exists but is not a git repository: {git_asset_dir}")
+        else:
+            cache_parent = os.path.dirname(git_asset_dir)
+            os.makedirs(cache_parent, exist_ok=True)
+            prefix = f".{os.path.basename(git_asset_dir)}."
+            with tempfile.TemporaryDirectory(prefix=prefix, dir=cache_parent) as temporary_dir:
+                temporary_path = os.path.join(temporary_dir, "checkout")
+                _run_git_command(["git", "clone", "--depth", "1", git_path, temporary_path])
+                os.replace(temporary_path, git_asset_dir)
 
     return git_asset_dir
 
@@ -360,9 +469,9 @@ def _remote_fingerprint(url: str) -> dict | None:
         distinguish here.
     """
     if url not in _REMOTE_FINGERPRINTS:
-        import omni.client  # noqa: PLC0415
+        omni_client = _get_omni_client()
 
-        result, entry = omni.client.stat(url.replace(os.sep, "/"))
+        result, entry = omni_client.stat(url.replace(os.sep, "/"))
         _REMOTE_FINGERPRINTS[url] = (
             {
                 "hash": str(entry.hash or ""),
@@ -370,7 +479,7 @@ def _remote_fingerprint(url: str) -> dict | None:
                 "size": int(entry.size or 0),
                 "modified_time": str(entry.modified_time or ""),
             }
-            if result == omni.client.Result.OK
+            if result == omni_client.Result.OK
             else None
         )
     return _REMOTE_FINGERPRINTS[url]
@@ -515,7 +624,7 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
     if file_status == 1:
         return os.path.abspath(path)
     elif file_status == 2:
-        import omni.client  # noqa: PLC0415
+        omni_client = _get_omni_client()
 
         from isaaclab.app.loading_screen import report_activity
 
@@ -546,7 +655,7 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             if _UDIM_RE.search(cur_url):
                 for tile in range(1001, 1101):
                     tile_url = _UDIM_RE.sub(str(tile), cur_url)
-                    if omni.client.stat(tile_url.replace(os.sep, "/"))[0] == omni.client.Result.OK:
+                    if omni_client.stat(tile_url.replace(os.sep, "/"))[0] == omni_client.Result.OK:
                         if tile_url not in visited:
                             to_visit.append(tile_url)
                     else:
@@ -565,8 +674,8 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
                 if force_download or not _usable_mirror(cur_url, download_dir):
                     temporary_path = f"{target_path}.{uuid.uuid4().hex}.partial"
                     try:
-                        result = omni.client.copy(cur_url, temporary_path, omni.client.CopyBehavior.OVERWRITE)
-                        if result != omni.client.Result.OK:
+                        result = omni_client.copy(cur_url, temporary_path, omni_client.CopyBehavior.OVERWRITE)
+                        if result != omni_client.Result.OK:
                             if force_download or is_root_asset:
                                 raise RuntimeError(f"Unable to copy file: '{cur_url}'. Is the Nucleus Server running?")
                             logger.debug("Skipping unavailable dependency: %s", cur_url)
@@ -624,9 +733,9 @@ def read_file(path: str) -> io.BytesIO:
             with open(mirrored, "rb") as f:
                 return io.BytesIO(f.read())
 
-        import omni.client  # noqa: PLC0415
+        omni_client = _get_omni_client()
 
-        file_content = omni.client.read_file(path.replace(os.sep, "/"))[2]
+        file_content = omni_client.read_file(path.replace(os.sep, "/"))[2]
         data = memoryview(file_content).tobytes()
         # cache what was just downloaded, so the next run reads it from disk
         _store_mirror(path, data)

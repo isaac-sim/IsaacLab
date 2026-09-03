@@ -26,7 +26,7 @@ import os
 import re
 import sys
 import weakref
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
 
@@ -78,6 +78,7 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
+from isaaclab_ov.renderers.ovrtx_compat import RENDER_VAR_FRAME_KEYS
 from isaaclab_ov.renderers.ovrtx_mapping import map_attribute_for_warp_writes
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
@@ -109,6 +110,28 @@ if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+
+# ``frame.render_vars`` keys of the render vars read below. Baked at import from the installed
+# OVRTX version, which decides whether frames are keyed by source name or RenderVar prim path.
+_LDR_COLOR_VAR = RENDER_VAR_FRAME_KEYS["LdrColor"]
+_HDR_COLOR_VAR = RENDER_VAR_FRAME_KEYS["HdrColor"]
+_ALBEDO_VAR = RENDER_VAR_FRAME_KEYS["DiffuseAlbedoSD"]
+_NORMALS_VAR = RENDER_VAR_FRAME_KEYS["NormalSD"]
+_MOTION_VECTORS_VAR = RENDER_VAR_FRAME_KEYS["TargetMotionSD"]
+_SEMANTIC_SEGMENTATION_VAR = RENDER_VAR_FRAME_KEYS["SemanticSegmentation"]
+_INSTANCE_SEGMENTATION_VAR = RENDER_VAR_FRAME_KEYS["NonStableInstanceSegmentation"]
+_SEMANTIC_ID_MAP_VAR = RENDER_VAR_FRAME_KEYS["SemanticIdMap"]
+_STABLE_ID_MAP_VAR = RENDER_VAR_FRAME_KEYS["StableIdMap"]
+_STABLE_ID_SEMANTIC_ID_MAP_VAR = RENDER_VAR_FRAME_KEYS["StableIdSemanticIdMap"]
+
+# Map render vars needed to decode the instance-segmentation info dicts.
+_INSTANCE_SEGMENTATION_MAP_VARS = (_STABLE_ID_SEMANTIC_ID_MAP_VAR, _STABLE_ID_MAP_VAR, _SEMANTIC_ID_MAP_VAR)
+
+# Maps depth render vars to compatible output buffers.
+_DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
+    RENDER_VAR_FRAME_KEYS["DistanceToImagePlaneSD"]: ("depth", "distance_to_image_plane"),
+    RENDER_VAR_FRAME_KEYS["DistanceToCameraSD"]: ("distance_to_camera",),
+}
 
 # The resolved integer value is assigned to the ``omni:rtx:minimal:mode`` attribute of the render product.
 _RTX_MINIMAL_MODES = {
@@ -301,6 +324,9 @@ class OVRTXRenderer(BaseRenderer):
     def __init__(self, cfg: OVRTXRendererCfg):
         self.cfg = cfg
         self._device = "cuda:0"  # default; overridden by create_render_data(spec)
+        # Resolved by create_render_data(spec); every render-product device id and CUDA sync stream
+        # derives from this one cached device so a bare "cuda" cannot be re-interpreted per call site.
+        self._warp_device: wp.Device | None = None
         self._render_product_paths = []
         # Shared by both paths. The legacy-only binding handles that pair with these live in
         # _init_fields_legacy instead; the ovstage path drives the same offsets and counts
@@ -471,12 +497,13 @@ class OVRTXRenderer(BaseRenderer):
         """Initialize the legacy-path instance fields.
 
         Counterpart to :meth:`_init_fields_ovstage`. Only fields the ovstage path never touches live
-        here: the four ``bind_attribute``/``bind_array_attribute`` handles. State shared by both
-        paths (``_object_newton_indices``, the particle offset/count lists) stays in
-        :meth:`__init__`.
+        here: the ``bind_attribute``/``bind_array_attribute`` handles and the caller-owned object
+        transform buffer. State shared by both paths (``_object_newton_indices``, the particle
+        offset/count lists) stays in :meth:`__init__`.
         """
         self._camera_xform_binding = None
         self._object_xform_binding = None
+        self._object_transform_buffer: wp.array | None = None
         self._deformable_points_binding = None
         self._particle_points_binding = None
         self._particle_workaround_applied = False
@@ -516,6 +543,8 @@ class OVRTXRenderer(BaseRenderer):
             minimal_mode=_resolve_rtx_minimal_mode(data_types),
             camera_rel_path=self._camera_rel_path,
             background_color=getattr(spec.cfg, "background_color", None),
+            device_id=self._warp_device.ordinal,
+            enable_shadows=self.cfg.enable_shadows,
         )
         self._render_product_paths.append(render_product_path)
 
@@ -682,6 +711,7 @@ class OVRTXRenderer(BaseRenderer):
 
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
         self._object_scales = self._create_object_scale_array(object_paths)
+        self._object_transform_buffer = wp.zeros(len(newton_indices), dtype=wp.mat44d, device=self._device)
 
     def _setup_deformable_bindings_legacy(self, num_envs: int):
         """Setup OVRTX bindings for Newton deformable bodies.
@@ -873,7 +903,11 @@ class OVRTXRenderer(BaseRenderer):
         Performs OVRTX initialization (stage export, USD load, bindings) on first call,
         matching the interface of Isaac RTX and Newton Warp which need no separate initialize().
         """
-        self._device = spec.device
+        # Resolve the device once through Warp: a bare "cuda" pins to Warp's current CUDA device
+        # here, and the normalized string keeps every downstream consumer (kernel launches,
+        # allocations) on that same device.
+        self._warp_device = wp.get_device(spec.device)
+        self._device = str(self._warp_device)
         if not self._initialized_scene:
             self._initialize_from_spec(spec)
         return OVRTXRenderData(spec, self._device)
@@ -911,7 +945,12 @@ class OVRTXRenderer(BaseRenderer):
 
     def _update_transforms_legacy(self) -> None:
         """Sync transforms to OVRTX."""
-        if self._object_xform_binding is None or self._object_newton_indices is None or self._object_scales is None:
+        if (
+            self._object_xform_binding is None
+            or self._object_newton_indices is None
+            or self._object_scales is None
+            or self._object_transform_buffer is None
+        ):
             return
 
         # If self._object_newton_indices is not None, then Newton's the current physics backend
@@ -926,13 +965,20 @@ class OVRTXRenderer(BaseRenderer):
         if body_q is None:
             return
 
-        with map_attribute_for_warp_writes(self._object_xform_binding, self._device, wp.mat44d) as ovrtx_transforms:
-            wp.launch(
-                kernel=sync_newton_transforms_kernel,
-                dim=len(self._object_newton_indices),
-                inputs=[ovrtx_transforms, self._object_newton_indices, body_q, self._object_scales],
-                device=self._device,
-            )
+        wp.launch(
+            kernel=sync_newton_transforms_kernel,
+            dim=len(self._object_newton_indices),
+            inputs=[self._object_transform_buffer, self._object_newton_indices, body_q, self._object_scales],
+            device=self._device,
+        )
+        # Blocking ``write()`` so the buffer stays valid until OVRTX finishes reading it.
+        # ``DataAccess.ASYNC`` + the Warp CUDA stream let OVRTX read in place and wait
+        # on-GPU for the kernel; ``SYNC`` is rejected for GPU buffers.
+        self._object_xform_binding.write(
+            self._object_transform_buffer,
+            data_access=DataAccess.ASYNC,
+            cuda_stream=self._warp_device.stream.cuda_stream,
+        )
 
     def _update_geometries_legacy(self) -> None:
         """Sync geometries to OVRTX."""
@@ -963,7 +1009,7 @@ class OVRTXRenderer(BaseRenderer):
         self._cable_points_binding.write(
             cast(Any, self._cable_point_slices),
             data_access=DataAccess.ASYNC,
-            cuda_stream=wp.get_stream(self._device).cuda_stream,
+            cuda_stream=self._warp_device.stream.cuda_stream,
         )
 
     def _write_particle_q_slices(
@@ -1001,7 +1047,7 @@ class OVRTXRenderer(BaseRenderer):
         # hands OVRTX the Warp stream those kernels were enqueued on so it can insert a
         # GPU-side wait (a cross-stream dependency) before its read, instead of us
         # forcing a host-side ``wp.synchronize_device()`` that would stall the CPU.
-        cuda_stream = wp.get_stream(self._device).cuda_stream
+        cuda_stream = self._warp_device.stream.cuda_stream
         binding.write(
             cast(Any, particle_slices),
             data_access=DataAccess.ASYNC,
@@ -1033,8 +1079,11 @@ class OVRTXRenderer(BaseRenderer):
             device=self._device,
         )
         if self._camera_xform_binding is not None:
-            with map_attribute_for_warp_writes(self._camera_xform_binding, self._device, wp.mat44d) as transforms_view:
-                wp.copy(transforms_view, camera_transforms)
+            self._camera_xform_binding.write(
+                camera_transforms,
+                data_access=DataAccess.ASYNC,
+                cuda_stream=self._warp_device.stream.cuda_stream,
+            )
 
     def read_output(
         self,
@@ -1111,13 +1160,13 @@ class OVRTXRenderer(BaseRenderer):
         ``with`` block -- the mapping is released on exit.
 
         Args:
-            render_var: OVRTX ``RenderVarOutput`` to map (``frame.render_vars[name]``).
+            render_var: OVRTX ``RenderVarOutput`` to map (looked up from ``frame.render_vars``).
 
         Yields:
             The render var's contents as a Warp array, valid for the duration of the context.
         """
         gpu_side_sync = _gpu_side_render_var_sync_enabled()
-        sync_stream = wp.get_stream(self._device).cuda_stream if gpu_side_sync else 0
+        sync_stream = self._warp_device.stream.cuda_stream if gpu_side_sync else 0
         with render_var.map(device=Device.CUDA, sync_stream=sync_stream) as mapping:
             if not gpu_side_sync:
                 mapping.wait()
@@ -1128,7 +1177,7 @@ class OVRTXRenderer(BaseRenderer):
         render_data: OVRTXRenderData,
         frame,
         output_buffers: dict,
-        render_var_name: str,
+        render_var_key: str,
         buffer_key: str,
         colorize: bool,
     ) -> None:
@@ -1142,14 +1191,15 @@ class OVRTXRenderer(BaseRenderer):
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
             output_buffers: Destination warp buffers, keyed by data type.
-            render_var_name: Name of the OVRTX render var to read.
+            render_var_key: ``frame.render_vars`` key of the OVRTX render var to read.
             buffer_key: Data type key into ``output_buffers``.
             colorize: If True, IDs are mapped to RGBA colors; otherwise raw uint32 IDs are copied.
         """
-        if render_var_name not in frame.render_vars or buffer_key not in output_buffers:
+        render_var = frame.render_vars.get(render_var_key)
+        if render_var is None or buffer_key not in output_buffers:
             return
 
-        with self._map_render_var_to_dlpack(frame.render_vars[render_var_name]) as tiled_data:
+        with self._map_render_var_to_dlpack(render_var) as tiled_data:
             if tiled_data.dtype != wp.uint32:
                 return
 
@@ -1186,10 +1236,11 @@ class OVRTXRenderer(BaseRenderer):
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
         """
-        if "SemanticIdMap" not in frame.render_vars:
+        semantic_id_map = frame.render_vars.get(_SEMANTIC_ID_MAP_VAR)
+        if semantic_id_map is None:
             return
 
-        with frame.render_vars["SemanticIdMap"].map(device=Device.CPU) as mapping:
+        with semantic_id_map.map(device=Device.CPU) as mapping:
             labels_by_id = decode_semantic_id_map(np.from_dlpack(mapping))
 
         render_data.renderer_info["semantic_segmentation"] = {
@@ -1222,19 +1273,19 @@ class OVRTXRenderer(BaseRenderer):
             render_data: OVRTX render data for the current frame.
             frame: OVRTX frame holding the mapped render vars.
         """
-        required_vars = ("StableIdSemanticIdMap", "StableIdMap", "SemanticIdMap")
-        missing = [v for v in required_vars if v not in frame.render_vars]
+        resolved = {key: frame.render_vars.get(key) for key in _INSTANCE_SEGMENTATION_MAP_VARS}
+        missing = [key for key, render_var in resolved.items() if render_var is None]
         if missing:
             raise RuntimeError(
                 f"instance_segmentation was requested but the following render vars are missing from the "
                 f"OVRTX frame: {missing}. Available vars: {list(frame.render_vars.keys())}"
             )
 
-        with frame.render_vars["StableIdSemanticIdMap"].map(device=Device.CPU) as mapping:
+        with resolved[_STABLE_ID_SEMANTIC_ID_MAP_VAR].map(device=Device.CPU) as mapping:
             stable_id_semantic_id_map = decode_stable_id_semantic_id_map(np.from_dlpack(mapping))
-        with frame.render_vars["StableIdMap"].map(device=Device.CPU) as mapping:
+        with resolved[_STABLE_ID_MAP_VAR].map(device=Device.CPU) as mapping:
             stable_id_to_path = decode_stable_id_map(np.from_dlpack(mapping))
-        with frame.render_vars["SemanticIdMap"].map(device=Device.CPU) as mapping:
+        with resolved[_SEMANTIC_ID_MAP_VAR].map(device=Device.CPU) as mapping:
             semantic_id_to_labels = decode_semantic_id_map(np.from_dlpack(mapping))
 
         id_to_labels, id_to_semantics = build_instance_id_to_labels_and_semantics(
@@ -1306,10 +1357,22 @@ class OVRTXRenderer(BaseRenderer):
         self._launch_extract_all_tiles(render_data, tiled_data, output_buffer)
 
     def _extract_depth_tiles(
-        self, render_data: OVRTXRenderData, tiled_depth_data: wp.array, output_buffers: dict
+        self,
+        render_data: OVRTXRenderData,
+        tiled_depth_data: wp.array,
+        output_buffers: dict,
+        buffer_keys: Sequence[str],
     ) -> None:
-        """Extract per-env depth tiles into output_buffers (single kernel launch)."""
-        for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
+        """Extract per-env depth tiles into the given output buffers (one kernel launch each).
+
+        Args:
+            render_data: OVRTX render data for the current frame.
+            tiled_depth_data: Tiled depth data mapped from one depth render var.
+            output_buffers: Destination warp buffers, keyed by data type.
+            buffer_keys: Data types that this depth render var measures. Keys absent from
+                ``output_buffers`` are skipped.
+        """
+        for depth_type in buffer_keys:
             if depth_type in output_buffers:
                 self._launch_extract_all_tiles(render_data, tiled_depth_data, output_buffers[depth_type])
 
@@ -1334,10 +1397,10 @@ class OVRTXRenderer(BaseRenderer):
         if str(tiled_data.device) == output_device:
             return tiled_data
 
-        # FIXME: OVRTX render var mapping can select a different CUDA device
-        # than the camera/output buffers on MGPU systems. Keep this PPISP-only
-        # bridge until render var mapping can be constrained like transform
-        # bindings, whose maps pin ``device_id`` (see ``ovrtx_mapping``).
+        # The render product pins ``deviceIds`` to this renderer's CUDA device, so the mapping
+        # normally lands on the output device already. This stays as a fallback for the case OVRTX
+        # reports as "deviceIds ... not in the active device set" and falls back to automatic
+        # assignment.
         return wp.clone(tiled_data, device=output_device)
 
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
@@ -1347,7 +1410,8 @@ class OVRTXRenderer(BaseRenderer):
         # is available, so without this a missing SemanticIdMap on a later frame would leave a stale mapping.
         render_data.renderer_info.clear()
 
-        if "LdrColor" in frame.render_vars:
+        ldr_color = frame.render_vars.get(_LDR_COLOR_VAR)
+        if ldr_color is not None:
             buffer_key = None
 
             if render_data.ppisp_pipeline is None and "rgba" in output_buffers:
@@ -1361,26 +1425,30 @@ class OVRTXRenderer(BaseRenderer):
                         break
 
             if buffer_key is not None:
-                with self._map_render_var_to_dlpack(frame.render_vars["LdrColor"]) as tiled_data:
+                with self._map_render_var_to_dlpack(ldr_color) as tiled_data:
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
-        for depth_var in ["DistanceToCameraSD", "DistanceToImagePlaneSD", "DepthSD"]:
-            if depth_var not in frame.render_vars:
+        for depth_var, buffer_keys in _DEPTH_VAR_BUFFER_KEYS.items():
+            depth_render_var = frame.render_vars.get(depth_var)
+            if depth_render_var is None:
                 continue
-            with self._map_render_var_to_dlpack(frame.render_vars[depth_var]) as tiled_depth_data:
+            if not any(buffer_key in output_buffers for buffer_key in buffer_keys):
+                continue
+            with self._map_render_var_to_dlpack(depth_render_var) as tiled_depth_data:
                 if tiled_depth_data.dtype == wp.uint32:
                     tiled_depth_data = wp.from_torch(
                         wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32
                     )
-                self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers)
-            break
+                self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers, buffer_keys)
 
-        if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in output_buffers:
-            with self._map_render_var_to_dlpack(frame.render_vars["DiffuseAlbedoSD"]) as tiled_albedo_data:
+        albedo_var = frame.render_vars.get(_ALBEDO_VAR)
+        if albedo_var is not None and "albedo" in output_buffers:
+            with self._map_render_var_to_dlpack(albedo_var) as tiled_albedo_data:
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
-        if "HdrColor" in frame.render_vars and "rgb_hdr" in output_buffers:
-            with self._map_render_var_to_dlpack(frame.render_vars["HdrColor"]) as tiled_hdr_data:
+        hdr_color = frame.render_vars.get(_HDR_COLOR_VAR)
+        if hdr_color is not None and "rgb_hdr" in output_buffers:
+            with self._map_render_var_to_dlpack(hdr_color) as tiled_hdr_data:
                 tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
                 self._extract_hdr_color_tiles(render_data, tiled_hdr_data, output_buffers)
 
@@ -1388,7 +1456,7 @@ class OVRTXRenderer(BaseRenderer):
             render_data,
             frame,
             output_buffers,
-            "SemanticSegmentation",
+            _SEMANTIC_SEGMENTATION_VAR,
             "semantic_segmentation",
             self.cfg.colorize_semantic_segmentation,
         )
@@ -1400,7 +1468,7 @@ class OVRTXRenderer(BaseRenderer):
             render_data,
             frame,
             output_buffers,
-            "NonStableInstanceSegmentation",
+            _INSTANCE_SEGMENTATION_VAR,
             "instance_segmentation",
             self.cfg.colorize_instance_segmentation,
         )
@@ -1409,15 +1477,17 @@ class OVRTXRenderer(BaseRenderer):
         if "instance_segmentation" in output_buffers:
             self._process_instance_segmentation_maps(render_data, frame)
 
-        if "NormalSD" in frame.render_vars and "normals" in output_buffers:
-            with self._map_render_var_to_dlpack(frame.render_vars["NormalSD"]) as tiled_normals_data:
+        normals_var = frame.render_vars.get(_NORMALS_VAR)
+        if normals_var is not None and "normals" in output_buffers:
+            with self._map_render_var_to_dlpack(normals_var) as tiled_normals_data:
                 self._launch_extract_all_tiles(render_data, tiled_normals_data, output_buffers["normals"])
 
         # For motion vectors, extract only the first two (u, v) channels from the tiled buffer.
         # Note: mirrors the Isaac RTX renderer's handling of the "TargetMotionSD" AOV
         # (check: https://github.com/isaac-sim/IsaacLab/issues/2003).
-        if "TargetMotionSD" in frame.render_vars and "motion_vectors" in output_buffers:
-            with self._map_render_var_to_dlpack(frame.render_vars["TargetMotionSD"]) as tiled_motion_vectors_data:
+        motion_var = frame.render_vars.get(_MOTION_VECTORS_VAR)
+        if motion_var is not None and "motion_vectors" in output_buffers:
+            with self._map_render_var_to_dlpack(motion_var) as tiled_motion_vectors_data:
                 self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
 
     def _render_legacy(self, render_data: OVRTXRenderData) -> None:
@@ -1472,6 +1542,7 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_xform_binding = None
         _safe_unbind(self._object_xform_binding, "object transforms")
         self._object_xform_binding = None
+        self._object_transform_buffer = None
         _safe_unbind(self._deformable_points_binding, "deformable points")
         self._deformable_points_binding = None
         _safe_unbind(self._particle_points_binding, "particle points")
@@ -1729,6 +1800,8 @@ class OVRTXRenderer(BaseRenderer):
             data_types=data_types,
             minimal_mode=_resolve_rtx_minimal_mode(data_types),
             camera_rel_path=self._camera_rel_path,
+            device_id=self._warp_device.ordinal,
+            enable_shadows=self.cfg.enable_shadows,
         )
         self._render_product_paths.append(render_product_path)
 
@@ -2168,7 +2241,7 @@ class OVRTXRenderer(BaseRenderer):
             tensors=xform_tensor_from_warp(object_transforms),
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
-            cuda_stream=wp.get_stream(self._device).cuda_stream,
+            cuda_stream=self._warp_device.stream.cuda_stream,
         ).wait()
 
     def _update_geometries_ovstage(self) -> None:
@@ -2240,7 +2313,7 @@ class OVRTXRenderer(BaseRenderer):
             tensors=particle_slices,
             is_array=True,
             semantic=ovstage.AttributeSemantic.POINT,
-            cuda_stream=wp.get_stream(self._device).cuda_stream,
+            cuda_stream=self._warp_device.stream.cuda_stream,
         ).wait()
 
     def _write_cable_points_ovstage(self) -> None:
@@ -2259,7 +2332,7 @@ class OVRTXRenderer(BaseRenderer):
             tensors=self._cable_point_tensors,
             is_array=True,
             semantic=ovstage.AttributeSemantic.POINT,
-            cuda_stream=wp.get_stream(self._device).cuda_stream,
+            cuda_stream=self._warp_device.stream.cuda_stream,
         ).wait()
 
     def _update_camera_ovstage(
@@ -2294,7 +2367,7 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=xform_tensor_from_warp(camera_transforms),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=wp.get_stream(self._device).cuda_stream,
+                cuda_stream=self._warp_device.stream.cuda_stream,
             ).wait()
 
     def _render_ovstage(self, render_data: OVRTXRenderData) -> None:

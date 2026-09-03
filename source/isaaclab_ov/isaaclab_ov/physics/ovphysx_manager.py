@@ -16,7 +16,9 @@ import atexit
 import contextlib
 import logging
 import math
+import os
 import re
+import stat
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
@@ -39,12 +41,46 @@ from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.stage import create_ovstage
 
+from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR
+
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
     from .ovphysx_manager_cfg import OvPhysxCfg
 
 __all__ = ["OvPhysxManager", "OvPhysxSceneDataBackend"]
+
+
+def _prepare_default_cache_dir(cache_dir: str) -> str:
+    """Create the default cooked-collider cache directory and refuse one this user does not own.
+
+    The default sits in the shared temporary directory, so any local user can pre-create the path;
+    OVPhysX follows a symlink there and writes through it. A directory the caller configured is
+    their own choice and is passed through untouched.
+
+    Args:
+        cache_dir: Default cache directory to create or validate.
+
+    Returns:
+        The validated directory.
+
+    Raises:
+        RuntimeError: If the path exists as a symlink, a non-directory, or another user's directory.
+    """
+    try:
+        os.makedirs(cache_dir, mode=0o700)
+        return cache_dir
+    except FileExistsError:
+        pass
+    entry = os.lstat(cache_dir)
+    if stat.S_ISLNK(entry.st_mode):
+        raise RuntimeError(f"OVPhysX cache directory '{cache_dir}' is a symlink; refusing to write through it.")
+    if not stat.S_ISDIR(entry.st_mode):
+        raise RuntimeError(f"OVPhysX cache directory '{cache_dir}' exists and is not a directory.")
+    if hasattr(os, "getuid") and entry.st_uid != os.getuid():
+        raise RuntimeError(f"OVPhysX cache directory '{cache_dir}' is owned by another user; refusing to use it.")
+    return cache_dir
+
 
 logger = logging.getLogger(__name__)
 
@@ -973,7 +1009,12 @@ class OvPhysxManager(PhysicsManager):
         """
         ovphysx = import_ovphysx()
         ovphysx.bootstrap()
-        cls._physx = cls._create_physx_instance(ovphysx, ovphysx_device, gpu_index)
+        # The runtime is also constructed outside a configured simulation, where no cfg exists.
+        cfg = PhysicsManager._cfg
+        cache_dir = DEFAULT_COOKED_COLLIDER_CACHE_DIR if cfg is None else cfg.cooked_collider_cache_dir
+        if cache_dir == DEFAULT_COOKED_COLLIDER_CACHE_DIR:
+            cache_dir = _prepare_default_cache_dir(cache_dir)
+        cls._physx = cls._create_physx_instance(ovphysx, ovphysx_device, gpu_index, cache_dir)
         if not cls._atexit_registered:
             # Globally retained environments may otherwise keep TensorBinding DLPack
             # caches alive until Python module finalization. Normal atexit cleanup runs
@@ -1001,13 +1042,17 @@ class OvPhysxManager(PhysicsManager):
             logger.exception("Failed to close OVPhysX during process exit.")
 
     @staticmethod
-    def _create_physx_instance(ovphysx: Any, ovphysx_device: str, gpu_index: int) -> Any:
+    def _create_physx_instance(
+        ovphysx: Any, ovphysx_device: str, gpu_index: int, cooked_collider_cache_dir: str | None
+    ) -> Any:
         """Create a PhysX instance through the pinned OVPhysX runtime API.
 
         Args:
             ovphysx: Imported OVPhysX runtime module.
             ovphysx_device: Physics device, either ``"cpu"`` or ``"gpu"``.
             gpu_index: CUDA device ordinal selected for GPU physics.
+            cooked_collider_cache_dir: Directory for the cooked-collider cache, or ``None`` to let
+                OVPhysX resolve it.
 
         Returns:
             The configured ``ovphysx.PhysX`` instance.
@@ -1028,7 +1073,11 @@ class OvPhysxManager(PhysicsManager):
             )
         ovphysx.PhysX.set_cpu_mode(ovphysx_device == "cpu")
         physx_kwargs = {
-            "config": ovphysx.PhysXConfig(num_threads=8, carbonite_overrides=carbonite_overrides),
+            "config": ovphysx.PhysXConfig(
+                num_threads=8,
+                cooked_collider_cache_dir=cooked_collider_cache_dir,
+                carbonite_overrides=carbonite_overrides,
+            ),
         }
         if ovphysx_device == "gpu":
             physx_kwargs["active_cuda_gpus"] = str(gpu_index)
@@ -1071,8 +1120,10 @@ class OvPhysxManager(PhysicsManager):
         scene_prim.CreateAttribute("physxScene:enableSceneQuerySupport", Sdf.ValueTypeNames.Bool).Set(enable_sq)
 
         if cfg is not None:
+            # OvPhysX answers the backend-agnostic determinism request with enhanced determinism.
+            # This is best-effort: reproducibility is not verified end to end.
             scene_prim.CreateAttribute("physxScene:enableEnhancedDeterminism", Sdf.ValueTypeNames.Bool).Set(
-                cfg.enable_enhanced_determinism
+                cfg.enable_enhanced_determinism or cfg.deterministic
             )
             scene_prim.CreateAttribute("physxScene:enableExternalForcesEveryIteration", Sdf.ValueTypeNames.Bool).Set(
                 cfg.enable_external_forces_every_iteration

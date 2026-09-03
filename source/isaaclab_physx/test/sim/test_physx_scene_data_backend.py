@@ -11,8 +11,9 @@ pytest.importorskip("pxr")
 pytest.importorskip("omni.physics.tensors")
 
 
-def test_scene_data_rigid_body_view_skips_joint_prims_with_rigid_body_api(monkeypatch):
-    """Joint prims must not be passed to PhysX tensor rigid-body views."""
+@pytest.mark.parametrize("joint_has_rigid_body_api", [False, True])
+def test_rigid_body_view_uses_exact_path_for_joint_name_collision(monkeypatch, joint_has_rigid_body_api):
+    """Joint names must keep same-named rigid bodies out of wildcard views."""
     from isaaclab_physx.physics import physx_manager
     from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
 
@@ -21,8 +22,11 @@ def test_scene_data_rigid_body_view_skips_joint_prims_with_rigid_body_api(monkey
     stage = Usd.Stage.CreateInMemory()
     body_prim = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot/robot0_forearm").GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(body_prim)
+    unique_body_prim = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot/torso").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(unique_body_prim)
     joint_prim = UsdPhysics.FixedJoint.Define(stage, "/World/envs/env_0/Robot/joints/robot0_forearm").GetPrim()
-    UsdPhysics.RigidBodyAPI.Apply(joint_prim)
+    if joint_has_rigid_body_api:
+        UsdPhysics.RigidBodyAPI.Apply(joint_prim)
 
     captured_paths = []
 
@@ -41,7 +45,10 @@ def test_scene_data_rigid_body_view_skips_joint_prims_with_rigid_body_api(monkey
     backend.simulation_view = _SimulationView()
     backend.get_rigid_body_view()
 
-    assert captured_paths == ["/World/envs/env_*/Robot/robot0_forearm"]
+    assert captured_paths == [
+        "/World/envs/env_*/Robot/torso",
+        "/World/envs/env_0/Robot/robot0_forearm",
+    ]
 
 
 def test_discover_deformable_geometry_publishes_discovered_roots(monkeypatch):

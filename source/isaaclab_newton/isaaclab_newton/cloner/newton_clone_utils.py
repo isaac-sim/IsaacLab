@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 import torch
 import warp as wp
-from newton import GeoType, ModelBuilder, ShapeFlags, solvers
+from newton import GeoType, ModelBuilder, ShapeFlags
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -133,8 +133,6 @@ def _build_source_builder(
 ) -> ModelBuilder:
     """Build one source builder."""
     builder = create_builder()
-    solvers.SolverMuJoCo.register_custom_attributes(builder)
-    solvers.SolverKamino.register_custom_attributes(builder)
     import_result = builder.add_usd(
         stage,
         root_path=source,
