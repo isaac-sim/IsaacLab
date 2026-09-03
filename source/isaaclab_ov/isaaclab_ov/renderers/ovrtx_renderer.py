@@ -38,6 +38,9 @@ import ovstage
 import torch
 import warp as wp
 
+# ``ovstage`` is a hard dependency of this extension, so its helpers are always available.
+_OVSTAGE_AVAILABLE = True
+
 import isaaclab.utils.warp  # noqa: F401  # initializes Warp runtime
 
 # The ovrtx C library links to its own version of the USD libraries. Having
@@ -76,7 +79,6 @@ from isaaclab_ov.stage import (
     create_ovstage,
     points_tensor_from_warp,
     xform_tensor_from_numpy,
-    xform_tensor_from_warp,
 )
 
 from .ovrtx_annotator_utils import (
@@ -163,18 +165,6 @@ if _OVSTAGE_AVAILABLE:
     # DLDataType for a 4×4 double matrix (omni:xform column). ovstage stores omni:xform
     # as one 16-lane float64 element per prim; wp.mat44d maps to the same layout via __dlpack__.
     _OVSTAGE_XFORM_DTYPE = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=64, lanes=16)
-
-    def _xform_tensor_from_numpy(xforms: np.ndarray) -> Any:
-        """Wrap a ``(N, 4, 4)`` float64 array as a 16-lane DLTensor for ``omni:xform`` writes.
-
-        Args:
-            xforms: Array of shape ``(N, 4, 4)`` with dtype ``float64``.
-
-        Returns:
-            A :class:`ovstage.DLTensor` with shape ``[N]`` and ``lanes=16``.
-        """
-        flat = np.ascontiguousarray(xforms, dtype=np.float64).reshape(-1)
-        return ovstage.make_dltensor(flat, dtype=_OVSTAGE_XFORM_DTYPE, shape=[xforms.shape[0]])
 
     # DLDataType for a float32 3-vector (``points`` column). ovstage stores ``point3f[] points``
     # as one 3-lane float32 element per vertex.
