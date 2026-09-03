@@ -15,33 +15,20 @@ _LEAPP_ROOT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp"
 
 
 @pytest.mark.parametrize("rl_library", ["rl_games", "rsl_rl", "sb3", "skrl"])
-def test_exporter_resolves_pretrained_checkpoint_for_active_backends(rl_library: str):
-    """Each exporter must request the checkpoint matching its resolved environment backends."""
+def test_exporter_resolves_pretrained_checkpoint_for_environment(rl_library: str):
+    """Each exporter must request the checkpoint matching its resolved environment configuration."""
     export_path = _LEAPP_ROOT / rl_library / "export.py"
     tree = ast.parse(export_path.read_text(encoding="utf-8"), filename=str(export_path))
 
-    backend_assignments = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Assign)
-        and any(isinstance(target, ast.Name) and target.id == "backend_names" for target in node.targets)
-        and isinstance(node.value, ast.Call)
-        and isinstance(node.value.func, ast.Name)
-        and node.value.func.id == "get_pretrained_checkpoint_backend_names"
-    ]
     checkpoint_calls = [
         node
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
-        and node.func.id == "get_published_pretrained_checkpoint"
-        and len(node.args) == 3
+        and node.func.id == "get_published_pretrained_checkpoint_for_env"
+        and len(node.args) == 4
         and isinstance(node.args[0], ast.Constant)
         and node.args[0].value == rl_library
-        and isinstance(node.args[2], ast.Starred)
-        and isinstance(node.args[2].value, ast.Name)
-        and node.args[2].value.id == "backend_names"
     ]
 
-    assert backend_assignments
     assert checkpoint_calls

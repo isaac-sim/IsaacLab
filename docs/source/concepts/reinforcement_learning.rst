@@ -178,12 +178,24 @@ registered tasks, including contributed tasks, are not covered by the
 published checkpoint set.
 
 Pass ``--checkpoint pretrained`` to load the published policy matching the
-resolved task configuration. The selector does not guarantee that an artifact
-exists for every registered task: if the matching artifact has not been
-published, the command reports that it is unavailable and exits. In that case,
-train the task locally and use ``latest`` or an explicit checkpoint path.
+resolved task configuration. Physics, renderer, and policy-contract variants
+such as a non-default observation pipeline use distinct artifacts. The
+selector does not guarantee that an artifact exists for every registered task
+or preset: if the matching artifact has not been published, the command
+reports that it is unavailable and exits. In that case, train the task locally
+and use ``latest`` or an explicit checkpoint path.
 
-Maintainers can generate the preferred core-task checkpoint matrix with
+Tasks with observation, action, or agent presets can register a
+``PretrainedCheckpointSetCfg``. Its ``variant_resolver`` derives a declared
+policy variant from the final environment configuration, after presets and
+scalar overrides have been applied, and returns ``None`` for incompatible
+configurations. Each ``PretrainedCheckpointCfg`` maps a variant to a workflow,
+training preset, agent, and optional backend restrictions. The ``default``
+variant retains the unsuffixed artifact name. Runtime lookup and the
+publication tool consume this same declaration, so unsupported configurations
+fail before a shape-incompatible checkpoint is downloaded.
+
+Maintainers can generate the declared core-task checkpoint matrix with
 ``scripts/tools/train_and_publish_checkpoints.py``. Use ``--list --all --core``
 to list the tasks and backend combinations targeted for publication by the
 current source tree. This matrix is not a live check of the remote asset store;

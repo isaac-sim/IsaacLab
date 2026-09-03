@@ -19,6 +19,9 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_rl.utils import pretrained_checkpoint
 
+import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.utils import resolve_task_config
+
 
 @configclass
 class _CameraCfg:
@@ -47,6 +50,117 @@ def test_get_pretrained_checkpoint_filename_includes_backends():
     assert filename == "Isaac-Cartpole_newtonmjwarp_rtx_rsl_rl.pt"
 
 
+def test_get_pretrained_checkpoint_filename_includes_policy_variant():
+    """Test that policy-contract variants receive distinct published filenames."""
+    checkpoint = pretrained_checkpoint.PretrainedCheckpointCfg(workflow="rl_games", variant="depth")
+    filename = pretrained_checkpoint.get_pretrained_checkpoint_filename(
+        "rl_games",
+        checkpoint.artifact_task_name("Isaac-Cartpole-Camera-Direct"),
+        "newtonmjwarp",
+        "newton",
+    )
+
+    assert filename == "Isaac-Cartpole-Camera-Direct_depth_newtonmjwarp_newton_rl_games.pth"
+
+
+@pytest.mark.parametrize("task_name", ["Isaac-Cartpole-Camera", "Isaac-Cartpole-Camera-Direct"])
+def test_select_pretrained_checkpoint_matches_cartpole_policy_contract(task_name: str):
+    """Test that Cartpole policy inputs select only compatible checkpoint declarations."""
+    default_cfg, _ = resolve_task_config(task_name, "rl_games_cfg_entry_point", overrides=())
+    depth_cfg, _ = resolve_task_config(task_name, "rl_games_cfg_entry_point", overrides=("presets=depth",))
+    albedo_cfg, _ = resolve_task_config(task_name, "rl_games_cfg_entry_point", overrides=("presets=albedo",))
+
+    default_checkpoint = pretrained_checkpoint.select_pretrained_checkpoint("rl_games", task_name, default_cfg)
+    depth_checkpoint = pretrained_checkpoint.select_pretrained_checkpoint("rl_games", task_name, depth_cfg)
+
+    assert default_checkpoint is not None and default_checkpoint.variant == "default"
+    assert depth_checkpoint is not None and depth_checkpoint.variant == "depth"
+    assert pretrained_checkpoint.select_pretrained_checkpoint("rsl_rl", task_name, depth_cfg) is None
+    assert pretrained_checkpoint.select_pretrained_checkpoint("rl_games", task_name, albedo_cfg) is None
+
+
+@pytest.mark.parametrize(
+    "task_name,overrides",
+    [
+        (
+            "Isaac-Cartpole-Camera",
+            (
+                "presets=rgb",
+                "env.scene.tiled_camera.data_types=['depth']",
+                "env.observations.policy.image.params.data_type=depth",
+            ),
+        ),
+        (
+            "Isaac-Cartpole-Camera-Direct",
+            (
+                "presets=rgb",
+                "env.tiled_camera.data_types=['depth']",
+                "env.observation_space=[1,96,96]",
+            ),
+        ),
+    ],
+)
+def test_select_pretrained_checkpoint_uses_final_resolved_configuration(task_name: str, overrides: tuple[str, ...]):
+    """Checkpoint selection must use final values rather than preset history."""
+    env_cfg, _ = resolve_task_config(
+        task_name,
+        "rl_games_cfg_entry_point",
+        overrides=overrides,
+    )
+
+    checkpoint = pretrained_checkpoint.select_pretrained_checkpoint("rl_games", task_name, env_cfg)
+
+    assert checkpoint is not None and checkpoint.variant == "depth"
+
+
+@pytest.mark.parametrize("preset", ["resnet18", "theia_tiny"])
+def test_select_pretrained_checkpoint_rejects_unpublished_feature_policy(preset: str):
+    """An RGB feature policy must not fall back to the raw-RGB checkpoint."""
+    task_name = "Isaac-Cartpole-Camera"
+    env_cfg, _ = resolve_task_config(
+        task_name,
+        "rl_games_feature_cfg_entry_point",
+        overrides=(f"presets={preset}",),
+    )
+
+    assert pretrained_checkpoint.select_pretrained_checkpoint("rl_games", task_name, env_cfg) is None
+
+
+def test_select_pretrained_checkpoint_rejects_changed_policy_shape():
+    """A checkpoint trained for the default image shape must not be reused after a shape override."""
+    task_name = "Isaac-Cartpole-Camera"
+    env_cfg, _ = resolve_task_config(
+        task_name,
+        "rl_games_cfg_entry_point",
+        overrides=("env.scene.tiled_camera.width=128",),
+    )
+
+    assert pretrained_checkpoint.select_pretrained_checkpoint("rl_games", task_name, env_cfg) is None
+
+
+def test_get_published_pretrained_checkpoint_for_env_uses_selected_artifact(monkeypatch: pytest.MonkeyPatch):
+    """Depth playback must fetch the depth artifact instead of the default RGB policy."""
+    task_name = "Isaac-Cartpole-Camera-Direct"
+    env_cfg, _ = resolve_task_config(task_name, "rl_games_cfg_entry_point", overrides=("presets=depth",))
+    expected_backends = pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg)
+    requested = {}
+
+    def _get_published(workflow: str, artifact_task_name: str, *backends: str) -> str:
+        requested.update(workflow=workflow, task_name=artifact_task_name, backends=backends)
+        return "/tmp/checkpoint.pth"
+
+    monkeypatch.setattr(pretrained_checkpoint, "get_published_pretrained_checkpoint", _get_published)
+
+    path = pretrained_checkpoint.get_published_pretrained_checkpoint_for_env("rl_games", task_name, env_cfg)
+
+    assert path == "/tmp/checkpoint.pth"
+    assert requested == {
+        "workflow": "rl_games",
+        "task_name": "Isaac-Cartpole-Camera-Direct_depth",
+        "backends": expected_backends,
+    }
+
+
 def test_get_pretrained_checkpoint_filename_preserves_legacy_layout():
     """Test that callers omitting both backends retain the legacy filename."""
     assert pretrained_checkpoint.get_pretrained_checkpoint_filename("rl_games", "Isaac-Cartpole") == "checkpoint.pth"
@@ -69,6 +183,12 @@ def test_get_pretrained_checkpoint_filename_requires_both_backends():
             "Isaac-Cartpole",
             physics_backend="newtonmjwarp",
         )
+
+
+def test_get_pretrained_checkpoint_filename_rejects_invalid_variant():
+    """Test that variants cannot escape the flat workflow directory."""
+    with pytest.raises(ValueError, match="Invalid checkpoint variant"):
+        pretrained_checkpoint.PretrainedCheckpointCfg(workflow="rsl_rl", variant="../depth")
 
 
 def test_get_pretrained_checkpoint_backend_names_identifies_physx_without_renderer():
