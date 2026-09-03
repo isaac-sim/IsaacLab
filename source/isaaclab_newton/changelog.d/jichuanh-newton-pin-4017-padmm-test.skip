@@ -1,0 +1,2 @@
+Test-only change: the P-ADMM round-trip test now builds a solver combination the
+pinned Newton accepts. No user-visible behavior change.

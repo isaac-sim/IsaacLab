@@ -516,7 +516,14 @@ _KAMINO_DYNAMICS_FIELD_VALUES = [
 @pytest.mark.parametrize("field_name, value", _KAMINO_PADMM_FIELD_VALUES)
 def test_kamino_solver_cfg_forwards_padmm_fields(field_name, value):
     """Every tunable P-ADMM cfg field round-trips into ``PADMMSolverConfig``."""
-    solver_cfg = KaminoPADMMSolverCfg(dynamics_solver_cfg=KaminoPADMMCfg(**{field_name: value}))
+    # Newton rejects a non-"fixed" ``penalty_update_method`` unless dynamics are sparse, and sparse
+    # dynamics in turn require a sparse Jacobian. Both are valid for every field, so the round-trip
+    # runs against a solver combination Newton accepts.
+    solver_cfg = KaminoPADMMSolverCfg(
+        sparse_dynamics=True,
+        sparse_jacobian=True,
+        dynamics_solver_cfg=KaminoPADMMCfg(**{field_name: value}),
+    )
     newton_cfg = solver_cfg.to_solver_config()
     assert hasattr(newton_cfg.padmm, field_name), (
         f"{field_name!r} disappeared from PADMMSolverConfig — KaminoPADMMCfg needs to drop or rename it."
