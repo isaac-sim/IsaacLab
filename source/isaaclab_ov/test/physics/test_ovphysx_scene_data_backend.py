@@ -632,6 +632,47 @@ def test_manager_rejects_missing_destroy_api(monkeypatch):
         OvPhysxManager._destroy_physx(SimpleNamespace())
 
 
+def test_manager_releases_legacy_owners_after_release_error(monkeypatch):
+    """The 0.5.11 path preserves its unconditional owner cleanup on failure."""
+    from isaaclab_ov.physics import OvPhysxManager
+    from isaaclab_ov.physics import ovphysx_manager as om_mod
+
+    events = []
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", {"warmup": "warmup_gpu", "destroy": "release"})
+
+    class FakePhysX:
+        def reset_stage(self):
+            events.append("reset")
+            return 23
+
+        def wait_op(self, operation):
+            events.append(("wait", operation))
+
+        def release(self):
+            events.append("release")
+            raise RuntimeError("legacy release failed")
+
+    class FakeStage:
+        def destroy(self):
+            events.append("destroy_stage")
+
+    previous_physx = OvPhysxManager._physx
+    previous_ovstage = OvPhysxManager._ovstage
+    OvPhysxManager._physx = FakePhysX()
+    OvPhysxManager._ovstage = FakeStage()
+    monkeypatch.setattr(OvPhysxManager, "_close_physx_views", staticmethod(lambda value: events.append("close_views")))
+    try:
+        with pytest.raises(RuntimeError, match="legacy release failed"):
+            OvPhysxManager._release_physx()
+
+        assert OvPhysxManager._physx is None
+        assert OvPhysxManager._ovstage is None
+        assert events == ["close_views", "reset", ("wait", 23), "release", "destroy_stage"]
+    finally:
+        OvPhysxManager._physx = previous_physx
+        OvPhysxManager._ovstage = previous_ovstage
+
+
 def test_manager_retries_current_destroy_before_releasing_owners(monkeypatch):
     """A pre-teardown destroy failure preserves the runtime and stage for retry."""
     from isaaclab_ov.physics import OvPhysxManager

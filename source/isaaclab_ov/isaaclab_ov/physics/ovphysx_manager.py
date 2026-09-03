@@ -638,7 +638,10 @@ class OvPhysxManager(PhysicsManager):
             cls._destroy_ovstage()
             return
 
-        destroyed = False
+        # Preserve the legacy 0.5.11 behavior: release both owners even when
+        # cleanup raises. Only OVPhysX 0.6 destroy failures can remain retryable.
+        destroy_entry_point = OVPHYSX_LIFECYCLE_ENTRY_POINTS["destroy"]
+        release_owners = destroy_entry_point == "release"
         try:
             try:
                 cls._close_physx_views(physx)
@@ -649,23 +652,24 @@ class OvPhysxManager(PhysicsManager):
                     try:
                         cls._destroy_physx(physx)
                     except Exception:
-                        # Current OVPhysX keeps ``handle`` valid when destroy raises
-                        # before native teardown. Preserve both owners so a later close
-                        # can retry. A RuntimeError from ``handle`` means destruction
-                        # reached its terminal state even though it reported a failure.
-                        try:
-                            physx.handle
-                        except RuntimeError:
-                            destroyed = True
-                        except Exception:
-                            # An unfamiliar handle probe must not replace the
-                            # original destroy error or release either owner.
-                            destroyed = False
+                        if destroy_entry_point == "destroy":
+                            # OVPhysX 0.6 keeps ``handle`` valid when destroy raises
+                            # before native teardown. Preserve both owners so a later
+                            # close can retry. A RuntimeError from ``handle`` means
+                            # destruction reached its terminal state.
+                            try:
+                                physx.handle
+                            except RuntimeError:
+                                release_owners = True
+                            except Exception:
+                                # An unfamiliar handle probe must not replace the
+                                # original destroy error or release either owner.
+                                release_owners = False
                         raise
                     else:
-                        destroyed = True
+                        release_owners = True
         finally:
-            if destroyed:
+            if release_owners:
                 cls._physx = None
                 cls._destroy_ovstage()
 
