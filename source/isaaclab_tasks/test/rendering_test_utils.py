@@ -31,11 +31,12 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # The value is set case by case based on the screen space taken up by the env in camera output images. It
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
-    "cartpole": 1.0,
+    # RTX anti-aliasing along the ground-plane edges varies slightly across GPU and driver environments.
+    "cartpole": 1.5,
     # Shadow-hand renderings (incl. ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0``) show up to
-    # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
-    # headroom above that without masking real regressions, which the SSIM gate still catches.
-    "shadow_hand": 5.0,
+    # ~7.1 % per-pixel diff on Isaac Sim 6.1 from anti-aliasing noise along the many finger/cube edges.
+    # The SSIM gate remains strict enough to catch structural regressions.
+    "shadow_hand": 7.5,
     # Texture aliasing artifacts on the ground (NVBUG#6116767)
     "dexsuite_kuka_homo": 8.0,
     "dexsuite_kuka_hetero": 8.0,
