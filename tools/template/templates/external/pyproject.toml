@@ -17,7 +17,7 @@ ovphysx = ["isaaclab[ovphysx]"]
 ovrtx = ["isaaclab[ovrtx]"]
 
 [dependency-groups]
-dev = ["pre-commit"]
+dev = ["pre-commit", "pytest"]
 
 [tool.uv]
 index-strategy = "unsafe-best-match"
@@ -59,10 +59,19 @@ isaaclab = ["isaaclab", "isaaclab_newton", "isaaclab_ov", "isaaclab_physx"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401", "F403"]
+"**/__init__.pyi" = ["F401", "F403"]
 "scripts/**/*.py" = ["E402"]
 
 [tool.ruff.format]
 docstring-code-format = true
+
+[tool.pytest.ini_options]
+markers = [
+    "unit: test exercises isolated logic and does not launch the simulator",
+    "integration: test drives the simulator/scene/environment end-to-end",
+    "smoke: tests for core installation, task, and RL functionality",
+    "kitless: test must pass inside the Kit-less container, which has no Isaac Sim runtime",
+]
 
 [[tool.uv.index]]
 url = "https://pypi.nvidia.com"

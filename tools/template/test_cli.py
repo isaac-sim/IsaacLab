@@ -82,8 +82,8 @@ def test_text_reprompts_until_validation_succeeds():
     assert "Project name must be a valid identifier." in output.getvalue()
 
 
-def test_generated_project_keeps_simulator_backends_optional(tmp_path):
-    """A default generated environment must not install an optional simulator runtime."""
+def test_generated_project_metadata(tmp_path):
+    """A generated project must declare optional backends and development tooling."""
     specification = {
         "external": True,
         "path": str(tmp_path),
@@ -97,10 +97,11 @@ def test_generated_project_keeps_simulator_backends_optional(tmp_path):
 
     project_dir = tmp_path / "test_project"
     with (project_dir / "pyproject.toml").open("rb") as file:
-        development_project = tomllib.load(file)["project"]
+        development_config = tomllib.load(file)
     with (project_dir / "source" / "test_project" / "pyproject.toml").open("rb") as file:
         task_package = tomllib.load(file)["project"]
 
+    development_project = development_config["project"]
     assert development_project["dependencies"] == ["test_project"]
     assert development_project["optional-dependencies"] == {
         "isaacsim": ["isaaclab[isaacsim]"],
@@ -109,3 +110,14 @@ def test_generated_project_keeps_simulator_backends_optional(tmp_path):
         "ovrtx": ["isaaclab[ovrtx]"],
     }
     assert task_package["dependencies"] == ["isaaclab[rsl-rl]"]
+    assert development_config["dependency-groups"]["dev"] == ["pre-commit", "pytest"]
+    assert development_config["tool"]["pytest"]["ini_options"]["markers"] == [
+        "unit: test exercises isolated logic and does not launch the simulator",
+        "integration: test drives the simulator/scene/environment end-to-end",
+        "smoke: tests for core installation, task, and RL functionality",
+        "kitless: test must pass inside the Kit-less container, which has no Isaac Sim runtime",
+    ]
+    assert development_config["tool"]["ruff"]["lint"]["per-file-ignores"]["**/__init__.pyi"] == [
+        "F401",
+        "F403",
+    ]

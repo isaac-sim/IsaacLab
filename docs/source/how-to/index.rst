@@ -12,16 +12,6 @@ use Isaac Lab. If you are new to Isaac Lab, we recommend you start with the tuto
     This section is a work in progress. If you have a question that is not answered here,
     please open an issue on our `GitHub page <https://github.com/isaac-sim/IsaacLab>`_.
 
-Creating a Project or Task
---------------------------
-
-Create a standalone project or an internal task with the interactive template generator.
-
-.. toctree::
-    :maxdepth: 1
-
-    template_generator
-
 Importing a New Asset
 ---------------------
 

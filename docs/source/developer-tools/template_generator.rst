@@ -184,8 +184,15 @@ The generated files are organized into four layers:
   Manager.
 * **Module:** The Python package containing task implementations. Installing it
   in editable mode means code changes are available immediately.
-* **Task:** An environment family and its robot-specific configuration and agent
-  files.
+* **Task:** An environment family and its environment and agent configurations.
+  The generated ``config/cartpole`` directory is one common organization, not a
+  required robot-based hierarchy. A project can instead organize families by
+  behavior or another useful axis.
+
+Code shared by several task families can live in a package such as
+``tasks/mdp``. The generated task importer skips packages named ``mdp`` while it
+searches for task registrations, so shared modules do not register as task
+families.
 
 A generated project resembles:
 
@@ -199,10 +206,25 @@ A generated project resembles:
    └── source/
        └── my_cartpole/
            ├── pyproject.toml
+           ├── docs/
+           │   └── CHANGELOG.rst
            ├── config/
            │   └── extension.toml
            └── my_cartpole/
+               ├── __init__.py
+               ├── ui_extension_example.py
                └── tasks/
+                   ├── __init__.py
+                   └── my_cartpole/
+                       ├── mdp/
+                       └── config/
+                           └── cartpole/
+                               ├── agents/
+                               └── my_cartpole_env_cfg.py
+
+The optional ``ui_extension_example.py`` demonstrates an Isaac Sim Extension
+Manager UI. If the project does not need that UI, delete the file and its
+``[[python.module]]`` entry from ``config/extension.toml``.
 
 Run commands from the project root so ``uv`` can find the workspace and task
 entry point. Commit both ``pyproject.toml`` files and ``uv.lock`` to give
@@ -234,6 +256,20 @@ Use the remaining project commands as the task matures:
    uv run isaaclab benchmark runtime --task <TASK_NAME> \
       --num_envs 16 --num_steps 1000
    uv run pre-commit run --all-files
+
+The generated ``pyproject.toml`` installs pytest for development and registers
+the ``unit``, ``integration``, ``smoke``, and ``kitless`` markers. Put
+project-owned tests under ``tests`` and run them with:
+
+.. code-block:: bash
+
+   uv run pytest tests
+
+The reusable-looking helpers under ``source/isaaclab_tasks/test`` belong to the
+Isaac Lab repository test suite and are not installed with ``isaaclab_tasks``.
+External projects should build their environment harness from public APIs and
+maintain project-local fixtures. Copying ``env_test_utils.py`` into a project is
+vendoring it, so the project must track upstream changes to that copy.
 
 To configure VS Code, run the generated setup task or invoke it directly:
 

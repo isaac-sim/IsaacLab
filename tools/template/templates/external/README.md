@@ -54,11 +54,19 @@ Use `physics=<PRESET>` to select one of the presets shown by `list_envs.py`.
 
 ## Development
 
-Run formatting and lint checks through the project environment:
+Run tests, formatting, and lint checks through the project environment. The
+project registers the `unit`, `integration`, `smoke`, and `kitless` pytest
+markers.
 
 ```bash
+uv run pytest tests
 uv run pre-commit run --all-files
 ```
+
+The test helpers under `source/isaaclab_tasks/test` in the Isaac Lab repository
+are not part of the installed `isaaclab_tasks` package. Keep test fixtures in
+this project and use public Isaac Lab APIs. If you copy `env_test_utils.py`, it
+becomes vendored code whose upstream changes you must track.
 
 To configure VS Code, run the `setup_python_env` task or invoke its command directly:
 
@@ -70,6 +78,8 @@ uv run python .vscode/tools/setup_vscode.py
 
 Add the project's `source` directory to the Isaac Sim Extension Manager search paths, refresh, and enable the extension
 under `Third Party`. The optional UI example is in `source/{{ name }}/{{ name }}/ui_extension_example.py`.
+If you do not need the UI, delete that file and the matching `[[python.module]]` entry in
+`source/{{ name }}/config/extension.toml`.
 
 ## Troubleshooting
 

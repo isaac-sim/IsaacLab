@@ -142,6 +142,13 @@ Table of Contents
 
 
 .. toctree::
+   :maxdepth: 2
+   :caption: Developer Tools
+
+   source/developer-tools/template_generator
+
+
+.. toctree::
    :maxdepth: 3
    :caption: Experimental Features
 

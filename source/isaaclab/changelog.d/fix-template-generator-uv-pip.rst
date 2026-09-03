@@ -3,6 +3,8 @@ Changed
 
 * Changed generated projects to use the Newton backend without Isaac Sim by default. Use the ``isaacsim``, ``ov``,
   ``ovphysx``, or ``ovrtx`` uv extra when running a generated project that needs the corresponding optional backend.
+* Added pytest and the standard test-marker configuration to generated projects, and allowed lazy-export ``.pyi``
+  files in their Ruff configuration.
 
 Fixed
 ^^^^^
