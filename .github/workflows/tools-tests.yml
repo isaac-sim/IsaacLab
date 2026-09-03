@@ -14,6 +14,10 @@ on:
       # Top-level tools modules and their tests. Deliberately not "tools/**": the
       # subpackages (changelog/, skills/, wheel_builder/) have their own gates.
       - "tools/*.py"
+      # tools/docs/ has no gate of its own, so its tests are gated here. media/ is left out
+      # deliberately - this job does not exercise it.
+      - "tools/docs/*.py"
+      - "tools/docs/test/**"
       - ".github/workflows/tools-tests.yml"
   workflow_dispatch:
 
@@ -63,4 +67,6 @@ jobs:
         # --noconftest keeps tools/conftest.py out of the session. That file is the CI test
         # orchestrator - its pytest_sessionstart scans source/ and scripts/ and runs the whole
         # suite, so loading it here would ignore the files named below.
-        run: python3 -m pytest tools/test_crash_journal.py tools/test_device_split.py -v --noconftest
+        run: >-
+          python3 -m pytest tools/test_crash_journal.py tools/test_device_split.py
+          tools/docs/test/test_check_self_doc_links.py -v --noconftest
