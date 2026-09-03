@@ -47,7 +47,6 @@ isaaclab.sim.schemas
     ArticulationRootFragment
     JointDriveFragment
     MeshCollisionFragment
-    MultiApplyFragment
     FixedTendonFragment
     SpatialTendonFragment
     UsdPhysicsRigidBodyCfg
@@ -129,11 +128,6 @@ Schema Fragments
     :exclude-members: __init__
 
 .. autoclass:: MeshCollisionFragment
-    :members:
-    :show-inheritance:
-    :exclude-members: __init__
-
-.. autoclass:: MultiApplyFragment
     :members:
     :show-inheritance:
     :exclude-members: __init__

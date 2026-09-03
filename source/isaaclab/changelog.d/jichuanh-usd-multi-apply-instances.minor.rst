@@ -1,10 +1,10 @@
 Added
 ^^^^^
 
-* Added :class:`~isaaclab.sim.schemas.MultiApplyFragment`, a mixin for fragments over a multiple-apply
-  USD schema, and :func:`~isaaclab.sim.schemas.apply_multi_apply`, its applier. The fragment names the
-  schema whose instances it tunes and the attribute-name template; its required ``instance_names``
-  field selects the instances: a name, a list of names, or ``None`` for every instance on the prim.
+* Added :func:`~isaaclab.sim.schemas.apply_multi_apply`, the applier for fragments over a multiple-apply
+  USD schema. The fragment names the schema in ``_usd_applied_schema`` and the attribute namespace in
+  ``_usd_namespace``, as other fragments do, and its required ``instance_names`` field selects the
+  instances to tune: a name, a list of names, or ``None`` for every instance on the prim.
 
 * Added :func:`~isaaclab.sim.schemas.resolve_applied_schema_instances`, which returns the instance
   names of one multiple-apply API schema among a prim's applied schemas.

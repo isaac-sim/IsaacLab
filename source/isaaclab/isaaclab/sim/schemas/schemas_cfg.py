@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable
-from dataclasses import MISSING
 from typing import ClassVar, Literal
 
 from isaaclab.utils.configclass import configclass
@@ -117,8 +116,8 @@ class SchemaFragment:
     field names the callable that applies the fragment to a prim; the default generic applier
     (:func:`~isaaclab.sim.schemas.apply_namespaced`) reads the metadata and writes each
     non-``None`` field as ``<namespace>:<camelCase(field)>``. Irregular APIs override
-    :attr:`func` with a custom applier. A fragment over a multiple-apply schema mixes in
-    :class:`MultiApplyFragment` instead of declaring a namespace.
+    :attr:`func` with a custom applier; a fragment over a multiple-apply schema points it at
+    :func:`~isaaclab.sim.schemas.apply_multi_apply` and carries an ``instance_names`` field.
 
     .. note::
         A fragment present in a spawner slot means its schema is applied. ``None`` fields are
@@ -222,51 +221,6 @@ class MeshCollisionFragment(SchemaFragment):
     # own namespaced cooking attrs, so they dispatch through :func:`~isaaclab.sim.schemas.apply_mesh_collision`
     # (not the generic :func:`~isaaclab.sim.schemas.apply_namespaced`). See that func for the token coupling.
     func: Callable | str = "isaaclab.sim.schemas:apply_mesh_collision"
-
-
-@configclass
-class MultiApplyFragment(SchemaFragment):
-    """Mixin for a fragment over a multiple-apply schema, whose address includes an instance name.
-
-    A single-apply schema is addressed by ``(prim, schema type)``; a multiple-apply schema by
-    ``(prim, schema type, instance name)``. The prim comes from the path expression; this mixin
-    carries the other two coordinates: the schema in :attr:`_usd_multi_apply_schema` and the
-    instances in :attr:`instance_names`. Narrowing the path expression cannot substitute for the
-    latter: several instances of one schema can live on the same prim.
-
-    The schema is applied per instance (``<Schema>:<instance>``) and owns a property namespace
-    that is not derivable from its class name, so the fragment also spells the attribute name in
-    :attr:`_usd_multi_apply_template`. All three are static data; the applier,
-    :func:`~isaaclab.sim.schemas.apply_multi_apply`, never consults the schema registry, and tests
-    check the data against the schema definition. A concrete fragment sets
-    ``func = "isaaclab.sim.schemas:apply_multi_apply"``.
-
-    A concrete fragment combines it with its family marker, e.g.
-    ``class PhysxFixedTendonCfg(FixedTendonFragment, MultiApplyFragment)``, so the family slot
-    type stays unchanged and fragments over prim-typed representations (``MjcTendon``) are not
-    asked for an instance they do not have.
-    """
-
-    # -- Class metadata (not dataclass fields), set by each concrete fragment --
-    _usd_multi_apply_schema: ClassVar[str | None] = None
-    """The multiple-apply schema whose applied instances (``<Schema>:<instance>``) the fragment tunes."""
-    _usd_multi_apply_template: ClassVar[str | None] = None
-    """Attribute-name template with ``{instance}`` and ``{prop}`` placeholders, e.g.
-    ``"physxTendon:{instance}:{prop}"`` or ``"drive:{instance}:physics:{prop}"``."""
-
-    instance_names: str | list[str] | None = MISSING
-    """Which instances of the schema to tune.
-
-    * ``"index_finger"`` -- that instance.
-    * ``["index_finger", "middle"]`` -- exactly those instances.
-    * ``None`` -- every instance applied to the prim, chosen deliberately.
-    * ``[]`` -- a configuration error, raised rather than silently writing nothing.
-
-    Required, so omitting it cannot accidentally mean broadcast. A matched prim that carries the
-    schema but none of the named instances is passed over, so one name selects one tendon under the
-    spawner's subtree pattern; a fragment that tunes no prim at all is reported as failed by the
-    family writer. This is schema identity, not a USD property, so it is never authored.
-    """
 
 
 @configclass

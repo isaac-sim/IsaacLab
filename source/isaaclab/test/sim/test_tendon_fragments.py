@@ -87,13 +87,12 @@ def _tendon_attr_prefix(prim, schema_substr):
 def test_fixed_tendon_fragment_metadata_defaults():
     from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg
 
-    from isaaclab.sim.schemas import FixedTendonFragment, MultiApplyFragment, SchemaFragment
+    from isaaclab.sim.schemas import FixedTendonFragment, SchemaFragment
 
     cfg = PhysxFixedTendonCfg(instance_names=None, stiffness=1.0)
     assert isinstance(cfg, FixedTendonFragment) and isinstance(cfg, SchemaFragment)
-    assert isinstance(cfg, MultiApplyFragment)
-    assert type(cfg)._usd_multi_apply_schema == "PhysxTendonAxisRootAPI"
-    assert type(cfg)._usd_multi_apply_template == "physxTendon:{instance}:{prop}"
+    assert type(cfg)._usd_applied_schema == "PhysxTendonAxisRootAPI"
+    assert type(cfg)._usd_namespace == "physxTendon"
     assert cfg.func == "isaaclab.sim.schemas:apply_multi_apply"
     assert cfg.stiffness == 1.0 and cfg.damping is None
 
@@ -105,8 +104,8 @@ def test_spatial_tendon_fragment_metadata_defaults():
 
     cfg = PhysxSpatialTendonCfg(instance_names=None, stiffness=2.0)
     assert isinstance(cfg, SpatialTendonFragment) and isinstance(cfg, SchemaFragment)
-    assert type(cfg)._usd_multi_apply_schema == "PhysxTendonAttachmentRootAPI"
-    assert type(cfg)._usd_multi_apply_template == "physxTendon:{instance}:{prop}"
+    assert type(cfg)._usd_applied_schema == "PhysxTendonAttachmentRootAPI"
+    assert type(cfg)._usd_namespace == "physxTendon"
     assert cfg.func == "isaaclab.sim.schemas:apply_multi_apply"
     assert cfg.stiffness == 2.0 and cfg.damping is None
 
@@ -278,8 +277,8 @@ def test_multi_apply_fragment_metadata_matches_the_schema_definition():
     """The applier trusts the fragment's static data, so the schema registry checks it here.
 
     For each PhysX tendon fragment: the schema is registered and multiple-apply, every field is a
-    property the schema declares, and the fragment's name template spells each attribute exactly as
-    USD would (``Usd.SchemaRegistry.MakeMultipleApplyNameInstance``).
+    property the schema declares, and ``<namespace>:<instance>:<property>`` spells each attribute
+    exactly as USD would (``Usd.SchemaRegistry.MakeMultipleApplyNameInstance``).
     """
     from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg, PhysxSpatialTendonCfg
 
@@ -287,7 +286,7 @@ def test_multi_apply_fragment_metadata_matches_the_schema_definition():
 
     registry = Usd.SchemaRegistry()
     for cfg_cls in (PhysxFixedTendonCfg, PhysxSpatialTendonCfg):
-        schema_name = cfg_cls._usd_multi_apply_schema
+        schema_name = cfg_cls._usd_applied_schema
         definition = registry.FindAppliedAPIPrimDefinition(schema_name)
         assert definition is not None, f"{schema_name} is not registered"
         assert registry.IsMultipleApplyAPISchema(schema_name)
@@ -298,7 +297,7 @@ def test_multi_apply_fragment_metadata_matches_the_schema_definition():
             prop = to_camel_case(f.name, "cC")
             assert prop in templates, f"{cfg_cls.__name__}.{f.name} is not a property of {schema_name}"
             expected = Usd.SchemaRegistry.MakeMultipleApplyNameInstance(templates[prop], "inst")
-            assert cfg_cls._usd_multi_apply_template.format(instance="inst", prop=prop) == expected
+            assert f"{cfg_cls._usd_namespace}:inst:{prop}" == expected
 
 
 def test_apply_spatial_tendon_writes_all_instances():
@@ -380,7 +379,6 @@ def test_public_imports():
 
     from isaaclab.sim.schemas import (  # noqa: F401
         FixedTendonFragment,
-        MultiApplyFragment,
         SpatialTendonFragment,
         apply_fixed_tendon_properties,
         apply_multi_apply,
