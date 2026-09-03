@@ -1279,14 +1279,6 @@ class PhysxFixedTendonCfg(FixedTendonFragment):
     _usd_namespace: ClassVar[str | None] = None
     func: Callable | str = "isaaclab_physx.sim.schemas:apply_fixed_tendon"
 
-    instance_names: str | list[str] | None = None
-    """Names of existing tendon instances to tune.
-
-    A string selects one instance, a list selects those instances, and ``None`` selects every
-    ``PhysxTendonAxisRootAPI`` instance on each targeted prim (the default). An empty string or list
-    is an error. This field addresses the schema instances and is not authored as a USD property.
-    """
-
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""
 
@@ -1314,6 +1306,16 @@ class PhysxFixedTendonCfg(FixedTendonFragment):
 
     upper_limit: float | None = None
     """Upper limit of the tendon's length [m]."""
+
+    instance_names: str | list[str] | None = None
+    """Names of existing tendon instances to tune.
+
+    A string selects one instance, a list selects those instances, and ``None`` selects every
+    ``PhysxTendonAxisRootAPI`` instance on each targeted prim (the default). An empty string or list
+    is an error. This field addresses the schema instances and is not authored as a USD property.
+
+    This selector follows the pre-existing property fields to preserve their positional argument order.
+    """
 
 
 @configclass
@@ -1369,15 +1371,6 @@ class PhysxSpatialTendonCfg(SpatialTendonFragment):
     _usd_namespace: ClassVar[str | None] = None
     func: Callable | str = "isaaclab_physx.sim.schemas:apply_spatial_tendon"
 
-    instance_names: str | list[str] | None = None
-    """Names of existing spatial-tendon root instances to tune.
-
-    A string selects one instance, a list selects those instances, and ``None`` selects every
-    ``PhysxTendonAttachmentRootAPI`` instance on each targeted prim (the default). An empty string
-    or list is an error. This field addresses the schema instances and is not authored as a USD
-    property.
-    """
-
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""
 
@@ -1395,4 +1388,15 @@ class PhysxSpatialTendonCfg(SpatialTendonFragment):
 
     It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
     to actuate the tendon by shortening or lengthening it.
+    """
+
+    instance_names: str | list[str] | None = None
+    """Names of existing spatial-tendon root instances to tune.
+
+    A string selects one instance, a list selects those instances, and ``None`` selects every
+    ``PhysxTendonAttachmentRootAPI`` instance on each targeted prim (the default). An empty string
+    or list is an error. This field addresses the schema instances and is not authored as a USD
+    property.
+
+    This selector follows the pre-existing property fields to preserve their positional argument order.
     """

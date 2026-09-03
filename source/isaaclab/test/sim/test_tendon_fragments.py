@@ -106,6 +106,32 @@ def test_spatial_tendon_fragment_metadata_defaults():
     assert cfg.instance_names == "cable" and cfg.stiffness == 2.0 and cfg.damping is None
 
 
+def test_instance_selector_preserves_existing_tendon_config_field_order():
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg, PhysxSpatialTendonCfg
+
+    fixed_fields = [field.name for field in dataclasses.fields(PhysxFixedTendonCfg)]
+    spatial_fields = [field.name for field in dataclasses.fields(PhysxSpatialTendonCfg)]
+    assert fixed_fields[:7] == [
+        "func",
+        "tendon_enabled",
+        "stiffness",
+        "damping",
+        "limit_stiffness",
+        "offset",
+        "rest_length",
+    ]
+    assert fixed_fields[-1] == "instance_names"
+    assert spatial_fields == [
+        "func",
+        "tendon_enabled",
+        "stiffness",
+        "damping",
+        "limit_stiffness",
+        "offset",
+        "instance_names",
+    ]
+
+
 def test_multiple_apply_mechanics_are_not_a_public_core_fragment_convention():
     import isaaclab.sim.schemas as schemas
 
