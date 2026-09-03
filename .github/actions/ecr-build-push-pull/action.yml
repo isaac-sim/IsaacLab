@@ -50,6 +50,15 @@ inputs:
       that only need the tag pushed.
     required: false
     default: 'false'
+outputs:
+  built:
+    description: >
+      'true' when this run built the image, so it exists locally under image-tag.
+      An exact-tag hit pulls it as well; a deps-cache hit only creates the ECR tag
+      unless pull-on-deps-hit is set, so steps that need the image locally should
+      check this output.
+    value: ${{ steps.pull-exact.outputs.hit != 'true' && steps.deps-cache.outputs.deps-cache-hit != 'true' }}
+
 runs:
   using: composite
   steps:

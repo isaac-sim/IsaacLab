@@ -208,6 +208,7 @@ jobs:
         enable-cache: true
 
     - name: Build and push to ECR
+      id: image
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
@@ -219,7 +220,10 @@ jobs:
     # #6329 aborts the pip install when it strands a prebundled package's __init__.py
     # (nvbugs 6343978: 14 Isaac Sim extensions fail to load). The images install with
     # ``uv sync``, which never runs that guard, so assert the same invariant on the image.
+    # Only a freshly built image is on this runner; a deps-cache hit reuses one that
+    # passed this check when it was built.
     - name: Verify image invariants
+      if: steps.image.outputs.built == 'true'
       shell: bash
       env:
         IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}

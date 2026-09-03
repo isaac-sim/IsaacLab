@@ -16,6 +16,12 @@ ECR is also used as the BuildKit layer cache.
     ecr-url: (optional, complete url for ECR storage)
 ```
 
+## Outputs
+
+- `built`: `'true'` when this run built the image, so it exists locally under `image-tag`.
+  An exact-tag hit pulls it as well; a deps-cache hit only creates the ECR tag unless
+  `pull-on-deps-hit` is set. Gate steps that need the image locally on this output.
+
 ## ECR URL resolution order
 
 1. `ecr-url` input
