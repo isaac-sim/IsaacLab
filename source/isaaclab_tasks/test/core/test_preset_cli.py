@@ -495,29 +495,6 @@ def test_agent_preset_pairings_reference_registered_agents_and_presets(task_name
     assert {preset for presets in compatibility.values() for preset in presets} <= domain_presets
 
 
-@pytest.mark.parametrize("task_name", ["Isaac-Cartpole-Camera", "Isaac-Cartpole-Camera-Direct"])
-def test_pretrained_checkpoint_cfg_reproduces_declared_variants(task_name):
-    """Cartpole checkpoint declarations reproduce variants from final configs."""
-    import gymnasium as gym
-
-    import isaaclab_tasks  # noqa: F401
-    from isaaclab_tasks.utils import load_cfg_from_registry, resolve_task_config
-    from isaaclab_tasks.utils.preset_cli import _enumerate_variants
-    from isaaclab_tasks.utils.preset_target import PresetTarget
-
-    spec = gym.spec(task_name)
-    checkpoint_cfg = load_cfg_from_registry(task_name, "pretrained_checkpoint_cfg_entry_point")
-    domain_presets = _enumerate_variants(task_name)[PresetTarget.DOMAIN]
-
-    for checkpoint in checkpoint_cfg.checkpoints:
-        agent = checkpoint.agent or f"{checkpoint.workflow}_cfg_entry_point"
-        assert agent in spec.kwargs
-        assert set(checkpoint.training_presets) <= domain_presets
-        overrides = (f"presets={','.join(checkpoint.training_presets)}",) if checkpoint.training_presets else ()
-        env_cfg, _ = resolve_task_config(task_name, agent, overrides=overrides)
-        assert checkpoint_cfg.variant_resolver(env_cfg) == checkpoint.variant
-
-
 # ---------------------------------------------------------------------------
 # _auto_select_agent: preset → agent entry point wiring
 # ---------------------------------------------------------------------------

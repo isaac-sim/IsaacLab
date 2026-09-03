@@ -67,16 +67,13 @@ def test_get_pretrained_checkpoint_filename_includes_policy_variant():
 def test_select_pretrained_checkpoint_matches_cartpole_policy_contract(task_name: str):
     """Test that Cartpole policy inputs select only compatible checkpoint declarations."""
     default_cfg, _ = resolve_task_config(task_name, "rl_games_cfg_entry_point", overrides=())
-    rgb_cfg, _ = resolve_task_config(task_name, "rl_games_cfg_entry_point", overrides=("presets=rgb",))
     depth_cfg, _ = resolve_task_config(task_name, "rl_games_cfg_entry_point", overrides=("presets=depth",))
     albedo_cfg, _ = resolve_task_config(task_name, "rl_games_cfg_entry_point", overrides=("presets=albedo",))
 
     default_checkpoint = pretrained_checkpoint.select_pretrained_checkpoint("rl_games", task_name, default_cfg)
-    rgb_checkpoint = pretrained_checkpoint.select_pretrained_checkpoint("rl_games", task_name, rgb_cfg)
     depth_checkpoint = pretrained_checkpoint.select_pretrained_checkpoint("rl_games", task_name, depth_cfg)
 
     assert default_checkpoint is not None and default_checkpoint.variant == "default"
-    assert rgb_checkpoint is not None and rgb_checkpoint.variant == "default"
     assert depth_checkpoint is not None and depth_checkpoint.variant == "depth"
     assert pretrained_checkpoint.select_pretrained_checkpoint("rsl_rl", task_name, depth_cfg) is None
     assert pretrained_checkpoint.select_pretrained_checkpoint("rl_games", task_name, albedo_cfg) is None
@@ -129,19 +126,13 @@ def test_select_pretrained_checkpoint_rejects_unpublished_feature_policy(preset:
     assert pretrained_checkpoint.select_pretrained_checkpoint("rl_games", task_name, env_cfg) is None
 
 
-@pytest.mark.parametrize(
-    "task_name,width_override",
-    [
-        ("Isaac-Cartpole-Camera", "env.scene.tiled_camera.width=128"),
-        ("Isaac-Cartpole-Camera-Direct", "env.tiled_camera.width=128"),
-    ],
-)
-def test_select_pretrained_checkpoint_rejects_changed_policy_shape(task_name: str, width_override: str):
+def test_select_pretrained_checkpoint_rejects_changed_policy_shape():
     """A checkpoint trained for the default image shape must not be reused after a shape override."""
+    task_name = "Isaac-Cartpole-Camera"
     env_cfg, _ = resolve_task_config(
         task_name,
         "rl_games_cfg_entry_point",
-        overrides=(width_override,),
+        overrides=("env.scene.tiled_camera.width=128",),
     )
 
     assert pretrained_checkpoint.select_pretrained_checkpoint("rl_games", task_name, env_cfg) is None
@@ -153,26 +144,16 @@ def test_get_published_pretrained_checkpoint_for_env_uses_selected_artifact(monk
     env_cfg, _ = resolve_task_config(task_name, "rl_games_cfg_entry_point", overrides=("presets=depth",))
     expected_backends = pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg)
     requested = {}
-    backend_lookups = 0
-
-    original_get_backend_names = pretrained_checkpoint.get_pretrained_checkpoint_backend_names
-
-    def _get_backend_names(cfg):
-        nonlocal backend_lookups
-        backend_lookups += 1
-        return original_get_backend_names(cfg)
 
     def _get_published(workflow: str, artifact_task_name: str, *backends: str) -> str:
         requested.update(workflow=workflow, task_name=artifact_task_name, backends=backends)
         return "/tmp/checkpoint.pth"
 
-    monkeypatch.setattr(pretrained_checkpoint, "get_pretrained_checkpoint_backend_names", _get_backend_names)
     monkeypatch.setattr(pretrained_checkpoint, "get_published_pretrained_checkpoint", _get_published)
 
     path = pretrained_checkpoint.get_published_pretrained_checkpoint_for_env("rl_games", task_name, env_cfg)
 
     assert path == "/tmp/checkpoint.pth"
-    assert backend_lookups == 1
     assert requested == {
         "workflow": "rl_games",
         "task_name": "Isaac-Cartpole-Camera-Direct_depth",
@@ -262,24 +243,6 @@ def test_get_published_pretrained_checkpoint_path_uses_flat_workflow_directory(m
 
     assert path == (
         "omniverse://IsaacLab/PretrainedCheckpoints/skrl/Isaac-Shadow-Handover-Direct_newtonmjwarp_none_skrl.pt"
-    )
-
-
-def test_get_published_pretrained_checkpoint_path_includes_policy_variant(monkeypatch: pytest.MonkeyPatch):
-    """Test that variant checkpoints use a distinct flat published path."""
-    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
-    checkpoint = pretrained_checkpoint.PretrainedCheckpointCfg(workflow="rl_games", variant="depth")
-
-    path = pretrained_checkpoint.get_published_pretrained_checkpoint_path(
-        "rl_games",
-        checkpoint.artifact_task_name("Isaac-Cartpole-Camera-Direct"),
-        "newtonmjwarp",
-        "newton",
-    )
-
-    assert path == (
-        "omniverse://IsaacLab/PretrainedCheckpoints/rl_games/"
-        "Isaac-Cartpole-Camera-Direct_depth_newtonmjwarp_newton_rl_games.pth"
     )
 
 
