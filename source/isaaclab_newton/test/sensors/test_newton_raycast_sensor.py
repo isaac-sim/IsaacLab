@@ -27,7 +27,13 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
-from isaaclab.sensors.ray_caster import MultiMeshRayCaster, MultiMeshRayCasterCamera, RayCasterCamera, RayCasterCfg
+from isaaclab.sensors.ray_caster import (
+    MultiMeshRayCaster,
+    MultiMeshRayCasterCamera,
+    MultiMeshRayCasterCfg,
+    RayCasterCamera,
+    RayCasterCfg,
+)
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -160,6 +166,35 @@ def test_remaining_warp_mesh_factories_select_legacy_newton_adapters(sim):
     assert RayCasterCamera.resolve_class() is LegacyRayCasterCamera
     assert MultiMeshRayCaster.resolve_class() is LegacyMultiMeshRayCaster
     assert MultiMeshRayCasterCamera.resolve_class() is LegacyMultiMeshRayCasterCamera
+
+
+def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
+    """Tracked target registration remains valid when discovery returns concrete owner paths."""
+    obstacle_cfg = sim_utils.CuboidCfg(
+        size=(1.0, 1.0, 1.0),
+        rigid_props=sim_utils.RigidBodyBaseCfg(kinematic_enabled=True),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionBaseCfg(),
+    )
+    obstacle_cfg.func("/World/Origin_00/Obstacle", obstacle_cfg)
+
+    sensor_cfg = MultiMeshRayCasterCfg(
+        prim_path="/World/Origin_[^/]+/Obstacle",
+        mesh_prim_paths=[
+            MultiMeshRayCasterCfg.RaycastTargetCfg(
+                prim_expr="/World/Origin_[^/]+/Obstacle",
+                track_mesh_transforms=True,
+            )
+        ],
+        pattern_cfg=GridPatternCfg(resolution=1.0, size=(0.0, 0.0)),
+    )
+    sensor = MultiMeshRayCaster(sensor_cfg)
+
+    sim.reset()
+    sensor.update(sim.get_physics_dt(), force_recompute=True)
+
+    assert sensor.num_instances == 1
+    assert sensor.data.ray_hits_w.shape[0] == 1
 
 
 def test_bvh_refit_tracks_moving_geometry(sim):
