@@ -74,52 +74,66 @@ The following classes are part of the public :mod:`isaaclab.sim` API.
    UsdPhysicsRigidBodyCfg
 
 .. autoclass:: ArticulationRootFragment
+   :no-index:
    :show-inheritance:
 
 .. autoclass:: CollisionFragment
+   :no-index:
    :show-inheritance:
 
 .. autoclass:: FixedTendonFragment
+   :no-index:
    :show-inheritance:
 
 .. autoclass:: JointDriveFragment
+   :no-index:
    :show-inheritance:
 
 .. autoclass:: MassCfg
+   :no-index:
    :show-inheritance:
 
 .. autoclass:: MassFragment
+   :no-index:
    :show-inheritance:
 
 .. autoclass:: MeshCollisionFragment
+   :no-index:
    :show-inheritance:
 
 .. autoclass:: MjcfFileCfg
    :show-inheritance:
 
 .. autoclass:: RigidBodyFragment
+   :no-index:
    :show-inheritance:
 
 .. autoclass:: SchemaFragment
+   :no-index:
    :show-inheritance:
 
 .. autoclass:: SensorFrameCfg
    :show-inheritance:
 
 .. autoclass:: SpatialTendonFragment
+   :no-index:
    :show-inheritance:
 
 .. autoclass:: UsdFileWithCompliantContactCfg
    :show-inheritance:
 
 .. autoclass:: UsdPhysicsCollisionCfg
+   :no-index:
    :show-inheritance:
 
 .. autoclass:: UsdPhysicsDriveCfg
+   :no-index:
    :show-inheritance:
 
 .. autoclass:: UsdPhysicsMeshCollisionCfg
+   :no-index:
    :show-inheritance:
 
 .. autoclass:: UsdPhysicsRigidBodyCfg
+   :no-index:
    :show-inheritance:
