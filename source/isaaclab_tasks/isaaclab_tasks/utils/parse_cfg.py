@@ -160,16 +160,12 @@ def parse_env_cfg(
         use_fabric: Whether to enable/disable fabric interface. If false, all read/write operations go through USD.
             This slows down the simulation but allows seeing the changes in the USD through the USD stage.
             Defaults to None, in which case it is left unchanged.
-        overrides: Hydra-style ``key=value`` overrides (e.g. ``"physics=isaacsim_physx"``) applied on top of the
+        overrides: Hydra-style ``key=value`` overrides (e.g. ``["physics=isaacsim_physx"]``) applied on top of the
             task's registered configuration, using the same syntax as the ``physics=``/``renderer=``/``presets=``
             selectors documented for Hydra-driven scripts. Defaults to an empty sequence, in which case the task's
-            registered defaults are used unchanged.
-
-            TODO: Only ``scripts/tutorials/03_envs/run_cartpole_rl_env.py`` currently forwards unrecognized CLI
-            arguments here (via ``parser.parse_known_args()``). Other standalone scripts that call
-            :func:`parse_env_cfg` still use strict ``parser.parse_args()`` and have no CLI way to reach this
-            parameter, so callers wanting ``physics=``/``renderer=``/``presets=`` overrides from other scripts must
-            switch them to ``parse_known_args()`` and pass the extras through, mirroring the tutorial.
+            registered defaults are used unchanged. A single override must still be wrapped in a list or tuple
+            (e.g. ``["physics=isaacsim_physx"]``, not ``"physics=isaacsim_physx"``); a bare string is itself a
+            ``Sequence[str]`` of characters and would otherwise be split one character at a time.
 
     Returns:
         The parsed configuration object.
@@ -177,7 +173,14 @@ def parse_env_cfg(
     Raises:
         RuntimeError: If the configuration for the task is not a class. We assume users always use a class for the
             environment configuration.
+        TypeError: If ``overrides`` is a bare string instead of a list or tuple of override strings.
     """
+    if isinstance(overrides, str):
+        raise TypeError(
+            f"'overrides' must be a list or tuple of 'key=value' strings, not a bare string: {overrides!r}. Wrap"
+            f" it in a list, e.g. overrides=[{overrides!r}]."
+        )
+
     # Compose the registered task through the same boundary used by Hydra entry points.
     cfg, _ = resolve_task_config(task_name, None, overrides=overrides)
 

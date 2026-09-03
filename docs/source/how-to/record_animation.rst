@@ -104,13 +104,6 @@ It’s not UI-controlled—the whole process is enabled through CLI flags and ru
    the active backend instead of recording. Select the PhysX backend by adding ``physics=isaacsim_physx`` to the
    command line, as shown below.
 
-   .. note::
-
-      TODO: The ``physics=isaacsim_physx`` override is only forwarded by
-      ``scripts/tutorials/03_envs/run_cartpole_rl_env.py`` today. Other standalone scripts still reject
-      unrecognized ``key=value`` arguments; see the ``overrides`` parameter of
-      :func:`~isaaclab_tasks.utils.parse_env_cfg` for what forwarding it there would take.
-
 
 Workflow Summary
 ~~~~~~~~~~~~~~~~

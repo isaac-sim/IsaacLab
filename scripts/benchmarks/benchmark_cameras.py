@@ -236,7 +236,8 @@ parser.add_argument("--output_path", type=str, default=".", help="Path to output
 
 
 AppLauncher.add_app_launcher_args(parser)
-args_cli = parser.parse_args()
+# forward unrecognized args as Hydra-style task config overrides
+args_cli, hydra_overrides = parser.parse_known_args()
 args_cli.enable_cameras = True
 
 if args_cli.autotune:
@@ -527,7 +528,7 @@ def inject_cameras_into_task(
     num_cameras_per_env: int = 1,
 ) -> gym.Env:
     """Loads the task, sticks cameras into the config, and creates the environment."""
-    cfg = parse_env_cfg(task, device=args_cli.device, use_fabric=args_cli.use_fabric)
+    cfg = parse_env_cfg(task, device=args_cli.device, use_fabric=args_cli.use_fabric, overrides=hydra_overrides)
     scene_cfg = cfg.scene
 
     num_envs = int(num_cams / num_cameras_per_env)
