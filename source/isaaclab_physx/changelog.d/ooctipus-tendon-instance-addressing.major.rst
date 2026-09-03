@@ -1,19 +1,24 @@
 Added
 ^^^^^
 
-* Added :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonAxisCfg` for configuring the
+* Added :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisCfg` for configuring the
   ``PhysxTendonAxisAPI`` properties of existing fixed-tendon instances.
 * Added ``lower_limit`` and ``upper_limit`` to
-  :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonCfg` and
+  :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisRootCfg` and
   :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`.
 
 Changed
 ^^^^^^^
 
-* Added ``instance_names`` to :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonCfg` and
-  :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonCfg`. Pass one name or a list to select
+* Renamed ``PhysxFixedTendonCfg`` to
+  :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisRootCfg` and
+  ``PhysxSpatialTendonCfg`` to
+  :class:`~isaaclab_physx.sim.schemas.PhysxTendonAttachmentRootCfg` so every fragment name matches
+  its USD schema. No compatibility aliases are provided.
+* Added ``instance_names`` to :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisRootCfg` and
+  :class:`~isaaclab_physx.sim.schemas.PhysxTendonAttachmentRootCfg`. Pass one name or a list to select
   existing tendon instances; the default ``None`` preserves the previous broadcast behavior.
-* Changed :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonCfg` to configure only
+* Changed :class:`~isaaclab_physx.sim.schemas.PhysxTendonAttachmentRootCfg` to configure only
   ``PhysxTendonAttachmentRootAPI`` instances. Leaf and intermediate attachment topology remains
   asset-authored.
 

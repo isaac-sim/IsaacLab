@@ -24,9 +24,9 @@ def _register_codeless_physx_schemas():
 
 def test_tendon_fragments_use_codeless_schema_names_and_types():
     from isaaclab_physx.sim.schemas import (
-        PhysxFixedTendonAxisCfg,
-        PhysxFixedTendonCfg,
-        PhysxSpatialTendonCfg,
+        PhysxTendonAttachmentRootCfg,
+        PhysxTendonAxisCfg,
+        PhysxTendonAxisRootCfg,
     )
 
     from isaaclab.sim.schemas import apply_fixed_tendon_properties, apply_spatial_tendon_properties
@@ -42,12 +42,12 @@ def test_tendon_fragments_use_codeless_schema_names_and_types():
     assert apply_fixed_tendon_properties(
         "/Fixed",
         [
-            PhysxFixedTendonCfg(instance_names="index", stiffness=3.0),
-            PhysxFixedTendonAxisCfg(instance_names="index", gearing=[-0.5], joint_axis=["rotX"]),
+            PhysxTendonAxisRootCfg(instance_names="index", stiffness=3.0),
+            PhysxTendonAxisCfg(instance_names="index", gearing=[-0.5], joint_axis=["rotX"]),
         ],
         stage,
     )
-    assert apply_spatial_tendon_properties("/Spatial", [PhysxSpatialTendonCfg(stiffness=4.0)], stage)
+    assert apply_spatial_tendon_properties("/Spatial", [PhysxTendonAttachmentRootCfg(stiffness=4.0)], stage)
 
     assert fixed.GetAttribute("physxTendon:index:stiffness").Get() == pytest.approx(3.0)
     assert not fixed.GetAttribute("physxTendon:middle:stiffness").HasAuthoredValue()

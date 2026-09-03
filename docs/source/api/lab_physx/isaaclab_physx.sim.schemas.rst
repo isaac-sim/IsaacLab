@@ -43,10 +43,10 @@ isaaclab_physx.sim.schemas
   .. autosummary::
 
     PhysxFixedTendonPropertiesCfg
-    PhysxFixedTendonCfg
-    PhysxFixedTendonAxisCfg
+    PhysxTendonAxisRootCfg
+    PhysxTendonAxisCfg
     PhysxSpatialTendonPropertiesCfg
-    PhysxSpatialTendonCfg
+    PhysxTendonAttachmentRootCfg
 
   .. rubric:: Deformable body
 
@@ -133,12 +133,12 @@ Tendon
     :show-inheritance:
     :exclude-members: __init__
 
-.. autoclass:: PhysxFixedTendonCfg
+.. autoclass:: PhysxTendonAxisRootCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__
 
-.. autoclass:: PhysxFixedTendonAxisCfg
+.. autoclass:: PhysxTendonAxisCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__
@@ -148,7 +148,7 @@ Tendon
     :show-inheritance:
     :exclude-members: __init__
 
-.. autoclass:: PhysxSpatialTendonCfg
+.. autoclass:: PhysxTendonAttachmentRootCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__

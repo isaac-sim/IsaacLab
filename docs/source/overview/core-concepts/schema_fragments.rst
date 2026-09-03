@@ -74,15 +74,15 @@ joints:
 
 .. code-block:: python
 
-   from isaaclab_physx.sim.schemas import PhysxFixedTendonAxisCfg, PhysxFixedTendonCfg
+   from isaaclab_physx.sim.schemas import PhysxTendonAxisCfg, PhysxTendonAxisRootCfg
 
    fixed_tendons_props = {
        "/joints/index_root": [
-           PhysxFixedTendonCfg(instance_names="index_finger", stiffness=10.0),
-           PhysxFixedTendonAxisCfg(instance_names="index_finger", gearing=[1.0], joint_axis=["rotX"]),
+           PhysxTendonAxisRootCfg(instance_names="index_finger", stiffness=10.0),
+           PhysxTendonAxisCfg(instance_names="index_finger", gearing=[1.0], joint_axis=["rotX"]),
        ],
        "/joints/index_distal": [
-           PhysxFixedTendonAxisCfg(instance_names="index_finger", gearing=[-0.5], joint_axis=["rotX"]),
+           PhysxTendonAxisCfg(instance_names="index_finger", gearing=[-0.5], joint_axis=["rotX"]),
        ],
    }
 

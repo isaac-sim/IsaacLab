@@ -1263,12 +1263,12 @@ class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
 
 
 @configclass
-class PhysxFixedTendonCfg(FixedTendonFragment):
+class PhysxTendonAxisRootCfg(FixedTendonFragment):
     """Whole-tendon attributes from `PhysxTendonAxisRootAPI`_.
 
     This is a *tune-not-apply* fragment: the source asset owns the
     ``PhysxTendonAxisRootAPI:<instance>`` topology, and this fragment selects existing instances
-    to tune. Use :class:`PhysxFixedTendonAxisCfg` for the per-joint-axis properties of the same
+    to tune. Use :class:`PhysxTendonAxisCfg` for the per-joint-axis properties of the same
     fixed tendon.
 
     Dispatched via :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`.
@@ -1279,6 +1279,14 @@ class PhysxFixedTendonCfg(FixedTendonFragment):
     _usd_namespace: ClassVar[str | None] = None
     _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAxisRootAPI"
     func: Callable | str = "isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema"
+
+    instance_names: str | list[str] | None = None
+    """Names of existing tendon instances to tune.
+
+    A string selects one instance, a list selects those instances, and ``None`` selects every
+    ``PhysxTendonAxisRootAPI`` instance on each targeted prim (the default). An empty string or list
+    is an error. This field addresses the schema instances and is not authored as a USD property.
+    """
 
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""
@@ -1308,19 +1316,9 @@ class PhysxFixedTendonCfg(FixedTendonFragment):
     upper_limit: float | None = None
     """Upper limit of the tendon's length [m]."""
 
-    instance_names: str | list[str] | None = None
-    """Names of existing tendon instances to tune.
-
-    A string selects one instance, a list selects those instances, and ``None`` selects every
-    ``PhysxTendonAxisRootAPI`` instance on each targeted prim (the default). An empty string or list
-    is an error. This field addresses the schema instances and is not authored as a USD property.
-
-    This selector follows the pre-existing property fields to preserve their positional argument order.
-    """
-
 
 @configclass
-class PhysxFixedTendonAxisCfg(FixedTendonFragment):
+class PhysxTendonAxisCfg(FixedTendonFragment):
     """Per-joint-axis attributes from `PhysxTendonAxisAPI`_.
 
     The source asset owns each ``PhysxTendonAxisAPI:<instance>``. This fragment selects existing
@@ -1356,8 +1354,8 @@ class PhysxFixedTendonAxisCfg(FixedTendonFragment):
 
 
 @configclass
-class PhysxSpatialTendonCfg(SpatialTendonFragment):
-    """PhysX spatial-tendon attributes from `PhysxTendonAttachmentRootAPI`_.
+class PhysxTendonAttachmentRootCfg(SpatialTendonFragment):
+    """Whole-tendon attributes from `PhysxTendonAttachmentRootAPI`_.
 
     A spatial-tendon fragment (see :class:`~isaaclab.sim.schemas.SpatialTendonFragment`) for the
     PhysX spatial-tendon schema. This is a *tune-not-apply* fragment: the source asset owns the
@@ -1373,6 +1371,15 @@ class PhysxSpatialTendonCfg(SpatialTendonFragment):
     _usd_namespace: ClassVar[str | None] = None
     _usd_applied_schema: ClassVar[str | None] = "PhysxTendonAttachmentRootAPI"
     func: Callable | str = "isaaclab_physx.sim.schemas.schemas:_tune_tendon_schema"
+
+    instance_names: str | list[str] | None = None
+    """Names of existing spatial-tendon root instances to tune.
+
+    A string selects one instance, a list selects those instances, and ``None`` selects every
+    ``PhysxTendonAttachmentRootAPI`` instance on each targeted prim (the default). An empty string
+    or list is an error. This field addresses the schema instances and is not authored as a USD
+    property.
+    """
 
     tendon_enabled: bool | None = None
     """Whether to enable or disable the tendon."""
@@ -1391,15 +1398,4 @@ class PhysxSpatialTendonCfg(SpatialTendonFragment):
 
     It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
     to actuate the tendon by shortening or lengthening it.
-    """
-
-    instance_names: str | list[str] | None = None
-    """Names of existing spatial-tendon root instances to tune.
-
-    A string selects one instance, a list selects those instances, and ``None`` selects every
-    ``PhysxTendonAttachmentRootAPI`` instance on each targeted prim (the default). An empty string
-    or list is an error. This field addresses the schema instances and is not authored as a USD
-    property.
-
-    This selector follows the pre-existing property fields to preserve their positional argument order.
     """
