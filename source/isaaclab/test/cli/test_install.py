@@ -86,6 +86,49 @@ def test_run_python_command_uses_live_isaac_sim_with_active_python(tmp_path):
     assert run.call_args.kwargs["env"]["PYTHONEXE"] == active_python
 
 
+def test_run_python_command_accepts_virtual_environment_on_bundled_python(tmp_path):
+    """A virtual environment created on a downloaded package's Python runs that interpreter."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    bundled_python = local_sim / "kit" / "python" / "bin" / "python3"
+    bundled_python.parent.mkdir(parents=True)
+    bundled_python.touch()
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "bin" / "python").symlink_to(bundled_python)
+    (venv / "pyvenv.cfg").write_text(f"home = {bundled_python.parent}\n")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=str(venv / "bin" / "python")),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(venv)}, clear=True),
+    ):
+        run_python_command("script.py", [])
+
+    assert run.call_args is not None
+
+
+def test_run_python_command_rejects_virtual_environment_on_foreign_python(tmp_path):
+    """A virtual environment built on another interpreter stays rejected."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=str(venv / "bin" / "python")),
+        mock.patch("isaaclab.cli.utils.run_command"),
+        mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(venv)}, clear=True),
+        pytest.raises(SystemExit),
+    ):
+        run_python_command("script.py", [])
+
+
 def test_run_python_command_does_not_wrap_an_active_isaac_sim_environment(tmp_path):
     """The legacy wrapper path must not source the same Isaac Sim environment twice."""
     local_sim = tmp_path / "_isaac_sim"
