@@ -1191,6 +1191,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # The write landed in DOF space; push it back into Newton's joint coordinates.
+        self.data._flush_joint_positions(env_ids=env_ids)
         # Let the data class handle the invalidation of the pose and velocity related properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -1257,6 +1259,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        # The write landed in DOF space; push it back into Newton's joint coordinates.
+        self.data._flush_joint_positions(env_mask=env_mask)
         # Let the data class handle the invalidation of the pose and velocity related properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -1310,6 +1314,8 @@ class Articulation(BaseArticulation):
             self.data._sim_bind_joint_pos,
             device=self.device,
         )
+        # The write landed in DOF space; push it back into Newton's joint coordinates.
+        self.data._flush_joint_positions(env_ids=env_ids)
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -1360,6 +1366,8 @@ class Articulation(BaseArticulation):
             self.data._sim_bind_joint_pos,
             device=self.device,
         )
+        # The write landed in DOF space; push it back into Newton's joint coordinates.
+        self.data._flush_joint_positions(env_mask=env_mask)
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)

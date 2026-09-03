@@ -10,6 +10,7 @@ import weakref
 from typing import TYPE_CHECKING
 
 import numpy as np
+import torch
 import warp as wp
 
 from isaaclab.assets.articulation import ordering_kernels
@@ -22,6 +23,7 @@ from isaaclab.utils.warp.utils import capture_unsafe
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
+from isaaclab_newton.assets.articulation.joint_coordinates import JointCoordinateMap, as_warp_indices
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 if TYPE_CHECKING:
@@ -120,6 +122,8 @@ class ArticulationData(BaseArticulationData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
+        # joint_q may have moved; re-derive the DOF-space view before anything reads it
+        self._refresh_joint_positions()
         # FK is current after a sim step — keep fk_timestamp in sync unless it was explicitly invalidated
         if self._fk_timestamp >= 0.0:
             self._fk_timestamp = self._sim_timestamp
@@ -127,6 +131,46 @@ class ArticulationData(BaseArticulationData):
         # since we do finite differencing.
         self.joint_acc
         self.body_com_acc_w
+
+    def _refresh_joint_positions(self, force: bool = False) -> None:
+        """Re-derive the DOF-space joint positions from Newton's coordinate array.
+
+        A no-op unless the articulation has a ball joint; without one ``_sim_bind_joint_pos`` is a
+        zero-copy view onto ``joint_q`` and is always current.
+
+        Args:
+            force: Refresh even if the simulation timestamp has not advanced. Needed by consumers
+                that run inside a step, before :meth:`update` bumps the timestamp.
+        """
+        if not self._joint_coord_map.required:
+            return
+        if not force and self._joint_pos_timestamp >= self._sim_timestamp:
+            return
+        self._joint_coord_map.gather(self._sim_bind_joint_coords, self._sim_bind_joint_pos)
+        self._joint_pos_timestamp = self._sim_timestamp
+
+    def _flush_joint_positions(self, env_ids=None, env_mask=None) -> None:
+        """Push DOF-space joint positions back into Newton's coordinate array.
+
+        Called after every write to ``_sim_bind_joint_pos``; a no-op when the two spaces coincide
+        and the buffer already is ``joint_q``. Only the written environments are converted --
+        resets are staggered, and round-tripping untouched environments through the log map would
+        add float32 noise to their ball joints on nearly every step.
+        """
+        if not self._joint_coord_map.required:
+            return
+        if env_ids is not None:
+            selection = as_warp_indices(env_ids)
+        elif env_mask is not None:
+            selection = as_warp_indices(wp.to_torch(env_mask).nonzero().flatten().to(torch.int32))
+        else:
+            if getattr(self, "_all_env_indices", None) is None:
+                self._all_env_indices = wp.array(
+                    np.arange(self._num_instances, dtype=np.int32), dtype=wp.int32, device=self.device
+                )
+            selection = self._all_env_indices
+        self._joint_coord_map.scatter(self._sim_bind_joint_pos, self._sim_bind_joint_coords, selection)
+        self._joint_pos_timestamp = self._sim_timestamp
 
     def _ensure_fk_fresh(self) -> None:
         """Run forward kinematics if joint state has changed since the last FK update.
@@ -1036,6 +1080,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to
         (num_instances, num_joints).
         """
+        self._refresh_joint_positions()
         return self._joint_pos_ta
 
     @property
@@ -1591,7 +1636,20 @@ class ArticulationData(BaseArticulationData):
                 "joint_effort_limit", SimulationManager.get_model()
             )[:, 0]
             # -- joint states
-            self._sim_bind_joint_pos = self._root_view.get_dof_positions(SimulationManager.get_state_0())[:, 0]
+            # ``get_dof_positions`` returns Newton's ``joint_q``, which is *coordinate* space: a ball
+            # joint occupies 4 quaternion components against 3 DOFs, so the array is wider than
+            # ``num_joints`` whenever the articulation has one. IsaacLab addresses joints by DOF
+            # index everywhere, so keep the coordinate array separate and publish a DOF-space view.
+            self._sim_bind_joint_coords = self._root_view.get_dof_positions(SimulationManager.get_state_0())[:, 0]
+            self._joint_coord_map = JointCoordinateMap(SimulationManager.get_model(), self._num_joints, self.device)
+            if self._joint_coord_map.required:
+                self._sim_bind_joint_pos = wp.zeros(
+                    (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+                )
+                self._joint_coord_map.gather(self._sim_bind_joint_coords, self._sim_bind_joint_pos)
+            else:
+                self._sim_bind_joint_pos = self._sim_bind_joint_coords
+            self._joint_pos_timestamp = -1.0
             self._sim_bind_joint_vel = self._root_view.get_dof_velocities(SimulationManager.get_state_0())[:, 0]
             # -- joint commands (sent to the simulation)
             self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", SimulationManager.get_control())[
