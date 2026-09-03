@@ -94,7 +94,7 @@ def test_spawn_cylinder(sim):
 def test_spawn_cuboid(sim):
     """Test spawning of UsdGeomMesh as a cuboid prim."""
     # Spawn cuboid
-    cfg = sim_utils.MeshCuboidCfg(size=(1.0, 2.0, 3.0), edge_refinement=1.0)
+    cfg = sim_utils.MeshCuboidCfg(size=(1.0, 2.0, 3.0))
     prim = cfg.func("/World/Cube", cfg)
 
     # Check validity
@@ -125,9 +125,10 @@ def test_mesh_edge_refinement_default():
         (sim_utils.MeshRectangleCfg, {"size": (1.0, 1.0)}, 3.0),
     ],
 )
-def test_spawn_mesh_with_edge_refinement(sim, cfg_type, kwargs, edge_refinement):
-    """Test surface edge refinement for mesh primitives."""
-    cfg = cfg_type(**kwargs, edge_refinement=edge_refinement)
+def test_spawn_mesh_with_edge_refinement(sim, monkeypatch, cfg_type, kwargs, edge_refinement):
+    """Test surface edge refinement for deformable mesh primitives."""
+    monkeypatch.setattr(mesh_spawner.schemas, "define_deformable_body_properties", lambda *a, **k: None)
+    cfg = cfg_type(**kwargs, edge_refinement=edge_refinement, deformable_props=sim_utils.DeformableBodyPropertiesCfg())
     cfg.func("/World/Refined", cfg)
     prim = sim.stage.GetPrimAtPath("/World/Refined/geometry/mesh")
     points = np.asarray(prim.GetAttribute("points").Get())
@@ -186,12 +187,11 @@ def test_spawn_sphere(sim):
     assert prim.GetPrimTypeInfo().GetTypeName() == "Mesh"
 
 
-@pytest.mark.parametrize("edge_refinement", [1.0, 2.4])
 @pytest.mark.parametrize("size", [(1.0, 1.0), (1.5, 0.8)])
-def test_spawn_rectangle(sim, edge_refinement, size):
+def test_spawn_rectangle(sim, size):
     """Test spawning of UsdGeomMesh as a rectangle prim."""
     # Spawn rectangle
-    cfg = sim_utils.MeshRectangleCfg(size=size, edge_refinement=edge_refinement)
+    cfg = sim_utils.MeshRectangleCfg(size=size)
     prim = cfg.func("/World/Rectangle", cfg)
 
     # Check validity
@@ -201,6 +201,8 @@ def test_spawn_rectangle(sim, edge_refinement, size):
     # Check properties
     prim = sim.stage.GetPrimAtPath("/World/Rectangle/geometry/mesh")
     assert prim.GetPrimTypeInfo().GetTypeName() == "Mesh"
+    assert len(prim.GetAttribute("points").Get()) == 4
+    assert len(prim.GetAttribute("faceVertexCounts").Get()) == 2
 
 
 def test_invalid_edge_refinement(sim):

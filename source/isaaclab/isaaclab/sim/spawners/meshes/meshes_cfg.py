@@ -76,7 +76,7 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     """
 
     edge_refinement: float = 4.0
-    """Mesh edge refinement factor.
+    """Mesh edge refinement factor for deformable bodies.
 
     The maximum surface edge length is the bounding-box diagonal divided by this value. Volume deformables use the
     same normalized target for automatic tetrahedralization. The factor must be at least ``1.0``. For volume

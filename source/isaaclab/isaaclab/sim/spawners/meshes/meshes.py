@@ -381,7 +381,7 @@ def _spawn_mesh_geom_from_mesh(
     """
     if cfg.edge_refinement < 1.0:
         raise ValueError(f"Mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
-    if cfg.edge_refinement > 1.0:
+    if cfg.deformable_props is not None and cfg.edge_refinement > 1.0:
         max_edge = float(np.linalg.norm(mesh.bounding_box.extents)) / cfg.edge_refinement
         vertices, faces = trimesh.remesh.subdivide_to_size(mesh.vertices, mesh.faces, max_edge=max_edge)
         mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
