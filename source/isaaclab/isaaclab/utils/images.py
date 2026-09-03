@@ -81,14 +81,14 @@ def normalize_camera_image(
 
     Returns:
         The normalized tensor. For RGB-like and colorized semantic-segmentation input this is a
-        fresh (or pre-allocated) float32 tensor; for non-colorized semantic segmentation it is a
-        float32 view or copy of ``images``; for depth-like input it is ``images`` itself (mutated
-        in place); for normals-like input it is a new tensor; for anything else, ``images``
+        fresh (or pre-allocated) float32 tensor; for non-colorized semantic segmentation it is
+        ``images`` cast to float32; for depth-like input it is ``images`` itself (mutated in
+        place); for normals-like input it is a new tensor; for anything else, ``images``
         unchanged.
     """
     if data_type == "semantic_segmentation" and images.dtype != torch.uint8:
-        # Non-colorized segmentation is an integer label map (``int32`` for every renderer). Label
-        # ids have no meaningful scale, so only cast to float32 so downstream convolutions accept it.
+        # Non-colorized segmentation is an integer label map (``int32`` for every renderer).
+        # Label ids carry no scale, so cast for the downstream convolutions without rescaling.
         return images.float()
     if is_rgb_like(data_type) or (data_type == "semantic_segmentation" and images.dtype == torch.uint8):
         if images.dtype == torch.uint8 and images.ndim == 4 and images.is_contiguous():

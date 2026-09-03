@@ -5,9 +5,9 @@
 
 """Sim-free tests for the Cartpole camera observation term.
 
-The term must hand the policy a float32 tensor for every camera data type. Segmentation is the
-interesting case: it is ``uint8`` RGBA when colorized and ``int32`` label ids when not, and the
-feature extractor's first convolution rejects both integer dtypes.
+Segmentation output is ``uint8`` RGBA when colorized and ``int32`` label ids when not. Either
+integer dtype crashes the feature extractor's first convolution, so the term must return float32
+for both. ``frame_stack`` is parametrized because the stacking path defers normalization.
 """
 
 from __future__ import annotations
@@ -29,56 +29,44 @@ def device(request):
     return request.param
 
 
-def _make_env(camera_output: dict[str, torch.Tensor], frame_stack: int, device: str) -> SimpleNamespace:
-    """Build the minimal environment stub the observation term reads from."""
-    camera = SimpleNamespace(data=SimpleNamespace(output=camera_output))
-    return SimpleNamespace(
+def _observe(images: torch.Tensor, frame_stack: int, device: str) -> torch.Tensor:
+    """Run the observation term over ``images`` using a minimal environment stub."""
+    camera = SimpleNamespace(data=SimpleNamespace(output={"semantic_segmentation": images}))
+    env = SimpleNamespace(
         cfg=SimpleNamespace(frame_stack=frame_stack),
-        num_envs=next(iter(camera_output.values())).shape[0],
+        num_envs=images.shape[0],
         device=device,
         scene=SimpleNamespace(sensors={"tiled_camera": camera}),
     )
+    term = CameraImageStack(ObservationTermCfg(func=CameraImageStack), env)
+    return term(env, SceneEntityCfg("tiled_camera"), "semantic_segmentation")
+
+
+def _to_expected_layout(images: torch.Tensor, frame_stack: int) -> torch.Tensor:
+    """Convert BHWC to the channel-first layout, repeated as the ring buffer fills on first append."""
+    return images.permute(0, 3, 1, 2).repeat(1, frame_stack, 1, 1)
 
 
 @pytest.mark.parametrize("frame_stack", [1, 2])
-@pytest.mark.parametrize(
-    "dtype,num_channels",
-    [(torch.uint8, 4), (torch.int32, 1)],
-    ids=["colorized_uint8_rgba", "non_colorized_int32_labels"],
-)
-def test_semantic_segmentation_observation_is_float32(device, frame_stack, dtype, num_channels):
-    """Segmentation observations are float32 regardless of the renderer's ``colorize`` setting."""
-    torch.manual_seed(0)
-    images = torch.randint(0, 5, (2, 8, 8, num_channels), dtype=dtype, device=device)
-    env = _make_env({"semantic_segmentation": images}, frame_stack, device)
-    term = CameraImageStack(ObservationTermCfg(func=CameraImageStack), env)
-
-    observation = term(env, SceneEntityCfg("tiled_camera"), "semantic_segmentation")
-
-    assert observation.dtype == torch.float32
-    assert observation.shape == (2, frame_stack * num_channels, 8, 8)
-
-
-def test_colorized_segmentation_matches_rgb_normalization(device):
-    """Colorized segmentation gets the same ``(x / 255) - per-image mean`` treatment as RGB."""
+def test_colorized_segmentation_is_normalized_like_rgb(device, frame_stack):
+    """Colorized uint8 RGBA segmentation gets the same ``(x / 255) - per-image mean`` as RGB."""
     torch.manual_seed(0)
     images = torch.randint(0, 255, (2, 8, 8, 4), dtype=torch.uint8, device=device)
-    env = _make_env({"semantic_segmentation": images}, frame_stack=1, device=device)
-    term = CameraImageStack(ObservationTermCfg(func=CameraImageStack), env)
 
-    observation = term(env, SceneEntityCfg("tiled_camera"), "semantic_segmentation")
+    observation = _observe(images, frame_stack, device)
 
     expected = images.float() / 255.0
     expected = expected - torch.mean(expected, dim=(1, 2), keepdim=True)
-    torch.testing.assert_close(observation, expected.permute(0, 3, 1, 2), atol=1e-5, rtol=1e-5)
+    assert observation.dtype == torch.float32
+    torch.testing.assert_close(observation, _to_expected_layout(expected, frame_stack), atol=1e-5, rtol=1e-5)
 
 
-def test_non_colorized_segmentation_preserves_label_ids(device):
-    """Label ids carry no scale, so the int32 map is only cast, never rescaled."""
+@pytest.mark.parametrize("frame_stack", [1, 2])
+def test_non_colorized_segmentation_is_cast_to_float(device, frame_stack):
+    """Non-colorized int32 label ids are cast to float32 and, carrying no scale, left unrescaled."""
     images = torch.arange(2 * 8 * 8, dtype=torch.int32, device=device).reshape(2, 8, 8, 1) % 5
-    env = _make_env({"semantic_segmentation": images}, frame_stack=1, device=device)
-    term = CameraImageStack(ObservationTermCfg(func=CameraImageStack), env)
 
-    observation = term(env, SceneEntityCfg("tiled_camera"), "semantic_segmentation")
+    observation = _observe(images, frame_stack, device)
 
-    torch.testing.assert_close(observation, images.to(torch.float32).permute(0, 3, 1, 2))
+    assert observation.dtype == torch.float32
+    torch.testing.assert_close(observation, _to_expected_layout(images.float(), frame_stack))
