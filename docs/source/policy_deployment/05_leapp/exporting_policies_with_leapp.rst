@@ -77,13 +77,13 @@ Export a trained policy, then launch the exported policy in Isaac Lab:
 
    uv run --extra leapp python \
        scripts/reinforcement_learning/leapp/<RL_LIBRARY>/export.py \
-       --task <TASK_NAME>
+       --task <TASK_NAME> physics=newton_mjwarp
 
    uv run --extra leapp python \
        scripts/reinforcement_learning/leapp/deploy.py \
        --task <TASK_NAME> \
        --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
-       --viz kit
+       --viz newton_gl physics=newton_mjwarp
 
 Continue with the sections below to select a different RL library, configure the
 export, and validate the generated artifacts.
