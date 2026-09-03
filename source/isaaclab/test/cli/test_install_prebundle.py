@@ -18,6 +18,7 @@ import pytest
 from isaaclab.cli.commands.install import (
     _assert_no_new_dangling_prebundle_symlinks,
     _find_dangling_prebundle_symlinks,
+    _nested_prebundle_mirrors,
     _torch_first_on_sys_path_is_prebundle,
     split_install_items,
 )
@@ -160,3 +161,56 @@ class TestPrebundleSymlinkIntegrity:
         (services / "test_module.py").symlink_to(core / "gone-test.py")
         with mock.patch("isaaclab.cli.commands.install._discover_prebundle_dirs", return_value={core, services}):
             _assert_no_new_dangling_prebundle_symlinks(set())
+
+
+# ---------------------------------------------------------------------------
+# _nested_prebundle_mirrors
+# ---------------------------------------------------------------------------
+
+
+class TestNestedPrebundleMirrors:
+    """Tests for :func:`_nested_prebundle_mirrors`.
+
+    Isaac Sim's ``isaacsim.pip.newton`` prebundle carries both a flat ``newton`` directory and
+    an extras-qualified ``newton[sim]/newton-<version>-py3-none-any/newton`` mirror built from
+    per-file symlinks. Repointing only the flat copy leaves the mirror pointing at the previous
+    version's file list.
+    """
+
+    def test_extras_qualified_mirror_is_found(self, tmp_path):
+        mirror = tmp_path / "newton[sim]" / "newton-1.5.0-py3-none-any" / "newton"
+        mirror.mkdir(parents=True)
+
+        assert _nested_prebundle_mirrors(tmp_path, "newton") == [mirror]
+
+    def test_flat_package_is_not_reported_as_its_own_mirror(self, tmp_path):
+        """The caller already repoints the flat directory; returning it again would double-count."""
+        (tmp_path / "newton").mkdir()
+
+        assert _nested_prebundle_mirrors(tmp_path, "newton") == []
+
+    def test_package_without_an_extras_directory_has_no_mirror(self, tmp_path):
+        (tmp_path / "torch").mkdir()
+        (tmp_path / "newton[sim]" / "newton-1.5.0-py3-none-any" / "newton").mkdir(parents=True)
+
+        assert _nested_prebundle_mirrors(tmp_path, "torch") == []
+
+    def test_bracket_in_the_name_is_matched_literally_not_as_a_glob(self, tmp_path):
+        """``newton[sim]`` is a valid glob character class, so name matching must not glob."""
+        # ``newton[sim]`` as a class matches the single characters s, i and m.
+        (tmp_path / "newtons" / "newton-1.5.0-py3-none-any" / "newton").mkdir(parents=True)
+        real = tmp_path / "newton[sim]" / "newton-1.5.0-py3-none-any" / "newton"
+        real.mkdir(parents=True)
+
+        assert _nested_prebundle_mirrors(tmp_path, "newton") == [real]
+
+    def test_a_mirror_that_is_a_symlink_is_still_reported(self, tmp_path):
+        """Repointing is idempotent, so an already-collapsed mirror must stay discoverable."""
+        target = tmp_path / "env_newton"
+        target.mkdir()
+        wheel_dir = tmp_path / "newton[sim]" / "newton-1.5.0-py3-none-any"
+        wheel_dir.mkdir(parents=True)
+        mirror = wheel_dir / "newton"
+        mirror.symlink_to(target)
+
+        assert _nested_prebundle_mirrors(tmp_path, "newton") == [mirror]

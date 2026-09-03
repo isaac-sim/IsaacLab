@@ -962,6 +962,41 @@ def _discover_prebundle_dirs() -> set[Path]:
     return prebundle_dirs
 
 
+def _nested_prebundle_mirrors(prebundle_dir: Path, pkg_name: str) -> list[Path]:
+    """Return ``<pkg>[extras]/<pkg>-<version>-*/<pkg>`` mirrors of a prebundled package.
+
+    Isaac Sim's ``isaacsim.pip.newton`` prebundle, for example, holds both a flat ``newton``
+    directory and ``newton[sim]/newton-1.5.0-py3-none-any/newton``, the latter built from
+    per-file symlinks into the former. Only the flat copy is named in
+    :data:`_PREBUNDLE_REPOINT_PACKAGES`, so the mirrors have to be discovered by shape.
+
+    Args:
+        prebundle_dir: A ``pip_prebundle`` directory to search.
+        pkg_name: Package directory name being repointed.
+
+    Returns:
+        Existing mirror directories, which may be empty.
+    """
+    mirrors: list[Path] = []
+    # ``pkg_name`` may contain glob metacharacters once the extras suffix is appended
+    # (``newton[sim]`` is a character class), so match by name rather than globbing.
+    prefix = f"{pkg_name}["
+    try:
+        extras_dirs = [p for p in prebundle_dir.iterdir() if p.is_dir() and p.name.startswith(prefix)]
+    except OSError:
+        return mirrors
+    for extras_dir in extras_dirs:
+        try:
+            wheel_dirs = [p for p in extras_dir.iterdir() if p.is_dir()]
+        except OSError:
+            continue
+        for wheel_dir in wheel_dirs:
+            candidate = wheel_dir / pkg_name
+            if candidate.is_symlink() or candidate.is_dir():
+                mirrors.append(candidate)
+    return mirrors
+
+
 def _find_dangling_prebundle_symlinks() -> set[Path]:
     """Find symlinks under Isaac Sim prebundles whose targets do not resolve.
 
@@ -1084,24 +1119,31 @@ def _repoint_prebundle_packages() -> None:
                 print_debug(f"Skipping repoint of {prebundled}: {venv_pkg} lacks CUDA subpackages (cudnn missing).")
                 continue
 
-            try:
-                # Already repointed to the right place — nothing to do.
-                if prebundled.is_symlink() and prebundled.resolve() == venv_pkg.resolve():
-                    continue
-                # Replace the prebundled copy (a stale symlink or a real directory)
-                # with a symlink to the active environment. We remove rather than
-                # rename-to-``.bak``: the env copy is the symlink target, so the
-                # prebundle content is redundant, and renaming a directory on an
-                # overlayfs lower layer (Docker image build) fails with ``EXDEV``.
-                _force_remove(prebundled)
-                if use_symlinks:
-                    prebundled.symlink_to(venv_pkg)
-                else:
-                    shutil.copytree(venv_pkg, prebundled)
-                repointed += 1
-                print_debug(f"Repointed {prebundled} -> {venv_pkg}")
-            except OSError as exc:
-                print_warning(f"Could not repoint {prebundled}: {exc} — skipping.")
+            # Some Isaac Sim builds ship a second copy of the wheel beside the flat directory,
+            # under ``<pkg>[extras]/<pkg>-<version>-*/<pkg>``, whose contents are per-file
+            # symlinks back into the flat copy. That mirror encodes the shipped version's exact
+            # file list, so repointing only the flat directory leaves every symlink whose file
+            # the new version renamed or dropped dangling. Collapse each mirror to the same
+            # target: one symlink cannot go stale the way a per-file tree does.
+            for target in [prebundled, *_nested_prebundle_mirrors(prebundle_dir, pkg_name)]:
+                try:
+                    # Already repointed to the right place — nothing to do.
+                    if target.is_symlink() and target.resolve() == venv_pkg.resolve():
+                        continue
+                    # Replace the prebundled copy (a stale symlink or a real directory)
+                    # with a symlink to the active environment. We remove rather than
+                    # rename-to-``.bak``: the env copy is the symlink target, so the
+                    # prebundle content is redundant, and renaming a directory on an
+                    # overlayfs lower layer (Docker image build) fails with ``EXDEV``.
+                    _force_remove(target)
+                    if use_symlinks:
+                        target.symlink_to(venv_pkg)
+                    else:
+                        shutil.copytree(venv_pkg, target)
+                    repointed += 1
+                    print_debug(f"Repointed {target} -> {venv_pkg}")
+                except OSError as exc:
+                    print_warning(f"Could not repoint {target}: {exc} — skipping.")
 
     if repointed:
         print_info(
