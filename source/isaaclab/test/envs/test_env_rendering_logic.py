@@ -277,6 +277,35 @@ def test_env_reset_invalidates_renderer_scene_state_cadence(env_type):
             SimulationContext.clear_instance()
 
 
+def test_direct_in_step_reset_updates_articulation_kinematics(monkeypatch):
+    """A timeout reset forwards the written state before computing observations."""
+    env = None
+    try:
+        sim_utils.create_new_stage()
+        env = create_direct_rl_env(render_interval=1, episode_length_steps=1)
+        env.reset()
+
+        forward_count = 0
+        original_forward = env.sim.forward
+
+        def record_forward():
+            nonlocal forward_count
+            forward_count += 1
+            original_forward()
+
+        monkeypatch.setattr(env.sim, "forward", record_forward)
+        actions = torch.zeros((env.num_envs, 0), device=env.device)
+        _, _, _, truncated, _ = env.step(action=actions)
+
+        assert truncated.item()
+        assert forward_count == 1
+    finally:
+        if env is not None:
+            env.close()
+        else:
+            SimulationContext.clear_instance()
+
+
 @pytest.mark.parametrize("env_type", ["manager_based_env", "manager_based_rl_env", "direct_rl_env"])
 def test_env_render_false_skips_rendering(env_type, physics_callback, render_callback):
     """Test that setting render_enabled=False skips all rendering while physics continues."""
