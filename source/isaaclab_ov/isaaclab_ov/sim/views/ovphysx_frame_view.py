@@ -276,7 +276,7 @@ class OvPhysxFrameView(BaseFrameView):
     Body world poses are read each step via an OVPhysX ``RIGID_BODY_POSE`` tensor
     binding -- the same data path the contact sensor uses -- and **not** via the
     scene data provider's Newton model. This keeps the view usable in scenes
-    that do not declare ``requires_newton_model=True``.
+    that do not declare the ``NEWTON_MODEL`` scene-data requirement.
 
     World poses are computed on GPU as ``body_q[body_index] * site_local`` via
     a Warp kernel, with the world-attached branch returning ``site_local``

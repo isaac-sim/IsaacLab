@@ -270,6 +270,7 @@ def export_rsl_rl_agent(
         graph_name = args_cli.export_task_name if args_cli.export_task_name is not None else task_name
 
         if isinstance(env.unwrapped, ManagerBasedRLEnv):
+            export_method = "onnx-dynamo" if args_cli.export_method is None else args_cli.export_method
             # Patch only the observation groups consumed by the actor policy.
             # This filters out the critic and teacher observation groups.
             obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
@@ -279,8 +280,13 @@ def export_rsl_rl_agent(
                 required_obs_groups = {"policy"}
             patch_env_for_export(
                 env,
-                export_method=args_cli.export_method,
+                export_method=export_method,
                 required_obs_groups=required_obs_groups,
+            )
+        elif args_cli.export_method is not None:
+            raise ValueError(
+                "--export_method is only supported for manager-based environments. For direct environments, "
+                "set export_with directly in the annotate.output_tensors() call instead."
             )
 
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)

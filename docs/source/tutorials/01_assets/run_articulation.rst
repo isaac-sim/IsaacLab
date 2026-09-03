@@ -80,18 +80,19 @@ Stepping the simulation
 
 Applying commands to the articulation involves two steps:
 
-1. *Setting the joint targets*: This sets the desired joint position, velocity, or effort targets for the articulation.
+1. *Setting actuator commands*: This provides desired position, velocity, or effort values to the actuator models in
+   joint-side coordinates.
 2. *Writing the data to the simulation*: Based on the articulation's configuration, this step handles any
-   :ref:`actuation conversions <overview-actuators>` and writes the converted values to the PhysX buffer.
+   :ref:`actuation conversions <overview-actuators>` and writes the converted values to the simulation buffers.
 
 In this tutorial, we control the articulation using joint effort commands. For this to work, we need to set the
 articulation's stiffness and damping parameters to zero. This is done a-priori inside the cart-pole's pre-defined
 configuration object.
 
-At every step, we randomly sample joint efforts and set them to the articulation by calling the
-:meth:`Articulation.set_joint_effort_target` method. After setting the targets, we call the
-:meth:`Articulation.write_data_to_sim` method to write the data to the PhysX buffer. Finally, we step
-the simulation.
+At every step, we randomly sample joint efforts and set them on the articulation's actuator collection
+by calling ``robot.actuators.target_command.set_effort_index``. After setting the commands,
+we call the :meth:`Articulation.write_data_to_sim` method to write the data to the simulation buffers.
+Finally, we step the simulation.
 
 .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_articulation.py
    :language: python

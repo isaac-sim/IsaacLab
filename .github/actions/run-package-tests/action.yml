@@ -211,6 +211,7 @@ runs:
         HOST_DIR: ${{ steps.warp-cache-key.outputs.host-dir }}
         MATCHED_KEY: ${{ steps.warp-cache-restore.outputs.cache-matched-key }}
         COLLECTION: ${{ steps.warp-cache-key.outputs.collection }}
+        CACHE_MODE: ${{ inputs.warp-cache }}
       run: |
         set -euo pipefail
         mkdir -p "$HOST_DIR"
@@ -228,9 +229,13 @@ runs:
           echo "Warp cache hit: ${MATCHED_KEY}"
           echo "WARP_CACHE_HIT=${MATCHED_KEY}" >> "$GITHUB_ENV"
         fi
-        echo "WARP_CACHE_MB_BEFORE=$(du -sm "$HOST_DIR" | cut -f1)" >> "$GITHUB_ENV"
+        echo "WARP_CACHE_BYTES_BEFORE=$(du -sb "$HOST_DIR" | cut -f1)" >> "$GITHUB_ENV"
 
         python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" "Warp cache restored"
+        if [ "$CACHE_MODE" = "save" ]; then
+          fingerprint="$(python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" --fingerprint)"
+          echo "WARP_CACHE_FINGERPRINT_BEFORE=$fingerprint" >> "$GITHUB_ENV"
+        fi
 
     - name: Setup wheelhouse registry authentication
       if: inputs.wheelhouse-image != ''
@@ -333,15 +338,16 @@ runs:
           exit 1
         fi
 
-    # Growth is the coverage signal: it is exactly the kernels this job needed
-    # that the collection did not already hold. Reporting only - no thresholds,
-    # since we have no measured basis for one yet.
+    # Net growth is a useful coverage signal for missing kernels. The writer
+    # also fingerprints the tree because recompilation can replace an existing
+    # artifact without changing the total size.
     - name: Report Warp cache growth
       if: always() && inputs.warp-cache != ''
       id: warp-cache-growth
       shell: bash
       env:
         HOST_DIR: ${{ steps.warp-cache-key.outputs.host-dir }}
+        CACHE_MODE: ${{ inputs.warp-cache }}
       run: |
         set -euo pipefail
 
@@ -351,31 +357,51 @@ runs:
           exit 0
         fi
 
-        before="${WARP_CACHE_MB_BEFORE:-0}"
-        after="$(du -sm "$HOST_DIR" | cut -f1)"
+        before="${WARP_CACHE_BYTES_BEFORE:-0}"
+        after="$(du -sb "$HOST_DIR" | cut -f1)"
         grew=$(( after - before ))
+        before_mb=$(( before / 1000000 ))
+        after_mb=$(( after / 1000000 ))
+        grew_mb=$(( grew / 1000000 ))
 
         if [ "${WARP_CACHE_HIT:-miss}" = "miss" ]; then
           verdict="cold run, nothing restored"
         elif [ "$grew" -le 0 ]; then
-          verdict="fully covered"
+          verdict="no net growth"
         else
           verdict="compiled $(( grew * 100 / (before > 0 ? before : 1) ))% beyond the restored cache"
         fi
 
-        echo "Warp cache: restored ${before} MB, ended at ${after} MB (+${grew} MB) - ${verdict}"
-        echo "🔵 Warp cache: ${before} -> ${after} MB (+${grew}) - ${verdict}" >> "$GITHUB_STEP_SUMMARY"
+        echo "Warp cache: restored ${before_mb} MB, ended at ${after_mb} MB (+${grew_mb} MB) - ${verdict}"
+        echo "🔵 Warp cache: ${before_mb} -> ${after_mb} MB (+${grew_mb}) - ${verdict}" >> "$GITHUB_STEP_SUMMARY"
         python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" "Warp cache final"
 
         # Publishing an empty tree would replace a good snapshot with nothing.
-        [ "$after" -lt 1 ] && echo "empty=true" >> "$GITHUB_OUTPUT" || echo "empty=false" >> "$GITHUB_OUTPUT"
+        if [ -z "$(find "$HOST_DIR" -type f -print -quit)" ]; then
+          echo "::warning::Warp cache contains no files; skipping publish"
+          echo "empty=true" >> "$GITHUB_OUTPUT"
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "empty=false" >> "$GITHUB_OUTPUT"
+          if [ "$CACHE_MODE" = "save" ] && [ "${WARP_CACHE_HIT:-miss}" != "miss" ]; then
+            fingerprint="$(python3 .github/actions/run-package-tests/warp_cache_inventory.py "$HOST_DIR" --fingerprint)"
+            if [ "$fingerprint" = "${WARP_CACHE_FINGERPRINT_BEFORE:-}" ]; then
+              echo "Warp cache contents are unchanged; skipping duplicate snapshot"
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+        fi
 
     # Not success(): the product is compiled kernels, and those stay valid when a
     # test assertion fails. Gating on success() let one failing env silently
     # discard the whole cache. Cancellation still skips, so a tree Warp was
     # mid-write on is never published.
     - name: Save Warp kernel cache
-      if: '!cancelled() && inputs.warp-cache == ''save'' && steps.warp-cache-growth.outputs.empty != ''true'''
+      if: '!cancelled() && inputs.warp-cache == ''save'' && steps.warp-cache-growth.outputs.empty != ''true'' && steps.warp-cache-growth.outputs.changed == ''true'''
       uses: actions/cache/save@v4
       with:
         path: ${{ steps.warp-cache-key.outputs.host-dir }}

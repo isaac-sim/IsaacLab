@@ -270,6 +270,76 @@ def test_newton_visualizer_render_rgb_array_requires_initialized_viewer():
         visualizer.render_rgb_array()
 
 
+def test_newton_viewer_camera_speed_boost_when_shift_held(monkeypatch):
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer._camera_speed = 4.0
+
+    monkeypatch.setattr(NewtonViewerGL, "is_key_down", lambda self, key: True)
+    assert viewer.camera_speed == pytest.approx(8.0)
+
+    monkeypatch.setattr(NewtonViewerGL, "is_key_down", lambda self, key: False)
+    assert viewer.camera_speed == pytest.approx(4.0)
+
+
+def test_newton_viewer_camera_speed_setter_validates(monkeypatch):
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    monkeypatch.setattr(NewtonViewerGL, "is_key_down", lambda self, key: False)
+
+    viewer.camera_speed = 6.0
+    assert viewer._camera_speed == pytest.approx(6.0)
+
+    with pytest.raises(ValueError, match="camera_speed must be finite and nonnegative"):
+        viewer.camera_speed = -1.0
+
+
+class _FakeTrainingControlsImgui:
+    """Minimal imgui double that drives ``_render_training_controls`` by label."""
+
+    def __init__(self, clicked_label: str | None = None):
+        self._clicked_label = clicked_label
+
+    def button(self, label):
+        return label == self._clicked_label
+
+    def text(self, _text):
+        pass
+
+    def slider_int(self, _label, value, _min_value, _max_value, _format):
+        return False, value
+
+    def is_item_hovered(self):
+        return False
+
+    def set_tooltip(self, _text):
+        pass
+
+
+def test_newton_gl_viewer_rendering_pause_state_stays_in_sync_with_space_key():
+    """Space toggles ``_paused`` directly (Newton's own key handler); the "Pause Rendering"
+    button and ``is_rendering_paused()`` must reflect that instead of a separately tracked flag,
+    or the UI desyncs from the actual paused state that gates rendering.
+    """
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer._paused = False
+    viewer._paused_training = False
+    viewer._reset_requested = False
+    viewer._update_frequency = 1
+
+    assert viewer.is_rendering_paused() is False
+
+    # Simulate Newton's own Space key handler (newton/_src/viewer/viewer_gui.py), which
+    # toggles ``_paused`` directly and bypasses the Isaac Lab "Pause Rendering" button.
+    viewer._paused = not viewer._paused
+
+    assert viewer.is_rendering_paused() is True
+    viewer._render_training_controls(_FakeTrainingControlsImgui())  # must not raise: no click
+
+    # The button must read the post-Space state and toggle it back correctly.
+    resume_click = _FakeTrainingControlsImgui(clicked_label="Resume Rendering")
+    viewer._render_training_controls(resume_click)
+    assert viewer.is_rendering_paused() is False
+
+
 def test_newton_viewer_particle_color_override(monkeypatch):
     from newton.viewer import ViewerGL
 

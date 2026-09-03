@@ -107,7 +107,7 @@ def joint_pd_command_l2(
     joint_ids = asset_cfg.joint_ids
     joint_pos = asset.data.joint_pos[:, joint_ids]
     joint_vel = asset.data.joint_vel[:, joint_ids]
-    joint_pos_target = asset.data.joint_pos_target[:, joint_ids]
+    joint_pos_target = asset.actuators.target_command.position.torch[:, joint_ids]
     pd_command = stiffness * (joint_pos_target - joint_pos) - damping * joint_vel
     return torch.sum(torch.square(pd_command), dim=1)
 

@@ -21,6 +21,7 @@ from isaaclab_newton.sensors import (
     NewtonRaycastSensor,
     NewtonRaycastSensorCfg,
 )
+from newton import ShapeFlags
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
@@ -122,6 +123,9 @@ def test_rays_hit_ground_plane(sim, global_world_only):
     scene_cfg = RaycastTestSceneCfg(num_envs=2)
     scene_cfg.raycast.global_world_only = global_world_only
     scene = InteractiveScene(scene_cfg)
+    expected_bvh_flags = ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES
+    assert NewtonManager._sensor_bvh_shape_flags == expected_bvh_flags
+    assert NewtonManager._builder.default_bvh_cfg.shape_flags == expected_bvh_flags
     sim.reset()
     sensor = _step_and_read(sim, scene)
 

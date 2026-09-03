@@ -17,6 +17,7 @@ Tests:
     - from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG -> verify importable
     - from isaaclab.scene import InteractiveSceneCfg -> verify importable
     - python -m isaaclab --help -> verify CLI functional
+    - verify project-generator resources are installed
     - import pinocchio -> verify importable
     - python -c "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)"
         -> verify the RL extras omit tetrahedralization dependencies
@@ -33,12 +34,7 @@ from utils import UV_Mixin, run_cmd
 
 @pytest.mark.smoke
 class Test_Wheel_Builder_Smoke(UV_Mixin):
-    """Test building the isaaclab wheel and installing it in a uv environment.
-
-    The extras are named individually rather than using the aggregate ``all``: this is a
-    fast smoke test of the built wheel, and ``all`` would pull Isaac Sim and both OV
-    backends in. ``test_uv_pip_install_isaaclab_all_trains_cartpole`` covers ``[all]``.
-    """
+    """Test building and installing the Isaac Lab wheel with selected RL extras."""
 
     _wheel: str = ""
     _extras: str = "[sb3,skrl,rsl-rl]"
@@ -133,6 +129,18 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         """Verify the isaaclab CLI is functional."""
         result = self.run_in_uv_env(["python", "-m", "isaaclab", "--help"])
         assert result.returncode == 0, f"isaaclab CLI help failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_project_generator_is_bundled(self):
+        """Verify the installed CLI includes the project generator."""
+        result = self.run_in_uv_env(
+            [
+                "python",
+                "-c",
+                "from isaaclab.cli.utils import ISAACLAB_ROOT; "
+                "assert (ISAACLAB_ROOT / 'tools/template/cli.py').is_file()",
+            ]
+        )
+        assert result.returncode == 0, f"project generator is missing from the wheel:\n{result.stderr}"
 
     # import pinocchio as pin; print(pin.__version__)
     def test_pinocchio_importable(self):

@@ -88,11 +88,11 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def net_forces_w_history(self) -> ProxyArray | None:
-        """The net (total) contact forces in world frame.
+        """The net (total) contact forces [N] in world frame.
 
         `wp.vec3f` array whose shape is (N, T, S) where N is the number of environments, T is the configured history
-        length and S is the number of sensors. Note, that when casted to as a `torch.Tensor`, the shape will be
-        (N, T, S, 3).
+        length or one when the configured length is zero, and S is the number of sensors. Note, that when casted to
+        as a `torch.Tensor`, the shape will be (N, T, S, 3).
 
         In the history dimension, the first index is the most recent and the last index is the oldest.
 
@@ -123,11 +123,11 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def force_matrix_w_history(self) -> ProxyArray | None:
-        """The contact forces between sensors and filter objects in world frame.
+        """The contact forces [N] between sensors and filter objects in world frame.
 
         `wp.vec3f` array whose shape is (N, T, S, F) where N is the number of environments, T is the configured history
-        length, S is number of sensors and F is the number of filter objects. Note, that when casted to as a
-        `torch.Tensor`, the shape will be (N, T, S, F, 3).
+        length or one when the configured length is zero, S is number of sensors and F is the number of filter objects.
+        Note, that when casted to as a `torch.Tensor`, the shape will be (N, T, S, F, 3).
 
         In the history dimension, the first index is the most recent and the last index is the oldest.
 
@@ -265,24 +265,23 @@ class ContactSensorData(BaseContactSensorData):
             self._pos_w = None
             self._quat_w = None
 
+        # Ensure history_length >= 1 for consistent buffer shapes across backends.
+        effective_history = max(history_length, 1)
+
         # Create owned buffer for net (total) forces - shape: (num_envs, num_sensors)
         self._net_forces_w = wp.zeros((num_envs, num_sensors), dtype=wp.vec3f, device=device)
-        # Track net forces history if requested
-        if history_length > 0:
-            self._net_forces_w_history = wp.zeros(
-                (num_envs, history_length, num_sensors), dtype=wp.vec3f, device=device
-            )
-            self._force_matrix_w_history = None  # TODO: implement force matrix history if needed
-        else:
-            self._net_forces_w_history = None
-            self._force_matrix_w_history = None
+        self._net_forces_w_history = wp.zeros((num_envs, effective_history, num_sensors), dtype=wp.vec3f, device=device)
 
         # Create owned buffer for force matrix - shape: (num_envs, num_sensors, num_filter_objects)
         # None if no filter objects configured
         if num_filter_objects > 0:
             self._force_matrix_w = wp.zeros((num_envs, num_sensors, num_filter_objects), dtype=wp.vec3f, device=device)
+            self._force_matrix_w_history = wp.zeros(
+                (num_envs, effective_history, num_sensors, num_filter_objects), dtype=wp.vec3f, device=device
+            )
         else:
             self._force_matrix_w = None
+            self._force_matrix_w_history = None
 
         # Track contact point positions if requested - filled with NaN (no contact)
         if track_contact_points and num_filter_objects > 0:

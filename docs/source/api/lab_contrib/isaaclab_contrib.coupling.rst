@@ -3,41 +3,43 @@ isaaclab_contrib.coupling
 
 .. automodule:: isaaclab_contrib.coupling
 
-  .. rubric:: Classes
+.. currentmodule:: isaaclab_contrib.coupling
 
-  .. autosummary::
+.. rubric:: Classes
 
-    coupler_cfg.CouplerEntryCfg
-    coupler_cfg.CouplerCfg
-    coupler_cfg.CouplerProxyMappingCfg
-    coupler_cfg.CouplerProxyCfg
-    coupler_cfg.CouplerAdmmCfg
-    coupler.NewtonCouplerManager
+.. autosummary::
+
+  CouplerEntryCfg
+  CouplerCfg
+  CouplerProxyMappingCfg
+  CouplerProxyCfg
+  CouplerAdmmCfg
+  NewtonCouplerManager
 
 Coupler Configurations
 ----------------------
 
-.. autoclass:: isaaclab_contrib.coupling.coupler_cfg.CouplerEntryCfg
+.. autoclass:: CouplerEntryCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
 
-.. autoclass:: isaaclab_contrib.coupling.coupler_cfg.CouplerCfg
+.. autoclass:: CouplerCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
 
-.. autoclass:: isaaclab_contrib.coupling.coupler_cfg.CouplerProxyMappingCfg
+.. autoclass:: CouplerProxyMappingCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
 
-.. autoclass:: isaaclab_contrib.coupling.coupler_cfg.CouplerProxyCfg
+.. autoclass:: CouplerProxyCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
 
-.. autoclass:: isaaclab_contrib.coupling.coupler_cfg.CouplerAdmmCfg
+.. autoclass:: CouplerAdmmCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
@@ -45,7 +47,7 @@ Coupler Configurations
 Newton Coupler
 --------------
 
-.. autoclass:: isaaclab_contrib.coupling.coupler.NewtonCouplerManager
+.. autoclass:: NewtonCouplerManager
   :members:
   :inherited-members:
   :show-inheritance:

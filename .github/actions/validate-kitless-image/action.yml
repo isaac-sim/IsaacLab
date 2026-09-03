@@ -30,6 +30,7 @@ runs:
         -v "${GITHUB_WORKSPACE}/source:/workspace/isaaclab/source:ro"
         -v "${GITHUB_WORKSPACE}/scripts:/workspace/isaaclab/scripts:ro"
         -v "${GITHUB_WORKSPACE}/apps:/workspace/isaaclab/apps:ro"
+        -v "${GITHUB_WORKSPACE}/.github/actions/_lib/with-python-package-retries.sh:/with-python-package-retries.sh:ro"
       )
 
       docker run --rm "$IMAGE_TAG" \
@@ -61,7 +62,7 @@ runs:
         "$IMAGE_TAG" \
         bash -lc '
       set -euo pipefail
-      uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
+      bash /with-python-package-retries.sh uv pip install --python "$VIRTUAL_ENV/bin/python" pytest
       python -m pytest \
         source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py::test_train_cartpole_state_completes \
         source/isaaclab/test/benchmark/test_asset_suite_runtime_semantics.py \

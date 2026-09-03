@@ -71,10 +71,6 @@ dependencies = [
     # one environment overwrite each other's files, and removing either then breaks ``pxr``.
     # usd-exchange 2.3.0 vendors USD 25.5, matching the Isaac Sim 6.0 wheel stack.
     "usd-exchange==2.3.0",
-    # Standalone URDF/MJCF importers, so conversion works without Isaac Sim. They install
-    # alongside it without displacing it: Kit serves ``isaacsim.asset`` from its extension
-    # roots when the runtime is present, and the standalone packages serve it otherwise.
-    "isaacsim-asset-isolated>=6.0,<6.1",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64' or platform_machine == 'aarch64'",
     # ----- tasks -----
@@ -90,7 +86,7 @@ dependencies = [
     "onnxscript>=0.5",
     # ----- newton (default physics engine) -----
     # Loose bound so the wheel co-resolves with isaacsim's newton[sim]==1.2.0 pin; the
-    # exact git commit is forced via [tool.uv].override-dependencies (uv sync only).
+    # exact PyPI release is forced via [tool.uv].override-dependencies (uv sync only).
     "newton[sim]>=1.2.0",
     # Import and mesh-processing packages used by Newton, including the ones that honoring
     # USD-authored ``physics:approximation`` requires. Keep these explicit instead of selecting
@@ -118,6 +114,13 @@ tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 
+importers = [
+    "isaacsim-asset-isolated>=6.0,<6.1",
+    "tinyobjloader==2.0.0rc13",
+]
+
+# The test suite only. Kept free of the docs stack: Sphinx pulls docutils, which is
+# GPL-3.0-or-later and not allowed in the distributed images.
 test = [
     "pytest",
     "pytest-mock",
@@ -125,6 +128,11 @@ test = [
     "flaky",
     # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
     "coverage>=7.6.1",
+]
+
+# Everything a contributor needs: the test suite plus the documentation toolchain.
+dev = [
+    "isaaclab-dev[test]",
     "sphinx>=7.0,<9",
     "sphinx-book-theme>=1.1",
     "myst-parser",
@@ -161,18 +169,21 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
 
-ov = ["ovphysx==0.5.9", "ovrtx>0.4.0,<0.4.1", "ovstage==0.1.0.346039"]
-ovphysx = ["ovphysx==0.5.9", "ovstage==0.1.0.346039"]
-ovrtx = ["ovrtx>0.4.0,<0.4.1", "ovstage==0.1.0.346039"]
+ov = ["ovphysx==0.5.11", "ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
+ovphysx = ["ovphysx==0.5.11", "ovstage==0.1.1.355824"]
+ovrtx = ["ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
 
 mimic = [
     "isaaclab-mimic",
+    "isaaclab-teleop",
     "ipywidgets>=8.1.5",
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
+# XR teleop needs the Kit XR runtime, but Isaac Sim is a separate extra so environments that
+# already provide Kit (the containers) can take this stack without a second copy of it.
+# Users who need the wheel install ``--extra teleop,isaacsim``.
 teleop = [
-    "isaacsim[all,extscache]==6.0.1.0",
     "isaaclab-teleop",
     "isaaclab-mimic",
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
@@ -193,12 +204,8 @@ rlinf = [
 leapp = [
     "leapp>=0.5.2",
 ]
-# Every backend, RL library, and visualizer in one flag. No extra is forked in
-# [tool.uv].conflicts, so any combination resolves into a single environment. The
-# specialized extras (rlinf, mimic, teleop, tetrahedralization, video, leapp)
-# and the developer ``test`` tooling stay opt-in by name.
 all = [
-    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,isaacsim,ov]",
+    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,viser,rerun,ov]",
 ]
 
 # Single source of truth for externally-pinned versions, read by docs/conf.py, the
@@ -211,10 +218,9 @@ usd_exchange = "2.3.0"
 torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
-ovphysx = "0.5.9"
-ovrtx = ">0.4.0,<0.4.1"
-ovstage = "0.1.0.346039"
-newton = "release-1.5"
+ovphysx = "0.5.11"
+ovrtx = "0.4.1.364340"
+ovstage = "0.1.1.355824"
 warp = "1.16.0"
 
 [tool.ruff]
@@ -390,14 +396,14 @@ environments = [
     "sys_platform == 'win32' and platform_machine == 'AMD64'",
 ]
 # Isaac Lab owns the Newton, MuJoCo, and torch versions. Overrides replace requirements
-# for every requester, unlike constraints, which only intersect. The ``isaacsim`` extra
-# pins older Newton, MuJoCo, and torch versions, so these overrides prevent downgrades.
+# for every requester, unlike constraints, which only intersect. The ``isaacsim`` and
+# ``importers`` extras pin older versions of these packages, so the overrides prevent downgrades.
 # Torch routes through [tool.uv.sources]. Values mirror [tool.isaaclab.versions] where applicable.
 override-dependencies = [
     "numpy>=2",
     "mujoco~=3.11.0",
     "mujoco-warp~=3.11.0",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@release-1.5",
+    "newton[sim]==1.5.1",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.1",
     "torch==2.11.0",
@@ -417,6 +423,7 @@ package = false
 [tool.uv.sources]
 omniverseclient = { index = "pypi-public" }
 ovphysx = { index = "pypi-public" }
+ovrtx = { index = "pypi-public" }
 ovstage = { index = "pypi-public" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }

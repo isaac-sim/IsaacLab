@@ -22,6 +22,7 @@ from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from . import mdp
 
@@ -647,6 +648,8 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 6
         self.episode_length_s = 20.0
+        # visualizer camera settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0))
         # simulation settings
         self.sim.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2

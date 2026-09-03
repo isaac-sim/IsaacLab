@@ -65,8 +65,7 @@ from isaaclab_rl.utils.pretrained_checkpoint import (
     get_published_pretrained_checkpoint,
 )
 
-from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg
-from isaaclab_tasks.utils import resolve_presets
+from isaaclab_tasks.utils import resolve_task_config
 
 TASK = "Isaac-Velocity-Rough-H1"
 RL_LIBRARY = "rsl_rl"
@@ -93,8 +92,7 @@ class H1RoughDemo:
         agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(TASK, args_cli)
         agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
         # create envionrment
-        env_cfg = resolve_presets(H1RoughEnvCfg(), selected=(args_cli.physics,))
-        env_cfg.play_mode()
+        env_cfg, _ = resolve_task_config(TASK, "", play_mode=True, overrides=(f"physics={args_cli.physics}",))
         env_cfg.scene.num_envs = 25
         env_cfg.episode_length_s = 1000000
         env_cfg.curriculum = None

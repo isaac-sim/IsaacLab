@@ -290,7 +290,7 @@ def joint_effort(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
     """
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.applied_torque.torch[:, asset_cfg.joint_ids]
+    return asset.actuators.applied_effort.torch[:, asset_cfg.joint_ids]
 
 
 """

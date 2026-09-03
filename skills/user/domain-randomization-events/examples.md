@@ -4,6 +4,7 @@
 
 - Reset state randomization
 - Direct workflow event config
+- Success-driven ADR
 - Prestartup USD randomization
 - Startup property randomization
 - Backend-specific material randomization
@@ -30,6 +31,38 @@ Expected setup:
 - Assign `events: EventCfg = EventCfg()` on the direct task config.
 - Keep reward and observation logic in direct methods.
 - Validate that `prestartup`, `startup`, `reset`, and `interval` modes fire at the expected times for direct workflows.
+
+## Success-Driven ADR
+
+Input: start a manager-based lift task at zero gravity, then approach full gravity as the policy succeeds.
+
+Given a reset event named `variable_gravity`, add a task-owned scheduler and interpolation term:
+
+```python
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
+from isaaclab.utils.configclass import configclass
+
+from . import mdp
+
+
+@configclass
+class CurriculumCfg:
+    adr = CurrTerm(func=mdp.DifficultyScheduler, params={"init_difficulty": 0, "min_difficulty": 0, "max_difficulty": 10})
+    gravity_adr = CurrTerm(
+        func=mdp.modify_term_cfg,
+        params={
+            "address": "events.variable_gravity.params.gravity_distribution_params",
+            "modify_fn": mdp.initial_final_interpolate_fn,
+            "modify_params": {
+                "initial_value": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)),
+                "final_value": ((0.0, 0.0, -9.81), (0.0, 0.0, -9.81)),
+                "difficulty_term_str": "adr",
+            },
+        },
+    )
+```
+
+Assign `curriculum: CurriculumCfg = CurriculumCfg()` on the environment config. Adapt the [Core Lift ADR scheduler](../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/mdp/curriculums.py) and test both endpoints.
 
 ## Startup Property Randomization
 

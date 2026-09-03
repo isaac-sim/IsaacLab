@@ -231,7 +231,7 @@ def joint_torques_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = Sc
     wp.launch(
         kernel=_sum_sq_masked_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.applied_torque.warp, asset_cfg.joint_mask, out],
+        inputs=[asset.actuators.applied_effort.warp, asset_cfg.joint_mask, out],
         device=env.device,
     )
 

@@ -13,6 +13,8 @@ the base articulation class advertises. All articulation interfaces need to comp
 The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
 """
 
+import warnings
+
 import numpy as np
 import pytest
 import torch
@@ -1178,6 +1180,32 @@ class TestArticulationDataDefaults:
             expected_dtype=wp.float32,
             name="joint_effort_target",
         )
+
+    @_production_backends
+    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 4, 5)])
+    @pytest.mark.parametrize("device", ["cpu"])
+    def test_actuator_compatibility_projections_are_stable(
+        self, backend, num_instances, num_joints, num_bodies, device, articulation_iface
+    ):
+        art, _ = articulation_iface
+        soft_joint_vel_limits = torch.tensor([[0.5, 1.0, 1.5, 2.0], [2.5, 3.0, 3.5, 4.0]], dtype=torch.float32)
+        wp.copy(art.actuators._soft_joint_vel_limits, wp.from_torch(soft_joint_vel_limits))
+
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            soft_joint_vel_limits_data = art.data.soft_joint_vel_limits
+            soft_joint_vel_limits_repeat = art.data.soft_joint_vel_limits
+
+        _check_proxy_array(
+            soft_joint_vel_limits_data,
+            expected_shape=(num_instances, num_joints),
+            expected_dtype=wp.float32,
+            name="soft_joint_vel_limits",
+        )
+        torch.testing.assert_close(soft_joint_vel_limits_data.torch, soft_joint_vel_limits, rtol=0.0, atol=0.0)
+        assert soft_joint_vel_limits_data.warp.ptr == soft_joint_vel_limits_repeat.warp.ptr
+        assert soft_joint_vel_limits_data.warp.ptr == art.actuators._soft_joint_vel_limits.ptr
+        assert not [warning for warning in caught_warnings if warning.category is DeprecationWarning]
 
 
 # ---------------------------------------------------------------------------

@@ -191,7 +191,7 @@ Similar to the tutorial before, to run the script, execute the following command
 
       .. code-block:: bash
 
-        uv run python scripts/tutorials/00_sim/spawn_prims.py
+        uv run --extra tetrahedralization python scripts/tutorials/00_sim/spawn_prims.py
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 

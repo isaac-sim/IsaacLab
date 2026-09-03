@@ -206,6 +206,10 @@ A few quick showroom scripts to run and checkout:
 
             uv run python scripts\demos\mpm\teapot_fill.py --device cuda:0 --visualizer newton_gl
 
+   .. image:: ../_static/demos/teapot_fill.jpg
+      :width: 100%
+      :alt: Utah teapot pouring Newton MPM water particles into a bowl in Isaac Lab
+
 
 -  Interactive inference of trained H1 rough terrain locomotion policy:
 

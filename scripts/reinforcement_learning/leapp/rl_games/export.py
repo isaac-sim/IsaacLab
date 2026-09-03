@@ -226,10 +226,16 @@ def export_rl_games_agent(
         graph_name = args_cli.export_task_name if args_cli.export_task_name is not None else task_name
 
         if isinstance(env.unwrapped, ManagerBasedRLEnv):
+            export_method = "onnx-dynamo" if args_cli.export_method is None else args_cli.export_method
             patch_env_for_export(
                 env,
-                export_method=args_cli.export_method,
+                export_method=export_method,
                 required_obs_groups=_required_obs_groups(agent_cfg),
+            )
+        elif args_cli.export_method is not None:
+            raise ValueError(
+                "--export_method is only supported for manager-based environments. For direct environments, "
+                "set export_with directly in the annotate.output_tensors() call instead."
             )
 
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):

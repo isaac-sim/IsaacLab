@@ -1,6 +1,76 @@
 Changelog
 ---------
 
+0.16.3 (2026-09-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``--deterministic`` to set :attr:`~isaaclab.physics.PhysicsCfg.deterministic` on the
+  resolved physics config. The entrypoint no longer selects backend-specific determinism settings or
+  validates solvers; each physics manager translates the request and rejects what it cannot support.
+  Deterministic physics costs runtime and memory; drop the flag to opt out.
+
+Fixed
+^^^^^
+
+* Fixed RSL-RL training resolving agent metadata before external task registration callbacks run.
+* Fixed ``--deterministic`` not making training runs reproducible. The flag configured PyTorch and
+  the Isaac RTX renderer but never reached the physics solver, so runs on Newton backends stayed
+  free-running and their reward curves diverged.
+
+
+0.16.2 (2026-09-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the zero agent to infer finite hold commands for absolute task-space controllers, support composite and
+  multi-agent action spaces, and reject invalid task configurations before launching the simulator.
+
+
+0.16.1 (2026-08-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed run summaries to report the concrete physics and renderer backends directly, without
+  reparsing preset selectors after task composition.
+
+
+0.16.0 (2026-08-18)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added backend-aware pretrained checkpoint discovery using
+  ``<task_name>_<physics_backend>_<render_backend>_<rl_library>`` filenames,
+  with ``newtonmjwarp`` identifying the Newton MJWarp physics backend.
+* Added preferred core-task checkpoint training and local collection by RL
+  library.
+
+Changed
+^^^^^^^
+
+* Changed new pretrained checkpoint uploads to use one flat directory per RL
+  library. Legacy callers that do not provide backend names continue to use the
+  previous ``<library>/<task>/checkpoint`` layout.
+
+Fixed
+^^^^^
+
+* Fixed legacy checkpoint log discovery to preserve task-specific experiment
+  directories.
+* Fixed LEAPP export scripts to select pretrained checkpoints for the resolved
+  physics and rendering backends.
+* Fixed checkpoint documentation and CLI help to describe the ``pretrained``
+  selector, automatic local discovery, and published-asset availability.
+
+
 0.15.0 (2026-08-14)
 ~~~~~~~~~~~~~~~~~~~
 

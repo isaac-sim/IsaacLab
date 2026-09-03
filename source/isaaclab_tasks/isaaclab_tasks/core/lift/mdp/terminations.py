@@ -145,10 +145,9 @@ def cable_outside_bounds(
 def joint_vel_out_of_sim_limit(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
-    """Terminate when joint velocities exceed actuator simulator limits [m/s or rad/s, depending on joint type]."""
+    """Terminate when joint velocities exceed solver limits [m/s or rad/s, depending on joint type]."""
     asset: Articulation = env.scene[asset_cfg.name]
     joint_ids = asset_cfg.joint_ids if asset_cfg.joint_ids is not None else slice(None)
-    limits = torch.full_like(asset.data.joint_vel.torch, torch.inf)
-    for actuator in asset.actuators.values():
-        limits[:, actuator.joint_indices] = actuator.velocity_limit_sim
-    return torch.any(torch.abs(asset.data.joint_vel.torch[:, joint_ids]) > limits[:, joint_ids], dim=1)
+    return torch.any(
+        torch.abs(asset.data.joint_vel.torch[:, joint_ids]) > asset.data.joint_vel_limits.torch[:, joint_ids], dim=1
+    )

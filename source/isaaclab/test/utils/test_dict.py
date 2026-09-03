@@ -6,7 +6,9 @@
 import enum
 import random
 
+import numpy as np
 import pytest
+import torch
 
 import isaaclab.utils.dict as dict_utils
 import isaaclab.utils.string as string_utils
@@ -172,3 +174,13 @@ def test_update_class_from_dict_restores_enums_from_values():
     assert all(isinstance(el, _Flavors) for el in cfg.scoops)
     assert cfg.cone == (_Flavors.STRAWBERRY,)
     assert all(isinstance(el, _Flavors) for el in cfg.cone)
+
+
+def test_nested_conversion_preserves_requested_backend():
+    """Nested conversions should preserve the backend selected by the caller."""
+    data = {"outer": {"values": np.array([1.0, 2.0, 3.0], dtype=np.float32)}}
+
+    converted = dict_utils.convert_dict_to_backend(data, backend="torch", array_types=("numpy",))
+
+    assert isinstance(converted["outer"]["values"], torch.Tensor)
+    torch.testing.assert_close(converted["outer"]["values"], torch.tensor([1.0, 2.0, 3.0]))

@@ -230,11 +230,16 @@ Keep backend-specific values inside named configurations whenever possible.
 This keeps task logic shared and makes every supported choice visible from the
 command line.
 
+When backend selection must also change simulation-wide settings such as the
+time step, a physics preset may instead contain complete ``SimulationCfg``
+alternatives. The ``physics=`` selector recognizes these bundles from their
+``physics`` field and applies the complete matching simulation configuration.
+
 
 Where to go next
 ----------------
 
-- :doc:`/source/overview/environments` lists environments and their supported
+- :doc:`/source/setup/environments` lists environments and their supported
   presets.
 - :doc:`/source/features/hydra` covers scalar overrides, preset authoring,
   conflict handling, and advanced configuration behavior.

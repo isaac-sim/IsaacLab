@@ -180,7 +180,11 @@ class ReorientCommand(CommandTerm):
                     + self._env.scene.env_origins
                 )
             marker_pos = self._fixed_marker_pos_w
-        self.goal_pose_visualizer.visualize(translations=marker_pos, orientations=self.quat_command_w)
+        self.goal_pose_visualizer.visualize(
+            translations=marker_pos,
+            orientations=self.quat_command_w,
+            environment_ids=self._env.scene._ALL_INDICES,
+        )
 
 
 @configclass

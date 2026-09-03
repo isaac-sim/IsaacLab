@@ -25,6 +25,9 @@ Events
 .. automodule:: isaaclab.envs.mdp.events
     :members:
 
+.. automodule:: isaaclab.envs.mdp.visual_events
+    :members:
+
 Commands
 --------
 

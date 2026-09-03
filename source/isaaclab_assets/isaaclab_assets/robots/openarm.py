@@ -65,7 +65,7 @@ OPENARM_BI_CFG = ArticulationCfg(
                 "openarm_left_joint[1-7]",
                 "openarm_right_joint[1-7]",
             ],
-            velocity_limit_sim={
+            joint_velocity_limit={
                 "openarm_left_joint[1-2]": 2.175,
                 "openarm_right_joint[1-2]": 2.175,
                 "openarm_left_joint[3-4]": 2.175,
@@ -73,7 +73,7 @@ OPENARM_BI_CFG = ArticulationCfg(
                 "openarm_left_joint[5-7]": 2.61,
                 "openarm_right_joint[5-7]": 2.61,
             },
-            effort_limit_sim={
+            joint_effort_limit={
                 "openarm_left_joint[1-2]": 40.0,
                 "openarm_right_joint[1-2]": 40.0,
                 "openarm_left_joint[3-4]": 27.0,
@@ -89,8 +89,8 @@ OPENARM_BI_CFG = ArticulationCfg(
                 "openarm_left_finger_joint.*",
                 "openarm_right_finger_joint.*",
             ],
-            velocity_limit_sim=0.2,
-            effort_limit_sim=333.33,
+            joint_velocity_limit=0.2,
+            joint_effort_limit=333.33,
             stiffness=2e3,
             damping=1e2,
         ),
@@ -127,12 +127,12 @@ OPENARM_UNI_CFG = ArticulationCfg(
     actuators={
         "openarm_arm": ImplicitActuatorCfg(
             joint_names_expr=["openarm_joint[1-7]"],
-            velocity_limit_sim={
+            joint_velocity_limit={
                 "openarm_joint[1-2]": 2.175,
                 "openarm_joint[3-4]": 2.175,
                 "openarm_joint[5-7]": 2.61,
             },
-            effort_limit_sim={
+            joint_effort_limit={
                 "openarm_joint[1-2]": 40.0,
                 "openarm_joint[3-4]": 27.0,
                 "openarm_joint[5-7]": 7.0,
@@ -142,8 +142,8 @@ OPENARM_UNI_CFG = ArticulationCfg(
         ),
         "openarm_gripper": ImplicitActuatorCfg(
             joint_names_expr=["openarm_finger_joint.*"],
-            velocity_limit_sim=0.2,
-            effort_limit_sim=333.33,
+            joint_velocity_limit=0.2,
+            joint_effort_limit=333.33,
             stiffness=2e3,
             damping=1e2,
         ),

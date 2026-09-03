@@ -126,7 +126,7 @@ The next thing our environment needs is the definitions for how to handle action
         self.actions = actions.clone()
 
     def _apply_action(self) -> None:
-        self.robot.set_joint_velocity_target(self.actions, joint_ids=self.dof_idx)
+        self.robot.actuators.target_command.set_velocity_index(value=self.actions, joint_ids=self.dof_idx)
 
 Here the act of applying actions to the robot in the environment is broken into two steps: ``_pre_physics_step`` and ``_apply_action``. The physics
 simulation is decimated with respect to querying the policy for actions, meaning that multiple physics steps may occur per action taken by the policy.
@@ -153,7 +153,7 @@ When we talk about a scene entity like the robot, we can either be talking about
 of the robot on the stage. The ``ArticulationData`` contains the data for those individual clones. This includes things like various kinematic vectors (like ``root_com_lin_vel_b``) and reference
 vectors (like ``robot.data.FORWARD_VEC_B``).
 
-Notice how in the ``_apply_action`` method, we are calling a method of ``self.robot`` which is a method of ``Articulation``. The actions being applied are in the form of a 2D tensor
+Notice how in the ``_apply_action`` method, we are calling a method of ``self.robot.actuators``, the actuator collection of the ``Articulation``. The actions being applied are in the form of a 2D tensor
 of shape ``[num_envs, num_actions]``. We are applying actions to **all** robots on the stage at once! Here, when we need to get the observations, we need the body frame velocity for all robots on the
 stage, and so access ``self.robot.data`` to get that information. The ``root_com_lin_vel_b`` is a property of the ``ArticulationData`` that handles the conversion of the center-of-mass linear velocity from the world frame
 to the body frame for us. Finally, Isaac Lab expects the observations to be returned as a dictionary, with ``policy`` defining those observations for the policy model and ``critic`` defining those observations for

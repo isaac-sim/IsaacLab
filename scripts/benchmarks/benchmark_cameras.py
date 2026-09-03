@@ -271,7 +271,7 @@ from isaaclab.sensors import (
 )
 from isaaclab.utils.math import orthogonalize_perspective_depth, unproject_depth
 
-from isaaclab_tasks.utils import load_cfg_from_registry
+from isaaclab_tasks.utils import parse_env_cfg
 
 """
 Camera Creation
@@ -527,9 +527,7 @@ def inject_cameras_into_task(
     num_cameras_per_env: int = 1,
 ) -> gym.Env:
     """Loads the task, sticks cameras into the config, and creates the environment."""
-    cfg = load_cfg_from_registry(task, "env_cfg_entry_point")
-    cfg.sim.device = args_cli.device
-    cfg.sim.use_fabric = args_cli.use_fabric
+    cfg = parse_env_cfg(task, device=args_cli.device, use_fabric=args_cli.use_fabric)
     scene_cfg = cfg.scene
 
     num_envs = int(num_cams / num_cameras_per_env)

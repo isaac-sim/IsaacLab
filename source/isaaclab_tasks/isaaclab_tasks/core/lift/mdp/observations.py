@@ -177,7 +177,13 @@ class object_point_cloud_b(ManagerTermBase):
         # apply rotation + translation
         self.points_w = quat_apply(object_quat_w, self.points_local) + object_pos_w
         if visualize:
-            self.visualizer.visualize(translations=self.points_w.view(-1, 3))
+            environment_ids = torch.arange(env.num_envs, device=self.points_w.device).repeat_interleave(
+                self.points_w.shape[1]
+            )
+            self.visualizer.visualize(
+                translations=self.points_w.view(-1, 3),
+                environment_ids=environment_ids,
+            )
         object_point_cloud_pos_b, _ = subtract_frame_transforms(ref_pos_w, ref_quat_w, self.points_w, None)
 
         return object_point_cloud_pos_b.view(env.num_envs, -1) if flatten else object_point_cloud_pos_b

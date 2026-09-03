@@ -46,9 +46,13 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
     parser.add_argument(
         "--export_method",
         type=str,
-        default="onnx-dynamo",
-        choices=["onnx-dynamo", "onnx-torchscript", "jit-script", "jit-trace"],
-        help="Method to export the policy",
+        default=None,
+        choices=["onnx-dynamo", "onnx-torchscript", "jit-script", "jit-trace", "pt2"],
+        help=(
+            "Select the backend based on the artifact format you need. Defaults to onnx-dynamo, which is "
+            "recommended unless you have a specific reason to use another backend. If one backend does not "
+            "support your model, try another."
+        ),
     )
     parser.add_argument(
         "--export_save_path",

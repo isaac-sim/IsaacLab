@@ -68,6 +68,7 @@ def reset_contact_sensor_kernel(
     net_forces_w: wp.array2d(dtype=wp.vec3f),
     net_forces_w_history: wp.array3d(dtype=wp.vec3f),
     force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
     contact_pos_w: wp.array3d(dtype=wp.vec3f),
     # outputs
     current_air_time: wp.array2d(dtype=wp.float32),
@@ -97,6 +98,9 @@ def reset_contact_sensor_kernel(
     if force_matrix_w:
         for f in range(num_filter_objects):
             force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
+            if force_matrix_w_history:
+                for i in range(history_length):
+                    force_matrix_w_history[env, i, sensor, f] = wp.vec3f(0.0)
 
     # Reset contact positions to NaN (no contact)
     if contact_pos_w:
@@ -115,13 +119,16 @@ def reset_contact_sensor_kernel(
 def update_contact_sensor_kernel(
     # in
     history_length: int,
+    num_filter_objects: int,
     contact_force_threshold: wp.float32,
     env_mask: wp.array(dtype=wp.bool),
     net_forces: wp.array2d(dtype=wp.vec3f),
+    force_matrix: wp.array3d(dtype=wp.vec3f),
     timestamp: wp.array(dtype=wp.float32),
     timestamp_last_update: wp.array(dtype=wp.float32),
     # in-out
     net_forces_history: wp.array3d(dtype=wp.vec3f),
+    force_matrix_history: wp.array4d(dtype=wp.vec3f),
     current_air_time: wp.array2d(dtype=wp.float32),
     current_contact_time: wp.array2d(dtype=wp.float32),
     # out
@@ -143,6 +150,12 @@ def update_contact_sensor_kernel(
         for i in range(history_length - 1, 0, -1):
             net_forces_history[env, i, sensor] = net_forces_history[env, i - 1, sensor]
         net_forces_history[env, 0, sensor] = net_forces[env, sensor]
+
+    if force_matrix_history:
+        for f in range(num_filter_objects):
+            for i in range(history_length - 1, 0, -1):
+                force_matrix_history[env, i, sensor, f] = force_matrix_history[env, i - 1, sensor, f]
+            force_matrix_history[env, 0, sensor, f] = force_matrix[env, sensor, f]
 
     # Update air/contact time tracking
     if current_air_time:

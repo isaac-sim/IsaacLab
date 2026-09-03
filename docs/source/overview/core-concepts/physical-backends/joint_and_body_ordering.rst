@@ -260,7 +260,7 @@ diverge because of:
 * contact generation and resolution
 * friction
 * restitution
-* actuator models and configuration
+* :ref:`actuator models and configuration <overview-actuators>`
 * integration method
 * timestep and substeps
 * solver convergence

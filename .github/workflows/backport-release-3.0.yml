@@ -1,0 +1,387 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Backport an opted-in PR after it merges into develop while a release branch is
+# active. Clean, content-equivalent cherry-picks advance that branch directly. A
+# conflict is resolved through NVIDIA inference on a dedicated branch and opened
+# as a draft PR; inferred resolutions never push directly to the release branch.
+#
+# This workflow must exist on the repository's default branch because
+# pull_request_target loads workflow definitions from that trusted ref.
+
+name: Backport selected PR to active release
+
+on:
+  pull_request_target:
+    branches:
+      - develop
+    types:
+      - closed
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: backport-active-release-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  TARGET_BRANCH: ${{ vars.ACTIVE_RELEASE_BACKPORT_BRANCH }}
+  BACKPORT_BRANCH: backport/${{ vars.ACTIVE_RELEASE_BACKPORT_BRANCH }}/pr-${{ github.event.pull_request.number }}
+
+jobs:
+  backport:
+    name: "Backport PR #${{ github.event.pull_request.number }}"
+    if: >-
+      github.event.pull_request.merged == true &&
+      startsWith(vars.ACTIVE_RELEASE_BACKPORT_BRANCH, 'release/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out trusted automation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: automation
+          persist-credentials: false
+
+      - name: Read backport selection
+        id: selection
+        run: |
+          set -euo pipefail
+          selected=$(python3 automation/.github/scripts/backport.py requested --event "$GITHUB_EVENT_PATH")
+          echo "selected=$selected" >> "$GITHUB_OUTPUT"
+          if [ "$selected" != "true" ]; then
+            echo "PR #${{ github.event.pull_request.number }} did not request an active-release backport."
+          fi
+
+      - name: Check out release target
+        if: steps.selection.outputs.selected == 'true'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803  # v6
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          path: repository
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve and validate source commit
+        if: steps.selection.outputs.selected == 'true'
+        id: source
+        working-directory: repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_COMMIT_COUNT: ${{ github.event.pull_request.commits }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          git fetch --no-tags origin \
+            "+refs/heads/develop:refs/remotes/origin/develop" \
+            "+refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH" \
+            "+refs/pull/$PR_NUMBER/head:refs/remotes/origin/pr/$PR_NUMBER/head"
+          git switch --detach "refs/remotes/origin/$TARGET_BRANCH"
+          if ! git merge-base --is-ancestor "$SOURCE_SHA" refs/remotes/origin/develop; then
+            echo "::error::Merged SHA $SOURCE_SHA is not reachable from develop."
+            exit 1
+          fi
+
+          if ! [[ "$PR_COMMIT_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Invalid PR commit count: '$PR_COMMIT_COUNT'."
+            exit 1
+          fi
+
+          read -r -a parents <<< "$(git show --no-patch --format=%P "$SOURCE_SHA")"
+          case "${#parents[@]}" in
+            1)
+              source_parent=${parents[0]}
+              ;;
+            2)
+              source_parent=${parents[0]}
+              ;;
+            *)
+              echo "::error::Merged SHA $SOURCE_SHA has an unsupported parent count: ${#parents[@]}."
+              exit 1
+              ;;
+          esac
+
+          expected_files="$RUNNER_TEMP/pr-$PR_NUMBER-files.json"
+          gh api --method GET --paginate --slurp \
+            "repos/$REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$expected_files"
+
+          validate_source() {
+            python3 ../automation/.github/scripts/backport.py validate-source \
+              --source_parent "$1" \
+              --source "$SOURCE_SHA" \
+              --pr_base "$1" \
+              --pr_head "refs/remotes/origin/pr/$PR_NUMBER/head" \
+              --expected_files_json "$expected_files"
+          }
+
+          validation_error="$RUNNER_TEMP/pr-$PR_NUMBER-source-validation.log"
+          if ! validate_source "$source_parent" 2> "$validation_error"; then
+            if [ "${#parents[@]}" -ne 1 ] || [ "$PR_COMMIT_COUNT" -le 1 ]; then
+              cat "$validation_error" >&2
+              exit 1
+            fi
+            source_parent=$(git rev-parse "$SOURCE_SHA~$PR_COMMIT_COUNT")
+            if ! validate_source "$source_parent"; then
+              echo "::error::The merged source is neither a complete squash nor a complete rebased PR range."
+              exit 1
+            fi
+            echo "Validated the complete $PR_COMMIT_COUNT-commit rebased PR range."
+          fi
+
+          target_sha=$(git rev-parse "refs/remotes/origin/$TARGET_BRANCH")
+          already_backported=$(git log --fixed-strings --grep="$SOURCE_SHA" --format=%H -1 \
+            "refs/remotes/origin/$TARGET_BRANCH" || true)
+          existing_pr=$(gh api --method GET "repos/$REPOSITORY/pulls" \
+            -f state=all \
+            -f head="${{ github.repository_owner }}:$BACKPORT_BRANCH" \
+            -f base="$TARGET_BRANCH" \
+            --jq '.[0].html_url // empty')
+          if [ -n "$already_backported" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Source $SOURCE_SHA is already recorded by $already_backported." >> "$GITHUB_STEP_SUMMARY"
+          elif [ -n "$existing_pr" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "An existing backport PR already handles this source: $existing_pr" >> "$GITHUB_STEP_SUMMARY"
+          elif git ls-remote --exit-code origin "refs/heads/$BACKPORT_BRANCH" >/dev/null 2>&1; then
+            echo "::error::Backport branch '$BACKPORT_BRANCH' exists without a corresponding PR."
+            exit 1
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          {
+            echo "source_parent=$source_parent"
+            echo "target_sha=$target_sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Cherry-pick merged change
+        if: steps.selection.outputs.selected == 'true' && steps.source.outputs.skip != 'true'
+        id: cherry_pick
+        working-directory: repository
+        env:
+          SOURCE_PARENT: ${{ steps.source.outputs.source_parent }}
+          SOURCE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          TARGET_SHA: ${{ steps.source.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "isaaclab-bot[bot]"
+          git config user.email "282401363+isaaclab-bot[bot]@users.noreply.github.com"
+
+          source_message="$RUNNER_TEMP/source-$SOURCE_SHA-message.txt"
+          git show --no-patch --format=%B "$SOURCE_SHA" > "$source_message"
+          printf '\n(cherry picked from commit %s)\n' "$SOURCE_SHA" >> "$source_message"
+          source_tree=$(git rev-parse "$SOURCE_SHA^{tree}")
+          export GIT_AUTHOR_NAME="$(git show --no-patch --format=%an "$SOURCE_SHA")"
+          export GIT_AUTHOR_EMAIL="$(git show --no-patch --format=%ae "$SOURCE_SHA")"
+          export GIT_AUTHOR_DATE="$(git show --no-patch --format=%aI "$SOURCE_SHA")"
+          cherry_pick_head=$(git commit-tree "$source_tree" -p "$SOURCE_PARENT" < "$source_message")
+          echo "cherry_pick_head=$cherry_pick_head" >> "$GITHUB_OUTPUT"
+
+          set +e
+          git -c core.hooksPath=/dev/null cherry-pick "$cherry_pick_head"
+          cherry_pick_status=$?
+          set -e
+
+          if [ "$cherry_pick_status" -eq 0 ]; then
+            python3 ../automation/.github/scripts/backport.py validate-candidate \
+              --source_parent "$SOURCE_PARENT" \
+              --source "$SOURCE_SHA" \
+              --target "$TARGET_SHA" \
+              --candidate HEAD \
+              --exact_patch
+            echo "conflict=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$(git diff --name-only --diff-filter=U)" ]; then
+            if [ "$(git rev-parse CHERRY_PICK_HEAD)" != "$cherry_pick_head" ]; then
+              echo "::error::The conflict does not belong to the expected aggregate source commit."
+              exit 1
+            fi
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            echo "Git reported conflicts; requesting a constrained resolution through NVIDIA inference."
+          else
+            echo "::error::Cherry-pick failed without leaving resolvable conflicts."
+            exit "$cherry_pick_status"
+          fi
+
+      - name: Require conflict-resolution API key
+        if: steps.cherry_pick.outputs.conflict == 'true'
+        env:
+          NVIDIA_INFERENCE_API_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
+        run: |
+          if [ -z "$NVIDIA_INFERENCE_API_KEY" ]; then
+            echo "::error::Repository secret NVIDIA_INFERENCE_API_KEY is required for conflict resolution."
+            exit 1
+          fi
+
+      - name: Resolve cherry-pick conflicts through NVIDIA inference
+        if: steps.cherry_pick.outputs.conflict == 'true'
+        working-directory: repository
+        env:
+          NVIDIA_INFERENCE_API_KEY: ${{ secrets.NVIDIA_INFERENCE_API_KEY }}
+          NVIDIA_BACKPORT_MODEL: ${{ vars.NVIDIA_BACKPORT_MODEL }}
+          NVIDIA_BACKPORT_FALLBACK_MODEL: ${{ vars.NVIDIA_BACKPORT_FALLBACK_MODEL }}
+          SOURCE_PARENT: ${{ steps.source.outputs.source_parent }}
+          SOURCE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          TARGET_SHA: ${{ steps.source.outputs.target_sha }}
+          CHERRY_PICK_HEAD_SHA: ${{ steps.cherry_pick.outputs.cherry_pick_head }}
+        run: |
+          set -euo pipefail
+          primary_model=${NVIDIA_BACKPORT_MODEL:-azure/openai/gpt-5.6-sol}
+          fallback_model=${NVIDIA_BACKPORT_FALLBACK_MODEL:-azure/anthropic/claude-opus-5}
+          python3 ../automation/.github/scripts/resolve_backport_conflicts.py \
+            --source_parent "$SOURCE_PARENT" \
+            --source "$SOURCE_SHA" \
+            --target "$TARGET_SHA" \
+            --cherry_pick_head "$CHERRY_PICK_HEAD_SHA" \
+            --model "$primary_model" \
+            --model "$fallback_model"
+
+      - name: Set up Python for inferred-resolution checks
+        if: steps.cherry_pick.outputs.conflict == 'true'
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+
+      - name: Run pre-commit on inferred resolution
+        if: steps.cherry_pick.outputs.conflict == 'true'
+        working-directory: repository
+        env:
+          SKIP: check-changelog-fragments
+          SOURCE_PARENT: ${{ steps.source.outputs.source_parent }}
+          SOURCE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          TARGET_SHA: ${{ steps.source.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          python -m pip install pre-commit==4.6.2
+
+          set +e
+          pre-commit run --show-diff-on-failure --color=always --all-files
+          pre_commit_status=$?
+          set -e
+
+          if [ "$pre_commit_status" -ne 0 ]; then
+            while IFS= read -r -d '' path; do
+              git add --all -- "$path"
+            done < <(git diff --no-renames --name-only -z "$SOURCE_PARENT" "$SOURCE_SHA" --)
+            python3 ../automation/.github/scripts/backport.py validate-candidate \
+              --source_parent "$SOURCE_PARENT" \
+              --source "$SOURCE_SHA" \
+              --target "$TARGET_SHA"
+            pre-commit run --show-diff-on-failure --color=always --all-files
+          fi
+
+      - name: Validate and commit inferred resolution
+        if: steps.cherry_pick.outputs.conflict == 'true'
+        working-directory: repository
+        env:
+          SOURCE_PARENT: ${{ steps.source.outputs.source_parent }}
+          SOURCE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          TARGET_SHA: ${{ steps.source.outputs.target_sha }}
+          CHERRY_PICK_HEAD_SHA: ${{ steps.cherry_pick.outputs.cherry_pick_head }}
+        run: |
+          set -euo pipefail
+          if [ "$(git rev-parse CHERRY_PICK_HEAD)" != "$CHERRY_PICK_HEAD_SHA" ]; then
+            echo "::error::The conflict resolver altered or completed the cherry-pick operation."
+            exit 1
+          fi
+          python3 ../automation/.github/scripts/backport.py validate-candidate \
+            --source_parent "$SOURCE_PARENT" \
+            --source "$SOURCE_SHA" \
+            --target "$TARGET_SHA"
+          GIT_EDITOR=true git \
+            -c core.hooksPath=/dev/null \
+            -c user.name="isaaclab-bot[bot]" \
+            -c user.email="282401363+isaaclab-bot[bot]@users.noreply.github.com" \
+            cherry-pick --continue
+          python3 ../automation/.github/scripts/backport.py validate-candidate \
+            --source_parent "$SOURCE_PARENT" \
+            --source "$SOURCE_SHA" \
+            --target "$TARGET_SHA" \
+            --candidate HEAD
+          git diff --check "$TARGET_SHA" HEAD
+
+      - name: Create repository write token
+        if: steps.selection.outputs.selected == 'true' && steps.source.outputs.skip != 'true'
+        id: app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
+        with:
+          client-id: ${{ secrets.CHANGELOG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+
+      - name: Push exact clean backport
+        if: steps.cherry_pick.outputs.conflict == 'false'
+        working-directory: repository
+        env:
+          APP_TOKEN: ${{ steps.app_token.outputs.token }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          TARGET_SHA: ${{ steps.source.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          remote_url="https://x-access-token:$APP_TOKEN@github.com/$REPOSITORY.git"
+          git -c core.hooksPath=/dev/null push "$remote_url" "HEAD:refs/heads/$TARGET_BRANCH"
+          backport_sha=$(git rev-parse HEAD)
+          backport_url="https://github.com/$REPOSITORY/commit/$backport_sha"
+          {
+            echo "Backported PR #$PR_NUMBER directly to \`$TARGET_BRANCH\`."
+            echo
+            echo "- Source: \`$SOURCE_SHA\`"
+            echo "- Previous target: \`$TARGET_SHA\`"
+            echo "- Backport: $backport_url"
+            echo "- Verification: conflict-free cherry-pick with matching paths and exact edit digest"
+          } >> "$GITHUB_STEP_SUMMARY"
+          gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" \
+            --body "Backported to \`$TARGET_BRANCH\` as $backport_url." \
+            || echo "::warning::The backport succeeded, but the source PR comment could not be posted."
+
+      - name: Push inferred branch and open draft PR
+        if: steps.cherry_pick.outputs.conflict == 'true'
+        working-directory: repository
+        env:
+          APP_TOKEN: ${{ steps.app_token.outputs.token }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          TARGET_SHA: ${{ steps.source.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          remote_url="https://x-access-token:$APP_TOKEN@github.com/$REPOSITORY.git"
+          git switch -C "$BACKPORT_BRANCH"
+          git -c core.hooksPath=/dev/null push "$remote_url" "HEAD:refs/heads/$BACKPORT_BRANCH"
+
+          body_file="$RUNNER_TEMP/backport-pr-$PR_NUMBER.md"
+          {
+            echo "Backports #$PR_NUMBER to \`$TARGET_BRANCH\`."
+            echo
+            echo "The original cherry-pick conflicted. An NVIDIA inference model proposed this resolution, and deterministic validation confirmed that it changes no paths outside the original PR. Because conflict resolution cannot be certified as an exact patch replay, this PR is intentionally a draft and requires release-maintainer review."
+            echo
+            echo "| Field | Commit |"
+            echo "|---|---|"
+            echo "| Original merged change | \`$SOURCE_SHA\` |"
+            echo "| Release base used | \`$TARGET_SHA\` |"
+            echo "| Proposed backport | \`$(git rev-parse HEAD)\` |"
+          } > "$body_file"
+
+          pr_url=$(gh pr create \
+            --repo "$REPOSITORY" \
+            --base "$TARGET_BRANCH" \
+            --head "$BACKPORT_BRANCH" \
+            --title "[Backport] PR #$PR_NUMBER to $TARGET_BRANCH" \
+            --body-file "$body_file" \
+            --draft)
+          echo "Inference-resolved draft backport PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"

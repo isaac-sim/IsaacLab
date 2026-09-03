@@ -347,14 +347,11 @@ class MPMObject(BaseDeformableObject):
         )
         self._data.default_nodal_state_w = ProxyArray(default_state)
         self._data.default_particle_state_w = self._data.default_nodal_state_w
-        self._create_kit_points()
+        self._create_particle_visualization()
 
-    def _create_kit_points(self) -> None:
-        """Create Kit-visible ``UsdGeom.Points`` prims when the Kit visualizer is active."""
-        from isaaclab.sim import SimulationContext  # noqa: PLC0415
-
-        sim = SimulationContext.instance()
-        if sim is None or "kit" not in sim.resolve_visualizer_types() or not self.cfg.spawn.visible:
+    def _create_particle_visualization(self) -> None:
+        """Create renderer-agnostic ``UsdGeom.Points`` prims for visible particles."""
+        if not self.cfg.spawn.visible:
             return
 
         first_offset = self._recorded_particle_offsets[0]
@@ -363,9 +360,9 @@ class MPMObject(BaseDeformableObject):
             .particle_radius[first_offset : first_offset + self._particles_per_object]
             .numpy()
         )
-        base_path = _create_kit_visualization_path(self.cfg.prim_path)
+        asset_prim_paths = _resolve_particle_asset_paths(self.cfg.prim_path, self._num_instances)
         prim_paths = create_mpm_particle_visualization(
-            prim_path=base_path,
+            prim_paths=[f"{path}/Particles" for path in asset_prim_paths],
             positions=self.data.particle_pos_w.warp.numpy(),
             widths=2.0 * radii,
             color=self.cfg.spawn.visual_color,
@@ -378,7 +375,7 @@ class MPMObject(BaseDeformableObject):
                 particle_count=self._particles_per_object,
                 sync_frequency=self.cfg.spawn.visual_update_frequency,
             )
-        logger.info("Kit MPM particle visualization initialized at: %s", base_path)
+        logger.info("MPM particle visualization initialized for: %s", self.cfg.prim_path)
 
     def _resolve_env_ids(self, env_ids):
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
@@ -446,6 +443,27 @@ def _compose_env_asset_pose(
     return (float(pos[0]), float(pos[1]), float(pos[2])), (float(rot[0]), float(rot[1]), float(rot[2]), float(rot[3]))
 
 
-def _create_kit_visualization_path(prim_path: str) -> str:
-    sanitized = "".join(char if char.isalnum() else "_" for char in prim_path.strip("/"))
-    return f"/World/Visuals/MPMParticles/{sanitized or 'Object'}"
+def _resolve_particle_asset_paths(prim_path: str, num_instances: int) -> list[str]:
+    """Resolve one concrete MPM asset path per Newton world."""
+    import isaaclab.sim as sim_utils  # noqa: PLC0415
+    from isaaclab.cloner import path as cloner_path  # noqa: PLC0415
+    from isaaclab.cloner.query import iter_sources  # noqa: PLC0415
+
+    sim = sim_utils.SimulationContext.instance()
+    clone_plan = sim.get_clone_plan() if sim is not None else None
+    if clone_plan is not None and clone_plan.env_ids is not None:
+        paths_by_env_id: dict[int, str] = {}
+        for _, template, _, env_ids in iter_sources(clone_plan, prim_path):
+            matched = cloner_path.match(prim_path, template)
+            if matched is not None:
+                paths_by_env_id.update((env_id, f"{template.format(env_id)}{matched.suffix}") for env_id in env_ids)
+        env_ids = [int(env_id) for env_id in clone_plan.env_ids.tolist()]
+        if len(env_ids) == num_instances and all(env_id in paths_by_env_id for env_id in env_ids):
+            return [paths_by_env_id[env_id] for env_id in env_ids]
+
+    matched_paths = sim_utils.find_matching_prim_paths(prim_path)
+    if len(matched_paths) != num_instances:
+        raise RuntimeError(
+            f"Expected {num_instances} MPM asset prims matching '{prim_path}', found {len(matched_paths)}."
+        )
+    return matched_paths

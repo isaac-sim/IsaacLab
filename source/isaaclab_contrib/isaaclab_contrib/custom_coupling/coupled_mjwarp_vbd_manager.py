@@ -13,6 +13,8 @@ from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
 from newton import Contacts, Control, Model, State
 from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
 
+from isaaclab.physics import PhysicsManager
+
 from .kernels import _kernel_body_particle_reaction
 from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 
@@ -27,12 +29,11 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
     _rigid_solver: SolverMuJoCo | None = None
     _soft_solver: SolverVBD | None = None
     _coupling_mode: str | None = None
+    _builder_attribute_solvers = (SolverMuJoCo,)
 
     @classmethod
     def step(cls) -> None:
         """Step the physics simulation."""
-        from isaaclab.physics import PhysicsManager
-
         sim = PhysicsManager._sim
         if sim is None or not sim.is_playing():
             return

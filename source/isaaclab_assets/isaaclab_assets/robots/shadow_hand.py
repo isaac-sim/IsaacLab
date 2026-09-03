@@ -16,6 +16,9 @@ Reference:
 
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -34,13 +37,16 @@ SHADOW_HAND_CFG = ArticulationCfg(
             retain_accelerations=True,
             max_depenetration_velocity=1000.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-            sleep_threshold=0.005,
-            stabilization_threshold=0.0005,
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True,
+                solver_position_iteration_count=8,
+                solver_velocity_iteration_count=0,
+                sleep_threshold=0.005,
+                stabilization_threshold=0.0005,
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
         # collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
         joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force"),
         fixed_tendons_props=sim_utils.FixedTendonPropertiesCfg(limit_stiffness=30.0, damping=0.1),
@@ -53,7 +59,7 @@ SHADOW_HAND_CFG = ArticulationCfg(
     actuators={
         "fingers": ImplicitActuatorCfg(
             joint_names_expr=["robot0_WR.*", "robot0_(FF|MF|RF|LF|TH)J(3|2|1)", "robot0_(LF|TH)J4", "robot0_THJ0"],
-            effort_limit_sim={
+            joint_effort_limit={
                 "robot0_WRJ1": 4.785,
                 "robot0_WRJ0": 2.175,
                 "robot0_(FF|MF|RF|LF)J1": 0.7245,
@@ -96,7 +102,10 @@ SHADOW_HAND_NEWTON_CFG = ArticulationCfg(
             retain_accelerations=True,
             max_depenetration_velocity=1000.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=True),
+        articulation_props=[
+            PhysxArticulationCfg(enabled_self_collisions=True),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
         joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force", ensure_drives_exist=True),
         fixed_tendons_props=sim_utils.FixedTendonPropertiesCfg(damping=0.1),
     ),
@@ -132,7 +141,7 @@ SHADOW_HAND_NEWTON_CFG = ArticulationCfg(
                 "robot0_(LF|TH)J4",
                 "robot0_THJ0",
             ],
-            effort_limit_sim={
+            joint_effort_limit={
                 "robot0_WRJ1": 4.785,
                 "robot0_WRJ0": 2.175,
                 "robot0_(FF|MF|RF|LF)J1": 0.7245,

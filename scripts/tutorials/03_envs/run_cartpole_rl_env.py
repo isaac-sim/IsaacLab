@@ -39,15 +39,13 @@ import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
 
-from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
+from isaaclab_tasks.utils import parse_env_cfg
 
 
 def main():
     """Main function."""
     # create environment configuration
-    env_cfg = CartpoleEnvCfg()
-    env_cfg.scene.num_envs = args_cli.num_envs
-    env_cfg.sim.device = args_cli.device
+    env_cfg = parse_env_cfg("Isaac-Cartpole", device=args_cli.device, num_envs=args_cli.num_envs)
     # setup RL environment
     env = ManagerBasedRLEnv(cfg=env_cfg)
 

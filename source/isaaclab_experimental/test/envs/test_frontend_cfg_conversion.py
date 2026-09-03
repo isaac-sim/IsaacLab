@@ -33,8 +33,7 @@ from isaaclab_newton.physics import NewtonCfg
 
 # Registering the task packages is the whole point — import for side effects.
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.hydra import resolve_presets
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+from isaaclab_tasks.utils import resolve_task_config
 
 # Stable manager-based tasks resolve to this env class; direct tasks provide their own and
 # take the :meth:`WarpFrontend._resolve_direct_warp_class` path instead of cfg adaptation.
@@ -43,6 +42,10 @@ _STABLE_MANAGER_ENTRY_POINT = "isaaclab.envs:ManagerBasedRLEnv"
 # Stable task ids that adapt cleanly under ``--frontend warp``, as produced by
 # :func:`_sweep_warp_support`. Do not curate this by hand: when the test fails it prints the
 # exact set to paste back.
+#
+# The sweep reports what adapts today; this set records what must keep adapting. Without it a
+# task losing warp support only shrinks the computed answer, with nothing to compare against —
+# which is how Reach lost support unnoticed.
 _WARP_SUPPORTED_TASKS = frozenset(
     {
         "Isaac-Ant",
@@ -83,12 +86,10 @@ def _manager_warp_tasks() -> list[tuple[str, str]]:
     return sorted(tasks)
 
 
-def _load_adapted_cfg(cfg_entry_point: str):
-    """Instantiate an env cfg, resolve the Newton preset, and adapt it for warp."""
-    module_path, class_name = cfg_entry_point.split(":")
-    cfg = getattr(importlib.import_module(module_path), class_name)()
-    cfg = resolve_presets(cfg, selected=("newton_mjwarp",))
-    assert isinstance(cfg.sim.physics, NewtonCfg), "task does not provide a newton_mjwarp physics preset"
+def _load_adapted_cfg(task_id: str):
+    """Compose a task for Newton and adapt it for warp."""
+    cfg, _ = resolve_task_config(task_id, "", overrides=("physics=newton_mjwarp",))
+    assert isinstance(cfg.sim.physics, NewtonCfg), "task does not provide Newton MJWarp physics"
     # Raises FrontendIncompatibleError if any warp-managed term lacks a warp twin.
     WarpFrontend.adapt_cfg(cfg)
     return cfg
@@ -116,8 +117,7 @@ def _sweep_warp_support() -> tuple[frozenset[str], dict[str, str], dict[str, str
         try:
             # the canonical loader, so every registry form the runtime accepts is surveyed;
             # matching only ``str`` entry points here would skip callable ones silently
-            cfg = load_cfg_from_registry(task_id, "env_cfg_entry_point")
-            cfg = resolve_presets(cfg, selected=("newton_mjwarp",))
+            cfg, _ = resolve_task_config(task_id, "", overrides=("physics=newton_mjwarp",))
         except Exception as exc:  # noqa: BLE001 - any cfg load failure means "cannot judge"
             unimportable[task_id] = f"{type(exc).__name__}: {exc}"
             continue
@@ -184,7 +184,7 @@ def test_no_warp_task_registrations_remain():
 @pytest.mark.parametrize("task_id", sorted(_WARP_SUPPORTED_TASKS), ids=sorted(_WARP_SUPPORTED_TASKS))
 def test_stable_task_cfg_adapts_to_warp(task_id: str):
     """Each covered stable task adapts without a missing twin (the --frontend warp path)."""
-    cfg = _load_adapted_cfg(_cfg_entry_point(task_id))
+    cfg = _load_adapted_cfg(task_id)
 
     # Action terms carry a ``class_type`` (not a ``func``) and live on a base that
     # is not a ManagerTermBaseCfg; guard that the adapter still swaps them to the
@@ -225,7 +225,7 @@ def test_stable_cartpole_cfg_adapts_to_current_warp_module_layout():
     """The stable Cartpole cfg resolves task-specific twins in the current package layout."""
     from isaaclab_experimental.managers.action_manager import ActionTerm
 
-    cfg = _load_adapted_cfg(_cfg_entry_point("Isaac-Cartpole"))
+    cfg = _load_adapted_cfg("Isaac-Cartpole")
 
     assert cfg.rewards.pole_pos.func.__module__.startswith("isaaclab_tasks_experimental.core.cartpole.mdp")
     assert cfg.rewards.success_rate.func.__module__.startswith("isaaclab_tasks_experimental.core.cartpole.mdp")
@@ -258,7 +258,7 @@ def test_stable_observation_noise_converts_to_warp_twins():
     }
     assert stable_params, "expected uniform noise on the stable velocity observations"
 
-    cfg = _load_adapted_cfg(entry)
+    cfg = _load_adapted_cfg("Isaac-Velocity-Flat-UnitreeGo2")
     converted = dict(_iter_obs_terms(cfg))
     for name, (n_min, n_max) in stable_params.items():
         twin = converted[name].noise
@@ -272,10 +272,7 @@ def test_noise_cfg_without_warp_twin_is_a_hard_error():
 
     from isaaclab.utils.noise import NoiseModelCfg, UniformNoiseCfg
 
-    entry = _cfg_entry_point("Isaac-Velocity-Flat-UnitreeGo2")
-    module_path, class_name = entry.split(":")
-    cfg = getattr(importlib.import_module(module_path), class_name)()
-    cfg = resolve_presets(cfg, selected=("newton_mjwarp",))
+    cfg, _ = resolve_task_config("Isaac-Velocity-Flat-UnitreeGo2", "", overrides=("physics=newton_mjwarp",))
     name, term = next(iter(_iter_obs_terms(cfg)))
     term.noise = NoiseModelCfg(noise_cfg=UniformNoiseCfg())
     with pytest.raises(FrontendIncompatibleError, match="noise"):

@@ -98,7 +98,8 @@ class HandoverEnv(DirectMARLEnv):
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        global_paths = ("/World/ground",)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos, global_paths=global_paths)
         cloner.replicate(plan, stage=self.scene.stage)
         # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
@@ -304,7 +305,11 @@ class HandoverEnv(DirectMARLEnv):
         # update goal pose and markers
         self.goal_rot[env_ids] = new_rot
         goal_pos = self.goal_pos + self.scene.env_origins
-        self.goal_markers.visualize(goal_pos, self.goal_rot)
+        self.goal_markers.visualize(
+            goal_pos,
+            self.goal_rot,
+            environment_ids=self.scene._ALL_INDICES,
+        )
 
     def _compute_intermediate_values(self):
         # data for right hand

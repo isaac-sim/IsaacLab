@@ -56,7 +56,7 @@ with contextlib.suppress(ImportError):
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
-from isaaclab_tasks.utils import setup_preset_cli
+from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -87,11 +87,7 @@ def _output_dir(example: int) -> str:
 
 def _shadow_env_cfg(num_envs: int, env_spacing: float = _SHADOW_ENV_SPACING):
     """Build a base Shadow Hand camera env cfg shared by all examples."""
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import ShadowHandCameraEnvCfg
-
-    env_cfg = ShadowHandCameraEnvCfg()
-    env_cfg.tiled_camera = env_cfg.tiled_camera.rgb
-    env_cfg.tiled_camera.renderer_cfg = env_cfg.tiled_camera.renderer_cfg.default
+    env_cfg, _ = resolve_task_config(_TASK_SHADOW, "", overrides=(*sys.argv[1:], "env.tiled_camera=rgb"))
     env_cfg.tiled_camera.height = 256
     env_cfg.tiled_camera.width = 256
     env_cfg.scene.num_envs = num_envs
@@ -109,8 +105,6 @@ def _build_env_cfg_example_1(num_envs: int):
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
-    env_cfg.sim.physics = env_cfg.sim.physics.default
-
     env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT)]
 
     out = _output_dir(1)
@@ -130,7 +124,6 @@ def _build_env_cfg_example_1(num_envs: int):
 def _build_env_cfg_example_2(num_envs: int):
     """Shadow Hand + headless: scene tiled-camera sensor clip only."""
     env_cfg = _shadow_env_cfg(num_envs, env_spacing=2.0)
-    env_cfg.sim.physics = env_cfg.sim.physics.default
     env_cfg.sim.visualizer_cfgs = []  # no interactive visualizer
 
     out = _output_dir(2)
@@ -158,8 +151,6 @@ def _build_env_cfg_example_3(num_envs: int):
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
-    env_cfg.sim.physics = env_cfg.sim.physics.default
-
     kit_cfg = KitVisualizerCfg(
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,

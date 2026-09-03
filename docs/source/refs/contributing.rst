@@ -81,6 +81,10 @@ for maintaining the documentation.
 Sending a pull request for the documentation is the same as sending a pull request for the codebase.
 Please follow the steps mentioned in the `Contributing Code`_ section.
 
+For documentation media, only small ``.jpg`` files should be committed directly to the Isaac Lab repository.
+Upload larger images, videos, animations, and other media to an external hosting location, then link to or embed
+the externally hosted file from the documentation.
+
 .. caution::
 
   Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ before building
@@ -120,12 +124,8 @@ To do a clean build, run the following command in the terminal:
 Contributing assets
 -------------------
 
-Currently, we host the assets for the extensions on `NVIDIA Nucleus Server <https://docs.omniverse.nvidia.com/nucleus/latest/index.html>`__.
-Nucleus is a cloud-based storage service that allows users to store and share large files. It is
-integrated with the `NVIDIA Omniverse Platform <https://developer.nvidia.com/omniverse>`__.
-
-Since all assets are hosted on Nucleus, we do not need to include them in the repository. However,
-we need to include the links to the assets in the documentation.
+Large asset files should not be added directly to the Isaac Lab repository. Instead, host them in a
+separate repository and link to them from the relevant documentation.
 
 Please checkout the `Isaac Sim Assets <https://docs.isaacsim.omniverse.nvidia.com/latest/assets/usd_assets_overview.html>`__
 for more information on what is presently available.
@@ -142,26 +142,22 @@ To host your own assets, the current solution is:
 3. Include images of the assets in the README file of the repository
 4. Send a pull request with a link to the repository
 
-We will then verify the assets, its licensing, and include the assets into the Nucleus server for hosting.
-In case you have any questions, please feel free to reach out to us through e-mail or by opening an issue
-in the repository.
+We will then verify the assets and their licensing and determine how to integrate them. If you have
+questions, please open an issue in the repository.
 
 
-Maintaining a changelog and extension.toml
-------------------------------------------
+Maintaining package changelogs and versions
+-------------------------------------------
 
-Each extension maintains a changelog in the ``CHANGELOG.rst`` file in the ``docs`` directory,
-as well as a ``extension.toml`` file in the ``config`` directory.
+Each release-managed package maintains a changelog in ``docs/CHANGELOG.rst`` and its version in
+``pyproject.toml``.
 
-The ``extension.toml`` file contains the metadata for the extension. It is used to describe the
-name, version, description, and other metadata of the extension.
-
-The ``CHANGELOG.rst`` is a file that contains the curated, chronologically ordered list of notable changes
-for each version of the extension.
+The changelog contains the curated, chronologically ordered list of notable changes for each
+package version.
 
 .. note::
 
-   ``CHANGELOG.rst`` and ``extension.toml`` are compiled by CI from per-PR **fragment
+   ``CHANGELOG.rst`` and the package version in ``pyproject.toml`` are compiled by CI from per-PR **fragment
    files** — contributors do not edit them directly. For every package your PR touches
    in ``source/<pkg>/`` (outside ``changelog.d/``), add one fragment under
    ``source/<pkg>/changelog.d/<slug>.<tier>.rst``:
@@ -173,12 +169,12 @@ for each version of the extension.
 
    ``<slug>`` is any short, unique name; your branch name with ``/`` replaced by ``-``
    is the recommended default. Within a batch the highest tier wins for the package.
-   The version on ``extension.toml`` is bumped by CI according to
+   The package version in ``pyproject.toml`` is bumped by CI according to
    `Semantic Versioning <https://semver.org/>`__.
 
 The changelog file is written in `reStructuredText <https://docutils.sourceforge.io/rst.html>`__ format.
 The goal of this changelog is to help users and contributors see precisely what notable changes have
-been made between each release (or version) of the extension. This is a *MUST* for every extension.
+been made between each release of a package. This is a *MUST* for every release-managed package.
 
 For each fragment, please follow the following guidelines:
 

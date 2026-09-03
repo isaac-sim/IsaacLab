@@ -109,7 +109,6 @@ def _ovrtx_sim_cfg(device: str) -> SimulationCfg:
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
 @_SKIP_MISSING_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx(device):
@@ -140,7 +139,6 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
 @_SKIP_MISSING_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians_ovrtx(device):
@@ -172,7 +170,6 @@ def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians_o
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
 @_SKIP_MISSING_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovrtx(device):
@@ -203,7 +200,6 @@ def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovr
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
 @_SKIP_MISSING_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(device):

@@ -24,6 +24,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
+from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
 
 
 def _deformable_ignore_paths(
@@ -109,6 +110,7 @@ def build_visualization_builder_from_stage_envs(
             ignore_paths=deformable_ignore_paths or None,
         )
         _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
+        import_builder_visual_material_paths(builder, stage)
         shadow_entities, registry_groups = add_shadow_deformables_to_builder(
             builder, stage, env_paths, device=device, entries=deformable_entries, clone_plan=clone_plan
         )
@@ -137,6 +139,7 @@ def build_visualization_builder_from_stage_envs(
         schema_resolvers=schema_resolvers,
     )
     _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
+    import_builder_visual_material_paths(builder, stage)
     source_deformable_ignore_paths = _deformable_ignore_paths(stage, sources, entries=deformable_entries)
     source_builders = build_source_builders(
         stage,

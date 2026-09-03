@@ -188,17 +188,15 @@ class NewtonCouplerManager(NewtonVBDManager):
     def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
         """Register custom attributes required by nested coupled entries."""
         super()._register_builder_attributes(builder)
-        solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
-        if any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in getattr(solver_cfg, "entries", ())):
-            NewtonMPMManager._register_builder_attributes(builder)
+        for entry in PhysicsManager._cfg.solver_cfg.entries:
+            entry.solver_cfg.class_type._register_builder_attributes(builder)
 
     @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
         """Normalize kinematic colliders when a coupled entry uses implicit MPM."""
         super()._prepare_builder_for_finalize(builder)
-        solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
-        if any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in getattr(solver_cfg, "entries", ())):
-            NewtonMPMManager._prepare_builder_for_finalize(builder)
+        for entry in PhysicsManager._cfg.solver_cfg.entries:
+            entry.solver_cfg.class_type._prepare_builder_for_finalize(builder)
 
     @classmethod
     def _initialize_contacts(cls) -> None:

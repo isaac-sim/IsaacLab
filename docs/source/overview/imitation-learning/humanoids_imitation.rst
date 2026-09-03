@@ -78,7 +78,7 @@ Collect five demonstrations by running the following command:
 
 .. code:: bash
 
-   uv run --extra teleop isaaclab teleop record \
+   uv run --extra teleop,isaacsim isaaclab teleop record \
    --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --xr \
@@ -88,7 +88,7 @@ Collect five demonstrations by running the following command:
 
 
 .. note::
-   We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` (see :ref:`environments` for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``.
+   We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` (see :doc:`/source/setup/environments` for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``.
 
 .. tip::
    If a demo fails during data collection, the environment can be reset using the teleoperation controls panel in the XR teleop client
@@ -100,7 +100,7 @@ You can replay the collected demonstrations by running the following command:
 
 .. code:: bash
 
-   uv run --extra teleop isaaclab teleop replay \
+   uv run --extra teleop,isaacsim isaaclab teleop replay \
    --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --device cpu \
@@ -271,7 +271,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
 
    .. code:: bash
 
-      uv run --extra teleop isaaclab teleop record \
+      uv run --extra teleop,isaacsim isaaclab teleop record \
       --task IsaacContrib-NutPour-GR1T2-Pink-IK-Abs \
       --visualizer kit \
       --device cpu \
@@ -427,7 +427,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
    .. code:: bash
 
-      uv run --extra teleop isaaclab teleop record \
+      uv run --extra teleop,isaacsim isaaclab teleop record \
       --device cpu \
       --xr \
       --visualizer kit \
@@ -443,7 +443,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
    .. code:: bash
 
-      uv run --extra teleop isaaclab teleop replay \
+      uv run --extra teleop,isaacsim isaaclab teleop replay \
       --device cpu \
       --visualizer kit \
       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \

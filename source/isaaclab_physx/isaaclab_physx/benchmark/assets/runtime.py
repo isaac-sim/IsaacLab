@@ -12,7 +12,10 @@ from contextlib import contextmanager
 from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from isaaclab.actuators import ActuatorCollection
 from isaaclab.benchmark.asset_suites.types import AssetBenchmarkTargets
+
+from isaaclab_physx.assets.articulation.actuator_control import PhysxActuatorControl
 
 args = SimpleNamespace(no_shape_checks=False)
 
@@ -112,6 +115,7 @@ def create_test_articulation(
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
+    object.__setattr__(articulation, "_sim_cfg", SimpleNamespace(use_newton_actuators=False))
 
     # Create ArticulationData instance (SimulationManager already mocked at module level)
     data = ArticulationData(mock_view, device)
@@ -140,11 +144,6 @@ def create_test_articulation(
     # Warp arrays for set_external_force_and_torque
     object.__setattr__(articulation, "_ALL_INDICES_WP", all_indices_wp)
     object.__setattr__(articulation, "_ALL_BODY_INDICES_WP", all_body_indices_wp)
-
-    # Initialize joint targets
-    object.__setattr__(articulation, "_joint_pos_target_sim", torch.zeros(num_instances, num_joints, device=device))
-    object.__setattr__(articulation, "_joint_vel_target_sim", torch.zeros(num_instances, num_joints, device=device))
-    object.__setattr__(articulation, "_joint_effort_target_sim", torch.zeros(num_instances, num_joints, device=device))
 
     # Cached .view() wrappers
     object.__setattr__(articulation, "_root_link_pose_w_f32", None)
@@ -185,6 +184,10 @@ def create_test_articulation(
     object.__setattr__(
         articulation, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True)
     )
+
+    control = PhysxActuatorControl(articulation)
+    object.__setattr__(articulation, "actuators", ActuatorCollection({}, control))
+    data.bind_actuator_collection(articulation.actuators)
 
     return articulation, mock_view, None
 

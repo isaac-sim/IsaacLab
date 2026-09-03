@@ -774,10 +774,10 @@ def test_set_material_properties(num_envs, num_cubes, device):
         # Play sim
         sim.reset()
 
-        # Random material per object: (static_friction, dynamic_friction, restitution), on the sim device.
-        static_friction = torch.empty(num_envs, num_cubes, 1, device=device).uniform_(0.4, 0.8)
-        dynamic_friction = torch.empty(num_envs, num_cubes, 1, device=device).uniform_(0.4, 0.8)
-        restitution = torch.empty(num_envs, num_cubes, 1, device=device).uniform_(0.0, 0.2)
+        # Random material per object: (static_friction, dynamic_friction, restitution), on the CPU.
+        static_friction = torch.empty(num_envs, num_cubes, 1, device="cpu").uniform_(0.4, 0.8)
+        dynamic_friction = torch.empty(num_envs, num_cubes, 1, device="cpu").uniform_(0.4, 0.8)
+        restitution = torch.empty(num_envs, num_cubes, 1, device="cpu").uniform_(0.0, 0.2)
         materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)  # [num_envs, num_cubes, 3]
 
         # Map data -> body-major view layout, write through the view.

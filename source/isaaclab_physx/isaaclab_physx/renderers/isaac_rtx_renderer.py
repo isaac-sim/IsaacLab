@@ -24,7 +24,6 @@ from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim.utils import enable_extension
-from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
@@ -35,6 +34,7 @@ from .isaac_rtx_renderer_utils import (
     ensure_isaac_rtx_render_update,
     ensure_rtx_hydra_engine_attached,
 )
+from .visual_material import FabricVisualMaterialWriter
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +129,11 @@ class IsaacRtxRenderer(BaseRenderer):
         ensure_rtx_hydra_engine_attached()
         # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
 
+    @property
+    def visual_material_writer(self):
+        """Write material channels directly through Fabric."""
+        return FabricVisualMaterialWriter
+
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Resolve the camera's PPISP cfg and apply RTX-specific USD overrides.
 
@@ -196,10 +201,10 @@ class IsaacRtxRenderer(BaseRenderer):
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Author per-env ``omni:scenePartition`` attributes for RTX cull-by-env rendering.
 
-        Authoring is only performed when
-        ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1`` is set.
-        When the variable is absent the method is a no-op and no ``primvars:omni:scenePartition``
-        or ``omni:scenePartition`` attributes are written to the stage.
+        Authoring is controlled by
+        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning`.
+        When disabled, this method is a no-op and writes no
+        ``primvars:omni:scenePartition`` or ``omni:scenePartition`` attributes.
 
         When enabled, for each ``/World/envs/env_{i}`` root, writes the inheriting primvar
         ``primvars:omni:scenePartition`` (token ``env_{i}``) on the root and the matching
@@ -208,13 +213,11 @@ class IsaacRtxRenderer(BaseRenderer):
         geometry and isolates each env's render tile.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
 
-        if not isaac_rtx_per_env_scene_partition_enabled():
+        if not self.cfg.enable_scene_partitioning:
             return
 
         logger.debug(
-            "Per-environment RTX scene partitioning is enabled"
-            " (ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1)."
-            " Authoring primvars:omni:scenePartition on %d env(s).",
+            "Per-environment RTX scene partitioning is enabled. Authoring primvars:omni:scenePartition on %d env(s).",
             num_envs,
         )
 
@@ -265,14 +268,15 @@ class IsaacRtxRenderer(BaseRenderer):
             if settings.get("/isaaclab/has_gui"):
                 settings.set_bool("/rtx/sdg/force/disableColorRender", False)
         else:
+            unsupported = []
             if "albedo" in spec.cfg.data_types:
-                logger.warning(
-                    "Albedo annotator is only supported in Isaac Sim 6.0+. The albedo data type will be ignored."
-                )
-            if any(dt in SIMPLE_SHADING_MODES for dt in spec.cfg.data_types):
-                logger.warning(
-                    "Simple shading annotators are only supported in Isaac Sim 6.0+."
-                    " The simple shading data types will be ignored."
+                unsupported.append("albedo")
+            unsupported.extend(dt for dt in spec.cfg.data_types if dt in SIMPLE_SHADING_MODES)
+            if unsupported:
+                raise ValueError(
+                    "Isaac RTX renderer does not support the following requested data types in"
+                    " Isaac Sim versions before 6.0:"
+                    f" {unsupported}."
                 )
 
         # HACK: Isaac Sim 4.5 has a bug in Camera that breaks segmentation

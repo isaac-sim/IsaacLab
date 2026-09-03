@@ -28,7 +28,6 @@ from env_test_utils import _run_environments, setup_environment  # isort: skip
 
 
 _SKIPPED_TASKS = {
-    "IsaacContrib-Franka-Pour": "Requires an external reset-dataset artifact.",
     "IsaacContrib-AutoMate-Assembly-Direct": "Requires CUDA support outside the standard environment test runner.",
     "IsaacContrib-AutoMate-Disassembly-Direct": "Requires CUDA support outside the standard environment test runner.",
 }
@@ -68,4 +67,5 @@ def _contrib_environment_params() -> list:
 
 @pytest.mark.parametrize("task_name", _contrib_environment_params())
 def test_contrib_environments(task_name):
-    _run_environments(task_name, device="cuda", num_envs=2)
+    num_envs = 3 if task_name == "IsaacContrib-Multitask-Manipulation" else 2
+    _run_environments(task_name, device="cuda", num_envs=num_envs)

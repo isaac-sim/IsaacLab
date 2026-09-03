@@ -11,6 +11,7 @@ No Kit/GPU required — safe for CI and beginners.
 """
 
 import sys
+from types import SimpleNamespace
 
 import gymnasium as gym
 import pytest
@@ -58,6 +59,31 @@ def test_resolve_task_config_applies_plain_scalar_override():
         sys.argv = old_argv
 
     assert env_cfg.scene.num_envs == 123
+
+
+def test_camera_cli_size_overrides_update_observation_space(monkeypatch: pytest.MonkeyPatch):
+    """A composed camera config exposes CLI dimensions before the env derives its Gym space."""
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv, CartpoleEnv
+
+    env_cfg = _resolve_with_args(
+        "env.tiled_camera.height=45",
+        "env.tiled_camera.width=80",
+        "env.frame_stack=1",
+    )
+
+    def fake_parent_init(self, cfg, *_args, **_kwargs):
+        self.cfg = cfg
+        self.scene = SimpleNamespace(num_envs=2)
+        self.sim = SimpleNamespace(device="cpu")
+        self._configure_gym_env_spaces()
+        self._is_closed = True
+
+    monkeypatch.setattr(CartpoleEnv, "__init__", fake_parent_init)
+    env = CartpoleCameraEnv(env_cfg)
+
+    assert env.cfg.observation_space == [3, 45, 80]
+    assert env.single_observation_space["policy"].shape == (3, 45, 80)
+    assert env.observation_space.shape == (2, 3, 45, 80)
 
 
 def test_rtx_is_renderer_selector():

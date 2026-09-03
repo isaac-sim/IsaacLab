@@ -253,7 +253,12 @@ class TestInstallSubmodulesTargetedDependencyUpgrades:
                 ["isaacteleop", "IsaacTeleop"],
             )
 
-        mock_run.assert_called_once_with(pip_cmd + ["install", "--upgrade", req])
+        mock_run.assert_called_once_with(
+            pip_cmd + ["install", "--upgrade", req],
+            check=True,
+            retry_attempts=3,
+            retry_delay_seconds=3.0,
+        )
 
     def test_skips_when_toml_has_no_upgrade_dependencies(self, tmp_path):
         """Extensions without pip upgrade opt-ins do not trigger metadata probes."""

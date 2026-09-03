@@ -37,6 +37,7 @@ from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 from isaaclab.utils._device import set_cuda_device
+from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -850,12 +851,21 @@ class AppLauncher:
                     f"--/exts/omni.kit.livestream.app/primaryStream/publicIp={public_ip_env}",
                     "--/exts/omni.kit.livestream.app/primaryStream/signalPort=49100",
                     "--/exts/omni.kit.livestream.app/primaryStream/streamPort=47998",
+                    "--/exts/omni.kit.livestream.app/primaryStream/allowDynamicResize=true",
+                    "--/exts/omni.kit.livestream.app/primaryStream/streamType=webrtc",
                     "--enable",
                     "omni.kit.livestream.app",
                 ]
             elif self._livestream == 2:
                 # WebRTC private network
+                # Signal/stream ports and allowDynamicResize must be set explicitly; without
+                # them NVST cannot bind its server socket (NVST_R_INTERNAL_ERROR) and any
+                # subsequent window resize after a client connects triggers NVST_R_BUSY.
                 self._livestream_args += [
+                    "--/exts/omni.kit.livestream.app/primaryStream/signalPort=49100",
+                    "--/exts/omni.kit.livestream.app/primaryStream/streamPort=47998",
+                    "--/exts/omni.kit.livestream.app/primaryStream/allowDynamicResize=true",
+                    "--/exts/omni.kit.livestream.app/primaryStream/streamType=webrtc",
                     "--enable",
                     "omni.kit.livestream.app",
                 ]
@@ -1245,6 +1255,20 @@ class AppLauncher:
                 raise ValueError("Animation recording is not supported in headless mode.")
             sys.argv += ["--enable", "omni.physx.pvd"]
 
+    def _requires_all_partitions_spectator_view(self) -> bool:
+        """Return whether the launch needs an unpartitioned all-environment view."""
+        if getattr(self, "_cli_visualizer_explicit", False):
+            has_kit_visualizer = "kit" in getattr(self, "_cli_visualizer_types", [])
+        else:
+            has_kit_visualizer = bool(getattr(self, "_cfg_has_kit_visualizer", False))
+        return (
+            has_kit_visualizer
+            or bool(getattr(self, "_render_viewport", False))
+            or bool(getattr(self, "_video_enabled", False))
+            or int(getattr(self, "_livestream", 0)) > 0
+            or bool(getattr(self, "_xr", False))
+        )
+
     def _resolve_kit_args(self, launcher_args: dict):
         """Resolve additional arguments passed to Kit."""
         self._kit_args = launcher_args.get("kit_args", "").split()
@@ -1266,8 +1290,21 @@ class AppLauncher:
         if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
             self._kit_args.append(argument)
 
+        # RTX allocates spectator support during startup, so visual output intent
+        # must become a Kit argument before SimulationApp is created.
+        if self._requires_all_partitions_spectator_view():
+            argument = f"--{ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING}=true"
+            setting = argument.partition("=")[0]
+            if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
+                self._kit_args.append(argument)
+
         # Select the renderer by CUDA index; the trailing comma keeps the setting string-typed.
-        if launcher_args.get("multi_gpu") is False:
+        # XR streams a single stereo swapchain that the CloudXR compositor imports, so the
+        # renderer has to stay on one known device there too -- otherwise the compositor and
+        # the renderer can end up on different GPUs and the headset receives noise. This only
+        # applies once a CUDA device has actually been selected: ``--xr`` on its own resolves
+        # to ``cpu``, where there is no simulation GPU to align to, so Kit's own choice stands.
+        if launcher_args.get("multi_gpu") is False or (self._xr and "cuda" in self.device):
             argument = f"--/renderer/multiGpu/activeCudaGpus={self.device_id},"
             setting = argument.partition("=")[0]
             if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):

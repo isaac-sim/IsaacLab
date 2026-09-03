@@ -120,7 +120,7 @@ def test_reinitialization_closes_previous_root_view(monkeypatch):
 # Note: an earlier test ``test_view_errors_when_newton_model_not_required`` was
 # removed when ``OvPhysxFrameView`` was reworked to read poses from a direct
 # OVPhysX ``RIGID_BODY_POSE`` tensor binding instead of the SDP's Newton state.
-# The view no longer depends on ``requires_newton_model``.
+# The view no longer depends on the ``NEWTON_MODEL`` scene-data requirement.
 
 
 # ==================================================================

@@ -37,9 +37,11 @@ esac
 rm -rf "$BUILD_DIR" "$DIST_DIR"
 mkdir -p "$BUILD_DIR/src/isaaclab"
 
-# 1. Copy inventory (same as python_packages.toml inventory.includes.all)
+# 1. Copy inventory (the full source tree: apps/ + source/)
 cp -r apps "$BUILD_DIR/src/isaaclab/"
 cp -r source "$BUILD_DIR/src/isaaclab/"
+mkdir -p "$BUILD_DIR/src/isaaclab/tools"
+cp -r tools/template "$BUILD_DIR/src/isaaclab/tools/"
 
 # Ensure apps/ is discovered as a Python sub-package (it has no __init__.py)
 find "$BUILD_DIR/src/isaaclab/apps" -type d -exec touch {}/__init__.py \;
@@ -90,6 +92,8 @@ python3 "$SELF_DIR/gen_pyproject.py" "$SELF_DIR/../../pyproject.toml" "$BUILD_DI
 
 # 4. Build the wheel
 cd "$BUILD_DIR"
+export PIP_RETRIES="${PIP_RETRIES:-12}"
+export UV_HTTP_RETRIES="${UV_HTTP_RETRIES:-12}"
 # Prefer --user to avoid polluting system Python; fall back to --break-system-packages
 # for environments where --user is unsupported (e.g. Docker, ephemeral CI runners).
 python3 -m pip install --user build wheel 2>/dev/null || python3 -m pip install --break-system-packages build wheel

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import sys
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -79,9 +80,16 @@ class SensorBase(ABC):
         # set initial state of debug visualization
         self.set_debug_vis(self.cfg.debug_vis)
 
-    def __del__(self):
-        """Unsubscribe from the callbacks."""
-        # clear physics events handles
+    def __del__(self, _sys=sys):
+        """Unsubscribe from the callbacks.
+
+        Skips cleanup during interpreter shutdown. ``sys`` is bound as a default argument so it
+        survives module teardown. Running :meth:`_clear_callbacks` after import machinery is gone
+        can lazy-import ``isaaclab.sim`` and raise ``ImportError: sys.meta_path is None``, which
+        then masks the exception that actually aborted the process.
+        """
+        if _sys.is_finalizing() or _sys.meta_path is None:
+            return
         self._clear_callbacks()
 
     """

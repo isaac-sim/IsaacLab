@@ -27,9 +27,9 @@ def test_dc_motor_init_minimum(num_envs, num_joints, device):
         joint_names_expr=joint_names,
         stiffness=stiffness,
         damping=damping,
-        effort_limit=effort_limit,
+        actuator_effort_limit=effort_limit,
         saturation_effort=saturation_effort,
-        velocity_limit=velocity_limit,
+        actuator_velocity_limit=velocity_limit,
     )
     # assume Articulation class:
     #   - finds joints (names and ids) associate with the provided joint_names_expr
@@ -46,11 +46,11 @@ def test_dc_motor_init_minimum(num_envs, num_joints, device):
     torch.testing.assert_close(actuator.computed_effort, torch.zeros(num_envs, num_joints, device=device))
     torch.testing.assert_close(actuator.applied_effort, torch.zeros(num_envs, num_joints, device=device))
     torch.testing.assert_close(
-        actuator.effort_limit,
+        actuator.actuator_effort_limit,
         effort_limit * torch.ones(num_envs, num_joints, device=device),
     )
     torch.testing.assert_close(
-        actuator.velocity_limit, velocity_limit * torch.ones(num_envs, num_joints, device=device)
+        actuator.actuator_velocity_limit, velocity_limit * torch.ones(num_envs, num_joints, device=device)
     )
 
 
@@ -74,7 +74,7 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
     9 - less than effort limit but outside torque speed curve and inside corner velocity (quadrant 4)
     e - effort_limit
     s - saturation_effort
-    v - velocity_limit
+    v - actuator_velocity_limit
     c - corner velocity
     \ - torque-speed linear boundary between v and s
     each torque_speed_point will be tested in quadrant 3 and 4
@@ -158,8 +158,8 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
         joint_names_expr=joint_names,
         stiffness=stiffness,
         damping=damping,
-        effort_limit=effort_lim,
-        velocity_limit=velocity_limit,
+        actuator_effort_limit=effort_lim,
+        actuator_velocity_limit=velocity_limit,
         saturation_effort=saturation_effort,
     )
 

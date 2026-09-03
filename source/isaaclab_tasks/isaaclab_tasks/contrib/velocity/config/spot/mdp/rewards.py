@@ -278,7 +278,7 @@ def joint_torques_penalty(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> 
     """Penalize joint torques on the articulation."""
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.linalg.norm((asset.data.applied_torque.torch), dim=1)
+    return torch.linalg.norm(asset.actuators.applied_effort.torch, dim=1)
 
 
 def joint_velocity_penalty(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:

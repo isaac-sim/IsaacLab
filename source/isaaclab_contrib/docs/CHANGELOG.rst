@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+2.0.1 (2026-08-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Registered every configured child solver's builder attributes for coupled Newton models.
+
+
 2.0.0 (2026-08-15)
 ~~~~~~~~~~~~~~~~~~
 

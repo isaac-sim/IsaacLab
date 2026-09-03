@@ -146,6 +146,23 @@ class TestNormalizeCameraImageRGBLike:
         torch.testing.assert_close(out, expected)
 
 
+class TestNormalizeCameraImageColorizedSegmentation:
+    """Colorized segmentation dispatch."""
+
+    def test_colorized_semantic_segmentation_is_normalized(self, device):
+        """RGBA uint8 semantic segmentation produces a float32 normalized image."""
+        from isaaclab.utils.images import normalize_camera_image
+
+        torch.manual_seed(0)
+        src = torch.randint(0, 255, (2, 8, 8, 4), dtype=torch.uint8, device=device)
+        out = normalize_camera_image(src, "semantic_segmentation")
+
+        expected = src.float() / 255.0
+        expected = expected - torch.mean(expected, dim=(1, 2), keepdim=True)
+        torch.testing.assert_close(out, expected, atol=1e-5, rtol=1e-5)
+        assert out.dtype == torch.float32
+
+
 class TestNormalizeCameraImageDepth:
     """Depth-like dispatch: in-place ``inf -> 0``."""
 

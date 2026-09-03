@@ -32,7 +32,7 @@ Choose A Workflow
    * - Launch, import, configuration, scene creation, or first-step latency
      - ``startup``
    * - Any of the above across several GPUs
-     - ``<workflow>-multigpu``
+     - ``<workflow>_multigpu``
    * - One asset or sensor operation
      - :ref:`testing_micro_benchmarks`
 
@@ -343,90 +343,10 @@ they established final policy quality.
 Multi-GPU
 ---------
 
-Use It When
-~~~~~~~~~~~
-
-Append ``-multigpu`` to ``startup``, ``runtime``, or ``training`` to run the same
-workflow with one rank per GPU. Use it to measure synchronized multi-GPU training
-throughput, or to measure how much a workflow slows down when every GPU on the
-node is busy.
-
-Command
-~~~~~~~
-
-.. code-block:: bash
-
-   ./isaaclab.sh benchmark training-multigpu \
-       --rl_library rsl_rl \
-       --num_gpus 2 \
-       --task Isaac-Cartpole-Direct \
-       --num_envs 4096 \
-       --max_iterations 100 \
-       --seed 42 \
-       --visualizer none \
-       --output_path ./benchmark_results/multigpu \
-       physics=isaacsim_physx
-
-The launcher accepts ``--num_gpus``, ``--nnodes``, ``--node_rank``, and the
-``torchrun`` rendezvous options, exactly like :ref:`train-multigpu-command`. Every
-other argument is forwarded to the single-GPU workflow unchanged. Add ``--dry_run``
-to print the ``torchrun`` command without running it, and ``--log_all_ranks`` to
-show console output from every rank instead of local rank 0 only.
-
-For a multi-node run, issue the same command on every node with a distinct
-``--node_rank``:
-
-.. code-block:: bash
-
-   ./isaaclab.sh benchmark training-multigpu \
-       --rl_library rsl_rl --nnodes 2 --node_rank 0 --num_gpus 8 \
-       --rdzv_backend c10d --rdzv_endpoint host0:29400 --rdzv_id bench \
-       --task Isaac-Cartpole-Direct
-
-``training-multigpu`` supports ``rsl_rl``, ``rl_games``, and ``skrl`` with Torch. It
-does not support skrl JAX or SB3, and it rejects ``--video``,
-``--capture_env_sensors``, and ``--check_success``, none of which are meaningful
-across ranks. Use :ref:`train-multigpu-command` for general distributed training.
-
-Read The Result
-~~~~~~~~~~~~~~~
-
-``--num_envs`` is the number of environments **per rank**, and each rank creates its
-own Isaac Lab instance on its own GPU. Only global rank 0 writes a bundle. What that
-bundle covers depends on the workflow, and ``extra`` records it:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - ``extra`` field
-     - Meaning
-   * - ``world_size``, ``local_world_size``, ``num_nodes``
-     - Rank layout of the job.
-   * - ``num_envs_per_rank``
-     - Environments hosted by each rank.
-   * - ``workload_scope``
-     - ``global`` for ``training-multigpu``: ranks train in lockstep, so ``run.num_envs``,
-       ``runtime.steps_per_iteration``, and every FPS field cover all ranks.
-       ``rank0`` for ``startup-multigpu`` and ``runtime-multigpu``: those ranks run
-       independent workloads, so the reported values are rank 0's own, measured while
-       the other ranks contend for the same host.
-   * - ``measurement_scope``
-     - ``rank0_process`` — timings, learning curves, CPU, and RAM come from rank 0 alone.
-   * - ``gpu_measurement_scope``
-     - ``rank0_node`` — ``resources.devices`` reports every GPU visible to rank 0, so a
-       single-node run shows all ranks. ``resources.gpu_util_pct`` and
-       ``resources.gpu_mem_gb`` remain scoped to rank 0's own device.
-
-Do Not Infer
-~~~~~~~~~~~~
-
-Do not compare a multi-GPU result against a single-GPU result at the same
-``--num_envs``: the multi-GPU run has ``world_size`` times as many environments. To
-measure scaling, compare the global throughput of an ``N``-GPU run against ``N``
-times the throughput of a single-GPU run at the same per-rank environment count. Do
-not read ``startup-multigpu`` or ``runtime-multigpu`` throughput as a global rate;
-their ``workload_scope`` is ``rank0``, and the other ranks were not measured.
+Append ``_multigpu`` to ``startup``, ``runtime``, or ``training`` to run one
+benchmark rank per GPU. The :ref:`train_multigpu-command` guide is the canonical
+reference for the three workflows, launcher options, multi-node setup, supported
+RL libraries, and result interpretation.
 
 Startup Profiling
 -----------------

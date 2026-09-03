@@ -103,6 +103,7 @@ def test_mpm_object_initializes_from_interactive_scene():
                 upper=(0.1, 0.1, 0.1),
                 voxel_size=0.1,
                 particle_placement="cell_center",
+                visible=False,
             ),
         )
 
@@ -188,7 +189,7 @@ def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
         np.testing.assert_allclose(body_q, root_pose.detach().cpu().numpy()[0], rtol=1.0e-5, atol=1.0e-6)
 
 
-def test_mpm_object_creates_usd_points_for_kit_visualizer(monkeypatch):
+def test_mpm_object_creates_usd_points_without_kit_visualizer(monkeypatch):
     @configclass
     class MPMSceneCfg(InteractiveSceneCfg):
         media = MPMObjectCfg(
@@ -209,7 +210,7 @@ def test_mpm_object_creates_usd_points_for_kit_visualizer(monkeypatch):
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        monkeypatch.setattr(sim, "resolve_visualizer_types", lambda: ["kit"])
+        monkeypatch.setattr(sim, "resolve_visualizer_types", lambda: ["newton"])
         scene = InteractiveScene(MPMSceneCfg(num_envs=2, env_spacing=1.0))
 
         from pxr import UsdGeom  # noqa: PLC0415
@@ -220,7 +221,11 @@ def test_mpm_object_creates_usd_points_for_kit_visualizer(monkeypatch):
         records = NewtonMPMManager._particle_visual_prims
         assert len(records) == media.num_instances
 
-        for env_idx, (prim_path, record) in enumerate(sorted(records.items())):
+        expected_paths = [f"/World/envs/env_{env_idx}/Sand/Particles" for env_idx in range(media.num_instances)]
+        assert list(records) == expected_paths
+
+        for env_idx, prim_path in enumerate(expected_paths):
+            record = records[prim_path]
             assert record.offset == media._recorded_particle_offsets[env_idx]
             assert record.count == media.particles_per_object
             assert record.sync_frequency == 1
@@ -228,12 +233,13 @@ def test_mpm_object_creates_usd_points_for_kit_visualizer(monkeypatch):
             points_prim = media.stage.GetPrimAtPath(prim_path)
             assert points_prim.IsValid()
             points = UsdGeom.Points(points_prim)
+            assert points.GetResetXformStack()
             assert len(points.GetPointsAttr().Get()) == media.particles_per_object
             assert len(points.GetWidthsAttr().Get()) == media.particles_per_object
             assert tuple(points.GetDisplayColorAttr().Get()[0]) == pytest.approx((0.1, 0.2, 0.3))
 
 
-def test_mpm_kit_points_follow_particle_state(monkeypatch):
+def test_mpm_usd_points_follow_particle_state(monkeypatch):
     @configclass
     class MPMSceneCfg(InteractiveSceneCfg):
         media = MPMObjectCfg(
@@ -254,7 +260,7 @@ def test_mpm_kit_points_follow_particle_state(monkeypatch):
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        monkeypatch.setattr(sim, "resolve_visualizer_types", lambda: ["kit"])
+        monkeypatch.setattr(sim, "resolve_visualizer_types", lambda: ["newton"])
         scene = InteractiveScene(MPMSceneCfg(num_envs=1, env_spacing=0.0))
         sim.reset()
 

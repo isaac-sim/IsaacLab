@@ -273,6 +273,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
     def __init__(self, cfg: NewtonRaycastSensorCfg):
         if cfg.max_distance <= 0.0:
             raise ValueError(f"max_distance must be positive, received {cfg.max_distance}.")
+        NewtonManager._sensor_bvh_shape_flags |= newton.ShapeFlags.COLLIDE_SHAPES
         super().__init__(cfg)
         self._data = NewtonRaycastSensorData()
         self._sensor_task_name: str | None = None
@@ -326,7 +327,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         self._hit_normal = wp.empty(ray_count, dtype=wp.vec3f, device=self._device)
 
         self._sensor_task_name = f"newton_raycast:{self.cfg.prim_path}:{id(self)}"
-        NewtonManager._register_sensor_task(self._sensor_task_name, self._launch_raycast, include_collision_shapes=True)
+        NewtonManager._register_sensor_task(self._sensor_task_name, self._launch_raycast)
 
     def _launch_raycast(self) -> None:
         """Sensor pose + ray transform + BVH query + hit resolve (graph-capturable)."""
