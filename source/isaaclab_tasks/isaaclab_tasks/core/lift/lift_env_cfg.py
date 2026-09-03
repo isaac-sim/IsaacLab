@@ -9,6 +9,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionP
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
+from isaaclab_tasks.core.lift.mdp.compliant_events import RandomizeFrictionKeepCompliant
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -238,9 +239,29 @@ class ObservationsCfg:
 class EventCfg:
     """Reset-mode events (shared by all physics backends)."""
 
-    robot_physics_material = None
+    robot_physics_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "static_friction_range": [0.5, 1.0],
+            "dynamic_friction_range": [0.5, 1.0],
+            "restitution_range": [0.0, 0.0],
+            "num_buckets": 250,
+        },
+    )
 
-    object_physics_material = None
+    object_physics_material = EventTerm(
+        func=RandomizeFrictionKeepCompliant,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("object", body_names=".*"),
+            "static_friction_range": [0.5, 1.0],
+            "dynamic_friction_range": [0.5, 1.0],
+            "restitution_range": [0.0, 0.0],
+            "num_buckets": 250,
+        },
+    )
 
     object_physics_inertia = EventTerm(
         func=mdp.randomize_rigid_body_inertia,
