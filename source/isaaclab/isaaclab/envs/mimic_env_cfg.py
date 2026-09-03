@@ -48,6 +48,10 @@ class DataGenConfig:
 
     With the guarantee disabled, generation already stops after :attr:`generation_num_trials`
     attempts and this field is ignored, so setting it cannot cut a fixed-attempt run short.
+
+    The bound is read once per simulation step. Attempts that end on the step that crosses it are
+    already complete, so a run over ``num_envs`` parallel environments can record up to
+    ``num_envs - 1`` failures beyond the bound; it is exact whenever attempts end on separate steps.
     """
 
     seed: int = 1
