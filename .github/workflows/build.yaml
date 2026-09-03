@@ -215,6 +215,9 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
+        # The invariants step below runs the image, so it has to exist locally. A deps-cache hit
+        # otherwise only pushes the tag, and the action's ECR login is gone by the time that step runs.
+        pull-on-deps-hit: 'true'
 
     # #6329 aborts the pip install when it strands a prebundled package's __init__.py
     # (nvbugs 6343978: 14 Isaac Sim extensions fail to load). The images install with
