@@ -78,7 +78,7 @@ Collect five demonstrations by running the following command:
 
 .. code:: bash
 
-   uv run --extra teleop isaaclab teleop record \
+   uv run --extra teleop,isaacsim isaaclab teleop record \
    --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --xr \
@@ -100,7 +100,7 @@ You can replay the collected demonstrations by running the following command:
 
 .. code:: bash
 
-   uv run --extra teleop isaaclab teleop replay \
+   uv run --extra teleop,isaacsim isaaclab teleop replay \
    --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --device cpu \
@@ -271,7 +271,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
 
    .. code:: bash
 
-      uv run --extra teleop isaaclab teleop record \
+      uv run --extra teleop,isaacsim isaaclab teleop record \
       --task IsaacContrib-NutPour-GR1T2-Pink-IK-Abs \
       --visualizer kit \
       --device cpu \
@@ -427,7 +427,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
    .. code:: bash
 
-      uv run --extra teleop isaaclab teleop record \
+      uv run --extra teleop,isaacsim isaaclab teleop record \
       --device cpu \
       --xr \
       --visualizer kit \
@@ -443,7 +443,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
    .. code:: bash
 
-      uv run --extra teleop isaaclab teleop replay \
+      uv run --extra teleop,isaacsim isaaclab teleop replay \
       --device cpu \
       --visualizer kit \
       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
