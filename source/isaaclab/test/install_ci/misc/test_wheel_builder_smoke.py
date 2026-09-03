@@ -5,7 +5,7 @@
 
 """
 Setup:
-    - bash tools/wheel_builder/build.sh
+    - uv build --wheel tools/wheel_builder --out-dir tools/wheel_builder/build/dist
     - ./isaaclab.sh -u
     - uv pip install <wheel>[sb3,skrl,rsl-rl]
 Tests:
@@ -51,13 +51,20 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         """Build the wheel and install it in a uv environment once for all tests."""
 
         cls = self.__class__
-        build_script = isaaclab_root / "tools" / "wheel_builder" / "build.sh"
-        dist_dir = isaaclab_root / "tools" / "wheel_builder" / "build" / "dist"
+        builder_dir = isaaclab_root / "tools" / "wheel_builder"
+        dist_dir = builder_dir / "build" / "dist"
+        shutil.rmtree(dist_dir, ignore_errors=True)
+        dist_dir.mkdir(parents=True)
 
-        # Build the wheel (capture output silently to avoid spamming the test log with 10k+
+        # Build through the PEP 517 entry point used by Git-source consumers. Capture output
+        # silently to avoid spamming the test log with 10k+
         # setuptools/pip lines; the captured output is included in the assertion if it fails).
-        result = run_cmd(["bash", str(build_script)], cwd=isaaclab_root, stream=False)
-        assert result.returncode == 0, f"build.sh failed:\n{result.stdout}\n{result.stderr}"
+        result = run_cmd(
+            ["uv", "build", "--wheel", str(builder_dir), "--out-dir", str(dist_dir)],
+            cwd=isaaclab_root,
+            stream=False,
+        )
+        assert result.returncode == 0, f"PEP 517 wheel build failed:\n{result.stdout}\n{result.stderr}"
 
         # Find the built wheel
         wheels = glob.glob(str(dist_dir / "isaaclab-*.whl"))
@@ -100,6 +107,8 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
             names = set(wheel.namelist())
 
         assert "isaaclab/app/__init__.py" in names
+        assert "isaaclab/apps/isaaclab.python.kit" in names
+        assert "isaaclab/source/isaaclab_assets/config/extension.toml" in names
         nested_prefix = "isaaclab/source/isaaclab/isaaclab/"
         assert not any(name.startswith(nested_prefix) for name in names)
 

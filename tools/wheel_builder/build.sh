@@ -35,66 +35,9 @@ case "$ARCH" in
 esac
 
 rm -rf "$BUILD_DIR" "$DIST_DIR"
-mkdir -p "$BUILD_DIR/src/isaaclab"
 
-# 1. Copy inventory (the full source tree: apps/ + source/)
-cp -r apps "$BUILD_DIR/src/isaaclab/"
-cp -r source "$BUILD_DIR/src/isaaclab/"
-mkdir -p "$BUILD_DIR/src/isaaclab/tools"
-cp -r tools/template "$BUILD_DIR/src/isaaclab/tools/"
-
-# Ensure apps/ is discovered as a Python sub-package (it has no __init__.py)
-find "$BUILD_DIR/src/isaaclab/apps" -type d -exec touch {}/__init__.py \;
-
-# Install the core Python package in the conventional flat layout. Runtime resources
-# remain under isaaclab/apps, isaaclab/source, and isaaclab/tools, but imports such as
-# isaaclab.app resolve directly without extending isaaclab.__path__ at runtime.
-CORE_PACKAGE="$BUILD_DIR/src/isaaclab/source/isaaclab/isaaclab"
-cp -r "$CORE_PACKAGE/." "$BUILD_DIR/src/isaaclab/"
-rm -rf "$CORE_PACKAGE"
-
-# Promote sub-packages (isaaclab_assets, isaaclab_rl, etc.) to top-level
-# so they are importable as e.g. `import isaaclab_assets`.
-# Each extension has the structure: source/isaaclab_FOO/isaaclab_FOO/ (Python pkg)
-# plus sibling dirs like config/, data/. The __init__.py references ../config etc.
-# We copy the inner Python package to src/ and also copy sibling resource dirs
-# (config, data) into it so the relative-path lookups in __init__.py work.
-for ext_dir in "$BUILD_DIR"/src/isaaclab/source/isaaclab_*; do
-    pkg=$(basename "$ext_dir")
-    inner="$ext_dir/$pkg"
-    if [ -d "$inner" ] && [ -f "$inner/__init__.py" ]; then
-        cp -r "$inner" "$BUILD_DIR/src/$pkg"
-        # Copy resource dirs (config/, data/) into the Python package
-        for res_dir in config data; do
-            if [ -d "$ext_dir/$res_dir" ]; then
-                cp -r "$ext_dir/$res_dir" "$BUILD_DIR/src/$pkg/$res_dir"
-            fi
-        done
-        # Patch EXT_DIR: change '../' to '.' so __init__.py finds config/ inside
-        # the package dir rather than one level up.
-        sed -i 's|os\.path\.join(os\.path\.dirname(__file__), "\.\./"|os.path.join(os.path.dirname(__file__), ""|g' \
-            "$BUILD_DIR/src/$pkg/__init__.py"
-        # Keep the extension discoverable by Kit under source/. The .kit experience
-        # files in apps/ register "${app}/../source" as an extension search folder,
-        # so each extension's config/extension.toml must remain there or the Kit
-        # dependency solver fails with "isaaclab_assets ... (none found)". We drop
-        # the inner Python package (imported from the promoted top-level copy above)
-        # and the duplicated data/ to avoid a second copy on sys.path and bloat,
-        # but leave config/extension.toml in place for discovery.
-        rm -rf "$inner" "$ext_dir/data"
-    fi
-done
-
-# Clean build artifacts that shouldn't be in the wheel
-find "$BUILD_DIR/src" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-find "$BUILD_DIR/src" -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
-find "$BUILD_DIR/src" -name "*.pyc" -delete 2>/dev/null || true
-
-# 2. Copy the custom __main__.py used by ``python -m isaaclab``
-cp "$SELF_DIR/res/__main__.py" "$BUILD_DIR/src/isaaclab/"
-
-# 3. Generate pyproject.toml with dependencies from the root pyproject.toml
-python3 "$SELF_DIR/gen_pyproject.py" "$SELF_DIR/../../pyproject.toml" "$BUILD_DIR/pyproject.toml" "$WHEEL_VERSION"
+# Stage the same aggregate source tree used by the PEP 517 Git-source backend.
+python3 "$SELF_DIR/stage.py" "$BUILD_DIR" "$WHEEL_VERSION"
 
 # 4. Build the wheel
 cd "$BUILD_DIR"
