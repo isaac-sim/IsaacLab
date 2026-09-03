@@ -389,7 +389,7 @@ _GAUSSIAN_SORTING_MODE_HINT = "sortingModeHint"
 def force_gaussian_sorting_mode_hint(stage, sorting_mode: str = "cameraDistance") -> int:
     """Override ``sortingModeHint`` on every gaussian splat prim in the stage.
 
-    TODO(<bug-id>): Remove this workaround once the RTX bug is fixed. RTX drops *all*
+    TODO: Remove this workaround once the RTX bug is fixed. RTX drops *all*
     gaussian contribution, in *every* tile, when a RenderProduct is bound to more than one
     camera (``viewTileCount > 1``) and the sort mode is ``zDepth`` — the mode NuRec exports
     author and the one RTX falls back to when the token is absent. So without this override a
@@ -442,7 +442,7 @@ def force_gaussian_sorting_mode_hint(stage, sorting_mode: str = "cameraDistance"
     logger.warning(
         "Forced '%s = %s' on %d gaussian splat prim(s), overriding the value authored in the asset."
         " Workaround for an RTX bug that drops every splat in multi-camera OVRTX renders when the"
-        " sort mode is 'zDepth' (see TODO(<bug-id>) in force_gaussian_sorting_mode_hint).",
+        " sort mode is 'zDepth' (see force_gaussian_sorting_mode_hint).",
         _GAUSSIAN_SORTING_MODE_HINT,
         sorting_mode,
         len(attr_paths),

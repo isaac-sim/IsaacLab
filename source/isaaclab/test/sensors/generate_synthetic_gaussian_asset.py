@@ -1076,7 +1076,9 @@ def render_synthetic_gaussian_scene(
         for _ in range(stabilisation_steps):
             sim.step()
         camera.update(sim_dt)
-        outputs = {name: tensor.clone().detach().cpu().to(torch.float32) for name, tensor in camera.data.output.items()}
+        outputs = {
+            name: tensor.torch.clone().detach().cpu().to(torch.float32) for name, tensor in camera.data.output.items()
+        }
         del camera
         return outputs
 
@@ -1168,6 +1170,8 @@ def _render_synthetic_gaussian_camera(
     for _ in range(stabilisation_steps):
         sim.step()
     camera.update(sim_dt)
-    outputs = {name: tensor.clone().detach().cpu().to(torch.float32) for name, tensor in camera.data.output.items()}
+    outputs = {
+        name: tensor.torch.clone().detach().cpu().to(torch.float32) for name, tensor in camera.data.output.items()
+    }
     del camera
     return outputs

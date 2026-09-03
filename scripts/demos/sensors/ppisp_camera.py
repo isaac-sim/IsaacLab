@@ -1025,7 +1025,7 @@ def corner_center_ratio(rgb: np.ndarray) -> float:
 
 @contextlib.contextmanager
 def profile_section(profile: dict[str, dict[str, float]], name: str, device: str) -> Iterator[None]:
-    """Time a section of the render loop, bracketing it with device synchronization when profiling.
+    """Time a section of the render loop when profiling.
 
     Synchronizing on both ends keeps asynchronous GPU work attributed to the section that queued it,
     so section timings sum to the measured frame time.
@@ -1173,9 +1173,15 @@ def run_simulator(
                 else:
                     play_animated_gaussian_tracks(source_stage, gaussian_tracks, time_code)
 
-            with profile_section(profile, "simulation_step", profile_device):
-                for physics_step in range(physics_steps_per_frame):
-                    sim.step(render=physics_step == physics_steps_per_frame - 1)
+            # In Kit runs the final rendered simulation step pumps the app, which can include RTX
+            # rendering. Keep it separate from the physics-only steps so profiles do not compare
+            # it to OVRTX, whose renderer is driven later by camera.update().
+            if physics_steps_per_frame > 1:
+                with profile_section(profile, "physics_steps", profile_device):
+                    for _ in range(physics_steps_per_frame - 1):
+                        sim.step(render=False)
+            with profile_section(profile, "render_pump", profile_device):
+                sim.step(render=True)
 
             if baseline_camera is not None:
                 with profile_section(profile, "baseline_camera_update", profile_device):

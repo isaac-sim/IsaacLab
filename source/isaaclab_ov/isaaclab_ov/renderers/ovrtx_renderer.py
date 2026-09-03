@@ -540,7 +540,7 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Preparing stage (%d envs)...", num_envs)
         create_scene_partition_attributes(stage, num_envs)
-        # TODO(<bug-id>): Drop this call once RTX renders 'zDepth' gaussians correctly with more
+        # TODO: Drop this call once RTX renders 'zDepth' gaussians correctly with more
         # than one camera bound to a RenderProduct. See force_gaussian_sorting_mode_hint.
         force_gaussian_sorting_mode_hint(stage)
 
