@@ -28,7 +28,7 @@ Usage with a function modifier:
     cfg = modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (0.0, torch.inf)})
 
     # apply the modifier
-    my_modified_tensor = cfg.func(my_tensor, cfg)
+    my_modified_tensor = cfg.func(my_tensor, **cfg.params)
 
 
 Usage with a class modifier:

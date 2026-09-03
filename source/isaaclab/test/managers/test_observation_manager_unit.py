@@ -15,6 +15,7 @@ import pytest
 import torch
 
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
+from isaaclab.utils import modifiers
 from isaaclab.utils.configclass import configclass
 
 pytestmark = pytest.mark.unit
@@ -46,6 +47,29 @@ class DummyEnv:
         self.observation = torch.arange(num_envs, dtype=torch.float32).unsqueeze(-1)
 
 
+class StatefulBiasModifier(modifiers.ModifierBase):
+    """Stateful modifier used to verify lazy callable resolution."""
+
+    def __init__(self, cfg: StatefulBiasModifierCfg, data_dim: tuple[int, ...], device: str) -> None:
+        super().__init__(cfg, data_dim, device)
+        self.value = cfg.value
+        self.reset_count = 0
+
+    def reset(self, env_ids=None) -> None:
+        self.reset_count += 1
+
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+        return data + self.value
+
+
+@configclass
+class StatefulBiasModifierCfg(modifiers.ModifierCfg):
+    """Configuration for :class:`StatefulBiasModifier`."""
+
+    func: type[StatefulBiasModifier] = StatefulBiasModifier
+    value: float = 2.0
+
+
 @configclass
 class HistoryObservationsCfg:
     """Observation configuration with group-level history."""
@@ -60,6 +84,32 @@ class HistoryObservationsCfg:
             self.history_length = 5
 
     policy: PolicyCfg = PolicyCfg()
+
+
+def test_stateful_modifier_cfg_roundtrip_preserves_func():
+    """A stateful modifier remains usable after its function becomes a lazy string."""
+    cfg = HistoryObservationsCfg()
+    cfg.policy.history_length = None
+    cfg.policy.dummy.modifiers = [StatefulBiasModifierCfg(value=2.0)]
+    cfg.from_dict(cfg.to_dict())
+    term_cfg = cfg.policy.dummy
+    assert term_cfg.modifiers is not None
+    modifier_cfg = term_cfg.modifiers[0]
+    assert isinstance(modifier_cfg, StatefulBiasModifierCfg)
+    assert modifier_cfg.params == {}
+    assert not hasattr(modifier_cfg, "class_type")
+
+    env = DummyEnv()
+    manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
+    prepared_term_cfg = manager.cfg.policy.dummy
+    assert prepared_term_cfg.modifiers is not None
+    prepared_modifier_cfg = prepared_term_cfg.modifiers[0]
+    assert isinstance(prepared_modifier_cfg.func, StatefulBiasModifier)
+    observations = manager.compute()["policy"]
+    torch.testing.assert_close(observations, env.observation + 2.0)
+
+    manager.reset()
+    assert prepared_modifier_cfg.func.reset_count == 1
 
 
 def test_compute_updates_history_only_when_requested():

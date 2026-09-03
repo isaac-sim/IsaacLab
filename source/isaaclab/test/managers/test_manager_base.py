@@ -6,7 +6,7 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Tests for recursive _process_term_cfg_at_play / _resolve_param_value.
+"""Tests for recursive manager term configuration resolution.
 
 These tests exercise ManagerBase's parameter resolution logic and do NOT
 require an Isaac Sim launch, so they can run without AppLauncher.
@@ -20,8 +20,9 @@ import pytest
 import torch
 
 from isaaclab.envs import ManagerBasedEnv
-from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg
+from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg, ObservationTermCfg
 from isaaclab.managers.manager_base import ManagerBase
+from isaaclab.utils import modifiers
 
 pytestmark = pytest.mark.integration
 
@@ -215,6 +216,23 @@ def test_string_func_in_nested_term_cfg(env):
     # Apply and verify: +1 then +10 -> 11
     manager.apply(torch.arange(env.num_envs, device=env.device))
     torch.testing.assert_close(env.dummy1, 11 * torch.ones_like(env.dummy1))
+
+
+def test_callable_resolution_walks_term_fields_outside_params(env):
+    """Callable references in nested term fields are resolved by ManagerBase."""
+    cfg = {
+        "observation": ObservationTermCfg(
+            func=increment_dummy1_by_one,
+            modifiers=[modifiers.ModifierCfg(func=f"{__name__}:reset_dummy2_to_zero")],
+        )
+    }
+    manager = SimpleManager(cfg, env)
+
+    term_cfg = manager._term_cfgs[0][1]
+    assert isinstance(term_cfg, ObservationTermCfg)
+    assert term_cfg.modifiers is not None
+    modifier_cfg = term_cfg.modifiers[0]
+    assert modifier_cfg.func is reset_dummy2_to_zero
 
 
 def test_string_func_top_level_class_term(env):
