@@ -5,6 +5,12 @@
 
 __all__ = [
     "IsaacLabTorchRLWrapper",
+    "TorchRlPpoCfg",
+    "make_actor",
+    "make_critic",
+    "train_ppo",
 ]
 
+from .ppo import make_actor, make_critic, train_ppo
+from .ppo_cfg import TorchRlPpoCfg
 from .vecenv_wrapper import IsaacLabTorchRLWrapper

@@ -5,13 +5,14 @@
 
 """Wrappers and utilities to configure an environment for the TorchRL library.
 
-The following example shows how to wrap an environment for TorchRL:
+The following example shows how to wrap an environment for TorchRL and train it with the bundled PPO example:
 
 .. code-block:: python
 
-    from isaaclab_rl.torchrl import IsaacLabTorchRLWrapper
+    from isaaclab_rl.torchrl import IsaacLabTorchRLWrapper, train_ppo
 
     env = IsaacLabTorchRLWrapper(env)
+    actor = train_ppo(env, agent_cfg, log_dir)
 
 """
 

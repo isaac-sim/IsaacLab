@@ -21,17 +21,10 @@ pytest.importorskip("torchrl")
 
 from tensordict import TensorDict  # noqa: E402
 from torchrl.data import Bounded, Categorical, Composite, MultiCategorical, Unbounded  # noqa: E402
-from torchrl.envs import StepCounter, TransformedEnv  # noqa: E402
+from torchrl.envs import ExplorationType, StepCounter, TransformedEnv, set_exploration_type  # noqa: E402
 from torchrl.envs.utils import check_env_specs  # noqa: E402
 
-try:
-    import isaaclab.envs as _isaaclab_envs
-except ImportError:
-    # Isaac Sim is not available: provide the module the wrapper imports for its type check.
-    _isaaclab_envs = types.ModuleType("isaaclab.envs")
-    sys.modules["isaaclab.envs"] = _isaaclab_envs
-
-from isaaclab_rl.torchrl import IsaacLabTorchRLWrapper  # noqa: E402
+from isaaclab_rl.torchrl import IsaacLabTorchRLWrapper, TorchRlPpoCfg, make_actor, train_ppo  # noqa: E402
 
 NUM_ENVS = 4
 CLOCK_SCALE = 100.0
@@ -40,6 +33,21 @@ CLOCK_SCALE = 100.0
 
 class _FakeEnvBase:
     """Stand-in for an Isaac Lab environment base class (registered on ``isaaclab.envs`` per test)."""
+
+
+def _install_fake_env_classes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Points the env base classes the wrapper checks against at :class:`_FakeEnvBase` for one test.
+
+    The classes are written straight into the module dictionary so that Isaac Lab's lazy module loader does
+    not import the real environment stack; when Isaac Lab is not installed a stub module stands in for it.
+    """
+    try:
+        import isaaclab.envs as module
+    except ImportError:
+        module = types.ModuleType("isaaclab.envs")
+        monkeypatch.setitem(sys.modules, "isaaclab.envs", module)
+    for name in ("DirectRLEnv", "ManagerBasedRLEnv"):
+        monkeypatch.setitem(module.__dict__, name, _FakeEnvBase)
 
 
 class _FakeUnwrapped(_FakeEnvBase):
@@ -131,9 +139,7 @@ class _FakeEnv:
 @pytest.fixture
 def make_wrapper(monkeypatch):
     """Returns a factory building a real :class:`IsaacLabTorchRLWrapper` around a fake environment."""
-    for name in ("DirectRLEnv", "ManagerBasedRLEnv"):
-        if not hasattr(_isaaclab_envs, name) or name == "DirectRLEnv":
-            monkeypatch.setattr(_isaaclab_envs, name, _FakeEnvBase, raising=False)
+    _install_fake_env_classes(monkeypatch)
 
     def _make(device=None, clip_actions=None, **fake_kwargs):
         fake = _FakeUnwrapped(**fake_kwargs)
@@ -358,3 +364,39 @@ def test_tensordict_lives_on_requested_device(make_wrapper):
     assert isinstance(td, TensorDict)
     assert td.device == torch.device("cpu")
     assert td["next", "policy"].device == torch.device("cpu")
+
+
+"""
+PPO example
+"""
+
+
+def test_train_ppo_learns_checkpoints_and_reloads(make_wrapper, tmp_path):
+    wrapper, _ = make_wrapper(truncate_at={3: [0, 1]})
+    cfg = TorchRlPpoCfg(
+        seed=0,
+        device="cpu",
+        num_steps_per_env=4,
+        max_iterations=2,
+        save_interval=1,
+        experiment_name="fake",
+        actor_hidden_dims=[8],
+        critic_hidden_dims=[8],
+        num_learning_epochs=2,
+        num_mini_batches=2,
+        learning_rate=1e-3,
+        gamma=0.99,
+        lam=0.95,
+        entropy_coef=0.01,
+    )
+
+    actor = train_ppo(wrapper, cfg, str(tmp_path))
+
+    assert sorted(path.name for path in tmp_path.glob("model_*.pt")) == ["model_1.pt", "model_2.pt"]
+    assert all(torch.isfinite(parameter).all() for parameter in actor.parameters())
+    # the checkpoint holds the actor weights and reloads into a freshly built actor
+    reloaded = make_actor(wrapper, cfg)
+    reloaded.load_state_dict(torch.load(tmp_path / "model_2.pt"))
+    td = wrapper.reset()
+    with torch.no_grad(), set_exploration_type(ExplorationType.DETERMINISTIC):
+        assert torch.equal(actor(td.clone())["action"], reloaded(td.clone())["action"])
