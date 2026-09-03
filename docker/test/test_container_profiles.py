@@ -302,8 +302,12 @@ def test_image_is_verified_before_it_is_published():
 
     assert names.index("Verify freshly built image") < names.index("Push to ECR") < names.index("Push deps tag")
 
-    build = (REPO_ROOT / ".github" / "workflows" / "build.yaml").read_text(encoding="utf-8")
-    assert "verify-test-path: docker/test/test_image_invariants.py" in build, "the base job must ask for them"
+    build = yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "build.yaml").read_text(encoding="utf-8"))
+    (base_build,) = [
+        step for step in build["jobs"]["build"]["steps"] if step.get("uses") == "./.github/actions/ecr-build-push-pull"
+    ]
+
+    assert base_build["with"]["verify-test-path"] == "docker/test/test_image_invariants.py"
 
 
 def test_run_tests_links_isaac_sim_only_where_kit_is_installed():

@@ -39,9 +39,9 @@ inputs:
     default: 'cache'
   verify-test-path:
     description: >
-      Path to tests asserted against a freshly built image, before it is tagged or pushed. They
-      run with IMAGE_TAG and IMAGE_DIGEST set; a failure fails the action with nothing published,
-      so the next run rebuilds instead of inheriting the bad image from the cache.
+      Path to a test file or directory asserted against a freshly built image, before it is
+      tagged or pushed. Tests run with IMAGE_TAG set; a failure fails the action with nothing
+      published, so the next run rebuilds instead of inheriting the bad image from the cache.
 
       Not run on an exact-tag or deps-cache hit: those serve an image that already passed when it
       was built.
@@ -266,8 +266,6 @@ runs:
         TEST_PATH: ${{ inputs.verify-test-path }}
       run: |
         set -euo pipefail
-        IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "${IMAGE_TAG}")"
-        export IMAGE_DIGEST
         uv run --no-project --with pytest \
           python -m pytest -q "${TEST_PATH}"
 
