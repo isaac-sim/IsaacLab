@@ -14,9 +14,9 @@ from pathlib import Path
 # The relative form keeps docker.utils.* a single module object, so patches applied by the
 # tests affect the same modules this CLI uses.
 if __package__:
-    from .utils import ContainerInterface, x11_utils
+    from .utils import ContainerInterface, icon_utils, x11_utils
 else:
-    from utils import ContainerInterface, x11_utils
+    from utils import ContainerInterface, icon_utils, x11_utils
 
 
 def parse_cli_args() -> argparse.Namespace:
@@ -151,6 +151,12 @@ def main(args: argparse.Namespace):
             (x11_yaml, x11_envar) = x11_outputs
             ci.add_yamls += x11_yaml
             ci.environ.update(x11_envar)
+            # install the Isaac Sim desktop icon on the host so that GNOME shows the
+            # correct icon for the running container window (not the generic Omniverse one)
+            icon_utils.install_desktop_icon(
+                image_name=ci.image_name,
+                isaaclab_path=ci.dot_vars.get("DOCKER_ISAACLAB_PATH", "/workspace/isaaclab"),
+            )
         # start the container
         ci.start()
     elif args.command == "enter":
