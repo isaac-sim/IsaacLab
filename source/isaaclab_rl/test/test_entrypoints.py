@@ -224,6 +224,19 @@ def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
     assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
 
 
+@pytest.mark.parametrize("policy", ["zero", "random"])
+def test_simple_agents_default_to_newton_visualizer(
+    policy: _simple_agents.PolicyName,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Checkpoint-free agents default to Newton visualization."""
+    monkeypatch.setattr(sys, "argv", ["pytest"])
+
+    args = _simple_agents._parse_args([], policy)
+
+    assert args.visualizer == ["newton_gl"]
+
+
 def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.MonkeyPatch) -> None:
     """Unsupported task presets fail cleanly before a simulator backend is initialized."""
 
