@@ -2835,3 +2835,27 @@ class TestPhysXArticulationSubmissionFrame:
         assert call["is_global"] is False
         actual = wp.to_torch(call["force_data"]).reshape(num_instances, num_bodies, 3)
         torch.testing.assert_close(actual, forces)
+
+
+@pytest.mark.skipif("newton" not in BACKENDS, reason="Newton backend unavailable")
+class TestNewtonArticulationSubmissionFrame:
+    """Newton always consumes a body-frame wrench, and skips composition for local content."""
+
+    @_default_devices
+    def test_local_frame_skips_composition(self, device):
+        num_instances, num_bodies = 2, 3
+        art, _ = get_articulation(
+            "newton", num_instances=num_instances, num_joints=2, num_bodies=num_bodies, device=device
+        )
+        composer = art.permanent_wrench_composer
+        forces = torch.zeros((num_instances, num_bodies, 3), device=device)
+        forces[:, 1, 0] = torch.tensor([1.0, 2.0], device=device)
+        composer.set_forces_and_torques_index(forces=forces, is_global=False)
+
+        calls = []
+        composer._get_com_pos_fn = lambda: calls.append("com")
+        composer._get_link_quat_fn = lambda: calls.append("quat")
+
+        art.write_data_to_sim()
+
+        assert calls == [], "Newton read body poses for an all-local wrench"
