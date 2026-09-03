@@ -10,13 +10,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.physics import SurfaceVelocityView
 
-from .conveyor_belt import ConveyorBeltView
-from .conveyor_force_driver import ConveyorForceDriver
 from .conveyor_franka_env_cfg import ConveyorFrankaEnvCfg
 from .conveyor_geometry import belt_collision_section_specs
 from .conveyor_goal_selector import ConveyorGoalSelector
-from .conveyor_physx_surface import PhysxSurfaceVelocityConveyor
 
 
 class ConveyorFrankaEnv(ManagerBasedRLEnv):
@@ -25,7 +23,7 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
     cfg: ConveyorFrankaEnvCfg
 
     def __init__(self, cfg: ConveyorFrankaEnvCfg, render_mode: str | None = None, **kwargs):
-        self._conveyor_driver: ConveyorBeltView | None = None
+        self._conveyor_driver: SurfaceVelocityView | None = None
         super().__init__(cfg, render_mode=render_mode, **kwargs)
         self._goal_selector: ConveyorGoalSelector | None = None
         self._setup_goal_selector()
@@ -52,16 +50,16 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
         # before the first reset finalizes and captures the solver. PhysX belt
         # schemas, by contrast, are authored by the scene spawners and its live
         # command adapter is attached only after PhysX has parsed that scene.
-        from isaaclab_newton.physics import NewtonCfg
+        from isaaclab_newton.physics import NewtonCfg, SurfaceVelocity
 
         if isinstance(self.cfg.sim.physics, NewtonCfg):
-            driver = ConveyorForceDriver(
+            driver = SurfaceVelocity(
                 num_envs=self.cfg.scene.num_envs,
-                belt_specs=belt_specs,
+                surface_specs=belt_specs,
                 startup_duration_s=self.cfg.conveyor_force.startup_duration_s,
                 env_path_format=env_path_format,
-                transported_body_pattern=self.cfg.conveyor_force.transported_body_pattern,
-                transported_body_count_per_env=self.cfg.conveyor_force.transported_body_count_per_env,
+                body_pattern=self.cfg.conveyor_force.transported_body_pattern,
+                body_count_per_env=self.cfg.conveyor_force.transported_body_count_per_env,
             )
             self._conveyor_driver = driver
             try:
@@ -72,7 +70,7 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
                 raise
             return
 
-        from isaaclab_physx.physics import PhysxCfg
+        from isaaclab_physx.physics import PhysxCfg, SurfaceVelocity
 
         if not isinstance(self.cfg.sim.physics, PhysxCfg):
             raise ValueError(f"Unsupported conveyor physics backend: {type(self.cfg.sim.physics).__name__}.")
@@ -81,9 +79,9 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
         if configure_conveyor is not None:
             configure_conveyor(friction_coefficient=self.cfg.conveyor_force.friction)
         super()._init_sim()
-        driver = PhysxSurfaceVelocityConveyor(
+        driver = SurfaceVelocity(
             num_envs=self.cfg.scene.num_envs,
-            belt_specs=belt_specs,
+            surface_specs=belt_specs,
             env_path_format=env_path_format,
             startup_duration_s=self.cfg.conveyor_force.startup_duration_s,
             stage=self.sim.stage,
@@ -96,7 +94,7 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
         self._conveyor_driver = driver
 
     @property
-    def conveyor_belt(self) -> ConveyorBeltView:
+    def conveyor_belt(self) -> SurfaceVelocityView:
         """Tensorized conveyor control view for this environment."""
         driver = self._conveyor_driver
         if driver is None:

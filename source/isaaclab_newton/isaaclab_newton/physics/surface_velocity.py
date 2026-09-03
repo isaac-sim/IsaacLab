@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Batched contact-force conveyor surfaces for Newton physics.
+"""Batched contact-force surface velocities for Newton physics.
 
 The driver reads solver-reported normal contact forces, computes a Coulomb-limited force that
 drives each transported body's contact points toward their conveyor velocity fields, and applies
@@ -18,11 +18,10 @@ from typing import Any
 
 import numpy as np
 import warp as wp
-from isaaclab_newton.physics import NewtonManager
 
-from isaaclab.physics import PhysicsEvent
+from isaaclab.physics import PhysicsEvent, SurfaceVelocitySpec
 
-from .conveyor_belt import ConveyorBeltSpec
+from .newton_manager import NewtonManager
 
 _VELOCITY_FIELD_TYPE_CONSTANT = 0
 _VELOCITY_FIELD_TYPE_PIVOT = 1
@@ -522,24 +521,24 @@ def _validate_env_path_format(env_path_format: str) -> None:
         raise ValueError(f"Conveyor env_path_format must be absolute, got {env_path_format!r}.")
 
 
-def _validate_newton_belt_specs(belt_specs: Sequence[ConveyorBeltSpec]) -> None:
+def _validate_newton_surface_specs(surface_specs: Sequence[SurfaceVelocitySpec]) -> None:
     """Validate Newton-specific requirements before registering lifecycle callbacks."""
-    if not belt_specs:
-        raise ValueError("At least one conveyor belt specification is required.")
-    prim_paths = [spec.prim_path for spec in belt_specs]
+    if not surface_specs:
+        raise ValueError("At least one surface-velocity specification is required.")
+    prim_paths = [spec.prim_path for spec in surface_specs]
     if len(set(prim_paths)) != len(prim_paths):
         raise ValueError(f"Conveyor prim paths must be unique, got {prim_paths}.")
     for index, path in enumerate(prim_paths):
         for other in prim_paths[index + 1 :]:
             if _shape_belongs_to_prim(path, other) or _shape_belongs_to_prim(other, path):
                 raise ValueError(f"Conveyor prim paths must not be ancestors of one another: {path!r}, {other!r}.")
-    for spec in belt_specs:
+    for spec in surface_specs:
         if spec.curved and spec.radius is None:
             raise ValueError(f"Newton requires an explicit positive radius for curved belt {spec.prim_path!r}.")
 
 
-class ConveyorForceDriver:
-    """Own a conveyor force pipeline across the Newton simulation lifecycle.
+class SurfaceVelocity:
+    """Own a contact-force surface-velocity pipeline across the Newton lifecycle.
 
     The driver is created after the simulation context but before its first
     reset. It requests solved contact forces before model finalization, then
@@ -552,76 +551,62 @@ class ConveyorForceDriver:
     def __init__(
         self,
         num_envs: int,
-        belt_specs: Sequence[ConveyorBeltSpec] | None = None,
-        speed: float | None = None,
-        friction: float | None = None,
-        normal_threshold: float | None = None,
+        surface_specs: Sequence[SurfaceVelocitySpec],
+        *,
+        body_pattern: str,
+        body_count_per_env: int | None = None,
         startup_duration_s: float = 1.0,
         env_path_format: str = "/World/envs/env_{}",
-        transported_body_pattern: str = r"(?:^|/)Cube_?[0-3](?:/|$)",
-        transported_body_count_per_env: int | None = None,
     ) -> None:
         """Register the force pipeline for the next Newton model initialization.
 
         Args:
             num_envs: Number of replicated simulation environments.
-            belt_specs: Authored conveyor descriptions in stable within-environment order.
-            speed: Optional initial surface-velocity override [m/s] applied to every belt.
-            friction: Optional Coulomb-traction override applied to every belt.
-            normal_threshold: Optional contact-normal alignment override applied to every belt.
+            surface_specs: Authored surface descriptions in stable within-environment order.
+            body_pattern: Regular expression selecting bodies that receive surface traction.
+            body_count_per_env: Expected selected body count per environment, or ``None``.
             startup_duration_s: Duration of the initial traction ramp [s].
             env_path_format: Format string resolving one exact environment root from its integer world index.
-            transported_body_pattern: Regular expression selecting bodies that receive traction.
-            transported_body_count_per_env: Expected selected body count per environment, or ``None``.
         """
-        if belt_specs is None:
-            raise ValueError("At least one conveyor belt specification is required.")
-        belt_specs = tuple(belt_specs)
-        if not belt_specs:
-            raise ValueError("At least one conveyor belt specification is required.")
-        if not all(isinstance(spec, ConveyorBeltSpec) for spec in belt_specs):
-            raise TypeError("Every conveyor belt specification must be a ConveyorBeltSpec.")
-        _validate_newton_belt_specs(belt_specs)
-        if num_envs <= 0:
-            raise ValueError(f"Number of conveyor environments must be positive, got {num_envs}.")
-        if num_envs > 1 and any(not spec.prim_path.startswith("{ENV_REGEX_NS}/") for spec in belt_specs):
+        surface_specs = tuple(surface_specs)
+        if not all(isinstance(spec, SurfaceVelocitySpec) for spec in surface_specs):
+            raise TypeError("Every surface specification must be a SurfaceVelocitySpec.")
+        _validate_newton_surface_specs(surface_specs)
+        if not isinstance(num_envs, int) or isinstance(num_envs, bool) or num_envs <= 0:
+            raise ValueError(f"num_envs must be a positive integer, got {num_envs!r}.")
+        if num_envs > 1 and any(not spec.prim_path.startswith("{ENV_REGEX_NS}/") for spec in surface_specs):
             raise ValueError(
                 "Replicated conveyor environments require every belt prim_path to start with '{ENV_REGEX_NS}/'."
             )
-        if speed is not None and not np.isfinite(speed):
-            raise ValueError(f"Conveyor speed must be finite, got {speed}.")
-        if friction is not None and (not np.isfinite(friction) or friction < 0.0):
-            raise ValueError(f"Conveyor friction must be non-negative, got {friction}.")
-        if normal_threshold is not None and (not np.isfinite(normal_threshold) or not 0.0 <= normal_threshold <= 1.0):
-            raise ValueError(f"Conveyor normal threshold must be in [0, 1], got {normal_threshold}.")
         if not np.isfinite(startup_duration_s) or startup_duration_s <= 0.0:
             raise ValueError(f"Conveyor startup duration must be positive, got {startup_duration_s}.")
         _validate_env_path_format(env_path_format)
+        if not isinstance(body_pattern, str):
+            raise ValueError(f"body_pattern must be a regular-expression string, got {body_pattern!r}.")
         try:
-            re.compile(transported_body_pattern)
+            re.compile(body_pattern)
         except re.error as exc:
-            raise ValueError(f"Invalid transported-body pattern: {transported_body_pattern!r}.") from exc
-        if transported_body_count_per_env is not None and transported_body_count_per_env < 0:
-            raise ValueError("Expected transported-body count must be non-negative or None.")
-        self._binding: _ConveyorForceBinding | None = None
+            raise ValueError(f"Invalid body pattern: {body_pattern!r}.") from exc
+        if body_count_per_env is not None and (
+            not isinstance(body_count_per_env, int) or isinstance(body_count_per_env, bool) or body_count_per_env < 0
+        ):
+            raise ValueError("body_count_per_env must be a non-negative integer or None.")
+        self._binding: _SurfaceVelocityBinding | None = None
         self._closed = False
         self._num_envs = num_envs
-        self._belt_specs = belt_specs
+        self._surface_specs = surface_specs
         self._binding_kwargs = {
             "num_envs": num_envs,
-            "belt_specs": self._belt_specs,
-            "speed": speed,
-            "friction": friction,
-            "normal_threshold": normal_threshold,
+            "surface_specs": self._surface_specs,
             "startup_duration_s": startup_duration_s,
             "env_path_format": env_path_format,
-            "transported_body_pattern": transported_body_pattern,
-            "transported_body_count_per_env": transported_body_count_per_env,
+            "body_pattern": body_pattern,
+            "body_count_per_env": body_count_per_env,
         }
         self._model_init_handle = NewtonManager.register_callback(
             self._request_contact_forces,
             PhysicsEvent.MODEL_INIT,
-            name="conveyor_force_contact_attribute",
+            name="surface_velocity_contact_attribute",
         )
         try:
             NewtonManager.register_solver_init_callback(self._bind_solver)
@@ -629,32 +614,32 @@ class ConveyorForceDriver:
             self._model_init_handle.deregister()
             raise
 
-    def _require_binding(self) -> _ConveyorForceBinding:
+    def _require_binding(self) -> _SurfaceVelocityBinding:
         """Return the current binding or fail before solver initialization."""
         binding = self._binding
         if binding is None:
-            raise RuntimeError("The conveyor force driver is not bound to an initialized Newton solver.")
+            raise RuntimeError("Surface velocity is not bound to an initialized Newton solver.")
         return binding
 
     @property
-    def specs(self) -> tuple[ConveyorBeltSpec, ...]:
-        """Authored belt descriptions in stable within-environment order."""
-        return self._belt_specs
+    def specs(self) -> tuple[SurfaceVelocitySpec, ...]:
+        """Authored surface descriptions in stable within-environment order."""
+        return self._surface_specs
 
     @property
-    def belts_per_env(self) -> int:
-        """Number of authored belts in each replicated environment."""
-        return len(self._belt_specs)
+    def surfaces_per_env(self) -> int:
+        """Number of authored surfaces in each replicated environment."""
+        return len(self._surface_specs)
 
     @property
-    def num_belts(self) -> int:
-        """Total number of resolved belts across all environments."""
-        return self._num_envs * self.belts_per_env
+    def num_surfaces(self) -> int:
+        """Total number of resolved surfaces across all environments."""
+        return self._num_envs * self.surfaces_per_env
 
     @property
     def count(self) -> int:
-        """Alias for :attr:`num_belts`, matching tensor-view naming."""
-        return self.num_belts
+        """Alias for :attr:`num_surfaces`, matching tensor-view naming."""
+        return self.num_surfaces
 
     @property
     def initialized(self) -> bool:
@@ -691,22 +676,6 @@ class ConveyorForceDriver:
         """Return integer enabled flags for selected surfaces."""
         return self._require_binding().get_enabled(indices, clone)
 
-    def set_friction_coefficients(self, coefficients: Any, indices: Any = None) -> None:
-        """Set Coulomb traction limits for selected surfaces."""
-        self._require_binding().set_friction_coefficients(coefficients, indices)
-
-    def get_friction_coefficients(self, indices: Any = None, clone: bool = True) -> wp.array:
-        """Return Coulomb traction limits for selected surfaces."""
-        return self._require_binding().get_friction_coefficients(indices, clone)
-
-    def set_contact_processing_thresholds(self, thresholds: Any, indices: Any = None) -> None:
-        """Set minimum contact-normal alignment for selected surfaces."""
-        self._require_binding().set_contact_processing_thresholds(thresholds, indices)
-
-    def get_contact_processing_thresholds(self, indices: Any = None, clone: bool = True) -> wp.array:
-        """Return contact-normal alignment thresholds for selected surfaces."""
-        return self._require_binding().get_contact_processing_thresholds(indices, clone)
-
     def get_encoder_positions(self, indices: Any = None, clone: bool = True) -> wp.array:
         """Return physics-rate integrated surface travel distances [m]."""
         return self._require_binding().get_encoder_positions(indices, clone)
@@ -727,19 +696,15 @@ class ConveyorForceDriver:
             settings = (
                 previous._command_velocity_host.copy(),
                 previous._enabled_host.copy(),
-                previous._friction_host.copy(),
-                previous._threshold_host.copy(),
             )
             previous.close()
             self._binding = None
 
-        binding = _ConveyorForceBinding(model=model, contacts=contacts, **self._binding_kwargs)
+        binding = _SurfaceVelocityBinding(model=model, contacts=contacts, **self._binding_kwargs)
         if settings is not None:
-            velocities, enabled, friction, thresholds = settings
+            velocities, enabled = settings
             binding.set_velocities(velocities)
             binding.set_enabled(enabled)
-            binding.set_friction_coefficients(friction)
-            binding.set_contact_processing_thresholds(thresholds)
         self._binding = binding
 
     def close(self) -> None:
@@ -754,7 +719,7 @@ class ConveyorForceDriver:
         self._closed = True
 
 
-class _ConveyorForceBinding:
+class _SurfaceVelocityBinding:
     """Run one batched moving-surface force pipeline for one Newton model."""
 
     def __init__(
@@ -762,14 +727,12 @@ class _ConveyorForceBinding:
         model: Any,
         contacts: Any,
         num_envs: int,
-        belt_specs: Sequence[ConveyorBeltSpec],
-        speed: float | None = None,
-        friction: float | None = None,
-        normal_threshold: float | None = None,
+        surface_specs: Sequence[SurfaceVelocitySpec],
+        *,
+        body_pattern: str,
+        body_count_per_env: int | None = None,
         startup_duration_s: float = 1.0,
         env_path_format: str = "/World/envs/env_{}",
-        transported_body_pattern: str = r"(?:^|/)Cube_?[0-3](?:/|$)",
-        transported_body_count_per_env: int | None = None,
     ) -> None:
         """Initialize the binding before Newton CUDA graph capture.
 
@@ -777,33 +740,24 @@ class _ConveyorForceBinding:
             model: Finalized Newton model owned by the active solver.
             contacts: Contact buffer owned by the active solver.
             num_envs: Number of replicated simulation environments.
-            belt_specs: Authored conveyor descriptions in stable within-environment order.
-            speed: Optional initial surface-velocity override [m/s] applied to every belt.
-            friction: Optional Coulomb-traction override applied to every belt.
-            normal_threshold: Optional contact-normal alignment override applied to every belt.
+            surface_specs: Authored surface descriptions in stable within-environment order.
+            body_pattern: Regular expression selecting bodies that receive surface traction.
+            body_count_per_env: Expected selected body count per environment, or ``None``.
             startup_duration_s: Duration of the initial traction ramp [s].
             env_path_format: Format string resolving one exact environment root from its integer world index.
-            transported_body_pattern: Regular expression selecting bodies that receive traction.
-            transported_body_count_per_env: Expected selected body count per environment, or ``None``.
         """
-        if num_envs <= 0:
-            raise ValueError(f"Number of conveyor environments must be positive, got {num_envs}.")
-        if speed is not None and not np.isfinite(speed):
-            raise ValueError(f"Conveyor speed must be finite, got {speed}.")
-        if friction is not None and (not np.isfinite(friction) or friction < 0.0):
-            raise ValueError(f"Conveyor friction must be non-negative, got {friction}.")
-        if normal_threshold is not None and (not np.isfinite(normal_threshold) or not 0.0 <= normal_threshold <= 1.0):
-            raise ValueError(f"Conveyor normal threshold must be in [0, 1], got {normal_threshold}.")
+        if not isinstance(num_envs, int) or isinstance(num_envs, bool) or num_envs <= 0:
+            raise ValueError(f"num_envs must be a positive integer, got {num_envs!r}.")
         if not np.isfinite(startup_duration_s) or startup_duration_s <= 0.0:
             raise ValueError(f"Conveyor startup duration must be positive, got {startup_duration_s}.")
         _validate_env_path_format(env_path_format)
 
-        self._belt_specs = tuple(belt_specs)
-        _validate_newton_belt_specs(self._belt_specs)
+        self._surface_specs = tuple(surface_specs)
+        _validate_newton_surface_specs(self._surface_specs)
         try:
-            body_pattern = re.compile(transported_body_pattern)
+            compiled_body_pattern = re.compile(body_pattern)
         except re.error as exc:
-            raise ValueError(f"Invalid transported-body pattern: {transported_body_pattern!r}.") from exc
+            raise ValueError(f"Invalid body pattern: {body_pattern!r}.") from exc
 
         if model is None or contacts is None:
             raise RuntimeError("The conveyor driver requires an initialized Newton model and contact buffer.")
@@ -823,15 +777,15 @@ class _ConveyorForceBinding:
         self._closed = False
         self._validate_backend_buffers()
 
-        belts_per_env = len(self._belt_specs)
-        conveyor_count = num_envs * belts_per_env
+        surfaces_per_env = len(self._surface_specs)
+        conveyor_count = num_envs * surfaces_per_env
         shape_conveyor = [-1] * model.shape_count
         field_type = [0] * conveyor_count
         direction = [wp.vec3() for _ in range(conveyor_count)]
         pivot_point = [wp.vec3() for _ in range(conveyor_count)]
         radius = [1.0] * conveyor_count
         surface_normal = [wp.vec3() for _ in range(conveyor_count)]
-        conveyor_world = [conveyor_id // belts_per_env for conveyor_id in range(conveyor_count)]
+        conveyor_world = [conveyor_id // surfaces_per_env for conveyor_id in range(conveyor_count)]
         surface_paths = [""] * conveyor_count
 
         shape_body = model.shape_body.numpy()
@@ -844,7 +798,7 @@ class _ConveyorForceBinding:
                 continue
             matching_specs = [
                 index
-                for index, spec in enumerate(self._belt_specs)
+                for index, spec in enumerate(self._surface_specs)
                 if _shape_belongs_to_prim(label, _resolve_belt_prim_path(spec.prim_path, env_path_format, world_id))
             ]
             if not matching_specs:
@@ -859,12 +813,12 @@ class _ConveyorForceBinding:
             if section_key in seen_sections:
                 raise RuntimeError(
                     f"World {world_id} contains multiple shapes matching conveyor section "
-                    f"{self._belt_specs[spec_id].prim_path!r}."
+                    f"{self._surface_specs[spec_id].prim_path!r}."
                 )
             seen_sections.add(section_key)
 
-            spec = self._belt_specs[spec_id]
-            conveyor_id = world_id * belts_per_env + spec_id
+            spec = self._surface_specs[spec_id]
+            conveyor_id = world_id * surfaces_per_env + spec_id
             shape_conveyor[shape_id] = conveyor_id
             field_type[conveyor_id] = _VELOCITY_FIELD_TYPE_PIVOT if spec.curved else _VELOCITY_FIELD_TYPE_CONSTANT
             direction[conveyor_id] = _world_vector(shape_transform[shape_id], spec.direction)
@@ -874,12 +828,13 @@ class _ConveyorForceBinding:
             surface_paths[conveyor_id] = label
 
         expected_sections = {
-            (world_id, spec_id) for world_id in range(num_envs) for spec_id in range(len(self._belt_specs))
+            (world_id, spec_id) for world_id in range(num_envs) for spec_id in range(len(self._surface_specs))
         }
         missing_sections = sorted(expected_sections - seen_sections)
         if missing_sections:
             details = ", ".join(
-                f"world {world_id}: {self._belt_specs[spec_id].prim_path}" for world_id, spec_id in missing_sections[:8]
+                f"world {world_id}: {self._surface_specs[spec_id].prim_path}"
+                for world_id, spec_id in missing_sections[:8]
             )
             raise RuntimeError(f"Missing {len(missing_sections)} conveyor collision sections ({details}).")
 
@@ -887,7 +842,7 @@ class _ConveyorForceBinding:
         tracked_counts = np.zeros(num_envs, dtype=np.int32)
         body_world = model.body_world.numpy()
         for body_id, label in enumerate(model.body_label):
-            if body_pattern.search(label) is None:
+            if compiled_body_pattern.search(label) is None:
                 continue
             world_id = int(body_world[body_id])
             if not 0 <= world_id < num_envs:
@@ -895,16 +850,15 @@ class _ConveyorForceBinding:
             body_is_tracked[body_id] = 1
             tracked_counts[world_id] += 1
 
-        if transported_body_count_per_env is not None:
-            bad_worlds = np.flatnonzero(tracked_counts != transported_body_count_per_env)
+        if body_count_per_env is not None:
+            bad_worlds = np.flatnonzero(tracked_counts != body_count_per_env)
             if bad_worlds.size:
                 details = ", ".join(f"world {world_id}: {tracked_counts[world_id]}" for world_id in bad_worlds[:8])
                 raise RuntimeError(
-                    f"Transported-body pattern {transported_body_pattern!r} expected "
-                    f"{transported_body_count_per_env} bodies per world ({details})."
+                    f"Body pattern {body_pattern!r} expected {body_count_per_env} bodies per world ({details})."
                 )
         if not np.any(body_is_tracked):
-            raise RuntimeError(f"Transported-body pattern {transported_body_pattern!r} matched no Newton bodies.")
+            raise RuntimeError(f"Body pattern {body_pattern!r} matched no Newton bodies.")
 
         self._surface_paths = tuple(surface_paths)
         self._shape_conveyor = wp.array(shape_conveyor, dtype=wp.int32, device=self._device)
@@ -916,25 +870,17 @@ class _ConveyorForceBinding:
         self._surface_normal = wp.array(surface_normal, dtype=wp.vec3, device=self._device)
         self._conveyor_world = wp.array(conveyor_world, dtype=wp.int32, device=self._device)
 
-        authored_velocity = np.asarray([spec.velocity for spec in self._belt_specs], dtype=np.float32)
-        authored_enabled = np.asarray([spec.enabled for spec in self._belt_specs], dtype=np.int32)
-        authored_friction = np.asarray([spec.friction_coefficient for spec in self._belt_specs], dtype=np.float32)
-        authored_threshold = np.asarray([spec.contact_threshold for spec in self._belt_specs], dtype=np.float32)
+        authored_velocity = np.asarray([spec.velocity for spec in self._surface_specs], dtype=np.float32)
+        authored_enabled = np.asarray([spec.enabled for spec in self._surface_specs], dtype=np.int32)
+        authored_friction = np.asarray([spec.friction_coefficient for spec in self._surface_specs], dtype=np.float32)
+        authored_threshold = np.asarray([spec.contact_threshold for spec in self._surface_specs], dtype=np.float32)
         self._command_velocity_host = np.tile(authored_velocity, num_envs)
         self._enabled_host = np.tile(authored_enabled, num_envs)
-        self._friction_host = np.tile(authored_friction, num_envs)
-        self._threshold_host = np.tile(authored_threshold, num_envs)
-        if speed is not None:
-            self._command_velocity_host.fill(speed)
-        if friction is not None:
-            self._friction_host.fill(friction)
-        if normal_threshold is not None:
-            self._threshold_host.fill(normal_threshold)
         self._command_velocity = wp.array(self._command_velocity_host, dtype=wp.float32, device=self._device)
         self._enabled = wp.array(self._enabled_host, dtype=wp.int32, device=self._device)
         self._effective_velocity = wp.zeros(conveyor_count, dtype=wp.float32, device=self._device)
-        self._friction = wp.array(self._friction_host, dtype=wp.float32, device=self._device)
-        self._threshold = wp.array(self._threshold_host, dtype=wp.float32, device=self._device)
+        self._friction = wp.array(np.tile(authored_friction, num_envs), dtype=wp.float32, device=self._device)
+        self._threshold = wp.array(np.tile(authored_threshold, num_envs), dtype=wp.float32, device=self._device)
         self._encoder_position = wp.zeros(conveyor_count, dtype=wp.float32, device=self._device)
         self._elapsed_time = wp.zeros(1, dtype=wp.float32, device=self._device)
         self._velocity_scale = wp.zeros(1, dtype=wp.float32, device=self._device)
@@ -977,7 +923,9 @@ class _ConveyorForceBinding:
     def set_enabled(self, flags: Any, indices: Any = None) -> None:
         """Enable or disable selected surfaces without discarding their speed commands."""
         selected = self._resolve_indices(indices)
-        values = self._broadcast_1d(flags, len(selected), "enabled flags").astype(np.bool_)
+        values = self._broadcast_1d(flags, len(selected), "enabled flags")
+        if not np.all(np.isin(values, (0.0, 1.0))):
+            raise ValueError(f"Surface enabled flags must contain {len(selected)} boolean values.")
         self._enabled_host[selected] = values.astype(np.int32)
         self._enabled.assign(self._enabled_host)
         self._refresh_effective_velocities()
@@ -985,32 +933,6 @@ class _ConveyorForceBinding:
     def get_enabled(self, indices: Any = None, clone: bool = True) -> wp.array:
         """Return integer enabled flags for selected surfaces."""
         return self._get_device_int_values(self._enabled, indices, clone)
-
-    def set_friction_coefficients(self, coefficients: Any, indices: Any = None) -> None:
-        """Set Coulomb traction limits for selected surfaces."""
-        selected = self._resolve_indices(indices)
-        values = self._broadcast_1d(coefficients, len(selected), "friction coefficients")
-        if np.any(values < 0.0):
-            raise ValueError("Conveyor friction coefficients must be non-negative.")
-        self._friction_host[selected] = values
-        self._friction.assign(self._friction_host)
-
-    def get_friction_coefficients(self, indices: Any = None, clone: bool = True) -> wp.array:
-        """Return Coulomb traction limits for selected surfaces."""
-        return self._get_device_values(self._friction, indices, clone)
-
-    def set_contact_processing_thresholds(self, thresholds: Any, indices: Any = None) -> None:
-        """Set minimum contact-normal alignment for selected surfaces."""
-        selected = self._resolve_indices(indices)
-        values = self._broadcast_1d(thresholds, len(selected), "contact thresholds")
-        if np.any((values < 0.0) | (values > 1.0)):
-            raise ValueError("Conveyor contact thresholds must lie in [0, 1].")
-        self._threshold_host[selected] = values
-        self._threshold.assign(self._threshold_host)
-
-    def get_contact_processing_thresholds(self, indices: Any = None, clone: bool = True) -> wp.array:
-        """Return contact-normal alignment thresholds for selected surfaces."""
-        return self._get_device_values(self._threshold, indices, clone)
 
     def get_encoder_positions(self, indices: Any = None, clone: bool = True) -> wp.array:
         """Return physics-rate integrated surface travel distances [m]."""
@@ -1032,7 +954,10 @@ class _ConveyorForceBinding:
             self._velocity_scale.zero_()
             return
 
-        ids = np.asarray(_as_numpy(env_ids), dtype=np.int64).reshape(-1)
+        ids = _as_numpy(env_ids)
+        if not np.issubdtype(ids.dtype, np.integer):
+            raise IndexError(f"Surface reset environment indices must be integers, got {env_ids!r}.")
+        ids = ids.astype(np.int64, copy=False).reshape(-1)
         if np.any((ids < 0) | (ids >= self._num_envs)):
             raise IndexError(f"Conveyor reset environment indices are out of range: {ids.tolist()}.")
         self._world_mask_host.fill(False)
@@ -1183,10 +1108,19 @@ class _ConveyorForceBinding:
         _require_buffer_length("contacts.rigid_contact_count", contacts.rigid_contact_count, 1)
 
     def _resolve_indices(self, indices: Any) -> np.ndarray:
-        """Normalize and validate a conveyor index selection."""
+        """Normalize and validate a surface index selection."""
         if indices is None:
             return np.arange(len(self._surface_paths), dtype=np.int64)
-        selected = np.asarray(_as_numpy(indices), dtype=np.int64).reshape(-1)
+        if isinstance(indices, slice):
+            return np.arange(len(self._surface_paths), dtype=np.int64)[indices]
+        selected = _as_numpy(indices)
+        if selected.dtype == np.bool_:
+            if selected.ndim != 1 or selected.size != len(self._surface_paths):
+                raise IndexError(f"Boolean surface indices must have length {len(self._surface_paths)}.")
+            return np.flatnonzero(selected).astype(np.int64)
+        if not np.issubdtype(selected.dtype, np.integer):
+            raise IndexError(f"Surface indices must be integers, got {indices!r}.")
+        selected = selected.astype(np.int64, copy=False).reshape(-1)
         if np.any((selected < 0) | (selected >= len(self._surface_paths))):
             raise IndexError(f"Conveyor surface indices are out of range: {selected.tolist()}.")
         return selected

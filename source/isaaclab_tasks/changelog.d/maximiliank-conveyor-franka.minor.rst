@@ -4,8 +4,8 @@ Added
 * Added a contributed manager-based environment with guarded, counter-rotating force-driven racetrack
   conveyors, robust primitive and closed-mesh belt colliders, a MuJoCo Menagerie Franka, and an interactive
   Newton-viewer cube-goal selector.
-* Added task-local, schema-aligned conveyor descriptions and a tensorized control view while retaining a single,
-  kitless Newton force owner with CUDA-graph and hard-reset-safe lifecycle binding.
+* Used the reusable surface-velocity physics interfaces while retaining a single, kitless Newton force owner with
+  CUDA-graph and hard-reset-safe lifecycle binding.
 * Added a checkpoint-compatible Newton Play variant rendered with A09/A12 functional-loop visuals, a render-only
   Thor robot table, packing station, pallet bays, and warehouse dressing while retaining the task's lightweight
   collision and traction surfaces.

@@ -3,18 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the conveyor-Franka task's shared belt contract."""
+"""Focused tests for backend-neutral surface-velocity descriptions."""
 
 from __future__ import annotations
 
 import pytest
 
-from isaaclab_tasks.contrib.conveyor_franka.conveyor_belt import ConveyorBeltSpec
+from isaaclab.physics import SurfaceVelocitySpec
 
 
-def test_conveyor_belt_spec_preserves_authored_semantics() -> None:
+def test_surface_velocity_spec_preserves_authored_semantics() -> None:
     """The shared description carries schema-aligned fields without backend imports."""
-    spec = ConveyorBeltSpec(
+    spec = SurfaceVelocitySpec(
         prim_path="{ENV_REGEX_NS}/Belt/Curve",
         velocity=-0.35,
         enabled=False,
@@ -25,9 +25,6 @@ def test_conveyor_belt_spec_preserves_authored_semantics() -> None:
         surface_normal=(0, 0, 1),
         contact_threshold=0.997,
         friction_coefficient=0.5,
-        animate_texture=True,
-        animate_direction=(1, 0),
-        animate_scale=0.5,
     )
 
     assert spec.prim_path == "{ENV_REGEX_NS}/Belt/Curve"
@@ -40,9 +37,6 @@ def test_conveyor_belt_spec_preserves_authored_semantics() -> None:
     assert spec.surface_normal == (0.0, 0.0, 1.0)
     assert spec.contact_threshold == 0.997
     assert spec.friction_coefficient == 0.5
-    assert spec.animate_texture is True
-    assert spec.animate_direction == (1.0, 0.0)
-    assert spec.animate_scale == 0.5
 
 
 @pytest.mark.parametrize(
@@ -64,14 +58,9 @@ def test_conveyor_belt_spec_preserves_authored_semantics() -> None:
         ({"prim_path": "/World/Belt", "radius": 0.0}, "radius"),
         ({"prim_path": "/World/Belt", "contact_threshold": 1.1}, "contact_threshold"),
         ({"prim_path": "/World/Belt", "friction_coefficient": -0.1}, "friction_coefficient"),
-        ({"prim_path": "/World/Belt", "animate_scale": -1.0}, "animate_scale"),
-        (
-            {"prim_path": "/World/Belt", "animate_texture": True, "animate_direction": (0.0, 0.0)},
-            "animate_direction",
-        ),
     ],
 )
-def test_conveyor_belt_spec_rejects_invalid_authored_values(kwargs: dict, message: str) -> None:
+def test_surface_velocity_spec_rejects_invalid_authored_values(kwargs: dict, message: str) -> None:
     """Invalid persistent intent fails before any physics lifecycle is registered."""
     with pytest.raises(ValueError, match=message):
-        ConveyorBeltSpec(**kwargs)
+        SurfaceVelocitySpec(**kwargs)

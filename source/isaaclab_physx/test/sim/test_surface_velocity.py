@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Import-light tests for the task-local PhysX conveyor surface backend."""
+"""Import-light tests for native PhysX surface velocity."""
 
 from __future__ import annotations
 
@@ -11,12 +11,12 @@ import math
 import sys
 from types import ModuleType
 
+import isaaclab_physx.physics.surface_velocity as surface_module
 import numpy as np
 import pytest
 import torch
 
-import isaaclab_tasks.contrib.conveyor_franka.conveyor_physx_surface as surface_module
-from isaaclab_tasks.contrib.conveyor_franka.conveyor_belt import ConveyorBeltSpec
+from isaaclab.physics import SurfaceVelocitySpec
 
 
 class _FakeWriter:
@@ -33,16 +33,16 @@ class _FakeWriter:
         self.close_count += 1
 
 
-def _belt_spec(name: str = "Belt", **kwargs) -> ConveyorBeltSpec:
+def _surface_spec(name: str = "Belt", **kwargs) -> SurfaceVelocitySpec:
     """Return one replicated belt description for facade tests."""
-    return ConveyorBeltSpec(prim_path=f"{{ENV_REGEX_NS}}/{name}", velocity=0.4, **kwargs)
+    return SurfaceVelocitySpec(prim_path=f"{{ENV_REGEX_NS}}/{name}", velocity=0.4, **kwargs)
 
 
 def test_twist_conversion_normalizes_straight_direction() -> None:
     """Straight surface speed is independent of the authored direction magnitude."""
-    spec = _belt_spec(direction=(3.0, 4.0, 0.0))
+    spec = _surface_spec(direction=(3.0, 4.0, 0.0))
 
-    twist = surface_module.compute_physx_surface_velocity_twist(spec, velocity=2.0)
+    twist = surface_module.compute_surface_velocity_twist(spec, velocity=2.0)
 
     np.testing.assert_allclose(twist.linear_velocity, (1.2, 1.6, 0.0))
     assert twist.angular_velocity_deg == (0.0, 0.0, 0.0)
@@ -50,14 +50,14 @@ def test_twist_conversion_normalizes_straight_direction() -> None:
 
 def test_twist_conversion_uses_degrees_and_compensates_curved_pivot() -> None:
     """Curved belts rotate about their local pivot rather than the rigid-body origin."""
-    spec = _belt_spec(
+    spec = _surface_spec(
         direction=(0.0, 0.0, 2.0),
         curved=True,
         radius=2.0,
         pivot_point=(2.0, 0.0, 0.0),
     )
 
-    twist = surface_module.compute_physx_surface_velocity_twist(spec, velocity=math.pi)
+    twist = surface_module.compute_surface_velocity_twist(spec, velocity=math.pi)
 
     np.testing.assert_allclose(twist.angular_velocity_deg, (0.0, 0.0, 90.0), atol=1.0e-12)
     np.testing.assert_allclose(twist.linear_velocity, (0.0, -math.pi, 0.0), atol=1.0e-12)
@@ -70,17 +70,17 @@ def test_twist_conversion_uses_degrees_and_compensates_curved_pivot() -> None:
 
 def test_curved_twist_requires_an_explicit_radius() -> None:
     """A native angular rate cannot be inferred from unspecified task geometry."""
-    spec = _belt_spec(curved=True)
+    spec = _surface_spec(curved=True)
 
     with pytest.raises(ValueError, match="positive radius"):
-        surface_module.compute_physx_surface_velocity_twist(spec)
+        surface_module.compute_surface_velocity_twist(spec)
 
 
 def test_paths_are_resolved_in_environment_major_order() -> None:
     """Runtime rows stay deterministic across stage discovery ordering."""
-    specs = (_belt_spec("BeltA"), _belt_spec("Nested/BeltB"))
+    specs = (_surface_spec("BeltA"), _surface_spec("Nested/BeltB"))
 
-    paths = surface_module.resolve_physx_conveyor_paths(2, specs)
+    paths = surface_module.resolve_surface_velocity_paths(2, specs)
 
     assert paths == (
         "/World/envs/env_0/BeltA",
@@ -89,16 +89,16 @@ def test_paths_are_resolved_in_environment_major_order() -> None:
         "/World/envs/env_1/Nested/BeltB",
     )
     with pytest.raises(ValueError, match="require every belt"):
-        surface_module.resolve_physx_conveyor_paths(2, (ConveyorBeltSpec(prim_path="/World/Shared/Belt"),))
+        surface_module.resolve_surface_velocity_paths(2, (SurfaceVelocitySpec(prim_path="/World/Shared/Belt"),))
 
 
 def test_facade_ramps_playback_integrates_encoders_and_preserves_commands_on_reset() -> None:
     """Full resets restart playback without erasing policy-visible command state."""
     writer = _FakeWriter()
-    facade = surface_module.PhysxSurfaceVelocityConveyor(2, (_belt_spec(),), writer=writer)
+    facade = surface_module.SurfaceVelocity(2, (_surface_spec(),), writer=writer)
 
     assert facade.prim_paths == ("/World/envs/env_0/Belt", "/World/envs/env_1/Belt")
-    assert facade.num_belts == facade.count == 2
+    assert facade.num_surfaces == facade.count == 2
     assert [record[2].linear_velocity for record in writer.writes] == [(0.0, 0.0, 0.0)] * 2
 
     facade.update(0.25)
@@ -126,26 +126,9 @@ def test_facade_ramps_playback_integrates_encoders_and_preserves_commands_on_res
     assert [(index, enabled) for index, enabled, _ in writer.writes[-2:]] == [(0, False), (1, False)]
 
 
-def test_facade_rejects_unrepresentable_runtime_mutations() -> None:
-    """PhysX metadata getters cannot imply that unsupported setters took effect."""
-    facade = surface_module.PhysxSurfaceVelocityConveyor(
-        1,
-        (_belt_spec(friction_coefficient=0.55, contact_threshold=0.98),),
-        writer=_FakeWriter(),
-    )
-
-    np.testing.assert_allclose(facade.get_friction_coefficients(), (0.55,))
-    np.testing.assert_allclose(facade.get_contact_processing_thresholds(), (0.98,))
-    with pytest.raises(NotImplementedError, match="material friction"):
-        facade.set_friction_coefficients(0.8)
-    with pytest.raises(NotImplementedError, match="no contact-normal threshold"):
-        facade.set_contact_processing_thresholds(0.9)
-    facade.close()
-
-
 def test_facade_accepts_torch_control_and_reset_indices() -> None:
     """Normal Isaac Lab tensor selectors are copied to host before NumPy validation."""
-    facade = surface_module.PhysxSurfaceVelocityConveyor(2, (_belt_spec(),), writer=_FakeWriter())
+    facade = surface_module.SurfaceVelocity(2, (_surface_spec(),), writer=_FakeWriter())
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     facade.set_velocities(torch.tensor([0.6], device=device), indices=torch.tensor([1], device=device))
@@ -234,7 +217,7 @@ def test_authoring_helper_applies_kinematic_local_surface_schema(monkeypatch: py
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
     prim = FakePrim()
 
-    surface_module.apply_physx_surface_velocity_api(prim, _belt_spec(), velocity_scale=0.0)
+    surface_module.apply_surface_velocity_api(prim, _surface_spec(), velocity_scale=0.0)
 
     assert FakeRigidBodyAPI in prim.apis
     assert FakeSurfaceAPI in prim.apis

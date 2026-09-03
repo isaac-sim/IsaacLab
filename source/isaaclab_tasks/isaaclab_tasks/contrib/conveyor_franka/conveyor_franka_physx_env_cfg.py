@@ -10,17 +10,17 @@ from __future__ import annotations
 import functools
 from dataclasses import replace
 
-from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.physics import PhysxCfg, apply_surface_velocity_api
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxSDFMeshCfg
 from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.physics import SurfaceVelocitySpec
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.schemas import CollisionFragment, UsdPhysicsCollisionCfg
 from isaaclab.utils.configclass import configclass
 
-from .conveyor_belt import ConveyorBeltSpec
 from .conveyor_franka_env_cfg import (
     _CONTACT_GAP,
     _CUBE_CONTACT_MARGIN,
@@ -46,7 +46,6 @@ from .conveyor_geometry import (
     belt_mesh_spec,
     guard_mesh_specs,
 )
-from .conveyor_physx_surface import apply_physx_surface_velocity_api
 from .franka_robot_cfg import FRANKA_PANDA_CONVEYOR_PHYSX_CFG
 
 _PHYSX_DYNAMIC_PROPERTIES = sim_utils.RigidBodyBaseCfg()
@@ -173,13 +172,13 @@ def _spawn_physx_conveyor_mesh(
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     *,
-    belt_spec: ConveyorBeltSpec,
+    belt_spec: SurfaceVelocitySpec,
     **kwargs,
 ):
     """Spawn one hidden SDF turn and author native surface velocity before PhysX parsing."""
     prim = sim_utils.spawn_mesh_custom(prim_path, cfg, translation, orientation, **kwargs)
     sim_utils.set_prim_visibility(prim, False)
-    apply_physx_surface_velocity_api(prim, belt_spec, velocity_scale=0.0)
+    apply_surface_velocity_api(prim, belt_spec, velocity_scale=0.0)
     return prim
 
 
@@ -190,13 +189,13 @@ def _spawn_physx_conveyor_cuboid(
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     *,
-    belt_spec: ConveyorBeltSpec,
+    belt_spec: SurfaceVelocitySpec,
     **kwargs,
 ):
     """Spawn one hidden analytic straight and author native surface velocity before PhysX parsing."""
     prim = sim_utils.spawn_cuboid(prim_path, cfg, translation, orientation, **kwargs)
     sim_utils.set_prim_visibility(prim, False)
-    apply_physx_surface_velocity_api(prim, belt_spec, velocity_scale=0.0)
+    apply_surface_velocity_api(prim, belt_spec, velocity_scale=0.0)
     return prim
 
 
@@ -344,7 +343,7 @@ class ConveyorFrankaPhysxSceneCfg(ConveyorFrankaSceneCfg):
         velocity: float,
         friction_coefficient: float,
         contact_threshold: float,
-    ) -> tuple[ConveyorBeltSpec, ...]:
+    ) -> tuple[SurfaceVelocitySpec, ...]:
         """Return the same pivot-local belt descriptions used by the PhysX spawners."""
         return tuple(
             section.belt

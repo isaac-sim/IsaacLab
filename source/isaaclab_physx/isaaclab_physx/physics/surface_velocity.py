@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""CPU-only native PhysX surface-velocity conveyors for the conveyor-Franka task.
+"""CPU-only native PhysX surface-velocity control.
 
 The module deliberately keeps PhysX schema imports behind authoring and binding calls.  Its
 geometry conversion and host-side control state therefore remain usable in import-light tests
@@ -22,7 +22,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from .conveyor_belt import ConveyorBeltSpec
+from isaaclab.physics import SurfaceVelocitySpec
 
 _ENV_REGEX_NS = "{ENV_REGEX_NS}"
 
@@ -40,15 +40,15 @@ class PhysxSurfaceVelocityTwist:
     angular_velocity_deg: tuple[float, float, float]
 
 
-def compute_physx_surface_velocity_twist(
-    spec: ConveyorBeltSpec, velocity: float | None = None
+def compute_surface_velocity_twist(
+    spec: SurfaceVelocitySpec, velocity: float | None = None
 ) -> PhysxSurfaceVelocityTwist:
     """Convert one backend-neutral belt command to a local PhysX surface twist.
 
     Straight belts map their signed speed to a normalized linear direction.  Curved belts map
     speed over radius to PhysX's degree-per-second angular convention.  PhysX rotates the surface
     field about the rigid-body origin, so ``-omega x pivot`` is included in the linear component
-    to move the instantaneous center to :attr:`ConveyorBeltSpec.pivot_point`.
+    to move the instantaneous center to :attr:`SurfaceVelocitySpec.pivot_point`.
 
     Args:
         spec: Authored conveyor intent in the collision prim's local frame.
@@ -83,9 +83,9 @@ def compute_physx_surface_velocity_twist(
     )
 
 
-def apply_physx_surface_velocity_api(
+def apply_surface_velocity_api(
     prim_or_path: Any,
-    spec: ConveyorBeltSpec,
+    spec: SurfaceVelocitySpec,
     *,
     velocity_scale: float = 0.0,
     stage: Any | None = None,
@@ -109,7 +109,7 @@ def apply_physx_surface_velocity_api(
         ValueError: If ``velocity_scale`` is not finite.
     """
     scale = _finite_float("velocity_scale", velocity_scale)
-    twist = compute_physx_surface_velocity_twist(spec, velocity=spec.velocity * scale)
+    twist = compute_surface_velocity_twist(spec, velocity=spec.velocity * scale)
     binding = _PhysxSchemaSurfaceWriter((prim_or_path,), stage=stage, apply_api=True)
     try:
         binding.write(0, enabled=spec.enabled, twist=twist)
@@ -117,29 +117,29 @@ def apply_physx_surface_velocity_api(
         binding.close()
 
 
-def resolve_physx_conveyor_paths(
+def resolve_surface_velocity_paths(
     num_envs: int,
-    belt_specs: Sequence[ConveyorBeltSpec],
+    surface_specs: Sequence[SurfaceVelocitySpec],
     env_path_format: str = "/World/envs/env_{}",
 ) -> tuple[str, ...]:
     """Resolve conveyor templates to exact environment-major prim paths.
 
     Args:
         num_envs: Number of replicated environments.
-        belt_specs: Within-environment belt descriptions.
+        surface_specs: Within-environment surface descriptions.
         env_path_format: Exact environment path format containing one ``{}`` field.
 
     Returns:
-        Exact paths ordered by environment, then by ``belt_specs`` order.
+        Exact paths ordered by environment, then by ``surface_specs`` order.
 
     Raises:
         ValueError: If inputs cannot produce one unique path per environment and belt.
     """
     if not isinstance(num_envs, int) or isinstance(num_envs, bool) or num_envs <= 0:
         raise ValueError(f"Conveyor num_envs must be a positive integer, got {num_envs!r}.")
-    specs = tuple(belt_specs)
-    if not specs or not all(isinstance(spec, ConveyorBeltSpec) for spec in specs):
-        raise ValueError("Conveyor belt_specs must contain at least one ConveyorBeltSpec.")
+    specs = tuple(surface_specs)
+    if not specs or not all(isinstance(spec, SurfaceVelocitySpec) for spec in specs):
+        raise ValueError("surface_specs must contain at least one SurfaceVelocitySpec.")
     if not isinstance(env_path_format, str) or env_path_format.count("{}") != 1:
         raise ValueError(f"Conveyor env_path_format must contain exactly one '{{}}', got {env_path_format!r}.")
     try:
@@ -161,11 +161,11 @@ def resolve_physx_conveyor_paths(
     return paths
 
 
-class PhysxSurfaceVelocityConveyor:
+class SurfaceVelocity:
     """Host-side CPU reference facade for native PhysX surface velocity.
 
     The facade binds exact environment-major paths whose schemas were already authored by
-    :func:`apply_physx_surface_velocity_api`.  Call :meth:`start` to register physics-rate updates,
+    :func:`apply_surface_velocity_api`. Call :meth:`start` to register physics-rate updates,
     or call :meth:`update` manually.  Commands and enabled state survive full resets; a full reset
     clears encoders and restarts the one-second startup ramp. This facade authors USD attributes
     on the host and is not a GPU conveyor implementation.
@@ -174,7 +174,7 @@ class PhysxSurfaceVelocityConveyor:
     def __init__(
         self,
         num_envs: int,
-        belt_specs: Sequence[ConveyorBeltSpec],
+        surface_specs: Sequence[SurfaceVelocitySpec],
         *,
         env_path_format: str = "/World/envs/env_{}",
         startup_duration_s: float = 1.0,
@@ -185,7 +185,7 @@ class PhysxSurfaceVelocityConveyor:
 
         Args:
             num_envs: Number of replicated environments.
-            belt_specs: Within-environment belt descriptions.
+            surface_specs: Within-environment surface descriptions.
             env_path_format: Exact replicated environment path format.
             startup_duration_s: Duration of the global surface-speed ramp [s].
             stage: Optional USD stage used by the default schema writer.
@@ -196,9 +196,9 @@ class PhysxSurfaceVelocityConveyor:
         if duration <= 0.0:
             raise ValueError(f"Conveyor startup_duration_s must be positive, got {startup_duration_s!r}.")
         self._num_envs = num_envs
-        self._belt_specs = tuple(belt_specs)
-        self._surface_paths = resolve_physx_conveyor_paths(num_envs, self._belt_specs, env_path_format)
-        self._belts_per_env = len(self._belt_specs)
+        self._surface_specs = tuple(surface_specs)
+        self._surface_paths = resolve_surface_velocity_paths(num_envs, self._surface_specs, env_path_format)
+        self._surfaces_per_env = len(self._surface_specs)
         self._startup_duration_s = duration
         self._elapsed_time = 0.0
         self._velocity_scale = 0.0
@@ -211,28 +211,24 @@ class PhysxSurfaceVelocityConveyor:
         )
 
         self._command_velocity = np.tile(
-            np.asarray([spec.velocity for spec in self._belt_specs], dtype=np.float32), self._num_envs
+            np.asarray([spec.velocity for spec in self._surface_specs], dtype=np.float32), self._num_envs
         )
-        self._enabled = np.tile(np.asarray([spec.enabled for spec in self._belt_specs], dtype=np.bool_), self._num_envs)
-        self._friction = np.tile(
-            np.asarray([spec.friction_coefficient for spec in self._belt_specs], dtype=np.float32), self._num_envs
+        self._enabled = np.tile(
+            np.asarray([spec.enabled for spec in self._surface_specs], dtype=np.bool_), self._num_envs
         )
-        self._threshold = np.tile(
-            np.asarray([spec.contact_threshold for spec in self._belt_specs], dtype=np.float32), self._num_envs
-        )
-        self._encoder_position = np.zeros(self.num_belts, dtype=np.float32)
-        self._last_authored: list[tuple[bool, PhysxSurfaceVelocityTwist] | None] = [None] * self.num_belts
+        self._encoder_position = np.zeros(self.num_surfaces, dtype=np.float32)
+        self._last_authored: list[tuple[bool, PhysxSurfaceVelocityTwist] | None] = [None] * self.num_surfaces
         self._flush(force=True)
 
     @property
-    def specs(self) -> tuple[ConveyorBeltSpec, ...]:
+    def specs(self) -> tuple[SurfaceVelocitySpec, ...]:
         """Return authored descriptions in stable within-environment order."""
-        return self._belt_specs
+        return self._surface_specs
 
     @property
-    def belts_per_env(self) -> int:
-        """Return the number of authored belts per environment."""
-        return self._belts_per_env
+    def surfaces_per_env(self) -> int:
+        """Return the number of authored surfaces per environment."""
+        return self._surfaces_per_env
 
     @property
     def prim_paths(self) -> tuple[str, ...]:
@@ -245,14 +241,14 @@ class PhysxSurfaceVelocityConveyor:
         return self.prim_paths
 
     @property
-    def num_belts(self) -> int:
+    def num_surfaces(self) -> int:
         """Return the total number of bound conveyor surfaces."""
         return len(self._surface_paths)
 
     @property
     def count(self) -> int:
-        """Return an alias for :attr:`num_belts`."""
-        return self.num_belts
+        """Return an alias for :attr:`num_surfaces`."""
+        return self.num_surfaces
 
     @property
     def initialized(self) -> bool:
@@ -264,12 +260,12 @@ class PhysxSurfaceVelocityConveyor:
         self._require_open()
         if self._callback_handle is not None:
             return
-        from isaaclab_physx.physics import IsaacEvents, PhysxManager
+        from .physx_manager import IsaacEvents, PhysxManager
 
         self._callback_handle = PhysxManager.register_callback(
             self.update,
             IsaacEvents.POST_PHYSICS_STEP,
-            name="physx_conveyor_surface_velocity",
+            name="physx_surface_velocity",
         )
 
     def update(self, dt: float) -> None:
@@ -321,28 +317,6 @@ class PhysxSurfaceVelocityConveyor:
         """Return enabled flags as integer values."""
         return self._get_values(self._enabled.astype(np.int32), indices, clone)
 
-    def set_friction_coefficients(self, coefficients: Any, indices: Any = None) -> None:
-        """Reject unsupported runtime friction mutation explicitly."""
-        del coefficients, indices
-        raise NotImplementedError(
-            "Native PhysX surface velocity uses authored collision materials; mutate material friction explicitly."
-        )
-
-    def get_friction_coefficients(self, indices: Any = None, clone: bool = True) -> np.ndarray:
-        """Return authored friction metadata retained for control introspection."""
-        return self._get_values(self._friction, indices, clone)
-
-    def set_contact_processing_thresholds(self, thresholds: Any, indices: Any = None) -> None:
-        """Reject unsupported normal-threshold mutation explicitly."""
-        del thresholds, indices
-        raise NotImplementedError(
-            "PhysxSurfaceVelocityAPI has no contact-normal threshold; the native body-level field affects all contacts."
-        )
-
-    def get_contact_processing_thresholds(self, indices: Any = None, clone: bool = True) -> np.ndarray:
-        """Return authored threshold metadata retained for control introspection."""
-        return self._get_values(self._threshold, indices, clone)
-
     def get_encoder_positions(self, indices: Any = None, clone: bool = True) -> np.ndarray:
         """Return physics-rate integrated commanded belt travel [m]."""
         return self._get_values(self._encoder_position, indices, clone)
@@ -358,7 +332,7 @@ class PhysxSurfaceVelocityConveyor:
         """
         self._require_open()
         ids = self._resolve_env_ids(env_ids)
-        rows = (ids[:, None] * self._belts_per_env + np.arange(self._belts_per_env)[None, :]).reshape(-1)
+        rows = (ids[:, None] * self._surfaces_per_env + np.arange(self._surfaces_per_env)[None, :]).reshape(-1)
         self._encoder_position[rows] = 0.0
         if len(np.unique(ids)) == self._num_envs:
             self._elapsed_time = 0.0
@@ -373,7 +347,7 @@ class PhysxSurfaceVelocityConveyor:
             self._callback_handle.deregister()
             self._callback_handle = None
         zero = PhysxSurfaceVelocityTwist((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
-        for index in range(self.num_belts):
+        for index in range(self.num_surfaces):
             self._writer.write(index, enabled=False, twist=zero)
         self._writer.close()
         self._closed = True
@@ -383,9 +357,9 @@ class PhysxSurfaceVelocityConveyor:
         selected = self._resolve_indices(indices)
         for index in selected:
             enabled = bool(self._enabled[index])
-            spec = self._belt_specs[index % self._belts_per_env]
+            spec = self._surface_specs[index % self._surfaces_per_env]
             speed = float(self._command_velocity[index]) * self._velocity_scale if enabled else 0.0
-            twist = compute_physx_surface_velocity_twist(spec, velocity=speed)
+            twist = compute_surface_velocity_twist(spec, velocity=speed)
             state = (enabled, twist)
             if force or state != self._last_authored[index]:
                 self._writer.write(int(index), enabled=enabled, twist=twist)
@@ -395,18 +369,18 @@ class PhysxSurfaceVelocityConveyor:
         """Normalize and validate a belt row selection."""
         self._require_open()
         if indices is None:
-            return np.arange(self.num_belts, dtype=np.int64)
+            return np.arange(self.num_surfaces, dtype=np.int64)
         if isinstance(indices, slice):
-            return np.arange(self.num_belts, dtype=np.int64)[indices]
+            return np.arange(self.num_surfaces, dtype=np.int64)[indices]
         selected = _as_numpy(indices)
         if selected.dtype == np.bool_:
-            if selected.ndim != 1 or selected.size != self.num_belts:
-                raise IndexError(f"Boolean conveyor indices must have length {self.num_belts}.")
+            if selected.ndim != 1 or selected.size != self.num_surfaces:
+                raise IndexError(f"Boolean surface indices must have length {self.num_surfaces}.")
             return np.flatnonzero(selected).astype(np.int64)
         if not np.issubdtype(selected.dtype, np.integer):
             raise IndexError(f"Conveyor indices must be integers, got {indices!r}.")
         selected = selected.astype(np.int64, copy=False).reshape(-1)
-        if np.any((selected < 0) | (selected >= self.num_belts)):
+        if np.any((selected < 0) | (selected >= self.num_surfaces)):
             raise IndexError(f"Conveyor surface indices are out of range: {selected.tolist()}.")
         return selected
 
@@ -506,7 +480,7 @@ class _PhysxSchemaSurfaceWriter:
             else:
                 raise RuntimeError(
                     f"PhysX conveyor prim {prim.GetPath()} has no authored PhysxSurfaceVelocityAPI; "
-                    "call apply_physx_surface_velocity_api from its spawner before simulation starts."
+                    "call apply_surface_velocity_api from its spawner before simulation starts."
                 )
             surface_api.CreateSurfaceVelocityLocalSpaceAttr().Set(True)
             self._attributes.append(
