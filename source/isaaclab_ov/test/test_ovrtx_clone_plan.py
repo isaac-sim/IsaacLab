@@ -350,28 +350,31 @@ def test_prepare_stage_rejects_non_dense_environment_ids(monkeypatch: pytest.Mon
         _make_ovrtx_renderer_without_backend().prepare_stage(_make_multi_env_stage(2), 2)
 
 
-def test_capture_object_scales_expands_clone_plan_destinations():
-    """Authored source scale is retained for destinations cloned inside OVRTX."""
+def test_capture_object_scales_populates_source_and_destination_scale_array():
+    """Projected source scales reach the body array without replacing a real destination scale."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World")
     UsdGeom.Xform.Define(stage, "/World/envs")
     UsdGeom.Xform.Define(stage, "/World/envs/env_0")
     UsdGeom.Xform.Define(stage, "/World/envs/env_1")
+    UsdGeom.Xform.Define(stage, "/World/envs/env_2")
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Object").AddScaleOp().Set(Gf.Vec3d(1.0, 1.0, 8.0))
+    UsdGeom.Xform.Define(stage, "/World/envs/env_1/Object").AddScaleOp().Set(Gf.Vec3d(1.0, 1.0, 4.0))
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer._clone_plan = ClonePlan(
+    renderer._device = "cpu"
+    plan = ClonePlan(
         sources=("/World/envs/env_0",),
         destinations=("/World/envs/env_{}",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool),
-        env_ids=torch.arange(2),
+        clone_mask=torch.ones((1, 3), dtype=torch.bool),
+        env_ids=torch.arange(3),
     )
 
-    renderer._capture_object_scales(stage)
+    renderer._capture_object_scales(stage, plan)
+    scales = renderer._create_object_scale_array(
+        ["/World/envs/env_0/Object", "/World/envs/env_1/Object", "/World/envs/env_2/Object"]
+    )
 
-    assert renderer._object_scales_by_path == {
-        "/World/envs/env_0/Object": (1.0, 1.0, 8.0),
-        "/World/envs/env_1/Object": (1.0, 1.0, 8.0),
-    }
+    np.testing.assert_allclose(scales.numpy(), np.array([[1.0, 1.0, 8.0], [1.0, 1.0, 4.0], [1.0, 1.0, 8.0]]))
 
 
 def test_prepare_stage_keeps_material_binding_inside_clone_source(monkeypatch: pytest.MonkeyPatch):

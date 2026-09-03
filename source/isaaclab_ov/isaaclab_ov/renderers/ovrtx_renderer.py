@@ -67,6 +67,7 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 from isaaclab.cloner import ClonePlan
+from isaaclab.cloner import query as clone_query
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
@@ -433,7 +434,7 @@ class OVRTXRenderer(BaseRenderer):
         create_scene_partition_attributes(stage, num_envs)
 
         # Composed scales must be read while the full stage is still live, before export trims it.
-        self._capture_object_scales(stage)
+        self._capture_object_scales(stage, self._clone_plan)
 
         # The clone plan already identifies every source row. Keep those rows independent so
         # backend bindings for dynamic assets retain the paths they were compiled against.
@@ -444,7 +445,7 @@ class OVRTXRenderer(BaseRenderer):
             keep_env_roots=not self._use_ovstage,
         )
 
-    def _capture_object_scales(self, stage: Any) -> None:
+    def _capture_object_scales(self, stage: Any, plan: ClonePlan) -> None:
         """Record composed world scales of scaled environment prims before the stage is exported.
 
         The per-frame object transform write rebuilds each body's matrix from a Newton
@@ -453,11 +454,12 @@ class OVRTXRenderer(BaseRenderer):
         stage is still live, lets :meth:`_create_object_scale_array` fold it back in.
 
         Only paths whose scale deviates from unit are stored. Scales found under clone-plan source
-        paths are projected onto their active destinations because OVRTX creates those prims only
-        after the host stage is exported.
+        paths are projected through the cloner query boundary because OVRTX creates their active
+        destinations only after the host stage is exported.
 
         Args:
             stage: The live USD stage, before per-environment trimming and export.
+            plan: Validated plan describing the active prototype-to-clone relation.
         """
         self._object_scales_by_path.clear()
 
@@ -477,24 +479,12 @@ class OVRTXRenderer(BaseRenderer):
                 self._object_scales_by_path[str(prim.GetPath())] = scale
 
         # OVRTX creates non-source rows after this stage is exported, so those destination prims
-        # cannot be traversed above. The clone plan is the authority for their path correspondence.
-        clone_plan = self._clone_plan
-        if clone_plan is None or clone_plan.env_ids is None:
-            return
-        captured_scales = tuple(self._object_scales_by_path.items())
-        env_ids = clone_plan.env_ids.detach().cpu()
-        clone_mask = clone_plan.clone_mask.detach().cpu()
-        for row, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
-            source_root = source.rstrip("/")
-            source_scales = [
-                (path, scale)
-                for path, scale in captured_scales
-                if path == source_root or path.startswith(f"{source_root}/")
-            ]
-            for env_id in env_ids[clone_mask[row]].tolist():
-                target_root = destination.format(int(env_id)).rstrip("/")
-                for path, scale in source_scales:
-                    self._object_scales_by_path[f"{target_root}{path.removeprefix(source_root)}"] = scale
+        # cannot be traversed above. Clone queries retain the plan's nearest-owner semantics.
+        for source_path, scale in tuple(self._object_scales_by_path.items()):
+            for env_id in clone_query.path_env_ids(plan, source_path):
+                clone_path = clone_query.path_to_clone(plan, source_path, env_id)
+                assert clone_path is not None
+                self._object_scales_by_path.setdefault(clone_path, scale)
 
     def _create_object_scale_array(self, object_paths: list[str]) -> wp.array:
         """Build the device scale array aligned with the Newton body binding order.
