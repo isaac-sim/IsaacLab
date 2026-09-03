@@ -184,18 +184,17 @@ def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
     assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
 
 
-@pytest.mark.parametrize(("policy", "expected_visualizer"), [("zero", ["newton_gl"]), ("random", ["kit"])])
-def test_simple_agent_default_visualizer_depends_on_policy(
+@pytest.mark.parametrize("policy", ["zero", "random"])
+def test_simple_agents_default_to_newton_visualizer(
     policy: _simple_agents.PolicyName,
-    expected_visualizer: list[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The zero agent defaults to Newton visualization without changing the random agent."""
+    """Checkpoint-free agents default to Newton visualization."""
     monkeypatch.setattr(sys, "argv", ["pytest"])
 
     args = _simple_agents._parse_args([], policy)
 
-    assert args.visualizer == expected_visualizer
+    assert args.visualizer == ["newton_gl"]
 
 
 def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.MonkeyPatch) -> None:

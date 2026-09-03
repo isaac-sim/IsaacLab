@@ -245,8 +245,8 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
     )
     # append AppLauncher cli args
     add_launcher_args(parser)
-    # Keep the zero agent on the kitless default path while preserving the random-agent behavior.
-    parser.set_defaults(visualizer=["newton_gl"] if policy == "zero" else ["kit"])
+    # Keep checkpoint-free agents on the kitless default path.
+    parser.set_defaults(visualizer=["newton_gl"])
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     sys.argv = [sys.argv[0]] + hydra_args
     return args_cli
