@@ -207,8 +207,10 @@ jobs:
       with:
         enable-cache: true
 
+    # #6329 aborts the pip install when it strands a prebundled package's __init__.py
+    # (nvbugs 6343978: 14 Isaac Sim extensions fail to load). The images install with
+    # ``uv sync``, which never runs that guard, so assert the same invariant on the image.
     - name: Build and push to ECR
-      id: image
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
@@ -216,23 +218,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
-
-    # #6329 aborts the pip install when it strands a prebundled package's __init__.py
-    # (nvbugs 6343978: 14 Isaac Sim extensions fail to load). The images install with
-    # ``uv sync``, which never runs that guard, so assert the same invariant on the image.
-    # Only a freshly built image is on this runner; a deps-cache hit reuses one that
-    # passed this check when it was built.
-    - name: Verify image invariants
-      if: steps.image.outputs.built == 'true'
-      shell: bash
-      env:
-        IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
-      run: |
-        set -euo pipefail
-        IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "${IMAGE_TAG}")"
-        export IMAGE_DIGEST
-        uv run --no-project --with pytest \
-          python -m pytest -q docker/test/test_image_invariants.py
+        verify-command: uv run --no-project --with pytest python -m pytest -q docker/test/test_image_invariants.py
 
   build-curobo:
     name: Build cuRobo Docker Image

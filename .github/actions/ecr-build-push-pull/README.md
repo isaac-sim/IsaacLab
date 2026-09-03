@@ -16,11 +16,17 @@ ECR is also used as the BuildKit layer cache.
     ecr-url: (optional, complete url for ECR storage)
 ```
 
-## Outputs
+## Verifying a freshly built image
 
-- `built`: `'true'` when this run built the image, so it exists locally under `image-tag`.
-  An exact-tag hit pulls it as well; a deps-cache hit only creates the ECR tag unless
-  `pull-on-deps-hit` is set. Gate steps that need the image locally on this output.
+Pass `verify-command` to assert against the image before it is published:
+
+```yaml
+    verify-command: uv run --no-project --with pytest python -m pytest -q docker/test/test_image_invariants.py
+```
+
+It runs only on a full build, with `IMAGE_TAG` and `IMAGE_DIGEST` exported. A failure fails the
+action with nothing pushed, so the next run rebuilds rather than serving the bad image from the
+deps cache. Exact-tag and deps-cache hits skip it: that image passed the command when it was built.
 
 ## ECR URL resolution order
 
