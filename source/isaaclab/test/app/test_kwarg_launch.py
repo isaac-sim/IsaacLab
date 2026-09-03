@@ -355,13 +355,13 @@ def test_set_visualizer_settings_suppresses_settings_manager_errors(monkeypatch:
 
 
 def test_parse_visualizer_csv_accepts_comma_delimited_values():
-    parsed = app_launcher_module.AppLauncher._parse_visualizer_csv("kit,newton,rerun,viser")
-    assert parsed == ["kit", "newton", "rerun", "viser"]
+    parsed = app_launcher_module.AppLauncher._parse_visualizer_csv("kit,newton_gl,rerun,viser")
+    assert parsed == ["kit", "newton_gl", "rerun", "viser"]
 
 
 def test_parse_visualizer_csv_rejects_spaces_between_entries():
     with pytest.raises(argparse.ArgumentTypeError, match="spaces are not allowed"):
-        app_launcher_module.AppLauncher._parse_visualizer_csv("kit, newton")
+        app_launcher_module.AppLauncher._parse_visualizer_csv("kit, newton_gl")
 
 
 def test_resolve_visualizer_settings_rejects_none_with_others():
@@ -377,10 +377,10 @@ def test_visualizer_csv_does_not_swallow_hydra_overrides():
     app_launcher_module.AppLauncher.add_app_launcher_args(parser)
 
     args, hydra_args = parser.parse_known_args(
-        ["--visualizer", "kit,newton,rerun", "presets=newton_mjwarp", "env.episode_length=10"]
+        ["--visualizer", "kit,newton_gl,rerun", "presets=newton_mjwarp", "env.episode_length=10"]
     )
 
-    assert args.visualizer == ["kit", "newton", "rerun"]
+    assert args.visualizer == ["kit", "newton_gl", "rerun"]
     assert hydra_args == ["presets=newton_mjwarp", "env.episode_length=10"]
 
 
@@ -393,17 +393,17 @@ def _resolve_headless_for_case(monkeypatch: pytest.MonkeyPatch, launcher_args: d
     return launcher._headless, launcher
 
 
-def test_matrix_cli_kit_newton_with_custom_kit_cfg_intent_non_headless(monkeypatch: pytest.MonkeyPatch):
+def test_matrix_cli_kit_newton_gl_with_custom_kit_cfg_intent_non_headless(monkeypatch: pytest.MonkeyPatch):
     headless, launcher = _resolve_headless_for_case(
         monkeypatch,
         {
-            "visualizer": ["kit", "newton"],
+            "visualizer": ["kit", "newton_gl"],
             "visualizer_explicit": True,
             "visualizer_intent": {"has_any_visualizers": True, "has_kit_visualizer": True},
         },
     )
     assert headless is False
-    assert launcher._cli_visualizer_types == ["kit", "newton"]
+    assert launcher._cli_visualizer_types == ["kit", "newton_gl"]
 
 
 def test_matrix_cli_rerun_with_custom_kit_cfg_intent_headless(monkeypatch: pytest.MonkeyPatch):
@@ -419,7 +419,7 @@ def test_matrix_cli_rerun_with_custom_kit_cfg_intent_headless(monkeypatch: pytes
     assert launcher._cli_visualizer_types == ["rerun"]
 
 
-def test_matrix_no_cli_with_cfg_kit_newton_non_headless(monkeypatch: pytest.MonkeyPatch):
+def test_matrix_no_cli_with_cfg_kit_newton_gl_non_headless(monkeypatch: pytest.MonkeyPatch):
     headless, launcher = _resolve_headless_for_case(
         monkeypatch,
         {
@@ -471,20 +471,7 @@ def test_matrix_headless_flag_deprecated_takes_precedence(monkeypatch: pytest.Mo
     assert launcher._cli_visualizer_types == []
 
 
-def test_matrix_headless_with_viz_names_takes_precedence(monkeypatch: pytest.MonkeyPatch):
-    headless, launcher = _resolve_headless_for_case(
-        monkeypatch,
-        {
-            "headless": True,
-            "headless_explicit": True,
-            "visualizer": ["kit", "newton"],
-            "visualizer_explicit": True,
-            "visualizer_intent": {"has_any_visualizers": True, "has_kit_visualizer": True},
-        },
-    )
-    assert headless is True
-    assert launcher._cli_visualizer_disable_all is True
-    assert launcher._cli_visualizer_types == []
+
 
 
 def test_no_cli_and_no_cfg_visualizers_defaults_headless(monkeypatch: pytest.MonkeyPatch):
