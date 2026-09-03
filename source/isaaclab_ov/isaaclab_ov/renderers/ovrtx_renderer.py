@@ -452,8 +452,9 @@ class OVRTXRenderer(BaseRenderer):
         USD prim is lost once that write lands. Capturing the composed scale here, while the full
         stage is still live, lets :meth:`_create_object_scale_array` fold it back in.
 
-        Only prims whose scale deviates from unit are stored, keeping the mapping small for scenes
-        with many environments.
+        Only paths whose scale deviates from unit are stored. Scales found under clone-plan source
+        paths are projected onto their active destinations because OVRTX creates those prims only
+        after the host stage is exported.
 
         Args:
             stage: The live USD stage, before per-environment trimming and export.
@@ -474,6 +475,26 @@ class OVRTXRenderer(BaseRenderer):
             scale = (float(scale[0]), float(scale[1]), float(scale[2]))
             if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
                 self._object_scales_by_path[str(prim.GetPath())] = scale
+
+        # OVRTX creates non-source rows after this stage is exported, so those destination prims
+        # cannot be traversed above. The clone plan is the authority for their path correspondence.
+        clone_plan = self._clone_plan
+        if clone_plan is None or clone_plan.env_ids is None:
+            return
+        captured_scales = tuple(self._object_scales_by_path.items())
+        env_ids = clone_plan.env_ids.detach().cpu()
+        clone_mask = clone_plan.clone_mask.detach().cpu()
+        for row, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
+            source_root = source.rstrip("/")
+            source_scales = [
+                (path, scale)
+                for path, scale in captured_scales
+                if path == source_root or path.startswith(f"{source_root}/")
+            ]
+            for env_id in env_ids[clone_mask[row]].tolist():
+                target_root = destination.format(int(env_id)).rstrip("/")
+                for path, scale in source_scales:
+                    self._object_scales_by_path[f"{target_root}{path.removeprefix(source_root)}"] = scale
 
     def _create_object_scale_array(self, object_paths: list[str]) -> wp.array:
         """Build the device scale array aligned with the Newton body binding order.
