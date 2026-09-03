@@ -200,13 +200,6 @@ class Camera(SensorBase):
             settings.set_bool("/isaaclab/render/rtx_sensors", True)
             if require_hdr_output:
                 settings.set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-        elif renderer_type == "ovrtx" and require_hdr_output:
-            from isaaclab.app.settings_manager import get_settings_manager
-
-            # OVRTX has no carb.settings to delegate to, so this is recorded in the settings manager
-            # and forwarded to the RTX runtime by the OVRTX renderer's constructor.
-            get_settings_manager().set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = list()
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.

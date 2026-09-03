@@ -168,24 +168,6 @@ class SettingsManager:
         """
         self.set(path, value)
 
-    def get_with_prefix(self, prefix: str) -> dict[str, Any]:
-        """Get every standalone-mode setting whose path starts with ``prefix``.
-
-        Backends that own a settings system Isaac Lab cannot write to directly (for example the
-        kit-less OVRTX renderer, which brings up its own Carbonite instance) use this to forward the
-        settings recorded here into that system when they initialize.
-
-        Args:
-            prefix: Path prefix to match, e.g. ``"/rtx/"``.
-
-        Returns:
-            The matching ``path -> value`` pairs. Always empty in Omniverse mode, where
-            ``carb.settings`` is authoritative and has already applied the values.
-        """
-        if self._use_carb:
-            return {}
-        return {path: value for path, value in self._standalone_settings.items() if path.startswith(prefix)}
-
     @property
     def is_omniverse_mode(self) -> bool:
         """Check if the settings manager is using carb.settings (Omniverse mode).

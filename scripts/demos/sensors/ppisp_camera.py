@@ -43,10 +43,12 @@ The renderer is selected with ``--renderer``:
 
 import argparse
 import contextlib
+import ctypes
 import json
+import logging
 import os
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import Any
 
 from isaaclab.app import AppLauncher
@@ -326,6 +328,11 @@ The Kit timeline stays stopped at time 0 for the whole demo, so every renderer c
 scene -- including any animated ancestors of the camera -- at this time code.
 """
 
+logger = logging.getLogger(__name__)
+
+_OVRTX_APPLY_SETTINGS_EXTENSION = b"ovrtx.settings.apply_settings"
+_OVRTX_API_SUCCESS = 0
+
 
 @configclass
 class PpispCameraSceneCfg(InteractiveSceneCfg):
@@ -491,6 +498,69 @@ def apply_rtx_settings() -> None:
 
     if applied:
         print("[INFO] Applied RTX/Gaussian settings: " + ", ".join(applied), flush=True)
+
+
+def _format_ovrtx_setting_value(value: Any) -> str:
+    """Format a setting value as a Kit command-line token value."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _query_ovrtx_apply_settings_fn() -> Callable[[str], None] | None:
+    """Look up OVRTX's internal function for queuing Kit-style settings."""
+    from ovrtx._src import bindings as ovrtx_bindings
+
+    class _ApplySettingsVTable(ctypes.Structure):
+        _fields_ = [
+            ("apply_settings", ctypes.CFUNCTYPE(ovrtx_bindings.ovrtx_result_t, ovrtx_bindings.ovx_string_t))
+        ]
+
+    lib = ovrtx_bindings._ovrtx_loader._load_library()
+    lib.ovrtx_query_extension.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_void_p)]
+    lib.ovrtx_query_extension.restype = ovrtx_bindings.ovrtx_result_t
+    lib.ovrtx_get_last_error.argtypes = []
+    lib.ovrtx_get_last_error.restype = ovrtx_bindings.ovx_string_t
+
+    vtable_ptr = ctypes.c_void_p()
+    result = lib.ovrtx_query_extension(_OVRTX_APPLY_SETTINGS_EXTENSION, ctypes.byref(vtable_ptr))
+    if result.status.value != _OVRTX_API_SUCCESS or not vtable_ptr.value:
+        return None
+    apply_settings_fn = ctypes.cast(vtable_ptr, ctypes.POINTER(_ApplySettingsVTable)).contents.apply_settings
+
+    def queue_settings(tokens: str) -> None:
+        apply_result = apply_settings_fn(ovrtx_bindings.ovx_string_t(tokens))
+        if apply_result.status.value != _OVRTX_API_SUCCESS:
+            error = lib.ovrtx_get_last_error()
+            detail = ctypes.string_at(error.ptr, error.length).decode("utf-8", errors="replace") if error.ptr else ""
+            raise RuntimeError(f"ovrtx rejected the settings (status {apply_result.status.value}): {detail}")
+
+    return queue_settings
+
+
+def apply_ovrtx_settings() -> None:
+    """Queue the PPISP HDR setting before the first OVRTX renderer is constructed.
+
+    OVRTX runs without Kit and latches Carbonite settings during renderer creation. This bridge is
+    intentionally local to the demo because this setting is required by this PPISP workflow, not by
+    Isaac Lab's generic settings manager or OVRTX renderer API.
+    """
+    if args_cli.renderer != "ovrtx":
+        return
+
+    settings = {"/rtx/rtpt/gaussian/skipTonemapping/enabled": False}
+    tokens = " ".join(f"--{path}={_format_ovrtx_setting_value(value)}" for path, value in settings.items())
+    try:
+        apply_settings = _query_ovrtx_apply_settings_fn()
+        if apply_settings is None:
+            logger.warning(
+                "This ovrtx build does not expose %s; PPISP HDR Gaussian tonemapping was not disabled.",
+                _OVRTX_APPLY_SETTINGS_EXTENSION.decode(),
+            )
+            return
+        apply_settings(tokens)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Could not apply the PPISP RTX setting '%s' to ovrtx: %s", tokens, exc)
 
 
 def find_ppisp_camera_bindings(source_stage: Usd.Stage) -> list[tuple[str, Usd.Prim | None, Usd.Prim]]:
@@ -1284,6 +1354,7 @@ def main() -> None:
     sim_utils.create_new_stage()
     sim_cfg = make_sim_cfg()
     apply_rtx_settings()
+    apply_ovrtx_settings()
     sim = sim_utils.SimulationContext(sim_cfg)
     sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
 
