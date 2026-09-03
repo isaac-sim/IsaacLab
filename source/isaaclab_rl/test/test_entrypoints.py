@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 import runpy
+import subprocess
 import sys
 import types
 from types import SimpleNamespace
@@ -21,6 +22,45 @@ import torch
 from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch
 from isaaclab_rl.entrypoints import simple_agents as _simple_agents
 from isaaclab_rl.entrypoints.simple_agents import _create_zero_action_policy
+
+
+@pytest.mark.parametrize(
+    ("statement", "unexpected_modules"),
+    [
+        ("import isaaclab_rl", ["isaaclab_rl.entrypoints", "torch"]),
+        ("import isaaclab_rl.entrypoints", ["isaaclab_rl.entrypoints.multigpu", "torch"]),
+        ("import isaaclab_rl.entrypoints.backends", ["torch"]),
+        ("import isaaclab_rl.rl_games", ["isaaclab_rl.rl_games.rl_games", "rl_games", "torch"]),
+        ("import isaaclab_rl.rl_games.pbt", ["isaaclab_rl.rl_games.pbt.pbt", "rl_games", "torch"]),
+        ("import isaaclab_rl.rsl_rl", ["isaaclab_rl.rsl_rl.vecenv_wrapper", "rsl_rl", "torch"]),
+        ("import isaaclab_rl.utils", ["torch"]),
+        (
+            "from isaaclab_rl import run_play_cli",
+            ["isaaclab_rl.entrypoints.multigpu", "torch"],
+        ),
+        (
+            "from isaaclab_rl.entrypoints import run_play_cli",
+            ["isaaclab_rl.entrypoints.multigpu", "torch"],
+        ),
+    ],
+)
+def test_public_namespaces_do_not_import_unrelated_frameworks(statement: str, unexpected_modules: list[str]) -> None:
+    """Importing public namespaces must not eagerly load unrelated RL frameworks."""
+    unexpected_modules_literal = repr(unexpected_modules)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            f"{statement}; import sys; "
+            f"unexpected = [name for name in {unexpected_modules_literal} if name in sys.modules]; "
+            "assert not unexpected, f'Unexpected eager imports: {unexpected}'",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_zero_agent_infers_finite_manager_actions() -> None:
