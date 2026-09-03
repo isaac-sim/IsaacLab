@@ -1,0 +1,2 @@
+Only merged the two PPISP camera demo scripts into one and updated the standalone script smoke-test
+matrix to cover the OVRTX renderer through it; no user-facing change to the library.

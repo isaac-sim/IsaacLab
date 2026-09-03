@@ -69,6 +69,67 @@ class SyntheticGaussian:
 
 
 @dataclass
+class SyntheticGaussianAnimation:
+    """Time-sampled gaussian animation authored alongside the static grid.
+
+    Mirrors how NuRec-exported reconstructions author motion: each animated
+    *track* is an ``Xform`` with a single ``ParticleField3DGaussianSplat``
+    child, where
+
+    * **rigid** tracks time-sample the track ``Xform``'s ``xformOp:transform``
+      and keep their per-particle arrays static, and
+    * **deformable** tracks time-sample the per-particle ``positionsh`` and
+      ``orientationsh`` arrays and keep their track ``Xform`` static.
+
+    The two mechanisms are kept on separate tracks (rather than combined on one,
+    as the reference captures do) so a renderer that implements only one of them
+    is unambiguous to diagnose visually.
+
+    Time-sampling the per-particle arrays is also what makes USD population
+    classify the prim as time varying, which is the precondition for the RTX
+    backends to update animated gaussians in place instead of destroying and
+    rebuilding the geometry every frame.
+    """
+
+    num_frames: int = 24
+    """Number of authored time samples per animated attribute, starting at time code 0."""
+
+    time_codes_per_second: float = 24.0
+    """Stage time codes per second [1/s]. Also the intended playback frame rate."""
+
+    track_height: float = 0.9
+    """Height of both animated tracks above the static grid plane [m]."""
+
+    rigid_track_center: tuple[float, float] = (-0.45, 0.0)
+    """Center of the rigid track's circular orbit in the X-Y plane [m]."""
+
+    rigid_orbit_radius: float = 0.3
+    """Radius of the rigid track's orbit [m]."""
+
+    deformable_track_center: tuple[float, float] = (0.45, 0.0)
+    """Center of the deformable track in the X-Y plane [m]."""
+
+    ring_radius: float = 0.22
+    """Rest radius of each track's particle ring [m]."""
+
+    deformable_pulse: float = 0.5
+    """Peak radial pulse of the deformable ring, as a fraction of its rest radius."""
+
+    num_particles_per_track: int = 6
+    """Number of gaussians in each animated track."""
+
+    particle_scale: tuple[float, float, float] = (0.24, 0.06, 0.06)
+    """Anisotropic scale of every animated gaussian [m]. Deliberately elongated so
+    the time-sampled ``orientationsh`` produces visible rotation."""
+
+    rigid_color: tuple[float, float, float] = (0.9, 0.9, 0.1)
+    """Linear color of the rigid track's gaussians in [0, 1]."""
+
+    deformable_color: tuple[float, float, float] = (0.1, 0.9, 0.9)
+    """Linear color of the deformable track's gaussians in [0, 1]."""
+
+
+@dataclass
 class SyntheticGaussianScene:
     """Scene description consumed by :func:`make_synthetic_gaussian_usd`.
 
@@ -96,6 +157,21 @@ class SyntheticGaussianScene:
     horizontal_aperture: float = 20.955
     """Camera horizontal aperture in mm."""
 
+    animation: SyntheticGaussianAnimation | None = None
+    """When set, two extra animated gaussian tracks are authored next to the static grid.
+    See :class:`SyntheticGaussianAnimation`."""
+
+
+def make_offscreen_gaussian_scene() -> SyntheticGaussianScene:
+    """Return a control scene whose only gaussian sits far outside every camera frustum.
+
+    The asset still carries a populated gaussian field — so the renderer follows the same
+    ingest path — but contributes nothing to the image. Rendering it with otherwise
+    identical settings yields the gaussian-free baseline that
+    :func:`assert_gaussian_contribution` compares against.
+    """
+    return SyntheticGaussianScene(gaussians=[SyntheticGaussian(position=(5000.0, 5000.0, 0.0), color=(0.9, 0.1, 0.1))])
+
 
 def make_synthetic_gaussian_usd(path: str, scene: SyntheticGaussianScene | None = None) -> str:
     """Author a tiny gaussian-splat USD at ``path`` and return that path.
@@ -104,6 +180,10 @@ def make_synthetic_gaussian_usd(path: str, scene: SyntheticGaussianScene | None 
     and ``apply_srgb_linear=0`` so the wrapper PPISP is the sole ISP authority.
     The default prim is ``World``; cameras live at ``/World/Cameras/test_cam``
     and the gaussians at ``/World/Scene/gaussians/Gaussians/gaussians``.
+
+    When :attr:`SyntheticGaussianScene.animation` is set, two animated tracks are
+    additionally authored at :data:`SYNTHETIC_GAUSSIAN_RIGID_TRACK_PATH` and
+    :data:`SYNTHETIC_GAUSSIAN_DEFORMABLE_TRACK_PATH`.
     """
     if scene is None:
         scene = SyntheticGaussianScene()
@@ -173,23 +253,16 @@ def make_synthetic_gaussian_usd(path: str, scene: SyntheticGaussianScene | None 
         "radiance:sphericalHarmonicsDegree", Sdf.ValueTypeNames.Int, custom=False
     )
     sh_degree_attr.Set(0)
+    _author_particle_field_hints(gauss_prim)
 
     # Conservative extent — bounding box of all gaussian centers expanded by
     # their largest scale.
     if scene.gaussians:
-        max_scale = max(g.scale for g in scene.gaussians)
-        positions = [g.position for g in scene.gaussians]
-        lo = (
-            min(p[0] for p in positions) - max_scale,
-            min(p[1] for p in positions) - max_scale,
-            min(p[2] for p in positions) - max_scale,
+        _author_extent(
+            gauss_prim,
+            [g.position for g in scene.gaussians],
+            padding=max(g.scale for g in scene.gaussians),
         )
-        hi = (
-            max(p[0] for p in positions) + max_scale,
-            max(p[1] for p in positions) + max_scale,
-            max(p[2] for p in positions) + max_scale,
-        )
-        gauss_prim.CreateAttribute("extent", Sdf.ValueTypeNames.Float3Array).Set([Gf.Vec3f(*lo), Gf.Vec3f(*hi)])
 
     # Material binding: ``ParticleFieldEmissive.mdl`` with the two boolean
     # ``apply_*`` inputs set to false so the wrapper PPISP is the sole ISP
@@ -210,8 +283,232 @@ def make_synthetic_gaussian_usd(path: str, scene: SyntheticGaussianScene | None 
         )
     gauss_prim.CreateRelationship("material:binding").SetTargets([material.GetPath()])
 
+    if scene.animation is not None:
+        _author_animated_tracks(stage, scene.animation, material_path=material.GetPath())
+
     stage.GetRootLayer().Save()
     return path
+
+
+# Animated gaussian authoring ------------------------------------------------
+
+SYNTHETIC_GAUSSIAN_RIGID_TRACK_PATH = "/World/Scene/gaussians/NuRec/track_rigid"
+"""Path of the rigid animated track ``Xform`` inside the synthesised asset.
+
+Its time-sampled ``xformOp:transform`` drives the whole splat; its single
+``ParticleField3DGaussianSplat`` child is named ``track_rigid_gaussians``.
+"""
+
+SYNTHETIC_GAUSSIAN_DEFORMABLE_TRACK_PATH = "/World/Scene/gaussians/NuRec/track_deformable"
+"""Path of the deformable animated track ``Xform`` inside the synthesised asset.
+
+Its ``Xform`` is static; its ``track_deformable_gaussians`` child time-samples the
+per-particle ``positionsh`` and ``orientationsh`` arrays.
+"""
+
+
+_PARTICLE_FIELD_HINTS = {
+    "colorSpace:name": "lin_rec709_scene",
+    "projectionModeHint": "perspective",
+    "sortingModeHint": "zDepth",
+}
+"""Render hints NuRec exports author on the gaussian prim, with their exported values.
+
+Copied from the reference capture used by the PPISP demos
+(``Samples/Scene_ParticleField/valiant_auto.usdz``) so the synthesised asset exercises the
+same attribute set real captures deliver. ``sortingModeHint`` selects the depth metric the
+renderer sorts splats by; ``zDepth`` is both what NuRec exports and the renderer's default
+when the token is absent, so authoring it changes no rendering behaviour on its own.
+"""
+
+
+def _author_particle_field_hints(prim: Usd.Prim) -> None:
+    """Author the color space, projection and sorting hint tokens onto a gaussian prim.
+
+    Args:
+        prim: The ``ParticleField3DGaussianSplat`` prim to author the hints on.
+    """
+    for name, value in _PARTICLE_FIELD_HINTS.items():
+        prim.CreateAttribute(name, Sdf.ValueTypeNames.Token).Set(value)
+
+
+def _author_extent(prim: Usd.Prim, positions: list[tuple[float, float, float]], *, padding: float) -> None:
+    """Author a conservative ``extent`` covering ``positions`` expanded by ``padding`` [m].
+
+    Args:
+        prim: The ``ParticleField3DGaussianSplat`` prim to author ``extent`` on.
+        positions: Particle centers [m] the extent must cover. For an animated prim
+            this must be the union over every authored time sample, since ``extent``
+            itself is static.
+        padding: Isotropic padding [m] added on every side.
+    """
+    lo = tuple(min(p[axis] for p in positions) - padding for axis in range(3))
+    hi = tuple(max(p[axis] for p in positions) + padding for axis in range(3))
+    prim.CreateAttribute("extent", Sdf.ValueTypeNames.Float3Array).Set([Gf.Vec3f(*lo), Gf.Vec3f(*hi)])
+
+
+def _sh_dc_from_color(color: tuple[float, float, float]) -> Gf.Vec3h:
+    """Return the half-precision SH degree-0 DC coefficient encoding ``color``.
+
+    Inverse of the 3DGS convention ``color = 0.5 + Y_0 * dc`` also used for the
+    static grid's full-float coefficients.
+    """
+    return Gf.Vec3h(*((channel - 0.5) / _SH_Y0 for channel in color))
+
+
+def _spin_quath(angle: float) -> Gf.Quath:
+    """Return a half-precision quaternion rotating ``angle`` [rad] about +Z."""
+    return Gf.Quath(math.cos(0.5 * angle), 0.0, 0.0, math.sin(0.5 * angle))
+
+
+def _author_animated_tracks(
+    stage: Usd.Stage, animation: SyntheticGaussianAnimation, *, material_path: Sdf.Path
+) -> None:
+    """Author the rigid and deformable animated gaussian tracks onto ``stage``.
+
+    See :class:`SyntheticGaussianAnimation` for the authoring convention and the
+    division of labour between the two tracks.
+
+    Args:
+        stage: Stage being authored. Its time-code range is set from ``animation``.
+        animation: Animation description.
+        material_path: ``ParticleFieldEmissive`` material bound to both tracks.
+    """
+    stage.SetTimeCodesPerSecond(animation.time_codes_per_second)
+    stage.SetStartTimeCode(0.0)
+    stage.SetEndTimeCode(float(animation.num_frames - 1))
+
+    UsdGeom.Xform.Define(stage, "/World/Scene/gaussians/NuRec")
+
+    # Both tracks share the same local ring layout; only what is time-sampled differs.
+    num_particles = animation.num_particles_per_track
+    ring = [2.0 * math.pi * index / num_particles for index in range(num_particles)]
+    frames = [(frame, 2.0 * math.pi * frame / animation.num_frames) for frame in range(animation.num_frames)]
+
+    # Rigid track: static local particles, time-sampled track transform.
+    rigid_positions = [
+        (
+            animation.ring_radius * math.cos(theta),
+            animation.ring_radius * math.sin(theta),
+            0.0,
+        )
+        for theta in ring
+    ]
+    rigid_prim = _author_half_gaussian_prim(
+        stage,
+        f"{SYNTHETIC_GAUSSIAN_RIGID_TRACK_PATH}/track_rigid_gaussians",
+        positions=rigid_positions,
+        orientations=[_spin_quath(theta) for theta in ring],
+        animation=animation,
+        color=animation.rigid_color,
+        material_path=material_path,
+    )
+    # The track orbits, so the *local* extent only needs to cover the local particles.
+    _author_extent(rigid_prim, rigid_positions, padding=max(animation.particle_scale))
+
+    center_x, center_y = animation.rigid_track_center
+    transform_op = UsdGeom.Xform(stage.GetPrimAtPath(SYNTHETIC_GAUSSIAN_RIGID_TRACK_PATH)).AddTransformOp()
+    for frame, phase in frames:
+        transform = Gf.Matrix4d().SetRotate(Gf.Rotation(Gf.Vec3d(0.0, 0.0, 1.0), math.degrees(phase)))
+        transform.SetTranslateOnly(
+            Gf.Vec3d(
+                center_x + animation.rigid_orbit_radius * math.cos(phase),
+                center_y + animation.rigid_orbit_radius * math.sin(phase),
+                animation.track_height,
+            )
+        )
+        transform_op.Set(transform, Usd.TimeCode(frame))
+
+    # Deformable track: static track transform, time-sampled per-particle arrays.
+    # The ring pulses radially and every particle spins about +Z.
+    deformable_positions_by_frame = [
+        [
+            (
+                animation.ring_radius * (1.0 + animation.deformable_pulse * math.sin(phase)) * math.cos(theta),
+                animation.ring_radius * (1.0 + animation.deformable_pulse * math.sin(phase)) * math.sin(theta),
+                0.0,
+            )
+            for theta in ring
+        ]
+        for _, phase in frames
+    ]
+    deformable_prim = _author_half_gaussian_prim(
+        stage,
+        f"{SYNTHETIC_GAUSSIAN_DEFORMABLE_TRACK_PATH}/track_deformable_gaussians",
+        positions=deformable_positions_by_frame[0],
+        orientations=[_spin_quath(theta) for theta in ring],
+        animation=animation,
+        color=animation.deformable_color,
+        material_path=material_path,
+    )
+    positions_attr = deformable_prim.GetAttribute("positionsh")
+    orientations_attr = deformable_prim.GetAttribute("orientationsh")
+    for (frame, phase), positions in zip(frames, deformable_positions_by_frame, strict=True):
+        positions_attr.Set(Vt.Vec3hArray([Gf.Vec3h(*position) for position in positions]), Usd.TimeCode(frame))
+        orientations_attr.Set(
+            Vt.QuathArray([_spin_quath(theta + phase) for theta in ring]),
+            Usd.TimeCode(frame),
+        )
+
+    # ``extent`` is static, so it must cover the union of every authored frame.
+    _author_extent(
+        deformable_prim,
+        [position for positions in deformable_positions_by_frame for position in positions],
+        padding=max(animation.particle_scale),
+    )
+
+    center_x, center_y = animation.deformable_track_center
+    UsdGeom.Xform(stage.GetPrimAtPath(SYNTHETIC_GAUSSIAN_DEFORMABLE_TRACK_PATH)).AddTranslateOp().Set(
+        Gf.Vec3d(center_x, center_y, animation.track_height)
+    )
+
+
+def _author_half_gaussian_prim(
+    stage: Usd.Stage,
+    prim_path: str,
+    *,
+    positions: list[tuple[float, float, float]],
+    orientations: list[Gf.Quath],
+    animation: SyntheticGaussianAnimation,
+    color: tuple[float, float, float],
+    material_path: Sdf.Path,
+) -> Usd.Prim:
+    """Author a half-precision gaussian prim under an ``Xform`` track parent.
+
+    Uses the ``positionsh``/``orientationsh``/``scalesh``/``opacitiesh`` half-precision
+    attribute set that NuRec exports, rather than the static grid's full-float set, so
+    both spellings are exercised. Callers author ``extent`` and any time samples.
+
+    Args:
+        stage: Stage being authored.
+        prim_path: Path of the gaussian prim. Its parent is defined as an ``Xform`` track.
+        positions: Particle centers [m] in the track's local frame, at the default time.
+        orientations: Per-particle orientations at the default time.
+        animation: Animation description supplying scale and particle count.
+        color: Linear color in [0, 1] shared by every particle of this track.
+        material_path: ``ParticleFieldEmissive`` material to bind.
+
+    Returns:
+        The authored ``ParticleField3DGaussianSplat`` prim.
+    """
+    UsdGeom.Xform.Define(stage, Sdf.Path(prim_path).GetParentPath().pathString)
+    prim = stage.DefinePrim(prim_path, "ParticleField3DGaussianSplat")
+
+    prim.CreateAttribute("positionsh", Sdf.ValueTypeNames.Point3hArray).Set(
+        Vt.Vec3hArray([Gf.Vec3h(*position) for position in positions])
+    )
+    prim.CreateAttribute("orientationsh", Sdf.ValueTypeNames.QuathArray).Set(Vt.QuathArray(list(orientations)))
+    prim.CreateAttribute("scalesh", Sdf.ValueTypeNames.Half3Array).Set(
+        Vt.Vec3hArray([Gf.Vec3h(*animation.particle_scale)] * len(positions))
+    )
+    prim.CreateAttribute("opacitiesh", Sdf.ValueTypeNames.HalfArray).Set(Vt.HalfArray([1.0] * len(positions)))
+    prim.CreateAttribute("radiance:sphericalHarmonicsCoefficientsh", Sdf.ValueTypeNames.Half3Array).Set(
+        Vt.Vec3hArray([_sh_dc_from_color(color)] * len(positions))
+    )
+    prim.CreateAttribute("radiance:sphericalHarmonicsDegree", Sdf.ValueTypeNames.Int, custom=False).Set(0)
+    _author_particle_field_hints(prim)
+    prim.CreateRelationship("material:binding").SetTargets([material_path])
+    return prim
 
 
 # PPISP cfg helpers ----------------------------------------------------------
@@ -348,6 +645,36 @@ def assert_images_meaningfully_different(
     assert mean_abs_diff > min_mean_abs_diff, (
         f"{prefix}image difference too small: mean_abs_diff={mean_abs_diff:.3f}, "
         f"expected > {min_mean_abs_diff}. The authored PPISP camera attributes may not be applied."
+    )
+
+
+def assert_gaussian_contribution(
+    rgb_tile: torch.Tensor,
+    control_rgb_tile: torch.Tensor,
+    *,
+    min_mean_abs_diff: float = 5.0,
+    label: str = "",
+) -> None:
+    """Assert a rendered tile actually contains gaussian content.
+
+    The PPISP signature assertions hold equally well on a render whose gaussians are
+    entirely absent — the background alone satisfies them — so a renderer that silently
+    drops splats otherwise passes. Comparing against a control render of
+    :func:`make_offscreen_gaussian_scene` attributes any difference to the splats.
+
+    Args:
+        rgb_tile: Tile rendered from the default scene, shape ``[H, W, C>=3]``.
+        control_rgb_tile: Matching tile rendered from :func:`make_offscreen_gaussian_scene`.
+        min_mean_abs_diff: Minimum per-pixel mean absolute difference [LDR units].
+        label: Included in the assertion message to identify the renderer / tile.
+    """
+    prefix = f"[{label}] " if label else ""
+    mean_abs_diff = (rgb_tile[..., :3].float() - control_rgb_tile[..., :3].float()).abs().mean().item()
+    assert mean_abs_diff > min_mean_abs_diff, (
+        f"{prefix}tile is indistinguishable from a gaussian-free render: "
+        f"mean_abs_diff={mean_abs_diff:.3f}, expected > {min_mean_abs_diff}. The renderer produced no "
+        "gaussian contribution for this tile — check that the gaussian prim is ingested and rendered "
+        "for this env's camera."
     )
 
 
@@ -614,7 +941,10 @@ class SyntheticGaussianSceneCfg(InteractiveSceneCfg):
     :func:`fresh_synthetic_gaussian_interactive_scene`.
     """
 
-    env_spacing: float = 2.0
+    # Comfortably wider than the ~2.6 m the default camera frames at its 3 m standoff, so
+    # each env's camera sees only its own gaussians. At the scene's own ~1.8 m width the
+    # neighbouring copies fall inside the frame and tiles stop being comparable.
+    env_spacing: float = 10.0
 
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
@@ -746,7 +1076,9 @@ def render_synthetic_gaussian_scene(
         for _ in range(stabilisation_steps):
             sim.step()
         camera.update(sim_dt)
-        outputs = {name: tensor.clone().detach().cpu().to(torch.float32) for name, tensor in camera.data.output.items()}
+        outputs = {
+            name: tensor.torch.clone().detach().cpu().to(torch.float32) for name, tensor in camera.data.output.items()
+        }
         del camera
         return outputs
 
@@ -838,6 +1170,8 @@ def _render_synthetic_gaussian_camera(
     for _ in range(stabilisation_steps):
         sim.step()
     camera.update(sim_dt)
-    outputs = {name: tensor.clone().detach().cpu().to(torch.float32) for name, tensor in camera.data.output.items()}
+    outputs = {
+        name: tensor.torch.clone().detach().cpu().to(torch.float32) for name, tensor in camera.data.output.items()
+    }
     del camera
     return outputs

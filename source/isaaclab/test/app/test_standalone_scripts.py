@@ -177,10 +177,12 @@ def test_commands_respect_script_launcher_capabilities():
     assert camera_case.command()[-2:] == ["--visualizer", "none"]
     assert camera_case.spec.startup_timeout == 900.0
 
-    kitless_case = next(
-        case for case in build_cases(SPECS) if case.spec.relative_path == "scripts/demos/sensors/ppisp_camera_ovrtx.py"
+    kitless_renderer_case = next(
+        case
+        for case in build_cases(SPECS)
+        if case.spec.relative_path == "scripts/demos/sensors/ppisp_camera.py" and case.renderer_backend == "ovrtx"
     )
-    assert kitless_case.command()[-2:] == ["--viz", "none"]
+    assert kitless_renderer_case.command()[-4:] == ["--renderer", "ovrtx", "--visualizer", "none"]
 
     renderer_case = next(
         case

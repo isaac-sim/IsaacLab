@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any
 
 from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.string import string_to_callable
-from isaaclab.utils.version import has_kit
 
 from .clone_plan import make_clone_plan
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE
@@ -52,9 +51,10 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
     Physics contexts come from :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` when
     set, otherwise from the backend's ``PHYSICS_CONTEXT`` class.
     :class:`~isaaclab.cloner.UsdReplicateContext` is added automatically when the cfg has a
-    spawner and Kit is available. Explicit contexts are honored regardless of Kit availability.
+    spawner. It replicates through :class:`pxr.Sdf` alone, so it also applies to kit-less runs,
+    where a USD-reading renderer such as OVRTX would otherwise see only ``env_0``.
     With ``replicate_physics=False`` physics contexts are dropped; USD replication still fires
-    when the spawner+Kit condition is met or the cfg explicitly requests it.
+    when the cfg has a spawner or explicitly requests it.
 
     Cfgs absent from ``plan.cfg_rows`` are silently skipped. Backend contexts run in
     ascending ``replicate_priority`` order. The queue is cleared up front, so a backend
@@ -79,7 +79,6 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
     # In the homogeneous plan every cfg maps to row 0, so multiple queue_replication
     # calls (e.g. one per body type in RigidObjectCollection) all contribute {0} and the set
     # union keeps it as a single row — no redundant copy specs are authored.
-    kit_available = has_kit()
     backend_rows: dict[type, set[int]] = {}
     for cfg in queued:
         rows = plan.cfg_rows.get(id(cfg))
@@ -92,7 +91,7 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = Tr
         if not replicate_physics:
             contexts = [c for c in contexts if c is UsdReplicateContext]
         ctx_set = dict.fromkeys(contexts)
-        if cfg.spawn is not None and kit_available:
+        if getattr(cfg, "spawn", None) is not None:
             ctx_set.setdefault(UsdReplicateContext, None)
         for BackendCtxCls in ctx_set:
             backend_rows.setdefault(BackendCtxCls, set()).update(rows)

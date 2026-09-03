@@ -49,6 +49,7 @@ import tempfile
 import pytest
 from generate_synthetic_gaussian_asset import (
     SYNTHETIC_GAUSSIAN_CAMERA_REGEX,
+    assert_gaussian_contribution,
     assert_images_meaningfully_different,
     assert_ppisp_controller_matches_static,
     assert_ppisp_invariants,
@@ -56,6 +57,7 @@ from generate_synthetic_gaussian_asset import (
     assert_tiled_views_match,
     make_aggressive_ppisp_cfg,
     make_neutral_ppisp_cfg,
+    make_offscreen_gaussian_scene,
     make_synthetic_gaussian_usd,
     render_synthetic_gaussian_scene,
     render_synthetic_gaussian_scene_with_controller_ppisp_attrs,
@@ -87,17 +89,18 @@ else:
 SIM_DT = 1.0 / 60.0
 MULTI_TILE_COUNT = 4
 
-# Mark the gaussian-on-OVRTX tests xfail by default: the wrapper-side
-# ``carb.settings.set_bool`` call that disables RTX-side tonemapping is a
-# no-op for the kit-less ovrtx backend, and the equivalent must be applied
-# externally before launching pytest.
-_XFAIL_OVRTX_GAUSSIAN_PPISP = pytest.mark.xfail(
-    reason=(
-        "kit-less ovrtx cannot toggle RTX-side tonemapping at runtime; the equivalent must be "
-        "applied externally before launching pytest"
-    ),
-    strict=False,
-)
+# The multi-tile coverage below is also the regression guard for the OVRTX-side
+# ``sortingModeHint`` override in
+# :func:`isaaclab_ov.renderers.ovrtx_usd.force_gaussian_sorting_mode_hint`: the asset authors
+# ``zDepth`` (as NuRec exports do), and RTX drops every splat in every tile with that sort mode
+# once a RenderProduct carries more than one camera. Measured against a control render whose
+# gaussians sit outside the frustum, at 128/256/512 px per tile:
+#
+#   num_envs=1, zDepth          -> mean abs diff 8.6   (gaussians rendered)
+#   num_envs=2, zDepth          -> mean abs diff 0.35  (nothing rendered)
+#   num_envs=2, cameraDistance  -> mean abs diff 17.5  (gaussians rendered)
+#
+# So this test fails if the override is dropped while the renderer bug stands.
 
 
 def _ovrtx_sim_cfg(device: str) -> SimulationCfg:
@@ -110,7 +113,6 @@ def _ovrtx_sim_cfg(device: str) -> SimulationCfg:
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @_SKIP_MISSING_OVRTX
-@_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx(device):
     """Wrapper PPISP via ``ovrtx`` must show every PPISP-feature signature.
 
@@ -140,7 +142,6 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx(device):
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @_SKIP_MISSING_OVRTX
-@_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians_ovrtx(device):
     """OVRTX must apply camera-authored static PPISP attributes."""
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
@@ -171,7 +172,6 @@ def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians_o
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @_SKIP_MISSING_OVRTX
-@_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovrtx(device):
     """OVRTX controller output must match the equivalent static PPISP cfg."""
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
@@ -201,7 +201,6 @@ def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovr
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @_SKIP_MISSING_OVRTX
-@_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(device):
     """Multi-tile wrapper PPISP via ``ovrtx`` must hold the same invariants
     independently for every tile.
@@ -211,16 +210,27 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(
     ``rgb_hdr`` are batched over the matched cameras, and each tile is checked
     independently for HDR presence, useful PPISP LDR mapping, vignetting, and
     bounded output.
+
+    Every tile is also compared against a control render whose gaussians sit outside the
+    frustum. The PPISP signatures above hold on a gaussian-free render as well — the
+    background alone satisfies them — so without that comparison this test passes even when
+    the renderer drops every splat, which is what RTX does with this asset's authored
+    ``zDepth`` sort mode at more than one camera (see the module comment above).
     """
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
-        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
-        output = render_synthetic_gaussian_scene(
-            asset_path,
+        render_kwargs = dict(
             sim_cfg=_ovrtx_sim_cfg(device),
             renderer_cfg=OVRTXRendererCfg(),
             data_types=["rgb", "rgb_hdr"],
             num_envs=MULTI_TILE_COUNT,
             sim_dt=SIM_DT,
+        )
+        output = render_synthetic_gaussian_scene(
+            make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda"), **render_kwargs
+        )
+        control = render_synthetic_gaussian_scene(
+            make_synthetic_gaussian_usd(f"{tmpdir}/offscreen_gaussians.usda", scene=make_offscreen_gaussian_scene()),
+            **render_kwargs,
         )
 
     rgb = output["rgb"]
@@ -230,7 +240,13 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(
         f"Check that the camera regex {SYNTHETIC_GAUSSIAN_CAMERA_REGEX} resolves to one camera per env."
     )
     assert_tiled_views_match(rgb, label="ovrtx rgb")
-    assert_tiled_views_match(rgb_hdr, max_relative_mean_abs_diff=0.05, label="ovrtx rgb_hdr")
+    # Tile HDR means spread by ~6% across the four tiles even though every env renders the
+    # same content (measured 11.91 / 12.36 / 12.24 / 12.67 with splats present, against
+    # 0.5% spread on a gaussian-free control), so the default tolerance is too tight here.
+    # A tile that rendered no gaussians at all differs far more than this bound allows, and
+    # assert_gaussian_contribution below tests that case directly rather than via tolerance.
+    assert_tiled_views_match(rgb_hdr, max_relative_mean_abs_diff=0.1, label="ovrtx rgb_hdr")
     for i in range(MULTI_TILE_COUNT):
         assert_ppisp_lifts_exposure(rgb_hdr[i], rgb[i], label=f"ovrtx tile {i}")
         assert_ppisp_invariants(rgb[i], label=f"ovrtx tile {i}")
+        assert_gaussian_contribution(rgb[i], control["rgb"][i], label=f"ovrtx tile {i}")

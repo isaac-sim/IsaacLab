@@ -407,21 +407,101 @@ absolute-difference images.
       .. code-block:: bash
 
          uv run --extra isaacsim python scripts/demos/sensors/ppisp_camera.py \
-             --renderer newton_renderer --max_steps 60
+             --renderer newton_renderer
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
          ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
-             --renderer newton_renderer --max_steps 60
+             --renderer newton_renderer
 
-Use ``--renderer isaac_rtx`` to run the same workflow with Isaac RTX. Pass
-``--input_scene`` for a custom scene and ``--camera_prim_path`` if the stage
-contains multiple cameras with PPISP attributes. If a config or command selects
-a visualizer, force-disable all visualizers with ``--visualizer none`` or
-``--viz none``. Images are written to
-``scripts/demos/sensors/output/ppisp_camera`` unless ``--output_dir`` is set.
+Use ``--renderer isaac_rtx`` or ``--renderer ovrtx`` to run the same workflow on
+the other backends. Pass ``--input_scene`` for a custom scene and
+``--camera_prim_path`` if the stage contains multiple cameras with PPISP
+attributes. If a config or command selects a visualizer, force-disable all
+visualizers with ``--visualizer none`` or ``--viz none``.
+
+Because OVRTX runs kit-less, the demo does not launch the Kit app for
+``--renderer ovrtx``; run that combination with ``uv run python`` rather than
+``isaaclab.sh -p``.
+
+``--num_envs`` duplicates the input scene across a grid of envs and renders them
+as one tiled camera batch. A capture scene spans hundreds of meters, so
+``--env_spacing`` defaults to the measured horizontal extent of the input scene
+rather than a fixed value: a spacing smaller than the scene makes the copies
+interpenetrate, and each env then renders a neighbor's geometry in front of its
+camera. Pass ``--env_spacing`` to override the measured value. Gaussian splats
+are not ``UsdGeom.Boundable``, so the extent comes from the per-particle
+positions rather than a USD bounding box.
+
+The demo plays back the xform time samples authored on the selected camera or
+any of its ancestors, resampled to ``--fps`` and applied through
+:meth:`~sensors.Camera.set_world_poses` so every renderer observes the motion.
+Because a render path that re-evaluates animated USD xforms every frame would
+overwrite those pose writes, the demo first collapses the duplicated camera rig
+hierarchy to its static USD time 0 transform. It renders one frame
+per resampled trajectory sample and then exits, so a static camera produces a
+single frame. Timing and run length are controlled by:
+
+* ``--fps`` — rendered-frame rate used to resample the trajectory (default 30).
+* ``--physics_dt`` — physics step size (default 0.005). Physics steps are
+  batched per rendered frame through
+  :attr:`~sim.SimulationCfg.render_interval`, so ``--fps`` never changes the
+  physics rate.
+* ``--write_fps`` — image-writing rate, defaulting to ``--fps``. Frames are
+  written every ``round(fps / write_fps)`` frames, starting at the first frame.
+* ``--num_frames`` — render exactly this many frames instead of the trajectory
+  length, holding the final pose once the trajectory is exhausted.
+* ``--warmup_steps`` — steps rendered before the first write (32 for Isaac RTX
+  and OVRTX, 0 for Newton) so accumulating renderers converge.
+
+Images are written under ``scripts/demos/sensors/output/ppisp_camera`` unless
+``--output_dir`` is set, into ``ppisp/``, ``baseline/``, ``diff/``, and
+``comparison/`` subdirectories. Use ``--render_only`` to write just the PPISP
+output and skip the baseline camera, difference, and comparison grid. Add
+``--profile`` to print and save per-section timings to ``profile.json``.
+
+With ``--renderer isaac_rtx`` the demo disables the Kit NuRec compositing
+post-process chain (``/omni/rtx/nre/compositing/disableNuRecPostProcessings``
+and the ``registeredCompositing`` inversions) so PPISP is the only ISP applied
+to the Gaussian render; pass ``--isaacrtx_keep_compositing_defaults`` to keep
+the Kit defaults instead. The remaining ``--isaacrtx_*`` flags forward RTX and
+RTX Gaussian settings such as ``--isaacrtx_render_mode``,
+``--isaacrtx_gaussian_max_intersections``, and
+``--isaacrtx_enable_accumulation``; run the demo with ``--help`` for the full
+list.
+
+With ``--renderer ovrtx`` the ``--ovrtx_log_level`` and ``--ovrtx_log_file``
+flags configure the renderer's own logging.
+
+Animated Gaussian splats
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+The demo plays back animated ``ParticleField3DGaussianSplat`` tracks authored
+the way NuRec exports them, in either of two forms:
+
+* **rigid** — an ancestor ``Xform`` time-samples its transform, moving the whole
+  splat;
+* **deformable** — the Gaussian prim time-samples its per-particle
+  ``positions`` / ``orientations`` arrays (or their half-precision spellings).
+
+On Isaac RTX the sampled state is re-authored on the stage each frame. On OVRTX
+it is written through
+:meth:`~isaaclab_ov.renderers.OVRTXRenderer.update_gaussian_splat_transforms`
+and :meth:`~isaaclab_ov.renderers.OVRTXRenderer.update_gaussian_splat_particles`.
+
+Writing the per-particle arrays makes OVRTX stream the prim's geometry again, so
+the render product waits for ``AllLoadingFinished`` on every frame rather than
+only on the first one. Without that the splats are missing from every frame that
+renders while a load is in flight, which is most of them for a deformable track.
+The wait costs frame time only while geometry is actually streaming.
+
+The OVRTX hooks take Warp arrays and write them asynchronously, reading the
+caller's buffer in place instead of copying it. The demo therefore samples the
+whole animation once up front into pinned host memory and streams it through a
+small device ring buffer, so a playback frame costs one host-to-device copy of
+one frame and no USD or Python work. ``--gaussian_ring_slots`` sizes that ring.
 
 Known limitations
 ^^^^^^^^^^^^^^^^^
@@ -442,6 +522,9 @@ Known limitations
   color. Mixing this with RTX-side exposure authoring is not supported.
 * Auto-discovery resolves at camera construction; later authoring of
   ``ppisp:*`` camera attributes on the stage is not picked up.
+* Animated Gaussian splats are supported on the Isaac RTX and OVRTX backends
+  only. The Newton renderer has no Gaussian-splat path at all, so the demo
+  raises instead of silently rendering a static scene.
 
 Depth and Distances
 ~~~~~~~~~~~~~~~~~~~
