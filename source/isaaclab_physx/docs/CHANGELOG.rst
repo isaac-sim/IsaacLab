@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+5.3.1 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added translation of :attr:`~isaaclab.physics.PhysicsCfg.deterministic` in ``PhysxManager``, which
+  enables :attr:`~isaaclab_physx.physics.PhysxCfg.enable_enhanced_determinism`.
+
+
 5.3.0 (2026-08-30)
 ~~~~~~~~~~~~~~~~~~
 

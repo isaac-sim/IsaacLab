@@ -7,7 +7,7 @@ User: "Install Isaac Lab."
 Suggested agent response:
 
 1. Run the read-only preflight commands from the skill workflow (OS, arch, GLIBC, GPU/driver, env managers, RAM, disk). No blockers; facts point to the automatic uv route.
-2. Confirm the minimums against `docs/source/setup/installation/index.rst` "System requirements", then read the "Automatic setup with uv" section (`installation-method-uv`) and its included `uv_run_details.inc` steps verbatim.
+2. Confirm the minimums against `docs/source/setup/installation/index.rst` "System requirements", then read the "Automatic setup with uv" section (`installation-method-uv`) and use its steps verbatim.
 3. Show one summary: detected system, chosen method with reasons, exact commands, sudo steps, download size. Ask a single go/no-go.
 4. On yes, execute every step unattended, logging to `~/.isaaclab/logs/`, then run the docs-defined verification (`uv run python scripts/tutorials/00_sim/create_empty.py --viz kit`).
 5. Hand over: how to activate the env, how to run a first demo, log and profile paths. No other questions asked at any point.

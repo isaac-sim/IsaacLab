@@ -91,6 +91,7 @@ def test_build_isaacsim_links_incremental_build_without_packaging(tmp_path):
     run_command.assert_called_once_with([str(build_script)], cwd=isaacsim_root)
     repoint_prebundles.assert_called_once_with()
     assert (workspace / "_isaac_sim").resolve() == release_dir
+    assert (release_dir / ".isaaclab_source_build").is_file()
 
 
 @pytest.mark.parametrize(

@@ -1,19 +1,18 @@
-Exporting Direct Workflow Policies with LEAPP
-=============================================
+Export Direct-Workflow Policies with LEAPP
+==========================================
 
 .. currentmodule:: isaaclab
 
-This tutorial shows how to prepare a Direct workflow policy for export with
-LEAPP. If your policy is manager-based, use the
-:doc:`manager-based LEAPP export guide </source/policy_deployment/05_leapp/exporting_policies_with_leapp>`
-instead.
+This advanced tutorial shows how to prepare a Direct workflow policy for export
+with LEAPP. If your policy is manager-based, follow the
+:doc:`standard LEAPP deployment workflow <exporting_policies_with_leapp>` instead.
 
 For background on LEAPP concepts, supported node patterns, state feedback, and
 runtime validation, see the `LEAPP documentation <https://nvidia-isaac.github.io/leapp/>`__.
 
 
-Overview
-~~~~~~~~
+Quick Start
+~~~~~~~~~~~
 
 To export a Direct workflow policy with LEAPP, you add LEAPP annotations to the
 environment code. During export, LEAPP traces the annotated tensors and builds an
@@ -144,7 +143,7 @@ exported artifacts. If you omit it, the export is written next to the checkpoint
    ``scripts/reinforcement_learning/leapp/deploy.py``.
 
 For more information on the export arguments, see the
-:doc:`manager-based LEAPP export guide </source/policy_deployment/05_leapp/exporting_policies_with_leapp>`.
+:doc:`standard LEAPP deployment workflow <exporting_policies_with_leapp>`.
 
 
 .. dropdown:: Full example script
@@ -152,7 +151,7 @@ For more information on the export arguments, see the
 
    .. literalinclude:: ../../../../scripts/tutorials/06_deploy/anymal_c_env.py
       :language: python
-      :emphasize-lines: 20, 75-77, 92-107
+      :emphasize-lines: 21, 82-83, 98-113
       :linenos:
 
 
@@ -263,9 +262,10 @@ Semantic Annotations
 
 This example covers the minimum annotations needed to trace the pipeline. In
 more advanced export workflows, you may also want to attach semantic metadata
-so downstream runtimes know what each tensor represents.
+so downstream runtimes know what each tensor represents. Semantic Annotations
+is a prerequisite for being able to deploy to a downstream deployment library.
 
-For direct environments, semantic annotations are optional and should be
+For direct environments, semantic annotations are optional and need to be
 authored explicitly by the user. Unlike the manager-based export path, Isaac Lab
 does not infer tensor semantics automatically for direct environments, instead it
 is up to the user to provide this data. LEAPP provides this through

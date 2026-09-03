@@ -538,6 +538,7 @@ class OVRTXRenderer(BaseRenderer):
             camera_rel_path=self._camera_rel_path,
             background_color=getattr(spec.cfg, "background_color", None),
             device_id=self._warp_device.ordinal,
+            enable_shadows=self.cfg.enable_shadows,
         )
         self._render_product_paths.append(render_product_path)
 
@@ -1794,6 +1795,7 @@ class OVRTXRenderer(BaseRenderer):
             minimal_mode=_resolve_rtx_minimal_mode(data_types),
             camera_rel_path=self._camera_rel_path,
             device_id=self._warp_device.ordinal,
+            enable_shadows=self.cfg.enable_shadows,
         )
         self._render_product_paths.append(render_product_path)
 

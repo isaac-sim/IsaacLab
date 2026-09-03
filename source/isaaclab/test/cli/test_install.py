@@ -68,6 +68,7 @@ def test_run_python_command_uses_live_isaac_sim_with_active_python(tmp_path):
     local_sim.mkdir()
     python_launcher = local_sim / "python.sh"
     python_launcher.touch()
+    (local_sim / ".isaaclab_source_build").touch()
     active_python = str(tmp_path / ".venv" / "bin" / "python")
 
     with (
@@ -90,6 +91,7 @@ def test_run_python_command_does_not_wrap_an_active_isaac_sim_environment(tmp_pa
     local_sim = tmp_path / "_isaac_sim"
     local_sim.mkdir()
     (local_sim / "python.sh").touch()
+    (local_sim / ".isaaclab_source_build").touch()
     active_python = str(tmp_path / ".venv" / "bin" / "python")
 
     with (
@@ -101,6 +103,22 @@ def test_run_python_command_does_not_wrap_an_active_isaac_sim_environment(tmp_pa
         run_python_command("script.py", [])
 
     assert run.call_args.args[0] == [active_python, "script.py"]
+
+
+def test_run_python_command_rejects_downloaded_isaac_sim_with_virtual_environment(tmp_path):
+    """Downloaded Isaac Sim packages must not run through a virtual environment."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    active_python = str(tmp_path / ".venv" / "bin" / "python")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=active_python),
+        mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path / ".venv")}, clear=True),
+        pytest.raises(SystemExit, match="1"),
+    ):
+        run_python_command("train.py", ["--task", "Cartpole"])
 
 
 # ---------------------------------------------------------------------------

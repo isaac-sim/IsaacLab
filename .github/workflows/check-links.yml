@@ -97,6 +97,7 @@ jobs:
           --exclude 'graphics\.pixar\.com'
           --exclude 'openpbs\.org'
           --exclude 'docutils\.sourceforge\.io'
+          --exclude '^https://opensource\.org/'
           --exclude 'huggingface\.co/datasets/nvidia/PhysicalAI-Robotics-NuRec'
           --exclude 'huggingface\.co/nvidia/COMPASS'
           --exclude 'huggingface\.co/nvidia/X-Mobility'

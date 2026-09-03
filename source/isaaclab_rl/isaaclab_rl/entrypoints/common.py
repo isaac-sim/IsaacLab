@@ -490,6 +490,14 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any, *, apply_dev
         device = getattr(args_cli, "device", None)
         env_cfg.sim.device = device if device is not None else env_cfg.sim.device
 
+    # --deterministic is an AppLauncher flag, so it only reaches carb settings on its own.
+    # Record the request on the resolved physics config; each backend translates and validates
+    # it when the simulation starts.
+    if getattr(args_cli, "deterministic", False):
+        physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+        if physics_cfg is not None:
+            physics_cfg.deterministic = True
+
 
 def validate_distributed_device(args_cli: argparse.Namespace) -> None:
     """Reject unsupported CPU distributed training configuration.

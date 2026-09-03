@@ -758,6 +758,15 @@ the num of environments can be overwritten and decreased using ``--num_envs``:
 The FPS control in the Rerun visualizer UI may not affect the visualization frame rate in all configurations.
 
 
+**Rerun Visualizer Play/Pause Timeline Controls**
+
+The native Play/Pause timeline controls in the Rerun visualizer UI do not work while visualizing a live
+simulation or training run. They are hidden by default, but Rerun's dock panel UI can still be used to reveal
+them; when revealed, clicking them has no effect. Use Isaac Lab's own **Pause Rendering** / **Reset Episode**
+controls (ImGui sidebar, under **IsaacLab Controls**) to control the live view instead. The timeline controls
+are only meaningful when replaying a saved ``.rrd`` recording (see above).
+
+
 **Newton Contact Visualization**
 
 Newton's native ``Show Contacts`` view can show all contacts from the Newton physics contact buffer. When running

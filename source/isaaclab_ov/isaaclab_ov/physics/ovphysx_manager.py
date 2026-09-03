@@ -1120,8 +1120,10 @@ class OvPhysxManager(PhysicsManager):
         scene_prim.CreateAttribute("physxScene:enableSceneQuerySupport", Sdf.ValueTypeNames.Bool).Set(enable_sq)
 
         if cfg is not None:
+            # OvPhysX answers the backend-agnostic determinism request with enhanced determinism.
+            # This is best-effort: reproducibility is not verified end to end.
             scene_prim.CreateAttribute("physxScene:enableEnhancedDeterminism", Sdf.ValueTypeNames.Bool).Set(
-                cfg.enable_enhanced_determinism
+                cfg.enable_enhanced_determinism or cfg.deterministic
             )
             scene_prim.CreateAttribute("physxScene:enableExternalForcesEveryIteration", Sdf.ValueTypeNames.Bool).Set(
                 cfg.enable_external_forces_every_iteration

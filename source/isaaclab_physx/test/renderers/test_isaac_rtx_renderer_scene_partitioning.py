@@ -109,7 +109,7 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
 
     @configclass
     class _Scene(InteractiveSceneCfg):
-        ground = AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg())
+        ground = AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg(color=(0.0, 0.0, 0.0)))
         light = AssetBaseCfg(
             prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9))
         )

@@ -797,8 +797,15 @@ class PhysxManager(PhysicsManager):
         if bool(sim.get_setting("/isaaclab/has_gui")):
             cfg.enable_scene_query_support = True
 
+        # PhysX answers the backend-agnostic determinism request with enhanced determinism. An
+        # explicitly enabled flag stays enabled.
+        if cfg.deterministic:
+            cfg.enable_enhanced_determinism = True
+
         # apply remaining cfg attributes to scene (physxScene:*)
         skip = {
+            # generic request, translated above; PhysX has no physxScene:deterministic attribute
+            "deterministic",
             "solver_type",
             "enable_ccd",
             "solve_articulation_contact_last",

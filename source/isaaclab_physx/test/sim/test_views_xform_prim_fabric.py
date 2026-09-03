@@ -135,6 +135,36 @@ def view_factory(request):
 # ------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("device", test_devices())
+def test_float_scale_initializes_fabric(device):
+    """A legal float3 scale initializes Fabric without changing the FP32 view contract."""
+    _skip_if_unavailable(device)
+
+    stage = sim_utils.get_current_stage()
+    prim = stage.DefinePrim("/World/SiteGuide", "Sphere")
+    xformable = UsdGeom.Xformable(prim)
+    xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Vec3f(0.1, -0.2, 0.3))
+    xformable.AddOrientOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Quatf(1.0, Gf.Vec3f(0.0)))
+    xformable.AddScaleOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Vec3f(0.01, 0.02, 0.03))
+
+    sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
+    view = FrameView("/World/SiteGuide", device=device)
+    try:
+        assert isinstance(prim.GetAttribute("xformOp:scale").Get(), Gf.Vec3f)
+
+        world_positions, _ = view.get_world_poses()
+        expected_position = torch.tensor([[0.1, -0.2, 0.3]], dtype=torch.float32, device=device)
+        torch.testing.assert_close(world_positions.torch, expected_position, atol=1e-6, rtol=0)
+
+        expected_scale = torch.tensor([[0.01, 0.02, 0.03]], dtype=torch.float32, device=device)
+        scales = view.get_local_scales()
+        assert scales.warp.dtype == wp.float32
+        assert scales.torch.dtype == torch.float32
+        torch.testing.assert_close(scales.torch, expected_scale, atol=1e-6, rtol=0)
+    finally:
+        view.close()
+
+
 @wp.kernel
 def _fill_position(out: wp.array(dtype=wp.float32, ndim=2), x: float, y: float, z: float):
     i = wp.tid()

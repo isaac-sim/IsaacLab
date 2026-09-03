@@ -1211,26 +1211,8 @@ before using ``root_view`` in backend-portable code.
 
 .. rubric:: Deformable Object API Changes
 
-Isaac Lab 3.0 updates the deformable body API to align with the current Omni Physics 110.0
-release. The old soft body API has been deprecated and replaced by two distinct deformable
-types: **volume deformables** (3D FEM tetrahedral meshes) and **surface deformables** (2D
-triangle cloth meshes). The deformable type is determined by the physics material assigned:
-
-- :class:`~isaaclab_physx.sim.PhysxDeformableBodyMaterialCfg` for PhysX volume deformables.
-- :class:`~isaaclab_physx.sim.PhysxSurfaceDeformableBodyMaterialCfg` for PhysX surface deformables.
-- :class:`~isaaclab_newton.sim.spawners.materials.NewtonDeformableBodyMaterialCfg` for Newton volume deformables.
-- :class:`~isaaclab_newton.sim.spawners.materials.NewtonSurfaceDeformableBodyMaterialCfg` for Newton surface
-  deformables.
-
-Deformable property and material cfgs are backend-specific. Several properties on
-:class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg` have been removed or added to
-match the new Omni Physics schema. The common
-:class:`~isaaclab.sim.DeformableBodyPropertiesBaseCfg` is now empty; OmniPhysics
-deformable body fields are owned by :class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg`.
-
-For a comprehensive guide covering the full deformable API migration — including removed and
-added properties, material changes, code examples for both volume and surface deformables, and
-current limitations — see :ref:`migrating-deformables`.
+The deformable body API is split by backend and follows the new Omni Physics volume and surface
+deformable model. See :ref:`migrating-deformables`.
 
 
 .. _imu-to-pva-migration:

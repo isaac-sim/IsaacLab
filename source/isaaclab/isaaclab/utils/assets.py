@@ -52,7 +52,7 @@ _KIT_ASSET_ROOT_SETTINGS = ("default", "cloud")
 
 _STORAGE_PROFILE_ENV_VAR = "ISAACSIM_STORAGE_PROFILE"
 # Update this value when the China mirror moves to a new Isaac Sim asset release.
-_ISAAC_SIM_ASSET_RELEASE = "6.0"
+_ISAAC_SIM_ASSET_RELEASE = "6.1"
 _CHINA_STORAGE_ENDPOINT = "simready-cn.s3.oss-cn-shanghai.aliyuncs.com"
 
 
