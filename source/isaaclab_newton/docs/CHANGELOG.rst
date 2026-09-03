@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+5.5.1 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added translation of :attr:`~isaaclab.physics.PhysicsCfg.deterministic` in ``NewtonManager``.
+  The request selects ``deterministic_mode="run_to_run"`` and sets ``MJWarpSolverCfg.disable_sensors``
+  on the MJWarp GPU path. An explicitly set ``deterministic_mode`` takes precedence. MuJoCo on the
+  CPU is left unchanged: Warp's deterministic mode does not reach that path, and the request is
+  logged instead of applied.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` rejecting
+  non-colliding Newton shape records, including MJCF sites and visual-only
+  shapes, after model finalization while keeping collision shape expressions
+  rejected before and after finalization.
+* Fixed Newton body pose synchronization dropping authored USD scale from Kit viewport and Isaac RTX
+  rendering, which caused scaled rigid assets to render at unit scale.
+* Fixed a determinism request silently starving the IMU, PVA, and joint-wrench sensors. Disabling
+  MuJoCo Warp's sensors also skips the ``rne_postconstraint`` stage that fills ``body_qdd`` and
+  ``body_parent_f``, so those sensors reported stale values. ``NewtonManager`` now raises at solver
+  initialization when a scene requests both.
+
+
 5.5.0 (2026-08-30)
 ~~~~~~~~~~~~~~~~~~
 
