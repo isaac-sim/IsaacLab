@@ -18,6 +18,7 @@ from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
+from isaaclab_tasks.core.lift.mdp.compliant_events import RandomizeFrictionKeepCompliant
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, VisualMaterialCfg
@@ -260,7 +261,7 @@ class EventCfg:
     )
 
     object_physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
+        func=RandomizeFrictionKeepCompliant,
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("object", body_names=".*"),
