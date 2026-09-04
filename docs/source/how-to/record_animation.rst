@@ -104,6 +104,9 @@ It’s not UI-controlled—the whole process is enabled through CLI flags and ru
    the active backend instead of recording. Select the PhysX backend by adding ``physics=isaacsim_physx`` to the
    command line, as shown below.
 
+   The PhysX backend requires Isaac Sim. If it isn't installed yet, add ``--extra isaacsim`` to the ``uv run``
+   command; see :ref:`installation-optional-extras` for details.
+
 
 Workflow Summary
 ~~~~~~~~~~~~~~~~
