@@ -568,6 +568,24 @@ To create a project built on Isaac Lab, see :ref:`template-generator`.
 
    Isaac Lab wheels are published for major releases, not every patch release.
 
+Installing an unreleased Git revision
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The aggregate package can also be built directly from an Isaac Lab Git revision. Point uv at the
+``tools/wheel_builder`` subdirectory so it uses the same dependency metadata and packaged runtime
+resources as a released wheel:
+
+.. code-block:: toml
+
+   [project]
+   dependencies = ["isaaclab"]
+
+   [tool.uv.sources]
+   isaaclab = { git = "https://github.com/isaac-sim/IsaacLab.git", rev = "<git-revision>", subdirectory = "tools/wheel_builder" }
+
+Use a commit hash or release tag for reproducible environments. A branch name is accepted, but
+updating the lockfile can then select a newer Isaac Lab revision and dependency set.
+
 Choose how you want uv to manage the dependency. Both workflows start with the base
 ``isaaclab`` package; add optional capabilities only when your project needs them.
 
@@ -661,6 +679,11 @@ have dedicated commands below.
 Use ``all`` for the curated list above. Isaac Sim, standalone importers, specialized extras
 (``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and the
 developer ``test`` tooling remain opt-in.
+
+.. note::
+
+   On Linux, the ``mimic`` extra may build its ``egl-probe`` dependency from source. Install
+   CMake and a C++ compiler first with ``sudo apt install cmake build-essential``.
 
 .. _installation-importers-extra:
 

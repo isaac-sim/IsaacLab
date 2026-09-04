@@ -94,16 +94,17 @@ def reset_contact_sensor_kernel(
     num_filter_objects: int,
     env_mask: wp.array(dtype=wp.bool),
     # in-out
-    net_forces_w: wp.array2d(dtype=wp.vec3f),
-    net_forces_w_history: wp.array3d(dtype=wp.vec3f),
-    force_matrix_w: wp.array3d(dtype=wp.vec3f),
-    force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+    net_normal_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_normal_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
     # outputs
     current_air_time: wp.array2d(dtype=wp.float32),
     last_air_time: wp.array2d(dtype=wp.float32),
     current_contact_time: wp.array2d(dtype=wp.float32),
     last_contact_time: wp.array2d(dtype=wp.float32),
-    friction_forces_w: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    friction_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
     contact_pos_w: wp.array3d(dtype=wp.vec3f),
 ):
     """Reset the contact sensor data for specified environments.
@@ -114,16 +115,18 @@ def reset_contact_sensor_kernel(
         history_length: Length of history.
         num_filter_objects: Number of filter objects.
         env_mask: Mask array. Shape is (num_envs,).
-        net_forces_w: Net forces array. Shape is (num_envs, num_sensors).
-        net_forces_w_history: Net forces history array. Shape is (num_envs, history_length, num_sensors).
-        force_matrix_w: Force matrix array. Shape is (num_envs, num_sensors, num_filter_objects).
-        force_matrix_w_history: Force matrix history array. Shape is
+        net_normal_forces_w: Net forces array. Shape is (num_envs, num_sensors).
+        net_normal_forces_w_history: Net forces history array. Shape is (num_envs, history_length, num_sensors).
+        normal_force_matrix_w: Force matrix array. Shape is (num_envs, num_sensors, num_filter_objects).
+        normal_force_matrix_w_history: Force matrix history array. Shape is
             (num_envs, history_length, num_sensors, num_filter_objects).
         current_air_time: Current air time array. Shape is (num_envs, num_sensors).
         last_air_time: Last air time array. Shape is (num_envs, num_sensors).
         current_contact_time: Current contact time array. Shape is (num_envs, num_sensors).
         last_contact_time: Last contact time array. Shape is (num_envs, num_sensors).
-        friction_forces_w: Friction forces array. Shape is (num_envs, num_sensors, num_filter_objects).
+        friction_force_matrix_w: Friction forces array. Shape is (num_envs, num_sensors, num_filter_objects).
+        friction_force_matrix_w_history: Friction force history. Shape is
+            (num_envs, history_length, num_sensors, num_filter_objects).
         contact_pos_w: Contact pos array. Shape is (num_envs, num_sensors, num_filter_objects).
     """
     env, sensor = wp.tid()
@@ -133,22 +136,22 @@ def reset_contact_sensor_kernel(
             return
 
     # Reset net forces
-    net_forces_w[env, sensor] = wp.vec3f(0.0)
+    net_normal_forces_w[env, sensor] = wp.vec3f(0.0)
 
     # Reset history
-    if net_forces_w_history:
+    if net_normal_forces_w_history:
         for i in range(history_length):
-            net_forces_w_history[env, i, sensor] = wp.vec3f(0.0)
+            net_normal_forces_w_history[env, i, sensor] = wp.vec3f(0.0)
 
     # Reset force matrix (guard for None case)
-    if force_matrix_w:
+    if normal_force_matrix_w:
         for f in range(num_filter_objects):
-            force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
+            normal_force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
 
-    if force_matrix_w_history:
+    if normal_force_matrix_w_history:
         for i in range(history_length):
             for f in range(num_filter_objects):
-                force_matrix_w_history[env, i, sensor, f] = wp.vec3f(0.0)
+                normal_force_matrix_w_history[env, i, sensor, f] = wp.vec3f(0.0)
 
     # Reset air/contact time tracking
     if current_air_time:
@@ -157,9 +160,12 @@ def reset_contact_sensor_kernel(
         current_contact_time[env, sensor] = 0.0
         last_contact_time[env, sensor] = 0.0
 
-    if friction_forces_w:
+    if friction_force_matrix_w:
         for f in range(num_filter_objects):
-            friction_forces_w[env, sensor, f] = wp.vec3f(0.0)
+            friction_force_matrix_w[env, sensor, f] = wp.vec3f(0.0)
+            if friction_force_matrix_w_history:
+                for i in range(history_length):
+                    friction_force_matrix_w_history[env, i, sensor, f] = wp.vec3f(0.0)
 
     if contact_pos_w:
         for f in range(num_filter_objects):
@@ -208,10 +214,10 @@ def update_net_forces_ovphysx_kernel(
     timestamp: wp.array(dtype=wp.float32),
     timestamp_last_update: wp.array(dtype=wp.float32),
     # out
-    net_forces_w: wp.array2d(dtype=wp.vec3f),
-    net_forces_w_history: wp.array3d(dtype=wp.vec3f),
-    force_matrix_w: wp.array3d(dtype=wp.vec3f),
-    force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
+    net_normal_forces_w: wp.array2d(dtype=wp.vec3f),
+    net_normal_forces_w_history: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_w: wp.array3d(dtype=wp.vec3f),
+    normal_force_matrix_w_history: wp.array4d(dtype=wp.vec3f),
     current_air_time: wp.array2d(dtype=wp.float32),
     current_contact_time: wp.array2d(dtype=wp.float32),
     last_air_time: wp.array2d(dtype=wp.float32),
@@ -238,10 +244,10 @@ def update_net_forces_ovphysx_kernel(
         contact_force_threshold: Threshold for the contact force.
         timestamp: Timestamp array. Shape is (num_envs,).
         timestamp_last_update: Timestamp last update array. Shape is (num_envs,).
-        net_forces_w: Net forces array. Shape is (num_envs, num_sensors).
-        net_forces_w_history: Net forces history array. Shape is (num_envs, history_length, num_sensors).
-        force_matrix_w: Force matrix array. Shape is (num_envs, num_sensors, num_filter_shapes).
-        force_matrix_w_history: Force matrix history array. Shape is
+        net_normal_forces_w: Net forces array. Shape is (num_envs, num_sensors).
+        net_normal_forces_w_history: Net forces history array. Shape is (num_envs, history_length, num_sensors).
+        normal_force_matrix_w: Force matrix array. Shape is (num_envs, num_sensors, num_filter_shapes).
+        normal_force_matrix_w_history: Force matrix history array. Shape is
             (num_envs, history_length, num_sensors, num_filter_shapes).
         current_air_time: Current air time array. Shape is (num_envs, num_sensors).
         current_contact_time: Current contact time array. Shape is (num_envs, num_sensors).
@@ -257,25 +263,25 @@ def update_net_forces_ovphysx_kernel(
     src_idx = sensor * num_envs + env
 
     # Update net forces
-    net_forces_w[env, sensor] = net_forces_flat[src_idx]
+    net_normal_forces_w[env, sensor] = net_forces_flat[src_idx]
     # Update history
-    if net_forces_w_history:
+    if net_normal_forces_w_history:
         for i in range(history_length - 1, 0, -1):
-            net_forces_w_history[env, i, sensor] = net_forces_w_history[env, i - 1, sensor]
-        net_forces_w_history[env, 0, sensor] = net_forces_w[env, sensor]
+            net_normal_forces_w_history[env, i, sensor] = net_normal_forces_w_history[env, i - 1, sensor]
+        net_normal_forces_w_history[env, 0, sensor] = net_normal_forces_w[env, sensor]
 
     # update force matrix
     if net_forces_matrix_flat:
         for f in range(num_filter_shapes):
-            force_matrix_w[env, sensor, f] = net_forces_matrix_flat[src_idx, f]
+            normal_force_matrix_w[env, sensor, f] = net_forces_matrix_flat[src_idx, f]
             for i in range(history_length - 1, 0, -1):
-                force_matrix_w_history[env, i, sensor, f] = force_matrix_w_history[env, i - 1, sensor, f]
-            force_matrix_w_history[env, 0, sensor, f] = force_matrix_w[env, sensor, f]
+                normal_force_matrix_w_history[env, i, sensor, f] = normal_force_matrix_w_history[env, i - 1, sensor, f]
+            normal_force_matrix_w_history[env, 0, sensor, f] = normal_force_matrix_w[env, sensor, f]
 
     # Update air/contact time tracking
     if current_air_time:
         elapsed_time = timestamp[env] - timestamp_last_update[env]
-        in_contact = wp.length_sq(net_forces_w[env, sensor]) > contact_force_threshold * contact_force_threshold
+        in_contact = wp.length_sq(net_normal_forces_w[env, sensor]) > contact_force_threshold * contact_force_threshold
 
         cat = current_air_time[env, sensor]
         cct = current_contact_time[env, sensor]
