@@ -230,15 +230,14 @@ class _AsyncRenderSlot:
 
     def wait_for_writes(self) -> None:
         """Wait until this slot's async writes are done, so its buffers are safe to reuse."""
-        if not self.write_ops:
-            return
-        try:
-            for op in self.write_ops:
-                op.wait()
-        except Exception as e:
-            raise RuntimeError("Failed to complete OVRTX async binding write before slot reuse") from e
-        finally:
-            self.write_ops = []
+        if self.write_ops:
+            try:
+                for op in self.write_ops:
+                    op.wait()
+            except Exception as e:
+                raise RuntimeError("Failed to complete OVRTX async binding write before slot reuse") from e
+            finally:
+                self.write_ops = []
 
 
 class _AsyncRenderStrategy(_RenderStrategy):
