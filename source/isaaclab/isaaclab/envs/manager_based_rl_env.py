@@ -270,10 +270,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
             self._reset_idx(reset_env_ids)
 
-            # update articulation kinematics before sensors and observations read the reset state
-            self.scene.write_data_to_sim()
-            self.sim.forward()
-
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
@@ -294,8 +290,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 # mirror the recorder lifecycle used for normal resets
                 self.recorder_manager.record_pre_reset(manual_reset_ids)
                 self._reset_idx(manual_reset_ids)
-                self.scene.write_data_to_sim()
-                self.sim.forward()
                 self.recorder_manager.record_post_reset(manual_reset_ids)
 
         # -- update command

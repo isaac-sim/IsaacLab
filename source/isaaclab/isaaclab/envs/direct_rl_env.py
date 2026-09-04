@@ -457,9 +457,6 @@ class DirectRLEnv(gym.Env):
                     "Mask-native reset overrides must return reset indices when RTX reset rerenders are enabled."
                 )
         elif len(reset_env_ids) > 0:
-            # update articulation kinematics before sensors and observations read the reset state
-            self.scene.write_data_to_sim()
-            self.sim.forward()
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
@@ -477,8 +474,6 @@ class DirectRLEnv(gym.Env):
             if len(manual_reset_ids) > 0:
                 self.reset_terminated[manual_reset_ids] = True
                 self._reset_idx(manual_reset_ids)
-                self.scene.write_data_to_sim()
-                self.sim.forward()
 
         # post-step: step interval event
         if self.cfg.events:
