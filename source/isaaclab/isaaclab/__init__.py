@@ -131,3 +131,25 @@ try:
     __version__ = importlib.metadata.version("isaaclab")
 except importlib.metadata.PackageNotFoundError:
     __version__ = "0.0.0"
+
+
+# TODO(myurasov-nv): bootstrap_kernel() is ported from the internal GitLab wheel builder
+# for backwards compatibility. It is not called currently, but may be needed if Isaac Sim
+# requires explicit kernel bootstrapping before use. Remove once confirmed unnecessary.
+def bootstrap_kernel():
+    """Import Isaac Sim so it can initialize its kernel when available."""
+    isaaclab_path = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
+    if importlib.util.find_spec("isaacsim") is not None:
+        import isaacsim  # noqa: F401
+
+        if importlib.util.find_spec("carb") is not None:
+            import carb
+
+            carb.log_info(f"Isaac Lab path: {isaaclab_path}")
+
+
+def main():
+    """Run the ``isaaclab`` command through its compatibility dispatcher."""
+    from isaaclab.__main__ import main as _main
+
+    sys.exit(_main())
