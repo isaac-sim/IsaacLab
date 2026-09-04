@@ -40,7 +40,7 @@ EXTRAS_REQUIRE = {
         "prettytable==3.3.0",
         "PyOpenGL-accelerate==3.1.10",
         "pyglet>=2.1.6,<3",
-        "newton[sim]==1.2.1",
+        "newton[sim]>=1.2.1,<2",
     ],
 }
 

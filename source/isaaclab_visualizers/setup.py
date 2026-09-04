@@ -18,13 +18,13 @@ INSTALL_REQUIRES = [
 # `newton @ git+...` while another declares `newton[sim] @ git+...`, the first
 # resolution wins and silently drops the `[sim]` extra. That breaks `isaaclab_newton`
 # at import time because `mujoco` / `mujoco-warp` go missing. So even the rerun/viser
-# extras — which don't use the MuJoCo solver directly — must pin `newton[sim]` to
-# stay consistent with `isaaclab_newton`.
+# extras — which don't use the MuJoCo solver directly — must use the same
+# `newton[sim]` range to stay consistent with `isaaclab_newton`.
 EXTRAS_REQUIRE = {
     "kit": [],
     "newton": [
         "warp-lang",
-        "newton[sim]==1.2.1",
+        "newton[sim]>=1.2.1,<2",
         "PyOpenGL-accelerate",
         "pyglet>=2.1.6,<3",
         "imgui-bundle>=1.92.601",
@@ -32,12 +32,12 @@ EXTRAS_REQUIRE = {
         "pydantic>=2.7,<2.12",
     ],
     "rerun": [
-        "newton[sim]==1.2.1",
+        "newton[sim]>=1.2.1,<2",
         "rerun-sdk>=0.29.0",
         "pyarrow==23.0.1",
     ],
     "viser": [
-        "newton[sim]==1.2.1",
+        "newton[sim]>=1.2.1,<2",
         "viser>=1.0.16",
     ],
 }
