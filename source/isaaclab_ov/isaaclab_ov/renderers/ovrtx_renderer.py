@@ -193,7 +193,7 @@ def _resolve_render_strategy(cfg: OVRTXRendererCfg, use_ovstage: bool = False) -
     if strategy is not None and use_ovstage:
         logger.warning(
             "Asynchronous rendering is not supported on the OVRTX ovstage path yet. Rendering"
-            " synchronously. Unset ISAAC_LAB_OVRTX_USE_OVSTAGE to pipeline renders."
+            " synchronously. Use the legacy stage path to pipeline renders."
         )
         return _SyncRenderStrategy()
     return strategy or _SyncRenderStrategy()
