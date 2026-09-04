@@ -38,6 +38,7 @@ from isaaclab_rl.entrypoints.common import (
     startup_screen,
 )
 from isaaclab_rl.utils.pretrained_checkpoint import (
+    WORKFLOWS,
     get_published_pretrained_checkpoint,
 )
 
@@ -189,13 +190,12 @@ def _main():
                     args_cli.checkpoint,
                     library="skrl",
                     task=train_task_name,
-                    checkpoint_pattern=r".*",
-                    other_dirs=["checkpoints"],
                     metadata={
                         "agent": agent_cfg_entry_point,
                         "algorithm": algorithm,
                         "ml_framework": args_cli.ml_framework,
                     },
+                    **WORKFLOWS["skrl"].selector_args(),
                 )
             elif args_cli.checkpoint:
                 resume_path = os.path.abspath(args_cli.checkpoint)

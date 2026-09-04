@@ -22,6 +22,7 @@ import sys
 from isaaclab.benchmark.entrypoints.backends.rl_games.registry import register_scoped_rl_games_environment
 
 from isaaclab_rl.entrypoints import common as _common
+from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOWS
 
 
 def _parse_args(argv: list[str]):
@@ -102,7 +103,6 @@ def run(argv: list[str]) -> BenchmarkResult:
     import contextlib
     import math
     import os
-    import re
     import time
 
     import gymnasium as gym
@@ -152,10 +152,8 @@ def run(argv: list[str]) -> BenchmarkResult:
                     args_cli.checkpoint,
                     library="rl_games",
                     task=args_cli.task,
-                    checkpoint_pattern=r".*\.pth",
-                    other_dirs=["nn"],
-                    preferred_checkpoint_pattern=rf"{re.escape(config_name)}\.pth",
                     metadata={"agent": args_cli.agent},
+                    **WORKFLOWS["rl_games"].selector_args(config_name),
                 )
             else:
                 resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "rl_games", args_cli.task, env_cfg)

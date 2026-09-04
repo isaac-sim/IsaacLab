@@ -37,6 +37,7 @@ from isaaclab_rl.entrypoints.common import (
     wrap_training_capture,
     write_run_manifest,
 )
+from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOWS
 
 import isaaclab_tasks  # noqa: F401
 
@@ -184,9 +185,8 @@ def run(argv: list[str]) -> None:
                     args_cli.checkpoint,
                     library="sb3",
                     task=args_cli.task,
-                    checkpoint_pattern=r"model(?:_.*)?\.zip",
-                    preferred_checkpoint_pattern=r"model\.zip",
                     metadata={"agent": args_cli.agent},
+                    **WORKFLOWS["sb3"].selector_args(),
                 )
                 agent = agent.load(checkpoint_path, env, print_system_info=True)
             elif args_cli.checkpoint is not None:

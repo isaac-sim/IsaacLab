@@ -23,12 +23,12 @@ def test_run_artifact_resolves_to_the_newest_file_the_run_wrote(tmp_path):
     assert Checkpoint(name="fe", run_glob="cnn_*.pth").resolve(str(tmp_path)) == str(newer)
 
 
-def test_published_copy_wins_over_the_native_name(tmp_path):
-    """A pretrained play loads the published file even beside native ones."""
+def test_fetched_copy_wins_over_the_files_the_run_wrote(tmp_path):
+    """A pretrained play loads the file the fetch recorded, even beside native ones."""
     (tmp_path / "cnn_200_0.1.pth").touch()
-    (tmp_path / "Isaac-Task_physx_rtx_rsl_rl_fe.pth").touch()
+    checkpoint = Checkpoint(name="fe", run_glob="cnn_*.pth", local_path="/cache/Isaac-Task_physx_rtx_rsl_rl_fe.pth")
 
-    assert Checkpoint(name="fe", run_glob="cnn_*.pth").resolve(str(tmp_path)).endswith("_fe.pth")
+    assert checkpoint.resolve(str(tmp_path)) == "/cache/Isaac-Task_physx_rtx_rsl_rl_fe.pth"
 
 
 def test_missing_run_artifact_names_the_directory(tmp_path):

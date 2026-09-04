@@ -10,7 +10,6 @@ import contextlib
 import math
 import os
 import random
-import re
 import sys
 import time
 
@@ -37,6 +36,7 @@ from isaaclab_rl.entrypoints.common import (
 )
 from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 from isaaclab_rl.utils.pretrained_checkpoint import (
+    WORKFLOWS,
     get_published_pretrained_checkpoint,
 )
 
@@ -128,10 +128,8 @@ def main():
                     args_cli.checkpoint,
                     library="rl_games",
                     task=train_task_name,
-                    checkpoint_pattern=r".*\.pth",
-                    other_dirs=["nn"],
-                    preferred_checkpoint_pattern=rf"{re.escape(config_name)}\.pth",
                     metadata={"agent": args_cli.agent},
+                    **WORKFLOWS["rl_games"].selector_args(config_name),
                 )
             elif args_cli.checkpoint is None:
                 run_dir = agent_cfg["params"]["config"].get("full_experiment_name", ".*")

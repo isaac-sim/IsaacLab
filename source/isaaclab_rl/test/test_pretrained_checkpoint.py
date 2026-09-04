@@ -5,7 +5,7 @@
 
 """Tests for the published checkpoint bundle of a trained task variant."""
 
-import os
+import re
 from pathlib import Path
 
 import pytest
@@ -20,7 +20,7 @@ from isaaclab.utils import Checkpoint
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_rl.utils import pretrained_checkpoint
-from isaaclab_rl.utils.pretrained_checkpoint import CheckpointBundle
+from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOWS, CheckpointBundle
 
 
 @configclass
@@ -70,7 +70,7 @@ def test_legacy_bundle_keeps_the_per_task_layout(monkeypatch: pytest.MonkeyPatch
     bundle = CheckpointBundle("rl_games", "Isaac-Cartpole")
 
     assert bundle.filename() == "checkpoint.pth"
-    assert bundle.log_root == str(tmp_path / "logs" / "rl_games" / "Isaac-Cartpole")
+    assert bundle.cache_dir == str(Path(".pretrained_checkpoints") / "rl_games" / "Isaac-Cartpole")
     assert (
         bundle.published_path() == "omniverse://IsaacLab/PretrainedCheckpoints/rl_games/Isaac-Cartpole/checkpoint.pth"
     )
@@ -123,7 +123,7 @@ def test_backend_names_reject_other_newton_solvers():
 
 def test_from_env_cfg_discovers_declared_run_artifacts_once():
     """A component's declaration is found without the task listing it, once, and URL weights are excluded."""
-    assert CheckpointBundle.from_env_cfg("rsl_rl", "T", _EnvCfg()).checkpoints == ()
+    assert CheckpointBundle.from_env_cfg("rsl_rl", "T", _EnvCfg()).companions == ()
 
     extractor = _ExtractorCfg()
     bundle = CheckpointBundle.from_env_cfg(
@@ -131,7 +131,7 @@ def test_from_env_cfg_discovers_declared_run_artifacts_once():
     )
 
     assert (bundle.physics_backend, bundle.render_backend) == ("physx", "none")
-    assert [(c.name, c.run_glob) for c in bundle.checkpoints] == [("feature_extractor", "cnn_*.pth")]
+    assert [(c.name, c.run_glob) for c in bundle.companions] == [("feature_extractor", "cnn_*.pth")]
 
 
 def test_published_path_is_flat_within_the_workflow_directory(monkeypatch: pytest.MonkeyPatch):
@@ -166,45 +166,47 @@ def test_collected_path_mirrors_the_published_layout(tmp_path: Path):
     )
 
 
-def _write_run(log_root: Path, name: str, files: list[str]) -> Path:
-    run = log_root / name
-    run.mkdir(parents=True, exist_ok=True)
-    for rel in files:
-        (run / rel).parent.mkdir(parents=True, exist_ok=True)
-        (run / rel).touch()
-    return run
-
-
-def test_trained_path_prefers_the_workflow_best_file_then_the_newest_match(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+@pytest.mark.parametrize(
+    "workflow,stem,written,not_written,other_dirs,preferred",
+    [
+        (
+            "rl_games",
+            "Isaac-Cartpole_physx_none_rl_games",
+            ["last_Cartpole_ep_100_rew_5.pth"],
+            ["config.yaml"],
+            ["nn"],
+            "Isaac-Cartpole_physx_none_rl_games.pth",
+        ),
+        ("rsl_rl", None, ["model_100.pt"], ["policy.pt"], None, None),
+        ("sb3", None, ["model.zip", "model_1000_steps.zip"], ["events.out"], None, "model.zip"),
+        ("skrl", None, ["agent_100.pt", "best_agent.pickle"], [], ["checkpoints"], "best_agent.pt"),
+    ],
+)
+def test_workflow_selector_args_describe_the_files_each_library_writes(
+    workflow, stem, written, not_written, other_dirs, preferred
 ):
-    """skrl loads ``best_agent.pt`` when present; otherwise the newest policy file wins."""
-    monkeypatch.chdir(tmp_path)
-    bundle = CheckpointBundle("skrl", "Isaac-Cartpole", "physx", "none", (_FE,))
-    assert bundle.latest_run is None and not bundle.has_run and not bundle.has_finished
+    """``--checkpoint latest/best`` and the publish tooling select the policy from one description."""
+    args = WORKFLOWS[workflow].selector_args(stem)
 
-    run = _write_run(
-        Path(bundle.log_root), "2026-09-02_10-00-00", ["checkpoints/agent_100.pt", "cnn_1_0.5.pth", "cnn_2_0.1.pth"]
-    )
-    os.utime(run / "cnn_1_0.5.pth", (1_000_000, 1_000_000))
-    assert bundle.trained_path() == str(run / "checkpoints" / "agent_100.pt")
-    assert bundle.trained_path(_FE) == str(run / "cnn_2_0.1.pth")
-
-    (run / "checkpoints" / "best_agent.pt").touch()
-    assert bundle.trained_path() == str(run / "checkpoints" / "best_agent.pt")
-    assert bundle.has_run and bundle.has_finished
+    assert all(re.fullmatch(args["checkpoint_pattern"], name) for name in written)
+    assert not any(re.fullmatch(args["checkpoint_pattern"], name) for name in not_written)
+    assert args.get("other_dirs") == other_dirs
+    if preferred is None:
+        assert "preferred_checkpoint_pattern" not in args
+    else:
+        assert re.fullmatch(args["preferred_checkpoint_pattern"], preferred)
+        assert not re.fullmatch(args["preferred_checkpoint_pattern"], "x" + preferred)
 
 
-def test_review_is_read_from_the_latest_run(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    """The review lives in the latest run directory and is absent until written."""
-    monkeypatch.chdir(tmp_path)
-    bundle = CheckpointBundle("rsl_rl", "Isaac-Cartpole", "physx", "none")
-    assert bundle.review_path is None and bundle.review is None
+def test_workflows_are_keyed_by_their_own_name():
+    """The lookup key and the workflow's name are the same string."""
+    assert all(name == workflow.name for name, workflow in WORKFLOWS.items())
 
-    run = _write_run(Path(bundle.log_root), "run", [])
-    assert bundle.review_path == str(run / "pretrained_checkpoint_review.json") and bundle.review is None
-    Path(bundle.review_path).write_text('{"reviewed": true, "result": "accepted"}')
-    assert bundle.review == {"reviewed": True, "result": "accepted"}
+
+def test_workflow_needing_the_experiment_name_demands_it():
+    """rl_games names its best checkpoint after the experiment, so the stem cannot be omitted."""
+    with pytest.raises(ValueError, match="stem"):
+        WORKFLOWS["rl_games"].selector_args()
 
 
 def _install_fake_retrieve(monkeypatch: pytest.MonkeyPatch, published_files: set[str]) -> list[tuple[str, str]]:
@@ -261,7 +263,10 @@ def test_get_published_pretrained_checkpoint_downloads_the_declared_companions(
     )
 
     assert path is not None and Path(path).name == f"{stem}.pt"
-    assert Path(path).parent.joinpath(f"{stem}_feature_extractor.pth").is_file()
+    companion = Path(path).parent / f"{stem}_feature_extractor.pth"
+    assert companion.is_file()
+    assert env_cfg.extractor.checkpoint.local_path == str(companion)
+    assert env_cfg.extractor.frozen.local_path is None
 
 
 def test_get_published_pretrained_checkpoint_tolerates_a_missing_companion(
@@ -272,9 +277,12 @@ def test_get_published_pretrained_checkpoint_tolerates_a_missing_companion(
     remote_path = "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt"
     _install_fake_retrieve(monkeypatch, {remote_path})
 
+    env_cfg = _EnvCfg(extractor=_ExtractorCfg())
+
     path = pretrained_checkpoint.get_published_pretrained_checkpoint(
-        "rsl_rl", "Isaac-Cartpole", "physx", "none", env_cfg=_EnvCfg(extractor=_ExtractorCfg())
+        "rsl_rl", "Isaac-Cartpole", "physx", "none", env_cfg=env_cfg
     )
 
     assert path is not None
     assert sorted(p.name for p in Path(path).parent.iterdir()) == ["Isaac-Cartpole_physx_none_rsl_rl.pt"]
+    assert env_cfg.extractor.checkpoint.local_path is None

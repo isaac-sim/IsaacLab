@@ -21,6 +21,7 @@ import sys
 import time
 
 from isaaclab_rl.entrypoints import common as _common
+from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOWS
 
 
 def _parse_args(argv: list[str]):
@@ -177,13 +178,12 @@ def run(argv: list[str]) -> BenchmarkResult:
                     args_cli.checkpoint,
                     library="skrl",
                     task=args_cli.task,
-                    checkpoint_pattern=r".*",
-                    other_dirs=["checkpoints"],
                     metadata={
                         "agent": agent_cfg_entry_point,
                         "algorithm": algorithm,
                         "ml_framework": args_cli.ml_framework,
                     },
+                    **WORKFLOWS["skrl"].selector_args(),
                 )
             else:
                 resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "skrl", args_cli.task, env_cfg)

@@ -34,6 +34,7 @@ from isaaclab_rl.entrypoints.common import (
 )
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import (
+    WORKFLOWS,
     get_published_pretrained_checkpoint,
 )
 
@@ -128,9 +129,8 @@ def main():
                     args_cli.checkpoint,
                     library="sb3",
                     task=train_task_name,
-                    checkpoint_pattern=r"model(?:_.*)?\.zip",
-                    preferred_checkpoint_pattern=r"model\.zip",
                     metadata={"agent": args_cli.agent},
+                    **WORKFLOWS["sb3"].selector_args(),
                 )
             elif args_cli.checkpoint is None:
                 # prefer the final model (``model.zip``); fall back to the latest periodic checkpoint when it has
