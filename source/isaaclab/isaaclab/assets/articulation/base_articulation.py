@@ -136,6 +136,10 @@ class BaseArticulation(AssetBase):
         super().__init__(cfg)
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
+        # Set when a fixed-tendon target is commanded, cleared once ``write_data_to_sim`` has
+        # pushed it: carrying tendons alone schedules no write, and a property buffered
+        # through the offset setter keeps its explicit-write contract.
+        self._fixed_tendon_target_dirty = False
         # Per-articulation cache of resolved cross-backend convention name orderings,
         # populated lazily while ordering maps are resolved. A single resolution may
         # query the same convention for both joints and bodies, so results are keyed

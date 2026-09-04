@@ -271,9 +271,14 @@ class Articulation(BaseArticulation):
         self.actuators.compute(OvPhysxManager.get_physics_dt())
         self.actuators.submit_commands()
 
-        # tendon targets are applied as the offset property, so they ride the same per-step write as joint targets
-        if self.num_fixed_tendons > 0:
-            self.write_fixed_tendon_properties_to_sim_mask()
+        # tendon targets are applied as the offset property, so a commanded target rides the same
+        # per-step write as joint targets; an authored tendon alone schedules nothing
+        if self._fixed_tendon_target_dirty:
+            # Only the offset carries the commanded target; the other tendon properties are static
+            # and keep the explicit-write contract of ``write_fixed_tendon_properties_to_sim_*``.
+            # Writing them here too would cost five more attribute writes, some CPU-only.
+            self._root_view.set_attribute(TT.FIXED_TENDON_OFFSET, self._data._fixed_tendon_offset.data)
+            self._fixed_tendon_target_dirty = False
 
     def update(self, dt: float) -> None:
         """Updates the simulation data.
@@ -3204,6 +3209,8 @@ class Articulation(BaseArticulation):
             outputs=[self._data._fixed_tendon_offset.data],
             device=self._device,
         )
+        # commanding a target schedules the write; the offset setter keeps its explicit contract
+        self._fixed_tendon_target_dirty = True
 
     def set_fixed_tendon_offset_index(
         self,
@@ -3293,6 +3300,8 @@ class Articulation(BaseArticulation):
             outputs=[self._data._fixed_tendon_offset.data],
             device=self._device,
         )
+        # commanding a target schedules the write; the offset setter keeps its explicit contract
+        self._fixed_tendon_target_dirty = True
 
     def set_fixed_tendon_offset_mask(
         self,

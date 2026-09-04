@@ -85,6 +85,7 @@ def create_physx_articulation(
         body_ordering=body_ordering,
     )
     object.__setattr__(articulation, "_sim_cfg", None)
+    object.__setattr__(articulation, "_fixed_tendon_target_dirty", False)
 
     # Create PhysX mock view
     mock_view = PhysXMockArticulationViewWarp(
@@ -231,6 +232,7 @@ def create_ovphysx_articulation(
         body_ordering=body_ordering,
     )
     object.__setattr__(articulation, "_sim_cfg", None)
+    object.__setattr__(articulation, "_fixed_tendon_target_dirty", False)
 
     # Create mock binding set
     mock_bindings = MockOvPhysxBindingSet(
@@ -378,13 +380,14 @@ def create_newton_articulation(
         body_ordering=body_ordering,
     )
     object.__setattr__(articulation, "_sim_cfg", None)
+    object.__setattr__(articulation, "_fixed_tendon_target_dirty", False)
 
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_data", data)
     object.__setattr__(articulation, "_test_simulation_manager", mock_manager)
-    # ``write_data_to_sim`` consults the tendon adapter; the shell has no model to build one from.
-    object.__setattr__(articulation, "_mjc_tendon_control", None)
+    # the solver builds this adapter; the shell has no model, so it stays absent
+    object.__setattr__(articulation, "_fixed_tendon_control", None)
 
     # Newton supports fixed tendons but not spatial tendons.
     object.__setattr__(articulation, "_fixed_tendon_names", fixed_tendon_names)

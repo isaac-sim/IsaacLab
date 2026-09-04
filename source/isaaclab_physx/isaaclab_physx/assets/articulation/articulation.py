@@ -286,9 +286,11 @@ class Articulation(BaseArticulation):
         self.actuators.compute(SimulationManager.get_physics_dt())
         self.actuators.submit_commands()
 
-        # tendon targets are applied as the offset property, so they ride the same per-step write as joint targets
-        if self.num_fixed_tendons > 0:
+        # tendon targets are applied as the offset property, so a commanded target rides the same
+        # per-step write as joint targets; an authored tendon alone schedules nothing
+        if self._fixed_tendon_target_dirty:
             self.write_fixed_tendon_properties_to_sim_index()
+            self._fixed_tendon_target_dirty = False
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -3264,6 +3266,9 @@ class Articulation(BaseArticulation):
         offset = rest_length - target
         # buffer only; ``write_data_to_sim`` pushes the offset with the other tendon properties
         self.set_fixed_tendon_offset_index(offset=offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+        # commanding a target schedules the write; buffering a static property through the offset
+        # setter keeps its explicit-write contract
+        self._fixed_tendon_target_dirty = True
 
     def set_fixed_tendon_offset_index(
         self,
