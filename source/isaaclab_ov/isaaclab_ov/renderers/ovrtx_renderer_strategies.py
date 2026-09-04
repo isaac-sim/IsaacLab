@@ -27,7 +27,7 @@ from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypeAlias
 
 import warp as wp
@@ -209,12 +209,15 @@ class _SyncRenderStrategy(_RenderStrategy):
 
 @dataclass
 class _AsyncRenderSlot:
-    """A reusable set of transform staging buffers for one in-flight async update."""
+    """A reusable set of transform staging buffers for one in-flight async update.
 
-    camera_transforms: wp.array
-    camera_quats: wp.array
-    object_transforms: wp.array | None
-    write_ops: list[Operation]
+    All buffers are allocated on first use, since only the staging calls know the row counts.
+    """
+
+    camera_transforms: wp.array | None = None
+    camera_quats: wp.array | None = None
+    object_transforms: wp.array | None = None
+    write_ops: list[Operation] = field(default_factory=list)
 
     def record_write(self, binding: Any, data: wp.array, cuda_stream: int) -> None:
         """Write ``data`` to ``binding`` asynchronously and remember the write op.
@@ -272,7 +275,6 @@ class _AsyncRenderStrategy(_RenderStrategy):
 
     def __init__(self) -> None:
         super().__init__()
-        self._num_envs = 0
         self._render_queue_depth = self._LATENCY_FRAMES + 1
         self._ring: deque[_AsyncRenderEntry] = deque()
         self._slots: list[_AsyncRenderSlot] = []
@@ -302,14 +304,11 @@ class _AsyncRenderStrategy(_RenderStrategy):
 
     def initialize(self, num_envs: int) -> None:
         """Reset the staging slots for a new scene. See :meth:`_RenderStrategy.initialize`."""
-        self._reset_slots(num_envs)
+        del num_envs  # Staging buffers are allocated on first use, sized by their staging calls.
+        self._reset_slots()
 
-    def _reset_slots(self, num_envs: int) -> None:
-        """Finish all queued work, then drop the staging slots.
-
-        ``num_envs`` is the camera count for future slot builds. ``0`` means the renderer is
-        unbinding.
-        """
+    def _reset_slots(self) -> None:
+        """Finish all queued work, then drop the staging slots."""
         # Deliver queued renders rather than dropping them. Each op is its buffer's only keepalive,
         # and a re-initialize must not discard a frame that is still executing. This is a no-op
         # from cleanup(), which drains the ring first.
@@ -319,7 +318,6 @@ class _AsyncRenderStrategy(_RenderStrategy):
         self._slots.clear()
         self._slot_index = 0
         self._current_slot = None
-        self._num_envs = num_envs
         self._primed = False
         self._ring.clear()
 
@@ -328,22 +326,13 @@ class _AsyncRenderStrategy(_RenderStrategy):
         # The other slot still backs the frame in flight. :meth:`_advance_slot` waits out the
         # incoming slot's writes. Those writes were submitted before the render that has just
         # drained, so they are already complete.
-        assert self._warp_device is not None
-        for _ in range(self._NUM_SLOTS):
-            self._slots.append(
-                _AsyncRenderSlot(
-                    camera_transforms=wp.zeros(self._num_envs, dtype=wp.mat44d, device=self._warp_device),
-                    camera_quats=wp.empty(self._num_envs, dtype=wp.quatf, device=self._warp_device),
-                    object_transforms=None,
-                    write_ops=[],
-                )
-            )
+        self._slots = [_AsyncRenderSlot() for _ in range(self._NUM_SLOTS)]
 
     def _staging_slot(self) -> _AsyncRenderSlot:
         """The slot that receives this frame's staged transforms, in any staging order.
 
-        The slot pool is built on first use, when the device and camera count are known. After
-        that, only :meth:`_advance_slot` rotates slots. Staging calls never rotate them.
+        The slot pool is built on first use. After that, only :meth:`_advance_slot` rotates
+        slots. Staging calls never rotate them.
         """
         if not self._slots:
             self._create_slots()
@@ -387,11 +376,11 @@ class _AsyncRenderStrategy(_RenderStrategy):
         """Stage camera transforms into the frame's slot and write them to ``binding`` on exit.
 
         See :meth:`_RenderStrategy.stage_camera_transforms`. Camera and object updates share the
-        frame's slot in any order. The camera buffers are reallocated when ``num_rows`` differs
-        from their pre-sized ``num_envs``.
+        frame's slot in any order. The camera buffers are allocated on first use and reallocated
+        when ``num_rows`` changes.
         """
         slot = self._staging_slot()
-        if slot.camera_transforms.shape[0] != num_rows:
+        if slot.camera_transforms is None or slot.camera_transforms.shape[0] != num_rows:
             slot.camera_transforms = wp.zeros(num_rows, dtype=wp.mat44d, device=self._warp_device)
             slot.camera_quats = wp.empty(num_rows, dtype=wp.quatf, device=self._warp_device)
         yield slot.camera_quats, slot.camera_transforms
@@ -466,5 +455,5 @@ class _AsyncRenderStrategy(_RenderStrategy):
             except Exception as e:
                 logger.warning("Error completing OVRTX async binding write during cleanup: %s", e, exc_info=True)
                 errors.append(e)
-        self._reset_slots(0)
+        self._reset_slots()
         return errors

@@ -273,11 +273,7 @@ def test_cleanup_survives_failed_slot_writes(strategy, timeline):
         def wait(self) -> None:
             raise RuntimeError("device lost")
 
-    strategy._slots.append(
-        _AsyncRenderSlot(
-            camera_transforms=None, camera_quats=None, object_transforms=None, write_ops=[_FailingWriteOp()]
-        )
-    )
+    strategy._slots.append(_AsyncRenderSlot(write_ops=[_FailingWriteOp()]))
     errors = strategy.cleanup()
 
     assert consumed == [0, 1]
