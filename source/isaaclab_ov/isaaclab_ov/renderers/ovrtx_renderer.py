@@ -426,8 +426,7 @@ class OVRTXRenderer(BaseRenderer):
         self._clone_plan = SimulationContext.instance().get_clone_plan()
         if self._clone_plan is None or self._clone_plan.env_ids is None or self._clone_plan.positions is None:
             raise RuntimeError("Clone plan with environment ids and positions is required when preparing OVRTX stage")
-        expected_ids = torch.arange(num_envs, device=self._clone_plan.env_ids.device)
-        if not torch.equal(self._clone_plan.env_ids, expected_ids):
+        if not np.array_equal(self._clone_plan.env_ids, np.arange(num_envs)):
             raise RuntimeError("OVRTX requires ClonePlan environment ids ordered from zero.")
 
         # If temp_usd_dir is set, write the pre-ovrtx stage to a temporary file.
@@ -602,17 +601,17 @@ class OVRTXRenderer(BaseRenderer):
         if clone_plan is None or clone_plan.env_ids is None or clone_plan.positions is None:
             raise RuntimeError("Clone plan with environment ids and positions is required when using OVRTX cloning")
 
-        env_ids = clone_plan.env_ids.detach().cpu()
-        clone_mask = clone_plan.clone_mask.detach().cpu()
+        env_ids = clone_plan.env_ids
+        clone_mask = clone_plan.clone_mask
         num_envs = len(env_ids)
-        env_prim_paths = [f"/World/envs/env_{env_id}" for env_id in env_ids.tolist()]
+        env_prim_paths = [f"/World/envs/env_{int(env_id)}" for env_id in env_ids]
         logger.info("Cloning sources in OVRTX...")
 
         num_cloned_sources = 0
         for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
             target_paths = [
                 destination.format(int(env_id))
-                for env_id in env_ids[clone_mask[row_idx]].tolist()
+                for env_id in env_ids[clone_mask[row_idx]]
                 if destination.format(int(env_id)) != source
             ]
             if target_paths:
@@ -627,7 +626,7 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
         env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
-        env_root_xforms[:, 3, :3] = clone_plan.positions.cpu().numpy()
+        env_root_xforms[:, 3, :3] = clone_plan.positions
         self._renderer.write_attribute(
             prim_paths=env_prim_paths,
             attribute_name="omni:xform",
@@ -1886,10 +1885,10 @@ class OVRTXRenderer(BaseRenderer):
         if clone_plan is None or clone_plan.env_ids is None or clone_plan.positions is None:
             raise RuntimeError("Clone plan with environment ids and positions is required when using OVRTX cloning")
 
-        env_ids = clone_plan.env_ids.detach().cpu()
-        clone_mask = clone_plan.clone_mask.detach().cpu()
+        env_ids = clone_plan.env_ids
+        clone_mask = clone_plan.clone_mask
         num_envs = len(env_ids)
-        env_prim_paths = [f"/World/envs/env_{env_id}" for env_id in env_ids.tolist()]
+        env_prim_paths = [f"/World/envs/env_{int(env_id)}" for env_id in env_ids]
 
         logger.info("Cloning sources in OVRTX...")
 
@@ -1897,7 +1896,7 @@ class OVRTXRenderer(BaseRenderer):
         for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
             target_paths = [
                 destination.format(int(env_id))
-                for env_id in env_ids[clone_mask[row_idx]].tolist()
+                for env_id in env_ids[clone_mask[row_idx]]
                 if destination.format(int(env_id)) != source
             ]
             if target_paths:
@@ -1912,7 +1911,7 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
         env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
-        env_root_xforms[:, 3, :3] = clone_plan.positions.cpu().numpy()
+        env_root_xforms[:, 3, :3] = clone_plan.positions
         env_paths_list = self._stage_paths.create_path_list_from_strings(env_prim_paths)
         env_query = self._stage.query_from_path_list(env_paths_list)
         self._stage.write_attribute(
