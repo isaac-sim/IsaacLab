@@ -86,6 +86,10 @@ configuration inherits the project's checked-in Pyright settings and adds the Is
 and any Isaac Lab packages discovered in the active Python environment. This supports both Pylance in VS Code and
 basedpyright in Cursor.
 
+In VS Code, use Pylance and select the interpreter that ran the setup command. In Cursor, install the
+[basedpyright extension](https://marketplace.visualstudio.com/items?itemName=detachhead.basedpyright) instead of
+Pylance, select the same interpreter, and reload the window. Both language servers read `pyrightconfig.json`.
+
 When using the `isaacsim` extra, include it while generating the editor configuration so the command can discover the
 Isaac Sim installation:
 

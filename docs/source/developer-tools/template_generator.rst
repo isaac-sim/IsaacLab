@@ -259,6 +259,11 @@ the configuration:
 
    uv run --extra isaacsim python .vscode/tools/setup_vscode.py
 
+In VS Code, use Pylance and select the interpreter that ran the setup command.
+In Cursor, install the ``detachhead.basedpyright`` extension instead of Pylance,
+select the same interpreter, and reload the window. Both language servers read
+the generated ``pyrightconfig.json``.
+
 Create an internal task
 -----------------------
 
