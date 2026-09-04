@@ -66,14 +66,14 @@ class _FakeRenderer:
         self._timeline = timeline
         self.ops: list[_PendingOp] = []
 
-    def step_async(self, render_products: set[str], delta_time: float, *, ordinal: int | None = None) -> _PendingOp:
+    def step_async(self, render_products: set[str], delta_time: float) -> _PendingOp:
         op = _PendingOp(self._timeline, len(self.ops))
         self.ops.append(op)
-        self._timeline.events.append(f"submit:{len(self.ops) - 1}:ordinal={ordinal}")
+        self._timeline.events.append(f"submit:{len(self.ops) - 1}")
         return op
 
-    def step(self, render_products: set[str], delta_time: float, *, ordinal: int | None = None) -> dict:
-        self._timeline.events.append(f"step:ordinal={ordinal}")
+    def step(self, render_products: set[str], delta_time: float) -> dict:
+        self._timeline.events.append("step")
         return {}
 
 
@@ -96,7 +96,6 @@ def _render(strategy: Any, renderer: _FakeRenderer, ordinal: int, consumed: list
         1.0 / 60.0,
         object(),
         lambda render_data, products: consumed.append(ordinal),
-        ordinal=ordinal,
     )
 
 
@@ -133,13 +132,13 @@ def test_render_stays_pipelined_when_settle_precedes_each_frame(strategy, timeli
 
     # Frame 0 is primed synchronously; frames 1..3 each drain only at the following frame's write.
     assert timeline.events == [
-        "submit:0:ordinal=0",
+        "submit:0",
         "drain:0",
-        "submit:1:ordinal=1",
+        "submit:1",
         "drain:1",
-        "submit:2:ordinal=2",
+        "submit:2",
         "drain:2",
-        "submit:3:ordinal=3",
+        "submit:3",
     ]
     assert consumed == [0, 1, 2]
 
@@ -182,10 +181,10 @@ def test_frames_are_delivered_to_the_render_data_they_were_submitted_for(strateg
     def consume(render_data, products):
         delivered.append(render_data)
 
-    strategy.render(renderer, {"/P"}, 1.0 / 60.0, first_target, consume, ordinal=0)
+    strategy.render(renderer, {"/P"}, 1.0 / 60.0, first_target, consume)
     delivered.clear()
 
-    strategy.render(renderer, {"/P"}, 1.0 / 60.0, second_target, consume, ordinal=1)
+    strategy.render(renderer, {"/P"}, 1.0 / 60.0, second_target, consume)
     strategy.settle_before_scene_write()
 
     assert delivered == [second_target]
@@ -201,8 +200,8 @@ def test_released_render_data_is_not_delivered_into(strategy, timeline):
     def consume(render_data, products):
         delivered.append(render_data)
 
-    strategy.render(renderer, {"/P"}, 1.0 / 60.0, camera, consume, ordinal=0)
-    strategy.render(renderer, {"/P"}, 1.0 / 60.0, camera, consume, ordinal=1)
+    strategy.render(renderer, {"/P"}, 1.0 / 60.0, camera, consume)
+    strategy.render(renderer, {"/P"}, 1.0 / 60.0, camera, consume)
     delivered.clear()
 
     strategy.release_render_data(camera)
@@ -296,5 +295,5 @@ def test_sync_strategy_needs_no_barrier(timeline):
     _render(strategy, renderer, 7, consumed)
     strategy.settle_before_scene_write()
 
-    assert timeline.events == ["step:ordinal=7"]
+    assert timeline.events == ["step"]
     assert consumed == [7]

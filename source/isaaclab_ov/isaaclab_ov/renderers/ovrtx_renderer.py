@@ -2467,14 +2467,14 @@ class OVRTXRenderer(BaseRenderer):
         # ordinal would make every later scene write hit that barrier.
         step_ordinal = self._current_ordinal
         self._current_ordinal += 1
-        self._strategy.render(
-            self._renderer,
-            set(self._render_product_paths),
-            _RENDER_DELTA_TIME,
-            render_data,
-            self._consume_products,
+        # The ovstage path always renders synchronously, so it steps the renderer directly. The
+        # render strategy serves the legacy path.
+        products = self._renderer.step(
+            render_products=set(self._render_product_paths),
+            delta_time=_RENDER_DELTA_TIME,
             ordinal=step_ordinal,
         )
+        self._consume_products(render_data, products)
 
     def _close_ovstage(self) -> None:
         """Release the renderer's stage queries, path lists and ovstage stage. See :meth:`close`."""
