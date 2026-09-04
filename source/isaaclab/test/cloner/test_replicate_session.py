@@ -73,7 +73,8 @@ def test_queue_accepts_only_cfgs_owned_by_published_plan(monkeypatch):
     """Cfg-first constructors cannot escape the published plan."""
     planned = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", spawn=object())
     unplanned = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Object", spawn=object())
-    reference = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Existing", spawn=None)
+    covered_reference = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Existing", spawn=None)
+    unplanned_reference = SimpleNamespace(prim_path="/World/Outside", spawn=None)
     plan = _plan()
     plan.cfg_rows[id(planned)] = (0,)
     simulation = SimpleNamespace(get_clone_plan=lambda: plan, _clone_plan_consumed=False)
@@ -84,7 +85,9 @@ def test_queue_accepts_only_cfgs_owned_by_published_plan(monkeypatch):
     with pytest.raises(RuntimeError, match="not owned"):
         replicate_session.queue_replication(unplanned)
     simulation._clone_plan_consumed = True
-    replicate_session.queue_replication(reference)
+    replicate_session.queue_replication(covered_reference)
+    with pytest.raises(RuntimeError, match="not owned"):
+        replicate_session.queue_replication(unplanned_reference)
 
     assert replicate_session.REPLICATION_QUEUE == []
 
