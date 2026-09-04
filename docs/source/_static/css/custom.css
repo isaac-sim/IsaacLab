@@ -187,3 +187,11 @@ figure.nurec-gif-contain img {
 button.copybtn {
     opacity: 1;
 }
+
+/* Force readable code-block text in dark mode; some rendering paths were
+   showing unstyled text in a dark color against the dark code background. */
+html[data-theme="dark"] pre,
+html[data-theme="dark"] .highlight,
+html[data-theme="dark"] .highlight pre {
+    color: #ffffff !important;
+}

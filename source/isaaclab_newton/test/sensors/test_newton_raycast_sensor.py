@@ -221,6 +221,42 @@ def test_bvh_refit_tracks_moving_geometry(sim):
     torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT - 1.0), atol=1e-3, rtol=0)
 
 
+def test_sensor_read_refreshes_fk_after_carrier_pose_write(sim):
+    """The first sensor read after a pose write uses the refreshed carrier pose."""
+    scene = InteractiveScene(RaycastTestSceneCfg(num_envs=1))
+    sim.reset()
+    sensor = _step_and_read(sim, scene)
+    initial_distances = sensor.data.ray_distances.torch.clone()
+
+    sensor_body: RigidObject = scene["sensor_body"]
+    target_pose = sensor_body.data.root_link_pose_w.torch.clone()
+    target_pose[:, 2] += 1.0
+    sensor_body.write_root_pose_to_sim_index(root_pose=target_pose)
+    sensor.reset()
+
+    # Read the sensor first: no simulation step or FK-sensitive asset getter may hide stale body_q.
+    distances = sensor.data.ray_distances.torch
+    torch.testing.assert_close(distances, initial_distances + 1.0, atol=1e-3, rtol=0)
+
+
+def test_world_pose_getter_refreshes_fk_after_carrier_pose_write(sim):
+    """The ray-caster pose getter resolves pending FK before reading ``body_q``."""
+    scene = InteractiveScene(RaycastTestSceneCfg(num_envs=1))
+    sim.reset()
+    sensor = _step_and_read(sim, scene)
+    initial_positions = sensor.get_world_poses()[0].torch.clone()
+
+    sensor_body: RigidObject = scene["sensor_body"]
+    target_pose = sensor_body.data.root_link_pose_w.torch.clone()
+    target_pose[:, 0] += 1.0
+    sensor_body.write_root_pose_to_sim_index(root_pose=target_pose)
+
+    positions = sensor.get_world_poses()[0].torch
+    expected_positions = initial_positions.clone()
+    expected_positions[:, 0] += 1.0
+    torch.testing.assert_close(positions, expected_positions, atol=1e-3, rtol=0)
+
+
 @configclass
 class RaycastCameraSceneCfg(RaycastTestSceneCfg):
     """Adds a downward-looking Newton tiled camera next to the ray-cast sensor."""

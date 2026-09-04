@@ -37,6 +37,7 @@ run_tests() {
   local standalone_script_runtime_group="${24}"
   local warp_cache_host_dir="${25}"
   local extra_uv_packages="${26}"
+  local ovrtx_shader_cache_host_dir="${27}"
   local logs_pid=""
   local wait_pid=""
   local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -268,6 +269,28 @@ run_tests() {
       -e WARP_CACHE_PATH=/tmp/isaaclab-warp-cache"
   fi
 
+  if [ -n "$ovrtx_shader_cache_host_dir" ]; then
+    # Canonical OVRTX shader cache mount layout; other boundaries refer here.
+    #   host kit/     -> /isaac-sim/kit/cache/nv_shadercache  (Kit / AppLauncher rendering)
+    #   host kitless/ -> OVRTX_SHADER_CACHE_PATH              (standalone OVRTXRenderer)
+    #
+    # kit/ is a nested bind mount overlaying the nv_shadercache directory that the
+    # enclosing kit/cache tmpdir mount would otherwise present as empty; Docker
+    # sorts mounts by destination depth, so the deeper path wins regardless of
+    # declaration order. kitless/ goes through an env var instead because
+    # OVRTXRenderer applies it as a carb setting. Both paths are exported so
+    # verify_ovrtx_shader_cache.py can confirm each mount landed.
+    kit_cache_dir="${ovrtx_shader_cache_host_dir}/kit"
+    kitless_cache_dir="${ovrtx_shader_cache_host_dir}/kitless"
+    mkdir -p "$kit_cache_dir" "$kitless_cache_dir"
+    docker_volume_args="$docker_volume_args \
+      -v ${kit_cache_dir}:/isaac-sim/kit/cache/nv_shadercache:rw \
+      -v ${kitless_cache_dir}:/tmp/isaaclab-ovrtx-kitless-cache:rw"
+    docker_env_vars="$docker_env_vars \
+      -e OVRTX_SHADER_CACHE_PATH=/tmp/isaaclab-ovrtx-kitless-cache \
+      -e OVRTX_KIT_SHADER_CACHE_PATH=/isaac-sim/kit/cache/nv_shadercache"
+  fi
+
   if [ -n "$wheelhouse_host_dir" ]; then
     if [ -z "$wheelhouse_packages" ]; then
       echo "::error::wheelhouse-host-dir was provided but wheelhouse-packages is empty"
@@ -320,10 +343,16 @@ run_tests() {
       set -e
       cd /workspace/isaaclab
       mkdir -p tests
-      rm _isaac_sim || true
-      ln -s /isaac-sim _isaac_sim
+      # The runtime mounts above create /isaac-sim in every image. Link it only where Kit
+      # lives there: in the kit-less image the link would read as a downloaded Isaac Sim,
+      # which isaaclab.sh refuses to combine with the image's VIRTUAL_ENV.
+      rm -f _isaac_sim
+      if [ -x /isaac-sim/python.sh ]; then ln -s /isaac-sim _isaac_sim; fi
       if [ -n \"\${WARP_CACHE_PATH:-}\" ]; then
         ./isaaclab.sh -p tools/verify_warp_cache.py
+      fi
+      if [ -n \"\${OVRTX_SHADER_CACHE_PATH:-}\" ] || [ -n \"\${OVRTX_KIT_SHADER_CACHE_PATH:-}\" ]; then
+        ./isaaclab.sh -p tools/verify_ovrtx_shader_cache.py
       fi
       if [ -n \"\${TEST_WHEELHOUSE_PACKAGES:-}\" ]; then
         if [ ! -d \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
@@ -357,13 +386,19 @@ run_tests() {
       fi
       if [ -n \"\${TEST_EXTRA_UV_PACKAGES:-}\" ]; then
         echo \"Installing extra packages with uv: \${TEST_EXTRA_UV_PACKAGES}\"
-        # isaaclab.sh prints an informational line before command output, and pip
-        # installs scripts into the user base when Isaac Sim site-packages is read-only.
-        isaac_python=\"\$(./isaaclab.sh -p -c 'import sys; print(sys.executable)' | tail -n 1)\"
-        isaac_user_site=\"\$(./isaaclab.sh -p -c 'import site; print(site.getusersitepackages())' | tail -n 1)\"
-        uv_executable=\"\$(./isaaclab.sh -p -c 'import pathlib, site; print(pathlib.Path(site.getuserbase()) / \"bin\" / \"uv\")' | tail -n 1)\"
-        if [ ! -x \"\${uv_executable}\" ]; then
-          bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install uv
+        # isaaclab.sh prints an [INFO] banner on stdout around the command output, so the
+        # banner is filtered rather than positionally skipped.
+        isaac_python=\"\$(./isaaclab.sh -p -c 'import sys; print(sys.executable)' | grep -v '^\[INFO\]' | tail -n 1)\"
+        isaac_user_site=\"\$(./isaaclab.sh -p -c 'import site; print(site.getusersitepackages())' | grep -v '^\[INFO\]' | tail -n 1)\"
+        # The image ships uv on PATH. Fall back to the user base only for images that do
+        # not: pip installs into the venv, not the user base, when the interpreter is a venv,
+        # so the user-base path is never created there.
+        uv_executable=\"\$(command -v uv || true)\"
+        if [ -z \"\${uv_executable}\" ]; then
+          uv_executable=\"\$(./isaaclab.sh -p -c 'import pathlib, site; print(pathlib.Path(site.getuserbase()) / \"bin\" / \"uv\")' | grep -v '^\[INFO\]' | tail -n 1)\"
+          if [ ! -x \"\${uv_executable}\" ]; then
+            bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install uv
+          fi
         fi
         bash /with-python-package-retries.sh \"\${uv_executable}\" pip install --python \"\${isaac_python}\" --target \"\${isaac_user_site}\" \${TEST_EXTRA_UV_PACKAGES}
         # Isaac Sim puts bundled packages ahead of the user site. Overlay only

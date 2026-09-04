@@ -293,7 +293,7 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     """Shape and particle BVHs are built and refit before a render task runs."""
 
     state = object()
-    status = {"shape_refit": False, "particle_refit": False, "rendered": False}
+    status = {"state_refreshed": False, "shape_refit": False, "particle_refit": False, "rendered": False}
 
     class FakeModel:
         shape_count = 1
@@ -320,14 +320,20 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     model = FakeModel()
 
     def render():
+        assert status["state_refreshed"]
         assert model.bvh_shapes is not None
         assert model.bvh_particles is not None
         assert status["shape_refit"]
         assert status["particle_refit"]
         status["rendered"] = True
 
+    def get_state(cls):
+        status["state_refreshed"] = True
+        return state
+
     monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
     monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
+    monkeypatch.setattr(NewtonManager, "get_state", classmethod(get_state))
     monkeypatch.setattr(NewtonManager, "_model", model, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_tasks", {}, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)

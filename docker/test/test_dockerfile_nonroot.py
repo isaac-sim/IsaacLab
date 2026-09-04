@@ -28,6 +28,11 @@ DOCKERFILES = sorted(REPO_ROOT.glob("**/Dockerfile.*"))
 
 ROOT_USERS = {"root", "0"}
 
+# Pinned by digest so a uv release cannot silently change how the lock resolves. Matches the uv
+# that regenerated ``uv.lock``; a mismatch reintroduces the marker churn that refresh removed.
+UV_PIN = "ghcr.io/astral-sh/uv:0.12.9@sha256:8b940d3a9d65bed080436972241af2e21c84b5e8c9193f7014ed71479ee795ff"
+
+
 # Keep every Dockerfile in this map so new containers must make an explicit
 # runtime-user decision instead of silently escaping this regression test.
 # Keys are Dockerfile *names* (unique across the repo); values are the
@@ -110,16 +115,27 @@ def test_ros2_dockerfile_restores_non_root_runtime_user():
     assert _user_directives(dockerfile_text) == ["root", "isaaclab"]
 
 
+def test_images_share_one_pinned_uv():
+    """Every image that installs with uv agrees on the pinned version."""
+    pinned = {
+        path.relative_to(REPO_ROOT).as_posix(): re.findall(
+            r"FROM (ghcr\.io/astral-sh/uv:\S+) AS uv", path.read_text(encoding="utf-8")
+        )
+        for path in DOCKERFILES
+    }
+    pinned = {name: refs for name, refs in pinned.items() if refs}
+
+    assert pinned, "no Dockerfile pins uv"
+    offenders = {name: refs for name, refs in pinned.items() if refs != [UV_PIN]}
+    assert not offenders, f"every image must pin {UV_PIN}; got {offenders}"
+
+
 def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_sim():
     """The kit-less image installs its runtime features and importers without the full Isaac Sim runtime."""
     dockerfile_text = (DOCKER_DIR / "Dockerfile.kitless").read_text(encoding="utf-8")
     with (REPO_ROOT / "pyproject.toml").open("rb") as file:
         extras = tomllib.load(file)["project"]["optional-dependencies"]
 
-    assert (
-        "FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a2c40c38c905cf3a0d70131a6 AS uv"
-        in dockerfile_text
-    )
     # Installed from the lock rather than through isaaclab.sh: only the lock applies
     # ``[tool.uv] override-dependencies``, the table that holds ``packaging`` above ovphysx's
     # ``<24`` pin. ``all`` carries rl/visualizer/ov, ``importers`` the standalone wheels.
@@ -145,8 +161,12 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     assert "'rerun-sdk' in names" in dockerfile_text
     assert "libxrender1" in dockerfile_text
     assert 'test ! -e "${ISAACLAB_PATH}/_isaac_sim"' in dockerfile_text
-    assert "COPY docker/docker-compose.yaml docker/docker-compose.yaml" in dockerfile_text
-    assert "COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py" in dockerfile_text
+    # volume_mounts.py parses docker-compose.yaml at runtime, so both must reach the image -
+    # either named individually or via a whole-tree copy.
+    for required in ("docker/docker-compose.yaml", "docker/utils/volume_mounts.py"):
+        assert f"COPY {required} {required}" in dockerfile_text or "COPY . ." in dockerfile_text, (
+            f"{required} must be copied into the kit-less image"
+        )
 
 
 # --------------------------------------------------------------------------- #

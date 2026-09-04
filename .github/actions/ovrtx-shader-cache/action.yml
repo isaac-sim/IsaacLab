@@ -1,0 +1,150 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'OVRTX Shader Cache'
+description: >
+  Restores, reports on and publishes the NVIDIA driver PSO blobs (nv_shadercache)
+  that Isaac Lab rendering tests would otherwise recompile from scratch on every
+  run. Requires a prior checkout.
+
+  A composite action cannot span the caller's test step, so the phases are
+  separate invocations selected by 'mode': 'restore' before the tests, then
+  either 'report' or 'save' after them. Every mode recomputes the keys from the
+  same key.sh, so the collection a job reads and the one it writes cannot drift.
+
+  kit/ is compiled by the RTX renderer inside the Isaac Sim image and kitless/ by
+  the pip-installed ovrtx wheel, so each tree is a separate entry keyed by its own
+  producer. The mount layout that fills them lives in
+  .github/actions/run-tests/run_tests.sh.
+
+inputs:
+  mode:
+    description: >-
+      'restore' reads the newest compatible snapshot of each tree and never
+      writes. 'report' summarises how far the run compiled beyond what was
+      restored. 'save' reports the same way and writes each tree the run
+      actually added to back as a new snapshot; only the cache warmer uses it.
+    required: true
+  isaacsim-version:
+    description: 'Isaac Sim image tag; identifies the exact Kit RTX build that compiles the kit/ blobs'
+    required: true
+  publishes:
+    description: >-
+      'true' when the same job later invokes this action in 'save' mode. The
+      restore pass then fingerprints what it restored, so the save pass can tell
+      a run that compiled new blobs from one that only read back the snapshot it
+      started with. Other modes ignore it; leaving it false only costs a
+      duplicate snapshot, never a lost one.
+    required: false
+    default: 'false'
+  trees:
+    description: >-
+      Which cache tree(s) this job needs: 'kit', 'kitless', or 'both'. A job that
+      only exercises one render path should request just that tree, so it does
+      not pay the restore/save cost of the tree it never populates.
+    default: 'both'
+    required: false
+
+outputs:
+  host-dir:
+    description: 'Parent directory holding both cache trees; bind-mounted into the test container'
+    value: ${{ steps.compute.outputs.host-dir }}
+
+runs:
+  using: composite
+  steps:
+    # always() here and on every post-test step below: the caller already gates
+    # this invocation on job status, and without it the composite inherits a
+    # failed job context and skips work that stays valid after a test failure.
+    # This step in particular has to run in every mode, since every later step
+    # reads its outputs.
+    - name: Compute OVRTX shader cache keys
+      id: compute
+      if: always()
+      shell: bash
+      env:
+        ISAACSIM_VERSION: ${{ inputs.isaacsim-version }}
+      run: bash "$GITHUB_ACTION_PATH/key.sh"
+
+    - name: Restore OVRTX kit shader cache
+      if: inputs.mode == 'restore' && inputs.trees != 'kitless'
+      id: restore-kit
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.compute.outputs.kit-dir }}
+        key: ${{ steps.compute.outputs.kit-key }}
+        restore-keys: ${{ steps.compute.outputs.kit-restore-keys }}
+
+    - name: Restore OVRTX kitless shader cache
+      if: inputs.mode == 'restore' && inputs.trees != 'kit'
+      id: restore-kitless
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.compute.outputs.kitless-dir }}
+        key: ${{ steps.compute.outputs.kitless-key }}
+        restore-keys: ${{ steps.compute.outputs.kitless-restore-keys }}
+
+    - name: Report restored OVRTX shader cache
+      if: inputs.mode == 'restore'
+      shell: bash
+      env:
+        HOST_DIR: ${{ steps.compute.outputs.host-dir }}
+        TREES: ${{ inputs.trees }}
+        KIT_MATCHED_KEY: ${{ steps.restore-kit.outputs.cache-matched-key }}
+        KITLESS_MATCHED_KEY: ${{ steps.restore-kitless.outputs.cache-matched-key }}
+        KIT_COLLECTION: ${{ steps.compute.outputs.kit-collection }}
+        KITLESS_COLLECTION: ${{ steps.compute.outputs.kitless-collection }}
+        PUBLISHES: ${{ inputs.publishes }}
+      run: bash "$GITHUB_ACTION_PATH/report.sh" restore
+
+    - name: Report OVRTX shader cache growth
+      if: always() && inputs.mode != 'restore'
+      id: growth
+      shell: bash
+      env:
+        HOST_DIR: ${{ steps.compute.outputs.host-dir }}
+        TREES: ${{ inputs.trees }}
+      run: bash "$GITHUB_ACTION_PATH/report.sh" growth
+
+    # Each tree is gated on its own file count so a populated kit/ never carries
+    # an empty kitless/ into a published snapshot. The count is empty rather than
+    # '0' when the growth step aborted before counting; both mean "not measured"
+    # and both must block the save, since the snapshot would publish under a key
+    # every consumer prefers over the last good one.
+    #
+    # The changed gate is a quota guard: every save writes a new immutable entry,
+    # so a warm run that only read back what it restored would spend ~270 MB of
+    # the repository's cache allowance on a duplicate of the snapshot it started
+    # from. It is 'true' whenever the growth step could not rule that out.
+    - name: Save OVRTX kit shader cache
+      if: >-
+        always() && inputs.mode == 'save' && inputs.trees != 'kitless'
+        && steps.growth.outputs.kit-files != ''
+        && steps.growth.outputs.kit-files != '0'
+        && steps.growth.outputs.kit-changed == 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.compute.outputs.kit-dir }}
+        key: ${{ steps.compute.outputs.kit-key }}
+
+    - name: Save OVRTX kitless shader cache
+      if: >-
+        always() && inputs.mode == 'save' && inputs.trees != 'kit'
+        && steps.growth.outputs.kitless-files != ''
+        && steps.growth.outputs.kitless-files != '0'
+        && steps.growth.outputs.kitless-changed == 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.compute.outputs.kitless-dir }}
+        key: ${{ steps.compute.outputs.kitless-key }}
+
+    - name: Verify requested OVRTX shader cache tree(s) were populated
+      if: always() && inputs.mode == 'save'
+      shell: bash
+      env:
+        TREES: ${{ inputs.trees }}
+        KIT_FILES: ${{ steps.growth.outputs.kit-files }}
+        KITLESS_FILES: ${{ steps.growth.outputs.kitless-files }}
+      run: bash "$GITHUB_ACTION_PATH/verify.sh"
