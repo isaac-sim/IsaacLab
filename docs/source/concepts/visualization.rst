@@ -40,18 +40,20 @@ This page covers:
    .viz-label.viz-label-raise { bottom:10px; }
    /* Trims pixels off each hero tile on top of whatever object-position crop is already
       applied, so the tile itself is shorter rather than just repositioning the existing crop.
-      Both classes crop to the same final 221px height so the 2x2 tile grid stays even, split
-      differently per tile: Kit/Rerun/Newton RTX crop 45px off the top and 20px off the bottom;
-      Viser crops 35px off the top and 30px off the bottom (its object-position framing already
-      leaves more headroom at the bottom, so it can take a heavier bottom crop). */
+      Both classes initially crop to the same 221px height, keeping tiles within each row even.
+      Kit/Rerun/Newton RTX crop 45px off the top and 20px off the bottom; Viser crops 35px off
+      the top and 30px off the bottom (its object-position framing already leaves more headroom
+      at the bottom, so it can take a heavier bottom crop). */
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:276px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { margin-top:-10px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-top25 { height:221px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-top25 video { margin-top:-45px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-mixed { height:221px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-mixed video { margin-top:-35px; }
-   /* Top row (Viser, Newton RTX) additionally crops 15px more off the top than the bottom row,
-      keeping bottom crop unchanged: height shrinks by 15px and margin-top grows by 15px. */
+   /* The top row (Viser, Newton RTX) overrides both tiles above to a shorter, still-even 206px:
+      15px more off the top than the bottom row, with bottom crop unchanged (height shrinks by
+      15px and margin-top grows by 15px in lockstep). The bottom row (Rerun, Kit) keeps the 221px
+      height set above. */
    .viz-hero-row-top.viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-top25 { height:206px; }
    .viz-hero-row-top.viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-top25 video { margin-top:-60px; }
    .viz-hero-row-top.viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-mixed { height:206px; }
