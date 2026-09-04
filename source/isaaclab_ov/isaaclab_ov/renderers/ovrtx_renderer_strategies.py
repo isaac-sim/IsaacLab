@@ -141,7 +141,8 @@ class _RenderStrategy(ABC):
         array. A strategy may yield its own buffer instead.
 
         Enqueue the fill kernels on the device's current Warp stream, the default for ``wp.launch``
-        and ``wp.copy``. The write orders OVRTX's read against that stream.
+        and ``wp.copy``. The write names that stream as the buffer's producer, and OVRTX waits for
+        it before reading.
         """
 
     @abstractmethod
