@@ -257,19 +257,19 @@ def test_get_published_pretrained_checkpoint_tolerates_no_feature_extractor(
         ),
     ],
 )
-def test_get_auxiliary_checkpoint_path_keeps_the_declared_extension(checkpoint, expected):
-    """Test that a published auxiliary keeps the extension the component declared."""
-    path = pretrained_checkpoint.get_auxiliary_checkpoint_path(
+def test_get_declared_checkpoint_path_keeps_the_declared_extension(checkpoint, expected):
+    """Test that a published checkpoint keeps the extension the component declared."""
+    path = pretrained_checkpoint.get_declared_checkpoint_path(
         "/logs/Isaac-Cartpole_physx_none_rsl_rl.pt", "rsl_rl", checkpoint
     )
     assert path == expected
 
 
-def test_get_auxiliary_checkpoints_discovers_nested_component_configs():
+def test_get_declared_checkpoints_discovers_nested_component_configs():
     """Test that a component config declaring a checkpoint is found without the task listing it."""
-    assert pretrained_checkpoint.get_auxiliary_checkpoints(_EnvCfg()) == []
+    assert pretrained_checkpoint.get_declared_checkpoints(_EnvCfg()) == []
 
-    found = pretrained_checkpoint.get_auxiliary_checkpoints(_EnvCfg(extractor=_ExtractorCfg()))
+    found = pretrained_checkpoint.get_declared_checkpoints(_EnvCfg(extractor=_ExtractorCfg()))
 
     # only run artifacts are published beside the policy; URL weights are the component's to fetch
     assert [(c.name, c.run_glob) for c in found] == [("feature_extractor", "cnn_*.pth")]

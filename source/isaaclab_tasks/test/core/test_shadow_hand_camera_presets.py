@@ -32,7 +32,7 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab.renderers import RendererCfg
 from isaaclab.sensors import CameraCfg
 
-from isaaclab_rl.utils.pretrained_checkpoint import get_auxiliary_checkpoints
+from isaaclab_rl.utils.pretrained_checkpoint import get_declared_checkpoints
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor, FeatureExtractorCfg
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_manager_env_cfg import (
@@ -307,5 +307,5 @@ def test_camera_task_publishes_the_feature_extractor_checkpoint():
     expected = FeatureExtractorCfg().checkpoint
 
     for env_cfg in (ShadowHandCameraEnvCfg(), ShadowHandCameraManagerEnvCfg()):
-        (found,) = get_auxiliary_checkpoints(env_cfg)
+        (found,) = get_declared_checkpoints(env_cfg)
         assert (found.name, found.run_glob) == (expected.name, expected.run_glob)

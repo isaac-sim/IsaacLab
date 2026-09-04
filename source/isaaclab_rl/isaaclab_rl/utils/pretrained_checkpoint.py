@@ -221,7 +221,7 @@ def get_published_pretrained_checkpoint_path(
     return posixpath.join(*path_parts, filename)
 
 
-def get_auxiliary_checkpoints(
+def get_declared_checkpoints(
     env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg,
 ) -> list[Checkpoint]:
     """Return the run artifacts a task publishes beside its policy checkpoint.
@@ -245,8 +245,8 @@ def get_auxiliary_checkpoints(
     return list(unique.values())
 
 
-def get_auxiliary_checkpoint_path(checkpoint_path: str, workflow: str, checkpoint: Checkpoint) -> str:
-    """Return where an auxiliary checkpoint lives beside a policy checkpoint path.
+def get_declared_checkpoint_path(checkpoint_path: str, workflow: str, checkpoint: Checkpoint) -> str:
+    """Return where a declared checkpoint lives beside a policy checkpoint path.
 
     Args:
         checkpoint_path: Local or published path of the policy checkpoint.
@@ -292,11 +292,11 @@ def get_published_pretrained_checkpoint(
     Returns:
         The path.
     """
-    auxiliary_checkpoints: Sequence[Checkpoint] = ()
+    declared_checkpoints: Sequence[Checkpoint] = ()
     if env_cfg is not None:
         if physics_backend is None and render_backend is None:
             physics_backend, render_backend = get_pretrained_checkpoint_backend_names(env_cfg)
-        auxiliary_checkpoints = get_auxiliary_checkpoints(env_cfg)
+        declared_checkpoints = get_declared_checkpoints(env_cfg)
     ov_path = get_published_pretrained_checkpoint_path(workflow, task_name, physics_backend, render_backend)
     # one cache directory per published checkpoint: play treats it as the run log directory and
     # writes videos, exported policies, and additional checkpoints into it
@@ -310,8 +310,8 @@ def get_published_pretrained_checkpoint(
     if resume_path is None:
         print("A pre-trained checkpoint is currently unavailable for this task.")
         return None
-    for checkpoint in auxiliary_checkpoints:
-        _fetch(get_auxiliary_checkpoint_path(ov_path, workflow, checkpoint), download_dir)
+    for checkpoint in declared_checkpoints:
+        _fetch(get_declared_checkpoint_path(ov_path, workflow, checkpoint), download_dir)
     return resume_path
 
 
