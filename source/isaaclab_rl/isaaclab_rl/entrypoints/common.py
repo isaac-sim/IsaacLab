@@ -497,11 +497,11 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any, *, apply_dev
         physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
         if physics_cfg is not None:
             physics_cfg.deterministic = True
-        request_warp_determinism()
+        request_warp_determinism(physics_cfg)
 
 
-def request_warp_determinism() -> None:
-    """Ask Warp for run-to-run deterministic atomics process-wide.
+def request_warp_determinism(physics_cfg: Any) -> None:
+    """Ask Warp for deterministic atomics process-wide, matching the configured guarantee.
 
     Newton's solvers take a ``deterministic`` argument and apply it as a per-module option, so a
     solver-level request already covers the physics kernels. Its sensor and geometry modules take
@@ -512,14 +512,25 @@ def request_warp_determinism() -> None:
     then break ties differently and a tiled camera renders a handful of pixels differently from
     identical simulation state, which is enough to make an image-observation policy diverge.
 
-    Warp reads this at module build time, so it must be set before the first kernel launch;
-    :func:`apply_env_overrides` runs before the environment is created. An explicit setting is
-    left alone so a caller can still opt into ``GPU_TO_GPU``.
+    A backend that names a stronger guarantee gets it here too: the strings accepted by
+    :attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode` are the
+    ``warp.DeterministicMode`` members lowercased, so ``"gpu_to_gpu"`` selects
+    ``GPU_TO_GPU`` rather than being weakened to ``RUN_TO_RUN``. Warp reads the setting at module
+    build time, so it must land before the first kernel launch; :func:`apply_env_overrides` runs
+    before the environment is created. A mode already set on ``warp.config`` is left alone.
+
+    Args:
+        physics_cfg: Resolved physics config, or ``None`` when the config tree carries none.
     """
     import warp as wp
 
-    if wp.config.deterministic == wp.DeterministicMode.NOT_GUARANTEED:
-        wp.config.deterministic = wp.DeterministicMode.RUN_TO_RUN
+    if wp.config.deterministic != wp.DeterministicMode.NOT_GUARANTEED:
+        return
+    requested = getattr(physics_cfg, "deterministic_mode", None)
+    mode = getattr(wp.DeterministicMode, requested.upper(), None) if isinstance(requested, str) else None
+    if mode is None or mode == wp.DeterministicMode.NOT_GUARANTEED:
+        mode = wp.DeterministicMode.RUN_TO_RUN
+    wp.config.deterministic = mode
 
 
 def validate_distributed_device(args_cli: argparse.Namespace) -> None:
