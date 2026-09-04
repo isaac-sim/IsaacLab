@@ -38,7 +38,10 @@ from isaaclab.app.logging_utils import apply_python_logging_level, resolve_pytho
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 from isaaclab.paths import ISAACLAB_ROOT
 from isaaclab.utils._device import set_cuda_device
-from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from isaaclab.utils.renderers import (
+    ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING,
+    set_isaac_rtx_per_env_scene_partition_default,
+)
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -1270,6 +1273,27 @@ class AppLauncher:
             or bool(getattr(self, "_xr", False))
         )
 
+    def _disable_per_env_scene_partitioning_default(self) -> None:
+        """Default per-environment RTX scene partitioning off for spectator launches.
+
+        RTX culls partitioned geometry from every camera whose ``omni:scenePartition`` token does
+        not match, and only Kit builds newer than the pinned Isaac Sim implement
+        :obj:`~isaaclab.utils.renderers.ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING`. Without
+        that setting the Kit viewport and the XR view, which carry no token, lose the partitioned
+        environments while environment-scoped cameras still render them. Partitioning only isolates
+        per-environment camera renders, which a spectator launch does not need.
+
+        An explicit ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` is left untouched, and an
+        explicit :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning`
+        still overrides this default.
+        """
+        set_isaac_rtx_per_env_scene_partition_default(False)
+        logger.info(
+            "Per-environment Isaac RTX scene partitioning defaulted off so partitioned environments"
+            " stay visible in views without a partition token. Set"
+            " ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1 to keep partitioning."
+        )
+
     def _resolve_kit_args(self, launcher_args: dict):
         """Resolve additional arguments passed to Kit."""
         self._kit_args = launcher_args.get("kit_args", "").split()
@@ -1298,6 +1322,7 @@ class AppLauncher:
             setting = argument.partition("=")[0]
             if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
                 self._kit_args.append(argument)
+            self._disable_per_env_scene_partitioning_default()
 
         # Select the renderer by CUDA index; the trailing comma keeps the setting string-typed.
         # XR streams a single stereo swapchain that the CloudXR compositor imports, so the
