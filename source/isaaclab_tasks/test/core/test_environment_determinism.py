@@ -39,9 +39,9 @@ def setup_environment():
     ("task_name", "deterministic_mode"),
     [
         # Newton defaults to ``wp.DeterministicMode.NOT_GUARANTEED``, under which Warp's atomics may
-        # accumulate in any order, so two runs are not bit-reproducible. Ask for the guarantee this
-        # test asserts, as the Newton cartpole cases below already do. ``deterministic_mode`` is a
-        # Newton setting, so the PhysX-backed task leaves it unset.
+        # accumulate in any order, so two runs are not bit-reproducible. ``run_to_run`` is exactly
+        # the guarantee this test asserts: one device, one process, run twice. ``deterministic_mode``
+        # is a Newton setting, so the PhysX-backed task leaves it unset.
         ("Isaac-Open-Drawer-Franka", "run_to_run"),
         ("IsaacContrib-Lift-Cube-Franka", None),
     ],
