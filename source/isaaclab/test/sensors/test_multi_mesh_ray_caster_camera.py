@@ -359,6 +359,8 @@ def test_intrinsic_matrix(setup_simulation, height, width):
         ["distance_to_camera"],
     ],
 )
+# RTX can occasionally return an all-infinity depth frame while its render product warms up in CI.
+@pytest.mark.flaky(max_runs=3, min_passes=1)
 @pytest.mark.isaacsim_ci
 def test_output_equal_to_usdcamera(setup_simulation, data_types):
     """Test that ray caster camera output equals USD camera output."""

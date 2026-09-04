@@ -14,6 +14,7 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
+from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp import ProxyArray
 
 # Directory containing golden images.
@@ -695,6 +696,20 @@ def _compare_images(
     return True, None, diff_pct, ssim_score
 
 
+def _resolve_golden_image_path(test_name: str, physics_backend: str, renderer: str, data_type: str) -> str:
+    """Resolve a simulator-version-specific golden image when one exists."""
+    golden_image_dir = os.path.join(_GOLDEN_IMAGES_DIRECTORY, test_name)
+    filename_stem = f"{physics_backend}-{renderer}-{data_type}"
+    isaac_sim_version = get_isaac_sim_version()
+    versioned_path = os.path.join(
+        golden_image_dir,
+        f"{filename_stem}-isaacsim-{isaac_sim_version.major}.{isaac_sim_version.minor}.png",
+    )
+    if os.path.exists(versioned_path):
+        return versioned_path
+    return os.path.join(golden_image_dir, f"{filename_stem}.png")
+
+
 def validate_camera_outputs(
     test_name: str,
     physics_backend: str,
@@ -726,7 +741,7 @@ def validate_camera_outputs(
         ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
         result_image = Image.fromarray(ndarr)
 
-        golden_path = os.path.join(golden_image_dir, f"{physics_backend}-{renderer}-{data_type}.png")
+        golden_path = _resolve_golden_image_path(test_name, physics_backend, renderer, data_type)
         if not os.path.exists(golden_path):
             failed_data_types[data_type] = f"Golden image not found at {golden_path}."
             result_image.save(golden_path)
