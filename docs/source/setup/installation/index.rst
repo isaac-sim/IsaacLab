@@ -662,6 +662,11 @@ Use ``all`` for the curated list above. Isaac Sim, standalone importers, special
 (``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and the
 developer ``test`` tooling remain opt-in.
 
+.. note::
+
+   On Linux, the ``mimic`` extra may build its ``egl-probe`` dependency from source. Install
+   CMake and a C++ compiler first with ``sudo apt install cmake build-essential``.
+
 .. _installation-importers-extra:
 
 Installing the ``importers`` extra
