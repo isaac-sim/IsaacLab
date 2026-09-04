@@ -96,6 +96,7 @@ for pipelined rendering; ``False`` renders synchronously:
 
 The ``ISAAC_LAB_ASYNC_RENDERING`` environment variable overrides the same setting for any task.
 Only the OVRTX renderer pipelines renders. The other renderers warn and render synchronously.
+See :ref:`renderers-async-data-flow` for how states, observations, and frames line up in each mode.
 
 Warm-Up
 ~~~~~~~
