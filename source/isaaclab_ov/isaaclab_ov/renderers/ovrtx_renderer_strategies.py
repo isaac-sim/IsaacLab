@@ -173,7 +173,7 @@ class _RenderStrategy(ABC):
 class _SyncRenderStrategy(_RenderStrategy):
     """Renders within the call: transforms go straight to OVRTX, and each step is read back inline.
 
-    Publication uses the blocking ``write()``, so a staged buffer stays valid until OVRTX has read
+    Transform writes use the blocking ``write()``, so a staged buffer stays valid until OVRTX has read
     it. ``DataAccess.ASYNC`` with the producing Warp stream lets OVRTX read GPU buffers in place.
     OVRTX rejects ``SYNC`` for GPU buffers.
     """
