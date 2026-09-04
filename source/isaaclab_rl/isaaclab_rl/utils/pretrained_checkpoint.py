@@ -252,18 +252,46 @@ class CheckpointBundle:
         copy itself.
 
         Returns:
-            The local policy path, or ``None`` if no policy is published for this bundle.
+            The local policy path, or ``None`` if the asset server does not report a policy for this
+            bundle. That covers both a checkpoint that was never published and a server that could
+            not be reached, which ``omni.client`` does not distinguish.
+
+        Raises:
+            RuntimeError: If a published file could not be downloaded, for instance because the
+                cache directory is not writable. The originating error is chained as the cause.
         """
         remote_path = self.published_path()
         print(f"Fetching pre-trained checkpoint : {remote_path}")
-        local_path = _fetch(remote_path, self.cache_dir)
-        if local_path is None:
-            print("A pre-trained checkpoint is currently unavailable for this task.")
+        try:
+            local_path = retrieve_file_path(remote_path, self.cache_dir)
+        except FileNotFoundError:
+            # the asset server reports a checkpoint that was never published and a server it
+            # cannot reach the same way, so both are covered by the same message
+            backends = (
+                ""
+                if self.is_legacy
+                else f" with the '{self.physics_backend}' physics and '{self.render_backend}' render backends"
+            )
+            print(
+                "A pre-trained checkpoint is currently unavailable for this task.\n"
+                f"  The asset server does not provide '{remote_path}'.\n"
+                f"  Either no checkpoint is published for task '{self.task_name}'{backends}, or the asset"
+                " server could not be reached.\n"
+                "  Train the task, or pass --checkpoint <path> to use a checkpoint of your own."
+            )
             return None
+        except Exception as exc:
+            raise _download_error(remote_path, self.cache_dir, exc) from exc
         for checkpoint in self.companions:
-            fetched = _fetch(self.published_path(checkpoint), self.cache_dir)
-            if fetched is not None:
-                checkpoint.local_path = fetched
+            companion_path = self.published_path(checkpoint)
+            try:
+                checkpoint.local_path = retrieve_file_path(companion_path, self.cache_dir)
+            except FileNotFoundError:
+                print(
+                    f"[WARNING]: The asset server does not provide the {checkpoint.name} checkpoint '{companion_path}'."
+                )
+            except Exception as exc:
+                raise _download_error(companion_path, self.cache_dir, exc) from exc
         return local_path
 
 
@@ -291,7 +319,16 @@ def get_published_pretrained_checkpoint(
             given, and the checkpoints its components declare.
 
     Returns:
-        The path.
+        The path, or None when the asset server does not report a checkpoint for this task
+        and backend combination. That covers both a checkpoint that was never published and
+        a server that could not be reached, which ``omni.client`` does not distinguish, so a
+        transient outage is not evidence that a checkpoint does not exist. The reason is
+        printed before returning.
+
+    Raises:
+        RuntimeError: If the checkpoint is published but could not be downloaded, for
+            instance because the local cache directory is not writable. The originating
+            error is chained as the cause.
     """
     if env_cfg is None:
         bundle = CheckpointBundle(workflow, task_name, physics_backend, render_backend)
@@ -303,13 +340,22 @@ def get_published_pretrained_checkpoint(
     return bundle.fetch()
 
 
-def _fetch(remote_path: str, download_dir: str) -> str | None:
-    """Download a published file into the cache, or report why it could not be."""
-    try:
-        return retrieve_file_path(remote_path, download_dir)
-    except Exception as error:  # noqa: BLE001
-        print(f"[WARNING]: Could not fetch {remote_path}: {error}")
-        return None
+def _download_error(remote_path: str, download_dir: str, exc: Exception) -> RuntimeError:
+    """Describe a published file that could not be downloaded.
+
+    The checkpoint exists on the server, so this is a local failure the user has to fix; reporting
+    it as an unavailable checkpoint would send them looking in the wrong place.
+    """
+    hint = ""
+    if isinstance(exc, OSError):
+        hint = (
+            " Check that the cache directory is writable and that the disk is not full;"
+            " a directory left behind by a container run is owned by root."
+        )
+    return RuntimeError(
+        f"Failed to download the pre-trained checkpoint '{remote_path}' into"
+        f" '{os.path.abspath(download_dir)}': {type(exc).__name__}: {exc}.{hint}"
+    )
 
 
 def _get_physics_backend_name(physics_cfg: PhysicsCfg | None) -> str:

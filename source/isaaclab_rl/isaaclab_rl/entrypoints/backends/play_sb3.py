@@ -185,6 +185,7 @@ def main():
             screen.close()
             obs = env.reset()
             timestep = 0
+            print("[INFO] Policy playback is running, press Ctrl+C to exit...")
             try:
                 while True:
                     start_time = time.time()

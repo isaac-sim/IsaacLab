@@ -195,6 +195,7 @@ def main():
             _ = agent.get_batch_size(obs, 1)
             if agent.is_rnn:
                 agent.init_rnn()
+            print("[INFO] Policy playback is running, press Ctrl+C to exit...")
             try:
                 while True:
                     start_time = time.time()

@@ -29,6 +29,7 @@ import re
 
 import pytest
 import torch
+import warp as wp
 from flaky import flaky
 from isaaclab_newton.physics.newton_manager import _compile_label_pattern
 from isaaclab_newton.sensors.contact_sensor import ContactSensorCfg as NewtonContactSensorCfg
@@ -147,13 +148,13 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
         for _ in range(5):
             perform_sim_step(sim, scene, SIM_DT)
 
-        forces = torch.norm(contact_sensor.data.net_forces_w.torch, dim=-1)
+        forces = torch.norm(contact_sensor.data.net_normal_forces_w.torch, dim=-1)
         for env_idx in range(num_envs):
             assert forces[env_idx].max().item() < 0.01, f"Env {env_idx}: No contact should be detected while in air."
 
         for tick in range(5, total_fall_steps):
             perform_sim_step(sim, scene, SIM_DT)
-            forces = torch.norm(contact_sensor.data.net_forces_w.torch, dim=-1)
+            forces = torch.norm(contact_sensor.data.net_normal_forces_w.torch, dim=-1)
             for env_idx in range(num_envs):
                 if forces[env_idx].max().item() > 0.1 and not contact_detected[env_idx]:
                     contact_detected[env_idx] = True
@@ -192,7 +193,7 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
         for step in range(lift_steps):
             perform_sim_step(sim, scene, SIM_DT)
             if step > 10:
-                forces = torch.norm(contact_sensor.data.net_forces_w.torch, dim=-1)
+                forces = torch.norm(contact_sensor.data.net_normal_forces_w.torch, dim=-1)
                 for env_idx in range(num_envs):
                     if forces[env_idx].max().item() < 0.01:
                         no_contact_detected[env_idx] = True
@@ -295,8 +296,8 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
 
         for tick in range(collision_steps):
             perform_sim_step(sim, scene, SIM_DT)
-            forces_a = torch.norm(sensor_a.data.net_forces_w.torch, dim=-1)
-            forces_b = torch.norm(sensor_b.data.net_forces_w.torch, dim=-1)
+            forces_a = torch.norm(sensor_a.data.net_normal_forces_w.torch, dim=-1)
+            forces_b = torch.norm(sensor_b.data.net_normal_forces_w.torch, dim=-1)
             for env_idx in range(num_envs):
                 if forces_a[env_idx].max().item() > 0.1:
                     contact_detected_a[env_idx] = True
@@ -388,8 +389,8 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
         for step in range(settle_steps):
             perform_sim_step(sim, scene, SIM_DT)
             if step >= settle_steps - avg_window:
-                force_a_samples.append(sensor_a.data.net_forces_w.torch.clone())
-                force_b_samples.append(sensor_b.data.net_forces_w.torch.clone())
+                force_a_samples.append(sensor_a.data.net_normal_forces_w.torch.clone())
+                force_b_samples.append(sensor_b.data.net_normal_forces_w.torch.clone())
 
         forces_a = torch.stack(force_a_samples).mean(dim=0)
         forces_b = torch.stack(force_b_samples).mean(dim=0)
@@ -472,7 +473,7 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
 
         for _ in range(total_steps):
             perform_sim_step(sim, scene, SIM_DT)
-            force_magnitudes = torch.norm(contact_sensor.data.net_forces_w.torch, dim=-1)
+            force_magnitudes = torch.norm(contact_sensor.data.net_normal_forces_w.torch, dim=-1)
             for env_idx in range(num_envs):
                 f = force_magnitudes[env_idx].max().item()
                 if f > 0.1:
@@ -508,7 +509,9 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
             False,
             id="newton_contacts",
             marks=pytest.mark.xfail(
-                reason="Newton force_matrix_w is non-deterministic across hardware (reports 0 or inflated values)",
+                reason=(
+                    "Newton normal_force_matrix_w is non-deterministic across hardware (reports 0 or inflated values)"
+                ),
                 strict=False,
             ),
         ),
@@ -516,15 +519,16 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
     ],
 )
 def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
-    """Test that filter_prim_paths_expr filters contacts and enables force_matrix_w.
+    """Test that filter_prim_paths_expr filters contacts and enables normal_force_matrix_w.
 
     Object A rests on ground, Object B stacked on A.
     Sensor on A is filtered for B only (not ground).
 
     Verifies:
-    - force_matrix_w reports only filtered contact (A-B)
-    - net_forces_w reports total contact (ground + B)
-    - force_matrix < net_forces (ground contact excluded from matrix)
+    - normal_force_matrix_w reports only filtered contact (A-B)
+    - net_normal_forces_w reports normal contact against all objects (ground + B)
+    - the normal and friction outputs reconstruct Newton's total-force outputs
+    - filtered normal force is smaller than net normal force (ground contact excluded from matrix)
     """
     settle_steps = 240
     num_envs = 4
@@ -570,6 +574,7 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
             update_period=0.0,
             history_length=0,
             filter_prim_paths_expr=["{ENV_REGEX_NS}/ObjectB"],
+            track_friction_forces=True,
         )
 
         scene = InteractiveScene(scene_cfg)
@@ -585,18 +590,31 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
         for step in range(settle_steps):
             perform_sim_step(sim, scene, SIM_DT)
             if step >= settle_steps - avg_window:
-                matrix_raw = contact_sensor.data.force_matrix_w
-                matrix_history_raw = contact_sensor.data.force_matrix_w_history
-                net_raw = contact_sensor.data.net_forces_w
+                matrix_raw = contact_sensor.data.normal_force_matrix_w
+                matrix_history_raw = contact_sensor.data.normal_force_matrix_w_history
+                net_raw = contact_sensor.data.net_normal_forces_w
                 if not matrix_samples:
-                    assert matrix_raw is not None, "force_matrix_w should not be None when filter is set"
+                    assert matrix_raw is not None, "normal_force_matrix_w should not be None when filter is set"
                     assert matrix_history_raw is not None, (
-                        "force_matrix_w_history should not be None when filter is set"
+                        "normal_force_matrix_w_history should not be None when filter is set"
                     )
                     assert matrix_history_raw.torch.shape == (num_envs, 1, 1, 1, 3)
                     torch.testing.assert_close(matrix_history_raw.torch[:, 0], matrix_raw.torch)
+                    assert contact_sensor.data.net_friction_forces_w is not None
+                    assert contact_sensor.data.friction_force_matrix_w is not None
                 matrix_samples.append(matrix_raw.torch.clone())
                 net_samples.append(net_raw.torch.clone())
+
+        total_force = wp.to_torch(contact_sensor.contact_view.total_force).reshape(num_envs, 1, 3)
+        total_force_matrix = wp.to_torch(contact_sensor.contact_view.force_matrix).reshape(num_envs, 1, 1, 3)
+        torch.testing.assert_close(
+            contact_sensor.data.net_normal_forces_w.torch + contact_sensor.data.net_friction_forces_w.torch,
+            total_force,
+        )
+        torch.testing.assert_close(
+            contact_sensor.data.normal_force_matrix_w.torch + contact_sensor.data.friction_force_matrix_w.torch,
+            total_force_matrix,
+        )
 
         force_matrix = torch.stack(matrix_samples).mean(dim=0)
         net_forces = torch.stack(net_samples).mean(dim=0)
@@ -630,7 +648,9 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
             False,
             id="newton_contacts",
             marks=pytest.mark.xfail(
-                reason="Newton force_matrix_w is non-deterministic across hardware (reports 0 or inflated values)",
+                reason=(
+                    "Newton normal_force_matrix_w is non-deterministic across hardware (reports 0 or inflated values)"
+                ),
                 strict=False,
             ),
         ),
@@ -925,8 +945,8 @@ def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool,
         for _ in range(drop_steps):
             perform_sim_step(sim, scene, SIM_DT)
             for finger_name, sensor in finger_sensors.items():
-                if sensor.data.net_forces_w is not None:
-                    forces = sensor.data.net_forces_w.torch
+                if sensor.data.net_normal_forces_w is not None:
+                    forces = sensor.data.net_normal_forces_w.torch
                     for env_idx in range(num_envs):
                         f = torch.norm(forces[env_idx]).item()
                         peak_forces[finger_name][env_idx] = max(peak_forces[finger_name][env_idx], f)
@@ -1080,7 +1100,7 @@ def test_no_stale_data_after_scene_reset(device: str):
         for _ in range(200):
             perform_sim_step(sim, scene, SIM_DT)
 
-        pre_reset_force_mag = torch.linalg.norm(sensor.data.net_forces_w.torch, dim=-1).item()
+        pre_reset_force_mag = torch.linalg.norm(sensor.data.net_normal_forces_w.torch, dim=-1).item()
         assert pre_reset_force_mag > 1.0, f"Expected non-zero contact force before reset; got {pre_reset_force_mag!r}"
 
         # Mimic ``ManagerBasedRLEnv._reset_idx``: write post-reset asset state, then scene.reset().
@@ -1091,7 +1111,7 @@ def test_no_stale_data_after_scene_reset(device: str):
         obj.write_root_velocity_to_sim_index(root_velocity=new_root_vel, env_ids=env_ids)
         scene.reset(env_ids=env_ids)
 
-        post_reset_force_mag = torch.linalg.norm(sensor.data.net_forces_w.torch, dim=-1).item()
+        post_reset_force_mag = torch.linalg.norm(sensor.data.net_normal_forces_w.torch, dim=-1).item()
         assert post_reset_force_mag == 0.0, (
             "Contact sensor returned stale pre-reset data after scene.reset(): "
             f"got {post_reset_force_mag}, expected 0.0 (pre-reset value was {pre_reset_force_mag})."
