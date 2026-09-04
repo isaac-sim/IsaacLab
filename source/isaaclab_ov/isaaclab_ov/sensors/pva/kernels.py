@@ -15,7 +15,7 @@ def pva_update_kernel(
     coms: wp.array(dtype=wp.transformf),
     offset_pos_b: wp.array(dtype=wp.vec3f),
     offset_quat_b: wp.array(dtype=wp.quatf),
-    gravity_vec_w: wp.array(dtype=wp.vec3f),
+    gravity_vec_w: wp.vec3f,
     inv_dt: wp.float32,
     timestamp: wp.array(dtype=wp.float32),
     # inputs / outputs
@@ -39,7 +39,7 @@ def pva_update_kernel(
         coms: COMs of the bodies.
         offset_pos_b: Offset positions of the sensors.
         offset_quat_b: Offset quaternions of the sensors.
-        gravity_vec_w: Gravity direction unit vector in the world frame.
+        gravity_vec_w: Scene-wide unit gravity direction in the world frame.
         inv_dt: Inverse of the time step.
         timestamp: Timestamp of the environment.
         prev_lin_vel_w: Previous linear velocity in the world frame.
@@ -83,7 +83,7 @@ def pva_update_kernel(
     out_ang_vel_b[idx] = wp.quat_rotate_inv(sensor_quat, ang_vel_w)
     out_lin_acc_b[idx] = wp.quat_rotate_inv(sensor_quat, lin_acc_w)
     out_ang_acc_b[idx] = wp.quat_rotate_inv(sensor_quat, ang_acc_w)
-    out_projected_gravity_b[idx] = wp.quat_rotate_inv(sensor_quat, gravity_vec_w[idx])
+    out_projected_gravity_b[idx] = wp.quat_rotate_inv(sensor_quat, gravity_vec_w)
 
     # Update previous velocities.
     prev_lin_vel_w[idx] = lin_vel_w
@@ -142,7 +142,7 @@ def pva_update_solver_acc_kernel(
     coms: wp.array(dtype=wp.transformf),
     offset_pos_b: wp.array(dtype=wp.vec3f),
     offset_quat_b: wp.array(dtype=wp.quatf),
-    gravity_vec_w: wp.array(dtype=wp.vec3f),
+    gravity_vec_w: wp.vec3f,
     timestamp: wp.array(dtype=wp.float32),
     # outputs
     out_pos_w: wp.array(dtype=wp.vec3f),
@@ -169,7 +169,7 @@ def pva_update_solver_acc_kernel(
         coms: COMs of the bodies.
         offset_pos_b: Offset positions of the sensors.
         offset_quat_b: Offset quaternions of the sensors.
-        gravity_vec_w: Gravity direction unit vector in the world frame.
+        gravity_vec_w: Scene-wide unit gravity direction in the world frame.
         timestamp: Timestamp of the environment.
         out_pos_w: Output position in the world frame.
         out_quat_w: Output orientation in the world frame.
@@ -212,4 +212,4 @@ def pva_update_solver_acc_kernel(
     out_ang_vel_b[idx] = wp.quat_rotate_inv(sensor_quat, ang_vel_w)
     out_lin_acc_b[idx] = wp.quat_rotate_inv(sensor_quat, lin_acc_w)
     out_ang_acc_b[idx] = wp.quat_rotate_inv(sensor_quat, ang_acc_w)
-    out_projected_gravity_b[idx] = wp.quat_rotate_inv(sensor_quat, gravity_vec_w[idx])
+    out_projected_gravity_b[idx] = wp.quat_rotate_inv(sensor_quat, gravity_vec_w)

@@ -19,7 +19,6 @@ import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
 from isaaclab.sim.utils.queries import path_expr_to_glob
-from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -85,6 +84,8 @@ class Pva(BasePva):
         self._raw_accelerations: wp.array | None = None
         self._raw_coms: wp.array | None = None
         self._update_cmd: wp.Launch | None = None
+        # Gravity baked into the recorded command, so a change can be re-bound on replay.
+        self._recorded_gravity_w: tuple[float, float, float] | None = None
         self._update_env_mask: wp.array | None = None
         self._use_recorded_launch: bool = False
 
@@ -161,7 +162,7 @@ class Pva(BasePva):
         # Unit world-gravity direction. The scene value can change at runtime, so it is
         # refreshed on every update instead of snapshotted here.
         self._gravity_w: tuple[float, float, float] | None = None
-        self.GRAVITY_VEC_W = ProxyArray(wp.empty(self.num_instances, dtype=wp.vec3f, device=self.device))
+        self._gravity_vec_w = wp.vec3f(0.0, 0.0, -1.0)
         self._refresh_gravity_vec()
 
         # Create internal buffers
@@ -202,7 +203,7 @@ class Pva(BasePva):
         # Mirrors ``math_utils.normalize``: the norm is clamped to eps, so zero scene gravity
         # yields a zero direction instead of NaNs.
         scale = 1.0 / max(math.sqrt(gravity[0] ** 2 + gravity[1] ** 2 + gravity[2] ** 2), 1.0e-9)
-        self.GRAVITY_VEC_W.warp.fill_(wp.vec3f(gravity[0] * scale, gravity[1] * scale, gravity[2] * scale))
+        self._gravity_vec_w = wp.vec3f(gravity[0] * scale, gravity[1] * scale, gravity[2] * scale)
 
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
@@ -240,6 +241,7 @@ class Pva(BasePva):
                 try:
                     self._update_cmd = self._launch_update(env_mask, record_cmd=True)
                     self._update_env_mask = env_mask
+                    self._recorded_gravity_w = self._gravity_w
                 except Exception as exc:
                     self._use_recorded_launch = False
                     logger.warning(
@@ -250,6 +252,9 @@ class Pva(BasePva):
                 if env_mask is not self._update_env_mask:
                     self._update_cmd.set_param_by_name("env_mask", env_mask)
                     self._update_env_mask = env_mask
+                if self._gravity_w != self._recorded_gravity_w:
+                    self._update_cmd.set_param_by_name("gravity_vec_w", self._gravity_vec_w)
+                    self._recorded_gravity_w = self._gravity_w
                 self._update_cmd.launch()
                 return
 
@@ -269,7 +274,7 @@ class Pva(BasePva):
                 self._coms_buffer,
                 self._offset_pos_b,
                 self._offset_quat_b,
-                self.GRAVITY_VEC_W,
+                self._gravity_vec_w,
                 self._timestamp,
                 self._data._pos_w,
                 self._data._quat_w,
@@ -308,6 +313,7 @@ class Pva(BasePva):
         self._raw_coms = None
         self._update_cmd = None
         self._update_env_mask = None
+        self._recorded_gravity_w = None
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers

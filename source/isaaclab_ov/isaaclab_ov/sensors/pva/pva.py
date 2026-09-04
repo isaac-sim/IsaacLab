@@ -167,7 +167,7 @@ class Pva(BasePva):
         # PVA reports projected gravity as the unit direction vector (not the bias the IMU uses).
         # The scene value can change at runtime, so it is refreshed on every update.
         self._gravity_w: tuple[float, float, float] | None = None
-        self._gravity_vec_w = wp.empty(self._num_bodies, dtype=wp.vec3f, device=self._device)
+        self._gravity_vec_w = wp.vec3f(0.0, 0.0, -1.0)
         self._refresh_gravity_vec()
 
         self._initialize_buffers_impl()
@@ -210,7 +210,7 @@ class Pva(BasePva):
         # Mirrors ``math_utils.normalize``: the norm is clamped to eps, so zero scene gravity
         # yields a zero direction instead of NaNs.
         scale = 1.0 / max(math.sqrt(gravity[0] ** 2 + gravity[1] ** 2 + gravity[2] ** 2), 1.0e-9)
-        self._gravity_vec_w.fill_(wp.vec3f(gravity[0] * scale, gravity[1] * scale, gravity[2] * scale))
+        self._gravity_vec_w = wp.vec3f(gravity[0] * scale, gravity[1] * scale, gravity[2] * scale)
 
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""

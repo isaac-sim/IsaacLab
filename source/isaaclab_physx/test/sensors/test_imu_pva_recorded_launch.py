@@ -23,7 +23,6 @@ from isaaclab_physx.sensors.pva.pva_data import PvaData
 
 from isaaclab.sensors.imu import BaseImu
 from isaaclab.sensors.pva import BasePva
-from isaaclab.utils.warp import ProxyArray
 
 pytestmark = [
     pytest.mark.isaacsim_ci,
@@ -151,7 +150,8 @@ def _make_sensor(sensor_type: str, use_recorded_launch: bool = True):
     else:
         sensor._data = PvaData()
         sensor._data.create_buffers(num_envs=2, device=device)
-        sensor.GRAVITY_VEC_W = ProxyArray(wp.zeros(2, dtype=wp.vec3f, device=device))
+        sensor._gravity_vec_w = wp.vec3f(0.0, 0.0, -1.0)
+        sensor._recorded_gravity_w = gravity_sink["value"]
 
     env_mask = wp.ones(2, dtype=wp.bool, device=device)
     return sensor, rigid_view, accelerations_torch, env_mask, gravity_sink
@@ -263,17 +263,12 @@ def test_sensor_tracks_runtime_gravity_changes(sensor_type):
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor.device)
 
-    if sensor_type == "imu":
-        # Scene-wide bias (-g), passed to the kernel by value.
-        assert tuple(sensor._gravity_bias_w) == pytest.approx((0.0, -3.72, 0.0))
-        # The recorded command must have been re-bound, not left holding the old value.
-        assert sensor._recorded_gravity_w == (0.0, 3.72, 0.0)
-    else:
-        # PVA reports the unit gravity direction, still a per-instance buffer.
-        torch.testing.assert_close(
-            wp.to_torch(sensor.GRAVITY_VEC_W.warp),
-            torch.tensor((0.0, 1.0, 0.0), device=sensor.device).repeat(2, 1),
-        )
+    # IMU carries the accelerometer bias (-g); PVA carries the unit gravity direction.
+    expected = (0.0, -3.72, 0.0) if sensor_type == "imu" else (0.0, 1.0, 0.0)
+    resolved = sensor._gravity_bias_w if sensor_type == "imu" else sensor._gravity_vec_w
+    assert tuple(resolved) == pytest.approx(expected)
+    # The recorded command must have been re-bound, not left holding the old value.
+    assert sensor._recorded_gravity_w == (0.0, 3.72, 0.0)
 
 
 def test_imu_replayed_launch_applies_new_gravity_bias():
@@ -304,17 +299,9 @@ def test_imu_replayed_launch_applies_new_gravity_bias():
 def test_sensor_skips_gravity_work_when_unchanged(sensor_type):
     """An unchanged scene gravity must not re-do the per-update gravity work."""
     sensor, _, _, env_mask, _ = _make_sensor(sensor_type)
-    if sensor_type == "pva":
-        sensor.GRAVITY_VEC_W.warp.fill_(wp.vec3f(7.0, 7.0, 7.0))
 
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor.device)
 
-    if sensor_type == "imu":
-        # Still the harness value: no re-bind happened, so the recorded command is untouched.
-        assert sensor._recorded_gravity_w == (0.0, 0.0, -9.81)
-    else:
-        torch.testing.assert_close(
-            wp.to_torch(sensor.GRAVITY_VEC_W.warp),
-            torch.tensor((7.0, 7.0, 7.0), device=sensor.device).repeat(2, 1),
-        )
+    # Still the harness value: no re-bind happened, so the recorded command is untouched.
+    assert sensor._recorded_gravity_w == (0.0, 0.0, -9.81)
