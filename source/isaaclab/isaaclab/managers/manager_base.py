@@ -10,11 +10,13 @@ import inspect
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 import isaaclab.utils.string as string_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.utils import class_to_dict, string_to_callable
+from isaaclab.utils.modifiers import ModifierCfg
 
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
@@ -334,8 +336,7 @@ class ManagerBase(ABC):
             )
 
         # get the corresponding function or functional class
-        if isinstance(term_cfg.func, str):
-            term_cfg.func = string_to_callable(term_cfg.func)
+        term_cfg.func = self._resolve_param_value(term_name, "func", term_cfg.func, resolve_callable=True)
         # check if function is callable
         if not callable(term_cfg.func):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
@@ -381,7 +382,7 @@ class ManagerBase(ABC):
         This function is called when the simulation starts playing. It is used to process the term
         configuration at runtime. This includes:
 
-        * Resolving the scene entity configuration for the term.
+        * Resolving scene entity configurations and nested terms throughout the term configuration.
         * Initializing the term if it is a class.
 
         Since the above steps rely on PhysX to parse over the simulation scene, they are deferred
@@ -391,17 +392,24 @@ class ManagerBase(ABC):
             term_name: The name of the term.
             term_cfg: The term configuration.
         """
-        for key, value in term_cfg.params.items():
-            self._resolve_param_value(term_name, key, value)
+        for field in fields(term_cfg):
+            value = getattr(term_cfg, field.name)
+            resolved_value = self._resolve_param_value(
+                term_name, field.name, value, resolve_callable=field.name == "func"
+            )
+            if resolved_value is not value:
+                setattr(term_cfg, field.name, resolved_value)
 
-        # resolve string func references then initialize class-based terms
-        if isinstance(term_cfg.func, str):
-            term_cfg.func = string_to_callable(term_cfg.func)
+        # initialize class-based terms
         if inspect.isclass(term_cfg.func):
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
 
-    def _resolve_param_value(self, term_name: str, key: str | int, value: Any):
-        """Recursively resolve a single param value (SceneEntityCfg, nested term cfgs, dicts, lists)."""
+    def _resolve_param_value(
+        self, term_name: str, key: str | int, value: Any, *, resolve_callable: bool = False
+    ) -> Any:
+        """Recursively resolve manager-owned values in a term configuration."""
+        if resolve_callable and isinstance(value, str):
+            return string_to_callable(value)
         if isinstance(value, SceneEntityCfg):
             try:
                 value.resolve(self._env.scene)
@@ -409,9 +417,24 @@ class ManagerBase(ABC):
                 raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
         elif isinstance(value, ManagerTermBaseCfg):
             self._process_term_cfg_at_play(f"{term_name}.{key}", value)
+        elif isinstance(value, ModifierCfg):
+            for field in fields(value):
+                field_value = getattr(value, field.name)
+                resolved_value = self._resolve_param_value(
+                    f"{term_name}.{key}", field.name, field_value, resolve_callable=field.name == "func"
+                )
+                if resolved_value is not field_value:
+                    setattr(value, field.name, resolved_value)
         elif isinstance(value, dict):
             for sub_key, sub_value in value.items():
-                self._resolve_param_value(f"{term_name}.{key}", sub_key, sub_value)
-        elif isinstance(value, (list, tuple)):
+                value[sub_key] = self._resolve_param_value(f"{term_name}.{key}", sub_key, sub_value)
+        elif isinstance(value, list):
             for i, item in enumerate(value):
-                self._resolve_param_value(f"{term_name}.{key}", i, item)
+                value[i] = self._resolve_param_value(f"{term_name}.{key}", i, item)
+        elif isinstance(value, tuple):
+            resolved_items = tuple(
+                self._resolve_param_value(f"{term_name}.{key}", i, item) for i, item in enumerate(value)
+            )
+            if any(resolved is not original for resolved, original in zip(resolved_items, value, strict=True)):
+                value = resolved_items
+        return value

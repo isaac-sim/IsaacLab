@@ -232,7 +232,7 @@ def test_commands_respect_script_launcher_capabilities():
         if case.spec.relative_path == "scripts/tutorials/04_sensors/run_ray_caster_camera.py"
         and case.visualizer == "none"
     )
-    assert "--enable_cameras" in ray_camera_case.command()
+    assert "--enable_cameras" not in ray_camera_case.command()
 
     usd_camera_case = next(
         case

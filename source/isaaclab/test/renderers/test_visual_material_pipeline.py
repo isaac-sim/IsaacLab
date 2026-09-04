@@ -12,6 +12,7 @@ import math
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -243,8 +244,8 @@ def test_material_initialization_orders_paths_by_plan_column(monkeypatch: pytest
     plan = ClonePlan(
         sources=("/World/envs/env_42/Robot", "/World/envs/env_7/Robot"),
         destinations=("/World/envs/env_{}/Robot",) * 2,
-        env_ids=torch.tensor([19, 42, 7]),
-        clone_mask=torch.tensor([[True, True, False], [False, False, True]]),
+        env_ids=np.asarray([19, 42, 7], dtype=np.int64),
+        clone_mask=np.asarray([[True, True, False], [False, False, True]], dtype=np.bool_),
     )
     simulation = SimpleNamespace(get_clone_plan=lambda: plan)
     monkeypatch.setattr(
@@ -286,8 +287,8 @@ def test_material_initialization_rejects_partial_owner_row(monkeypatch: pytest.M
     plan = ClonePlan(
         sources=("/World/envs/env_0/Robot",),
         destinations=("/World/envs/env_{}/Robot",),
-        env_ids=torch.arange(4),
-        clone_mask=torch.tensor([[True, True, False, False]]),
+        env_ids=np.arange(4, dtype=np.int64),
+        clone_mask=np.asarray([[True, True, False, False]], dtype=np.bool_),
     )
     simulation = SimpleNamespace(get_clone_plan=lambda: plan)
     monkeypatch.setattr(
