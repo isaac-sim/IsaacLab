@@ -433,11 +433,12 @@ class TestPinkIkStack:
     stack from there instead of mirroring the versions.
     """
 
-    def test_stack_derived_from_root_pyproject_pins(self):
+    def test_stack_derived_from_root_pyproject_pins(self, source_checkout_root: Path):
         """The derived stack covers every stack package, exactly pinned, markers stripped."""
         from isaaclab.cli.commands import install
 
-        stack = install._pink_ik_stack()
+        with mock.patch.object(install, "ISAACLAB_ROOT", source_checkout_root):
+            stack = install._pink_ik_stack()
         assert [install._requirement_name(r) for r in stack] == list(install._PINK_IK_PACKAGES)
         assert any(r.startswith("pin-pink==") for r in stack), "pin-pink must stay exactly pinned"
         assert any(r.startswith("daqp==") for r in stack), "daqp must stay exactly pinned"
