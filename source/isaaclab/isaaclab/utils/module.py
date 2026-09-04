@@ -20,7 +20,7 @@ import lazy_loader as lazy
 
 def _parse_stub(
     stub_file: str,
-) -> tuple[str | None, list[str], list[str], dict[str, list[str]]]:
+) -> tuple[str | None, list[str], list[str], dict[str, list[tuple[str, str]]]]:
     """Parse a ``.pyi`` stub in a single AST pass.
 
     Returns:
@@ -40,8 +40,8 @@ def _parse_stub(
         *relative_wildcards* lists submodule names extracted from relative
         wildcard imports (``from .mod import *``).
 
-        *absolute_named* maps fully-qualified package names to the list of
-        explicit names imported from them (``from pkg import a, b``).
+        *absolute_named* maps fully-qualified package names to ``(source_name,
+        export_name)`` pairs for explicit imports (``from pkg import a as b``).
     """
     with open(stub_file) as f:
         source = f.read()
@@ -50,7 +50,7 @@ def _parse_stub(
 
     fallback_packages: list[str] = []
     relative_wildcards: list[str] = []
-    absolute_named: dict[str, list[str]] = {}
+    absolute_named: dict[str, list[tuple[str, str]]] = {}
     filtered_body: list[ast.stmt] = []
     needs_filter = False
 
@@ -65,7 +65,7 @@ def _parse_stub(
             elif node.level == 1 and is_star and node.module:
                 relative_wildcards.append(node.module)
             elif node.level == 0 and not is_star and node.module:
-                names = [alias.name for alias in node.names]
+                names = [(alias.name, alias.asname or alias.name) for alias in node.names]
                 absolute_named.setdefault(node.module, []).extend(names)
             needs_filter = True
         else:
@@ -135,7 +135,7 @@ def lazy_export(
 
     fallback_packages: list[str] = list(packages) if packages else []
     relative_wildcards: list[str] = []
-    absolute_named: dict[str, list[str]] = {}
+    absolute_named: dict[str, list[tuple[str, str]]] = {}
 
     if has_stub:
         filtered_path, stub_fallbacks, relative_wildcards, absolute_named = _parse_stub(stub_file)
@@ -154,10 +154,10 @@ def lazy_export(
     # -- Eagerly resolve absolute named imports (from pkg import a, b) -----
     for abs_pkg, names in absolute_named.items():
         pkg_mod = importlib.import_module(abs_pkg)
-        for name in names:
-            mod.__dict__[name] = getattr(pkg_mod, name)
-            if name not in __all__:
-                __all__.append(name)
+        for source_name, export_name in names:
+            mod.__dict__[export_name] = getattr(pkg_mod, source_name)
+            if export_name not in __all__:
+                __all__.append(export_name)
 
     # -- Eagerly resolve relative wildcard imports (from .X import *) ------
     for rel_mod_name in relative_wildcards:
