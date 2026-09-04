@@ -471,9 +471,6 @@ def test_matrix_headless_flag_deprecated_takes_precedence(monkeypatch: pytest.Mo
     assert launcher._cli_visualizer_types == []
 
 
-
-
-
 def test_no_cli_and_no_cfg_visualizers_defaults_headless(monkeypatch: pytest.MonkeyPatch):
     headless, _ = _resolve_headless_for_case(monkeypatch, {})
     assert headless is True
