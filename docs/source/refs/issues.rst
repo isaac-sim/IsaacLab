@@ -152,6 +152,35 @@ There are two workarounds:
   ``False`` to opt out of partitioning entirely, at the cost of the per-environment
   culling.
 
+.. _known-issues-scene-partition-count-cap:
+
+Scene partitioning is capped at 15625 partitions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** ``renderer=isaacsim_rtx`` with scene partitioning enabled. The OVRTX backend
+is unaffected.
+
+Kit RTX allocates a fixed-size pool of scene partitions and caps it at 15625. Isaac Lab
+assigns one scene partition per environment when
+:attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` is
+enabled, so runs with more than 15625 environments exceed the pool. Once the cap is hit,
+``rtx.scenedb.plugin`` logs a warning and discards the remaining partitions:
+
+.. code-block:: text
+
+    [Warning] [rtx.scenedb.plugin] SceneDbContext : Maximum number of scene partitions
+    (15625) reached. Additional scene partitions will be discarded.
+
+Environments beyond the cap are left without their own partition and end up sharing one
+with another environment, so their tiled camera views can render another environment's
+geometry instead of their own.
+
+There is no workaround that preserves per-environment partitioning above 15625
+environments. Either keep the environment count at or below 15625 when scene
+partitioning is required, or set
+:attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` to
+``False`` to run above that count, at the cost of per-environment culling.
+
 Using instanceable assets for markers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
