@@ -1801,10 +1801,9 @@ class OVRTXRenderer(BaseRenderer):
 
     def close(self) -> None:
         """Release the shared stage state. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.close`."""
-        # Drain in-flight renders before either backend releases the renderer that owns them. Each
-        # queued frame delivers into the buffers it was submitted with. Drain failures are
-        # re-raised only after the backend release, so a bad final frame cannot leak resources
-        # and cannot exit the run silently either.
+        # Drain in-flight renders before either backend releases the renderer that owns them.
+        # Drain failures are re-raised only after the backend release, so a bad final frame
+        # cannot leak resources and cannot exit the run silently either.
         drain_errors = self._strategy.cleanup()
         if self._use_ovstage:
             self._close_ovstage()
