@@ -346,6 +346,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
+        extra-uv-packages: "opencv-python-headless==4.13.0.90"
         shard-index: "0"
         shard-count: "3"
         warp-cache: restore
@@ -370,6 +371,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
+        extra-uv-packages: "opencv-python-headless==4.13.0.90"
         shard-index: "1"
         shard-count: "3"
         warp-cache: restore
@@ -394,6 +396,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
+        extra-uv-packages: "opencv-python-headless==4.13.0.90"
         shard-index: "2"
         shard-count: "3"
         warp-cache: restore

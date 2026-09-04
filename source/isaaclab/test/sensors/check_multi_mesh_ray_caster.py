@@ -44,6 +44,7 @@ simulation_app = app_launcher.app
 
 import random
 
+import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
@@ -64,8 +65,8 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     # Create interface to clone the scene
     # Create environment clones using Lab's cloner utilities
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
-    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=10.0, device=sim.device)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=10.0)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")
     # Define the scene
@@ -109,7 +110,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
         lab_cloner.ClonePlan(
             sources=(env_fmt.format(0),),
             destinations=(env_fmt,),
-            clone_mask=torch.ones((1, num_envs), dtype=torch.bool, device=sim.device),
+            clone_mask=np.ones((1, num_envs), dtype=np.bool_),
         )
     )
     # PhysX-only optimization: filter collisions across env clones. Skip on Newton —

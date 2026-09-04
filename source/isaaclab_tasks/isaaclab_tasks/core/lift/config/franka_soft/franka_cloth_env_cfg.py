@@ -125,7 +125,7 @@ class DeformableCfg(PresetCfg):
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.102), rot=(0.70710678, 0.0, 0.0, 0.70710678)),
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
-            resolution=(8, 8),
+            edge_refinement=8,
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
@@ -145,7 +145,7 @@ class DeformableCfg(PresetCfg):
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.102), rot=(0.70710678, 0.0, 0.0, 0.70710678)),
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
-            resolution=(8, 8),
+            edge_refinement=8,
             deformable_props=PhysxDeformableBodyPropertiesCfg(),
             collision_props=[PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01)],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),

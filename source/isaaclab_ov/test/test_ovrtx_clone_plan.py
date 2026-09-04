@@ -13,7 +13,6 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-import torch
 
 from isaaclab.cloner.clone_plan import ClonePlan
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
@@ -145,16 +144,16 @@ def test_clone_sources_in_ovrtx_uses_active_plan_rows():
     renderer._clone_plan = ClonePlan(
         sources=("/World/envs/env_0/Robot", "/World/envs/env_1/Object", "/World/envs/env_0/Light"),
         destinations=("/World/envs/env_{}/Robot", "/World/envs/env_{}/Object", "/World/envs/env_{}/Light"),
-        clone_mask=torch.tensor(
+        clone_mask=np.array(
             [
                 [True, True, True, True],
                 [False, True, True, True],
                 [True, False, False, False],
             ],
-            dtype=torch.bool,
+            dtype=np.bool_,
         ),
-        env_ids=torch.arange(4),
-        positions=torch.zeros((4, 3)),
+        env_ids=np.arange(4, dtype=np.int64),
+        positions=np.zeros((4, 3), dtype=np.float32),
     )
     clone_calls: list[tuple[str, list[str]]] = []
 
@@ -180,9 +179,9 @@ def test_clone_sources_in_ovrtx_raises_on_clone_failure():
     renderer._clone_plan = ClonePlan(
         sources=("/World/envs/env_0",),
         destinations=("/World/envs/env_{}",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool),
-        env_ids=torch.arange(2),
-        positions=torch.zeros((2, 3)),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.arange(2, dtype=np.int64),
+        positions=np.zeros((2, 3), dtype=np.float32),
     )
 
     def _clone_usd(source: str, target_paths: list[str]) -> None:
@@ -197,12 +196,12 @@ def test_clone_sources_in_ovrtx_raises_on_clone_failure():
 def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
     """Legacy OVRTX cloning writes translated identity root transforms from the plan."""
     renderer = _make_ovrtx_renderer_without_backend()
-    positions = torch.tensor([[0.0, 0.0, 0.0], [2.0, -1.0, 0.5], [-3.0, 4.0, 1.5]])
+    positions = np.array([[0.0, 0.0, 0.0], [2.0, -1.0, 0.5], [-3.0, 4.0, 1.5]], dtype=np.float32)
     renderer._clone_plan = ClonePlan(
         sources=("/World/envs/env_5",),
         destinations=("/World/envs/env_{}",),
-        clone_mask=torch.ones((1, 3), dtype=torch.bool),
-        env_ids=torch.tensor([5, 11, 3]),
+        clone_mask=np.ones((1, 3), dtype=np.bool_),
+        env_ids=np.array([5, 11, 3], dtype=np.int64),
         positions=positions,
     )
     call_order: list[str] = []
@@ -224,7 +223,7 @@ def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
     renderer._clone_sources_in_ovrtx()
 
     expected = np.tile(np.eye(4, dtype=np.float64), (3, 1, 1))
-    expected[:, 3, :3] = positions.numpy()
+    expected[:, 3, :3] = positions
     assert call_order == ["clone", "write"]
     assert clone_calls == [("/World/envs/env_5", ["/World/envs/env_11", "/World/envs/env_3"])]
     assert len(write_calls) == 1
@@ -237,12 +236,12 @@ def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
 def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: pytest.MonkeyPatch):
     """Ovstage skips inactive rows and writes translated identity root transforms from the plan."""
     renderer = _make_ovrtx_renderer_without_backend()
-    positions = torch.tensor([[0.0, 0.0, 0.0], [1.5, -2.0, 0.25], [3.0, 4.0, 0.5]])
+    positions = np.array([[0.0, 0.0, 0.0], [1.5, -2.0, 0.25], [3.0, 4.0, 0.5]], dtype=np.float32)
     renderer._clone_plan = ClonePlan(
         sources=("/World/envs/env_7/Robot", "/World/envs/env_3/Object"),
         destinations=("/World/envs/env_{}/Robot", "/World/envs/env_{}/Object"),
-        clone_mask=torch.tensor([[True, False, False], [False, True, True]]),
-        env_ids=torch.tensor([7, 3, 12]),
+        clone_mask=np.array([[True, False, False], [False, True, True]], dtype=np.bool_),
+        env_ids=np.array([7, 3, 12], dtype=np.int64),
         positions=positions,
     )
     events: list[tuple[str, str, object]] = []
@@ -285,7 +284,7 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
     renderer._clone_sources_ovstage()
 
     expected = np.tile(np.eye(4, dtype=np.float64), (3, 1, 1))
-    expected[:, 3, :3] = positions.numpy()
+    expected[:, 3, :3] = positions
     assert events == [
         ("clone", "/World/envs/env_3/Object", ["/World/envs/env_12/Object"]),
         ("paths", "envs", ["/World/envs/env_7", "/World/envs/env_3", "/World/envs/env_12"]),
@@ -314,14 +313,14 @@ def test_write_file_creates_parent_directory_and_writes_utf8(tmp_path: Path):
         ClonePlan(
             sources=("/World/envs/env_0",),
             destinations=("/World/envs/env_{}",),
-            clone_mask=torch.ones((1, 2), dtype=torch.bool),
-            env_ids=torch.arange(2),
+            clone_mask=np.ones((1, 2), dtype=np.bool_),
+            env_ids=np.arange(2, dtype=np.int64),
         ),
         ClonePlan(
             sources=("/World/envs/env_0",),
             destinations=("/World/envs/env_{}",),
-            clone_mask=torch.ones((1, 2), dtype=torch.bool),
-            positions=torch.zeros((2, 3)),
+            clone_mask=np.ones((1, 2), dtype=np.bool_),
+            positions=np.zeros((2, 3), dtype=np.float32),
         ),
     ],
 )
@@ -339,9 +338,9 @@ def test_prepare_stage_rejects_non_dense_environment_ids(monkeypatch: pytest.Mon
     plan = ClonePlan(
         sources=("/World/envs/env_7",),
         destinations=("/World/envs/env_{}",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool),
-        env_ids=torch.tensor([7, 3]),
-        positions=torch.zeros((2, 3)),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.array([7, 3], dtype=np.int64),
+        positions=np.zeros((2, 3), dtype=np.float32),
     )
     _patch_simulation_context(monkeypatch, plan)
 
@@ -361,9 +360,9 @@ def test_prepare_stage_keeps_material_binding_inside_clone_source(monkeypatch: p
     plan = ClonePlan(
         sources=(source,),
         destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=torch.ones((1, num_envs), dtype=torch.bool),
-        env_ids=torch.arange(num_envs),
-        positions=torch.zeros((num_envs, 3)),
+        clone_mask=np.ones((1, num_envs), dtype=np.bool_),
+        env_ids=np.arange(num_envs, dtype=np.int64),
+        positions=np.zeros((num_envs, 3), dtype=np.float32),
     )
     _patch_simulation_context(monkeypatch, plan)
     renderer = _make_ovrtx_renderer_without_backend()
@@ -386,9 +385,9 @@ def test_prepare_stage_writes_pre_ovrtx_stage_dump(tmp_path: Path, monkeypatch: 
         ClonePlan(
             sources=("/World/envs/env_0",),
             destinations=("/World/envs/env_{}",),
-            clone_mask=torch.ones((1, 2), dtype=torch.bool),
-            env_ids=torch.arange(2),
-            positions=torch.zeros((2, 3)),
+            clone_mask=np.ones((1, 2), dtype=np.bool_),
+            env_ids=np.arange(2, dtype=np.int64),
+            positions=np.zeros((2, 3), dtype=np.float32),
         ),
     )
 
@@ -412,9 +411,9 @@ def test_prepare_stage_skips_temp_usd_write_when_temp_usd_dir_unset(monkeypatch:
         ClonePlan(
             sources=("/World/envs/env_0",),
             destinations=("/World/envs/env_{}",),
-            clone_mask=torch.ones((1, 2), dtype=torch.bool),
-            env_ids=torch.arange(2),
-            positions=torch.zeros((2, 3)),
+            clone_mask=np.ones((1, 2), dtype=np.bool_),
+            env_ids=np.arange(2, dtype=np.int64),
+            positions=np.zeros((2, 3), dtype=np.float32),
         ),
     )
     write_calls: list[tuple[Path, str, str]] = []
@@ -524,9 +523,9 @@ def test_prepare_stage_stores_clone_plan_and_exports(monkeypatch: pytest.MonkeyP
     published = ClonePlan(
         sources=("/World/envs/env_0",),
         destinations=("/World/envs/env_{}",),
-        clone_mask=torch.ones((1, num_envs), dtype=torch.bool),
-        env_ids=torch.arange(num_envs),
-        positions=torch.zeros((num_envs, 3)),
+        clone_mask=np.ones((1, num_envs), dtype=np.bool_),
+        env_ids=np.arange(num_envs, dtype=np.int64),
+        positions=np.zeros((num_envs, 3), dtype=np.float32),
     )
     _patch_simulation_context(monkeypatch, published)
 

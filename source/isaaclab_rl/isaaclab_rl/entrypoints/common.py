@@ -828,7 +828,14 @@ def pre_launch_video_config(env_cfg: Any, log_dir: str | None = None, args_cli: 
         pass
 
 
-def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespace, *, subdir: str = "train") -> None:
+def apply_video_recording(
+    env_cfg: Any,
+    log_dir: str,
+    args_cli: argparse.Namespace,
+    *,
+    subdir: str = "train",
+    checkpoint_path: str | None = None,
+) -> None:
     """Configure internal video recording on the environment config.
 
     Enables recording by ensuring ``env_cfg.video_recorders`` is non-empty, then applies
@@ -854,6 +861,8 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
         args_cli: Parsed command-line arguments.
         subdir: Sub-directory name appended to ``<log_dir>/videos/`` for the fallback output
             path.  Use ``"train"`` for training runs and ``"play"`` for evaluation.
+        checkpoint_path: Checkpoint loaded by a play run.  When set to a ``model_<N>.pt``
+            path with a numeric id, the checkpoint stem is appended to play video names.
     """
     if not getattr(args_cli, "video", False):
         return
@@ -995,6 +1004,8 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
             cfg.video_length = video_length
         if video_interval is not None:
             cfg.video_interval = video_interval
+        if subdir == "play" and (label := _checkpoint_video_label(checkpoint_path)) is not None:
+            cfg.output_filename_prefix = _checkpoint_video_prefix(cfg.output_filename_prefix, label)
 
     print("[INFO] Video recording enabled.")
     for cfg in env_cfg.video_recorders:
@@ -1007,6 +1018,22 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
             },
             nesting=4,
         )
+
+
+def _checkpoint_video_label(checkpoint_path: str | None) -> str | None:
+    if checkpoint_path is None:
+        return None
+
+    path = Path(checkpoint_path)
+    if re.fullmatch(r"model_\d+", path.stem) is None or path.suffix != ".pt":
+        return None
+    return path.stem
+
+
+def _checkpoint_video_prefix(prefix: str, label: str) -> str:
+    if prefix == label or prefix.endswith(f"_{label}"):
+        return prefix
+    return f"{prefix}_{label}"
 
 
 def wrap_record_video(env, log_dir: str, args_cli: argparse.Namespace):
