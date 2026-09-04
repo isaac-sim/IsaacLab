@@ -29,38 +29,39 @@ This page covers:
    .viz-grid-fit { justify-content:center; }
    .viz-grid-fit > div { flex:0 0 auto; }
    .viz-grid-fit video, .viz-grid-fit img { width:auto; height:488px; }
-   .viz-grid-natural { justify-content:center; }
-   .viz-grid-natural > div { flex:0 0 auto; }
-   .viz-grid-natural img { width:auto; height:260px; }
-   /* video (unlike img above) sizes by flexing to share the row instead of a fixed height:
-      these clips are much wider (near 16:9) than the marker screenshots img was tuned for, so
-      a fixed height risks overflowing the page width when 2 sit side by side. */
-   .viz-grid-natural > div:has(video) { flex:1 1 0; min-width:0; }
-   .viz-grid-natural video { width:100%; height:auto; max-height:260px; }
    .viz-grid-stretch video.viz-no-crop { object-fit:contain; background:#000; }
    .viz-grid-stretch video.viz-crop-bottom { object-position:center bottom; }
    .viz-grid-stretch video.viz-crop-kit-bottom { object-position:center 76%; }
    .viz-grid-stretch video.viz-crop-x8 { width:calc(100% + 16px); margin-left:-8px; }
    .viz-grid-stretch img.viz-crop-top { object-position:center 25%; }
    .viz-hero-wrap.viz-hero-newton-gl { aspect-ratio:960/397; }
-   .viz-hero-wrap.viz-hero-newton-gl video.viz-crop-newton-hero { width:calc(100% + 2px); height:calc(100% + 55px);
-                margin-left:-1px; margin-top:-40px; object-fit:cover; object-position:center 55.3%; }
+   .viz-hero-wrap.viz-hero-newton-gl video.viz-crop-newton-hero { width:calc(100% + 2px); height:calc(100% + 70px);
+                margin-left:-1px; margin-top:-55px; object-fit:cover; object-position:center 55.3%; }
    .viz-label.viz-label-raise { bottom:10px; }
    /* Trims pixels off each hero tile on top of whatever object-position crop is already
       applied, so the tile itself is shorter rather than just repositioning the existing crop.
-      Both classes crop to the same final 241px height so the 2x2 tile grid stays even, split
-      differently per tile: Kit/Rerun/Newton RTX crop 35px off the top and 10px off the bottom;
-      Viser crops 25px off the top and 20px off the bottom (its object-position framing already
+      Both classes crop to the same final 221px height so the 2x2 tile grid stays even, split
+      differently per tile: Kit/Rerun/Newton RTX crop 45px off the top and 20px off the bottom;
+      Viser crops 35px off the top and 30px off the bottom (its object-position framing already
       leaves more headroom at the bottom, so it can take a heavier bottom crop). */
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:276px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { margin-top:-10px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-top25 { height:241px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-top25 video { margin-top:-35px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-mixed { height:241px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-mixed video { margin-top:-25px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-top25 { height:221px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-top25 video { margin-top:-45px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-mixed { height:221px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-mixed video { margin-top:-35px; }
+   /* Top row (Viser, Newton RTX) additionally crops 15px more off the top than the bottom row,
+      keeping bottom crop unchanged: height shrinks by 15px and margin-top grows by 15px. */
+   .viz-hero-row-top.viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-top25 { height:206px; }
+   .viz-hero-row-top.viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-top25 video { margin-top:-60px; }
+   .viz-hero-row-top.viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-mixed { height:206px; }
+   .viz-hero-row-top.viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-mixed video { margin-top:-50px; }
    .viz-grid-record { justify-content:center; align-items:flex-start; }
    .viz-grid-record > div { flex:0 0 auto; }
    .viz-grid-record video { display:block; width:auto; height:300px; }
+   .viz-stack-centered { display:flex; flex-direction:column; align-items:center; gap:1em; margin: 0.5em 0; }
+   .viz-stack-centered > div { width:65%; }
+   .viz-stack-centered video { display:block; width:100%; height:auto; }
    .viz-cap { text-align:center; font-style:italic; margin-top:0.4em; font-size:0.9em; }
    .viz-hero-wrap { position:relative; overflow:hidden; }
    .viz-label { position:absolute; bottom:8px; right:8px; max-width:35%; background:rgba(32,32,32,0.85);
@@ -79,7 +80,7 @@ This page covers:
      <div class="viz-label viz-label-raise">Newton GL</div>
    </div>
 
-   <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
+   <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles viz-hero-row-top">
      <div class="viz-hero-wrap viz-crop-mixed">
        <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-bottom">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_viser.mp4" type="video/mp4">
@@ -509,7 +510,7 @@ updates every step.
 
 .. raw:: html
 
-   <div class="viz-grid viz-grid-natural">
+   <div class="viz-stack-centered">
      <div>
        <video autoplay loop muted playsinline controls preload="auto">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/streaming_newton_galbot_interactive.mp4" type="video/mp4">
