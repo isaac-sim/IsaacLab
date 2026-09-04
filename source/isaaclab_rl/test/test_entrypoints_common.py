@@ -476,6 +476,20 @@ def test_apply_env_overrides_keeps_an_explicit_warp_mode(monkeypatch: pytest.Mon
     assert wp.config.deterministic == wp.DeterministicMode.GPU_TO_GPU
 
 
+def test_apply_env_overrides_raises_an_already_weaker_warp_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A guarantee already in place is raised to the configured one, never left below it."""
+    import warp as wp
+
+    monkeypatch.setattr(wp.config, "deterministic", wp.DeterministicMode.RUN_TO_RUN)
+    physics = _fake_physics_cfg("NewtonCfg", deterministic_mode="gpu_to_gpu")
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert wp.config.deterministic == wp.DeterministicMode.GPU_TO_GPU
+
+
 def test_apply_env_overrides_leaves_warp_alone_without_the_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     """Without ``--deterministic`` Warp keeps its default, so no run pays for determinism."""
     import warp as wp

@@ -517,20 +517,23 @@ def request_warp_determinism(physics_cfg: Any) -> None:
     ``warp.DeterministicMode`` members lowercased, so ``"gpu_to_gpu"`` selects
     ``GPU_TO_GPU`` rather than being weakened to ``RUN_TO_RUN``. Warp reads the setting at module
     build time, so it must land before the first kernel launch; :func:`apply_env_overrides` runs
-    before the environment is created. A mode already set on ``warp.config`` is left alone.
+    before the environment is created.
+
+    The modes are ordered by strength, and this only ever raises the setting. Reading the current
+    value cannot tell a deliberate choice from the shipped default, so rather than guess at intent
+    it never weakens a guarantee already in place -- whoever set it, they wanted at least that much.
 
     Args:
         physics_cfg: Resolved physics config, or ``None`` when the config tree carries none.
     """
     import warp as wp
 
-    if wp.config.deterministic != wp.DeterministicMode.NOT_GUARANTEED:
-        return
     requested = getattr(physics_cfg, "deterministic_mode", None)
     mode = getattr(wp.DeterministicMode, requested.upper(), None) if isinstance(requested, str) else None
     if mode is None or mode == wp.DeterministicMode.NOT_GUARANTEED:
         mode = wp.DeterministicMode.RUN_TO_RUN
-    wp.config.deterministic = mode
+    if wp.config.deterministic < mode:
+        wp.config.deterministic = mode
 
 
 def validate_distributed_device(args_cli: argparse.Namespace) -> None:
