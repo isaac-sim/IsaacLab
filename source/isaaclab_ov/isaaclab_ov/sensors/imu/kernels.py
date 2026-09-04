@@ -15,7 +15,7 @@ def imu_update_kernel(
     coms: wp.array(dtype=wp.transformf),
     offset_pos_b: wp.array(dtype=wp.vec3f),
     offset_quat_b: wp.array(dtype=wp.quatf),
-    gravity_bias_w: wp.array(dtype=wp.vec3f),
+    gravity_bias_w: wp.vec3f,
     inv_dt: wp.float32,
     timestamp: wp.array(dtype=wp.float32),
     # inputs / outputs
@@ -33,7 +33,7 @@ def imu_update_kernel(
         coms: COMs of the bodies.
         offset_pos_b: Offset positions of the sensors.
         offset_quat_b: Offset quaternions of the sensors.
-        gravity_bias_w: Gravity bias in the world frame.
+        gravity_bias_w: Scene-wide gravity bias in the world frame [m/s^2].
         inv_dt: Inverse of the time step.
         timestamp: Timestamp of the environment.
         prev_lin_vel_w: Previous linear velocity in the world frame.
@@ -57,7 +57,7 @@ def imu_update_kernel(
     com_pos_b = wp.transform_get_translation(coms[idx])
     lever_arm = wp.quat_rotate(body_quat, offset_pos_b[idx] - com_pos_b)
     lin_vel_w = lin_vel_w + wp.cross(ang_vel_w, lever_arm)
-    lin_acc_w = (lin_vel_w - prev_lin_vel_w[idx]) * inv_dt + gravity_bias_w[idx]
+    lin_acc_w = (lin_vel_w - prev_lin_vel_w[idx]) * inv_dt + gravity_bias_w
 
     sensor_quat = body_quat * offset_quat_b[idx]
     out_ang_vel_b[idx] = wp.quat_rotate_inv(sensor_quat, ang_vel_w)

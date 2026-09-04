@@ -70,6 +70,8 @@ class Imu(BaseImu):
         self._raw_velocities: wp.array | None = None
         self._raw_coms: wp.array | None = None
         self._update_cmd: wp.Launch | None = None
+        # Gravity baked into the recorded command, so a change can be re-bound on replay.
+        self._recorded_gravity_w: tuple[float, float, float] | None = None
         self._update_env_mask: wp.array | None = None
         self._use_recorded_launch: bool = False
 
@@ -135,7 +137,7 @@ class Imu(BaseImu):
         # Real IMUs always measure gravity, so the accelerometer is biased by -g. The scene value
         # can change at runtime, so it is refreshed on every update instead of snapshotted here.
         self._gravity_w: tuple[float, float, float] | None = None
-        self._gravity_bias_w = wp.empty(self._view.count, dtype=wp.vec3f, device=self._device)
+        self._gravity_bias_w = wp.vec3f(0.0, 0.0, 0.0)
         self._refresh_gravity_bias()
 
         self._initialize_buffers_impl()
@@ -157,19 +159,20 @@ class Imu(BaseImu):
         self._use_recorded_launch = wp.get_device(self._device).is_cuda
 
     def _refresh_gravity_bias(self):
-        """Refresh the cached gravity buffer when the scene gravity changed.
+        """Re-read the scene gravity so runtime randomization reaches the accelerometer bias.
 
         Scene gravity is runtime-mutable (see
-        :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`), so the buffer is
-        re-filled in place rather than reallocated: the recorded launch that consumes it holds
-        the array pointer, and a fresh allocation would freeze the sensor on the old value.
+        :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`) but scene-wide on
+        this backend, so the bias is a single vector passed to the kernel by value rather than
+        a per-body buffer. The recorded launch bakes it in at record time, so
+        :meth:`_update_buffers_impl` re-binds the parameter whenever it changes.
         """
         gravity = self._physics_sim_view.get_gravity()
         gravity = (float(gravity[0]), float(gravity[1]), float(gravity[2]))
         if gravity == self._gravity_w:
             return
         self._gravity_w = gravity
-        self._gravity_bias_w.fill_(wp.vec3f(-gravity[0], -gravity[1], -gravity[2]))
+        self._gravity_bias_w = wp.vec3f(-gravity[0], -gravity[1], -gravity[2])
 
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
@@ -204,6 +207,7 @@ class Imu(BaseImu):
                 try:
                     self._update_cmd = self._launch_update(env_mask, record_cmd=True)
                     self._update_env_mask = env_mask
+                    self._recorded_gravity_w = self._gravity_w
                 except Exception as exc:
                     self._use_recorded_launch = False
                     logger.warning(
@@ -214,6 +218,9 @@ class Imu(BaseImu):
                 if env_mask is not self._update_env_mask:
                     self._update_cmd.set_param_by_name("env_mask", env_mask)
                     self._update_env_mask = env_mask
+                if self._gravity_w != self._recorded_gravity_w:
+                    self._update_cmd.set_param_by_name("gravity_bias_w", self._gravity_bias_w)
+                    self._recorded_gravity_w = self._gravity_w
                 self._update_cmd.launch()
                 return
 
@@ -265,3 +272,4 @@ class Imu(BaseImu):
         self._raw_coms = None
         self._update_cmd = None
         self._update_env_mask = None
+        self._recorded_gravity_w = None
