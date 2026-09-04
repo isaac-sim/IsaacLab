@@ -179,7 +179,11 @@ class JointAction(ActionTerm):
             )
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._raw_actions[env_ids] = 0.0
+        if env_ids is None or isinstance(env_ids, slice):
+            self._raw_actions[env_ids] = 0.0
+        else:
+            # device-side fill: a scalar index assignment synchronizes the stream on every call
+            self._raw_actions.index_fill_(0, torch.as_tensor(env_ids, device=self.device).long(), 0.0)
 
 
 class JointPositionAction(JointAction):

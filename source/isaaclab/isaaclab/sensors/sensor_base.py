@@ -19,6 +19,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
@@ -428,7 +429,8 @@ class SensorBase(ABC):
             return env_mask
         else:
             self._reset_mask.zero_()
-            self._reset_mask_torch[env_ids] = True
+            # device-side fill: a scalar index assignment synchronizes the stream on every call
+            self._reset_mask_torch.index_fill_(0, torch.as_tensor(env_ids, device=self._device).long(), True)
             return self._reset_mask
 
     def _resolve_rigid_body_ancestor_expr(

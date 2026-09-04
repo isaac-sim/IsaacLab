@@ -230,19 +230,26 @@ class vision_camera(ManagerTermBase):
         self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True
     ) -> torch.Tensor:  # obtain the input image
         images = self.sensor.data.output[self.sensor_type]
-        torch.nan_to_num_(images, nan=1e6)
+        if images.is_floating_point():
+            torch.nan_to_num_(images, nan=1e6)
         if normalize:
+            # one fused pass: NHWC (uint8 or float) -> NCHW float32, then normalize in place. Each
+            # extra elementwise pass over the 4096x3x64x64 batch is ~200 MB of traffic per step.
+            images = images.permute(0, 3, 1, 2).to(dtype=torch.float32, memory_format=torch.contiguous_format)
             images = self.norm_fn(images)
-            images = images.permute(0, 3, 1, 2).contiguous()
         return images
 
     def _rgb_norm(self, images: torch.Tensor) -> torch.Tensor:
-        return images.float() / 255.0 - 0.5
+        if images.dtype != torch.float32:
+            images = images.float()
+        return images.mul_(1.0 / 255.0).sub_(0.5)
 
     def _depth_norm(self, images: torch.Tensor) -> torch.Tensor:
         # same [-0.5, 0.5) span as the RGB normalization: a wider depth range doubles the
         # encoder's effective input scale and halves the stable learning-rate budget
-        return torch.tanh(images / 2) - 0.5
+        if images.dtype != torch.float32:
+            images = images.float()
+        return torch.tanh_(images.mul_(0.5)).sub_(0.5)
 
     def show_collage(self, images: torch.Tensor, save_path: str = "collage.png"):
         import matplotlib
