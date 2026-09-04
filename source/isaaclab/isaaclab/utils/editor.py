@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Utilities for generating Pyright import paths for Isaac Lab projects."""
+"""Utilities for generating editor import paths for Isaac Lab projects."""
 
 import importlib.metadata
 import importlib.util

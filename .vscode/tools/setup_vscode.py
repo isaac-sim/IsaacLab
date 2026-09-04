@@ -16,7 +16,7 @@ import pathlib
 import re
 import sys
 
-from isaaclab.utils.vscode import build_extra_paths, resolve_isaacsim_dir, write_pyright_config
+from isaaclab.utils.editor import build_extra_paths, resolve_isaacsim_dir, write_pyright_config
 
 PROJECT_DIR = pathlib.Path(__file__).parents[2]
 """Path to the repository or generated project's root directory."""

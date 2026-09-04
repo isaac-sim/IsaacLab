@@ -7,7 +7,7 @@ import argparse
 import pathlib
 import sys
 
-from isaaclab.utils.vscode import build_extra_paths, resolve_isaacsim_dir, write_pyright_config
+from isaaclab.utils.editor import build_extra_paths, resolve_isaacsim_dir, write_pyright_config
 
 VSCODE_SETTINGS_TEMPLATE = """
 {

@@ -18,7 +18,7 @@ import gymnasium as gym
 import pytest
 import tomllib
 
-from isaaclab.utils import vscode as vscode_utils
+from isaaclab.utils import editor as editor_utils
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
 TEMPLATE_TOOL_DIR = ROOT_DIR / "tools" / "template"
@@ -328,10 +328,10 @@ def test_vscode_setup_combines_simulator_local_and_installed_paths(tmp_path, mon
     installed_root = tmp_path / "editable" / "isaaclab"
     installed_root.mkdir(parents=True)
 
-    monkeypatch.setattr(vscode_utils, "find_isaaclab_package_paths", lambda: [installed_root])
+    monkeypatch.setattr(editor_utils, "find_isaaclab_package_paths", lambda: [installed_root])
 
-    extra_paths = vscode_utils.build_extra_paths(project_dir, isaacsim_dir)
-    vscode_utils.write_pyright_config(project_dir, extra_paths)
+    extra_paths = editor_utils.build_extra_paths(project_dir, isaacsim_dir)
+    editor_utils.write_pyright_config(project_dir, extra_paths)
     config = json.loads((project_dir / "pyrightconfig.json").read_text())
 
     assert config["extends"] == "./pyproject.toml"
@@ -350,7 +350,7 @@ def test_vscode_setup_rejects_invalid_explicit_isaac_sim_path(tmp_path, path_exi
     if path_exists:
         invalid_path.mkdir()
     with pytest.raises(ValueError, match="Not an Isaac Sim directory"):
-        vscode_utils.resolve_isaacsim_dir(tmp_path, str(invalid_path))
+        editor_utils.resolve_isaacsim_dir(tmp_path, str(invalid_path))
 
 
 def _all_libraries() -> list[dict]:
