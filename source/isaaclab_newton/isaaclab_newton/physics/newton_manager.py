@@ -164,12 +164,13 @@ def _capture_fabric_scales(
 
 @wp.kernel(enable_backward=False)
 def _set_fabric_transforms(
-    fabric_transforms: wp.fabricarray(dtype=wp.mat44d),
+    fabric_world_transforms: wp.fabricarray(dtype=wp.mat44d),
+    fabric_local_transforms: wp.fabricarray(dtype=wp.mat44d),
     newton_indices: wp.fabricarray(dtype=wp.uint32),
     newton_body_q: wp.array(ndim=1, dtype=wp.transformf),
     body_scales: wp.array(dtype=wp.vec3f),
 ):
-    """Write Newton body poses to Fabric world matrices with their initialized scale.
+    """Write Newton body poses to Fabric local matrices with their initialized scale.
 
     For each Fabric prim at thread ``i``, reads the Newton body transform at
     ``newton_body_q[newton_indices[i]]`` and combines its translation and rotation
@@ -181,15 +182,12 @@ def _set_fabric_transforms(
     idx = int(newton_indices[i])
     transform = newton_body_q[idx]
     scale = body_scales[idx]
-    fabric_transforms[i] = wp.mat44d(
-        wp.transpose(
-            wp.transform_compose(
-                wp.transform_get_translation(transform),
-                wp.transform_get_rotation(transform),
-                scale,
-            )
+    world_transform = wp.transpose(
+        wp.mat44d(
+            wp.transform_compose(wp.transform_get_translation(transform), wp.transform_get_rotation(transform), scale)
         )
     )
+    fabric_local_transforms[i] = world_transform * wp.inverse(fabric_world_transforms[i]) * fabric_local_transforms[i]
 
 
 @wp.kernel(enable_backward=False)
@@ -488,9 +486,13 @@ class NewtonManager(PhysicsManager):
     # USD/Fabric sync
     _newton_stage_path = None
     _usdrt_stage = None
+    _fabric_hierarchy = None
     _newton_index_attr = "newton:index"
-    # Body-indexed world scales captured before Newton first overwrites Fabric transforms.
+    # Body-indexed world scales captured before Newton first updates Fabric transforms.
     _fabric_body_scales: wp.array | None = None
+    # Persistent query and arrays: selection, world matrix, local matrix, and Newton index.
+    _fabric_body_sync: tuple[Any, Any, Any, Any] | None = None
+    _fabric_body_binding_count: int = 0
     _clone_physics_only = False
     _transforms_dirty: bool = False
     _transforms_may_change_on_graph_replay: bool = False
@@ -503,9 +505,6 @@ class NewtonManager(PhysicsManager):
     _newton_particle_offset_attr = "newton:particleOffset"
     _newton_particle_count_attr = "newton:particleCount"
     _particle_visual_prims: dict[str, _ParticleVisualPrim] = {}
-
-    # Cached after the first fabric sync that probes IFabricHierarchy GPU APIs.
-    _use_fabric_gpu_hierarchy: bool | None = None
 
     # Set to True after sync_transforms_to_usd() successfully writes body positions for
     # the first time in each simulation session.  Reset to False in clear().  Polled by
@@ -687,15 +686,8 @@ class NewtonManager(PhysicsManager):
         Uses ``wp.fabricarray`` directly (no ``isaacsim.physics.newton`` extension needed).
         On the first successful sync, a Warp kernel captures each initialized Fabric
         world scale by Newton body index. The pose kernel then combines that scale with
-        ``state_0.body_q[newton_index[i]]`` and writes the corresponding ``mat44d`` to
-        ``omni:fabric:worldMatrix`` for each prim.
-
-        When ``IFabricHierarchy.update_world_xforms_gpu_with_options`` is
-        available the method mirrors PhysX's ``DirectGpuHelper`` pattern: pause
-        Fabric change tracking, write transforms, resume tracking, then run the
-        GPU hierarchy update with ``RIGID_BODY | FORCE_UPDATE`` so Newton-authored
-        world matrices stay authoritative on rigid-body prims.  Otherwise it
-        falls back to the CPU ``update_world_xforms()`` path.
+        ``state_0.body_q[newton_index[i]]``, derives the corresponding local matrix,
+        and lets Fabric propagate the hierarchy on the GPU.
         """
         if cls._usdrt_stage is None or cls._model is None or cls._state_0 is None:
             return
@@ -704,95 +696,73 @@ class NewtonManager(PhysicsManager):
         try:
             import usdrt
 
-            fabric_hierarchy = None
-            gpu_opts_cls = None
-            if hasattr(usdrt, "hierarchy"):
-                fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-                    cls._usdrt_stage.GetFabricId(), cls._usdrt_stage.GetStageIdAsStageId()
-                )
-                gpu_opts_cls = getattr(usdrt.hierarchy, "FabricHierarchyGpuUpdateOptions", None)
-
-            if cls._use_fabric_gpu_hierarchy is None and hasattr(usdrt, "hierarchy"):
-                # Probe the pybind class once so a transient null hierarchy handle does
-                # not permanently disable the GPU path for the session.
-                NewtonManager._use_fabric_gpu_hierarchy = gpu_opts_cls is not None and hasattr(
-                    usdrt.hierarchy.IFabricHierarchy, "update_world_xforms_gpu_with_options"
-                )
-                if cls._use_fabric_gpu_hierarchy:
-                    logger.info("Fabric GPU transform hierarchy enabled via IFabricHierarchy")
-                else:
-                    logger.info("Fabric GPU transform hierarchy unavailable; falling back to update_world_xforms()")
-
-            use_gpu_hierarchy = bool(
-                cls._use_fabric_gpu_hierarchy and fabric_hierarchy is not None and gpu_opts_cls is not None
-            )
-
-            # Pause hierarchy change tracking BEFORE SelectPrims.
-            # SelectPrims with ReadWrite access calls getAttributeArrayGpu
-            # internally, which marks Fabric buffers dirty.  If tracking is
-            # still active at that point the hierarchy records the change and
-            # Kit's updateWorldXforms will do an expensive connectivity
-            # rebuild every frame.  PhysX avoids this via ScopedUSDRT which
-            # pauses tracking before any Fabric writes.
-            if use_gpu_hierarchy:
-                fabric_hierarchy.track_world_xform_changes(False)
-                fabric_hierarchy.track_local_xform_changes(False)
-
-            try:
+            topology_changed = False
+            fabric_sync = cls._fabric_body_sync
+            if fabric_sync is None:
                 selection = cls._usdrt_stage.SelectPrims(
                     require_attrs=[
-                        (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.ReadWrite),
+                        (usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read),
+                        (
+                            usdrt.Sdf.ValueTypeNames.Matrix4d,
+                            "omni:fabric:localMatrix",
+                            usdrt.Usd.Access.ReadWrite,
+                        ),
                         (usdrt.Sdf.ValueTypeNames.UInt, cls._newton_index_attr, usdrt.Usd.Access.Read),
                     ],
                     device=str(PhysicsManager._device),
                 )
-                if selection.GetCount() == 0:
-                    # The newton:index attribute is written CPU-side by start_simulation() but
-                    # GPU propagation is deferred.  Keep _transforms_dirty=True so the next
-                    # pre_render() retries once initialize_solver() has completed (FK delegate
-                    # bound) and body_q holds valid values.
-                    if cls._eval_fk is _eval_fk_unbound:
+            else:
+                selection, fabric_world_transforms, fabric_local_transforms, newton_indices = fabric_sync
+                topology_changed = selection.PrepareForReuse()
+
+            if fabric_sync is None or topology_changed:
+                if selection.GetCount() != cls._fabric_body_binding_count:
+                    NewtonManager._fabric_body_sync = None
+                    # CPU-authored newton:index attributes may not have reached Fabric yet.
+                    if selection.GetCount() == 0 and cls._eval_fk is _eval_fk_unbound:
                         NewtonManager._transforms_dirty = False
                     return
-
-                fabric_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
+                fabric_world_transforms = wp.fabricarray(selection, "omni:fabric:worldMatrix")
+                fabric_local_transforms = wp.fabricarray(selection, "omni:fabric:localMatrix")
                 newton_indices = wp.fabricarray(selection, cls._newton_index_attr)
-                if cls._fabric_body_scales is None:
-                    NewtonManager._fabric_body_scales = wp.empty(
-                        cls._model.body_count,
-                        dtype=wp.vec3f,
-                        device=PhysicsManager._device,
-                    )
-                    wp.launch(
-                        _capture_fabric_scales,
-                        dim=newton_indices.shape[0],
-                        inputs=[fabric_transforms, newton_indices, cls._fabric_body_scales],
-                        device=PhysicsManager._device,
-                    )
-                wp.launch(
-                    _set_fabric_transforms,
-                    dim=newton_indices.shape[0],
-                    inputs=[fabric_transforms, newton_indices, cls._state_0.body_q, cls._fabric_body_scales],
+                NewtonManager._fabric_body_sync = (
+                    selection,
+                    fabric_world_transforms,
+                    fabric_local_transforms,
+                    newton_indices,
+                )
+            if cls._fabric_body_scales is None:
+                NewtonManager._fabric_body_scales = wp.empty(
+                    cls._model.body_count,
+                    dtype=wp.vec3f,
                     device=PhysicsManager._device,
                 )
-                wp.synchronize_device(PhysicsManager._device)
+                wp.launch(
+                    _capture_fabric_scales,
+                    dim=newton_indices.shape[0],
+                    inputs=[fabric_world_transforms, newton_indices, cls._fabric_body_scales],
+                    device=PhysicsManager._device,
+                )
+            wp.launch(
+                _set_fabric_transforms,
+                dim=newton_indices.shape[0],
+                inputs=[
+                    fabric_world_transforms,
+                    fabric_local_transforms,
+                    newton_indices,
+                    cls._state_0.body_q,
+                    cls._fabric_body_scales,
+                ],
+                device=PhysicsManager._device,
+            )
 
-                NewtonManager._newton_fabric_ready = True
-                NewtonManager._transforms_dirty = False
+            wp.synchronize_stream(PhysicsManager._device)
+            if not cls._fabric_hierarchy.update_world_xforms_gpu(not topology_changed):
+                raise RuntimeError("Fabric GPU hierarchy propagation failed.")
+            wp.synchronize_device(PhysicsManager._device)
 
-                if use_gpu_hierarchy:
-                    # RIGID_BODY: inverse-propagate on PhysicsRigidBodyAPI buckets
-                    # (keep Newton world matrices, derive local). FORCE_UPDATE:
-                    # bypass the change-listener dirty check after tracking pause.
-                    fabric_hierarchy.update_world_xforms_gpu_with_options(
-                        gpu_opts_cls.RIGID_BODY | gpu_opts_cls.FORCE_UPDATE
-                    )
-                elif fabric_hierarchy is not None:
-                    fabric_hierarchy.update_world_xforms()
-            finally:
-                if use_gpu_hierarchy:
-                    fabric_hierarchy.track_world_xform_changes(True)
-                    fabric_hierarchy.track_local_xform_changes(True)
+            NewtonManager._newton_fabric_ready = True
+            NewtonManager._transforms_dirty = False
         except Exception:
             logger.exception("[NewtonManager] sync_transforms_to_usd FAILED")
 
@@ -1123,7 +1093,6 @@ class NewtonManager(PhysicsManager):
         NewtonManager._visualization_stop_callback = None
         if callback is not None:
             callback.deregister()
-        NewtonManager._use_fabric_gpu_hierarchy = None
         NewtonManager._newton_fabric_ready = False
         NewtonManager._builder = None
         NewtonManager._model = None
@@ -1168,7 +1137,10 @@ class NewtonManager(PhysicsManager):
         NewtonManager._sensor_bvh_shape_flags = ShapeFlags.VISIBLE
         NewtonManager._newton_stage_path = None
         NewtonManager._usdrt_stage = None
+        NewtonManager._fabric_hierarchy = None
         NewtonManager._fabric_body_scales = None
+        NewtonManager._fabric_body_sync = None
+        NewtonManager._fabric_body_binding_count = 0
         NewtonManager._transforms_dirty = False
         NewtonManager._transforms_may_change_on_graph_replay = False
         NewtonManager._particles_dirty = False
@@ -1656,10 +1628,13 @@ class NewtonManager(PhysicsManager):
             if body_bindings is None:
                 # Non-replicated Newton stages do not pass through NewtonReplicateContext.
                 body_bindings = [(body_path, i) for i, body_path in enumerate(body_paths)]
+            NewtonManager._fabric_body_sync = None
+            NewtonManager._fabric_body_binding_count = len(body_bindings)
 
             fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
                 cls._usdrt_stage.GetFabricId(), cls._usdrt_stage.GetStageIdAsStageId()
             )
+            NewtonManager._fabric_hierarchy = fabric_hierarchy
 
             NewtonManager._initialize_fabric_body_prims(cls._usdrt_stage, fabric_hierarchy, usdrt, body_bindings)
             NewtonManager._initialize_fabric_cable_prims(cls._usdrt_stage, fabric_hierarchy, usdrt)
@@ -1690,9 +1665,7 @@ class NewtonManager(PhysicsManager):
 
             prim.CreateAttribute(NewtonManager._newton_index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
             prim.GetAttribute(NewtonManager._newton_index_attr).Set(body_index)
-            # Tag with PhysicsRigidBodyAPI so FabricHierarchyGpuUpdateOptions.RIGID_BODY
-            # applies Inverse propagation (preserves Newton's world transforms and derives
-            # local) instead of Forward.
+            # Generated Xforms need the same rigid-body identity as authored body prims.
             prim.AddAppliedSchema("PhysicsRigidBodyAPI")
 
         fabric_hierarchy.update_world_xforms()
