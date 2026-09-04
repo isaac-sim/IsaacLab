@@ -3,33 +3,47 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+[build-system]
+requires = ["uv_build>=0.12.6,<0.13"]
+build-backend = "uv_build"
+
 [project]
-name = "{{ name }}-dev"
+name = "{{ name }}"
 version = "0.1.0"
-description = "Development environment for the {{ name }} Isaac Lab project."
+description = "Isaac Lab environments for {{ name }}."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Isaac Lab Project Developers" }]
 requires-python = ">=3.12,<3.13"
-dependencies = ["{{ name }}"]
+dependencies = [
+    "isaaclab{% if rl_libraries %}[{% for rl_library in rl_libraries %}{% if not loop.first %},{% endif %}{{ rl_library.name | replace('_', '-') }}{% endfor %}]{% endif %}",
+]
+
+[project.entry-points."isaaclab.tasks"]
+"{{ name }}" = "{{ name }}.tasks"
+
+[project.optional-dependencies]
+isaacsim = ["isaaclab[isaacsim]"]
+ov = ["isaaclab[ov]"]
+ovphysx = ["isaaclab[ovphysx]"]
+ovrtx = ["isaaclab[ovrtx]"]
 
 [dependency-groups]
-dev = ["pre-commit"]
+dev = ["codespell>=2.4", "pre-commit>=4.2", "pytest>=8.3", "ruff>=0.11"]
 
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
-package = false
 
-[tool.uv.sources]
-"{{ name }}" = { workspace = true }
-
-[tool.uv.workspace]
-members = ["source/{{ name }}"]
+[tool.uv.build-backend]
+module-name = "{{ name }}"
 
 [tool.ruff]
 line-length = 120
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "W"]
+select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["{{ name }}"]
@@ -53,10 +67,24 @@ isaaclab = ["isaaclab", "isaaclab_newton", "isaaclab_ov", "isaaclab_physx"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["F401", "F403"]
+"**/__init__.pyi" = ["F401", "F403"]
 "scripts/**/*.py" = ["E402"]
 
 [tool.ruff.format]
 docstring-code-format = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "unit: test exercises isolated logic and does not launch the simulator",
+    "integration: test drives the simulator/scene/environment end-to-end",
+    "smoke: tests for core installation, task, and RL functionality",
+    "kitless: test must pass inside the Kit-less container, which has no Isaac Sim runtime",
+]
+
+[tool.codespell]
+skip = "*.usd,*.usda,*.usdc,*.json,*.onnx,*.pt,*.mp4,*.data,uv.lock,logs"
 
 [[tool.uv.index]]
 url = "https://pypi.nvidia.com"
