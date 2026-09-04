@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import torch
 
 from isaaclab.cloner.clone_plan import ClonePlan
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
