@@ -92,6 +92,7 @@ Table of Contents
    source/setup/installation/index
    source/setup/environments
    source/setup/quickstart
+   source/setup/tutorial
    source/migration/migrating_to_isaaclab_3-0
 
 
@@ -112,7 +113,6 @@ Table of Contents
    :caption: Getting Started
    :titlesonly:
 
-   source/setup/walkthrough/index
    source/tutorials/index
    source/how-to/index
    source/overview/developer-guide/index
