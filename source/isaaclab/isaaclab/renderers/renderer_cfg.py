@@ -95,7 +95,7 @@ def warn_unsupported_async_rendering(cfg: RendererCfg, renderer_name: str) -> No
     """
     if resolve_async_rendering_enabled(cfg):
         logger.warning(
-            "Asynchronous rendering is not implemented for the %s renderer; rendering synchronously."
+            "Asynchronous rendering is not implemented for the %s renderer. Rendering synchronously."
             " Only the OVRTX renderer pipelines renders.",
             renderer_name,
         )
