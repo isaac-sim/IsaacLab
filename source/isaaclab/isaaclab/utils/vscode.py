@@ -30,12 +30,12 @@ def resolve_isaacsim_dir(project_dir: pathlib.Path, isaac_path: str | None = Non
     """
     if isaac_path:
         explicit_path = pathlib.Path(isaac_path).expanduser()
-        if not explicit_path.is_dir():
-            raise ValueError(f"Isaac Sim directory does not exist: {explicit_path}")
+        if not _is_isaacsim_dir(explicit_path):
+            raise ValueError(f"Not an Isaac Sim directory (missing .vscode/settings.json): {explicit_path}")
         return explicit_path.resolve()
 
     env_path = os.environ.get("ISAAC_PATH")
-    if env_path and pathlib.Path(env_path).is_dir():
+    if env_path and _is_isaacsim_dir(pathlib.Path(env_path)):
         return pathlib.Path(env_path).resolve()
 
     probe = subprocess.run(
@@ -47,11 +47,11 @@ def resolve_isaacsim_dir(project_dir: pathlib.Path, isaac_path: str | None = Non
     )
     for line in reversed(probe.stdout.splitlines()):
         candidate = pathlib.Path(line.strip()).expanduser()
-        if line.strip() and candidate.is_dir():
+        if line.strip() and _is_isaacsim_dir(candidate):
             return candidate.resolve()
 
     fallback = project_dir / "_isaac_sim"
-    return fallback.resolve() if fallback.is_dir() else None
+    return fallback.resolve() if _is_isaacsim_dir(fallback) else None
 
 
 def read_isaacsim_extra_paths(isaacsim_dir: pathlib.Path | None) -> list[pathlib.Path]:
@@ -146,3 +146,8 @@ def write_pyright_config(project_dir: pathlib.Path, extra_paths: list[str]):
     if (project_dir / "pyproject.toml").is_file():
         config["extends"] = "./pyproject.toml"
     (project_dir / "pyrightconfig.json").write_text(json.dumps(config, indent=4) + "\n", encoding="utf-8")
+
+
+def _is_isaacsim_dir(path: pathlib.Path) -> bool:
+    """Check whether a directory contains the settings used for extension discovery."""
+    return path.is_dir() and (path / ".vscode" / "settings.json").is_file()

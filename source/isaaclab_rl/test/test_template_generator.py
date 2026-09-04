@@ -343,10 +343,14 @@ def test_vscode_setup_combines_simulator_local_and_installed_paths(tmp_path, mon
     ]
 
 
-def test_vscode_setup_rejects_invalid_explicit_isaac_sim_path(tmp_path):
+@pytest.mark.parametrize("path_exists", [False, True])
+def test_vscode_setup_rejects_invalid_explicit_isaac_sim_path(tmp_path, path_exists):
     """An invalid user-selected installation must not silently select a different Isaac Sim."""
-    with pytest.raises(ValueError, match="Isaac Sim directory does not exist"):
-        vscode_utils.resolve_isaacsim_dir(tmp_path, str(tmp_path / "missing"))
+    invalid_path = tmp_path / "invalid"
+    if path_exists:
+        invalid_path.mkdir()
+    with pytest.raises(ValueError, match="Not an Isaac Sim directory"):
+        vscode_utils.resolve_isaacsim_dir(tmp_path, str(invalid_path))
 
 
 def _all_libraries() -> list[dict]:
