@@ -27,6 +27,7 @@ from isaaclab_rl.entrypoints.common import (
     apply_video_recording,
     create_isaaclab_env,
     pre_launch_video_config,
+    print_playback_ready,
     resolve_checkpoint_selector,
     resolve_play_task_name,
     show_run_summary,
@@ -187,6 +188,7 @@ def main():
             screen.close()
             obs = env.reset()
             timestep = 0
+            print_playback_ready("play")
             try:
                 while True:
                     start_time = time.time()
