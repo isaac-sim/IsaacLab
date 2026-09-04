@@ -101,7 +101,7 @@ def imu_update_solver_acc_kernel(
     coms: wp.array(dtype=wp.transformf),
     offset_pos_b: wp.array(dtype=wp.vec3f),
     offset_quat_b: wp.array(dtype=wp.quatf),
-    gravity_bias_w: wp.array(dtype=wp.vec3f),
+    gravity_bias_w: wp.vec3f,
     timestamp: wp.array(dtype=wp.float32),
     # outputs
     out_ang_vel_b: wp.array(dtype=wp.vec3f),
@@ -121,7 +121,7 @@ def imu_update_solver_acc_kernel(
         coms: COMs of the bodies.
         offset_pos_b: Offset positions of the sensors.
         offset_quat_b: Offset quaternions of the sensors.
-        gravity_bias_w: Gravity bias in the world frame.
+        gravity_bias_w: Scene-wide gravity bias in the world frame [m/s^2].
         timestamp: Timestamp of the environment.
         out_ang_vel_b: Output angular velocity in the body frame.
         out_lin_acc_b: Output linear acceleration in the body frame.
@@ -147,7 +147,7 @@ def imu_update_solver_acc_kernel(
         lin_acc_w
         + wp.cross(ang_acc_w, lever_arm)
         + wp.cross(ang_vel_w, wp.cross(ang_vel_w, lever_arm))
-        + gravity_bias_w[idx]
+        + gravity_bias_w
     )
 
     sensor_quat = body_quat * offset_quat_b[idx]
