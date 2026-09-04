@@ -67,6 +67,7 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 from isaaclab.cloner import ClonePlan
+from isaaclab.cloner import query as clone_query
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
@@ -392,7 +393,7 @@ class OVRTXRenderer(BaseRenderer):
             _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
         logger.info("Preparing stage (%d envs)...", num_envs)
         create_scene_partition_attributes(stage, num_envs)
-        self._capture_object_scales(stage)
+        self._capture_object_scales(stage, self._clone_plan)
         self._exported_usd_string = export_stage_to_string(
             stage,
             num_envs,
@@ -400,7 +401,7 @@ class OVRTXRenderer(BaseRenderer):
             keep_env_roots=not self._use_ovstage,
         )
 
-    def _capture_object_scales(self, stage: Any) -> None:
+    def _capture_object_scales(self, stage: Any, plan: ClonePlan) -> None:
         self._object_scales_by_path.clear()
         from pxr import Gf, Usd, UsdGeom
 
@@ -415,6 +416,14 @@ class OVRTXRenderer(BaseRenderer):
             scale = (float(scale[0]), float(scale[1]), float(scale[2]))
             if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
                 self._object_scales_by_path[str(prim.GetPath())] = scale
+
+        # OVRTX creates non-source rows after this stage is exported, so those destination prims
+        # cannot be traversed above. Clone queries retain the plan's nearest-owner semantics.
+        for source_path, scale in tuple(self._object_scales_by_path.items()):
+            for env_id in clone_query.path_env_ids(plan, source_path):
+                clone_path = clone_query.path_to_clone(plan, source_path, env_id)
+                assert clone_path is not None
+                self._object_scales_by_path.setdefault(clone_path, scale)
 
     def _create_object_scale_array(self, object_paths: list[str]) -> wp.array:
         scales = [self._object_scales_by_path.get(path, (1.0, 1.0, 1.0)) for path in object_paths]
