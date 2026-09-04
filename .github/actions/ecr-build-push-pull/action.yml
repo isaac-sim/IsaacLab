@@ -37,6 +37,16 @@ inputs:
     description: Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
     required: false
     default: 'cache'
+  verify-test-path:
+    description: >
+      Path to a test file or directory asserted against a freshly built image, before it is
+      tagged or pushed. Tests run with IMAGE_TAG set; a failure fails the action with nothing
+      published, so the next run rebuilds instead of inheriting the bad image from the cache.
+
+      Not run on an exact-tag or deps-cache hit: those serve an image that already passed when it
+      was built.
+    required: false
+    default: ''
   pull-on-deps-hit:
     description: >
       Pull the image locally after a deps-cache hit. Needed by jobs that run
@@ -241,6 +251,23 @@ runs:
         cache-from: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0}', env.CACHE_IMAGE) || '' }}
         cache-to: ${{ steps.resolve-ecr.outputs.available == 'true' && format('type=registry,ref={0},mode=max', env.CACHE_IMAGE) || '' }}
         deps-hash: ${{ steps.deps-hash.outputs.hash }}
+
+    # Assert against the image while it is only local: the push steps below publish under both
+    # the commit tag and the deps tag, and a deps-cache hit later serves that image without
+    # rebuilding it, so anything published unverified stays unverified.
+    - name: Verify freshly built image
+      if: >
+        inputs.verify-test-path != '' &&
+        steps.pull-exact.outputs.hit != 'true' &&
+        steps.deps-cache.outputs.deps-cache-hit != 'true'
+      shell: bash
+      env:
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        TEST_PATH: ${{ inputs.verify-test-path }}
+      run: |
+        set -euo pipefail
+        uv run --no-project --with pytest \
+          python -m pytest -q "${TEST_PATH}"
 
     - name: Tag built image with ECR-prefixed name
       if: >

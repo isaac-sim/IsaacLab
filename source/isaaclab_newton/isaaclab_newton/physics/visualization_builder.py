@@ -20,7 +20,6 @@ from isaaclab.sim.utils.transforms import resolve_prim_pose
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
     build_source_builders,
-    rename_builder_labels,
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
@@ -156,8 +155,7 @@ def build_visualization_builder_from_stage_envs(
         visual_builder.shape_collision_filter_pairs = []
         visual_builder.shape_collision_group[:] = [0] * visual_builder.shape_count
     builder.add_builder(global_builder)
-    replicate_builder_mapping(builder, sources, mapping, positions, quaternions, source_builders)
-    rename_builder_labels(builder, sources, destinations, env_ids, mapping)
+    replicate_builder_mapping(builder, sources, mapping, positions, quaternions, source_builders, destinations, env_ids)
     shadow_entities, registry_groups = add_shadow_deformables_to_builder(
         builder, stage, env_paths, device=device, entries=deformable_entries, clone_plan=clone_plan
     )

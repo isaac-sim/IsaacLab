@@ -12,14 +12,9 @@ import newton
 import torch
 import warp as wp
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
-from isaaclab_newton.cloner.newton_clone_utils import (
-    _BUILTIN_LABEL_TYPES,
-    rename_builder_labels,
-    replicate_builder_mapping,
-)
+from isaaclab_newton.cloner.newton_clone_utils import rename_builder_labels, replicate_builder_mapping
 from isaaclab_newton.physics import visualization_builder as visualization_builder_module
 from isaaclab_newton.physics import visualization_deformables as visualization_deformables_module
-from newton.solvers import SolverMuJoCo
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
@@ -38,9 +33,8 @@ _VIS_LABEL_SUFFIXES = {
 _VIS_BUILTIN_LABEL_ATTRS = tuple(attr for attr in _VIS_LABEL_SUFFIXES if attr != "equality_constraint_label")
 _VIS_EQ_FREQ = "mujoco:equality_constraint"
 
-_TENDON_FREQ = "mujoco:tendon"
-_SRC = "/Sources/protoA"
-_DST = "/World/envs/env_{}"
+_SRC = "/World/envs/env_0/protoA"
+_DST = "/World/envs/env_{}/protoA"
 
 
 class _FakeVisualizationModelBuilder:
@@ -129,35 +123,10 @@ class _FakeVisualizationModelBuilder:
             self.world_slices[self._current_world].append((label_start, label_end, geometry_start, geometry_end))
 
 
-def _inject_builtins(builder: newton.ModelBuilder, types: tuple[str, ...], src_path: str, worlds: list[int]) -> None:
-    for kind in types:
-        for world in worlds:
-            if kind == "equality_constraint":
-                builder.add_custom_values(
-                    **{
-                        "mujoco:equality_constraint_label": f"{src_path}/{kind}_{world}",
-                        "mujoco:equality_constraint_world": world,
-                    }
-                )
-            else:
-                getattr(builder, f"{kind}_label").append(f"{src_path}/{kind}_{world}")
-                getattr(builder, f"{kind}_world").append(world)
-
-
-def _inject_tendons(builder: newton.ModelBuilder, src_path: str, worlds: list[int]) -> None:
-    labels = builder.custom_attributes["mujoco:tendon_label"].values = []
-    world_ids = builder.custom_attributes["mujoco:tendon_world"].values = []
-    for world in worlds:
-        labels.append(f"{src_path}/Tendon_{world}")
-        world_ids.append(world)
-    builder._custom_frequency_counts[_TENDON_FREQ] = len(worlds)
-
-
 def _make_builder(worlds: list[int]) -> newton.ModelBuilder:
     builder = newton.ModelBuilder()
-    SolverMuJoCo.register_custom_attributes(builder)
-    _inject_builtins(builder, _BUILTIN_LABEL_TYPES, _SRC, worlds)
-    _inject_tendons(builder, _SRC, worlds)
+    builder.shape_label.extend(f"{_SRC}/shape_{world}" for world in worlds)
+    builder.shape_world.extend(worlds)
     return builder
 
 
@@ -182,73 +151,10 @@ def _populate_custom_frequency(builder, freq_name, string_columns, worlds):
     builder._custom_frequency_counts[f"syn:{freq_name}"] = len(worlds)
 
 
-class TestRenameBuilderLabels(unittest.TestCase):
-    def setUp(self):
-        self.worlds = [0, 1, 2]
-        self.env_ids = torch.tensor(self.worlds, dtype=torch.int32)
-        self.mapping = torch.ones(1, len(self.worlds), dtype=torch.bool)
-
-    def _rename(self, builder):
-        rename_builder_labels(builder, [_SRC], [_DST], self.env_ids, self.mapping)
-
-    def _assert_builtins(self, builder, types=_BUILTIN_LABEL_TYPES):
-        for kind in types:
-            if kind == "equality_constraint":
-                labels = builder.custom_attributes["mujoco:equality_constraint_label"].values
-                worlds = builder.custom_attributes["mujoco:equality_constraint_world"].values
-            else:
-                labels = getattr(builder, f"{kind}_label")
-                worlds = getattr(builder, f"{kind}_world")
-            self.assertEqual(
-                labels,
-                [f"{_DST.format(int(w))}/{kind}_{int(w)}" for w in worlds],
-            )
-
-    def test_builtin_and_tendon_labels_rewritten_per_world(self):
-        builder = _make_builder(self.worlds)
-        self._rename(builder)
-        self._assert_builtins(builder)
-        tendon_worlds = builder.custom_attributes["mujoco:tendon_world"].values
-        self.assertEqual(
-            builder.custom_attributes["mujoco:tendon_label"].values,
-            [f"{_DST.format(int(w))}/Tendon_{int(w)}" for w in tendon_worlds],
-        )
-
-    def test_source_root_boundary_cases(self):
-        builder = _make_builder(self.worlds)
-        builder.body_label.append(_SRC)
-        builder.body_world.append(self.worlds[0])
-        self._rename(builder)
-        self.assertEqual(builder.body_label[-1], _DST.format(self.worlds[0]))
-
-        builder = _make_builder(self.worlds)
-        rename_builder_labels(builder, [f"{_SRC}/"], [_DST], self.env_ids, self.mapping)
-        self._assert_builtins(builder)
-
-    def test_unmatched_rows_left_untouched(self):
-        builder = _make_builder(self.worlds)
-        builder.body_label.append(f"{_SRC}/body_99")
-        builder.body_world.append(99)
-        builder.custom_attributes["mujoco:tendon_label"].values.append("named_tendon")
-        builder.custom_attributes["mujoco:tendon_world"].values.append(self.worlds[0])
-        self._rename(builder)
-        self.assertEqual(builder.body_label[-1], f"{_SRC}/body_99")
-        self.assertEqual(builder.custom_attributes["mujoco:tendon_label"].values[-1], "named_tendon")
-
-    def test_sparse_env_ids(self):
-        for worlds in ([10, 20, 30], [0, 1_000_000, 2_147_000_000]):
-            builder = newton.ModelBuilder()
-            SolverMuJoCo.register_custom_attributes(builder)
-            _inject_builtins(builder, ("body",), _SRC, worlds)
-            env_ids = torch.tensor(worlds, dtype=torch.int32)
-            rename_builder_labels(builder, [_SRC], [_DST], env_ids, torch.ones(1, len(worlds), dtype=torch.bool))
-            self._assert_builtins(builder, ("body",))
-
-
 class TestRenameCustomAttributes(unittest.TestCase):
     def setUp(self):
         self.worlds = [0, 1]
-        self.env_ids = torch.tensor(self.worlds, dtype=torch.int32)
+        self.env_ids = torch.tensor([10, 20], dtype=torch.int32)
         self.mapping = torch.ones(1, len(self.worlds), dtype=torch.bool)
 
     def test_custom_string_columns_follow_frequency_worlds(self):
@@ -264,15 +170,8 @@ class TestRenameCustomAttributes(unittest.TestCase):
             for column in columns:
                 self.assertEqual(
                     builder.custom_attributes[f"syn:{column}"].values,
-                    [f"{_DST.format(int(w))}/{column}_{int(w)}" for w in worlds],
+                    [f"{_DST.format(int(self.env_ids[w]))}/{column}_{int(w)}" for w in worlds],
                 )
-
-    def test_empty_custom_string_column_passes_through(self):
-        builder = newton.ModelBuilder()
-        _add_custom_frequency(builder, "freqA", ["freqA_label"])
-        rename_builder_labels(builder, [_SRC], [_DST], self.env_ids, self.mapping)
-        _populate_custom_frequency(builder, "freqA", ["freqA_label"], self.worlds)
-        self.assertEqual(len(builder.custom_attributes["syn:freqA_label"].values), len(self.worlds))
 
     def test_custom_string_columns_ignore_unset_world_rows(self):
         builder = newton.ModelBuilder()
@@ -285,7 +184,7 @@ class TestRenameCustomAttributes(unittest.TestCase):
 
         self.assertEqual(
             builder.custom_attributes["syn:freqA_label"].values,
-            ["unassigned", f"{_DST.format(self.worlds[0])}/freqA_label_{self.worlds[0]}"],
+            ["unassigned", f"{_DST.format(int(self.env_ids[0]))}/freqA_label_{self.worlds[0]}"],
         )
 
     def test_shape_material_paths_follow_shape_worlds(self):
@@ -304,7 +203,9 @@ class TestRenameCustomAttributes(unittest.TestCase):
 
         rename_builder_labels(builder, [_SRC], [_DST], self.env_ids, self.mapping)
 
-        self.assertEqual(paths, {index: f"{_DST.format(index)}/Looks/material" for index in range(len(self.worlds))})
+        self.assertEqual(
+            paths, {index: f"{_DST.format(int(self.env_ids[index]))}/Looks/material" for index in self.worlds}
+        )
 
     def test_other_shape_attributes_without_world_references_pass_through(self):
         builder = _make_builder(self.worlds)
@@ -325,26 +226,6 @@ class TestRenameCustomAttributes(unittest.TestCase):
         self.assertEqual(notes, {index: f"{_SRC}/note" for index in range(len(self.worlds))})
 
 
-class TestRenameMultiSource(unittest.TestCase):
-    def test_prefix_overlap_does_not_cross_contaminate(self):
-        sources = ["/Sources/protoA", "/Sources/protoAB"]
-        builder = newton.ModelBuilder()
-        SolverMuJoCo.register_custom_attributes(builder)
-        builder.body_label.extend([f"{sources[0]}/body", f"{sources[1]}/body"] * 2)
-        builder.body_world.extend([0, 0, 1, 1])
-        rename_builder_labels(
-            builder,
-            sources,
-            ["/World/envs/env_{}", "/World/envs/env_{}"],
-            torch.tensor([0, 1], dtype=torch.int32),
-            torch.tensor([[1, 1], [1, 1]], dtype=torch.bool),
-        )
-        self.assertEqual(
-            builder.body_label,
-            ["/World/envs/env_0/body", "/World/envs/env_0/body", "/World/envs/env_1/body", "/World/envs/env_1/body"],
-        )
-
-
 class TestReplicateBuilderMapping(unittest.TestCase):
     @staticmethod
     def _source_builder(root_path: str):
@@ -353,6 +234,7 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         return builder
 
     def test_source_local_sites_batched_with_correct_indices(self):
+        source_path, destination = "/World/envs/env_0", "/World/envs/env_{}"
         source = newton.ModelBuilder()
         source.add_body(xform=wp.transform((2.0, 0.0, 0.0), wp.quat_identity()))
         site_idx = source.add_site(body=0, xform=wp.transform(), label="ee")
@@ -368,13 +250,15 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         quaternions = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 3)
 
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
-            local_site_map, _ = replicate_builder_mapping(
+            local_site_map, _, _ = replicate_builder_mapping(
                 builder,
-                (_SRC,),
+                (source_path,),
                 torch.ones((1, 3), dtype=torch.bool),
                 positions,
                 quaternions,
-                {_SRC: source},
+                {source_path: source},
+                destinations=(destination,),
+                env_ids=torch.arange(3),
                 source_site_indices={id(source): {"ee": [site_idx]}},
             )
 
@@ -383,10 +267,11 @@ class TestReplicateBuilderMapping(unittest.TestCase):
             local_site_map["ee"],
             [[base_shape + world * stride + site_idx] for world in range(3)],
         )
-        for world_indices in local_site_map["ee"]:
-            self.assertEqual(builder.shape_label[world_indices[0]], "ee")
+        for world, world_indices in enumerate(local_site_map["ee"]):
+            self.assertEqual(builder.shape_label[world_indices[0]], f"/World/envs/env_{world}/ee")
 
     def test_env_root_sites_batched_at_correct_world_positions(self):
+        source_path, destination = "/World/envs/env_0", "/World/envs/env_{}"
         source = newton.ModelBuilder()
         source.add_body(xform=wp.transform((2.0, 0.0, 0.0), wp.quat_identity()))
 
@@ -397,13 +282,15 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         env_root_offset = wp.transform((0.1, 0.0, 0.0), wp.quat_identity())
 
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
-            local_site_map, _ = replicate_builder_mapping(
+            local_site_map, _, _ = replicate_builder_mapping(
                 builder,
-                (_SRC,),
+                (source_path,),
                 torch.ones((1, 3), dtype=torch.bool),
                 positions,
                 quaternions,
-                {_SRC: source},
+                {source_path: source},
+                destinations=(destination,),
+                env_ids=torch.arange(3, dtype=torch.long),
                 env_root_sites={"origin": env_root_offset},
             )
 
@@ -418,11 +305,12 @@ class TestReplicateBuilderMapping(unittest.TestCase):
             site_pos = builder.shape_transform[world_indices[0]].p
             self.assertAlmostEqual(float(site_pos[0]), float(positions[world][0]) + 0.1, places=5)
             self.assertAlmostEqual(float(site_pos[1]), 0.0, places=5)
-            self.assertEqual(builder.shape_label[world_indices[0]], "origin")
+            self.assertEqual(builder.shape_label[world_indices[0]], f"/World/envs/env_{world}/origin")
 
     def test_inactive_source_rows_are_ignored(self):
-        sources = ("/Sources/inactive", "/Sources/active")
+        sources = ("/World/envs/env_0/inactive", "/World/envs/env_0/active")
         source_builders = {source: self._source_builder(source) for source in sources}
+        source_builders[sources[0]].body_label.append("/outside/the/plan")
         builder = _FakeVisualizationModelBuilder()
 
         replicate_builder_mapping(
@@ -432,9 +320,11 @@ class TestReplicateBuilderMapping(unittest.TestCase):
             torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
             torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]]),
             source_builders,
+            destinations=("/World/envs/env_{}/inactive", "/World/envs/env_{}/active"),
+            env_ids=torch.arange(2),
         )
 
-        self.assertEqual(builder.geometry_sources_for_world(0), ["/Sources/active"])
+        self.assertEqual(builder.geometry_sources_for_world(0), ["/World/envs/env_0/active"])
         self.assertEqual(builder.geometry_sources_for_world(1), [])
 
 
@@ -601,6 +491,111 @@ class TestVisualizationClonePlan(unittest.TestCase):
                     [f"/World/envs/env_2/Object/{suffix}"],
                 ],
             )
+
+
+class TestReplicationNamesItsCopies(unittest.TestCase):
+    _SRC = "/World/envs/env_0/Robot"
+    _ENV = "/World/envs/env_{}"
+
+    def test_batched_prefixes_name_each_world_and_preserve_the_prototype(self):
+        source = newton.ModelBuilder()
+        body = source.add_body(xform=wp.transform(), label=self._SRC)
+        source.add_shape_box(body=body, label=f"{self._SRC}/shape")
+        child = source.add_link(xform=wp.transform(), label=f"{self._SRC}/link")
+        source.add_joint_revolute(parent=body, child=child, axis=(0.0, 0.0, 1.0), label=f"{self._SRC}/hinge")
+        original = {
+            name: list(getattr(source, name))
+            for name in ("body_label", "joint_label", "shape_label", "articulation_label")
+        }
+        builder = newton.ModelBuilder()
+        env_ids = torch.tensor([10, 20], dtype=torch.long)
+        mapping = torch.ones(1, len(env_ids), dtype=torch.bool)
+        positions = torch.zeros((len(env_ids), 3), dtype=torch.float32)
+        quaternions = torch.zeros((len(env_ids), 4), dtype=torch.float32)
+        quaternions[:, 3] = 1.0
+        replicate_builder_mapping(
+            builder,
+            [self._SRC],
+            mapping,
+            positions,
+            quaternions,
+            {self._SRC: source},
+            destinations=["/World/envs/env_{}/Robot"],
+            env_ids=env_ids,
+        )
+        for name, source_labels in original.items():
+            expected = [
+                label.replace(self._SRC, f"{self._ENV.format(i)}/Robot", 1) for i in env_ids for label in source_labels
+            ]
+            self.assertEqual(getattr(builder, name), expected)
+            self.assertEqual(getattr(source, name), source_labels)
+
+    def test_hook_labels_are_rewritten_after_the_slow_path(self):
+        source = newton.ModelBuilder()
+        source.add_body(label=f"{self._SRC}/base")
+        builder = newton.ModelBuilder()
+        env_ids = torch.tensor([10, 20])
+        mapping = torch.ones((1, 2), dtype=torch.bool)
+
+        def hook(builder, *_):
+            builder.add_body(label=f"{self._SRC}/hook")
+
+        replicate_builder_mapping(
+            builder,
+            (self._SRC,),
+            mapping,
+            torch.zeros((2, 3)),
+            torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 2),
+            {self._SRC: source},
+            destinations=("/World/envs/env_{}/Robot",),
+            env_ids=env_ids,
+            per_world_builder_hooks=(hook,),
+        )
+        self.assertEqual(
+            builder.body_label,
+            [f"/World/envs/env_{env_id}/Robot/{label}" for env_id in env_ids for label in ("base", "hook")],
+        )
+
+
+class TestRootJointNaming(unittest.TestCase):
+    """The importer leaves a floating base's root joint unnamed; every other entity is named."""
+
+    _SOURCE = "/World/envs/env_0/Robot"
+    _BODY = "/World/envs/env_0/Robot/pelvis"
+
+    @staticmethod
+    def _builder_with_free_root(body_label: str) -> newton.ModelBuilder:
+        builder = newton.ModelBuilder()
+        body = builder.add_link(xform=wp.transform(), label=body_label)
+        builder.add_joint_free(child=body)
+        return builder
+
+    def test_a_generated_root_joint_name_becomes_its_body_path(self):
+        builder = self._builder_with_free_root(self._BODY)
+        self.assertFalse(builder.joint_label[0].startswith("/"))
+
+        newton_clone_utils_module._name_root_joints_after_their_body(builder)
+
+        self.assertEqual(builder.joint_label[0], f"{self._BODY}_free_joint")
+
+    def test_other_joint_labels_are_left_alone(self):
+        named = self._builder_with_free_root(self._BODY)
+        named.joint_label[0] = "authored"
+
+        non_free = newton.ModelBuilder()
+        parent = non_free.add_link(xform=wp.transform(), label=self._BODY)
+        child = non_free.add_link(xform=wp.transform(), label=f"{self._BODY}/link")
+        non_free.add_joint_revolute(parent=parent, child=child, axis=(0.0, 0.0, 1.0))
+
+        non_root = newton.ModelBuilder()
+        parent = non_root.add_link(xform=wp.transform(), label=self._BODY)
+        child = non_root.add_link(xform=wp.transform(), label=f"{self._BODY}/link")
+        non_root.add_joint_free(parent=parent, child=child)
+
+        for builder in (named, non_free, non_root):
+            original = list(builder.joint_label)
+            newton_clone_utils_module._name_root_joints_after_their_body(builder)
+            self.assertEqual(builder.joint_label, original)
 
 
 if __name__ == "__main__":
