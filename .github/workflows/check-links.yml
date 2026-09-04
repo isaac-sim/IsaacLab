@@ -113,6 +113,9 @@ jobs:
           --exclude 'andrew\.cmu\.edu/course/10-703/textbook/BartoSutton\.pdf'
           --exclude 'www\.nvidia\.com/en-us/security'
           --exclude 'bostondynamics\.com/reinforcement-learning-researcher-kit'
+          --exclude '^https://opensource\.org/license/apache-2-0/?$'
+          --exclude '^https://opensource\.org/licenses/BSD-3-Clause/?$'
+          --exclude '^https://leopardimaging\.com/wp-content/uploads/2024/07/LI-AR0234CS-STEREO-GMSL2-30_Datasheet_V1\.8\.pdf$'
           --max-retries 5
           --retry-wait-time 10
           --timeout 20
