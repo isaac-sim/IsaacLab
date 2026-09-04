@@ -657,7 +657,8 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
         if selector:
             print_warning(f"'newton' does not support selectors (got '{selector}'). Installing all newton extras.")
         print_info(
-            "Installing newton extras (newton[sim], pyglet, PyOpenGL-accelerate, imgui-bundle, typing-extensions)..."
+            "Installing newton extras (newton[importers,sim], pyglet, PyOpenGL-accelerate, imgui-bundle, "
+            "typing-extensions)..."
         )
         run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_newton[all]"])
         run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_physx[newton]"])

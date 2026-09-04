@@ -64,12 +64,12 @@ class Test_UV_Env_Smoke(UV_Mixin):
     @pytest.mark.cli
     @pytest.mark.uv
     @pytest.mark.timeout(300)
-    def test_isaaclab_newton_extra_installs_newton_sim(self, isaaclab_root):
-        """Run ./isaaclab.x -i newton and verify the newton[sim] extra is installed.
+    def test_isaaclab_newton_extra_installs_newton_dependencies(self, isaaclab_root):
+        """Run ./isaaclab.x -i newton and verify its Newton extras are installed.
 
         ``newton`` is an extra feature selector: it reinstalls the already-present
         core packages (``isaaclab_newton``, ``isaaclab_physx``, ``isaaclab_visualizers``)
-        with their newton extras, pulling in the ``newton[sim]`` git dependency.
+        with their Newton extras, pulling in the solver and importer dependencies.
         """
 
         try:
@@ -79,9 +79,19 @@ class Test_UV_Env_Smoke(UV_Mixin):
             result = self.run_in_uv_env([str(self.cli_script), "-i", "newton"], cwd=isaaclab_root)
             assert result.returncode == 0, f"isaaclab -i newton failed:\n{result.stdout}\n{result.stderr}"
 
-            # The newton[sim] extra should make the newton package importable.
-            result = self.run_in_uv_env(["python", "-c", "import newton; print('newton ok')"])
-            assert result.returncode == 0, f"import newton failed:\n{result.stdout}\n{result.stderr}"
+            result = self.run_in_uv_env(
+                [
+                    "python",
+                    "-c",
+                    "from importlib.metadata import version\n"
+                    "from packaging.version import Version\n"
+                    "import newton\n"
+                    "if Version(version('newton')) >= Version('1.5'):\n"
+                    "    import newton_usd_schemas\n"
+                    "print('newton importers ok')",
+                ]
+            )
+            assert result.returncode == 0, f"import Newton dependencies failed:\n{result.stdout}\n{result.stderr}"
 
         finally:
             self.destroy_uv_env()

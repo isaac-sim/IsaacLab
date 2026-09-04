@@ -118,6 +118,7 @@ def test_newton_requirements_support_isaac_sim_6_0_and_6_1():
 
     assert len(requirements) == 6
     for requirement in requirements:
+        assert requirement.extras == {"importers", "sim"}
         assert Version("1.2.1") in requirement.specifier
         assert Version("1.5.0") in requirement.specifier
         assert Version("2.0.0") not in requirement.specifier
