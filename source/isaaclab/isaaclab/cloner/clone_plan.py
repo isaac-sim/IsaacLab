@@ -232,9 +232,9 @@ def _context_rows(
             contexts = tuple(string_to_callable(value) if isinstance(value, str) else value for value in references)
         if isinstance(fields.get("spawn"), sim_utils.SpawnerCfg) and has_kit():
             contexts = tuple(dict.fromkeys((*contexts, UsdReplicateContext)))
-        if any(not isinstance(context, type) for context in contexts):
-            raise TypeError(f"{type(cfg).__name__}.cloning_contexts must contain only context classes.")
         for context_type in contexts:
+            if not isinstance(context_type, type):
+                raise TypeError(f"{type(cfg).__name__}.cloning_contexts must contain only context classes.")
             rows_by_context.setdefault(context_type, set()).update(rows)
 
     if UsdReplicateContext in rows_by_context:
@@ -416,7 +416,7 @@ def make_clone_plan(
 
 def clone_plan_from_env_0(
     clone_cfg: CloneCfg,
-    asset_cfgs: Iterable[object | None],
+    asset_cfgs: Iterable[Any],
     num_envs: int,
     env_spacing: float,
 ) -> ClonePlan:
@@ -452,7 +452,7 @@ def clone_plan_from_env_0(
     if sim.get_clone_plan() is not None:
         raise RuntimeError("A SimulationContext owns exactly one clone lifecycle.")
 
-    records: list[tuple[object, str, TemplateMatch | None, sim_utils.SpawnerCfg | None]] = []
+    records: list[tuple[Any, str, TemplateMatch | None, sim_utils.SpawnerCfg | None]] = []
     for cfg in asset_cfgs:
         if cfg is None:
             continue
