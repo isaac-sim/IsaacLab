@@ -1233,7 +1233,7 @@ If you prefer to run the CloudXR runtime manually in a separate terminal
 .. _isaac-teleop-xr-anchor:
 
 Configure the XR Anchor
-------------------------
+-----------------------
 
 The :class:`~isaaclab_teleop.XrCfg` controls how the simulation is positioned and oriented in the
 XR device's view.
@@ -1324,11 +1324,11 @@ recorded view follows robot motion:
 
    uv run --extra teleop,isaacsim isaaclab teleop run \
        --task IsaacContrib-PickPlace-GR1T2-Abs \
-       --xr --device cpu
+       --xr --device cuda:0
 
    uv run --extra teleop,isaacsim isaaclab teleop run \
        --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-       --xr --device cpu
+       --xr --device cuda:0
 
 XR camera PiP currently supports exactly one environment. When a task has enabled PiP feeds,
 startup rejects ``--num_envs`` values other than ``1``; IsaacTeleop XR behavior without PiP is
@@ -1522,7 +1522,7 @@ Enabled on the two G1 loco-manipulation teleop environments
 OpenXR (``xrApplyHapticFeedback``), so no CloudXR ``.env`` profile change is required.
 
 Haptic glove (per-finger grip)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Use :class:`~isaaclab_teleop.GloveHapticFeedbackCfg`. Each hand's contact sensor is **filtered
 against the grasped object** (``filter_prim_paths_expr``), so ``normal_force_matrix_w`` reports each
