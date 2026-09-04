@@ -1208,7 +1208,13 @@ class NewtonVisualizer(BaseVisualizer):
                     "[%s] Permanently disabling viewer after unrecoverable initialization failure.",
                     type(self).__name__,
                 )
-                self._viewer = None
+                try:
+                    self._release_viewer()
+                except Exception:
+                    # This handler exists so an unusable viewer disables itself
+                    # instead of aborting training, so a viewer that also fails
+                    # to close must not escape it either.
+                    logger.exception("[%s] Viewer teardown failed.", type(self).__name__)
 
     def is_reset_requested(self) -> bool:
         """Return whether an episode reset was requested via the viewer UI."""
@@ -1244,6 +1250,31 @@ class NewtonVisualizer(BaseVisualizer):
             if self._picking_enabled:
                 self._viewer_picking_binding.bind(self._viewer)
 
+    def _release_viewer(self) -> None:
+        """Close the viewer this visualizer owns and drop the reference to it.
+
+        The visualizer owns the viewer it creates, and the viewer owns GPU
+        resources that its backend releases in a fixed order:
+        ``ViewerRTX.close()`` waits on the in-flight render, drops the retained
+        step results, unbinds the transform attribute binding and only then
+        releases the ``ovrtx.Renderer``.  Dropping the reference without
+        closing leaves that ordering to the garbage collector, which does not
+        guarantee one; when the renderer is finalized before the resources
+        bound to it, it tears itself down with them still live and leaks them.
+
+        The reference is cleared in a ``finally`` block so an unusable viewer
+        is never retained, while the teardown failure itself still reaches the
+        caller.  ``ViewerBase.close()`` is a no-op, so the non-RTX backends are
+        unaffected.
+        """
+        viewer = self._viewer
+        if viewer is None:
+            return
+        try:
+            viewer.close()
+        finally:
+            self._viewer = None
+
     def close(self) -> None:
         """Release viewer resources."""
         if self._is_closed:
@@ -1252,13 +1283,17 @@ class NewtonVisualizer(BaseVisualizer):
             # Keep the stable callback registered: captured graphs replay its
             # now-neutral device inputs without retaining the viewer.
             self._viewer_picking_binding.deactivate()
-        if self._viewer is not None:
-            self._viewer = None
-        if self._camera_sensor is not None and self._camera_is_owned:
-            evict_visualizer_camera(self._streaming_camera_key)
-            remove_generated_prims(self._generated_camera_prim_paths)
-        self._camera_sensor = None
-        self._is_closed = True
+        try:
+            self._release_viewer()
+        finally:
+            # A viewer that fails to close must not strand the camera prims or
+            # leave the visualizer looking open; the failure still propagates
+            # to the caller, which logs it and drops the visualizer.
+            if self._camera_sensor is not None and self._camera_is_owned:
+                evict_visualizer_camera(self._streaming_camera_key)
+                remove_generated_prims(self._generated_camera_prim_paths)
+            self._camera_sensor = None
+            self._is_closed = True
 
     def is_running(self) -> bool:
         """Return whether the visualizer should continue stepping."""
