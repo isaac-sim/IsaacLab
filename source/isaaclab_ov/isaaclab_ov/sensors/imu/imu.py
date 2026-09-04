@@ -46,11 +46,8 @@ class Imu(BaseImu):
 
     .. note::
 
-        Linear acceleration is read from the solver when the OVPhysX wheel exposes the
-        rigid-body acceleration binding; otherwise it is computed using numerical differentiation from
-        velocities. Consequently, the IMU sensor accuracy depends on the chosen
-        physics timestep. For sufficient accuracy, we recommend keeping the
-        timestep at least 200 Hz.
+        Linear acceleration is read from the solver and transported from the body center of
+        mass to the sensor frame, then biased by gravity.
     """
 
     cfg: ImuCfg
@@ -136,9 +133,6 @@ class Imu(BaseImu):
         self._pose_binding = self._root_view.binding_for(TT.RIGID_BODY_POSE)
         self._vel_binding = self._root_view.binding_for(TT.RIGID_BODY_VELOCITY)
         self._com_binding = self._root_view.binding_for(TT.RIGID_BODY_COM_POSE)
-        # Solver-reported accelerations ship in newer OVPhysX wheels only; fall back to
-        # finite differencing when the binding is unavailable (see isaaclab_ov.tensor_types).
-        self._acc_binding = self._root_view.binding_for(TT.RIGID_BODY_ACCELERATION)
         self._num_bodies = self._pose_binding.count
 
         if self._num_bodies != self._num_envs:
@@ -179,7 +173,6 @@ class Imu(BaseImu):
         self._pose_binding = None
         self._vel_binding = None
         self._com_binding = None
-        self._acc_binding = None
 
     def _refresh_gravity_bias(self):
         """Re-read the scene gravity so runtime randomization reaches the accelerometer bias.

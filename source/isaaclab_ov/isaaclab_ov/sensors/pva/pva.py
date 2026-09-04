@@ -47,11 +47,9 @@ class Pva(BasePva):
 
     .. note::
 
-        Linear and angular accelerations are read from the solver when the OVPhysX wheel
-        exposes the rigid-body acceleration binding; otherwise they are computed using
-        numerical differentiation of the corresponding velocities, in which case the sensor
-        accuracy depends on the chosen physics timestep and we recommend keeping the
-        timestep at least 200 Hz.
+        Linear and angular accelerations are read from the solver and transported from the
+        body center of mass to the sensor frame. They are kinematic: unlike the IMU, the PVA
+        sensor applies no gravity bias.
     """
 
     cfg: PvaCfg
@@ -72,8 +70,6 @@ class Pva(BasePva):
         # Sentinel — set in :meth:`_initialize_impl`; ``None`` means the sensor has not been bound yet
         # (used by :meth:`_debug_vis_callback` to safely no-op before init).
         self._root_view: OvPhysxView | None = None
-        # Sentinel — resolved in :meth:`_initialize_impl`; ``None`` selects the finite-difference path.
-        self._acc_binding = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -145,9 +141,6 @@ class Pva(BasePva):
 
         self._root_view = OvPhysxView(physx_instance, pattern=pattern, device=self._device)
         self._num_bodies = self._root_view.binding_for(TT.RIGID_BODY_POSE).count
-        # Solver-reported accelerations ship in newer OVPhysX wheels only; fall back to
-        # finite differencing when the binding is unavailable (see isaaclab_ov.tensor_types).
-        self._acc_binding = self._root_view.binding_for(TT.RIGID_BODY_ACCELERATION)
 
         if self._num_bodies != self._num_envs:
             raise ValueError(
@@ -184,7 +177,6 @@ class Pva(BasePva):
         # Drop the view (and the bindings it caches) so a stale/destroyed handle is not held
         # across the reset; ``_initialize_impl`` rebuilds a fresh view on the next play.
         self._root_view = None
-        self._acc_binding = None
 
     def _refresh_gravity_vec(self):
         """Refresh the cached gravity buffer when the scene gravity changed.
