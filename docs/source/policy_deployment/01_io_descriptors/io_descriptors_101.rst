@@ -141,7 +141,8 @@ We are also attaching an IO descriptor to this term. The IO descriptor is define
 
 The ``@generic_io_descriptor`` decorator is a special decorator that is used to attach an IO descriptor to a custom observation term.
 It takes arbitrary arguments that are used to describe the observation term, in this case we provide extra information that could be
-useful for the end user:
+useful for the end user. If ``description`` is omitted, the decorator uses the function docstring when one is present; if the
+function has no docstring, the descriptor's ``description`` remains ``None``.
 
 - ``units``: The units of the observation term.
 - ``axes``: The axes of the observation term.
