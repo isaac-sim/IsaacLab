@@ -582,7 +582,10 @@ class AppLauncher:
             type=str,
             action=ExplicitAction,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
-            help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
+            help=(
+                'The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID.'
+                " When --xr is set and this flag is omitted, the simulation falls back to CPU physics."
+            ),
         )
         arg_group.add_argument(
             "--visualizer",
@@ -1081,7 +1084,8 @@ class AppLauncher:
         device = launcher_args.get("device", AppLauncher._APPLAUNCHER_CFG_INFO["device"][1])
 
         device_explicitly_passed = launcher_args.pop("device_explicit", False)
-        if self._xr and not device_explicitly_passed:
+        applied_xr_cpu_fallback = self._xr and not device_explicitly_passed
+        if applied_xr_cpu_fallback:
             # If no device is specified, default to the CPU device if we are running in XR
             device = "cpu"
 
@@ -1146,6 +1150,19 @@ class AppLauncher:
 
         # Store the resolved device string for downstream consumers (e.g. sim_launcher)
         self.device = device
+
+        # The XR fallback above is otherwise silent, and it overrides the "cuda:0" default that
+        # applies outside XR. Report it only once the device is final, since the distributed branch
+        # may have replaced it with "cuda:<rank>". Whether CPU physics is the faster choice is
+        # scene-dependent, so surface the switch and the way to opt out of it.
+        if applied_xr_cpu_fallback and device == "cpu":
+            logger.warning(
+                "XR mode is enabled and no device was specified explicitly: running physics on the CPU."
+                " Outside XR the default is '%s'. CPU physics can reduce latency for single-environment"
+                " teleoperation, but is typically slower for larger or contact-rich scenes. Pass --device"
+                " explicitly (for example '--device cuda:0') to override this fallback.",
+                AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
+            )
 
         logger.info("Using device: %s", device)
 
