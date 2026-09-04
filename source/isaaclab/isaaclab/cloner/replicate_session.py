@@ -70,8 +70,6 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     sim = SimulationContext.instance()
     if sim is None:
         raise RuntimeError("Clone-plan replication requires an active SimulationContext.")
-    sim._consume_clone_plan(plan)
-
     context_types = tuple(
         context_type for context_type in plan.context_rows if replicate_physics or context_type is UsdReplicateContext
     )
@@ -81,6 +79,7 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
         raise RuntimeError(f"Clone contexts must be registered before plan dispatch: {names}.")
 
     contexts = [sim._backend_registry[context_type] for context_type in context_types]
+    sim._consume_clone_plan(plan)
     for context in sorted(contexts, key=lambda item: item.replicate_priority):
         context.replicate(plan)
 

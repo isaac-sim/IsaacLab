@@ -181,7 +181,7 @@ def test_replicate_rejects_unregistered_context(monkeypatch):
 
     with pytest.raises(RuntimeError, match="must be registered"):
         replicate_session.replicate(plan)
-    assert simulation._clone_plan_consumed is True
+    assert simulation._clone_plan_consumed is False
 
 
 def test_replicate_rejects_a_second_dispatch(monkeypatch):
