@@ -10,6 +10,7 @@ Below, you'll find detailed examples of various policies for training and deploy
 
     01_io_descriptors/io_descriptors_101
     02_gear_assembly/gear_assembly_policy
+    06_displayport_insertion/displayport_insertion_policy
     03_compass_with_NuRec/compass_navigation_policy_with_NuRec
     04_reach/reach_policy
     05_leapp/exporting_policies_with_leapp
