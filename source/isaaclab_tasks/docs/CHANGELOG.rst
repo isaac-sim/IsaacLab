@@ -1,7 +1,7 @@
 Changelog
 ---------
 
-20.0.1 (2026-09-03)
+20.0.1 (2026-09-04)
 ~~~~~~~~~~~~~~~~~~~
 
 Fixed
@@ -10,15 +10,18 @@ Fixed
 * Fixed ``Isaac-Lift-KukaAllegro`` failing to converge under the PhysX backend. The
   ``randomize_rigid_body_material`` startup event wrote the lifted object's material through the
   rigid tensor API, overwriting the compliant-contact spring the dexterous grasp relies on, so the
-  object was ejected before a grasp could form. The object now uses a PhysX compliant material and
-  a friction-randomization event that preserves compliant contact.
+  object was ejected before a grasp could form. The object now uses a PhysX compliant contact
+  material and a backend-aware friction-randomization event that preserves it.
 
 Added
 ^^^^^
 
-* Added :class:`~isaaclab_tasks.core.lift.mdp.compliant_events.RandomizeFrictionKeepCompliant`, an
-  event term that randomizes friction while preserving PhysX compliant-contact stiffness and
-  damping via ``RigidBodyView.set_compliant_material_properties``.
+* Added :class:`~isaaclab_tasks.core.lift.mdp.compliant_events.RandomizeFrictionKeepCompliant`, a
+  backend-aware event that, on PhysX, randomizes friction while preserving the compliant-contact
+  stiffness/damping via ``RigidBodyView.set_compliant_material_properties``, and on other backends
+  (Newton, OVPhysX) delegates to the stock ``randomize_rigid_body_material``. The compliant
+  stiffness/damping default to ``2500``/``100`` -- Newton's own default rigid contact ``ke``/``kd``
+  -- so both backends run the identical, tuned contact model.
 
 20.0.0 (2026-09-03)
 ~~~~~~~~~~~~~~~~~~~

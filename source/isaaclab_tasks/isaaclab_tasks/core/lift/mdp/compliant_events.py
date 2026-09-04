@@ -11,23 +11,30 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.envs.mdp.events import randomize_rigid_body_material
 from isaaclab.managers.manager_base import ManagerTermBase
 
 
 class RandomizeFrictionKeepCompliant(ManagerTermBase):
     """Randomize an object's friction while preserving its PhysX compliant-contact material.
 
-    The stock :class:`~isaaclab.envs.mdp.events.randomize_rigid_body_material` writes the material
-    through the rigid tensor API (``RigidBodyView.set_material_properties``: static friction, dynamic
-    friction, restitution), which overwrites any compliant-contact spring authored at spawn. For a
-    dexterous grasp under PhysX this is fatal: the object reverts to rigid contacts and is knocked out
-    of the hand before a grasp can form, so the policy never converges.
+    Both PhysX and Newton model soft contacts as a Kelvin-Voigt normal spring-damper with the same
+    units -- stiffness [N/m], damping [N*s/m]; Newton's USD importer reads PhysX's
+    ``compliant_contact_stiffness``/``damping`` as its own ``ke``/``kd`` fallback, so one authored
+    material serves both backends. The stiffness is a numerical contact-softness parameter (a
+    penalty spring), not a material Young's modulus.
 
-    This term randomizes the static/dynamic friction but writes it back through
-    ``RigidBodyView.set_compliant_material_properties`` (static friction, dynamic friction, compliant
-    stiffness, compliant damping), reading the current stiffness/damping first so the compliant
-    contact model survives the randomization. Friction domain randomization is therefore retained
-    without sacrificing grasp stability.
+    The stock :class:`~isaaclab.envs.mdp.events.randomize_rigid_body_material` writes the PhysX
+    material through the rigid tensor API (``RigidBodyView.set_material_properties``: static
+    friction, dynamic friction, restitution), overwriting the compliant-contact spring authored at
+    spawn -- fatal for a dexterous grasp, since the object reverts to rigid contacts.
+
+    On PhysX this term randomizes friction and writes it back through
+    ``RigidBodyView.set_compliant_material_properties`` (static friction, dynamic friction,
+    compliant stiffness, compliant damping), reading the current stiffness/damping first so the
+    compliant model survives. On every other backend (Newton, OVPhysX) it delegates to the stock
+    term, whose randomizer is already surgical (it writes only friction bindings and leaves the
+    ``ke``/``kd`` contact parameters untouched).
     """
 
     def __init__(self, cfg, env):
@@ -36,6 +43,12 @@ class RandomizeFrictionKeepCompliant(ManagerTermBase):
         self.asset = env.scene[self.asset_cfg.name]
         self._static_friction_range = tuple(cfg.params.get("static_friction_range", (0.5, 1.0)))
         self._dynamic_friction_range = tuple(cfg.params.get("dynamic_friction_range", (0.5, 1.0)))
+        # stock randomizer used for non-PhysX backends (Newton / OVPhysX)
+        self._stock = randomize_rigid_body_material(cfg, env)
+
+    def _is_physx(self, env) -> bool:
+        name = env.sim.physics_manager.__name__.lower()
+        return "physx" in name and name != "ovphysxmanager"
 
     def __call__(
         self,
@@ -48,6 +61,13 @@ class RandomizeFrictionKeepCompliant(ManagerTermBase):
         asset_cfg=None,
         make_consistent=True,
     ):
+        # Non-PhysX backends: the stock randomizer preserves compliant (ke/kd) by construction.
+        if not self._is_physx(env):
+            self._stock(
+                env, env_ids, static_friction_range, dynamic_friction_range, restitution_range,
+                num_buckets, asset_cfg if asset_cfg is not None else self.asset_cfg, make_consistent,
+            )
+            return
         view = self.asset.root_view
         count = int(view.count)
         max_shapes = int(view.max_shapes)
@@ -57,11 +77,9 @@ class RandomizeFrictionKeepCompliant(ManagerTermBase):
         device = compliant.device
         stiffness = compliant[..., 0].clone().float()
         damping = compliant[..., 1].clone().float()
-        # fall back to the authored spawn compliant if the view reports none
-        if float(stiffness.max().item()) < 1.0:
-            stiffness[:] = 300.0
-            damping[:] = 30.0
-        # sample new friction, keeping dynamic <= static for physical consistency
+        if float(stiffness.max().item()) < 1.0:  # fall back to the authored spawn compliant
+            stiffness[:] = 2500.0
+            damping[:] = 100.0
         static = torch.empty((count, max_shapes), device=device).uniform_(self._static_friction_range[0], self._static_friction_range[1])
         dynamic = torch.empty((count, max_shapes), device=device).uniform_(self._dynamic_friction_range[0], self._dynamic_friction_range[1])
         if make_consistent:
