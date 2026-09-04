@@ -251,9 +251,10 @@ class ContactSensor(BaseContactSensor):
     def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
         """Checks if bodies that have broken contact within the last :attr:`dt` seconds.
 
-        This function checks if the bodies have broken contact within the last :attr:`dt` seconds
-        by comparing the current air time with the given time period. If the air time is less
-        than the given time period, then the bodies are considered to not be in contact.
+        This function checks if the bodies have broken contact within the last :attr:`dt` seconds.
+        Lift-off transitions are latched by the sensor update kernel at the buffer refresh where they
+        occur, together with the age of the ended phase. A body is reported when a lift-off event is
+        latched and the event is younger than the given time period.
 
         .. note::
             It assumes that :attr:`dt` is a factor of the sensor update time-step. In other words,

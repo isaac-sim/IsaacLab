@@ -296,6 +296,10 @@ def update_net_forces_kernel(
         cct = current_contact_time[env, sensor]
         is_first_contact = in_contact and (cat > 0.0)
         is_first_detached = not in_contact and (cct > 0.0)
+        # Both timers zero can only be the first refresh after reset; latch the
+        # initial phase (a body starting an episode in contact or in air) so it
+        # is reported like a transition, matching the pre-latch behaviour.
+        is_first_refresh = (cat == 0.0) and (cct == 0.0)
 
         if is_first_contact:
             last_air_time[env, sensor] = cat + elapsed_time
@@ -312,7 +316,7 @@ def update_net_forces_kernel(
         # against dt in compute_first_transition_kernel.
         fct = first_contact_time[env, sensor]
         fat = first_air_time[env, sensor]
-        if is_first_contact:
+        if is_first_contact or (is_first_refresh and in_contact):
             first_contact_latch[env, sensor] = 1.0
             first_contact_time[env, sensor] = 0.5 * elapsed_time
         elif in_contact:
@@ -320,7 +324,7 @@ def update_net_forces_kernel(
         else:
             first_contact_latch[env, sensor] = 0.0
             first_contact_time[env, sensor] = 0.0
-        if is_first_detached:
+        if is_first_detached or (is_first_refresh and not in_contact):
             first_air_latch[env, sensor] = 1.0
             first_air_time[env, sensor] = 0.5 * elapsed_time
         elif not in_contact:

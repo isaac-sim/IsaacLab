@@ -157,6 +157,20 @@ class _ContactRollout:
             device=_DEVICE,
         )
 
+    def _reset_buffers(self):
+        """Mimics the sensor's reset(): zero the air/contact timers and latches."""
+        for buf in (
+            self.current_air,
+            self.current_contact,
+            self.last_air,
+            self.last_contact,
+            self.first_contact_latch,
+            self.first_air_latch,
+            self.first_contact_time,
+            self.first_air_time,
+        ):
+            buf.zero_()
+
     # -- driver --------------------------------------------------------------
 
     def _substep(self, in_contact: bool) -> bool:
@@ -446,6 +460,29 @@ def test_latch_persistence_eager(backend):
         else:
             first = rollout._first_contact_fn(rollout, _STEP_DT, 1.0e-8)
             assert first == 0.0, f"{backend}: stale touchdown latch after the contact phase ended"
+
+
+@pytest.mark.parametrize("backend", ["newton", "physx", "ovphysx"])
+def test_first_phase_after_reset_is_reported(backend):
+    """A body that starts an episode already in contact (or in air) must be
+    reported on the first refresh after reset, matching the pre-latch timer
+    behaviour (see the review of #7294)."""
+    rollout = _BACKENDS[backend](_CADENCES["lazy"])
+    rollout._reset_timestamps()
+    rollout._reset_buffers()
+    # Age the clock first so the refresh after reset happens at a large sim time.
+    for _ in range(200):
+        rollout._substep(True)
+    rollout._reset_timestamps()
+    rollout._reset_buffers()
+    for in_contact, want in [(True, 1.0), (False, 1.0)]:
+        rollout._reset_timestamps()
+        rollout._reset_buffers()
+        refreshed = False
+        while not refreshed:
+            refreshed = rollout._substep(in_contact)
+        got = rollout._first_contact_fn(rollout, _STEP_DT, 1.0e-8, in_contact)
+        assert got == want, f"{backend}: initial phase (in_contact={in_contact}) not reported after reset"
 
 
 @pytest.mark.parametrize("backend", ["newton", "physx", "ovphysx"])
