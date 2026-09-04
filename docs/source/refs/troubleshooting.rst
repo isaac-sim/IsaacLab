@@ -19,6 +19,106 @@ Tricks and Troubleshooting
    :local:
    :depth: 2
 
+Capturing an Environment for a Bug Report
+-----------------------------------------
+
+Most setup failures are a difference between two machines rather than a defect in the code, and the
+difference is rarely in the lockfile. ``tools/capture_env.py`` records the parts a lockfile does not:
+the GPU and driver, the installed packages as they exist on disk, the environment variables Isaac Lab
+reads, and the symlinks and ``.pth`` files that decide which code actually gets imported.
+
+.. code:: bash
+
+    python3 tools/capture_env.py capture --command "<the command that failed>"
+
+This writes ``isaaclab-env-<host>-<timestamp>.zip`` and a matching ``.md`` document beside it. The
+document lists the steps to rebuild the environment, what the bundle cannot rebuild, and any problems
+the capture found. Attach the zip to the issue.
+
+The steps are derived from the capture rather than written in advance. The ``uv sync`` command carries
+the extras the captured environment was actually built with, because a bare ``uv sync`` installs the
+lockfile and removes everything else; packages no sync would restore are listed separately, which
+catches anything added with ``uv pip install``. Isaac Sim gets its own step matched to how it was
+installed on the captured machine -- the ``isaacsim`` wheel, a downloaded package, or a local build,
+named by the revision it was built from.
+
+The script uses only the Python standard library and never imports Isaac Lab, so it still runs on an
+installation that is too broken to start. Run it with any ``python3``: it reads the virtual environment
+from disk rather than from the interpreter that runs it. Each bundle also carries a copy of the script,
+so ``diff`` runs on a machine with no Isaac Lab checkout.
+
+To compare a reported environment against your own, which reproduces the capture locally and reports
+every difference:
+
+.. code:: bash
+
+    python3 tools/capture_env.py diff isaaclab-env-<host>-<timestamp>.zip
+
+Environment variables are captured by allowlist, limited to the names Isaac Lab and its runtime stack
+are known to read. The list is closed and matched by exact name, so a variable this project does not
+read is counted but never named or valued anywhere in the bundle. That is the whole of the guarantee:
+a bundle does record the hostname of the machine that produced it, in the archive name and in the
+manifest, the ``--command`` string as you typed it, and the values of allowlisted path variables such
+as ``PYTHONPATH`` and ``LD_LIBRARY_PATH``. Read ``REPRODUCE.md`` and ``env/environment.txt`` from the
+bundle before attaching it to a public issue.
+
+Two things a checkout knows about are left out of the default bundle, each behind its own flag.
+Uncommitted source changes are excluded because a dirty tree can hold code you are not free to share;
+pass ``--include_diff`` to attach them. Git remote URLs are excluded because a fork's URL names a
+host, an organisation, and a repository that the reproduction does not need -- a commit reachable
+from a public remote is reached by cloning Isaac Lab, and one that is not has to come from you
+either way, which is what the document says when the recorded commit is on no remote branch. Pass
+``--include_remotes`` to attach them; any credential embedded in a URL is stripped even then.
+
+
+Reproducing a Reported Environment
+----------------------------------
+
+A bundle carries its own instructions. There is no fixed sequence to memorize, because the extras, the
+packages installed outside the lockfile, and the way Isaac Sim was obtained all differ between the
+machine that produced the bundle and yours. Unpack it and read what it prescribes:
+
+.. code:: bash
+
+    unzip isaaclab-env-<host>-<timestamp>.zip -d bundle
+    cat bundle/REPRODUCE.md
+
+The steps follow the same order every time, with the details filled in from the capture:
+
+1. Check out the recorded commit. The clone URL is Isaac Lab itself unless the reporter passed
+   ``--include_remotes``. If the commit is on no remote branch, the document says so rather than
+   emitting a ``git checkout`` that cannot succeed.
+2. Copy the captured ``pyproject.toml`` and ``uv.lock`` over the checkout and sync with the extras the
+   captured environment was built with. Take the command from the document rather than typing
+   ``uv sync``: the bare form installs the default dependency set and removes everything else,
+   including Isaac Sim and every RL library.
+3. Reinstall the packages no sync would restore. These are the ones a lockfile cannot account for,
+   added with ``uv pip install`` or upgraded by hand, and they are frequently the difference being
+   investigated.
+4. Obtain Isaac Sim the way the captured machine did -- the ``isaacsim`` wheel, a downloaded package
+   at the recorded version, or a local build at the recorded revision.
+5. Run ``diff`` against the bundle. It compares the host and versions, every installed package and
+   its version, the allowlisted environment variables, the symlinks, the ``.pth`` files, the
+   ``sys.path`` each environment's own interpreter resolved, the ``RECORD``-against-disk integrity
+   check, and the findings, and it names each section it found identical. *No differences recorded*
+   means the two captures agree on all of that. A section one of the captures holds no data for --
+   an interpreter that never started, or a capture taken with ``--skip_integrity`` -- is named in
+   the summary as one that could not be compared rather than counted as agreement. Even the
+   unqualified form is the evidence that the reproduction worked, not a proof: whatever the
+   capture does not record -- listed under *What this bundle cannot reproduce* -- is untested
+   either way.
+
+Every bundle also contains a copy of ``capture_env.py``, so step 5 runs on a checkout too old to
+include the script, or on a machine with no Isaac Lab checkout at all:
+
+.. code:: bash
+
+    python3 bundle/capture_env.py diff isaaclab-env-<host>-<timestamp>.zip
+
+The document ends with what the bundle cannot rebuild: the GPU and driver, a locally built Isaac Sim,
+uncommitted source changes when they were not attached, and anything reached through ``PYTHONPATH`` or
+``LD_LIBRARY_PATH`` from outside the repository. Read that section before concluding that a failure to
+reproduce is meaningful.
 
 Installation and imports
 ------------------------
