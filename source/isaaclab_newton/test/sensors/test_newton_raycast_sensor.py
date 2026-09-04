@@ -252,4 +252,4 @@ def test_renderer_and_raycast_share_newton_manager_graph(sim):
     task_names = sorted(NewtonManager._sensor_tasks)
     assert any(name.startswith("newton_raycast:") for name in task_names)
     assert any(name.startswith("newton_warp_render:") for name in task_names)
-    assert (NewtonManager._sensor_graph is not None) == sim.cfg.physics.use_cuda_graph
+    assert bool(NewtonManager._sensor_task_graphs) == sim.cfg.physics.use_cuda_graph

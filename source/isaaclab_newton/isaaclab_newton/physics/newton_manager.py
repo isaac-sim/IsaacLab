@@ -477,9 +477,8 @@ class NewtonManager(PhysicsManager):
 
     # Newton scene-query scheduling and graph execution.
     _sensor_tasks: dict[str, Callable[[], None]] = {}
-    _sensor_graph: wp.Graph | None = None
-    _sensor_flags: wp.array | None = None
-    _sensor_flags_host: np.ndarray | None = None
+    _sensor_refit_graph: wp.Graph | None = None
+    _sensor_task_graphs: dict[str, wp.Graph] = {}
     _sensor_state: State | None = None
     _sensor_state_dirty: bool = True
     _sensor_graph_capture_failed: bool = False
@@ -2721,9 +2720,9 @@ class NewtonManager(PhysicsManager):
             cls._invalidate_sensor_graph()
         cfg = PhysicsManager._cfg
         use_cuda_graph = bool(getattr(cfg, "use_cuda_graph", False)) and "cuda" in str(PhysicsManager._device)
-        if use_cuda_graph and cls._sensor_graph is None and not cls._sensor_graph_capture_failed:
+        if use_cuda_graph and cls._sensor_refit_graph is None and not cls._sensor_graph_capture_failed:
             cls._capture_sensor_graph()
-        if cls._sensor_graph is None:
+        if cls._sensor_refit_graph is None:
             if cls._sensor_state_dirty:
                 cls._refit_sensor_bvh()
                 cls._sensor_state_dirty = False
@@ -2731,16 +2730,11 @@ class NewtonManager(PhysicsManager):
                 cls._sensor_tasks[name]()
             return
 
-        assert cls._sensor_flags_host is not None
-        assert cls._sensor_flags is not None
-        cls._sensor_flags_host.fill(0)
-        cls._sensor_flags_host[0] = int(cls._sensor_state_dirty)
-        task_names = tuple(cls._sensor_tasks)
+        if cls._sensor_state_dirty:
+            wp.capture_launch(cls._sensor_refit_graph)
+            cls._sensor_state_dirty = False
         for name in names:
-            cls._sensor_flags_host[1 + task_names.index(name)] = 1
-        cls._sensor_flags.assign(cls._sensor_flags_host)
-        wp.capture_launch(cls._sensor_graph)
-        cls._sensor_state_dirty = False
+            wp.capture_launch(cls._sensor_task_graphs[name])
 
     @classmethod
     def _mark_sensor_state_dirty(cls) -> None:
@@ -2783,47 +2777,59 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _invalidate_sensor_graph(cls) -> None:
         """Discard captured scene-query graph resources."""
-        cls._sensor_graph = None
-        cls._sensor_flags = None
-        cls._sensor_flags_host = None
+        cls._sensor_refit_graph = None
+        cls._sensor_task_graphs = {}
         cls._sensor_graph_capture_failed = False
 
     @classmethod
     def _capture_sensor_graph(cls) -> None:
-        """Capture BVH refit and scene-query tasks into a conditional graph."""
-        with wp.ScopedDevice(PhysicsManager._device):
+        """Capture the BVH refit and each scene-query task into its own graph.
+
+        Each step gets a standalone top-level graph rather than a ``wp.capture_if``
+        conditional body of one shared graph: Warp rejects memory allocation inside a
+        conditional body, and ``wp.Mesh.refit`` allocates scratch on every call, so
+        deformable geometry in the tiled-camera render path would fail to capture.
+        """
+        device = PhysicsManager._device
+        with wp.ScopedDevice(device):
             cls._refit_sensor_bvh()
             for update_fn in cls._sensor_tasks.values():
                 update_fn()
 
-        cls._sensor_flags = wp.zeros(1 + len(cls._sensor_tasks), dtype=wp.int32, device=PhysicsManager._device)
-        cls._sensor_flags_host = np.zeros(1 + len(cls._sensor_tasks), dtype=np.int32)
-        update_fns = tuple(cls._sensor_tasks.values())
+        refit_graph = cls._capture_sensor_step(device, cls._refit_sensor_bvh)
+        failed = None if refit_graph is not None else "bvh refit"
+        task_graphs: dict[str, wp.Graph] = {}
+        if failed is None:
+            for name, update_fn in cls._sensor_tasks.items():
+                graph = cls._capture_sensor_step(device, update_fn)
+                if graph is None:
+                    failed = name
+                    break
+                task_graphs[name] = graph
 
-        def pipeline() -> None:
-            assert cls._sensor_flags is not None
-            wp.capture_if(cls._sensor_flags[0:1], cls._refit_sensor_bvh)
-            for index, update_fn in enumerate(update_fns):
-                wp.capture_if(cls._sensor_flags[index + 1 : index + 2], update_fn)
-
-        device = PhysicsManager._device
-        if cls._usdrt_stage is not None:
-            cls._sensor_graph = cls._capture_relaxed_graph(device, capture_target=pipeline)
-        else:
-            try:
-                with wp.ScopedCapture(device=device) as capture:
-                    pipeline()
-                cls._sensor_graph = capture.graph
-            except Exception:
-                logger.exception("[NewtonManager] sensor CUDA graph capture failed")
-                cls._sensor_graph = None
-        if cls._sensor_graph is None:
-            cls._sensor_flags = None
-            cls._sensor_flags_host = None
+        if failed is not None:
+            cls._invalidate_sensor_graph()
+            # Latch after invalidating: _invalidate_sensor_graph() clears the flag.
             cls._sensor_graph_capture_failed = True
-            logger.warning("Newton sensor graph capture failed; falling back to eager execution.")
-        else:
-            logger.info("Captured Newton sensor graph with %d task(s).", len(cls._sensor_tasks))
+            logger.warning("Newton sensor graph capture failed for '%s'; falling back to eager execution.", failed)
+            return
+
+        cls._sensor_refit_graph = refit_graph
+        cls._sensor_task_graphs = task_graphs
+        logger.info("Captured Newton sensor graphs for %d task(s).", len(task_graphs))
+
+    @classmethod
+    def _capture_sensor_step(cls, device: str, capture_target: Callable[[], None]) -> wp.Graph | None:
+        """Capture one scene-query step into a standalone graph, or ``None`` on failure."""
+        if cls._usdrt_stage is not None:
+            return cls._capture_relaxed_graph(device, capture_target=capture_target)
+        try:
+            with _paused_gc(), wp.ScopedCapture(device=device) as capture:
+                capture_target()
+            return capture.graph
+        except Exception:
+            logger.exception("[NewtonManager] sensor CUDA graph capture failed")
+            return None
 
     @classmethod
     def get_num_envs(cls) -> int:

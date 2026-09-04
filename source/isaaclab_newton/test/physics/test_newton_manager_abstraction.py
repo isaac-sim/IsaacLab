@@ -338,9 +338,8 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     monkeypatch.setattr(NewtonManager, "_sensor_tasks", {}, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_state_dirty", True, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_graph", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_flags", None, raising=False)
-    monkeypatch.setattr(NewtonManager, "_sensor_flags_host", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_refit_graph", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_task_graphs", {}, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_graph_capture_failed", False, raising=False)
     monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=False), raising=False)
 
@@ -348,6 +347,38 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     NewtonManager._update_sensor_tasks("render")
 
     assert status["rendered"]
+
+
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+def test_sensor_graph_captures_allocating_task(monkeypatch):
+    """A sensor task that allocates scratch is still graph-capturable.
+
+    ``wp.Mesh.refit`` allocates scratch natively on every call, which Warp rejects
+    inside a ``wp.capture_if`` conditional body. Deformable geometry reaches it through
+    the tiled-camera render task, so each task must be captured as its own graph.
+    """
+
+    points = wp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=wp.vec3f, device="cuda:0")
+    mesh = wp.Mesh(points, wp.array([0, 1, 2], dtype=wp.int32, device="cuda:0"))
+
+    state = object()
+    monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: state))
+    monkeypatch.setattr(NewtonManager, "_model", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_tasks", {"mesh_refit": mesh.refit}, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_state", state, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_state_dirty", True, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_refit_graph", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_task_graphs", {}, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_graph_capture_failed", False, raising=False)
+    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
+
+    NewtonManager._update_sensor_tasks("mesh_refit")
+
+    assert not NewtonManager._sensor_graph_capture_failed
+    assert NewtonManager._sensor_refit_graph is not None
+    assert "mesh_refit" in NewtonManager._sensor_task_graphs
 
 
 def test_sensor_bvh_shape_flags_are_fixed_before_builder_creation(monkeypatch):
