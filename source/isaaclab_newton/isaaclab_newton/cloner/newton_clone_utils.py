@@ -253,7 +253,7 @@ def _invert_xform(xform: Sequence[float] | np.ndarray) -> np.ndarray:
     return np.concatenate([-_quat_rotate(quat_inv, xform[:3]), quat_inv])
 
 
-def replicate_builder_mapping(
+def _replicate_builder_mapping(
     builder: ModelBuilder,
     sources: Sequence[str],
     mapping: torch.Tensor,
@@ -264,8 +264,13 @@ def replicate_builder_mapping(
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, list[float], list[float]], None]] = (),
-) -> tuple[dict[str, list[list[int]]], list[wp.transform]]:
-    """Replicate source builders into per-env Newton worlds."""
+    record_offsets: bool = False,
+) -> tuple[dict[str, list[list[int]]], list[wp.transform], dict[int, tuple[int, int, int]]]:
+    """Replicate source builders into per-env Newton worlds.
+
+    With ``record_offsets`` the (body, shape, joint) counts of ``builder`` at the moment each source
+    lands in world 0 are recorded per source row; they locate a source's entities in the model.
+    """
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
     num_worlds = mapping.size(1)
@@ -300,7 +305,7 @@ def replicate_builder_mapping(
         base_shape = builder.shape_count
         stride = source_builder.shape_count
         # World 0's single source lands right after the global content.
-        world0_offsets = {0: (builder.body_count, builder.shape_count, builder.joint_count)}
+        world0_offsets = {0: (builder.body_count, builder.shape_count, builder.joint_count)} if record_offsets else {}
         source_xform_inv = _invert_xform(xforms_np[0])
         xforms = _compose_world_xforms(positions_np, quaternions_np, source_xform_inv)
         builder.replicate(source_builder, num_worlds, xforms=xforms)
@@ -351,7 +356,7 @@ def replicate_builder_mapping(
         for row in rows_per_world[col]:
             source_builder = source_builders[sources[row]]
             offset = builder.shape_count
-            if col == 0:
+            if col == 0 and record_offsets:
                 world0_offsets[row] = (builder.body_count, builder.shape_count, builder.joint_count)
             builder.add_builder(source_builder, xform=source_xforms[row, col])
 
@@ -374,6 +379,65 @@ _BUILTIN_LABEL_TYPES: tuple[str, ...] = (
     "constraint_mimic",
     "equality_constraint",
 )
+
+
+def replicate_builder_mapping(
+    builder: ModelBuilder,
+    sources: Sequence[str],
+    mapping: torch.Tensor,
+    positions: torch.Tensor,
+    quaternions: torch.Tensor,
+    source_builders: dict[str, ModelBuilder],
+    *,
+    source_site_indices: dict[int, dict[str, list[int]]] | None = None,
+    env_root_sites: dict[str, wp.transform] | None = None,
+    per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, list[float], list[float]], None]] = (),
+) -> tuple[dict[str, list[list[int]]], list[wp.transform]]:
+    """Replicate source builders into per-env Newton worlds."""
+    local_site_map, world_xforms, _ = _replicate_builder_mapping(
+        builder,
+        sources,
+        mapping,
+        positions,
+        quaternions,
+        source_builders,
+        source_site_indices=source_site_indices,
+        env_root_sites=env_root_sites,
+        per_world_builder_hooks=per_world_builder_hooks,
+    )
+    return local_site_map, world_xforms
+
+
+def replicate_builder_mapping_with_provenance(
+    builder: ModelBuilder,
+    sources: Sequence[str],
+    mapping: torch.Tensor,
+    positions: torch.Tensor,
+    quaternions: torch.Tensor,
+    source_builders: dict[str, ModelBuilder],
+    *,
+    source_site_indices: dict[int, dict[str, list[int]]] | None = None,
+    env_root_sites: dict[str, wp.transform] | None = None,
+    per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, list[float], list[float]], None]] = (),
+) -> tuple[dict[str, list[list[int]]], list[wp.transform], dict[int, tuple[int, int, int]]]:
+    """Same as :func:`replicate_builder_mapping`, additionally returning each source's landing offsets.
+
+    The third element maps a source row to the (body, shape, joint) index at which that source's
+    entities start in world 0, which :func:`merge_import_results` needs to lift the importer's
+    source-local provenance onto the replicated model.
+    """
+    return _replicate_builder_mapping(
+        builder,
+        sources,
+        mapping,
+        positions,
+        quaternions,
+        source_builders,
+        source_site_indices=source_site_indices,
+        env_root_sites=env_root_sites,
+        per_world_builder_hooks=per_world_builder_hooks,
+        record_offsets=True,
+    )
 
 
 def rename_builder_labels(

@@ -26,7 +26,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders_with_provenance,
     merge_import_results,
     rename_builder_labels,
-    replicate_builder_mapping,
+    replicate_builder_mapping_with_provenance,
 )
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
@@ -170,7 +170,7 @@ def _build_newton_builder_from_mapping(
     global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
 
     replicate_args = (builder, sources, mapping, positions, quaternions, source_builders)
-    local_site_map, world_xforms, world0_offsets = replicate_builder_mapping(
+    local_site_map, world_xforms, world0_offsets = replicate_builder_mapping_with_provenance(
         *replicate_args,
         source_site_indices=source_sites,
         env_root_sites=root_sites,

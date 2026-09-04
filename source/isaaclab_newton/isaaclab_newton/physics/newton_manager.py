@@ -100,7 +100,7 @@ from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
     merge_import_results,
-    replicate_builder_mapping,
+    replicate_builder_mapping_with_provenance,
 )
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
@@ -1952,7 +1952,7 @@ class NewtonManager(PhysicsManager):
             quaternions = torch.tensor([quat for _, quat in poses], dtype=torch.float32)
             mapping = torch.ones((1, len(env_paths)), dtype=torch.bool)
             replicate_args = (builder, (proto_path,), mapping, positions, quaternions, source_builders)
-            local_site_map, world_xforms, world0_offsets = replicate_builder_mapping(
+            local_site_map, world_xforms, world0_offsets = replicate_builder_mapping_with_provenance(
                 *replicate_args,
                 source_site_indices=source_site_indices,
                 env_root_sites=env_root_sites,
