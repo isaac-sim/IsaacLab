@@ -147,7 +147,7 @@ class AnymalCEnv(DirectRLEnv):
             torch.linalg.norm(self._commands[:, :2], dim=1) > 0.1
         )
         # undesired contacts
-        net_contact_forces = self._contact_sensor.data.net_forces_w_history.torch
+        net_contact_forces = self._contact_sensor.data.net_normal_forces_w_history.torch
         is_contact = (
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._undesired_contact_body_ids], dim=-1), dim=1)[0]
             > 1.0
@@ -183,7 +183,7 @@ class AnymalCEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         time_out = self.episode_length_buf >= self.max_episode_length - 1
-        net_contact_forces = self._contact_sensor.data.net_forces_w_history.torch
+        net_contact_forces = self._contact_sensor.data.net_normal_forces_w_history.torch
         died = torch.any(
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._base_id], dim=-1), dim=1)[0] > 1.0, dim=1
         )

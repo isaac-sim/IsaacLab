@@ -190,5 +190,5 @@ Or install the public ``ovrtx`` package directly from PyPI:
 See Also
 --------
 
-- :doc:`scene_data_providers` — how scene data flows from physics backends to renderers
-- :doc:`/source/overview/core-concepts/visualization` — lightweight visualizer backends for interactive feedback
+- :doc:`/source/concepts/scene_data_providers`: how scene data flows from physics backends to renderers
+- :doc:`/source/concepts/visualization` — lightweight visualizer backends for interactive feedback

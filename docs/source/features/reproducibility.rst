@@ -37,6 +37,12 @@ optional PyTorch deterministic algorithms. Whether the **rendering** half of the
 on the workload: **physics-only** simulation does not render at all; **RTX** rendering (non-minimal
 mode) needs it for reproducible imagery; **Newton** rendering is already deterministic.
 
+.. note::
+
+   For convolutional workloads, setting ``TORCH_CUDNN_V8_API_DISABLED=1`` before launching training
+   may improve run-to-run determinism by making PyTorch use the cuDNN v7 API instead of cuDNN v8
+   execution plans.
+
 **Physics determinism** comes from the same flag in the Isaac Lab RL training entrypoints, which
 set :attr:`~isaaclab.physics.PhysicsCfg.deterministic` on the backend resolved by presets. That
 field is the backend-agnostic request: each physics manager translates it into its own settings

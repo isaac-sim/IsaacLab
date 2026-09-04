@@ -164,7 +164,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             log_dir = os.path.dirname(resume_path)
 
             env_cfg.log_dir = log_dir
-            apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
+            apply_video_recording(env_cfg, log_dir, args_cli, subdir="play", checkpoint_path=resume_path)
 
             screen.stage("Creating environment")
             env = create_isaaclab_env(
@@ -234,7 +234,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                         video_stop = args_cli.video_length
                         if video_stop is None:
                             recorders = getattr(env_cfg, "video_recorders", [])
-                            video_stop = recorders[0].video_length if recorders else None
+                            video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
                         if video_stop is not None and timestep >= video_stop:
                             break
 

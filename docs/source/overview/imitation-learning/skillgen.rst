@@ -173,7 +173,7 @@ Download and Setup
 
          .. code:: bash
 
-            uv run --extra teleop isaaclab teleop record \
+            uv run --extra teleop,isaacsim isaaclab teleop record \
             --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
             --teleop_device spacemouse \
             --dataset_file ./datasets/dataset_skillgen.hdf5 \

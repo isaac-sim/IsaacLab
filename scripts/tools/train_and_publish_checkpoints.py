@@ -96,6 +96,7 @@ from isaaclab_rl.utils.pretrained_checkpoint import (
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
+from isaaclab_tasks.utils.hydra import resolve_task_config
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
@@ -263,7 +264,11 @@ def _select_physics_variants(
                 selector = "isaacsim_physx"
             elif backend == "newtonmjwarp":
                 selector = next(
-                    (candidate for candidate in ("newton_mjwarp", "newton_mjwarp_vbd") if candidate in variants),
+                    (
+                        candidate
+                        for candidate in ("newton_mjwarp", "newton_mjwarp_vbd", "newton_mjwarp_vbd_proxy")
+                        if candidate in variants
+                    ),
                     None,
                 )
             if selector is None:
@@ -272,6 +277,19 @@ def _select_physics_variants(
             continue
         selections.append((backend, selector))
     return selections
+
+
+def _resolve_physics_backend(task_name: str, physics_selector: str | None, default_backend: str | None) -> str:
+    """Return the checkpoint physics token produced by a task's selected physics preset.
+
+    The token names the solver tree, so a preset selector and its published filename can
+    only be kept in agreement by resolving the selector.
+    """
+    if physics_selector is None:
+        return default_backend
+    env_cfg, _ = resolve_task_config(task_name, None, overrides=(f"physics={physics_selector}",))
+    physics_backend, _ = get_pretrained_checkpoint_backend_names(env_cfg)
+    return physics_backend
 
 
 def _select_render_variants(
@@ -329,7 +347,8 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
             physics_backends,
         )
         render_selections = _select_render_variants(render_variants, render_backends)
-        for physics_backend, physics_selector in physics_selections:
+        for _physics_family, physics_selector in physics_selections:
+            physics_backend = _resolve_physics_backend(task_spec.id, physics_selector, default_physics)
             for render_backend, render_selector in render_selections:
                 jobs.append(
                     CheckpointJob(

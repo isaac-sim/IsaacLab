@@ -24,7 +24,6 @@ from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_c
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
     build_source_builders,
-    rename_builder_labels,
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import NewtonManager
@@ -106,13 +105,8 @@ def _build_newton_builder_from_mapping(
     up_axis: str = "Z",
     load_visual_shapes: bool = True,
     global_paths: tuple[str, ...] = (),
-) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder]]:
-    """Build a Newton model builder from clone mapping inputs.
-
-    Also returns the per-source builders (``{source_path: ModelBuilder}``) so the
-    committing path can retain them for single-model consumers such as the
-    batched Newton IK action.
-    """
+) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder], list[tuple[str, int]]]:
+    """Build a Newton model builder from clone mapping inputs and retain its source builders."""
     if positions is None:
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
     if quaternions is None:
@@ -170,8 +164,10 @@ def _build_newton_builder_from_mapping(
     global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
 
     replicate_args = (builder, sources, mapping, positions, quaternions, source_builders)
-    local_site_map, world_xforms = replicate_builder_mapping(
+    local_site_map, world_xforms, fabric_body_bindings = replicate_builder_mapping(
         *replicate_args,
+        destinations,
+        env_ids,
         source_site_indices=source_sites,
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
@@ -179,7 +175,7 @@ def _build_newton_builder_from_mapping(
 
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
-    return builder, stage_info, site_index_map, world_xforms, source_builders
+    return builder, stage_info, site_index_map, world_xforms, source_builders, fabric_body_bindings
 
 
 def _renderer_wants_visual_shapes() -> bool:
@@ -309,19 +305,20 @@ class NewtonReplicateContext:
     def replicate(self) -> tuple[ModelBuilder, object, dict]:
         """Build the Newton model builder from queued mappings and optionally publish it."""
         sources, destinations, env_ids, mapping, positions, quaternions = self._merged_mapping()
-        builder, stage_info, site_index_map, world_xforms, source_builders = _build_newton_builder_from_mapping(
-            stage=self.stage,
-            sources=sources,
-            destinations=destinations,
-            env_ids=env_ids,
-            mapping=mapping,
-            positions=positions,
-            quaternions=quaternions,
-            up_axis=self.up_axis,
-            load_visual_shapes=self.load_visual_shapes,
-            global_paths=self._global_paths,
+        builder, stage_info, site_index_map, world_xforms, source_builders, fabric_body_bindings = (
+            _build_newton_builder_from_mapping(
+                stage=self.stage,
+                sources=sources,
+                destinations=destinations,
+                env_ids=env_ids,
+                mapping=mapping,
+                positions=positions,
+                quaternions=quaternions,
+                up_axis=self.up_axis,
+                load_visual_shapes=self.load_visual_shapes,
+                global_paths=self._global_paths,
+            )
         )
-        fabric_body_bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping)
         if self.commit_to_manager:
             NewtonManager._cl_site_index_map = site_index_map
             NewtonManager._cl_fabric_body_bindings = fabric_body_bindings

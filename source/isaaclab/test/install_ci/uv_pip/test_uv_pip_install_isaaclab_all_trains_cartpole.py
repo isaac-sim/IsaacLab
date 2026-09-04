@@ -15,8 +15,8 @@ Setup:
          Reinstall AFTER the wheel install: unsafe-best-match re-resolves torch from PyPI to CPU.)
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
-    - python -c "import importlib.metadata as m; assert m.version('newton') == '1.5.1'"
-        -> verify the wheel resolves Newton 1.5
+    - python -c "import importlib.metadata as m; assert m.version('newton') == '1.6.0.dev0'"
+        -> verify the wheel resolves the pinned Newton 1.6 development build
     - uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16
         presets=newton_mjwarp --max_iterations 5; uv run isaaclab train --rl_library rsl_rl
         --task Isaac-Cartpole-Camera-Direct --num_envs 16 presets=newton_mjwarp,newton_renderer --max_iterations 2
@@ -57,11 +57,11 @@ class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
             assert result.returncode == 0, f"uv pip install {wheel}[all] failed:\n{result.stdout}\n{result.stderr}"
 
             result = self.run_in_uv_env(
-                ["python", "-c", "import importlib.metadata as m; assert m.version('newton') == '1.5.1'"],
+                ["python", "-c", "import importlib.metadata as m; assert m.version('newton') == '1.6.0.dev0'"],
                 cwd=isaaclab_root,
             )
             assert result.returncode == 0, (
-                f"isaaclab[all] did not resolve Newton 1.5:\n{result.stdout}\n{result.stderr}"
+                f"isaaclab[all] did not resolve the pinned Newton build:\n{result.stdout}\n{result.stderr}"
             )
 
             # Restore the CUDA build selected for this architecture.

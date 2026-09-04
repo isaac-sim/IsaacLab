@@ -235,7 +235,7 @@ For example, open the same task in both Newton and Rerun:
    uv run --extra rerun isaaclab random_agent --task Isaac-Cartpole \
       physics=newton_mjwarp --viz newton,rerun
 
-See :doc:`/source/overview/core-concepts/visualization` for visualizer setup and
+See :doc:`/source/concepts/visualization` for visualizer setup and
 configuration.
 
 

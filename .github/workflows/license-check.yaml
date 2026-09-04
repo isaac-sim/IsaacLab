@@ -62,7 +62,7 @@ jobs:
         ISAACSIM_ACCEPT_EULA: YES
       run: |
         bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
-          uv sync --extra all --extra isaacsim --extra test --extra rlinf --extra mimic
+          uv sync --extra all --extra isaacsim --extra dev --extra rlinf --extra mimic
         # ``[tool.uv.pip] prerelease = "allow"`` lets unpinned tools float onto
         # prereleases. pip-licenses 6.0.0a1 reports an empty License where 5.x reports
         # ``UNKNOWN``, which license-exceptions.json keys on, and joins multi-license

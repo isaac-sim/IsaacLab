@@ -11,6 +11,8 @@ import textwrap
 
 import tomllib
 
+from isaaclab.paths import ISAACLAB_ROOT
+
 VSCODE_SETTINGS_TEMPLATE = """
 {
     "editor.rulers": [120],
@@ -115,7 +117,7 @@ def generate_vscode_settings():
     for folder in ["exts", "extscache", "extsDeprecated", "extsUser"]:
         extensions_paths.extend(_get_paths(os.path.join(isaacsim_path, folder), mock_python_modules=True))
     # - isaaclab
-    isaaclab_path = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
+    isaaclab_path = str(ISAACLAB_ROOT)
     for folder in ["source"]:
         extensions_paths.extend(_get_paths(os.path.join(isaaclab_path, folder), mock_python_modules=True))
 

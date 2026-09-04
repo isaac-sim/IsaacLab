@@ -71,35 +71,35 @@ from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
-from isaaclab_ov.stage import (
-    create_ovstage,
-    points_tensor_from_warp,
-    xform_tensor_from_numpy,
-    xform_tensor_from_warp,
-)
-
-from .ovrtx_annotator_utils import (
+from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     build_instance_id_to_labels_and_semantics,
     build_semantic_id_to_labels,
     decode_semantic_id_map,
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
-from .ovrtx_compat import RENDER_VAR_FRAME_KEYS
-from .ovrtx_renderer_cfg import OVRTXRendererCfg
-from .ovrtx_renderer_kernels import (
+from isaaclab_ov.renderers.ovrtx_compat import RENDER_VAR_FRAME_KEYS
+from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
+from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     compute_cable_points_world_kernel,
     create_camera_transforms_kernel,
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
     sync_newton_transforms_kernel,
 )
-from .ovrtx_usd import (
+from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
+from isaaclab_ov.renderers.ovrtx_usd import (
     build_render_product_as_string,
     create_scene_partition_attributes,
     export_stage_to_string,
 )
-from .visual_materials import OVRTXVisualMaterialWriter
+from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
+from isaaclab_ov.stage import (
+    create_ovstage,
+    points_tensor_from_warp,
+    xform_tensor_from_numpy,
+    xform_tensor_from_warp,
+)
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
@@ -365,6 +365,11 @@ class OVRTXRenderer(BaseRenderer):
             suppress_deprecation_warnings=True,
             texture_streaming_mode=TextureStreamingMode.SYNCHRONOUS,
         )
+
+        # Takes the config because the redirect can be what first loads the ovrtx
+        # library, and initialization only happens once, so it has to see the
+        # same config the renderer below is built with.
+        redirect_shader_cache(OVRTX_CONFIG)
 
         self._renderer = Renderer(OVRTX_CONFIG)
         if not self._renderer:
