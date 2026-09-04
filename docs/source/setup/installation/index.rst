@@ -1138,8 +1138,7 @@ initialize the profile first:
 
    configure_asset_region_profile()
 
-To return to the primary service, clear ``ISAACSIM_ASSET_ROOT`` and select the ``us`` profile for the
-next process. You can leave the profile unset for later processes.
+To return to the primary service, clear ``ISAACSIM_ASSET_ROOT`` and select the ``us`` profile.
 
 The ``china`` profile publishes an
 `asset availability manifest <https://assets.simready.cn/manifests/isaac/6.1/asset-availability.csv>`__.
