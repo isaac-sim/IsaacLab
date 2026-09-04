@@ -2257,7 +2257,7 @@ In Isaac Lab 3.0, use ``--visualizer`` / ``--viz`` to determine whether viewer a
 with an Isaac Lab command. Without a visualizer, commands run headless by default.
 
 Visualizers are lightweight viewer apps for monitoring, debugging, and recording workflows
-(see :doc:`/source/overview/core-concepts/visualization`).
+(see :doc:`/source/concepts/visualization`).
 
 The details below describe how CLI visualizer arguments resolve together with
 ``SimulationCfg.visualizer_cfgs``.

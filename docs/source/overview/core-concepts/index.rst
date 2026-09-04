@@ -15,5 +15,3 @@ This section we introduce core concepts in Isaac Lab.
   sensors/index.rst
   renderers
   motion_generators
-  scene_data_providers
-  visualization
