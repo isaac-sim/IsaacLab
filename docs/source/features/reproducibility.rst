@@ -43,7 +43,9 @@ which the flag sets (see :ref:`below <reproducibility-warp-determinism>`).
 **Warp determinism.** Newton's solvers accept a ``deterministic`` argument that Isaac Lab supplies
 from :attr:`~isaaclab.physics.PhysicsCfg.deterministic`, and they apply it as a per-module option.
 Its sensor and geometry kernels take no such argument and fall back to ``warp.config.deterministic``,
-so ``--deterministic`` sets that global to ``RUN_TO_RUN`` as well. Without it the scene BVH is built
+so the RL training and play entrypoints set that global to ``RUN_TO_RUN`` when
+``--deterministic`` is passed. A script that builds its own environment without those entrypoints
+must set ``warp.config.deterministic`` itself, before the environment is created. Without it the scene BVH is built
 over an atomically compacted shape list whose order varies between processes, and a tiled camera can
 render a few pixels differently from identical simulation state. An explicitly chosen mode, such as
 ``GPU_TO_GPU``, is left untouched.

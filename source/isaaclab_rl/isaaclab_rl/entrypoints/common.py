@@ -493,11 +493,25 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any, *, apply_dev
     # --deterministic is an AppLauncher flag, so it only reaches carb settings on its own.
     # Record the request on the resolved physics config; each backend translates and validates
     # it when the simulation starts.
-    if getattr(args_cli, "deterministic", False):
-        physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
-        if physics_cfg is not None:
-            physics_cfg.deterministic = True
-        request_warp_determinism(physics_cfg)
+    request_determinism(args_cli, env_cfg)
+
+
+def request_determinism(args_cli: argparse.Namespace, env_cfg: Any) -> None:
+    """Record a ``--deterministic`` request on the config tree and on Warp's global.
+
+    Call this before the environment is created: Warp reads its setting at module build time
+    and the scene BVH is built while the environment is constructed.
+
+    Args:
+        args_cli: Parsed command-line arguments.
+        env_cfg: Isaac Lab environment config.
+    """
+    if not getattr(args_cli, "deterministic", False):
+        return
+    physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    if physics_cfg is not None:
+        physics_cfg.deterministic = True
+    request_warp_determinism(physics_cfg)
 
 
 def request_warp_determinism(physics_cfg: Any) -> None:
