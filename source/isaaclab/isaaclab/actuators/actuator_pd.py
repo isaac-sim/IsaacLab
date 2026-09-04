@@ -405,7 +405,9 @@ class DCMotor(IdealPDActuator):
         # parse configuration
         if self.cfg.saturation_effort is None:
             raise ValueError("The saturation_effort must be provided for the DC motor actuator model.")
-        self._saturation_effort = self.cfg.saturation_effort
+        self._saturation_effort = resolve_joint_parameter(
+            self.cfg.saturation_effort, None, self._joint_names, self._num_envs, self._device
+        )
         # check that quantities are provided
         if self.cfg.actuator_velocity_limit is None:
             raise ValueError("The velocity limit must be provided for the DC motor actuator model.")

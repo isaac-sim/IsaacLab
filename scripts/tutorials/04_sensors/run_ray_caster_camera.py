@@ -57,7 +57,7 @@ def define_sensor() -> RayCasterCamera:
 
     # Setup camera sensor
     camera_cfg = RayCasterCameraCfg(
-        prim_path="/World/Origin_.*/CameraSensor",
+        prim_path="/World/Origin_[^/]+/CameraSensor",
         mesh_prim_paths=["/World/ground"],
         update_period=0.1,
         offset=RayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(1.0, 0.0, 0.0, 0.0)),

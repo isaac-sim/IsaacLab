@@ -12,19 +12,17 @@ import pytest
 
 pytestmark = pytest.mark.unit
 
-APPS_DIR = Path(__file__).resolve().parents[4] / "apps"
-
 # ``.kit`` files repeat section headers, so they cannot be parsed as TOML.
 _SECTION_RE = re.compile(r"^\s*\[+(?P<name>[^\[\]]+)\]+\s*$")
 _DEPENDENCY_RE = re.compile(r'^\s*"(?P<name>[^"]+)"\s*=')
 
 
-def _kit_dependencies(experience: str) -> set[str]:
+def _kit_dependencies(apps_dir: Path, experience: str) -> set[str]:
     """Collect the extension names declared in an experience file's dependency sections."""
     dependencies: set[str] = set()
     in_dependencies = False
 
-    for line in (APPS_DIR / experience).read_text(encoding="utf-8").splitlines():
+    for line in (apps_dir / experience).read_text(encoding="utf-8").splitlines():
         section = _SECTION_RE.match(line)
         if section is not None:
             in_dependencies = section.group("name").strip() == "dependencies"
@@ -38,9 +36,9 @@ def _kit_dependencies(experience: str) -> set[str]:
 
 
 @pytest.mark.parametrize("experience", ["isaaclab.python.kit", "isaaclab.python.headless.kit"])
-def test_base_experiences_enable_native_storage(experience: str):
+def test_base_experiences_enable_native_storage(source_checkout_root: Path, experience: str):
     """Test the base experiences load the extension that applies ``ISAACSIM_ASSET_ROOT``."""
-    assert "isaacsim.storage.native" in _kit_dependencies(experience)
+    assert "isaacsim.storage.native" in _kit_dependencies(source_checkout_root / "apps", experience)
 
 
 @pytest.mark.parametrize(
@@ -52,6 +50,6 @@ def test_base_experiences_enable_native_storage(experience: str):
         ("isaaclab.python.xr.openxr.headless.kit", "isaaclab.python.xr.openxr"),
     ],
 )
-def test_derived_experiences_inherit_native_storage(experience: str, base: str):
+def test_derived_experiences_inherit_native_storage(source_checkout_root: Path, experience: str, base: str):
     """Test the derived experiences inherit native storage from a base experience."""
-    assert base in _kit_dependencies(experience)
+    assert base in _kit_dependencies(source_checkout_root / "apps", experience)

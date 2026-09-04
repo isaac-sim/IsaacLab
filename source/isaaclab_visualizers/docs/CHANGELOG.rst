@@ -1,6 +1,33 @@
 Changelog
 ---------
 
+1.10.2 (2026-09-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_visualizers.rerun.RerunVisualizer.set_camera_view` and
+  :meth:`~isaaclab_visualizers.viser.ViserVisualizer.set_camera_view`, letting callers move
+  these visualizers' live 3D camera every simulation step (e.g. to follow a moving robot),
+  matching the existing :class:`~isaaclab_visualizers.kit.KitVisualizer` and Newton
+  implementations. Both backends already had the underlying per-step camera-pose machinery
+  internally; this exposes it through the public :class:`~isaaclab.visualizers.BaseVisualizer`
+  API, which previously no-op'd for these two backends.
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_visualizers.newton.NewtonGLVisualizer.render_rgb_array` omitting
+  visualization markers, so videos recorded with ``--viz newton_gl`` showed the scene without
+  its goal poses, command arrows, and other debug markers visible in the interactive viewer.
+* Fixed :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` unconditionally reporting the
+  streaming/tiled camera view as unsupported. Setting ``streaming_view=True`` now creates the owned
+  streaming camera sensor and produces composites via ``render_tiled_rgb_array()``, usable for headless
+  capture (e.g. through :class:`~isaaclab.envs.VideoRecorderCfg`). The live on-screen streaming preview
+  panel remains unavailable on this backend, since ``ViewerRTX.log_image`` has no display sink.
+
+
 1.10.1 (2026-09-03)
 ~~~~~~~~~~~~~~~~~~~
 

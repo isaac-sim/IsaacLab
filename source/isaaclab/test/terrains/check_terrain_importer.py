@@ -62,6 +62,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 
+import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
@@ -87,8 +88,8 @@ def main():
     # Create interface to clone the scene
     # Create environment clones using Lab's cloner utilities
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_balls, dtype=torch.long, device=sim.device)
-    env_origins, _ = lab_cloner.grid_transforms(num_balls, spacing=2.0, device=sim.device)
+    env_ids = np.arange(num_balls, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_balls, spacing=2.0)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim_utils.define_prim("/World/envs/env_0")
 

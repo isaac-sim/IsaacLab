@@ -45,6 +45,8 @@ from isaaclab.scene_data.deformable_discovery import (
 )
 from isaaclab.utils.string import to_camel_case
 
+from isaaclab_physx.cloner import PhysxReplicateContext
+
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
@@ -374,6 +376,8 @@ class PhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
+    clone_context_type = PhysxReplicateContext
+
     _cfg: ClassVar[PhysxCfg | None] = None
 
     _timeline: ClassVar[omni.timeline.ITimeline] = omni.timeline.get_timeline_interface()
@@ -424,6 +428,7 @@ class PhysxManager(PhysicsManager):
 
         super().initialize(sim_context)
         cls._stage_id = get_current_stage_id()
+        sim_context.get_or_create_backend(cls.clone_context_type, sim_context.stage)
 
         cls._setup_subscriptions()
         cls._configure_physics()
