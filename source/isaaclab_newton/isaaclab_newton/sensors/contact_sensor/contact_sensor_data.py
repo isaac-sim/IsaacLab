@@ -31,6 +31,10 @@ class ContactSensorData(BaseContactSensorData):
     _last_contact_time: wp.array | None
     _current_contact_time: wp.array | None
     _first_transition: wp.array | None
+    _first_contact_latch: wp.array | None
+    _first_air_latch: wp.array | None
+    _first_contact_time: wp.array | None
+    _first_air_time: wp.array | None
 
     @property
     def pose_w(self) -> ProxyArray | None:
@@ -270,6 +274,12 @@ class ContactSensorData(BaseContactSensorData):
             self._current_contact_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
             self._first_transition = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
             self._first_transition_ta = ProxyArray(self._first_transition)
+            # Latched first-contact / first-air events and their phase ages, used
+            # by compute_first_contact / compute_first_air (see issue #7283).
+            self._first_contact_latch = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
+            self._first_air_latch = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
+            self._first_contact_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
+            self._first_air_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
         else:
             self._last_air_time = None
             self._current_air_time = None
@@ -277,6 +287,10 @@ class ContactSensorData(BaseContactSensorData):
             self._current_contact_time = None
             self._first_transition = None
             self._first_transition_ta = None
+            self._first_contact_latch = None
+            self._first_air_latch = None
+            self._first_contact_time = None
+            self._first_air_time = None
 
         # -- Pin ProxyArray instances for pre-allocated buffers
         self._net_forces_w_ta = ProxyArray(self._net_forces_w)

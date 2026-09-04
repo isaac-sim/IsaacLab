@@ -102,6 +102,10 @@ def reset_contact_sensor_kernel(
     last_air_time: wp.array2d(dtype=wp.float32),
     current_contact_time: wp.array2d(dtype=wp.float32),
     last_contact_time: wp.array2d(dtype=wp.float32),
+    first_contact_latch: wp.array2d(dtype=wp.float32),
+    first_air_latch: wp.array2d(dtype=wp.float32),
+    first_contact_time: wp.array2d(dtype=wp.float32),
+    first_air_time: wp.array2d(dtype=wp.float32),
     friction_forces_w: wp.array3d(dtype=wp.vec3f),
     contact_pos_w: wp.array3d(dtype=wp.vec3f),
 ):
@@ -148,6 +152,10 @@ def reset_contact_sensor_kernel(
         last_air_time[env, sensor] = 0.0
         current_contact_time[env, sensor] = 0.0
         last_contact_time[env, sensor] = 0.0
+        first_contact_latch[env, sensor] = 0.0
+        first_air_latch[env, sensor] = 0.0
+        first_contact_time[env, sensor] = 0.0
+        first_air_time[env, sensor] = 0.0
 
     if friction_forces_w:
         for f in range(num_filter_objects):
@@ -161,26 +169,33 @@ def reset_contact_sensor_kernel(
 @wp.kernel
 def compute_first_transition_kernel(
     # in
-    threshold: wp.float32,
-    time: wp.array2d(dtype=wp.float32),
+    dt: wp.float32,
+    abs_tol: wp.float32,
+    transition_latch: wp.array2d(dtype=wp.float32),
+    transition_time: wp.array2d(dtype=wp.float32),
     # out
     result: wp.array2d(dtype=wp.float32),
 ):
-    """Compute boolean mask (as float) for sensors whose time is in (0, threshold).
+    """Compute boolean mask (as float) for sensors whose latched transition happened within the last dt.
 
-    Used by both compute_first_contact (with current_contact_time) and
-    compute_first_air (with current_air_time).
+    Used by both compute_first_contact (with the first-contact latch) and
+    compute_first_air (with the first-air latch). The latch is set by the
+    update kernel at the transition sample and cleared when the phase ends,
+    and ``transition_time`` tracks the phase age from the midpoint of the
+    transition interval, so this comparison is robust to the float32 clock
+    rounding error that grows with the simulation time (issue #7283).
 
     Launch with dim=(num_envs, num_sensors).
 
     Args:
-        threshold: Threshold for the time.
-        time: Time array. Shape is (num_envs, num_sensors).
+        dt: Length of the time window in which a transition counts as "first".
+        abs_tol: Absolute tolerance added to the time window.
+        transition_latch: Latched transition flag. Shape is (num_envs, num_sensors).
+        transition_time: Age of the latched transition. Shape is (num_envs, num_sensors).
         result: Result array. Shape is (num_envs, num_sensors).
     """
     env, sensor = wp.tid()
-    t = time[env, sensor]
-    if t > 0.0 and t < threshold:
+    if transition_latch[env, sensor] > 0.0 and transition_time[env, sensor] < dt + abs_tol:
         result[env, sensor] = 1.0
     else:
         result[env, sensor] = 0.0
@@ -208,8 +223,19 @@ def update_net_forces_ovphysx_kernel(
     current_contact_time: wp.array2d(dtype=wp.float32),
     last_air_time: wp.array2d(dtype=wp.float32),
     last_contact_time: wp.array2d(dtype=wp.float32),
+    first_contact_latch: wp.array2d(dtype=wp.float32),
+    first_air_latch: wp.array2d(dtype=wp.float32),
+    first_contact_time: wp.array2d(dtype=wp.float32),
+    first_air_time: wp.array2d(dtype=wp.float32),
 ):
     """Update the net forces, force matrix and air/contact time for each (env, sensor) pair.
+
+    The transition latches (``first_contact_latch`` / ``first_air_latch``)
+    record that a touchdown / lift-off happened, together with the phase age
+    since the transition (measured from the midpoint of the transition
+    interval). They persist across sensor updates until the phase ends, so a
+    first contact / first air event can no longer be missed because of float32
+    clock rounding in the timer arithmetic (issue #7283).
 
     Launch with dim=(num_envs, num_sensors).
 
@@ -273,6 +299,10 @@ def update_net_forces_ovphysx_kernel(
         cct = current_contact_time[env, sensor]
         is_first_contact = in_contact and (cat > 0.0)
         is_first_detached = not in_contact and (cct > 0.0)
+        # Both timers zero can only be the first refresh after reset; latch the
+        # initial phase (a body starting an episode in contact or in air) so it
+        # is reported like a transition, matching the pre-latch behaviour.
+        is_first_refresh = (cat == 0.0) and (cct == 0.0)
 
         if is_first_contact:
             last_air_time[env, sensor] = cat + elapsed_time
@@ -281,6 +311,30 @@ def update_net_forces_ovphysx_kernel(
 
         current_contact_time[env, sensor] = wp.where(in_contact, cct + elapsed_time, 0.0)
         current_air_time[env, sensor] = wp.where(in_contact, 0.0, cat + elapsed_time)
+
+        # Latch first-contact / first-air events so they cannot be missed
+        # because of float32 clock rounding in the timer arithmetic (#7283).
+        # The phase age is counted from the midpoint of the transition interval,
+        # which leaves a interval/2 margin on both sides of the comparison
+        # against dt in compute_first_transition_kernel.
+        fct = first_contact_time[env, sensor]
+        fat = first_air_time[env, sensor]
+        if is_first_contact or (is_first_refresh and in_contact):
+            first_contact_latch[env, sensor] = 1.0
+            first_contact_time[env, sensor] = 0.5 * elapsed_time
+        elif in_contact:
+            first_contact_time[env, sensor] = fct + elapsed_time
+        else:
+            first_contact_latch[env, sensor] = 0.0
+            first_contact_time[env, sensor] = 0.0
+        if is_first_detached or (is_first_refresh and not in_contact):
+            first_air_latch[env, sensor] = 1.0
+            first_air_time[env, sensor] = 0.5 * elapsed_time
+        elif not in_contact:
+            first_air_time[env, sensor] = fat + elapsed_time
+        else:
+            first_air_latch[env, sensor] = 0.0
+            first_air_time[env, sensor] = 0.0
 
 
 @wp.kernel
