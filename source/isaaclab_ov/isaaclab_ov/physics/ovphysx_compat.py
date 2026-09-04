@@ -26,8 +26,8 @@ from packaging.version import InvalidVersion, Version
 
 logger = logging.getLogger(__name__)
 
-# First OVPhysX version that uses the current lifecycle entry points.
-_CURRENT_LIFECYCLE_VERSION = Version("0.6")
+# First OVPhysX release line that uses the current lifecycle entry points.
+_CURRENT_LIFECYCLE_RELEASE = (0, 6)
 
 
 def detect_ovphysx_version() -> Version | None:
@@ -62,7 +62,7 @@ def uses_current_lifecycle_api(version: Version | None) -> bool:
     Returns:
         Whether ``version`` is OVPhysX 0.6 or newer.
     """
-    return version is not None and version >= _CURRENT_LIFECYCLE_VERSION
+    return version is not None and version.release[:2] >= _CURRENT_LIFECYCLE_RELEASE
 
 
 def build_lifecycle_entry_points(version: Version | None) -> Mapping[str, str]:

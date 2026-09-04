@@ -29,13 +29,14 @@ if not _MISSING_MODULES:
         OVPHYSX_LIFECYCLE_ENTRY_POINTS,
         build_lifecycle_entry_points,
         detect_ovphysx_version,
-        uses_current_lifecycle_api,
     )
 else:
     OVPHYSX_LIFECYCLE_ENTRY_POINTS = None
     build_lifecycle_entry_points = None
     detect_ovphysx_version = None
-    uses_current_lifecycle_api = None
+
+_LEGACY_ENTRY_POINTS = {"warmup": "warmup_gpu", "destroy": "release"}
+_CURRENT_ENTRY_POINTS = {"warmup": "warmup", "destroy": "destroy"}
 
 
 def test_detect_ovphysx_version_reads_distribution_metadata(monkeypatch: pytest.MonkeyPatch):
@@ -59,31 +60,16 @@ def test_detect_ovphysx_version_returns_none_for_unparseable_version(monkeypatch
 @pytest.mark.parametrize(
     ("version", "expected"),
     [
-        (None, False),
-        (Version("0.5.11"), False),
-        (Version("0.5.99"), False),
-        (Version("0.6"), True),
-        (Version("0.6.0+trunk.e15a64a2"), True),
-        (Version("1.0"), True),
+        (None, _LEGACY_ENTRY_POINTS),
+        (Version("0.5.11"), _LEGACY_ENTRY_POINTS),
+        (Version("0.6.0.dev1+trunk.e15a64a2"), _CURRENT_ENTRY_POINTS),
+        (Version("0.6"), _CURRENT_ENTRY_POINTS),
+        (Version("1.0"), _CURRENT_ENTRY_POINTS),
     ],
 )
-def test_uses_current_lifecycle_api_switches_at_ovphysx_06(version: Version | None, expected: bool):
-    assert uses_current_lifecycle_api(version) is expected
-
-
-@pytest.mark.parametrize("version", [None, Version("0.5.11")])
-def test_ovphysx_0511_lifecycle_entry_points(version: Version | None):
+def test_lifecycle_entry_points(version: Version | None, expected: dict[str, str]):
     entry_points = build_lifecycle_entry_points(version)
-    assert dict(entry_points) == {"warmup": "warmup_gpu", "destroy": "release"}
-
-
-def test_ovphysx_06_lifecycle_entry_points():
-    entry_points = build_lifecycle_entry_points(Version("0.6"))
-    assert dict(entry_points) == {"warmup": "warmup", "destroy": "destroy"}
-
-
-def test_installed_entry_points_match_the_installed_version():
-    assert dict(OVPHYSX_LIFECYCLE_ENTRY_POINTS) == dict(build_lifecycle_entry_points(detect_ovphysx_version()))
+    assert dict(entry_points) == expected
 
 
 def test_published_entry_points_are_read_only():

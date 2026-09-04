@@ -17,6 +17,9 @@ import pytest
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+_LEGACY_LIFECYCLE_ENTRY_POINTS = {"warmup": "warmup_gpu", "destroy": "release"}
+_CURRENT_LIFECYCLE_ENTRY_POINTS = {"warmup": "warmup", "destroy": "destroy"}
+
 
 @pytest.fixture(autouse=True)
 def _close_test_views():
@@ -467,6 +470,7 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
     from isaaclab_ov.physics import OvPhysxManager
 
     events = []
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _LEGACY_LIFECYCLE_ENTRY_POINTS)
 
     class FakeWriteFloorOp:
         def __init__(self, ordinal):
@@ -544,8 +548,15 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
     ]
 
 
-def test_manager_uses_current_warmup_api(monkeypatch):
-    """The version-selected current warmup API wins when both methods are visible."""
+@pytest.mark.parametrize(
+    ("entry_points", "expected_calls"),
+    [
+        (_LEGACY_LIFECYCLE_ENTRY_POINTS, ["warmup_gpu", "release"]),
+        (_CURRENT_LIFECYCLE_ENTRY_POINTS, ["warmup", "destroy"]),
+    ],
+)
+def test_manager_uses_version_selected_lifecycle_apis(monkeypatch, entry_points, expected_calls):
+    """The selected lifecycle generation controls both entry points."""
     from isaaclab_ov.physics import OvPhysxManager
     from isaaclab_ov.physics import ovphysx_manager as om_mod
 
@@ -553,83 +564,28 @@ def test_manager_uses_current_warmup_api(monkeypatch):
     physx = SimpleNamespace(
         warmup=lambda: calls.append("warmup"),
         warmup_gpu=lambda: calls.append("warmup_gpu"),
-    )
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", {"warmup": "warmup", "destroy": "destroy"})
-
-    OvPhysxManager._warmup_physx(physx)
-
-    assert calls == ["warmup"]
-
-
-def test_manager_uses_legacy_warmup_api(monkeypatch):
-    """The version-selected 0.5.11 path uses the legacy method even if both are visible."""
-    from isaaclab_ov.physics import OvPhysxManager
-    from isaaclab_ov.physics import ovphysx_manager as om_mod
-
-    calls = []
-    physx = SimpleNamespace(
-        warmup=lambda: calls.append("warmup"),
-        warmup_gpu=lambda: calls.append("warmup_gpu"),
-    )
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", {"warmup": "warmup_gpu", "destroy": "release"})
-
-    OvPhysxManager._warmup_physx(physx)
-
-    assert calls == ["warmup_gpu"]
-
-
-def test_manager_rejects_missing_warmup_api(monkeypatch):
-    """A runtime that lacks its version-selected warmup entry point reports it."""
-    from isaaclab_ov.physics import OvPhysxManager
-    from isaaclab_ov.physics import ovphysx_manager as om_mod
-
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", {"warmup": "warmup", "destroy": "destroy"})
-    with pytest.raises(AttributeError, match=r"selected warmup\(\) lifecycle entry point"):
-        OvPhysxManager._warmup_physx(SimpleNamespace())
-
-
-def test_manager_uses_current_destroy_api(monkeypatch):
-    """A current OVPhysX runtime tears down through destroy()."""
-    from isaaclab_ov.physics import OvPhysxManager
-    from isaaclab_ov.physics import ovphysx_manager as om_mod
-
-    calls = []
-    physx = SimpleNamespace(
         destroy=lambda: calls.append("destroy"),
         release=lambda: calls.append("release"),
     )
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", {"warmup": "warmup", "destroy": "destroy"})
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", entry_points)
 
+    OvPhysxManager._warmup_physx(physx)
     OvPhysxManager._destroy_physx(physx)
 
-    assert calls == ["destroy"]
+    assert calls == expected_calls
 
 
-def test_manager_uses_legacy_release_api(monkeypatch):
-    """The version-selected 0.5.11 path uses release() even if both methods are visible."""
+@pytest.mark.parametrize("operation", ["warmup", "destroy"])
+def test_manager_rejects_missing_lifecycle_api(monkeypatch, operation):
+    """A runtime that lacks its selected lifecycle entry point reports it."""
     from isaaclab_ov.physics import OvPhysxManager
     from isaaclab_ov.physics import ovphysx_manager as om_mod
 
-    calls = []
-    physx = SimpleNamespace(
-        destroy=lambda: calls.append("destroy"),
-        release=lambda: calls.append("release"),
-    )
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", {"warmup": "warmup_gpu", "destroy": "release"})
-
-    OvPhysxManager._destroy_physx(physx)
-
-    assert calls == ["release"]
-
-
-def test_manager_rejects_missing_destroy_api(monkeypatch):
-    """A runtime that lacks its version-selected destroy entry point reports it."""
-    from isaaclab_ov.physics import OvPhysxManager
-    from isaaclab_ov.physics import ovphysx_manager as om_mod
-
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", {"warmup": "warmup", "destroy": "destroy"})
-    with pytest.raises(AttributeError, match=r"selected destroy\(\) lifecycle entry point"):
-        OvPhysxManager._destroy_physx(SimpleNamespace())
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _CURRENT_LIFECYCLE_ENTRY_POINTS)
+    entry_point = _CURRENT_LIFECYCLE_ENTRY_POINTS[operation]
+    lifecycle_method = getattr(OvPhysxManager, f"_{operation}_physx")
+    with pytest.raises(AttributeError, match=rf"selected {entry_point}\(\) lifecycle entry point"):
+        lifecycle_method(SimpleNamespace())
 
 
 def test_manager_releases_legacy_owners_after_release_error(monkeypatch):
@@ -638,7 +594,7 @@ def test_manager_releases_legacy_owners_after_release_error(monkeypatch):
     from isaaclab_ov.physics import ovphysx_manager as om_mod
 
     events = []
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", {"warmup": "warmup_gpu", "destroy": "release"})
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _LEGACY_LIFECYCLE_ENTRY_POINTS)
 
     class FakePhysX:
         def reset_stage(self):
@@ -679,7 +635,7 @@ def test_manager_retries_current_destroy_before_releasing_owners(monkeypatch):
     from isaaclab_ov.physics import ovphysx_manager as om_mod
 
     events = []
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", {"warmup": "warmup", "destroy": "destroy"})
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _CURRENT_LIFECYCLE_ENTRY_POINTS)
 
     class FakePhysX:
         fail_destroy = True
@@ -745,7 +701,7 @@ def test_manager_releases_owners_after_terminal_destroy_error(monkeypatch):
     from isaaclab_ov.physics import ovphysx_manager as om_mod
 
     events = []
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", {"warmup": "warmup", "destroy": "destroy"})
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _CURRENT_LIFECYCLE_ENTRY_POINTS)
 
     class FakePhysX:
         terminal = False
