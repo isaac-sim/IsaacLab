@@ -420,74 +420,36 @@ def test_apply_env_overrides_leaves_physics_alone_without_the_flag(monkeypatch: 
     assert env_cfg.sim.physics.deterministic is False
 
 
-def test_apply_env_overrides_requests_warp_determinism(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The request reaches Warp's global too, which is all that covers Newton's sensor kernels."""
+@pytest.mark.parametrize(
+    ("already_set", "configured_mode", "expected"),
+    [
+        # The request lands when nothing has asked for a guarantee yet.
+        ("NOT_GUARANTEED", None, "RUN_TO_RUN"),
+        # "not_guaranteed" is the shipped default, so it reads as unset rather than opt-out.
+        ("NOT_GUARANTEED", "not_guaranteed", "RUN_TO_RUN"),
+        ("NOT_GUARANTEED", "run_to_run", "RUN_TO_RUN"),
+        # A backend naming a stronger guarantee gets it, not a weakened one.
+        ("NOT_GUARANTEED", "gpu_to_gpu", "GPU_TO_GPU"),
+        ("RUN_TO_RUN", "gpu_to_gpu", "GPU_TO_GPU"),
+        # A guarantee already in place is never lowered.
+        ("GPU_TO_GPU", None, "GPU_TO_GPU"),
+        ("GPU_TO_GPU", "run_to_run", "GPU_TO_GPU"),
+    ],
+)
+def test_apply_env_overrides_raises_warp_determinism_to_the_configured_mode(
+    already_set: str, configured_mode: str | None, expected: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Warp's global is what covers Newton's sensor kernels, and it only ever moves upward."""
     import warp as wp
 
-    monkeypatch.setattr(wp.config, "deterministic", wp.DeterministicMode.NOT_GUARANTEED)
-    physics = _fake_physics_cfg("NewtonCfg")
-    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
+    monkeypatch.setattr(wp.config, "deterministic", getattr(wp.DeterministicMode, already_set))
+    attrs = {} if configured_mode is None else {"deterministic_mode": configured_mode}
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=_fake_physics_cfg("NewtonCfg", **attrs)))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
     _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
 
-    assert wp.config.deterministic == wp.DeterministicMode.RUN_TO_RUN
-
-
-def test_apply_env_overrides_forwards_a_stronger_configured_mode(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A backend asking for ``gpu_to_gpu`` gets it globally, not a weakened ``run_to_run``."""
-    import warp as wp
-
-    monkeypatch.setattr(wp.config, "deterministic", wp.DeterministicMode.NOT_GUARANTEED)
-    physics = _fake_physics_cfg("NewtonCfg", deterministic_mode="gpu_to_gpu")
-    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
-
-    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
-
-    assert wp.config.deterministic == wp.DeterministicMode.GPU_TO_GPU
-
-
-def test_apply_env_overrides_upgrades_an_unset_backend_mode(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``not_guaranteed`` is the shipped default, so it means "unset", not "opt out"."""
-    import warp as wp
-
-    monkeypatch.setattr(wp.config, "deterministic", wp.DeterministicMode.NOT_GUARANTEED)
-    physics = _fake_physics_cfg("NewtonCfg", deterministic_mode="not_guaranteed")
-    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
-
-    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
-
-    assert wp.config.deterministic == wp.DeterministicMode.RUN_TO_RUN
-
-
-def test_apply_env_overrides_keeps_an_explicit_warp_mode(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A caller that already chose a stronger guarantee keeps it."""
-    import warp as wp
-
-    monkeypatch.setattr(wp.config, "deterministic", wp.DeterministicMode.GPU_TO_GPU)
-    physics = _fake_physics_cfg("NewtonCfg")
-    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
-
-    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
-
-    assert wp.config.deterministic == wp.DeterministicMode.GPU_TO_GPU
-
-
-def test_apply_env_overrides_raises_an_already_weaker_warp_mode(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A guarantee already in place is raised to the configured one, never left below it."""
-    import warp as wp
-
-    monkeypatch.setattr(wp.config, "deterministic", wp.DeterministicMode.RUN_TO_RUN)
-    physics = _fake_physics_cfg("NewtonCfg", deterministic_mode="gpu_to_gpu")
-    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
-
-    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
-
-    assert wp.config.deterministic == wp.DeterministicMode.GPU_TO_GPU
+    assert wp.config.deterministic == getattr(wp.DeterministicMode, expected)
 
 
 def test_apply_env_overrides_leaves_warp_alone_without_the_flag(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -495,8 +457,7 @@ def test_apply_env_overrides_leaves_warp_alone_without_the_flag(monkeypatch: pyt
     import warp as wp
 
     monkeypatch.setattr(wp.config, "deterministic", wp.DeterministicMode.NOT_GUARANTEED)
-    physics = _fake_physics_cfg("NewtonCfg")
-    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=_fake_physics_cfg("NewtonCfg")))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=False)
     _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
