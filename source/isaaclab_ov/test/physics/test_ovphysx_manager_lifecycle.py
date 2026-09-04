@@ -56,6 +56,7 @@ def manager_module(monkeypatch):
         "_atexit_registered": False,
         "_scene_data_backend": None,
         "_physx_schemas_registered": False,
+        "_gravity": None,
     }
     for name, value in test_state.items():
         monkeypatch.setattr(manager, name, value)
@@ -305,15 +306,20 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
     monkeypatch.setattr(manager, "_ovstage", FakeStage())
     monkeypatch.setattr(manager, "_physx", FakePhysX())
-    monkeypatch.setattr(manager, "_sim", SimpleNamespace(cfg=SimpleNamespace(physics_prim_path="/World/physicsScene")))
+    monkeypatch.setattr(
+        manager,
+        "_sim",
+        SimpleNamespace(cfg=SimpleNamespace(physics_prim_path="/World/physicsScene", gravity=(0.0, 0.0, -9.81))),
+    )
+    monkeypatch.setattr(manager, "_gravity", (0.0, 0.0, -9.81))
 
     if failure is None:
-        manager.set_gravity((0.0, 0.0, -9.81))
+        manager.set_gravity((0.0, 0.0, -3.72))
         expected_calls = [
             ("paths", ["/World/physicsScene"]),
             ("query", "physics-scene-paths"),
             ("write", "physics-scene-query", "physics:gravityDirection", 2, [[0.0, 0.0, -1.0]], False),
-            ("write", "physics-scene-query", "physics:gravityMagnitude", 2, [pytest.approx(9.81)], False),
+            ("write", "physics-scene-query", "physics:gravityMagnitude", 2, [pytest.approx(3.72)], False),
             ("seal", 2),
             ("update", 2, 2),
             ("release_query", "physics-scene-query"),
@@ -322,7 +328,7 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
         ]
     else:
         with pytest.raises(RuntimeError, match=f"{failure} failed"):
-            manager.set_gravity((0.0, 0.0, -9.81))
+            manager.set_gravity((0.0, 0.0, -3.72))
         expected_calls = [
             ("paths", ["/World/physicsScene"]),
             ("query", "physics-scene-paths"),
@@ -342,6 +348,12 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
         )
 
     assert calls == expected_calls
+    # ``get_gravity`` must report what the scene is actually running with: the new vector
+    # once the ordinal was applied, and the previous one when the update failed.
+    expected_gravity = (0.0, 0.0, -3.72) if failure is None else (0.0, 0.0, -9.81)
+    assert manager.get_gravity() == pytest.approx(expected_gravity)
+    # ``cfg.gravity`` stays the nominal base that randomization terms resample from.
+    assert manager._sim.cfg.gravity == (0.0, 0.0, -9.81)
 
 
 def _retained_binding_script() -> str:

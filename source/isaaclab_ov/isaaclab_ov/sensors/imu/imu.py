@@ -155,10 +155,11 @@ class Imu(BaseImu):
                 " ancestor is unique per env."
             )
 
-        gravity = SimulationManager.get_gravity()
-        gravity_bias = torch.tensor((-gravity[0], -gravity[1], -gravity[2]), device=self._device)
-        gravity_bias_torch = gravity_bias.repeat(self._num_bodies, 1)
-        self._gravity_bias_w = wp.from_torch(gravity_bias_torch.contiguous(), dtype=wp.vec3f)
+        # Real IMUs always measure gravity, so the accelerometer is biased by -g. The scene value
+        # can change at runtime, so it is refreshed on every update instead of snapshotted here.
+        self._gravity_w: tuple[float, float, float] | None = None
+        self._gravity_bias_w = wp.vec3f(0.0, 0.0, 0.0)
+        self._refresh_gravity_bias()
 
         self._initialize_buffers_impl()
 
@@ -187,9 +188,25 @@ class Imu(BaseImu):
         self._com_binding = None
         self._acc_binding = None
 
+    def _refresh_gravity_bias(self):
+        """Re-read the scene gravity so runtime randomization reaches the accelerometer bias.
+
+        Scene gravity is runtime-mutable (see
+        :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`) but scene-wide on
+        this backend, so the bias is a single vector passed to the kernel by value rather than
+        a per-body buffer.
+        """
+        gravity = SimulationManager.get_gravity()
+        gravity = (float(gravity[0]), float(gravity[1]), float(gravity[2]))
+        if gravity == self._gravity_w:
+            return
+        self._gravity_w = gravity
+        self._gravity_bias_w = wp.vec3f(-gravity[0], -gravity[1], -gravity[2])
+
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
+        self._refresh_gravity_bias()
 
         # ``read_into`` fills the structured-dtype destination in place through a cached
         # float32 reinterpret of the binding's flat shape (no extra copy).

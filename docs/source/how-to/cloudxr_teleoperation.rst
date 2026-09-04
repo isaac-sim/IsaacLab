@@ -117,7 +117,7 @@ To use the check on its own -- for example to qualify a machine before setting u
 
 .. code-block:: bash
 
-   uv run --extra teleop python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
+   uv run --extra teleop,isaacsim python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
 
 
 .. _install-isaac-teleop:
@@ -238,7 +238,7 @@ terminal or ``source`` step is needed. Launch a teleoperation session directly:
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop run \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit \
              --xr
@@ -294,7 +294,7 @@ so pair it with a hand-tracking task such as
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop run \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
              --visualizer kit \
              --xr \
@@ -346,6 +346,22 @@ Isaac Lab is now ready to receive connections from a CloudXR client.
    there is no viewport to click **Start XR** -- so Isaac Lab begins streaming as soon as a
    CloudXR client connects. The ``--headless`` flag was removed in Isaac Lab 3.0; ``HEADLESS=1``
    in the environment also forces headless.
+
+.. note::
+
+   **ERROR_STREAMSDK_PORT_UNAVAILABLE / port 49100 already in use.** The CloudXR runtime
+   binds TCP port 49100 for WebRTC signaling. If a previous CloudXR runtime instance is still
+   running, ``Server::create`` fails with this error. Identify the process holding the port,
+   confirm it is safe to stop, then terminate it -- try a graceful ``kill`` before escalating
+   to ``kill -9``:
+
+   .. code-block:: bash
+
+      ss -tlnp | grep 49100  # or: lsof -i :49100
+      kill $(lsof -ti tcp:49100)       # SIGTERM first
+      kill -9 $(lsof -ti tcp:49100)    # only if it is still running
+
+   Alternatively, set a different port with the ``NV_CXR_SERVER_PORT`` environment variable.
 
 
 .. _connect-xr-device:
@@ -441,7 +457,7 @@ choose the tab that matches your hardware.
 
                .. code-block:: bash
 
-                  uv run --extra teleop isaaclab teleop run \
+                  uv run --extra teleop,isaacsim isaaclab teleop run \
                       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                       --visualizer kit --xr \
                       --cloudxr_env avp
@@ -693,7 +709,7 @@ Launch a teleoperation session paired with a hand-tracking task, as shown in
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop run \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
              --visualizer kit --xr
 
@@ -719,11 +735,11 @@ Launch a teleoperation session paired with a hand-tracking task, as shown in
          .. code-block:: bash
 
             # Copy a shipped profile and enable push devices
-            cp $(uv run --extra teleop python -c \
+            cp $(uv run --extra teleop,isaacsim python -c \
                 "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
-            uv run --extra teleop isaaclab teleop run \
+            uv run --extra teleop,isaacsim isaaclab teleop run \
                 --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env ~/manus.env
@@ -868,7 +884,7 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop record \
+         uv run --extra teleop,isaacsim isaaclab teleop record \
            --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
            --num_demos 5 \
            --dataset_file ./datasets/dataset.hdf5 \

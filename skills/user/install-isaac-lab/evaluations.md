@@ -16,7 +16,7 @@ Query: "Install Isaac Lab."
 Expected behavior:
 
 - Runs the read-only preflight detection commands before anything else; no interview questions about use case, env manager, or method.
-- Reads the minimums from `docs/source/setup/installation/index.rst` "System requirements", routes to the automatic uv path (`installation-method-uv`), then reads that section's included `uv_run_details.inc` and uses its commands verbatim.
+- Reads the minimums from `docs/source/setup/installation/index.rst` "System requirements", routes to the automatic uv path (`installation-method-uv`), then reads that section and uses its commands verbatim.
 - Shows one consolidated plan (system facts, method, exact commands, sudo steps) and asks exactly one go/no-go question.
 - Executes all steps unattended after yes, logs to `~/.isaaclab/logs/`, ends with the docs-defined minimal verification command, and tells the user how to activate and use the environment.
 

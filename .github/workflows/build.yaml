@@ -46,7 +46,7 @@
 #      -e TEST_FILTER_PATTERN="isaaclab_physx" \
 #      -e TEST_INCLUDE_FILES="test_rigid_object_collection.py" \
 #      -v "$PWD":/workspace/isaaclab isaac-lab-base:latest \
-#      -c 'cd /workspace/isaaclab && /isaac-sim/python.sh -m pytest tools -v'
+#      -c 'cd /workspace/isaaclab && ./isaaclab.sh -p -m pytest tools -v'
 #
 # Remember to REVERT all temporary changes before merging!
 # =============================================================================
@@ -169,6 +169,25 @@ jobs:
         echo "ci_image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}" >> "$GITHUB_OUTPUT"
         echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}"
 
+  test-dockerfile-contract:
+    name: dockerfile-contract
+    # Static analysis of the Dockerfile text: no image, no GPU, no Isaac Sim.
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
+
+    - name: Run Dockerfile contract tests
+      shell: bash
+      run: |
+        set -euo pipefail
+        uv run --no-project --with pytest \
+          python -m pytest -q docker/test/test_dockerfile_nonroot.py
+
   #region build jobs
   build:
     name: Build Base Docker Image
@@ -182,6 +201,12 @@ jobs:
         fetch-depth: 1
         lfs: true
 
+    # The GPU runners have no uv on PATH; the invariant check below needs it.
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
+
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
@@ -190,6 +215,20 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
+
+    # #6329 aborts the pip install when it strands a prebundled package's __init__.py
+    # (nvbugs 6343978: 14 Isaac Sim extensions fail to load). The images install with
+    # ``uv sync``, which never runs that guard, so assert the same invariant on the image.
+    - name: Verify image invariants
+      shell: bash
+      env:
+        IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
+      run: |
+        set -euo pipefail
+        IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' "${IMAGE_TAG}")"
+        export IMAGE_DIGEST
+        uv run --no-project --with pytest \
+          python -m pytest -q docker/test/test_image_invariants.py
 
   build-curobo:
     name: Build cuRobo Docker Image
@@ -661,16 +700,6 @@ jobs:
     # Folded from the former standalone verify-base-non-root job: reuses the
     # base image already pulled by run-package-tests to keep the regression
     # check without burning a separate runner.
-    - name: Run Dockerfile non-root regression test
-      shell: bash
-      run: |
-        set -euo pipefail
-        docker run --rm \
-          -v "$PWD":/workspace/isaaclab \
-          --entrypoint bash \
-          "${{ needs.config.outputs.ci_image_tag }}" \
-          -lc 'cd /workspace/isaaclab && /isaac-sim/python.sh -m pytest docker/test/test_dockerfile_nonroot.py -q'
-
     - name: Verify Base runtime user is non-root
       shell: bash
       run: |
@@ -711,16 +740,6 @@ jobs:
     # Folded from the former standalone verify-curobo-non-root job: reuses
     # the curobo image already pulled by run-package-tests to keep the
     # regression check without burning a separate runner.
-    - name: Run Dockerfile non-root regression test
-      shell: bash
-      run: |
-        set -euo pipefail
-        docker run --rm \
-          -v "$PWD":/workspace/isaaclab \
-          --entrypoint bash \
-          "${{ needs.config.outputs.ci_image_tag }}-curobo" \
-          -lc 'cd /workspace/isaaclab && /isaac-sim/python.sh -m pytest docker/test/test_dockerfile_nonroot.py -q'
-
     - name: Verify cuRobo runtime user is non-root
       shell: bash
       run: |

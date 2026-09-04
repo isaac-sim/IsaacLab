@@ -1,6 +1,207 @@
 Changelog
 ---------
 
+22.0.0 (2026-09-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.physics.PhysicsCfg.deterministic`, a backend-agnostic request for
+  reproducible physics. Each physics manager translates it into its own settings when the
+  simulation starts and raises when its configuration cannot provide the guarantee. A
+  backend-specific determinism attribute set explicitly takes precedence.
+
+Changed
+^^^^^^^
+
+* Changed the default ground plane to a warm-white hosted asset with NVIDIA-green 1 m grid lines.
+  Its metric UVs now follow the requested plane size, and plane terrains bound the visual mesh to the
+  environment grid while retaining an infinite collision plane.
+  Set :attr:`isaaclab.sim.spawners.from_files.from_files_cfg.GroundPlaneCfg.color` to tint its
+  diffuse component, or provide a custom USD path to replace the authored appearance. Existing
+  generated terrains retain their dark material by default; explicitly set
+  :attr:`isaaclab.terrains.terrain_importer_cfg.TerrainImporterCfg.visual_material` to ``None`` to
+  leave a generated terrain without a bound visual material.
+* Updated the China storage profile to the Isaac Sim 6.1 asset set. Check the 6.1 availability
+  manifest before using mirrored assets.
+* **Breaking:** Prevented downloaded Isaac Sim packages linked as ``_isaac_sim`` from running with conda, ``uv``,
+  or ``venv`` environments. Use the Python bundled with the downloaded package, install Isaac Sim from pip in the
+  virtual environment, or rerun ``uv run isaaclab --isaacsim_source PATH_TO_ISAAC_SIM`` for a live source build.
+
+Fixed
+^^^^^
+
+* Fixed operational-space inertial decoupling failing when an environment had a singular task-space mass matrix.
+* Fixed :func:`~isaaclab.sim.utils.resolve_paths` rewriting search-path asset identifiers, such as
+  the MDL module ``OmniPBR.mdl``, into paths relative to the process working directory. Assets
+  converted with ``--make-instanceable`` referenced a non-existent MDL module, so the renderer
+  logged ``MDLC comp error: C120 could not find module`` and left their materials unresolved.
+* Fixed the :class:`~isaaclab.envs.ManagerBasedEnv`, :class:`~isaaclab.envs.DirectRLEnv` and
+  :class:`~isaaclab.envs.DirectMARLEnv` destructors emitting a spurious ``AttributeError: '...'
+  object has no attribute '_is_closed'`` traceback when environment construction failed before
+  initialization completed. The traceback was printed ahead of the real construction error.
+* Fixed video recording overwriting existing clips when a new process writes to a non-empty output directory.
+* Fixed :class:`~isaaclab.sim.views.UsdFrameView` rejecting legal ``float3``-typed
+  ``xformOp:scale`` values while initializing a Fabric frame view.
+
+
+21.0.1 (2026-09-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed interrupted and concurrent Git asset downloads leaving incomplete cache checkouts.
+
+
+21.0.0 (2026-09-01)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Replaced ``SimulationContext.services`` and ``ServiceLocator`` with
+  ``SimulationContext.get_or_create_backend()``, keyed by backend type. Backend integrations should
+  construct or retrieve native resources with ``sim.get_or_create_backend(BackendType, ...)`` and
+  may implement ``clear()`` for simulation-owned teardown; ``close()`` is not called by the registry.
+* Standardized multi-GPU benchmark commands on the underscore suffix. Replace
+  ``startup-multigpu``, ``runtime-multigpu``, and ``training-multigpu`` with
+  ``startup_multigpu``, ``runtime_multigpu``, and ``training_multigpu``. The hyphenated forms
+  remain available as deprecated aliases.
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab.actuators.ActuatorBaseCfg.friction`,
+  :attr:`~isaaclab.actuators.ActuatorBaseCfg.dynamic_friction`, and
+  :attr:`~isaaclab.actuators.ActuatorBaseCfg.viscous_friction` docstrings describing the obsolete
+  Isaac Sim 4.5 unitless-coefficient model. The fields are documented as efforts
+  [N or N·m, depending on joint type] (coefficient [N·s/m or N·m·s/rad] for viscous friction),
+  matching measured solver behavior, with a note on the PhysX hard-hold vs Newton soft-constraint
+  difference.
+* Fixed the Kit renderer not being restricted to a single GPU under ``--xr`` when a CUDA
+  device is selected. The ``--/renderer/multiGpu/activeCudaGpus`` setting was only applied
+  when ``multi_gpu`` was ``False``, which is set for distributed runs alone, so an XR session
+  started with ``--device cuda:<n>`` left the renderer spanning every visible GPU while
+  physics ran on the selected device. XR streams a single stereo swapchain that the CloudXR
+  compositor imports, so the renderer is now pinned to the simulation device in that case.
+  ``--xr`` without an explicit device still resolves to ``cpu`` and leaves the renderer
+  selection to Kit, as before.
+* Fixed environment arguments being overwritten after reopening an HDF5 dataset and leaking between datasets when
+  reusing a file handler.
+
+
+20.0.1 (2026-08-31)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed duplicate ``mjcPhysics`` schema registration during Kit visualizer startup while preserving
+  schema discovery for both installed and source Isaac Sim runtimes.
+
+
+20.0.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``create_if_missing`` to the fragment schema writers and matching spawner
+  configuration flags (``mass_props_create_if_missing``,
+  ``articulation_props_create_if_missing``, ``joint_drive_props_create_if_missing``)
+  to apply a defining USD API to matched prims that do not carry it.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed the fragment schema writers (e.g.
+  :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`) to take a prim path
+  expression instead of traversing the subtree of the input prim. A bare prim path now
+  matches only that prim; pass ``f"{prim_path}(/.*)?"`` to recover the previous
+  subtree-wide behavior. Zero matched targets now log a warning and return ``False``
+  instead of raising ``ValueError`` on an invalid path.
+* **Breaking:** Changed the spawner configuration fragment fields
+  (e.g. :attr:`~isaaclab.sim.spawners.RigidObjectSpawnerCfg.rigid_props`,
+  :attr:`~isaaclab.sim.spawners.from_files.FileCfg.articulation_props`) to take a
+  mapping from target pattern to fragment list instead of a bare fragment or fragment
+  list. Keys are regular-expression suffixes appended to the spawn prim, so a key
+  carries its own leading ``/`` when it targets descendants: ``""`` is the spawn prim
+  itself, ``"/[^/]+"`` its direct children, ``"/.*"`` all descendants, and ``"(/.*)?"``
+  the spawn prim together with its descendants. Entries apply in insertion order, so on
+  overlapping targets later entries override earlier ones per attribute. Pass
+  ``{"(/.*)?": [...]}`` to recover the previous fragment-list behavior. A bare fragment or
+  list of fragments is accepted as shorthand: on the shape and mesh spawners it targets the
+  anchor prim, and on the file spawners it targets the spawn prim together with its
+  descendants, keeping the reach the legacy nested writers had.
+  Legacy single-cfg values are unaffected.
+* **Breaking:** Changed the fragment schema writers to no longer apply their defining
+  USD API implicitly on bare prims; pass ``create_if_missing=True`` instead. The file
+  spawners keep doing so on the user's behalf for the bare-fragment shorthand when the
+  spawn prim's subtree carries no prim with the family's defining API, so pointing
+  :class:`~isaaclab.sim.spawners.from_files.UsdFileCfg` at an art asset that ships without
+  physics schemas still turns it into a single body. For
+  articulation roots, anchoring on the spawn prim needs an entry targeting it in
+  :attr:`~isaaclab.sim.spawners.from_files.FileCfg.articulation_props` together with
+  ``articulation_props_create_if_missing=True`` on the spawner configuration.
+* **Breaking:** Changed :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`
+  to author on every matched articulation root, warning when they nest, instead of
+  silently pruning nested roots; asset validity is the author's responsibility.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``Renderer`` and ``Visualizer`` factory classes and
+  ``VisualizerCfg.create_visualizer``. Concrete renderer and visualizer configs now declare
+  ``class_type``; construct custom implementations as ``cfg.class_type(cfg)`` and acquire camera
+  renderers through ``SimulationContext.render_context.get_renderer(cfg)``. Replaced the removed
+  ``VisualizerCfg.get_visualizer_type()`` accessor with the ``visualizer_type`` field.
+
+Fixed
+^^^^^
+
+* Fixed backend applied schemas being stranded on the former root link when a backend relocates
+  an articulation root. Relocation resolved schemas through the USD schema registry, which cannot
+  describe a schema a backend ships as an unregistered token, so the schema and its attributes were
+  left behind. Backends now declare the pairing through
+  :func:`~isaaclab.sim.schemas.register_articulation_root_companion`.
+
+* Fixed :func:`~isaaclab.sim.schemas.apply_rigid_body_properties` and
+  :func:`~isaaclab.sim.schemas.apply_mass_properties` only reaching the outermost
+  schema-bearing prim on assets with nested rigid-body hierarchies (child links authored
+  under their parent link prims, as produced by the URDF importer in Isaac Sim 6.0 and
+  later). A whole-subtree target pattern (``{"/.*": [...]}``) reaches every carrier.
+
+
+19.1.0 (2026-08-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Enabled the installed ``isaaclab`` command to run training, playback, dummy-agent, benchmark, and multi-GPU
+  workflows without requiring an Isaac Lab source checkout, and added automatic discovery of downstream task packages.
+* Updated the project generator to create task IDs without the legacy ``-v0`` suffix.
+* Organized generated environments as task families with robot-specific configuration packages.
+
+Changed
+^^^^^^^
+
+* Changed the Newton dependency pin from the ``release-1.5`` Git branch to the published
+  ``newton[sim]==1.5.1`` PyPI release. Existing installations update automatically.
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab.sensors.Camera.set_world_poses` and
+  :meth:`~isaaclab.sensors.Camera.set_world_poses_from_view` leaving the camera data buffers
+  (:attr:`~isaaclab.sensors.CameraData.pos_w` and orientation fields) stale when
+  :attr:`~isaaclab.sensors.CameraCfg.update_latest_camera_pose` is disabled. Explicitly set poses
+  are now written through to the data buffers; the flag continues to govern pose refresh for
+  cameras moved by other means.
+
+
 19.0.2 (2026-08-28)
 ~~~~~~~~~~~~~~~~~~~
 
