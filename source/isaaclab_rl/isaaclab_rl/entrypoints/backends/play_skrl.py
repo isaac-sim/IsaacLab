@@ -32,6 +32,7 @@ from isaaclab_rl.entrypoints.common import (
     create_isaaclab_env,
     pre_launch_video_config,
     preserve_attribute,
+    request_determinism,
     resolve_checkpoint_selector,
     resolve_play_task_name,
     show_run_summary,
@@ -164,6 +165,8 @@ def _main():
             train_task_name = task_name.replace("-Play", "")
 
             env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+            # Warp reads its determinism mode at module build time, so request it before the env exists.
+            request_determinism(args_cli, env_cfg)
             env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
             # configure the ML framework into the global skrl variable

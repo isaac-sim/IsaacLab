@@ -290,7 +290,16 @@ def get_published_pretrained_checkpoint(
             given, and the checkpoints its components declare.
 
     Returns:
-        The path.
+        The path, or None when the asset server does not report a checkpoint for this task
+        and backend combination. That covers both a checkpoint that was never published and
+        a server that could not be reached, which ``omni.client`` does not distinguish, so a
+        transient outage is not evidence that a checkpoint does not exist. The reason is
+        printed before returning.
+
+    Raises:
+        RuntimeError: If the checkpoint is published but could not be downloaded, for
+            instance because the local cache directory is not writable. The originating
+            error is chained as the cause.
     """
     declared_checkpoints: Sequence[Checkpoint] = ()
     if env_cfg is not None:
@@ -306,25 +315,53 @@ def get_published_pretrained_checkpoint(
         _get_pretrained_checkpoint_stem(workflow, task_name, physics_backend, render_backend),
     )
     print(f"Fetching pre-trained checkpoint : {ov_path}")
-    resume_path = _fetch(ov_path, download_dir)
-    if resume_path is None:
-        print("A pre-trained checkpoint is currently unavailable for this task.")
+    try:
+        resume_path = retrieve_file_path(ov_path, download_dir)
+    except FileNotFoundError:
+        # the asset server reports a checkpoint that was never published and a server it
+        # cannot reach the same way, so both are covered by the same message
+        backends = (
+            ""
+            if physics_backend is None
+            else f" with the '{physics_backend}' physics and '{render_backend}' render backends"
+        )
+        print(
+            "A pre-trained checkpoint is currently unavailable for this task.\n"
+            f"  The asset server does not provide '{ov_path}'.\n"
+            f"  Either no checkpoint is published for task '{task_name}'{backends}, or the asset"
+            " server could not be reached.\n"
+            "  Train the task, or pass --checkpoint <path> to use a checkpoint of your own."
+        )
         return None
+    except Exception as exc:
+        raise _download_error(ov_path, download_dir, exc) from exc
     for checkpoint in declared_checkpoints:
-        _fetch(get_declared_checkpoint_path(ov_path, workflow, checkpoint), download_dir)
+        declared_path = get_declared_checkpoint_path(ov_path, workflow, checkpoint)
+        try:
+            retrieve_file_path(declared_path, download_dir)
+        except FileNotFoundError:
+            print(f"[WARNING]: The asset server does not provide the {checkpoint.name} checkpoint '{declared_path}'.")
+        except Exception as exc:
+            raise _download_error(declared_path, download_dir, exc) from exc
     return resume_path
 
 
-def _fetch(remote_path: str, download_dir: str) -> str | None:
-    """Download a published file into the cache, or report why it could not be.
+def _download_error(remote_path: str, download_dir: str, exc: Exception) -> RuntimeError:
+    """Describe a published file that could not be downloaded.
 
-    :func:`~isaaclab.utils.assets.retrieve_file_path` skips an up-to-date local copy itself.
+    The checkpoint exists on the server, so this is a local failure the user has to fix; reporting
+    it as an unavailable checkpoint would send them looking in the wrong place.
     """
-    try:
-        return retrieve_file_path(remote_path, download_dir)
-    except Exception as error:  # noqa: BLE001
-        print(f"[WARNING]: Could not fetch {remote_path}: {error}")
-        return None
+    hint = ""
+    if isinstance(exc, OSError):
+        hint = (
+            " Check that the cache directory is writable and that the disk is not full;"
+            " a directory left behind by a container run is owned by root."
+        )
+    return RuntimeError(
+        f"Failed to download the pre-trained checkpoint '{remote_path}' into"
+        f" '{os.path.abspath(download_dir)}': {type(exc).__name__}: {exc}.{hint}"
+    )
 
 
 def has_pretrained_checkpoint_job_run(

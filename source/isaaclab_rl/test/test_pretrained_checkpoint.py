@@ -288,3 +288,42 @@ def test_get_published_pretrained_checkpoint_skips_the_companion_by_default(
     pretrained_checkpoint.get_published_pretrained_checkpoint("rsl_rl", "Isaac-Cartpole", "physx", "none")
 
     assert [r[0] for r in retrieved] == [remote_path]
+
+
+def test_get_published_pretrained_checkpoint_reports_unpublished_checkpoint(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    """Test that a checkpoint missing from the asset server names the location that was tried."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    _install_fake_retrieve(monkeypatch, set())
+
+    path = pretrained_checkpoint.get_published_pretrained_checkpoint("rsl_rl", "Isaac-Cartpole", "physx", "none")
+
+    assert path is None
+    output = capsys.readouterr().out
+    assert "A pre-trained checkpoint is currently unavailable for this task." in output
+    assert "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt" in output
+    assert "'physx' physics and 'none' render backends" in output
+
+
+def test_get_published_pretrained_checkpoint_raises_on_unwritable_cache(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    """Test that a local download failure is reported instead of being reported as unavailable."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    cause = PermissionError(13, "Permission denied", str(tmp_path / ".pretrained_checkpoints"))
+
+    def _retrieve_file_path(remote_path: str, download_dir: str) -> str:
+        raise cause
+
+    monkeypatch.setattr(pretrained_checkpoint, "retrieve_file_path", _retrieve_file_path)
+
+    with pytest.raises(RuntimeError) as error:
+        pretrained_checkpoint.get_published_pretrained_checkpoint("rsl_rl", "Isaac-Cartpole", "physx", "none")
+
+    message = str(error.value)
+    assert "Isaac-Cartpole_physx_none_rsl_rl.pt" in message
+    assert "Permission denied" in message
+    assert error.value.__cause__ is cause
