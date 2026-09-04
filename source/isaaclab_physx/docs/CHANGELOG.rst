@@ -1,6 +1,72 @@
 Changelog
 ---------
 
+6.0.0 (2026-09-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisCfg` for configuring the
+  ``PhysxTendonAxisAPI`` properties of existing fixed-tendon instances.
+* Added ``lower_limit`` and ``upper_limit`` to
+  :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisRootCfg` and
+  :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`.
+
+Changed
+^^^^^^^
+
+* Renamed ``PhysxFixedTendonCfg`` to
+  :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisRootCfg` and
+  ``PhysxSpatialTendonCfg`` to
+  :class:`~isaaclab_physx.sim.schemas.PhysxTendonAttachmentRootCfg` so every fragment name matches
+  its USD schema. No compatibility aliases are provided.
+* Added ``instance_names`` to :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisRootCfg` and
+  :class:`~isaaclab_physx.sim.schemas.PhysxTendonAttachmentRootCfg`. Pass one name or a list to select
+  existing tendon instances; the default ``None`` preserves the previous broadcast behavior.
+* Changed :class:`~isaaclab_physx.sim.schemas.PhysxTendonAttachmentRootCfg` to configure only
+  ``PhysxTendonAttachmentRootAPI`` instances. Leaf and intermediate attachment topology remains
+  asset-authored.
+* Renamed PhysX contact sensor normal and filtered-friction outputs to use the shared explicit
+  force names. Aggregate friction remains unsupported; use ``friction_force_matrix_w`` with
+  configured filter objects. ``net_forces_w`` is the total contact force; PhysX cannot compute
+  it, so the property returns ``net_normal_forces_w`` and warns. ``friction_forces_w`` is the
+  aggregate friction force; PhysX only provides filtered friction, so the property returns
+  ``friction_force_matrix_w`` and warns (known limitations planned to be fixed in a later
+  release).
+* Added ``friction_force_matrix_w_history`` for filtered friction force history.
+
+Removed
+^^^^^^^
+
+* Removed the per-prim ``apply_fixed_tendon`` and ``apply_spatial_tendon`` functions from
+  :mod:`isaaclab_physx.sim.schemas`. Configure tendon fragments through
+  :func:`isaaclab.sim.schemas.apply_fixed_tendon_properties` and
+  :func:`isaaclab.sim.schemas.apply_spatial_tendon_properties`, respectively.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` rendering ``simple_shading_*``
+  camera outputs through the full path-tracing pipeline. The renderer selected only the
+  Minimal shading level, through the process-wide ``/rtx/minimal/mode`` carb setting, while
+  leaving the render mode at ``RealTimePathTracing``. It now authors
+  ``omni:rtx:rendermode = "Minimal"`` and ``omni:rtx:minimal:mode`` on the requesting render
+  product, matching the OVRTX renderer. Cameras requesting different shading levels no longer
+  overwrite each other, and color cameras, the Kit viewport, and deterministic rendering keep
+  path tracing.
+
+
+5.3.1 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added translation of :attr:`~isaaclab.physics.PhysicsCfg.deterministic` in ``PhysxManager``, which
+  enables :attr:`~isaaclab_physx.physics.PhysxCfg.enable_enhanced_determinism`.
+
+
 5.3.0 (2026-08-30)
 ~~~~~~~~~~~~~~~~~~
 

@@ -88,13 +88,18 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
     cli_args.add_rsl_rl_args(parser)
     add_launcher_args(parser)
+
+    # Register external tasks before preset setup reads their Gym metadata.
+    registration_parser = argparse.ArgumentParser(add_help=False)
+    registration_parser.add_argument("--external_callback")
+    registration_args, _ = registration_parser.parse_known_args(argv)
+    remaining_args_env_registration = None
+    if registration_args.external_callback:
+        external_callback_function = string_to_callable(registration_args.external_callback, separator=".")
+        remaining_args_env_registration = external_callback_function()
+
     args_cli, remaining_args = setup_preset_cli(parser, argv, agent_library="rsl_rl")
     enable_cameras_for_video(args_cli)
-
-    remaining_args_env_registration = None
-    if args_cli.external_callback:
-        external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
-        remaining_args_env_registration = external_callback_function()
 
     set_hydra_args(list_intersection(remaining_args, remaining_args_env_registration))
     return args_cli

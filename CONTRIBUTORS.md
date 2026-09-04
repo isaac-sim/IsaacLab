@@ -83,6 +83,7 @@ Guidelines for modifications:
 * Daniela Hasenbring
 * Dhananjay Shendre
 * Dhyan Thakkar
+* Diego Ferigo
 * Dongxuan Fan
 * Dorsa Rohani
 * Ege Sekkin
@@ -202,6 +203,7 @@ Guidelines for modifications:
 * Vidur Vij
 * Virgilio Gómez Lambo
 * Vladimir Fokow
+* Wang Ke
 * Wei Yang
 * Weihua Zhang
 * Welf Rehberg
@@ -219,6 +221,7 @@ Guidelines for modifications:
 * Yun Liu
 * YuTeh Shen
 * Zehao Wang
+* Zeng Qingcheng
 * Zijian Li
 * Ziqi Fan
 * Zoe McCarthy

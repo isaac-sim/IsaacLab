@@ -616,7 +616,12 @@ class SyntheticGaussianSceneCfg(InteractiveSceneCfg):
 
     env_spacing: float = 2.0
 
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    terrain = TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type="plane",
+        # Keep the background in the calibrated HDR range independently of the default plane's appearance.
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.1)),
+    )
 
     gaussian = AssetBaseCfg(
         prim_path=f"{{ENV_REGEX_NS}}/{SYNTHETIC_GAUSSIAN_SCENE_REL_PATH}",
