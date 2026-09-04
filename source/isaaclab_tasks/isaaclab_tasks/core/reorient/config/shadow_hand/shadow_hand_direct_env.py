@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.math import unscale_transform
+from isaaclab.utils.math import saturate, unscale_transform
 
 from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
 from isaaclab_tasks.core.reorient.utils import resolve_actuated_tendons
@@ -44,9 +44,12 @@ class ShadowHandDirectEnv(ReorientDirectEnv):
         num_joint_actions = len(self.actuated_dof_indices)
         # No moving average on the tendon target: the manager task's action term applies none, and
         # the two task variants have to stay comparable.
+        # saturate: a Gaussian policy samples past the action range, and the manager term bounds its
+        # own output, so both task variants must clamp to the tendon limits
+        tendon_targets = unscale_transform(
+            self.actions[:, num_joint_actions:], self.tendon_lower_limits, self.tendon_upper_limits
+        )
         self.hand.set_fixed_tendon_position_target_index(
-            target=unscale_transform(
-                self.actions[:, num_joint_actions:], self.tendon_lower_limits, self.tendon_upper_limits
-            ),
+            target=saturate(tendon_targets, self.tendon_lower_limits, self.tendon_upper_limits),
             fixed_tendon_ids=self.actuated_tendon_indices,
         )

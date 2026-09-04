@@ -164,10 +164,13 @@ class HandoverEnv(DirectMARLEnv):
         if self.actuated_tendon_indices:
             # No moving average on the tendon target: the manager task's action term applies none,
             # and the two task variants have to stay comparable.
+            # saturate like the joint target above: a Gaussian policy samples past the action range,
+            # and the manager term bounds its own output, so both variants must clamp to the limits
+            tendon_targets = unscale_transform(
+                self.actions[agent][:, len(idx) :], self.tendon_lower_limits, self.tendon_upper_limits
+            )
             hand.set_fixed_tendon_position_target_index(
-                target=unscale_transform(
-                    self.actions[agent][:, len(idx) :], self.tendon_lower_limits, self.tendon_upper_limits
-                ),
+                target=saturate(tendon_targets, self.tendon_lower_limits, self.tendon_upper_limits),
                 fixed_tendon_ids=self.actuated_tendon_indices,
             )
 
