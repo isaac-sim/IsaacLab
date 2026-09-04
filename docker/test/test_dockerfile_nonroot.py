@@ -169,6 +169,15 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
         )
 
 
+def test_container_test_runner_only_links_an_actual_isaac_sim_runtime():
+    """Cache mount points under /isaac-sim must not masquerade as an Isaac Sim installation."""
+    runner_text = (REPO_ROOT / ".github/actions/run-tests/run_tests.sh").read_text(encoding="utf-8")
+    guarded_link = re.compile(r"if \[ -f /isaac-sim/python\.sh \]; then\s+ln -s /isaac-sim _isaac_sim\s+fi")
+
+    assert guarded_link.search(runner_text)
+    assert runner_text.count("ln -s /isaac-sim _isaac_sim") == 1
+
+
 # --------------------------------------------------------------------------- #
 # Volume mount-point writability
 #

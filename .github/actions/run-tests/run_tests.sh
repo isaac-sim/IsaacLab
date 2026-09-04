@@ -321,7 +321,10 @@ run_tests() {
       cd /workspace/isaaclab
       mkdir -p tests
       rm _isaac_sim || true
-      ln -s /isaac-sim _isaac_sim
+      # Kitless cache mounts create /isaac-sim directories too; python.sh is the runtime boundary.
+      if [ -f /isaac-sim/python.sh ]; then
+        ln -s /isaac-sim _isaac_sim
+      fi
       if [ -n \"\${WARP_CACHE_PATH:-}\" ]; then
         ./isaaclab.sh -p tools/verify_warp_cache.py
       fi
