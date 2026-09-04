@@ -1240,3 +1240,27 @@ def test_checked_apply_rejects_non_dataclass_src():
 
     with pytest.raises(TypeError, match="must be a dataclass"):
         checked_apply(NotADataclass(), object())
+
+
+def test_configclass_import_survives_submodule_shadowing():
+    """``from isaaclab.utils import configclass`` must stay usable as a decorator.
+
+    Importing the ``isaaclab.utils.configclass`` submodule binds the module object as an
+    attribute on the package, shadowing the lazy-loader function export. Regression test for
+    the order-dependent ``TypeError: 'module' object is not callable``. Runs in a subprocess
+    so the import order is controlled.
+    """
+    import subprocess
+    import sys
+
+    code = (
+        "import isaaclab.utils.configclass as _sub  # binds the submodule on the package\n"
+        "from isaaclab.utils import configclass\n"
+        "@configclass\n"
+        "class _Cfg:\n"
+        "    a: int = 1\n"
+        "assert _Cfg().a == 1\n"
+        "print('DECORATOR_OK')\n"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0 and "DECORATOR_OK" in result.stdout, result.stderr[-500:]

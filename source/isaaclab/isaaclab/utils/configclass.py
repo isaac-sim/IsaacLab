@@ -8,6 +8,7 @@
 import dataclasses
 import inspect
 import re
+import sys
 import types
 from collections.abc import Callable
 from copy import deepcopy
@@ -638,3 +639,19 @@ def checked_apply(src: Any, target: Any) -> None:
                 f"{target_path} has no attribute `{f.name}`. {type(src).__name__} is out of sync with target."
             )
         setattr(target, f.name, getattr(src, f.name))
+
+
+class _ConfigclassModule(types.ModuleType):
+    """Module type that forwards calls to :func:`configclass`.
+
+    Importing the ``isaaclab.utils.configclass`` submodule binds this module object as the
+    ``configclass`` attribute on the :mod:`isaaclab.utils` package, shadowing the function
+    exported through the lazy-loader stub. Making the module callable keeps
+    ``from isaaclab.utils import configclass`` usable as a decorator regardless of import order.
+    """
+
+    def __call__(self, cls, **kwargs):
+        return configclass(cls, **kwargs)
+
+
+sys.modules[__name__].__class__ = _ConfigclassModule
