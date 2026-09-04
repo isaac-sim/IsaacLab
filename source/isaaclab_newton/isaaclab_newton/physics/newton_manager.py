@@ -75,8 +75,8 @@ from newton.selection import ArticulationView
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
-from newton.solvers import SolverBase, SolverKamino
-from newton.usd import SchemaResolverNewton, SchemaResolverPhysx
+from newton.solvers import SolverBase, SolverKamino, SolverMuJoCo
+from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd, UsdGeom
 
@@ -1258,6 +1258,11 @@ class NewtonManager(PhysicsManager):
             solver_cls.register_custom_attributes(builder)
 
     @classmethod
+    def _registers_builder_attributes_from_solver(cls, solver_cls: type[SolverBase]) -> bool:
+        """Return whether this manager registers custom attributes from ``solver_cls``."""
+        return solver_cls in cls._builder_attribute_solvers
+
+    @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
         """Subclass hook to normalize *builder* before model finalization.
 
@@ -1915,6 +1920,24 @@ class NewtonManager(PhysicsManager):
         return []
 
     @classmethod
+    def _get_usd_import_schema_resolvers(cls) -> list[SchemaResolver]:
+        """Return the schema resolvers used to import the stage into Newton.
+
+        A manager that registers MuJoCo solver attributes also imports the MJC
+        schema that authors them. Resolver order defines precedence when
+        multiple schemas author the same Newton model property.
+
+        This policy is limited to physics-model imports. Visualization builders
+        and articulation-ordering probes intentionally keep the fixed Newton and
+        PhysX resolver pair because solver-specific attributes cannot affect
+        their rendering or ordering products.
+        """
+        resolvers: list[SchemaResolver] = [SchemaResolverNewton(), SchemaResolverPhysx()]
+        if cls._registers_builder_attributes_from_solver(SolverMuJoCo):
+            resolvers.append(SchemaResolverMjc())
+        return resolvers
+
+    @classmethod
     def instantiate_builder_from_stage(cls):
         """Create builder from USD stage.
 
@@ -1943,7 +1966,7 @@ class NewtonManager(PhysicsManager):
 
         builder = cls.create_builder(up_axis=up_axis)
 
-        schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+        schema_resolvers = cls._get_usd_import_schema_resolvers()
 
         # NOTE: None of the add_usd calls below pass joint_ordering or
         # bodies_follow_joint_ordering, so the live articulation's native
