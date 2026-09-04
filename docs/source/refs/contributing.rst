@@ -443,7 +443,8 @@ direct reference. This avoids eagerly importing heavyweight modules (``omni``, `
 etc.) at config construction time — the string is resolved to the actual callable only
 after ``SimulationApp`` has been initialized.
 
-You can use either the ``{DIR}`` shorthand or a fully-qualified module path:
+You can use either the ``{DIR}`` shorthand or a fully-qualified module path. Attribute paths
+after the colon may be dotted when the callable is nested under an exported class or object:
 
 .. code:: python
 
@@ -452,6 +453,9 @@ You can use either the ``{DIR}`` shorthand or a fully-qualified module path:
 
    # Good — fully-qualified path (useful for cross-package references)
    class_type: type[Sensor] | str = "isaaclab.sensors.my_sensor.sensor:Sensor"
+
+   # Good — dotted attribute path for a nested callable
+   updater: str = "collections:Counter.update"
 
    # Bad — eagerly imports the implementation module
    from .sensor import Sensor
@@ -791,4 +795,4 @@ following command in the terminal:
 
       .. code-block:: bash
 
-         isaaclab.bat --format  # or "isaaclab.bat -f"
+         isaaclab.bat --format  # or "./isaaclab.bat -f"

@@ -129,7 +129,9 @@ def callable_to_string(value: Callable, separator: str = ":") -> str:
         ValueError: When the input argument is not a callable object.
 
     Returns:
-        A string representation of the callable object.
+        A string representation of the callable object. Nested attributes use
+        their qualified name only when that exact path resolves back to the same
+        callable. Otherwise the legacy simple-name representation is retained.
     """
     # check if callable
     if not callable(value):
@@ -142,9 +144,25 @@ def callable_to_string(value: Callable, separator: str = ":") -> str:
         lambda_line = re.sub(r"#.*$", "", lambda_line).rstrip()
         return f"lambda {lambda_line}"
     else:
-        # get the module and function name
         module_name = value.__module__
         function_name = value.__name__
+        qualified_name = value.__qualname__
+        bound_instance = getattr(value, "__self__", None)
+        instance_bound_method = bound_instance is not None and not isinstance(bound_instance, type)
+
+        # A qualified name is safe only if the module exposes that exact path and
+        # it resolves to this same callable. This avoids serializing exported local
+        # aliases, hidden class paths, or instance-bound methods into a different
+        # callable than the one supplied by the user.
+        if "<locals>" not in qualified_name and not instance_bound_method:
+            try:
+                candidate = importlib.import_module(module_name)
+                for attr in qualified_name.split("."):
+                    candidate = getattr(candidate, attr)
+                if candidate is value:
+                    function_name = qualified_name
+            except (ModuleNotFoundError, AttributeError):
+                pass
         # return the string
         return f"{module_name}{separator}{function_name}"
 
@@ -154,12 +172,13 @@ def string_to_callable(name: str, separator: str = ":") -> Callable:
 
     Args:
         name: The function name. The format should be 'module:attribute_name' or a
-            lambda expression of format: 'lambda x: x'.
+            lambda expression of format: 'lambda x: x'. Attribute names may contain
+            dots to resolve callables nested under classes or other module attributes.
         separator: The separator between the module path and the function name. Defaults to ":".
 
     Raises:
         ValueError: When the resolved attribute is not a function.
-        ValueError: When the module cannot be found.
+        ValueError: When the module or attribute cannot be found.
 
     Returns:
         Callable: The function loaded from the module.
@@ -173,14 +192,15 @@ def string_to_callable(name: str, separator: str = ":") -> Callable:
             callable_object = eval(name, {"__builtins__": {}}, {})
         else:
             mod_name, attr_name = name.rsplit(separator, 1)
-            mod = importlib.import_module(mod_name)
-            callable_object = getattr(mod, attr_name)
+            callable_object = importlib.import_module(mod_name)
+            for attr in attr_name.split("."):
+                callable_object = getattr(callable_object, attr)
         # check if attribute is callable
         if callable(callable_object):
             return callable_object
         else:
             raise AttributeError(f"The imported object is not callable: '{name}'")
-    except (ValueError, ModuleNotFoundError) as e:
+    except (ValueError, ModuleNotFoundError, AttributeError) as e:
         msg = (
             f"Could not resolve the input string '{name}' into callable object."
             " The format of input should be 'module:attribute_name'.\n"
@@ -459,12 +479,12 @@ def resolve_matching_names_values(
                         f" '{target_strings_match_found[target_index]}' and '{re_key}'!"
                     )
                 # add to list
-                target_strings_match_found[target_index] = re_key
                 index_list.append(target_index)
                 names_list.append(potential_match_string)
                 values_list.append(value)
                 key_idx_list.append(key_index)
                 # add for regex key
+                target_strings_match_found[target_index] = re_key
                 keys_match_found[key_index].append(potential_match_string)
     # reorder keys if they should be returned in order of the query keys
     if preserve_order:
