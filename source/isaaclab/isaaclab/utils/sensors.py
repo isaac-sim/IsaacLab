@@ -37,7 +37,7 @@ def convert_camera_intrinsics_to_usd(
         logger.warning("Camera non square pixels are not supported by Omniverse. The average of f_x and f_y are used.")
 
     # warn about aperture offsets
-    if abs((c_x - float(width) / 2) > 1e-4 or (c_y - float(height) / 2) > 1e-4):
+    if abs(c_x - float(width) / 2) > 1e-4 or abs(c_y - float(height) / 2) > 1e-4:
         logger.warning(
             "Camera aperture offsets are not supported by Omniverse. c_x and c_y will be half of width and height"
         )
