@@ -132,7 +132,7 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
 
     def replicate(*args, **kwargs):
         replicate_calls.append(kwargs)
-        return {}, [object() for _ in env_paths]
+        return {}, [object() for _ in env_paths], []
 
     monkeypatch.setattr(newton_module, "get_current_stage", lambda: stage)
     monkeypatch.setattr(pxr, "UsdGeom", usd_geom)
