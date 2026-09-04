@@ -162,13 +162,8 @@ class _RenderStrategy(ABC):
         delta_time: float,
         render_data: OVRTXRenderData,
         consume_products: _RenderProductConsumer,
-        ordinal: int | None = None,
     ) -> None:
-        """Render one frame and deliver its products, either now or later.
-
-        ``ordinal`` names the ovstage publication the render must observe. Pass it while an ovstage
-        is attached to ``renderer``. Pass ``None`` otherwise.
-        """
+        """Render one frame and deliver its products, either now or later."""
 
 
 class _SyncRenderStrategy(_RenderStrategy):
@@ -206,10 +201,9 @@ class _SyncRenderStrategy(_RenderStrategy):
         delta_time: float,
         render_data: OVRTXRenderData,
         consume_products: _RenderProductConsumer,
-        ordinal: int | None = None,
     ) -> None:
         """Step OVRTX and consume its products inline. See :meth:`_RenderStrategy.render`."""
-        products = renderer.step(render_products=render_products, delta_time=delta_time, ordinal=ordinal)
+        products = renderer.step(render_products=render_products, delta_time=delta_time)
         consume_products(render_data, products)
 
 
@@ -409,7 +403,6 @@ class _AsyncRenderStrategy(_RenderStrategy):
         delta_time: float,
         render_data: OVRTXRenderData,
         consume_products: _RenderProductConsumer,
-        ordinal: int | None = None,
     ) -> None:
         """Start an asynchronous render and queue it for later delivery.
 
@@ -420,7 +413,7 @@ class _AsyncRenderStrategy(_RenderStrategy):
         # The flag marks the first frame. An empty ring cannot: scene writes can drain the ring
         # dry on every frame.
         is_first_frame = not self._primed
-        op = renderer.step_async(render_products=render_products, delta_time=delta_time, ordinal=ordinal)
+        op = renderer.step_async(render_products=render_products, delta_time=delta_time)
         self._enqueue_render_op(op, render_data, consume_products)
         self._primed = True
         if is_first_frame:
