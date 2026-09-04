@@ -55,6 +55,7 @@ Known gaps (tracked, not silently ignored):
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import newton
@@ -367,6 +368,13 @@ def _author_joint(stage: Usd.Stage, path: str, model: Model, joint_index: int, b
             " PRISMATIC and FIXED."
         )
 
+    # A joint that closes a kinematic loop is kept out of the articulation tree; Newton records that
+    # as no articulation membership, USD as ``excludeFromArticulation``. Without it the reimport
+    # sees a cycle and rejects the whole model.
+    articulation_of = model.joint_articulation
+    if articulation_of is not None and int(articulation_of.numpy()[joint_index]) < 0:
+        joint.CreateExcludeFromArticulationAttr().Set(True)
+
     parent = int(model.joint_parent.numpy()[joint_index])
     child = int(model.joint_child.numpy()[joint_index])
     if parent >= 0 and parent in body_paths:
@@ -468,6 +476,30 @@ def _canonical_paths(path_map: dict[str, int]) -> dict[int, str]:
     return canonical
 
 
+_SUPPORTED_GEOMETRY = frozenset({"BOX", "SPHERE", "CAPSULE", "CYLINDER", "PLANE", "MESH", "CONVEX_MESH"})
+
+
+def _reject_unsupported_geometry(model: Model, shape_indices: list[int]) -> None:
+    """Fail on geometry USD cannot carry before the provenance guard reports a bare count mismatch.
+
+    Heightfield terrain is generated in memory by the terrain importer and has no prim, so it also
+    has no path; without this check the shortfall surfaces as "N shapes but N-1 prim paths", which
+    hides the cause.
+
+    Raises:
+        NotImplementedError: Naming each unsupported geometry type present in the world.
+    """
+    types = model.shape_type.numpy()[shape_indices]
+    flags = model.shape_flags.numpy()[shape_indices]
+    present = {_geo_type_name(t) for t, f in zip(types, flags) if not (int(f) & int(newton.ShapeFlags.SITE))}
+    unsupported = sorted(present - _SUPPORTED_GEOMETRY)
+    if unsupported:
+        raise NotImplementedError(
+            f"Exporting shape geometry {unsupported} is not supported yet; supported types are"
+            f" {sorted(_SUPPORTED_GEOMETRY)}. Heightfield terrain and SDF shapes have no USD form here."
+        )
+
+
 def _world_member_indices(world_array: wp.array | None, entity_count: int, world: int) -> list[int]:
     """Model indices belonging to ``world``, in model order.
 
@@ -493,38 +525,51 @@ def _world_member_indices(world_array: wp.array | None, entity_count: int, world
 
 
 def _resolve_world_paths(
-    path_map: dict[str, int], model_indices: list[int], kind: str, exportable_count: int | None = None
+    path_map: dict[str, int],
+    model_indices: list[int],
+    kind: str,
+    exempt: set[int] | None = None,
+    describe=None,
 ) -> dict[int, str]:
     """Map each of a world's model indices to the prim path it was imported from.
 
     The importer's path maps are recorded against the *source* asset, so their indices are local to
     one world. This lifts them onto the model indices of the requested world, whose entities the
-    builder copies in source order.
+    builder copies in source order, and then checks coverage entity by entity rather than by count:
+    a path may point at an entity that has nothing to export (a site imported from a prim) and an
+    entity may lack a path (terrain generated in memory), and a count cannot tell the two apart.
 
     Args:
         path_map: An importer map of prim path to source-local index.
         model_indices: Model indices of the selected world, as returned by
             :func:`_world_member_indices`.
         kind: Entity kind, used in the error message.
-        exportable_count: How many of those entities USD can represent, when that is fewer than the
-            world holds. Defaults to ``None``, meaning all of them.
+        exempt: Model indices that legitimately have no prim (free joints, sites).
+        describe: Optional callable mapping a model index to a short label for the error message.
 
     Returns:
-        A map of model index to canonical prim path.
+        A map of model index to canonical prim path, covering every non-exempt entity of the world.
 
     Raises:
-        ValueError: If the world holds a different number of exportable entities than the source
-            asset, which would silently export a subset of what is being simulated.
+        ValueError: If a non-exempt entity of the world has no prim path, which would silently export
+            a subset of what is being simulated.
     """
     local_paths = _canonical_paths(path_map)
-    present = len(model_indices) if exportable_count is None else exportable_count
-    if local_paths and present != len(local_paths):
+    lifted = {
+        model_indices[local_index]: path
+        for local_index, path in local_paths.items()
+        if local_index < len(model_indices)
+    }
+    exempt = exempt or set()
+    unmapped = [index for index in model_indices if index not in lifted and index not in exempt]
+    if unmapped:
+        shown = ", ".join(describe(i) if describe else str(i) for i in unmapped[:6])
         raise ValueError(
-            f"The selected world holds {present} {kind} but the source asset provides prim paths for"
-            f" {len(local_paths)}. Exporting would silently drop the difference; select the world"
-            f" matching the asset, or supply an importer result covering every {kind} prim."
+            f"{len(unmapped)} {kind} in the selected world have no source prim path ({shown}"
+            f"{', ...' if len(unmapped) > 6 else ''}). Exporting would silently drop them; entities the"
+            f" scene adds without a prim cannot be written back to USD."
         )
-    return {model_indices[local_index]: path for local_index, path in local_paths.items()}
+    return {index: path for index, path in lifted.items() if index not in exempt}
 
 
 def _articulation_root_paths(body_paths: list[str]) -> list[str]:
@@ -559,6 +604,117 @@ def _articulation_root_paths(body_paths: list[str]) -> list[str]:
     return sorted({"/" + parts[0] for parts in split_paths})
 
 
+@dataclass(frozen=True)
+class WorldPrimPaths:
+    """Prim paths at which one world's entities are authored, keyed by model index.
+
+    Attributes:
+        bodies: Body index to the prim path it was imported from.
+        shapes: Shape index to the prim path its geometry is authored at.
+        joints: Joint index to the prim path it was imported from.
+    """
+
+    bodies: dict[int, str]
+    shapes: dict[int, str]
+    joints: dict[int, str]
+
+
+# ``ModelBuilder.approximate_meshes(keep_visual_shapes=True)`` -- which the importer runs on visible
+# meshes with a collision approximation -- copies the mesh as a visual-only shape labelled with this
+# suffix and turns the original into the collision-only shape. The copy has no prim of its own.
+_VISUAL_TWIN_SUFFIX = "_visual"
+
+
+def _visual_twins(model: Model, shape_indices: list[int]) -> dict[int, int]:
+    """Map each visual twin among ``shape_indices`` to the shape it was copied from."""
+    labels = getattr(model, "shape_label", None)
+    if labels is None:
+        return {}
+    flags = model.shape_flags.numpy()
+    bodies = model.shape_body.numpy()
+    collide = int(newton.ShapeFlags.COLLIDE_SHAPES)
+    by_label = {(labels[i], int(bodies[i])): i for i in shape_indices}
+    twins = {}
+    for i in shape_indices:
+        label = labels[i]
+        if not label.endswith(_VISUAL_TWIN_SUFFIX) or int(flags[i]) & collide:
+            continue
+        source = by_label.get((label[: -len(_VISUAL_TWIN_SUFFIX)], int(bodies[i])))
+        if source is not None and source != i:
+            twins[i] = source
+    return twins
+
+
+def resolve_world_prim_paths(model: Model, stage_info: dict[str, Any] | None, world: int = 0) -> WorldPrimPaths:
+    """Map one world's bodies, shapes and joints to the prim paths the export authors them at.
+
+    The importer records provenance against the source asset; this lifts it onto the model indices
+    of ``world`` and checks that every entity is covered, so an export cannot silently describe a
+    subset of what is simulated. Entities that legitimately have no prim -- free joints, sites, and
+    the visual twins the builder makes when approximating meshes -- are resolved or exempted here.
+
+    Args:
+        model: The finalized Newton model.
+        stage_info: The dict returned by :meth:`newton.ModelBuilder.add_usd`.
+        world: Index of the world to resolve. Defaults to ``0``.
+
+    Returns:
+        The prim paths of the world's entities, keyed by model index.
+
+    Raises:
+        ValueError: If ``stage_info`` carries no ``path_body_map``, if ``world`` is not a world of
+            the model, or if an entity of the world has no prim path.
+        NotImplementedError: If the world holds geometry outside the supported set.
+    """
+    if not stage_info or "path_body_map" not in stage_info:
+        raise ValueError(
+            "export_model_to_usd requires the dict returned by ModelBuilder.add_usd() to recover"
+            " source prim paths; export without prim-path provenance is not supported."
+        )
+
+    if not 0 <= world < max(model.world_count, 1):
+        raise ValueError(f"World {world} is out of range for a model with {model.world_count} world(s).")
+
+    body_indices = _world_member_indices(model.body_world, model.body_count, world)
+    shape_indices = _world_member_indices(model.shape_world, model.shape_count, world)
+    joint_indices = _world_member_indices(model.joint_world, model.joint_count, world)
+    twins = _visual_twins(model, shape_indices)
+    # Two kinds of entity legitimately have no prim. A floating body is expressed in USD by the
+    # *absence* of a joint, so its free joint has nowhere to be authored; and a site is a bare frame
+    # the cloner adds for sensors, carrying no geometry USD could hold.
+    joint_types = model.joint_type.numpy()
+    free_joints = {i for i in joint_indices if int(joint_types[i]) == int(newton.JointType.FREE)}
+    shape_flags = model.shape_flags.numpy()
+    sites = {i for i in shape_indices if int(shape_flags[i]) & int(newton.ShapeFlags.SITE)}
+
+    _reject_unsupported_geometry(model, [i for i in shape_indices if i not in sites and i not in twins])
+
+    body_labels = list(model.body_label) if getattr(model, "body_label", None) is not None else None
+    describe_body = (lambda i: f"{i}:{body_labels[i]}") if body_labels else None
+    describe_shape = lambda i: f"{i}:{_geo_type_name(model.shape_type.numpy()[i])}"  # noqa: E731
+    describe_joint = lambda i: f"{i}:{newton.JointType(int(joint_types[i])).name}"  # noqa: E731
+
+    body_paths = _resolve_world_paths(stage_info["path_body_map"], body_indices, "bodies", describe=describe_body)
+    shape_paths = _resolve_world_paths(
+        stage_info.get("path_shape_map", {}),
+        shape_indices,
+        "shapes",
+        exempt=sites | set(twins),
+        describe=describe_shape,
+    )
+    # A shape sharing its body's prim path is authored onto a child of that prim; a visual twin is
+    # authored as a sibling of the shape it was copied from.
+    body_map = stage_info["path_body_map"]
+    shape_paths = {i: path if path not in body_map else f"{path}/collision" for i, path in shape_paths.items()}
+    shape_paths.update(
+        {twin: f"{shape_paths[src]}{_VISUAL_TWIN_SUFFIX}" for twin, src in twins.items() if src in shape_paths}
+    )
+    joint_paths = _resolve_world_paths(
+        stage_info.get("path_joint_map", {}), joint_indices, "joints", exempt=free_joints, describe=describe_joint
+    )
+    return WorldPrimPaths(bodies=body_paths, shapes=shape_paths, joints=joint_paths)
+
+
 def export_model_to_usd(
     model: Model,
     usd_path: str,
@@ -569,9 +725,9 @@ def export_model_to_usd(
 ) -> str:
     """Export one world of a finalized Newton model to a USD stage.
 
-    Prims are authored at the prim paths the model was imported from, recovered from ``stage_info``,
-    so that a reimport reproduces the same body, joint and shape ordering. Entities without a source
-    path (procedurally added bodies, generated terrain) are out of scope and are skipped.
+    Prims are authored at the prim paths the model was imported from, recovered from ``stage_info``
+    through :func:`resolve_world_prim_paths`, so that a reimport reproduces the same body, joint and
+    shape ordering.
 
     A model cloned across environments holds one world per environment, all sharing the source
     asset's prim paths. Exactly one of them is exported, since a single set of prim paths cannot
@@ -598,34 +754,7 @@ def export_model_to_usd(
             the model, or if the selected world's entity counts disagree with the prim paths.
         NotImplementedError: If the model contains geometry or joint types outside the supported set.
     """
-    if not stage_info or "path_body_map" not in stage_info:
-        raise ValueError(
-            "export_model_to_usd requires the dict returned by ModelBuilder.add_usd() to recover"
-            " source prim paths; export without prim-path provenance is not supported."
-        )
-
-    if not 0 <= world < max(model.world_count, 1):
-        raise ValueError(f"World {world} is out of range for a model with {model.world_count} world(s).")
-
-    body_indices = _world_member_indices(model.body_world, model.body_count, world)
-    shape_indices = _world_member_indices(model.shape_world, model.shape_count, world)
-    joint_indices = _world_member_indices(model.joint_world, model.joint_count, world)
-    # Two kinds of entity legitimately have no prim. A floating body is expressed in USD by the
-    # *absence* of a joint, so its free joint has nowhere to be authored; and a site is a bare frame
-    # the cloner adds for sensors, carrying no geometry USD could hold. Neither counts against the
-    # source's prims.
-    joint_types = model.joint_type.numpy()[joint_indices]
-    articulated_joints = int(np.count_nonzero(joint_types != int(newton.JointType.FREE)))
-    shape_flags = model.shape_flags.numpy()[shape_indices]
-    geometric_shapes = int(np.count_nonzero((shape_flags & int(newton.ShapeFlags.SITE)) == 0))
-
-    body_paths = _resolve_world_paths(stage_info["path_body_map"], body_indices, "bodies")
-    shape_paths = _resolve_world_paths(
-        stage_info.get("path_shape_map", {}), shape_indices, "shapes", exportable_count=geometric_shapes
-    )
-    joint_paths = _resolve_world_paths(
-        stage_info.get("path_joint_map", {}), joint_indices, "joints", exportable_count=articulated_joints
-    )
+    paths = resolve_world_prim_paths(model, stage_info, world)
 
     stage = Usd.Stage.CreateNew(str(usd_path))
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
@@ -639,17 +768,12 @@ def export_model_to_usd(
         UsdPhysics.ArticulationRootAPI.Apply(UsdGeom.Xform.Define(stage, root_path).GetPrim())
     _author_scene(stage, f"{root_paths[0]}/physicsScene" if root_paths else "/physicsScene", stage_info)
 
-    for body_index, path in sorted(body_paths.items()):
+    for body_index, path in sorted(paths.bodies.items()):
         _author_body(stage, path, model, body_index)
-
-    for shape_index, path in sorted(shape_paths.items()):
-        # A shape sharing its body's prim path is authored directly onto that prim's geometry.
-        _author_shape(
-            stage, path if path not in stage_info["path_body_map"] else f"{path}/collision", model, shape_index
-        )
-
-    for joint_index, path in sorted(joint_paths.items()):
-        _author_joint(stage, path, model, joint_index, body_paths)
+    for shape_index, path in sorted(paths.shapes.items()):
+        _author_shape(stage, path, model, shape_index)
+    for joint_index, path in sorted(paths.joints.items()):
+        _author_joint(stage, path, model, joint_index, paths.bodies)
 
     stage.GetRootLayer().Save()
     return str(usd_path)

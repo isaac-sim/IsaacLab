@@ -11,3 +11,7 @@ Added
   returns it, so a live scene can be exported without holding on to the importer's result.
 * Added export of plane shapes as ``UsdGeom.Plane``; every task's ground plane previously raised
   :class:`NotImplementedError`.
+* Added :func:`~isaaclab_newton.sim.usd_export.resolve_world_prim_paths`, returning a
+  :class:`~isaaclab_newton.sim.usd_export.WorldPrimPaths` that maps one world's bodies, shapes and
+  joints to the prim paths the export authors them at. Visual copies the importer makes when
+  approximating a mesh for collision are authored as visual-only ``<prim>_visual`` siblings.

@@ -23,7 +23,7 @@ from __future__ import annotations
 import newton
 import numpy as np
 import pytest
-from isaaclab_newton.sim.usd_export import export_model_to_usd
+from isaaclab_newton.sim.usd_export import export_model_to_usd, resolve_world_prim_paths
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
@@ -53,6 +53,7 @@ def _author_source_stage(
     max_force: float = 33.0,
     joint_local_pos0: tuple[float, float, float] | None = None,
     visual_only_shape: bool = False,
+    mesh_shape: bool = False,
 ) -> None:
     """Author a minimal two-body articulation with a driven revolute joint.
 
@@ -116,6 +117,17 @@ def _author_source_stage(
         # shape, which the exporter must not turn into a collider.
         visual = UsdGeom.Cube.Define(stage, f"{root}/Link/visual_only")
         visual.GetSizeAttr().Set(0.2)
+
+    if mesh_shape:
+        # A visible mesh with a collision approximation: the importer turns it into a collision-only
+        # convex shape and adds a visual-only copy of the mesh without a prim of its own.
+        mesh = UsdGeom.Mesh.Define(stage, f"{root}/Link/mesh")
+        h = 0.1
+        mesh.CreatePointsAttr([Gf.Vec3f(x, y, z) for x in (-h, h) for y in (-h, h) for z in (-h, h)])
+        mesh.CreateFaceVertexCountsAttr([4] * 6)
+        mesh.CreateFaceVertexIndicesAttr([0, 1, 3, 2, 4, 6, 7, 5, 0, 4, 5, 1, 2, 3, 7, 6, 0, 2, 6, 4, 1, 5, 7, 3])
+        UsdPhysics.CollisionAPI.Apply(mesh.GetPrim())
+        UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim()).CreateApproximationAttr().Set(UsdPhysics.Tokens.convexHull)
 
     # Newton-specific extras, read through SchemaResolverNewton.
     joint_prim = joint.GetPrim()
@@ -355,6 +367,42 @@ def test_visual_only_shapes_do_not_become_colliders(tmp_path):
     )
 
 
+def test_visual_twins_of_approximated_meshes_round_trip(tmp_path):
+    """A mesh the importer approximates for collision keeps its visual copy through the round-trip.
+
+    ``add_usd`` runs ``approximate_meshes(keep_visual_shapes=True)`` on visible meshes that carry a
+    collision approximation: the prim becomes a collision-only convex shape and a visual-only copy
+    labelled ``<path>_visual`` is added with no prim of its own. The copy is exported as a visual
+    sibling, so the stage still renders what the model renders, and a reimport recreates both shapes.
+    """
+    root = "/World"
+    source = tmp_path / "with_mesh.usda"
+    _author_source_stage(str(source), root=root, mesh_shape=True)
+    m1, stage_info = _load(source)
+
+    labels = list(m1.shape_label)
+    twin_path = f"{root}/Link/mesh_visual"
+    assert twin_path in labels and twin_path not in stage_info["path_shape_map"], (
+        "fixture produced no visual twin; the test would be vacuous"
+    )
+    paths = resolve_world_prim_paths(m1, stage_info)
+    assert paths.shapes[labels.index(twin_path)] == twin_path
+
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+    exported = Usd.Stage.Open(str(out))
+    twin, collider = exported.GetPrimAtPath(twin_path), exported.GetPrimAtPath(f"{root}/Link/mesh")
+    assert twin.IsA(UsdGeom.Mesh) and not twin.HasAPI(UsdPhysics.CollisionAPI), "twin exported as a collider"
+    assert UsdGeom.Imageable(twin).ComputeVisibility() == UsdGeom.Tokens.inherited, "twin exported invisible"
+    assert collider.HasAPI(UsdPhysics.CollisionAPI), "approximated mesh lost its collider"
+    assert UsdGeom.Imageable(collider).ComputeVisibility() == UsdGeom.Tokens.invisible, "collider exported visible"
+
+    m2, stage_info2 = _load(out)
+    assert m2.shape_count == m1.shape_count
+    assert sorted(m1.shape_flags.numpy().tolist()) == sorted(m2.shape_flags.numpy().tolist())
+    assert set(resolve_world_prim_paths(m2, stage_info2).shapes.values()) == set(paths.shapes.values())
+
+
 def _rollout(model, frames: int = 40, fps: int = 60, substeps: int = 8) -> np.ndarray:
     """Simulate ``model`` and return its body-pose trajectory, shape [frames, bodies, 7]."""
     solver = newton.solvers.SolverXPBD(model)
@@ -584,3 +632,46 @@ def test_sites_are_not_counted_against_the_asset(source_stage, tmp_path):
 
 def _canonical_paths_count(stage_info) -> set[int]:
     return set(stage_info["path_shape_map"].values())
+
+
+def test_loop_closing_joint_round_trips(tmp_path):
+    """A joint marked ``excludeFromArticulation`` survives export, so a closed loop reimports.
+
+    A four-bar linkage closes its loop with a joint that USD keeps out of the articulation tree and
+    Newton imports with no articulation membership. Authoring it as an ordinary joint makes the
+    reimport reject the model with a cycle.
+    """
+    source = tmp_path / "loop.usda"
+    stage = Usd.Stage.CreateNew(str(source))
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    root = "/World"
+    UsdPhysics.ArticulationRootAPI.Apply(UsdGeom.Xform.Define(stage, root).GetPrim())
+    UsdPhysics.Scene.Define(stage, f"{root}/physicsScene")
+    for name, x in (("A", 0.0), ("B", 1.0), ("C", 2.0)):
+        body = UsdGeom.Xform.Define(stage, f"{root}/{name}")
+        body.AddTranslateOp().Set(Gf.Vec3d(x, 0.0, 0.0))
+        UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+        UsdPhysics.MassAPI.Apply(body.GetPrim()).GetMassAttr().Set(1.0)
+        cube = UsdGeom.Cube.Define(stage, f"{root}/{name}/col")
+        cube.GetSizeAttr().Set(0.1)
+        UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+    UsdPhysics.FixedJoint.Define(stage, f"{root}/anchor").GetBody1Rel().SetTargets([f"{root}/A"])
+    for name, b0, b1 in (("ab", "A", "B"), ("bc", "B", "C"), ("ca", "C", "A")):
+        joint = UsdPhysics.RevoluteJoint.Define(stage, f"{root}/{name}")
+        joint.GetBody0Rel().SetTargets([f"{root}/{b0}"])
+        joint.GetBody1Rel().SetTargets([f"{root}/{b1}"])
+        joint.GetAxisAttr().Set("Z")
+    stage.GetPrimAtPath(f"{root}/ca").GetAttribute("physics:excludeFromArticulation").Set(True)
+    stage.GetRootLayer().Save()
+
+    m1, stage_info = _load(source)
+    assert int(m1.joint_articulation.numpy()[-1]) < 0, (
+        "fixture's loop joint was not excluded; the test would be vacuous"
+    )
+    out = tmp_path / "exported.usda"
+    export_model_to_usd(m1, str(out), stage_info=stage_info)
+
+    m2, _ = _load(out)  # would raise "Joint graph contains a cycle" without the attribute
+    assert m2.joint_count == m1.joint_count
+    np.testing.assert_array_equal(m2.joint_articulation.numpy(), m1.joint_articulation.numpy())
