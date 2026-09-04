@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Task implementations for the extension."""
+"""Task registrations for the generated project."""
 
 from isaaclab_tasks.utils import import_packages
 

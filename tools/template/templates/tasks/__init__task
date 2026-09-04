@@ -15,13 +15,13 @@ from . import agents
 gym.register(
     id="{{ task.id }}",
 {% if task.workflow.name == "direct" %}
-    entry_point=f"{__name__}.{{ task.filename }}_env:{{ task.classname }}Env",
+    entry_point=f"{__name__}.{{ task.env_filename }}:{{ task.classname }}Env",
 {% else %}
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
 {% endif %}
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.{{ task.filename }}_env_cfg:{{ task.classname }}EnvCfg",
+        "env_cfg_entry_point": f"{__name__}.{{ task.env_cfg_filename }}:{{ task.classname }}EnvCfg",
 {% if rl_libraries | length == 1 %}
         "default_agent": "{{ rl_libraries[0].name }}",
 {% endif %}

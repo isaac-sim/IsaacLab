@@ -69,6 +69,15 @@ def test_wheel_builder_drops_workspace_members(source_checkout_root: Path, tmp_p
     assert not [dep for dep in dependencies if dep.lower().startswith("isaaclab")]
 
 
+def test_wheel_builder_includes_template_generator_dependencies(source_checkout_root: Path, tmp_path):
+    """The generated wheel must install everything required by the project generator."""
+    generated = _generate_wheel_pyproject(source_checkout_root, tmp_path)
+    dependencies = set(generated["project"]["dependencies"])
+
+    assert {"Jinja2", "rich"} <= dependencies
+    assert "InquirerPy" not in dependencies
+
+
 def test_wheel_console_delegates_to_the_full_isaaclab_cli(source_checkout_root: Path):
     """The wheel console command must expose the same workflows as a source installation."""
     module_path = source_checkout_root / "source" / "isaaclab" / "isaaclab" / "__main__.py"

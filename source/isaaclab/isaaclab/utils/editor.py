@@ -108,7 +108,7 @@ def build_extra_paths(project_dir: pathlib.Path, isaacsim_dir: pathlib.Path | No
     """Build Pyright search paths for simulator, local, and installed packages.
 
     Args:
-        project_dir: Project root used to discover local source packages.
+        project_dir: Project root used to discover local ``source/*`` or ``src`` packages.
         isaacsim_dir: Isaac Sim installation directory, or None.
 
     Returns:
@@ -118,6 +118,9 @@ def build_extra_paths(project_dir: pathlib.Path, isaacsim_dir: pathlib.Path | No
     source_dir = project_dir / "source"
     if source_dir.is_dir():
         paths.extend(path for path in sorted(source_dir.iterdir()) if path.is_dir())
+    src_dir = project_dir / "src"
+    if src_dir.is_dir():
+        paths.append(src_dir)
     paths.extend(find_isaaclab_package_paths())
 
     formatted_paths = []
