@@ -2461,18 +2461,15 @@ class OVRTXRenderer(BaseRenderer):
                 drain_errors = contextlib.nullcontext() if sys.exc_info()[0] is None else contextlib.suppress(Exception)
                 with drain_errors:
                     material_writer.drain()
-        # Advance the ordinal before the render call. The write floor above already bars writes at
-        # the current ordinal. If product consumption raises and the caller keeps stepping, a stale
-        # ordinal would make every later scene write hit that barrier.
-        step_ordinal = self._current_ordinal
-        self._current_ordinal += 1
         # The ovstage path always renders synchronously, so it steps the renderer directly. The
-        # render strategy serves the legacy path.
+        # render strategy serves the legacy path. The ordinal advances before consumption: a
+        # failed consumption must not leave the ordinal at the write floor set above.
         products = self._renderer.step(
             render_products=set(self._render_product_paths),
             delta_time=_RENDER_DELTA_TIME,
-            ordinal=step_ordinal,
+            ordinal=self._current_ordinal,
         )
+        self._current_ordinal += 1
         self._consume_products(render_data, products)
 
     def _close_ovstage(self) -> None:
