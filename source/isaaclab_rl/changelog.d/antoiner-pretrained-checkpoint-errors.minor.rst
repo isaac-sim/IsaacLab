@@ -13,5 +13,5 @@ Changed
   ``RuntimeError`` when a published checkpoint cannot be downloaded, for instance when the
   ``.pretrained_checkpoints`` cache directory is not writable, instead of returning ``None``. The
   originating error is chained as the cause. ``None`` is now returned only when the asset server does not
-  provide the checkpoint, so callers that treat ``None`` as "no checkpoint published for this task" are
-  unchanged; callers that relied on ``None`` to mask local download failures must catch ``RuntimeError``.
+  report the checkpoint, which covers both an unpublished checkpoint and a server that could not be
+  reached; callers that relied on ``None`` to mask local download failures must catch ``RuntimeError``.

@@ -239,8 +239,11 @@ def get_published_pretrained_checkpoint(
             to use the legacy checkpoint layout.
 
     Returns:
-        The path, or None when the asset server does not publish a checkpoint for this
-        task and backend combination. The reason is printed before returning.
+        The path, or None when the asset server does not report a checkpoint for this task
+        and backend combination. That covers both a checkpoint that was never published and
+        a server that could not be reached, which ``omni.client`` does not distinguish, so a
+        transient outage is not evidence that a checkpoint does not exist. The reason is
+        printed before returning.
 
     Raises:
         RuntimeError: If the checkpoint is published but could not be downloaded, for
