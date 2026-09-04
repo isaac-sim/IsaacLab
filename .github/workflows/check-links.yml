@@ -113,6 +113,7 @@ jobs:
           --exclude 'www\.nvidia\.com/en-us/security'
           --exclude 'bostondynamics\.com/reinforcement-learning-researcher-kit'
           --exclude 'opensource\.org'
+          --exclude 'ros\.org'
           --max-retries 5
           --retry-wait-time 10
           --timeout 20

@@ -15,6 +15,7 @@ from docker import container as container_cli
 from docker.utils import ContainerInterface, volume_mounts
 
 DOCKER_DIR = Path(__file__).resolve().parents[1]
+REPO_ROOT = DOCKER_DIR.parent
 
 
 @pytest.fixture
@@ -286,6 +287,20 @@ def test_kitless_compose_service_has_no_isaac_sim_mounts():
     assert forbidden_sources.isdisjoint(mount.get("source") for mount in mounts)
     assert all("DOCKER_ISAACSIM" not in mount["target"] for mount in mounts)
     assert all("/kit/" not in mount["target"].lower() for mount in mounts)
+
+
+def test_run_tests_links_isaac_sim_only_where_kit_is_installed():
+    """The kit-less image has no Kit under ``/isaac-sim``, which the runtime mounts create anyway.
+
+    Linking it as ``_isaac_sim`` there reads as a downloaded Isaac Sim, which ``isaaclab.sh``
+    refuses to combine with the image's ``VIRTUAL_ENV``.
+    """
+    script = (REPO_ROOT / ".github" / "actions" / "run-tests" / "run_tests.sh").read_text(encoding="utf-8")
+
+    link_lines = [line.strip() for line in script.splitlines() if "ln -s /isaac-sim _isaac_sim" in line]
+
+    assert link_lines
+    assert all("/isaac-sim/python.sh" in line for line in link_lines), link_lines
 
 
 def test_kitless_volume_key_resolves_owned_image_paths(monkeypatch: pytest.MonkeyPatch):
