@@ -182,6 +182,15 @@ jobs:
         fetch-depth: 1
         lfs: true
 
+    # The GPU runners have no uv on PATH; the invariant check below needs it.
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
+
+    # #6329 aborts the pip install when it strands a prebundled package's __init__.py
+    # (nvbugs 6343978: 14 Isaac Sim extensions fail to load). The images install with
+    # ``uv sync``, which never runs that guard, so assert the same invariant on the image.
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
@@ -190,6 +199,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
+        verify-test-path: docker/test/test_image_invariants.py
 
   build-curobo:
     name: Build cuRobo Docker Image
