@@ -412,8 +412,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
         clone_plan = ClonePlan(
             sources=(robot_path,),
             destinations=("/World/envs/env_{}/Robot",),
-            clone_mask=torch.ones((1, 2), dtype=torch.bool),
-            env_ids=torch.arange(2),
+            clone_mask=np.ones((1, 2), dtype=np.bool_),
+            env_ids=np.arange(2, dtype=np.int64),
         )
         for env_paths, plan, expected_shape_count in (
             ([], None, 2),
