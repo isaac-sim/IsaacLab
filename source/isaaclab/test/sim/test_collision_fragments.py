@@ -14,7 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 
-from pxr import UsdGeom, UsdPhysics
+from pxr import Sdf, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -104,12 +104,84 @@ def test_newton_collision_fragment_writes_newton_namespace():
 
 
 # -------------------------------------------------------------------------------------
-# apply_collision_properties dispatch (implicit anchor + multi-namespace)
+# MujocoCollisionCfg (isaaclab_newton)
+# -------------------------------------------------------------------------------------
+
+
+def test_mujoco_collision_fragment_writes_mjc_namespace():
+    from isaaclab_newton.sim.schemas import MujocoCollisionCfg, apply_mujoco_collision
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_xform(stage, "/World/C_mjc")
+    UsdPhysics.CollisionAPI.Apply(prim)
+    apply_mujoco_collision(
+        MujocoCollisionCfg(
+            condim=4,
+            group=2,
+            priority=3,
+            solimp=(0.9, 0.99, 0.001, 0.5, 2.0),
+            solmix=0.75,
+            solref=(0.02, 1.0),
+        ),
+        "/World/C_mjc",
+        stage,
+    )
+    assert prim.GetAttribute("mjc:condim").Get() == 4
+    assert prim.GetAttribute("mjc:group").Get() == 2
+    assert prim.GetAttribute("mjc:priority").Get() == 3
+    assert prim.GetAttribute("mjc:solimp").GetTypeName() == Sdf.ValueTypeNames.DoubleArray
+    assert tuple(prim.GetAttribute("mjc:solimp").Get()) == pytest.approx((0.9, 0.99, 0.001, 0.5, 2.0))
+    assert prim.GetAttribute("mjc:solmix").Get() == pytest.approx(0.75)
+    assert prim.GetAttribute("mjc:solref").GetTypeName() == Sdf.ValueTypeNames.DoubleArray
+    assert tuple(prim.GetAttribute("mjc:solref").Get()) == pytest.approx((0.02, 1.0))
+
+
+def test_mujoco_collision_fragment_writes_only_set_fields():
+    from isaaclab_newton.sim.schemas import MujocoCollisionCfg, apply_mujoco_collision
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_xform(stage, "/World/C_mjc_none")
+    UsdPhysics.CollisionAPI.Apply(prim)
+    apply_mujoco_collision(MujocoCollisionCfg(condim=6), "/World/C_mjc_none", stage)
+    assert prim.GetAttribute("mjc:condim").Get() == 6
+    for attr_name in ("group", "priority", "solimp", "solmix", "solref"):
+        assert not prim.GetAttribute(f"mjc:{attr_name}").IsValid()
+
+
+@pytest.mark.parametrize(
+    ("cfg", "message"),
+    [
+        ({"condim": 2}, "'condim' must be one of"),
+        ({"group": 6}, "'group' must be between"),
+        ({"priority": -1}, "'priority' must be non-negative"),
+        ({"solmix": -0.1}, "'solmix' must be non-negative"),
+        ({"solimp": (0.9, 0.95, 0.001, 0.5)}, "'solimp' must contain exactly 5"),
+        ({"solref": (0.02,)}, "'solref' must contain exactly 2"),
+    ],
+)
+def test_mujoco_collision_fragment_rejects_invalid_values(cfg, message):
+    from isaaclab_newton.sim.schemas import MujocoCollisionCfg, apply_mujoco_collision
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_xform(stage, "/World/C_mjc_invalid")
+    UsdPhysics.CollisionAPI.Apply(prim)
+    with pytest.raises(ValueError, match=message):
+        apply_mujoco_collision(MujocoCollisionCfg(**cfg), "/World/C_mjc_invalid", stage)
+
+
+# -------------------------------------------------------------------------------------
+# apply_collision_properties dispatch (explicit anchor creation + multi-namespace)
 # -------------------------------------------------------------------------------------
 
 
 def test_apply_collision_properties_composes_namespaces():
-    from isaaclab_newton.sim.schemas import NewtonCollisionCfg
+    from isaaclab_newton.sim.schemas import MujocoCollisionCfg, NewtonCollisionCfg
     from isaaclab_physx.sim.schemas import PhysxCollisionCfg
 
     from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, apply_collision_properties
@@ -124,18 +196,85 @@ def test_apply_collision_properties_composes_namespaces():
             UsdPhysicsCollisionCfg(collision_enabled=True),
             PhysxCollisionCfg(contact_offset=0.02),
             NewtonCollisionCfg(contact_margin=0.01),
+            MujocoCollisionCfg(condim=4),
         ],
-        stage,
+        create_if_missing=True,
+        stage=stage,
     )
     prim = stage.GetPrimAtPath("/World/C4")
     assert bool(UsdPhysics.CollisionAPI(prim))  # implicit anchor applied
     assert prim.GetAttribute("physics:collisionEnabled").Get() is True
     assert abs(prim.GetAttribute("physxCollision:contactOffset").Get() - 0.02) < 1e-6
     assert abs(prim.GetAttribute("newton:contactMargin").Get() - 0.01) < 1e-6
+    assert prim.GetAttribute("mjc:condim").Get() == 4
 
 
 # -------------------------------------------------------------------------------------
-# spawner slot accepts a fragment list + transition routing
+# expression targeting: gprim gate, pattern narrowing, zero-target warning
+# -------------------------------------------------------------------------------------
+
+
+def test_mesh_collision_fragments_author_on_every_matched_collider():
+    """Mesh-collision fragments author on all matched colliders; the expression is trusted."""
+    from isaaclab.sim.schemas import UsdPhysicsMeshCollisionCfg, apply_collision_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    xform_collider = UsdGeom.Xform.Define(stage, "/World/Grp/agg").GetPrim()
+    mesh_collider = UsdGeom.Cube.Define(stage, "/World/Grp/box").GetPrim()
+    UsdPhysics.CollisionAPI.Apply(xform_collider)
+    UsdPhysics.CollisionAPI.Apply(mesh_collider)
+
+    result = apply_collision_properties(
+        "/World/Grp(/.*)?", [UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull")], stage=stage
+    )
+
+    assert result is True
+    for prim in (xform_collider, mesh_collider):
+        assert prim.HasAPI(UsdPhysics.MeshCollisionAPI), prim.GetPath()
+        assert prim.GetAttribute("physics:approximation").HasAuthoredValue(), prim.GetPath()
+
+
+def test_collision_fragments_pattern_narrows_targets():
+    """An expression targets only the colliders it matches."""
+    from isaaclab_physx.sim.schemas import PhysxCollisionCfg
+
+    from isaaclab.sim.schemas import apply_collision_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    for path in ("/World/Bot/colL", "/World/Bot/colR"):
+        prim = UsdGeom.Cube.Define(stage, path).GetPrim()
+        UsdPhysics.CollisionAPI.Apply(prim)
+    result = apply_collision_properties("/World/Bot/colL", [PhysxCollisionCfg(contact_offset=0.02)], stage=stage)
+    assert result is True
+    left = stage.GetPrimAtPath("/World/Bot/colL")
+    right = stage.GetPrimAtPath("/World/Bot/colR")
+    assert abs(left.GetAttribute("physxCollision:contactOffset").Get() - 0.02) < 1e-6
+    assert not right.GetAttribute("physxCollision:contactOffset").HasAuthoredValue()
+
+
+def test_collision_fragments_zero_targets_warn_and_return_false(caplog):
+    """No collider matched and no creation requested: warn, author nothing, report failure."""
+    from isaaclab_physx.sim.schemas import PhysxCollisionCfg
+
+    from isaaclab.sim.schemas import apply_collision_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    with caplog.at_level("WARNING"):
+        result = apply_collision_properties(
+            "/World/DoesNotExist", [PhysxCollisionCfg(contact_offset=0.02)], stage=stage
+        )
+    assert result is False
+    assert "/World/DoesNotExist" in caplog.text
+
+
+# -------------------------------------------------------------------------------------
+# spawner slot accepts a fragment mapping + routing by type
 # -------------------------------------------------------------------------------------
 
 
@@ -148,7 +287,7 @@ def test_spawn_shape_with_collision_fragment_list():
     SimulationContext(SimulationCfg(dt=0.01))
     cfg = sim_utils.CuboidCfg(
         size=(1, 1, 1),
-        collision_props=[UsdPhysicsCollisionCfg(collision_enabled=True), PhysxCollisionCfg(contact_offset=0.03)],
+        collision_props={"": [UsdPhysicsCollisionCfg(collision_enabled=True), PhysxCollisionCfg(contact_offset=0.03)]},
     )
     cfg.func("/World/Cube", cfg)
     prim = sim_utils.get_current_stage().GetPrimAtPath("/World/Cube/geometry/mesh")
@@ -162,7 +301,7 @@ def test_spawn_shape_with_collision_fragment_list():
 
 
 def test_public_imports():
-    from isaaclab_newton.sim.schemas import NewtonCollisionCfg  # noqa: F401
+    from isaaclab_newton.sim.schemas import MujocoCollisionCfg, NewtonCollisionCfg, apply_mujoco_collision  # noqa: F401
     from isaaclab_physx.sim.schemas import PhysxCollisionCfg  # noqa: F401
 
     from isaaclab.sim.schemas import (  # noqa: F401
@@ -172,3 +311,26 @@ def test_public_imports():
         apply_collision_properties,
         apply_namespaced,
     )
+
+
+def test_collision_fragments_create_on_every_matched_prim():
+    """Creation applies ``CollisionAPI`` to every matched prim lacking it."""
+    from isaaclab_physx.sim.schemas import PhysxCollisionCfg
+
+    from isaaclab.sim.schemas import apply_collision_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    for path in ("/World/Grp", "/World/Grp/a", "/World/Grp/b"):
+        UsdGeom.Xform.Define(stage, path)
+
+    result = apply_collision_properties(
+        "/World/Grp(/.*)?", [PhysxCollisionCfg(contact_offset=0.02)], create_if_missing=True, stage=stage
+    )
+
+    assert result is True
+    for path in ("/World/Grp", "/World/Grp/a", "/World/Grp/b"):
+        prim = stage.GetPrimAtPath(path)
+        assert prim.HasAPI(UsdPhysics.CollisionAPI), path
+        assert prim.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02), path

@@ -1,0 +1,68 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+[project]
+name = "{{ name }}-dev"
+version = "0.1.0"
+description = "Development environment for the {{ name }} Isaac Lab project."
+requires-python = ">=3.12,<3.13"
+dependencies = ["{{ name }}"]
+
+[dependency-groups]
+dev = ["pre-commit"]
+
+[tool.uv]
+index-strategy = "unsafe-best-match"
+prerelease = "allow"
+package = false
+
+[tool.uv.sources]
+"{{ name }}" = { workspace = true }
+
+[tool.uv.workspace]
+members = ["source/{{ name }}"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "W"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["{{ name }}"]
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "isaaclab",
+    "isaaclab-rl",
+    "isaaclab-tasks",
+    "isaaclab-assets",
+    "first-party",
+    "local-folder",
+]
+
+[tool.ruff.lint.isort.sections]
+isaaclab = ["isaaclab", "isaaclab_newton", "isaaclab_ov", "isaaclab_physx"]
+"isaaclab-rl" = ["isaaclab_rl"]
+"isaaclab-tasks" = ["isaaclab_tasks"]
+"isaaclab-assets" = ["isaaclab_assets"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401", "F403"]
+"scripts/**/*.py" = ["E402"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.pyright]
+include = ["source", "scripts"]
+exclude = ["**/__pycache__", "**/docs", "**/logs", ".git", ".vscode"]
+typeCheckingMode = "basic"
+
+[[tool.uv.index]]
+url = "https://pypi.nvidia.com"
+explicit = false

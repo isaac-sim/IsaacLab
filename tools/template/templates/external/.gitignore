@@ -1,0 +1,15 @@
+.venv/
+.pytest_cache/
+.ruff_cache/
+**/__pycache__/
+**/*.egg-info/
+*.py[cod]
+
+logs/
+outputs/
+videos/
+wandb/
+
+.vscode/settings.json
+.vscode/launch.json
+pyrightconfig.json

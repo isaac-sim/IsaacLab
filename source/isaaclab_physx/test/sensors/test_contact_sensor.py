@@ -447,17 +447,17 @@ def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
 
         # Check values for cube 2 --> cube 1 is the only collision for cube 2
         torch.testing.assert_close(
-            contact_sensor_2.data.force_matrix_w.torch[:, :, 0],
-            contact_sensor_2.data.net_forces_w.torch,
+            contact_sensor_2.data.normal_force_matrix_w.torch[:, :, 0],
+            contact_sensor_2.data.net_normal_forces_w.torch,
         )
         # Check that forces are opposite and equal
         torch.testing.assert_close(
-            contact_sensor_2.data.force_matrix_w.torch[:, :, 0],
-            -contact_sensor.data.force_matrix_w.torch[:, :, 0],
+            contact_sensor_2.data.normal_force_matrix_w.torch[:, :, 0],
+            -contact_sensor.data.normal_force_matrix_w.torch[:, :, 0],
         )
         # Check values are non-zero (contacts are happening and are getting reported)
-        assert contact_sensor_2.data.net_forces_w.torch.sum().item() > 0.0
-        assert contact_sensor.data.net_forces_w.torch.sum().item() > 0.0
+        assert contact_sensor_2.data.net_normal_forces_w.torch.sum().item() > 0.0
+        assert contact_sensor.data.net_normal_forces_w.torch.sum().item() > 0.0
 
 
 def _author_nested_chain(prim_path: str):
@@ -512,7 +512,7 @@ def test_nested_rigid_body_hierarchy(setup_simulation, device, num_envs):
             _author_nested_chain(f"/World/envs/env_{env_id}/Robot")
         contact_sensor = ContactSensor(
             ContactSensorCfg(
-                prim_path="/World/envs/env_.*/Robot/.*",
+                prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
                 track_pose=True,
                 debug_vis=False,
                 update_period=0.0,
@@ -597,10 +597,10 @@ def test_no_contact_reporting(setup_simulation):
             _perform_sim_step(sim, scene, sim_dt)
 
         # check values are zero (contacts are happening but not reported)
-        assert contact_sensor.data.net_forces_w.torch.sum().item() == 0.0
-        assert contact_sensor.data.force_matrix_w.torch.sum().item() == 0.0
-        assert contact_sensor_2.data.net_forces_w.torch.sum().item() == 0.0
-        assert contact_sensor_2.data.force_matrix_w.torch.sum().item() == 0.0
+        assert contact_sensor.data.net_normal_forces_w.torch.sum().item() == 0.0
+        assert contact_sensor.data.normal_force_matrix_w.torch.sum().item() == 0.0
+        assert contact_sensor_2.data.net_normal_forces_w.torch.sum().item() == 0.0
+        assert contact_sensor_2.data.normal_force_matrix_w.torch.sum().item() == 0.0
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -637,7 +637,7 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
             _perform_sim_step(sim, scene, sim_dt)
 
         # Sanity: cube is on the ground and reporting non-zero contact force.
-        pre_reset_force_mag = torch.linalg.norm(contact_sensor.data.net_forces_w.torch, dim=-1).item()
+        pre_reset_force_mag = torch.linalg.norm(contact_sensor.data.net_normal_forces_w.torch, dim=-1).item()
         assert pre_reset_force_mag > 1.0, f"Expected non-zero contact force before reset; got {pre_reset_force_mag!r}"
 
         # Mimic ``ManagerBasedRLEnv._reset_idx``: write the post-reset asset pose, then
@@ -650,7 +650,7 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
         scene.reset(env_ids=env_ids)
 
         # The sensor must not return the cached pre-reset PhysX contact value here.
-        post_reset_force_mag = torch.linalg.norm(contact_sensor.data.net_forces_w.torch, dim=-1).item()
+        post_reset_force_mag = torch.linalg.norm(contact_sensor.data.net_normal_forces_w.torch, dim=-1).item()
         assert post_reset_force_mag == 0.0, (
             "Contact sensor returned stale pre-reset data after scene.reset(): "
             f"got {post_reset_force_mag}, expected 0.0 (pre-reset value was {pre_reset_force_mag})."
@@ -825,7 +825,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
         # check that forces are being reported match expected friction forces
         expected_friction, _, _, _ = scene["contact_sensor"].contact_view.get_friction_data(dt=sim_dt)
         expected_friction_torch = wp.to_torch(expected_friction)
-        reported_friction = scene["contact_sensor"].data.friction_forces_w.torch[0, 0, :]
+        reported_friction = scene["contact_sensor"].data.friction_force_matrix_w.torch[0, 0, :]
 
         torch.testing.assert_close(expected_friction_torch.sum(dim=0), reported_friction[0], atol=1e-6, rtol=1e-5)
 
@@ -1081,12 +1081,12 @@ def _test_sensor_contact(
 
 def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: ContactTestMode) -> None:
     if not sensor.cfg.track_friction_forces:
-        assert sensor._data.friction_forces_w is None
+        assert sensor._data.friction_force_matrix_w is None
         return
 
-    # check shape of the friction_forces_w tensor (wp.to_torch expands vec3f -> float32 trailing dim)
+    # check shape of the friction_force_matrix_w tensor (wp.to_torch expands vec3f -> float32 trailing dim)
     num_sensors = sensor.num_sensors
-    friction_torch = sensor._data.friction_forces_w.torch
+    friction_torch = sensor._data.friction_force_matrix_w.torch
     assert friction_torch.shape == (sensor.num_instances // num_sensors, num_sensors, 1, 3)
     # compare friction forces
     if mode == ContactTestMode.IN_CONTACT:

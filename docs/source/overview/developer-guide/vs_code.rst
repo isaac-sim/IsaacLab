@@ -24,7 +24,7 @@ Setting up Visual Studio Code
 
    The following instructions on setting up Visual Studio Code only work with
    :ref:`Isaac Sim Binaries Installation <isaaclab-binaries-installation>` and not with
-   :ref:`Pip Installation <isaaclab-pip-installation>`.
+   :ref:`Python Environment with Isaac Sim <installation-method-python-env>`.
 
 
 To setup the IDE, please follow these instructions:
@@ -48,21 +48,21 @@ If everything executes correctly, it should create the following files:
 
 * ``.vscode/launch.json``: Contains the launch configurations for debugging python code.
 * ``.vscode/settings.json``: Contains the settings for the python interpreter and the python environment.
+* ``pyrightconfig.json``: Contains machine-local import paths for Pyright-compatible language servers.
 
 .. note::
 
-   Type information for the Isaac Lab packages (``isaaclab``, ``isaaclab_tasks``, ...) works out of
-   the box without running this task: the in-repo source roots are registered via
-   ``extraPaths`` in the ``[tool.pyright]`` table of the root ``pyproject.toml``, which is read by
-   both Pylance (VS Code) and basedpyright (Cursor). Running ``setup_python_env`` is only needed to
-   select the Isaac Sim python interpreter and to index the Isaac Sim extensions (``omni.*``,
-   ``pxr.*``, ``isaacsim.*``).
+   Type information for the in-repository Isaac Lab packages (``isaaclab``, ``isaaclab_tasks``, ...)
+   works before running this task because their source roots are registered in ``pyproject.toml``.
+   The task generates a git-ignored ``pyrightconfig.json`` that inherits those settings and adds the
+   Isaac Sim extensions (``omni.*``, ``pxr.*``, ``isaacsim.*``) plus Isaac Lab packages discovered
+   in the active Python environment. This also supports editable and wheel installations.
 
 .. note::
 
    **Using Cursor?** Cursor cannot run Pylance (it is licensed for official VS Code builds only), so
    install the `basedpyright <https://marketplace.visualstudio.com/items?itemName=detachhead.basedpyright>`__
-   extension (``detachhead.basedpyright``) as the language server. It reads the same ``[tool.pyright]``
+   extension (``detachhead.basedpyright``) as the language server. It reads the same Pyright
    configuration, so Isaac Lab type information works there without any extra setup.
 
 For more information on VSCode support for Omniverse, please refer to the
@@ -82,9 +82,19 @@ To use it:
 1. Set your breakpoints.
 2. Run your code under debugpy like so:
 
-   .. code-block:: bash
+   .. tab-set::
 
-      ./isaaclab.sh -p -m debugpy --listen 3000 --wait-for-client -c "from isaaclab.cli import cli; cli()" [cli_args]
+      .. tab-item:: uv (Recommended)
+
+         .. code-block:: bash
+
+            uv run python -m debugpy --listen 3000 --wait-for-client -c "from isaaclab.cli import cli; cli()" [cli_args]
+
+      .. tab-item:: isaaclab.sh / isaaclab.bat
+
+         .. code-block:: bash
+
+            ./isaaclab.sh -p -m debugpy --listen 3000 --wait-for-client -c "from isaaclab.cli import cli; cli()" [cli_args]
 
 3. In VS Code, select the ``Python: Debugger Attach`` configuration from the Run and Debug panel
    and press the green play button or ``F5``. VS Code will connect to the debugpy server

@@ -23,8 +23,9 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     Meshes support both rigid and deformable properties. However, their schemas are applied at
     different levels in the USD hierarchy based on the type of the object. These are described below:
 
-    - Deformable body properties: Applied to the mesh prim: ``{prim_path}/geometry/mesh``.
-    - Collision properties: Applied to the mesh prim: ``{prim_path}/geometry/mesh``.
+    - Deformable body properties: Applied to the parent prim: ``{prim_path}``.
+    - Collision properties: Applied to the simulation mesh ``{prim_path}/sim_mesh`` for deformable bodies,
+      and to the mesh prim ``{prim_path}/geometry/mesh`` otherwise.
     - Rigid body properties: Applied to the parent prim: ``{prim_path}``.
 
     where ``{prim_path}`` is the path to the prim in the USD stage and ``{prim_path}/geometry/mesh``
@@ -32,7 +33,8 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 
     .. note::
         There are mututally exclusive parameters for rigid and deformable properties. If both are set,
-        then an error will be raised. This also holds if collision and deformable properties are set together.
+        then an error will be raised. If :attr:`collision_props` is set alongside deformable properties,
+        it must be given as collision fragments, since legacy cfgs cannot target the simulation mesh.
 
     """
 
@@ -73,6 +75,15 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         If None, then no physics material will be added.
     """
 
+    edge_refinement: float = 4.0
+    """Mesh edge refinement factor for deformable bodies.
+
+    The maximum surface edge length is the bounding-box diagonal divided by this value. Volume deformables use the
+    same normalized target for automatic tetrahedralization. The factor must be at least ``1.0``. For volume
+    deformables, values near ``1.0`` should be avoided because they can make TetWild tetrahedralization significantly
+    slower. Defaults to ``4.0``.
+    """
+
 
 @configclass
 class MeshSphereCfg(MeshCfg):
@@ -97,7 +108,7 @@ class MeshCuboidCfg(MeshCfg):
     func: Callable | str = "{DIR}.meshes:spawn_mesh_cuboid"
 
     size: tuple[float, float, float] = MISSING
-    """Size of the cuboid (in m)."""
+    """Size of the cuboid [m]."""
 
 
 @configclass
@@ -162,5 +173,3 @@ class MeshRectangleCfg(MeshCfg):
 
     size: tuple[float, float] = MISSING
     """Edge lengths of the rectangle along the X and Y axes [m]."""
-    resolution: tuple[int, int] = (5, 5)
-    """Resolution of the rectangle (in elements/edges per side)."""

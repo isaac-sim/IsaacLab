@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import quat_apply_inverse
 
@@ -50,7 +51,8 @@ def task_done_pick_place_table_frame(
         env: The RL environment instance.
         task_link_name: Name of the right wrist link on the robot.
         object_cfg: Configuration for the object entity.
-        table_cfg: Configuration for the destination table entity (must be a FrameView).
+        table_cfg: Configuration for the destination table entity (a static asset or
+            an entity exposing ``get_world_poses``).
         right_wrist_max_x: Maximum x position of the right wrist in table frame for task completion.
         min_x: Minimum x position of the object relative to the table for task completion.
         max_x: Maximum x position of the object relative to the table for task completion.
@@ -68,13 +70,15 @@ def task_done_pick_place_table_frame(
 
     object: RigidObject = env.scene[object_cfg.name]
     table = env.scene[table_cfg.name]
-    # Avoid importing sim views at module-load time for pure cfg loading.
-    if not hasattr(table, "get_world_poses"):
-        raise TypeError(f"Expected table '{table_cfg.name}' to expose get_world_poses(), got {type(table)}")
-
-    # Get table world pose
-    table_pos_w, table_quat_w = table.get_world_poses()
-    table_pos_w, table_quat_w = table_pos_w.torch, table_quat_w.torch
+    if isinstance(table, AssetBaseCfg):
+        # Static assets carry no runtime view; the spawned pose is exact since they never move.
+        table_pos_w = env.scene.env_origins + torch.tensor(table.init_state.pos, device=env.device)
+        table_quat_w = torch.tensor(table.init_state.rot, device=env.device).unsqueeze(0).expand(env.num_envs, -1)
+    elif hasattr(table, "get_world_poses"):
+        table_pos_w, table_quat_w = table.get_world_poses()
+        table_pos_w, table_quat_w = table_pos_w.torch, table_quat_w.torch
+    else:
+        raise TypeError(f"Expected table '{table_cfg.name}' to be a static asset or expose get_world_poses().")
 
     # Broadcast table pose if a single table is shared across all envs
     object_root_pos_w = object.data.root_pos_w.torch  # [num_envs, 3]

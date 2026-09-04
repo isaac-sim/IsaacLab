@@ -6,7 +6,10 @@
 import os
 import re
 import shutil
+import subprocess
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import tomllib
@@ -24,6 +27,47 @@ from ..utils import (
     run_command,
 )
 from .misc import command_vscode_settings
+
+_PACKAGE_INDEX_RETRIES = "12"
+_PACKAGE_INSTALL_RETRY_ATTEMPTS = 3
+_PACKAGE_INSTALL_RETRY_DELAY_SECONDS = 3.0
+
+
+def _run_package_install(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
+    """Run a package installation with command-level retries."""
+    return run_command(
+        cmd,
+        check=check,
+        retry_attempts=_PACKAGE_INSTALL_RETRY_ATTEMPTS,
+        retry_delay_seconds=_PACKAGE_INSTALL_RETRY_DELAY_SECONDS,
+    )
+
+
+@contextmanager
+def _arm_cmake_policy_compatibility() -> Iterator[None]:
+    """Allow legacy CMake projects to configure during ARM dependency installs.
+
+    CMake 4 removed compatibility with policy versions older than 3.5. Some
+    transitive ARM dependencies, including ``nlopt==2.6.2`` and
+    ``egl-probe==1.0.2``, still declare an older minimum. CMake provides this
+    environment variable specifically so users can configure such unmaintained
+    third-party projects without patching their sources.
+    """
+    if not is_arm():
+        yield
+        return
+
+    variable = "CMAKE_POLICY_VERSION_MINIMUM"
+    saved_value = os.environ.get(variable)
+    os.environ[variable] = "3.5"
+    print_info(f"ARM install sandbox: temporarily setting {variable}=3.5 for legacy dependency builds.")
+    try:
+        yield
+    finally:
+        if saved_value is None:
+            os.environ.pop(variable, None)
+        else:
+            os.environ[variable] = saved_value
 
 
 def _install_system_deps() -> None:
@@ -160,92 +204,6 @@ def _maybe_uninstall_prebundled_torch(
     )
 
 
-def _ensure_swig_installed() -> bool:
-    """Install ``swig`` via apt when missing so the nlopt source build can run.
-
-    Returns:
-        ``True`` when this call installed ``swig`` (so the caller is responsible
-        for purging it afterwards), ``False`` when ``swig`` was already present or
-        could not be installed.
-    """
-    if shutil.which("swig"):
-        return False
-    if os.geteuid() != 0 and not shutil.which("sudo"):
-        print_warning(
-            "swig is required to build nlopt==2.6.2 from source on ARM but is missing and sudo is "
-            "unavailable. Pre-install swig (or nlopt==2.6.2) manually; the build below will fail otherwise."
-        )
-        return False
-    print_info("Temporarily installing swig to build nlopt==2.6.2 from source on ARM...")
-    update = ["apt-get", "update"]
-    run_command(["sudo"] + update if os.geteuid() != 0 else update)
-    install = ["apt-get", "install", "-y", "--no-install-recommends", "swig"]
-    run_command(["sudo"] + install if os.geteuid() != 0 else install)
-    return shutil.which("swig") is not None
-
-
-def _purge_swig() -> None:
-    """Remove the ``swig`` package that was installed for the nlopt build.
-
-    ``swig`` is GPL-licensed and must not be shipped (e.g. in the Docker image),
-    so it is purged immediately after nlopt is built. ``nlopt`` is already a
-    compiled wheel at this point and does not need ``swig`` at runtime.
-    Best-effort: failures are logged but do not abort the install.
-    """
-    print_info("Removing swig now that nlopt is built (it must not remain installed)...")
-    purge = ["apt-get", "purge", "-y", "--auto-remove", "swig"]
-    run_command(["sudo"] + purge if os.geteuid() != 0 else purge, check=False)
-
-
-def _maybe_preinstall_arm_nlopt(python_exe: str, pip_cmd: list[str]) -> None:
-    """Pre-install ``nlopt==2.6.2`` on ARM Linux to skip the source-build fallback.
-
-    There is no aarch64 manylinux wheel for the ``nlopt 2.6.2`` version pinned
-    by ``isaacteleop[retargeters]``, so pip falls back to a CMake source build
-    that hides the host-Python ``numpy`` from its isolated build env. Mirror
-    the docker/Dockerfile.base arm64 step: install ``setuptools wheel numpy``
-    in the host Python first, then ``--no-build-isolation`` install nlopt so
-    later submodule installs see it as already satisfied.
-
-    The source build requires ``swig``. When it is missing it is installed via
-    apt only for the duration of the build and purged afterwards, so the
-    GPL-licensed ``swig`` package is never left behind — in particular it is
-    never shipped in the Docker image. In the Docker build nlopt is pre-installed,
-    so this function returns early and never touches ``swig`` (the Dockerfile
-    manages its own temporary swig install and purge).
-    """
-    if is_windows() or not is_arm():
-        return
-
-    probe_result = run_command(
-        [
-            python_exe,
-            "-c",
-            "import importlib.metadata as metadata; import nlopt; "
-            "raise SystemExit(0 if metadata.version('nlopt') == '2.6.2' else 1)",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if probe_result.returncode == 0:
-        print_info("nlopt==2.6.2 is already installed on ARM.")
-        return
-
-    # The from-source build needs swig; install it only if missing and purge it
-    # afterwards so swig is never left behind (it is GPL and must not ship).
-    swig_installed_by_us = _ensure_swig_installed()
-    try:
-        print_info("Pre-installing nlopt==2.6.2 on ARM (no-build-isolation)...")
-        print_info("  step 1/2: ensure setuptools/wheel/numpy are importable for the no-build-isolation backend")
-        run_command(pip_cmd + ["install", "setuptools", "wheel", "numpy"])
-        print_info("  step 2/2: install nlopt==2.6.2 with --no-build-isolation")
-        run_command(pip_cmd + ["install", "--no-build-isolation", "nlopt==2.6.2"])
-    finally:
-        if swig_installed_by_us:
-            _purge_swig()
-
-
 # Packages forming the Pink IK dependency stack. Pinocchio is installed via the
 # cmeel ``pin`` wheel, which provides the ``pinocchio`` Python module under
 # ``cmeel.prefix/lib/python3.12/site-packages/`` and registers it on sys.path via a
@@ -319,7 +277,7 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
 
     print_info("Pink IK dependency probe failed. Force-installing the cmeel pinocchio and DAQP stack.")
     pink_ik_stack = _pink_ik_stack()
-    install_result = run_command(
+    install_result = _run_package_install(
         pip_cmd + ["install", "--upgrade", "--force-reinstall", *pink_ik_stack],
         check=False,
     )
@@ -386,23 +344,25 @@ def _ensure_cuda_torch() -> None:
         check=False,
     )
 
-    run_command(pip_cmd + ["install", "--index-url", index_url, f"torch=={torch_ver}", f"torchvision=={tv_ver}"])
+    _run_package_install(
+        pip_cmd + ["install", "--index-url", index_url, f"torch=={torch_ver}", f"torchvision=={tv_ver}"]
+    )
 
 
 def _ensure_newton() -> None:
-    """Install the pinned Newton git build, replacing any index version.
+    """Install the pinned Newton release, replacing any other version.
 
     Isaac Sim bundles ``newton[sim]==1.2.0``, which satisfies the loose core bound in
     the root pyproject, so the centralized install would otherwise keep the older
-    Newton. Isaac Lab owns the exact commit via ``[tool.uv].override-dependencies``
+    Newton. Isaac Lab owns the exact pin via ``[tool.uv].override-dependencies``
     (``uv sync`` honors it, ``pip``/``uv pip`` installs do not), so force it in here
     from that single source.
     """
     overrides = _load_root_pyproject().get("tool", {}).get("uv", {}).get("override-dependencies", [])
     requirement = next((r for r in overrides if _requirement_name(r) == "newton"), None)
     if not requirement:
-        raise KeyError("Newton git pin is missing from [tool.uv].override-dependencies in the root pyproject.toml.")
-    commit = _pinned_version("newton")
+        raise KeyError("Newton pin is missing from [tool.uv].override-dependencies in the root pyproject.toml.")
+    pin = requirement.rsplit("@", 1)[-1] if "@" in requirement else requirement.rsplit("==", 1)[-1]
     # Newton-matched schemas (isaacsim pins the older ==0.2.0); force it alongside newton.
     schemas = next((r for r in overrides if _requirement_name(r) == "newton-usd-schemas"), None)
 
@@ -410,18 +370,19 @@ def _ensure_newton() -> None:
     pip_cmd = get_pip_command(python_exe)
     using_uv = pip_cmd[0] == "uv"
 
-    # git installs record the commit in freeze output; skip if it is already present.
     frozen = run_command(pip_cmd + ["freeze"], capture_output=True, text=True, check=False)
     if frozen.returncode == 0 and any(
-        _requirement_name(line) == "newton" and commit in line for line in frozen.stdout.splitlines()
+        line.strip().lower() == f"newton=={pin}" or line.strip().lower().endswith(f"@{pin}")
+        for line in frozen.stdout.splitlines()
+        if _requirement_name(line) == "newton"
     ):
-        print_info(f"Newton git build ({commit[:10]}) already installed.")
+        print_info(f"Newton {pin} already installed.")
         return
 
-    print_info(f"Installing pinned Newton git build ({commit[:10]})...")
+    print_info(f"Installing Newton {pin}...")
     uninstall_flags = ["-y"] if not using_uv else []
     run_command(pip_cmd + ["uninstall"] + uninstall_flags + ["newton"], check=False)
-    run_command(pip_cmd + ["install", requirement, *([schemas] if schemas else [])])
+    _run_package_install(pip_cmd + ["install", requirement, *([schemas] if schemas else [])])
 
 
 # Isaac Sim install settings.
@@ -513,7 +474,16 @@ def _root_extra_dependencies(extra: str) -> list[str]:
     if extra not in optional:
         print_warning(f"Unknown root extra '{extra}'. Available: {', '.join(sorted(optional))}. Skipping.")
         return []
-    return [requirement for requirement in optional[extra] if not _is_isaaclab_requirement(requirement)]
+    # Isaac Sim is excluded here even though ``teleop`` lists it: pip has no override
+    # mechanism, so resolving it alongside isaacteleop in one invocation is impossible
+    # (isaacsim pins websockets==12.0, isaacteleop[cloudxr] needs >=14.0). The dedicated
+    # ``isaacsim`` install token handles it in its own pass, which resolves sequentially.
+    return [
+        requirement
+        for requirement in optional[extra]
+        if not _is_isaaclab_requirement(requirement)
+        and _normalize_package_name(_requirement_name(requirement)) != "isaacsim"
+    ]
 
 
 def _install_root_extra(extra: str) -> None:
@@ -524,7 +494,7 @@ def _install_root_extra(extra: str) -> None:
     python_exe = extract_python_exe()
     pip_cmd = get_pip_command(python_exe)
     print_info(f"Installing '{extra}' extra dependencies from the root pyproject...")
-    run_command(pip_cmd + ["install"] + dependencies)
+    _run_package_install(pip_cmd + ["install"] + dependencies)
 
 
 def _install_centralized_dependencies(pip_cmd: list[str], optional_submodules: list[str]) -> None:
@@ -542,7 +512,7 @@ def _install_centralized_dependencies(pip_cmd: list[str], optional_submodules: l
     core_dependencies = _root_core_dependencies()
     if core_dependencies:
         print_info("Installing core dependencies from the root pyproject...")
-        run_command(pip_cmd + ["install"] + core_dependencies)
+        _run_package_install(pip_cmd + ["install"] + core_dependencies)
     # dict preserves order while de-duplicating extras shared across submodules.
     extras: dict[str, None] = {}
     for submodule_name in optional_submodules:
@@ -636,27 +606,41 @@ def _upgrade_extension_pip_dependencies(
 
         for requirement in matching_requirements:
             print_info(f"Upgrading {dependency_name} for {distribution_name}: {requirement}")
-            run_command(_get_pip_upgrade_command(pip_cmd, dependency_name, requirement))
+            _run_package_install(_get_pip_upgrade_command(pip_cmd, dependency_name, requirement))
 
 
 def _install_isaacsim() -> None:
-    """Install Isaac Sim pip package if not already present."""
+    """Install the full Isaac Sim pip runtime if not already present."""
     python_exe = extract_python_exe()
     pip_cmd = get_pip_command(python_exe)
 
-    # Check if already installed.
-    result = run_command(
+    version_result = run_command(
         [python_exe, "-c", "from importlib.metadata import version; print(version('isaacsim'))"],
         capture_output=True,
         text=True,
         check=False,
     )
-    if result.returncode == 0:
-        installed_ver = result.stdout.strip()
-        print_info(f"Isaac Sim {installed_ver} already installed.")
-        return
+    installed_ver = version_result.stdout.strip() if version_result.returncode == 0 else ""
+    if installed_ver:
+        runtime_result = run_command(
+            [
+                python_exe,
+                "-c",
+                "import isaacsim, sys; sys.exit(0 if getattr(isaacsim, 'SimulationApp', None) is not None else 1)",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if runtime_result.returncode == 0:
+            print_info(f"Isaac Sim {installed_ver} already installed.")
+            return
+        requirement = f"isaacsim[all,extscache]=={installed_ver}"
+        print_info(f"Completing Isaac Sim {installed_ver} installation with all and extscache extras...")
+    else:
+        requirement = _isaacsim_requirement()
+        print_info("Installing Isaac Sim...")
 
-    print_info("Installing Isaac Sim...")
     using_uv = pip_cmd[0] == "uv"
     extra_flags = []
     if using_uv:
@@ -664,11 +648,11 @@ def _install_isaacsim() -> None:
         # (isaacsim is on pypi.nvidia.com, its deps are on pypi.org).
         extra_flags = ["--index-strategy", "unsafe-best-match"]
 
-    run_command(
+    _run_package_install(
         pip_cmd
         + [
             "install",
-            _isaacsim_requirement(),
+            requirement,
             "--extra-index-url",
             NVIDIA_INDEX_URL,
         ]
@@ -679,18 +663,18 @@ def _install_isaacsim() -> None:
 # Source directories installed on every ./isaaclab.sh -i invocation (even "core").
 # Order must respect inter-package dependencies (topological sort):
 #   isaaclab first, then ppisp (no inter-package deps, precedes renderer backends),
-#   then contrib (needed by assets), then assets, then tasks (needed by rl),
-#   then rl. Packages with only an isaaclab dep can go anywhere after isaaclab.
+#   then contrib and the backend packages newton/physx (needed by assets), then
+#   assets, then tasks (needed by rl), then rl. Packages with only an isaaclab
+#   dep can go anywhere after isaaclab.
 CORE_ISAACLAB_SUBMODULES: list[str] = [
     "isaaclab",
     "isaaclab_ppisp",
     "isaaclab_contrib",
+    "isaaclab_newton",
+    "isaaclab_physx",
     "isaaclab_assets",
     "isaaclab_experimental",
-    "isaaclab_newton",
     "isaaclab_ov",
-    "isaaclab_ovphysx",
-    "isaaclab_physx",
     "isaaclab_tasks",
     "isaaclab_tasks_experimental",
     "isaaclab_rl",
@@ -725,11 +709,12 @@ VALID_EXTRA_FEATURES: set[str] = {
     "newton",
     "ov",
     "rl",
+    "tetrahedralization",
     "visualizer",
 }
 
 # Extra features excluded from the automatic ``-i all`` / ``-i`` install.
-MANUAL_EXTRA_FEATURES: set[str] = {"contrib", "ov"}
+MANUAL_EXTRA_FEATURES: set[str] = {"contrib", "ov", "tetrahedralization"}
 
 
 def split_install_items(install_type: str) -> list[str]:
@@ -777,7 +762,7 @@ def _install_isaaclab_submodules(isaaclab_submodules: list[str]) -> None:
             print_warning(f"Submodule directory not found or missing pyproject.toml: {item}")
             continue
         print_info(f"Installing submodule: {pkg_name}")
-        run_command(pip_cmd + ["install", "--editable", str(item)])
+        _run_package_install(pip_cmd + ["install", "--editable", str(item)])
         _upgrade_extension_pip_dependencies(
             python_exe,
             pip_cmd,
@@ -840,13 +825,14 @@ def _install_ov_extra_dependencies(selector: str) -> None:
         )
     if "all" in selectors:
         selectors.update({"ovrtx", "ovphysx"})
-    # The ov[ovrtx] selector maps to the root 'rtx' extra; ov[ovphysx] to 'ov'.
+    # The OV selectors map directly to the matching root extras.
+    # ovstage is bundled into both extras and installed automatically.
     if "ovrtx" in selectors:
         print_info("Installing OVRTX optional dependency...")
-        _install_root_extra("rtx")
+        _install_root_extra("ovrtx")
     if "ovphysx" in selectors:
         print_info("Installing OVPhysX optional dependency...")
-        _install_root_extra("ov")
+        _install_root_extra("ovphysx")
 
 
 def _install_extra_feature(feature_name: str, selector: str = "") -> None:
@@ -877,6 +863,10 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
         print_info(f"Installing RL framework extras: {extra}...")
         for framework in sorted(frameworks):
             _install_root_extra(framework)
+    elif feature_name == "tetrahedralization":
+        if selector:
+            print_warning(f"tetrahedralization does not support selectors (got {selector!r}).")
+        _install_root_extra("tetrahedralization")
     elif feature_name == "visualizer":
         extra = selector if selector else "all"
         backends = {"newton", "rerun", "viser"} if extra == "all" else {extra}
@@ -1072,10 +1062,14 @@ def _repoint_prebundle_packages() -> None:
         print_debug("No pip_prebundle directories found under Isaac Sim.")
         return
 
+    # Extras are expanded as wheel trees nested below pip_prebundle.
+    package_roots = prebundle_dirs | {
+        path for prebundle_dir in prebundle_dirs for path in prebundle_dir.glob("*[[]*[]]/*") if path.is_dir()
+    }
     repointed = 0
-    for prebundle_dir in prebundle_dirs:
+    for package_root in package_roots:
         for pkg_name in _PREBUNDLE_REPOINT_PACKAGES:
-            prebundled = prebundle_dir / pkg_name
+            prebundled = package_root / pkg_name
             venv_pkg = site_packages / pkg_name
 
             if not venv_pkg.exists():
@@ -1128,9 +1122,9 @@ def _repoint_prebundle_packages() -> None:
     # env package into the prebundle, which is a real directory by design.
     if use_symlinks and (site_packages / "torch").exists():
         shadowing = [
-            prebundle_dir / "torch"
-            for prebundle_dir in prebundle_dirs
-            if (prebundle_dir / "torch").is_dir() and not (prebundle_dir / "torch").is_symlink()
+            package_root / "torch"
+            for package_root in package_roots
+            if (package_root / "torch").is_dir() and not (package_root / "torch").is_symlink()
         ]
         if shadowing:
             raise RuntimeError(
@@ -1160,15 +1154,21 @@ def command_install(install_type: str = "all") -> None:
 
               - Optional submodules: ``mimic``, ``teleop``
               - Extra features: ``contrib[rlinf]``, ``rl[<framework>]``,
-                ``visualizer[<backend>]``, ``ov[ovrtx|ovphysx|all]``
+                ``tetrahedralization``, ``visualizer[<backend>]``,
+                ``ov[ovrtx|ovphysx|all]``
               - Special: ``isaacsim``
 
               Examples::
 
                   ./isaaclab.sh -i rl[rsl-rl]
+                  ./isaaclab.sh -i tetrahedralization
                   ./isaaclab.sh -i mimic,visualizer[rerun]
                   ./isaaclab.sh -i teleop,rl[skrl],ov[ovrtx]
     """
+
+    # Let package managers retry failed requests without repeating complete install commands.
+    os.environ.setdefault("PIP_RETRIES", _PACKAGE_INDEX_RETRIES)
+    os.environ.setdefault("UV_HTTP_RETRIES", _PACKAGE_INDEX_RETRIES)
 
     # Install system dependencies first.
     _install_system_deps()
@@ -1281,79 +1281,80 @@ def command_install(install_type: str = "all") -> None:
     # leave new dangling symlinks in Isaac Sim's prebundles (nvbugs 6343978).
     dangling_symlinks_before = _find_dangling_prebundle_symlinks()
 
-    try:
-        # Upgrade pip first to avoid compatibility issues (skip when using uv).
-        if not using_uv:
-            print_info("Upgrading pip...")
-            run_command(pip_cmd + ["install", "--upgrade", "pip"])
+    with _arm_cmake_policy_compatibility():
+        try:
+            # Upgrade pip first to avoid compatibility issues (skip when using uv).
+            if not using_uv:
+                print_info("Upgrading pip...")
+                _run_package_install(pip_cmd + ["install", "--upgrade", "pip"])
 
-        # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
-        run_command(pip_cmd + ["install", "setuptools<82.0.0"])
+            # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
+            _run_package_install(pip_cmd + ["install", "setuptools<82.0.0"])
 
-        # On ARM Linux pre-install nlopt to dodge its from-source build fallback.
-        _maybe_preinstall_arm_nlopt(python_exe, pip_cmd)
+            # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
+            _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)
 
-        # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
-        _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)
+            # Install Isaac Sim if requested.
+            if install_isaacsim:
+                _install_isaacsim()
 
-        # Install Isaac Sim if requested.
-        if install_isaacsim:
-            _install_isaacsim()
+            # Install pytorch (version based on arch).
+            _ensure_cuda_torch()
 
-        # Install pytorch (version based on arch).
-        _ensure_cuda_torch()
+            # Install all submodules (core set + any explicitly requested optional ones).
+            _install_isaaclab_submodules(submodules_to_install)
 
-        # Install all submodules (core set + any explicitly requested optional ones).
-        _install_isaaclab_submodules(submodules_to_install)
+            # The submodules no longer declare third-party dependencies; install the
+            # centralized core requirements (and optional-submodule extras) from the
+            # root pyproject. torch is excluded — it is handled by _ensure_cuda_torch.
+            _install_centralized_dependencies(pip_cmd, requested_optional_submodules)
 
-        # The submodules no longer declare third-party dependencies; install the
-        # centralized core requirements (and optional-submodule extras) from the
-        # root pyproject. torch is excluded — it is handled by _ensure_cuda_torch.
-        _install_centralized_dependencies(pip_cmd, requested_optional_submodules)
+            # Install requested optional submodule dependency extras.
+            if optional_submodule_extra_dependencies:
+                print_info("Installing optional submodule dependencies...")
+                for submodule_name, selector in optional_submodule_extra_dependencies:
+                    _install_optional_submodule_extra_dependencies(submodule_name, selector)
 
-        # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
-        # pinned Newton git build (the default physics engine) over it.
-        _ensure_newton()
+            # Install requested extra feature dependencies.
+            if extra_features:
+                print_info("Installing extra feature dependencies...")
+                for feature_name, selector in extra_features:
+                    _install_extra_feature(feature_name, selector)
 
-        # Install requested optional submodule dependency extras.
-        if optional_submodule_extra_dependencies:
-            print_info("Installing optional submodule dependencies...")
-            for submodule_name, selector in optional_submodule_extra_dependencies:
-                _install_optional_submodule_extra_dependencies(submodule_name, selector)
+            # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
+            # pinned Newton release (the default physics engine) over it. This runs after every
+            # install pass because they go through pip, which does not see
+            # [tool.uv].override-dependencies: isaacsim-asset-isolated's exact mujoco and
+            # newton-usd-schemas pins would otherwise stand.
+            _ensure_newton()
 
-        # Install requested extra feature dependencies.
-        if extra_features:
-            print_info("Installing extra feature dependencies...")
-            for feature_name, selector in extra_features:
-                _install_extra_feature(feature_name, selector)
+            # In some rare cases, torch might not be installed properly by pyproject.toml, add one more check here.
+            # Can prevent that from happening.
+            _ensure_cuda_torch()
 
-        # In some rare cases, torch might not be installed properly by pyproject.toml, add one more check here.
-        # Can prevent that from happening.
-        _ensure_cuda_torch()
+            # Ensure Pink IK's runtime dependencies are actually importable.  The kit-bundled
+            # ``pin-pink`` in recent Isaac Sim images can cause transitive dependencies from
+            # ``pip install -e source/isaaclab`` to be silently skipped.
+            _ensure_pink_ik_dependencies_installed(python_exe, pip_cmd, probe_env=probe_env)
 
-        # Ensure Pink IK's runtime dependencies are actually importable.  The kit-bundled
-        # ``pin-pink`` in recent Isaac Sim images can cause transitive dependencies from
-        # ``pip install -e source/isaaclab`` to be silently skipped.
-        _ensure_pink_ik_dependencies_installed(python_exe, pip_cmd, probe_env=probe_env)
+            # Repoint prebundled packages in Isaac Sim to the environment's copies so
+            # the active venv/conda versions are always loaded regardless of PYTHONPATH
+            # ordering (e.g. torch+cu130 in venv vs torch+cu128 in prebundle on aarch64).
+            _repoint_prebundle_packages()
 
-        # Repoint prebundled packages in Isaac Sim to the environment's copies so
-        # the active venv/conda versions are always loaded regardless of PYTHONPATH
-        # ordering (e.g. torch+cu130 in venv vs torch+cu128 in prebundle on aarch64).
-        _repoint_prebundle_packages()
+            # Fail loud if any pip operation above broke Isaac Sim's cross-extension
+            # symlink farms. Prebundle deletions on their own are routine (pip
+            # replaces those packages in site-packages, which shadows the prebundle
+            # at runtime); only newly dangling symlinks break extension startup.
+            _assert_no_new_dangling_prebundle_symlinks(dangling_symlinks_before)
 
-        # Fail loud if any pip operation above broke Isaac Sim's cross-extension
-        # symlink farms. Prebundle deletions on their own are routine (pip
-        # replaces those packages in site-packages, which shadows the prebundle
-        # at runtime); only newly dangling symlinks break extension startup.
-        _assert_no_new_dangling_prebundle_symlinks(dangling_symlinks_before)
-
-    finally:
-        # Restore LD_PRELOAD if we cleared it.
-        if saved_ld_preload:
-            os.environ["LD_PRELOAD"] = saved_ld_preload
-        # Restore PYTHONPATH if we filtered it.
-        if saved_pythonpath is not None:
-            os.environ["PYTHONPATH"] = saved_pythonpath
+        finally:
+            # Restore LD_PRELOAD if we cleared it.
+            if saved_ld_preload:
+                os.environ["LD_PRELOAD"] = saved_ld_preload
+            # Restore PYTHONPATH if we filtered it.
+            if saved_pythonpath is not None:
+                os.environ["PYTHONPATH"] = saved_pythonpath
 
     # Install vscode update unless we're in docker.
     if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):

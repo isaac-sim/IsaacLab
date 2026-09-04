@@ -8,12 +8,12 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
-    PhysicsCfg,
     StackEnvCfg,
     StackEventCfg,
     apply_default_semantics,
     make_ee_frame_cfg,
 )
+from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -52,20 +52,6 @@ _SO101_BASE_SEAT_ROT = (0.0, 0.0, 0.70710678, 0.70710678)
 
 
 @configclass
-class SO101StackPhysicsCfg(PhysicsCfg):
-    """Physics presets for the SO-101 stack tasks.
-
-    Extends the stack-family presets with
-    :attr:`~isaaclab_physx.physics.PhysxCfg.solve_articulation_contact_last` so contacts
-    are solved after the articulation position drive and can stall the closing jaw at the
-    object surface instead of letting it tunnel through grasped objects.
-    """
-
-    default = PhysicsCfg().default.replace(solve_articulation_contact_last=True)
-    physx = default
-
-
-@configclass
 class SO101CubeStackEnvCfg(StackEnvCfg):
     """Configuration for the SO-101 Cube Stack Environment (joint-position control).
 
@@ -78,6 +64,15 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        # Expand the USD-authored actuator defaults to every Newton articulation clone.
+        self.scene.replicate_physics = True
+        self.sim.physics.newton_mjwarp.solver_cfg.nconmax = 600
+        self.sim.physics = preset(
+            default=self.sim.physics.newton_mjwarp,
+            isaacsim_physx=self.sim.physics.isaacsim_physx,
+            physx=self.sim.physics.physx,
+            newton_mjwarp=self.sim.physics.newton_mjwarp,
+        )
 
         # Robot-neutral reset events, with the cube workspace shrunk to the SO-101's ~0.3 m reach
         # (Franka uses x in [0.4, 0.6]). The joint-randomization term holds the ``gripper`` joint
@@ -95,6 +90,18 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
         # workspace (see ``_SO101_MOUNT_Z`` / ``_SO101_BASE_SEAT_ROT``).
         self.scene.robot = SO101_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=SO101_CFG.spawn.replace(
+                variants={
+                    "Robot": "robot",
+                    "Sensor": "sensors",
+                    "Physics": preset(
+                        default="physics",
+                        isaacsim_physx="physx",
+                        physx="physx",
+                        newton_mjwarp="physics",
+                    ),
+                }
+            ),
             init_state=ArticulationCfg.InitialStateCfg(
                 pos=_SO101_BASE_SEAT_POS,
                 rot=_SO101_BASE_SEAT_ROT,
@@ -142,7 +149,3 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
             ],
             marker_scale=(0.05, 0.05, 0.05),
         )
-
-        # simulation settings: solve finger contacts after the position drive so they can
-        # stall the closing jaw at the object surface (see SO101StackPhysicsCfg).
-        self.sim.physics = SO101StackPhysicsCfg()

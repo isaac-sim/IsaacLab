@@ -15,22 +15,22 @@ teleoperate a robotic arm in Isaac Lab. The Haply provides:
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py
+    uv run python scripts/demos/haply_teleoperation.py
 
     # Usage with Newton visualizer and default PhysX physics.
-    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --visualizer newton
+    uv run python scripts/demos/haply_teleoperation.py --visualizer newton
 
     # Usage with Newton (MJWarp) physics and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --physics newton_mjwarp
+    uv run python scripts/demos/haply_teleoperation.py --physics newton_mjwarp
 
     # Usage with Newton visualizer and Newton (MJWarp) physics.
-    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --visualizer newton --physics newton_mjwarp
+    uv run python scripts/demos/haply_teleoperation.py --visualizer newton --physics newton_mjwarp
 
     # With custom WebSocket URI
-    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001
+    uv run python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001
 
     # With sensitivity adjustment
-    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --pos_sensitivity 2.0
+    uv run python scripts/demos/haply_teleoperation.py --pos_sensitivity 2.0
 
 Prerequisites:
     1. Install websockets package: pip install websockets
@@ -51,7 +51,9 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+parser.add_argument(
+    "--physics", default="isaacsim_physx", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
+)
 parser.add_argument(
     "--websocket_uri",
     type=str,
@@ -359,8 +361,8 @@ def run_simulator(
         count += 1
 
         # get contact forces and apply force feedback
-        left_finger_forces = left_finger_sensor.data.net_forces_w[0, 0]
-        right_finger_forces = right_finger_sensor.data.net_forces_w[0, 0]
+        left_finger_forces = left_finger_sensor.data.net_normal_forces_w[0, 0]
+        right_finger_forces = right_finger_sensor.data.net_normal_forces_w[0, 0]
         total_contact_force = (left_finger_forces + right_finger_forces) * 0.5
         haply_device.push_force(forces=total_contact_force.unsqueeze(0), position=torch.tensor([0]))
 

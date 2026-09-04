@@ -7,13 +7,21 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+
+if TYPE_CHECKING:
+    from .rerun_visualizer import RerunVisualizer
 
 
 @configclass
 class RerunVisualizerCfg(VisualizerCfg):
     """Configuration for Rerun visualizer (web-based visualization)."""
+
+    class_type: type[RerunVisualizer] | str = "{DIR}.rerun_visualizer:RerunVisualizer"
+    """Visualizer implementation class."""
 
     visualizer_type: str = "rerun"
     """Type identifier for Rerun visualizer."""
@@ -46,7 +54,19 @@ class RerunVisualizerCfg(VisualizerCfg):
     """Keep transform history for time scrubbing (False = constant memory for training)."""
 
     keep_scalar_history: bool = False
-    """Keep scalar/plot history in timeline."""
+    """Accumulate scalars as a time-series in the Rerun timeline (True = live plot history, False = constant memory).
+
+    When :attr:`~isaaclab.visualizers.VisualizerCfg.enable_live_plots` is ``True`` (the default),
+    this is automatically forced to ``True`` so that scalar values accumulate as a time series in
+    the Rerun viewer.  Set to ``False`` explicitly to reduce memory usage when scalar history is
+    not needed, but note this will disable live plot curves.
+    """
+
+    show_particles: bool = True
+    """Whether to show model particles.
+
+    Disable this option to reduce streaming overhead for large particle clouds.
+    """
 
     record_to_rrd: str | None = None
     """Path to save .rrd recording file. None = no recording."""

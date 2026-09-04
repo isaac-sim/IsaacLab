@@ -18,15 +18,19 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from . import mdp
 
 from isaaclab_assets.robots.fourier import GR1T2_HIGH_PD_CFG  # isort: skip
-from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg  # isort: skip
+from isaaclab_teleop.haptic_feedback import GloveHapticFeedbackCfg  # isort: skip
+from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg, XrCameraFeedCfg  # isort: skip
 from isaaclab_teleop.xr_cfg import XrCfg  # isort: skip
+from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
 
 
 def _build_gr1t2_pickplace_pipeline():
@@ -263,6 +267,13 @@ def _build_gr1t2_pickplace_pipeline():
 ##
 # Scene definition
 ##
+
+# The steering wheel USD authors its rigid body on a nested prim rather than at the
+# spawned ``Object`` root, so contact filtering must target that actor: filtering
+# against ``Object`` matches an empty Xform and normal_force_matrix_w always reads zero.
+_STEERING_WHEEL_BODY = "{ENV_REGEX_NS}/Object/Geometry/sm_steeringwheel_a01_01"
+
+
 @configclass
 class ObjectTableSceneCfg(InteractiveSceneCfg):
     """Configuration for the GR1T2 Pick Place Base Scene."""
@@ -323,6 +334,24 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         ),
     )
 
+    # Per-finger contact sensors on all finger links of each hand, filtered against
+    # the wheel body so normal_force_matrix_w reports each finger's grip force. This drives
+    # the per-finger haptic glove feedback (see GloveHapticFeedbackCfg below).
+    # Contact reporting is already enabled on the robot by GR1T2_HIGH_PD_CFG
+    # (``spawn.activate_contact_sensors=True``), so it is not set again here.
+    left_hand_contact = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/[^/]*L_(index|middle|ring|pinky|thumb)[^/]*_link",
+        filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
+        update_period=0.0,
+        history_length=3,
+    )
+    right_hand_contact = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/[^/]*R_(index|middle|ring|pinky|thumb)[^/]*_link",
+        filter_prim_paths_expr=[_STEERING_WHEEL_BODY],
+        update_period=0.0,
+        history_length=3,
+    )
+
     # Ground plane
     ground = AssetBaseCfg(
         prim_path="/World/GroundPlane",
@@ -333,6 +362,17 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     light = AssetBaseCfg(
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    )
+
+
+@configclass
+class PickPlaceGR1T2SceneCfg(ObjectTableSceneCfg):
+    """GR1T2 pick-place scene with the camera observation shown in XR PiP."""
+
+    robot_pov_cam = robot_pov_camera_cfg(
+        parent_prim_path="{ENV_REGEX_NS}/Robot/base_link",
+        offset_pos=(0.11999996, -0.00000233, 0.74674994),
+        offset_rot=(-0.69303199, 0.69304552, -0.14034840, 0.14034565),
     )
 
 
@@ -489,6 +529,25 @@ class ObservationsCfg:
 
 
 @configclass
+class PickPlaceGR1T2ObservationsCfg(ObservationsCfg):
+    """GR1T2 pick-place observations including the camera shown in XR PiP."""
+
+    @configclass
+    class PolicyCfg(ObservationsCfg.PolicyCfg):
+        robot_pov_cam = ObsTerm(
+            func=base_mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
+                "data_type": "rgb",
+                "normalize": False,
+                "clone": False,
+            },
+        )
+
+    policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
 
@@ -526,9 +585,9 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    scene: PickPlaceGR1T2SceneCfg = PickPlaceGR1T2SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
     # Basic settings
-    observations: ObservationsCfg = ObservationsCfg()
+    observations: PickPlaceGR1T2ObservationsCfg = PickPlaceGR1T2ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     # MDP settings
     terminations: TerminationsCfg = TerminationsCfg()
@@ -589,9 +648,12 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 6
         self.episode_length_s = 20.0
+        # visualizer camera settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0))
         # simulation settings
         self.sim.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
+        self.num_rerenders_on_reset = 3
 
         # Defer USD→URDF conversion to controller initialization (requires Isaac Sim at runtime).
         self.actions.upper_body_ik.controller.usd_path = self.scene.robot.spawn.usd_path
@@ -606,4 +668,23 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
+            xr_camera_feeds=[
+                XrCameraFeedCfg(
+                    camera_name="robot_pov_cam",
+                    enable_dlss_ray_reconstruction=True,
+                    dlss_exec_mode="quality",
+                    offset_m=(0.0, -0.15),
+                    max_update_hz=0.0,
+                )
+            ],
+        )
+        self.image_obs_list = ["robot_pov_cam"]
+
+        # Per-finger haptic glove feedback: vibrate each finger of the operator's
+        # glove in proportion to how tightly it grips the object. The session
+        # always requests the push-tensor extension the glove device needs, so
+        # this stays inert (no glove connected) rather than failing.
+        self.haptic_feedback = GloveHapticFeedbackCfg(
+            left_sensor_name="left_hand_contact",
+            right_sensor_name="right_hand_contact",
         )

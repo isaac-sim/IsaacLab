@@ -27,6 +27,8 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.sim.views import NewtonSiteFrameView as FrameView
 
+from pxr import Sdf
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -35,6 +37,8 @@ from isaaclab.utils.configclass import configclass
 
 NEWTON_SIM_CFG = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
 WORLD_MARKER_POS = (5.0, 3.0, 1.0)
+SITE_PATH = "/World/Robot/SiteFrame"
+VISUAL_PATH = "/World/Robot/VisualFrame"
 
 
 @configclass
@@ -86,7 +90,7 @@ def view_factory():
         sim._app_control_on_stop_handle = None
         InteractiveScene(_SceneCfg(num_envs=num_envs, env_spacing=2.0))
         sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
-        view = FrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
+        view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
         sim.reset()
 
         return ViewBundle(
@@ -114,7 +118,7 @@ def test_reject_body_path(device):
     sim.reset()
 
     with pytest.raises(ValueError, match="physics body"):
-        FrameView("/World/envs/env_.*/Cube", device=device)
+        FrameView("/World/envs/env_[^/]+/Cube", device=device)
     ctx.__exit__(None, None, None)
 
 
@@ -136,6 +140,35 @@ def test_reject_shape_path(device):
     ctx.__exit__(None, None, None)
 
 
+@pytest.mark.parametrize("device", test_devices())
+def test_non_colliding_shapes_after_finalize(device):
+    """Non-colliding site and visual shapes remain valid after finalization."""
+    ctx = _sim_context(device, num_envs=1)
+    sim = ctx.__enter__()
+    sim._app_control_on_stop_handle = None
+    body_cfg = sim_utils.CuboidCfg(
+        size=(0.2, 0.2, 0.2),
+        rigid_props=sim_utils.RigidBodyBaseCfg(),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionBaseCfg(),
+    )
+    body_cfg.func("/World/Robot", body_cfg)
+
+    site_prim = sim_utils.create_prim(SITE_PATH, prim_type="Sphere", scale=(0.01, 0.01, 0.01))
+    site_schemas = Sdf.TokenListOp()
+    site_schemas.prependedItems = ["MjcSiteAPI"]
+    site_prim.SetMetadata("apiSchemas", site_schemas)
+    sim_utils.create_prim(VISUAL_PATH, prim_type="Cube", scale=(0.01, 0.01, 0.01))
+    sim.reset()
+
+    shape_labels = list(NewtonManager.get_model().shape_label)
+    assert SITE_PATH in shape_labels
+    assert VISUAL_PATH in shape_labels
+    FrameView(SITE_PATH, device=device)
+    FrameView(VISUAL_PATH, device=device)
+    ctx.__exit__(None, None, None)
+
+
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_clone_plan_view_uses_source_child_without_destination_usd(device):
     """FrameView expands a registered body-local site through the ClonePlan."""
@@ -150,7 +183,7 @@ def test_clone_plan_view_uses_source_child_without_destination_usd(device):
     assert not stage.GetPrimAtPath("/World/envs/env_1/Cube").IsValid()
     sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
 
-    view = FrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
+    view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
     sim.reset()
 
     assert view.count == num_envs
@@ -172,7 +205,7 @@ def test_view_can_resolve_from_body_labels_after_reset(device):
     sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
 
     sim.reset()
-    view = FrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
+    view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
 
     pos = view.get_world_poses()[0].torch
     expected = _get_body_positions(num_envs, device) + torch.tensor(CHILD_OFFSET, device=device)

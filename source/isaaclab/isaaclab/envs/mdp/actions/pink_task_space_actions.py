@@ -322,12 +322,10 @@ class PinkInverseKinematicsAction(ActionTerm):
     def _apply_gravity_compensation(self) -> None:
         """Apply gravity compensation to arm joints if not disabled in props.
 
-        Reads :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`,
-        which raises :class:`NotImplementedError` on the Newton backend (no upstream
-        primitive). That is intentional — if a user opts into gravity compensation on
-        Newton via ``enable_gravity_compensation=True``, they should see a loud failure
-        rather than silently receive zeros. To use Pink IK on Newton, keep
-        ``enable_gravity_compensation=False``.
+        Reads :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+        and applies it as a joint-effort target on the controlled arm joints, on top
+        of the joint-position targets from IK. Supported on both the PhysX and the
+        Newton backend.
         """
         if not self._asset.cfg.spawn.rigid_props.disable_gravity:
             # ``gravity_compensation_forces`` shape is ``(N, num_joints + num_base_dofs)``.

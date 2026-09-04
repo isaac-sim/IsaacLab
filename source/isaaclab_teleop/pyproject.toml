@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_teleop"
-version = "0.5.3"
+version = "0.8.3"
 description = "Extension providing IsaacTeleop-based teleoperation device for Isaac Lab."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
@@ -23,9 +23,6 @@ dependencies = [
 
 [tool.uv.sources]
 isaaclab = { path = "../isaaclab", editable = true }
-
-[tool.isaaclab]
-pip_upgrade_dependencies = ["isaacteleop"]
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

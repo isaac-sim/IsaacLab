@@ -10,10 +10,21 @@ Configuring RTX Rendering Settings
    For the **Newton renderer** (used with the Newton backend or in kit-less mode), see
    :ref:`overview_renderers` for the pluggable renderer architecture and available backends.
 
-Isaac Lab's RTX renderer applies high-fidelity camera rendering defaults when
-running with ``--enable_cameras``. Override individual settings to tune the
+Isaac Lab's RTX renderer applies high-fidelity camera rendering defaults automatically.
+Override individual settings to tune the
 renderer for your workflow, as described below. For camera-heavy workloads that
 need higher throughput, switch to the RTX Minimal renderer instead.
+
+.. note::
+
+   Requesting one of the ``simple_shading_*`` camera data types without a regular color output
+   switches that camera's render product to RTX Minimal mode; the data type selects the shading
+   level. The switch applies per render product, so other cameras and the Kit viewport keep their
+   configured render mode. RTX Minimal uses only the first ``DistantLight`` prim, ignores
+   ``DomeLight`` prims, and may also use configured ambient lighting. When ``rgb``, ``rgba``, or
+   ``rgb_hdr`` is requested from the same render product, it retains its configured render mode to
+   preserve the color output; the ``simple_shading_*`` output remains available but does not receive
+   the RTX Minimal performance improvement.
 
 Overriding Specific Rendering Settings
 --------------------------------------

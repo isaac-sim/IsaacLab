@@ -20,8 +20,10 @@ from isaaclab_rl.entrypoints import common as _rl_common
 from isaaclab_rl.entrypoints.common import (
     CaptureEnvSensors,
     add_common_train_args,
+    create_isaaclab_env,
     dispatch_library_entrypoint,
     enable_cameras_for_video,
+    resolve_play_task_name,
     wrap_sensor_capture,
 )
 
@@ -204,6 +206,83 @@ def test_enable_cameras_for_video_enables_cameras_for_sensor_capture() -> None:
     assert args_cli.enable_cameras
 
 
+def test_common_train_args_register_frontend_with_torch_default() -> None:
+    """Every RL library CLI exposes ``--frontend`` and defaults to the torch runtime."""
+    parser = argparse.ArgumentParser()
+    add_common_train_args(parser, agent_default=None, agent_help="", include_agent=False)
+
+    assert parser.parse_args([]).frontend == "torch"
+    assert parser.parse_args(["--frontend", "warp"]).frontend == "warp"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--frontend", "tensorflow"])
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def test_play_entrypoints_route_through_frontend_factory() -> None:
+    """Every dispatched play backend constructs its env via the frontend-aware factory."""
+    play_scripts = sorted(
+        (_repo_root() / "source" / "isaaclab_rl" / "isaaclab_rl" / "entrypoints" / "backends").glob("play_*.py")
+    )
+    # rlinf constructs environments inside the external framework; the frontend cannot
+    # reach it (documented limitation).
+    play_scripts = [path for path in play_scripts if path.name != "play_rlinf.py"]
+    assert len(play_scripts) == 4, sorted(path.name for path in play_scripts)
+    for script in play_scripts:
+        source = script.read_text()
+        assert "create_isaaclab_env(" in source, f"{script.name} bypasses the frontend factory"
+        assert "gym.make(args_cli.task" not in source, f"{script.name} constructs directly via gym.make"
+        assert "add_frontend_args(parser)" in source, f"{script.name} does not expose --frontend"
+
+
+def test_create_isaaclab_env_uses_registered_torch_env_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The shared factory preserves the existing Gym path when no frontend is selected."""
+    expected_env = object()
+    env_cfg = object()
+    calls: list[tuple[Any, ...]] = []
+
+    def fake_make(task: str, **kwargs: Any) -> Any:
+        calls.append((task, kwargs))
+        return expected_env
+
+    monkeypatch.setattr(_rl_common.gym, "make", fake_make)
+    args_cli = argparse.Namespace(video=False, frontend="torch")
+
+    env = create_isaaclab_env("Isaac-Test", env_cfg, args_cli, convert_marl_to_single_agent=False)
+
+    assert env is expected_env
+    assert len(calls) == 1
+    assert calls[0][0] == "Isaac-Test"
+    assert calls[0][1]["cfg"] is env_cfg
+    # render_mode is no longer passed — recording is configured via env_cfg.video_recorders
+    # before env creation (apply_video_recording), not via the gym render-mode mechanism.
+    assert "render_mode" not in calls[0][1]
+
+
+def test_create_isaaclab_env_uses_selected_warp_frontend(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The shared factory delegates Warp selection to the experimental frontend."""
+    import isaaclab_experimental.envs.frontend as frontend_module
+
+    expected_env = object()
+    env_cfg = object()
+    calls: list[tuple[Any, ...]] = []
+
+    def fake_build_env(cfg: Any, task: str, **kwargs: Any) -> Any:
+        calls.append((cfg, task, kwargs))
+        return expected_env
+
+    monkeypatch.setattr(frontend_module.WarpFrontend, "build_env", fake_build_env)
+    args_cli = argparse.Namespace(video=True, frontend="warp")
+
+    env = create_isaaclab_env("Isaac-Test", env_cfg, args_cli, convert_marl_to_single_agent=False)
+
+    assert env is expected_env
+    # render_mode is no longer forwarded — recording is driven by env_cfg.video_recorders.
+    assert calls == [(env_cfg, "Isaac-Test", {})]
+
+
 def test_dispatch_library_entrypoint_shows_help_without_library(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -219,3 +298,145 @@ def test_dispatch_library_entrypoint_shows_help_without_library(
     assert result == 0
     output = capsys.readouterr().out
     assert "--rl_library {rsl_rl}" in output
+
+
+def test_resolve_play_task_name_redirects_removed_play_task() -> None:
+    """A retired ``-Play`` id resolves to the registered training id with a deprecation warning."""
+    gym.register(id="Isaac-ResolvePlayTest", entry_point="dummy:Env")
+    try:
+        with pytest.warns(FutureWarning, match="was removed"):
+            resolved = resolve_play_task_name("Isaac-ResolvePlayTest-Play")
+        assert resolved == "Isaac-ResolvePlayTest"
+        with pytest.warns(FutureWarning, match="was removed"):
+            resolved = resolve_play_task_name("my_module:Isaac-ResolvePlayTest-Play")
+        assert resolved == "my_module:Isaac-ResolvePlayTest"
+    finally:
+        del gym.registry["Isaac-ResolvePlayTest"]
+
+
+def test_resolve_play_task_name_redirects_removed_versioned_play_task() -> None:
+    """A retired ``-Play-v0`` id resolves to the registered versioned training id."""
+    gym.register(id="Isaac-ResolvePlayTest-v0", entry_point="dummy:Env")
+    try:
+        with pytest.warns(FutureWarning, match="was removed"):
+            resolved = resolve_play_task_name("Isaac-ResolvePlayTest-Play-v0")
+        assert resolved == "Isaac-ResolvePlayTest-v0"
+    finally:
+        del gym.registry["Isaac-ResolvePlayTest-v0"]
+
+
+def test_resolve_play_task_name_keeps_registered_and_unknown_tasks() -> None:
+    """Registered ``-Play`` ids (external projects) and unknown ids pass through unchanged."""
+    gym.register(id="Isaac-ExternalPlayTest-Play", entry_point="dummy:Env")
+    try:
+        assert resolve_play_task_name("Isaac-ExternalPlayTest-Play") == "Isaac-ExternalPlayTest-Play"
+    finally:
+        del gym.registry["Isaac-ExternalPlayTest-Play"]
+    # neither the -Play id nor the training id is registered
+    assert resolve_play_task_name("Isaac-DoesNotExist-Play") == "Isaac-DoesNotExist-Play"
+    assert resolve_play_task_name("Isaac-Something") == "Isaac-Something"
+    assert resolve_play_task_name(None) is None
+
+
+class _RecordingScreen:
+    """Loading screen stand-in that keeps the summary fields instead of drawing them."""
+
+    def __init__(self) -> None:
+        self.fields: dict[str, str] = {}
+
+    def summary(self, title: str, fields: dict[str, str]) -> None:
+        self.fields = fields
+
+
+@pytest.mark.parametrize(
+    "selectors, expected_physics, expected_renderer",
+    [
+        (["physics=ovphysx", "renderer=rtx"], "ovphysx", "rtx (ovrtx)"),
+        (["physics=isaacsim_physx", "renderer=rtx"], "isaacsim_physx", "rtx (isaacsim_rtx)"),
+        # ``physx`` reaches the physics backend the same way ``rtx`` reaches the renderer
+        (["physics=physx", "renderer=rtx"], "physx (ovphysx)", "rtx (ovrtx)"),
+        ([], "newton_mjwarp", "newton_renderer"),
+        (["physics=physx", "presets=depth"], "physx (ovphysx)", "newton_renderer"),
+    ],
+)
+def test_run_summary_reports_concrete_backends(
+    selectors: list[str],
+    expected_physics: str,
+    expected_renderer: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The summary reports concrete backends and launcher-owned automatic choices."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import resolve_task_config
+
+    task = "Isaac-Cartpole-Camera-Direct"
+    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py", *selectors])
+    env_cfg, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point")
+    screen = _RecordingScreen()
+    args_cli = argparse.Namespace(task=task, device=None, num_envs=None, visualizer=None)
+
+    _rl_common.show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
+
+    assert screen.fields["Physics"] == expected_physics
+    assert screen.fields["Renderer"] == expected_renderer
+    assert "Presets" not in screen.fields
+
+
+def _fake_physics_cfg(class_name: str, **attrs: Any) -> Any:
+    """Build a physics-config stand-in carrying the backend-agnostic determinism field."""
+    return type(class_name, (), {"deterministic": False, **attrs})()
+
+
+def test_apply_env_overrides_records_the_deterministic_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``--deterministic`` reaches the physics config, which the AppLauncher flag never did."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import resolve_task_config
+
+    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py"])
+    env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera", "rl_games_cfg_entry_point")
+    # Guard the premise: the shipped defaults request no guarantee.
+    assert env_cfg.sim.physics.deterministic is False
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert env_cfg.sim.physics.deterministic is True
+    # Translation belongs to the backend, so nothing backend-specific is touched here.
+    assert env_cfg.sim.physics.deterministic_mode == "not_guaranteed"
+    assert env_cfg.sim.physics.solver_cfg.disable_sensors is False
+
+
+def test_apply_env_overrides_leaves_physics_alone_without_the_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without ``--deterministic`` the physics config is untouched."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import resolve_task_config
+
+    monkeypatch.setattr(_rl_common.sys, "argv", ["train.py"])
+    env_cfg, _ = resolve_task_config("Isaac-Cartpole-Camera", "rl_games_cfg_entry_point")
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=False)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert env_cfg.sim.physics.deterministic is False
+
+
+@pytest.mark.parametrize("class_name", ["PhysxCfg", "OvPhysxCfg", "NewtonCfg", "SomeFutureBackendCfg"])
+def test_apply_env_overrides_records_the_request_for_every_backend(class_name: str) -> None:
+    """The request is backend-agnostic, so the entrypoint needs no per-backend knowledge."""
+    physics = _fake_physics_cfg(class_name)
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert physics.deterministic is True
+
+
+def test_apply_env_overrides_tolerates_a_config_without_physics() -> None:
+    """A config that never resolved a physics backend is left alone rather than failing."""
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=None))
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert env_cfg.sim.physics is None

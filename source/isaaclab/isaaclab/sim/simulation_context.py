@@ -8,30 +8,26 @@ from __future__ import annotations
 import gc
 import logging
 import traceback
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import torch
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
 from isaaclab.app.settings_manager import SettingsManager
-from isaaclab.envs.utils.recording_hooks import run_recording_hooks_after_visualizers
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
-from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.physics.scene_data_requirements import (
-    SceneDataRequirement,
-    resolve_scene_data_requirements,
-)
+from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
+from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
 from isaaclab.renderers.render_context import RenderContext
-from isaaclab.scene_data import SceneDataProvider
-from isaaclab.sim.service_locator import ServiceLocator
+from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.visualizer_cfg import _get_visualizer_install_hint
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -43,8 +39,25 @@ from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
 
+
+_BackendT = TypeVar("_BackendT")
+
 # Visualizer type names (CLI and config). App launcher parses CSV and stores as a space-separated setting.
-_VISUALIZER_TYPES = ("newton", "rerun", "viser", "kit")
+_VISUALIZER_TYPES = ("newton_gl", "newton_rtx", "rerun", "viser", "kit")
+# Deprecated aliases mapped to their canonical names.
+_VISUALIZER_ALIASES = {"newton": "newton_gl"}
+
+
+def _resolve_physics_cfg(physics_cfg: PhysicsCfg | None, use_isaac_sim: bool) -> PhysicsCfg:
+    """Resolve a simulation physics config to a concrete backend."""
+    if physics_cfg is None:
+        from isaaclab_physx.physics import PhysxCfg
+
+        physics_cfg = PhysxCfg()
+    elif not isinstance(physics_cfg, PhysicsCfg):
+        raise TypeError(f"SimulationCfg.physics must be a concrete PhysicsCfg, got {type(physics_cfg).__name__}.")
+
+    return _resolve_physx_auto_cfg(physics_cfg, use_isaac_sim=use_isaac_sim)
 
 
 class SettingsHelper:
@@ -113,6 +126,12 @@ class SimulationContext:
 
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
+        self._backend_registry: dict[type[object], object] = {}
+
+        use_isaac_sim = has_kit()
+        self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
+        self.cfg.physics = self._physics
+        self._physics.class_type._prepare_stage_creation()
 
         # Get or create stage based on config
         stage_cache = UsdUtils.StageCache.Get()
@@ -138,7 +157,7 @@ class SimulationContext:
 
         # When Kit is running, attach the stage to Kit's USD context so that
         # Kit extensions (PhysX views, Articulation, viewport) can discover it.
-        if has_kit():
+        if use_isaac_sim:
             import omni.usd
 
             kit_context = omni.usd.get_context()
@@ -160,24 +179,20 @@ class SimulationContext:
             device_id = max(0, int(cuda_device) if cuda_device is not None else 0)
             self.cfg.device = f"cuda:{device_id}"
 
-        # Set default physics backend if not specified
-        if self.cfg.physics is None:
-            from isaaclab_physx.physics import PhysxCfg
-
-            self.cfg.physics = PhysxCfg()
-        self._physics = self.cfg.physics
-        # If physics is a PresetCfg wrapper (has a 'default' field but no 'class_type'),
-        # resolve to the default preset so downstream code always sees a concrete PhysicsCfg.
-        if not hasattr(self._physics, "class_type") and hasattr(self._physics, "default"):
-            self._physics = self._physics.default
-            self.cfg.physics = self._physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
+        # Must be set before physics_manager.initialize() so that any render callbacks
+        # registered during initialize() (e.g. PhysxManager's headless video pump) succeed.
+        self._render_callbacks: dict[str, tuple[int, Callable[[Any], None]]] = {}
         self.physics_manager.initialize(self)
 
         # Initialize visualizer state (visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
         self._visualizers: list[BaseVisualizer] = []
-        self._scene_data_requirements = SceneDataRequirement()
+        self._pending_visualizer_cfgs: list[Any] | None = None
+        self._reset_requested: bool = False
+        # Set by the visualizers and renderers in use; read by the scene data provider.
+        self.requires_usd_stage = False
+        self.requires_newton_model = False
         # Clone plan published by InteractiveScene after cloning. Providers (e.g. the
         # Newton visualizer model rebuilder on a PhysX backend) consume this to derive
         # their own backend args. None until a replication session publishes a plan.
@@ -196,6 +211,8 @@ class SimulationContext:
         # cameras rather than inheriting a stale True from a previously torn-down simulation. RTX
         # cameras created for this instance re-set it to True before it is read.
         self.set_setting("/isaaclab/render/rtx_sensors", False)
+        # Set by camera sensors, which draw visual-only geometry regardless of renderer backend.
+        self._visual_shapes_required = False
         self._pending_camera_view: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self.vis_marker_registry = VisMarkerRegistry()
 
@@ -219,8 +236,6 @@ class SimulationContext:
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
-
-        self._services = ServiceLocator()
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
@@ -297,6 +312,20 @@ class SimulationContext:
         """Return whether the simulation should keep stepping without visualizers or with an active visualizer."""
         return not self._visualizers or any(viz.is_running() and not viz.is_closed for viz in self._visualizers)
 
+    def require_visual_shapes(self) -> None:
+        """Record that something in this simulation draws the physics model's visual-only shapes.
+
+        Camera sensors call this from their constructor, before cloning runs, so backends that
+        import visual geometry lazily (see :attr:`isaaclab_newton.physics.NewtonCfg.load_visual_shapes`)
+        know the geometry is needed even when no viewer or offscreen capture is active.
+        """
+        self._visual_shapes_required = True
+
+    @property
+    def visual_shapes_required(self) -> bool:
+        """Whether :meth:`require_visual_shapes` was called for this simulation."""
+        return self._visual_shapes_required
+
     def can_render_rgb_array(self) -> bool:
         """Return whether rgb-array rendering is currently available."""
         return self.has_gui or self.has_offscreen_render or self.has_active_visualizers()
@@ -327,7 +356,7 @@ class SimulationContext:
 
     @property
     def render_context(self) -> RenderContext:
-        """Shared :class:`~isaaclab.renderers.render_context.RenderContext` for camera renderers."""
+        """Shared rendering state for camera backends and visual materials."""
         return self._render_context
 
     @property
@@ -346,19 +375,33 @@ class SimulationContext:
         default_configs = []
         cfg_class_names = {
             "kit": "KitVisualizerCfg",
-            "newton": "NewtonVisualizerCfg",
+            "newton_gl": "NewtonGLVisualizerCfg",
+            "newton_rtx": "NewtonRTXVisualizerCfg",
             "rerun": "RerunVisualizerCfg",
             "viser": "ViserVisualizerCfg",
         }
+        # newton_gl and newton_rtx both live in the isaaclab_visualizers.newton package.
+        module_overrides = {"newton_gl": "isaaclab_visualizers.newton", "newton_rtx": "isaaclab_visualizers.newton"}
         for viz_type in requested_visualizers:
             try:
+                # Resolve deprecated aliases before lookup.
+                if viz_type in _VISUALIZER_ALIASES:
+                    canonical = _VISUALIZER_ALIASES[viz_type]
+                    import warnings
+
+                    warnings.warn(
+                        f"Visualizer type '{viz_type}' is deprecated. Use '{canonical}' instead.",
+                        DeprecationWarning,
+                        stacklevel=2,
+                    )
+                    viz_type = canonical
                 if viz_type not in _VISUALIZER_TYPES:
                     logger.warning(
                         f"[SimulationContext] Unknown visualizer type '{viz_type}' requested. "
                         f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. Skipping."
                     )
                     continue
-                mod = importlib.import_module(f"isaaclab_visualizers.{viz_type}")
+                mod = importlib.import_module(module_overrides.get(viz_type, f"isaaclab_visualizers.{viz_type}"))
                 cfg_cls = getattr(mod, cfg_class_names[viz_type])
                 cfg = cfg_cls()
                 self._apply_default_visualizer_cfg(cfg)
@@ -367,10 +410,9 @@ class SimulationContext:
                 # isaaclab_visualizers is optional; log once at warning level
                 if "isaaclab_visualizers" in str(exc):
                     logger.warning(
-                        "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. "
-                        "Install with: pip install isaaclab_visualizers[%s]",
+                        "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. %s",
                         viz_type,
-                        viz_type,
+                        _get_visualizer_install_hint(viz_type),
                     )
                 else:
                     logger.error(
@@ -383,14 +425,48 @@ class SimulationContext:
         return default_configs
 
     def _apply_default_visualizer_cfg(self, cfg: Any) -> None:
-        """Apply shared default visualizer settings to a backend-specific config."""
+        """Apply shared default visualizer settings to a backend-specific config.
+
+        Only propagates fields that were **explicitly set** in ``default_visualizer_cfg``
+        (i.e. differ from the base :class:`~isaaclab.visualizers.VisualizerCfg` defaults)
+        AND are still at the backend cfg's own class default (i.e. not already
+        customised by the caller).  This prevents base-class defaults such as
+        ``streaming_view=False`` from stomping backend-specific defaults like
+        ``NewtonGLVisualizerCfg.streaming_view=True``.
+        """
+        from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+
         default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
         if default_cfg is None:
             return
+        # Base VisualizerCfg defaults — used to detect which fields on default_cfg
+        # were explicitly set by the env vs. left at the base-class default.
+        try:
+            base_defaults = VisualizerCfg()
+        except Exception:
+            base_defaults = None
+        # Backend-specific class defaults — used to detect which fields on cfg
+        # the caller has already customised beyond the class defaults.
+        try:
+            factory_defaults = type(cfg)()
+        except Exception:
+            factory_defaults = None
         for field in fields(default_cfg):
-            if field.name == "visualizer_type" or not hasattr(cfg, field.name):
+            if field.name in ("class_type", "visualizer_type") or not hasattr(cfg, field.name):
                 continue
-            setattr(cfg, field.name, getattr(default_cfg, field.name))
+            default_val = getattr(default_cfg, field.name)
+            # Skip fields that were not explicitly set in default_cfg (still at base default).
+            if base_defaults is not None and hasattr(base_defaults, field.name):
+                if default_val == getattr(base_defaults, field.name):
+                    continue
+            # Preserve explicitly customised fields on cfg.  When factory_defaults is None
+            # (backend cfg constructor raised), skip the field rather than overwriting it
+            # unconditionally — we cannot tell whether the caller customised it.
+            if factory_defaults is None:
+                continue
+            if getattr(cfg, field.name) != getattr(factory_defaults, field.name):
+                continue
+            setattr(cfg, field.name, default_val)
 
     def _get_cli_visualizer_types(self) -> list[str]:
         """Return list of visualizer types requested via CLI (setting)."""
@@ -460,6 +536,8 @@ class SimulationContext:
         if cli_disable_all:
             resolved = []
         elif not cli_explicit:
+            for cfg in visualizer_cfgs:
+                self._apply_default_visualizer_cfg(cfg)
             self._apply_visualizer_cli_overrides(visualizer_cfgs)
             resolved = visualizer_cfgs
         elif not visualizer_cfgs:
@@ -469,6 +547,8 @@ class SimulationContext:
             # CLI selection is explicit: keep only requested cfg types, then add defaults for missing.
             cli_requested_set = set(cli_requested)
             resolved = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
+            for cfg in resolved:
+                self._apply_default_visualizer_cfg(cfg)
             existing_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
             for viz_type in cli_requested:
                 if viz_type not in existing_types and viz_type in _VISUALIZER_TYPES:
@@ -484,11 +564,15 @@ class SimulationContext:
             resolved_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
             missing = [t for t in cli_requested if t not in resolved_types]
             if missing:
+                install_hints = " ".join(
+                    _get_visualizer_install_hint(visualizer_type)
+                    for visualizer_type in missing
+                    if visualizer_type in _VISUALIZER_TYPES
+                )
                 raise RuntimeError(
                     f"Explicitly requested visualizer(s) {missing} could not be configured. "
                     f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. "
-                    "Ensure the required package is installed "
-                    "(e.g., pip install isaaclab_visualizers[<type>])."
+                    f"{install_hints}"
                 )
 
         # XR auto-start: auto-inject a KitVisualizer when XR is active and no
@@ -508,40 +592,65 @@ class SimulationContext:
                     logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
                 except (ImportError, ModuleNotFoundError, AttributeError) as exc:
                     logger.warning(
-                        "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. "
-                        "Install isaaclab_visualizers[kit] or pass --visualizer kit.",
+                        "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. %s",
                         exc,
+                        _get_visualizer_install_hint("kit"),
                     )
 
         return resolved
 
     def initialize_visualizers(self) -> None:
-        """Initialize visualizers from SimulationCfg.visualizer_cfgs."""
-        if self._visualizers:
+        """Initialize visualizers from ``SimulationCfg.visualizer_cfgs``."""
+        if self._pending_visualizer_cfgs == [] or (self._pending_visualizer_cfgs is None and self._visualizers):
             return
 
+        visualizer_cfgs = self._get_visualizer_cfgs()
+        if not visualizer_cfgs:
+            return
+
+        self._initialize_visualizers()
+
+        if not self._visualizers and self._scene_data_provider is not None:
+            close_provider = getattr(self._scene_data_provider, "close", None)
+            if callable(close_provider):
+                close_provider()
+            self._scene_data_provider = None
+
+    def _get_visualizer_cfgs(self) -> list[Any]:
+        """Resolve visualizer configs for the current initialization cycle."""
+        if self._pending_visualizer_cfgs is None:
+            self._pending_visualizer_cfgs = self._resolve_visualizer_cfgs()
+        return self._pending_visualizer_cfgs
+
+    def _initialize_visualizers(self, config_filter: Callable[[Any], bool] | None = None) -> None:
+        """Initialize pending visualizers, optionally restricted by config."""
         physics_dt = getattr(self.cfg.physics, "dt", None)
         self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
 
-        visualizer_cfgs = self._resolve_visualizer_cfgs()
+        visualizer_cfgs = self._get_visualizer_cfgs()
         if not visualizer_cfgs:
             return
 
         cli_explicit = self._is_cli_visualizer_explicit()
 
-        # Resolve visualizer-driven requirements once and keep optional artifact payload untouched.
-        visualizer_types = [
-            cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) is not None
-        ]
-        requirements = resolve_scene_data_requirements(visualizer_types=visualizer_types)
-        self._scene_data_requirements = requirements
-        self._visualizers = []
+        configs = [viz.cfg for viz in self._visualizers] + visualizer_cfgs
+        for config in configs:
+            if config.visualizer_type is not None:
+                requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[config.visualizer_type]
+                self.requires_usd_stage |= requires_stage
+                self.requires_newton_model |= requires_model
 
+        pending_cfgs = []
+        new_visualizers = []
         for cfg in visualizer_cfgs:
+            if config_filter is not None and not config_filter(cfg):
+                pending_cfgs.append(cfg)
+                continue
             try:
-                visualizer = cfg.create_visualizer()
+                visualizer = cfg.class_type(cfg)
                 visualizer.initialize(self._scene_data_provider)
                 self._visualizers.append(visualizer)
+                new_visualizers.append(visualizer)
             except Exception as exc:
                 if cli_explicit:
                     raise RuntimeError(
@@ -554,20 +663,16 @@ class SimulationContext:
                     type(cfg).__name__,
                     exc,
                 )
+        self._pending_visualizer_cfgs = pending_cfgs
 
         # Replay any camera pose requested before visualizers were initialized.
         pending = getattr(self, "_pending_camera_view", None)
         if pending is not None:
             eye, target = pending
-            for viz in self._visualizers:
+            for viz in new_visualizers:
                 viz.set_camera_view(eye, target)
-            self._pending_camera_view = None
-
-        if not self._visualizers and self._scene_data_provider is not None:
-            close_provider = getattr(self._scene_data_provider, "close", None)
-            if callable(close_provider):
-                close_provider()
-            self._scene_data_provider = None
+            if not pending_cfgs:
+                self._pending_camera_view = None
 
     def get_scene_data_provider(self) -> SceneDataProvider:
         return self._scene_data_provider
@@ -577,14 +682,6 @@ class SimulationContext:
         self._interactive_scene = scene
         if self._scene_data_provider is not None:
             self._scene_data_provider.set_interactive_scene(scene)
-
-    def get_scene_data_requirements(self) -> SceneDataRequirement:
-        """Return scene-data requirements resolved from visualizers/renderers."""
-        return self._scene_data_requirements
-
-    def update_scene_data_requirements(self, requirements: SceneDataRequirement) -> None:
-        """Update scene-data requirements."""
-        self._scene_data_requirements = requirements
 
     def get_clone_plan(self) -> ClonePlan | None:
         """Return the clone plan published by the scene.
@@ -618,9 +715,44 @@ class SimulationContext:
         for viz in self._visualizers:
             viz.set_camera_view(eye, target)
 
+    def add_render_callback(self, name: str, fn: Callable[[Any], None], order: int = 0) -> None:
+        """Register a callback to fire after every render step.
+
+        Args:
+            name: Unique identifier. Silently replaces any existing callback with the same name.
+            fn: Callable invoked with a single ``None`` argument after each :meth:`render` call.
+            order: Execution order relative to other callbacks. Lower values fire first.
+        """
+        self._render_callbacks[name] = (order, fn)
+
+    def remove_render_callback(self, name: str) -> None:
+        """Unregister a previously registered render callback.
+
+        Args:
+            name: Identifier passed to :meth:`add_render_callback`. No-op if not found.
+        """
+        self._render_callbacks.pop(name, None)
+
     def forward(self) -> None:
         """Update kinematics without stepping physics."""
         self.physics_manager.forward()
+
+    def _prepare_newton_visualizer_for_capture(self, _payload=None) -> None:
+        """Initialize or rebind the Newton viewer before solver graph capture."""
+        # Picking applies forces inside solver substeps, so its kernels and buffers
+        # must exist during graph capture. Render-only viewers can initialize later.
+        self._initialize_visualizers(self._requires_pre_capture_newton_init)
+        for viz in (viz for viz in self._visualizers if self._requires_pre_capture_newton_init(viz.cfg)):
+            viz.reset(soft=False)
+
+    @staticmethod
+    def _requires_pre_capture_newton_init(cfg: Any) -> bool:
+        """Return whether a config contributes Newton picking inputs to capture."""
+        return (
+            getattr(cfg, "visualizer_type", None) in {"newton_gl", "newton_rtx"}
+            and bool(getattr(cfg, "enable_picking", False))
+            and not bool(getattr(cfg, "headless", False))
+        )
 
     def reset(self, soft: bool = False) -> None:
         """Reset the simulation.
@@ -631,9 +763,9 @@ class SimulationContext:
         self.physics_manager.reset(soft)
         for viz in self._visualizers:
             viz.reset(soft)
-        if not self._visualizers:
-            # Initialize visualizers after PhysX sim views are ready, but before play() pumps timeline events.
-            self.initialize_visualizers()
+        # Initialize visualizers not prepared by a backend-specific pre-capture hook.
+        self.initialize_visualizers()
+        self._render_context.finalize_consumers(self._visualizers, rebuild=not soft)
         # Start the timeline so the play button is pressed
         self.physics_manager.play()
         self._is_playing = True
@@ -661,9 +793,8 @@ class SimulationContext:
 
         Calls update_visualizers() so visualizers run at the render cadence (not at
         every physics step). Camera sensors drive their configured renderer when
-        fetching data. Recording-related follow-up (Kit/RTX headless video, Newton GL
-        video, etc.) runs in :mod:`isaaclab.envs.utils.recording_hooks` so it is not tied to a
-        specific :class:`~isaaclab.physics.PhysicsManager` subclass.
+        fetching data. Physics-backend recording hooks (e.g. Kit/RTX headless video pump) fire through
+        :meth:`add_render_callback` so they are not hard-coded in this class.
 
         **Kit vs. standalone visualizers:**  The Kit app loop (``app.update()``) is the
         only way to drive camera/RTX sensor rendering and viewport GUI updates; it
@@ -683,13 +814,9 @@ class SimulationContext:
         self.physics_manager.pre_render()
         self.update_visualizers(self.get_rendering_dt(), skip_app_pumping=skip_app_pumping)
         self.physics_manager.after_visualizers_render()
-        run_recording_hooks_after_visualizers(self)
+        for _, callback in sorted(self._render_callbacks.values(), key=lambda x: x[0]):
+            callback(None)
         self._render_generation += 1
-
-        # Call render callbacks
-        if hasattr(self, "_render_callbacks"):
-            for callback in self._render_callbacks.values():
-                callback(None)  # Pass None as event data
 
     def update_visualizers(self, dt: float, skip_app_pumping: bool = False) -> None:
         """Update visualizers without triggering renderer/GUI.
@@ -711,8 +838,12 @@ class SimulationContext:
             self.physics_manager.forward()
 
         # Marker callbacks update VisualizationMarkers state; visualizer step()
-        # consumes that state later in this method.
-        if any(viz.supports_markers() for viz in self._visualizers):
+        # consumes that state later in this method. Live-plot panels register in the same
+        # registry and their flag is independent of markers, so gate on either capability.
+        if any(
+            viz.supports_markers() or (viz.supports_live_plots() and getattr(viz.cfg, "enable_live_plots", True))
+            for viz in self._visualizers
+        ):
             self.vis_marker_registry.dispatch_callbacks()
 
         visualizers_to_remove = []
@@ -749,6 +880,8 @@ class SimulationContext:
                 logger.info("Removed visualizer: %s", type(viz).__name__)
             except Exception as exc:
                 logger.error("Error closing visualizer: %s", exc)
+        if visualizers_to_remove and not self._visualizers:
+            self._pending_visualizer_cfgs = None
 
     def _should_forward_before_visualizer_update(self) -> bool:
         """Return True if any visualizer requires pre-step forward kinematics."""
@@ -777,6 +910,29 @@ class SimulationContext:
         self._is_playing = False
         self._is_stopped = True
 
+    def request_reset(self) -> None:
+        """Request an episode reset from a UI control (e.g. the Kit window button).
+
+        The request is consumed on the next call to :meth:`consume_reset_request`.
+        """
+        self._reset_requested = True
+
+    def consume_reset_request(self) -> bool:
+        """Return ``True`` if any visualizer or UI control requested an episode reset and clear the flag.
+
+        Checks both the simulation-context-level flag (set by :meth:`request_reset`) and
+        each visualizer's own flag. All flags are cleared atomically so a single reset
+        is triggered even when multiple sources fire in the same step.
+
+        Returns:
+            ``True`` once when a reset was requested, then ``False`` until the next request.
+        """
+        requested = self._reset_requested
+        self._reset_requested = False
+        for viz in self._visualizers:
+            requested |= viz.consume_reset_request()
+        return requested
+
     def is_playing(self) -> bool:
         """Returns True if simulation is playing (not paused or stopped)."""
         return self._is_playing
@@ -793,56 +949,78 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
-    # ------------------------------------------------------------------
-    # Service locator
-    # ------------------------------------------------------------------
+    def get_or_create_backend(self, backend_type: type[_BackendT], *args: Any, **kwargs: Any) -> _BackendT:
+        """Return the simulation-scoped native backend for a type.
 
-    @property
-    def services(self) -> ServiceLocator:
-        """Typed service registry for backend-specific singletons.
+        Consumers that register the same backend type resolve one shared native resource
+        instead of constructing state to synchronize.
 
-        Usage::
+        Args:
+            backend_type: Backend class to construct when the resource does not exist.
+            *args: Positional arguments used only when constructing the resource.
+            **kwargs: Keyword arguments used only when constructing the resource.
 
-            sim_context.services[FabricStageCache] = cache
-            cache = sim_context.services[FabricStageCache]
-            del sim_context.services[FabricStageCache]  # closes and removes
+        Returns:
+            The existing or newly constructed native backend.
         """
-        return self._services
+        if backend_type not in self._backend_registry:
+            self._backend_registry[backend_type] = backend_type(*args, **kwargs)
+        return cast(_BackendT, self._backend_registry[backend_type])
 
     @classmethod
     def clear_instance(cls) -> None:
         """Clean up resources and clear the singleton instance."""
-        if cls._instance is not None:
-            # Close physics manager FIRST to detach PhysX from the stage
-            # This must happen before clearing USD prims to avoid PhysX cleanup errors
-            cls._instance.physics_manager.close()
+        instance = cls._instance
+        if instance is not None:
+            teardown_errors: list[Exception] = []
 
-            # Close all visualizers
-            for viz in cls._instance._visualizers:
-                viz.close()
-            cls._instance._visualizers.clear()
+            def run_cleanup(callback: Callable[[], Any]) -> None:
+                try:
+                    callback()
+                except Exception as exc:
+                    teardown_errors.append(exc)
 
-            # Close and drop all registered singleton services
-            service_errors: list[Exception] = []
-            cls._instance._services.close_all(caught_exceptions=service_errors)
+            try:
+                # Close physics manager FIRST to detach PhysX from the stage.
+                run_cleanup(instance.physics_manager.close)
 
-            # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
-            # close_stage() + app shutdown destroy the entire stage at once.
-            stage_utils.close_stage()
+                # Close camera renderers after STOP invalidates camera-owned render data and
+                # before the stage is closed so stage-bound renderer resources remain valid.
+                run_cleanup(instance._render_context.close)
 
-            # Discard cached name-resolution data from destroyed assets
-            clear_resolve_matching_names_cache()
+                # Give every visualizer a chance to release its resources.
+                for viz in list(instance._visualizers):
+                    run_cleanup(viz.close)
+                instance._visualizers.clear()
 
-            # Clear instance
-            cls._instance = None
+                for resource in instance._backend_registry.values():
+                    if (clear := getattr(resource, "clear", None)) is not None:
+                        run_cleanup(clear)
+                instance._backend_registry.clear()
 
-            gc.collect()
+                # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
+                # close_stage() + app shutdown destroy the entire stage at once.
+                run_cleanup(stage_utils.close_stage)
+
+                # Discard cached name-resolution data from destroyed assets.
+                run_cleanup(clear_resolve_matching_names_cache)
+            finally:
+                cls._instance = None
+                del instance
+
+            run_cleanup(gc.collect)
+
             logger.info("SimulationContext cleared")
 
-            if service_errors:
-                msg = f"SimulationContext.clear_instance(): {len(service_errors)} service(s) failed to close"
-                # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+
-                raise RuntimeError(msg) from service_errors[0]
+            if len(teardown_errors) == 1:
+                raise teardown_errors[0]
+            if teardown_errors:
+                details = "; ".join(f"{type(error).__name__}: {error}" for error in teardown_errors)
+                msg = (
+                    f"SimulationContext.clear_instance(): {len(teardown_errors)} error(s) occurred during teardown:"
+                    f" {details}"
+                )
+                raise RuntimeError(msg) from teardown_errors[0]
 
     @classmethod
     def clear_stage(cls) -> None:
@@ -892,8 +1070,9 @@ def build_simulation_context(
         add_ground_plane: Whether to add a ground plane. Defaults to False.
         add_lighting: Whether to add a dome light. Defaults to False.
         auto_add_lighting: Whether to auto-add lighting if GUI present. Defaults to False.
-        visualizers: List of visualizer backend keys to enable (e.g. ``["kit", "newton", "rerun"]``).
-            Valid types: ``"kit"``, ``"newton"``, ``"rerun"``, ``"viser"``.
+        visualizers: List of visualizer backend keys to enable (e.g. ``["kit", "newton_gl", "rerun"]``).
+            Valid types: ``"kit"``, ``"newton_gl"``, ``"newton_rtx"``, ``"rerun"``, ``"viser"``.
+            ``"newton"`` is a deprecated alias for ``"newton_gl"``.
             When provided, sets the ``/isaaclab/visualizer/types`` setting so the
             existing visualizer resolution machinery picks them up. Defaults to None.
 

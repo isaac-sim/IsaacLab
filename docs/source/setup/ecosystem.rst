@@ -60,11 +60,10 @@ Isaac Lab is organized into a set of focused packages that can be used independe
 * ``isaaclab_physx`` — PhysX-backed implementations of articulations,
   rigid bodies, deformable objects, Fabric views, the Isaac RTX renderer, and USD spawners.
   Requires Isaac Sim.
-* ``isaaclab_ovphysx`` — standalone PhysX-backed implementations built on ``ovphysx`` and
-  TensorBindingsAPI. Requires the ``ovphysx`` package and can run without launching Isaac Sim.
-* ``isaaclab_ov`` — Omniverse renderer package that provides the OVRTX renderer for
-  RTX-based tiled camera rendering. Requires the ``ovrtx`` package and can be used in
-  kit-less workflows without Isaac Sim.
+* ``isaaclab_ov`` — Omniverse integration package containing standalone PhysX-backed
+  implementations built on ``ovphysx`` and the OVRTX renderer for RTX-based tiled camera
+  rendering. Its backends require the corresponding optional ``ovphysx`` or ``ovrtx``
+  runtime and can be used in kit-less workflows without Isaac Sim.
 * ``isaaclab_newton`` — Newton-backed implementations of articulations, rigid bodies, and the
   Warp renderer. Supports kit-less installation without Isaac Sim.
 
@@ -183,7 +182,8 @@ Concretely, Isaac Lab offers:
 * **RL library integrations** — wrappers for RSL-RL, skrl, Stable Baselines 3, and RL Games
   ship in ``isaaclab_rl``.
 * **Kit-less deployment** — run policies and simulations using the Newton backend without a
-  full Isaac Sim installation.
+  full Isaac Sim installation. URDF and MJCF command-line conversion can also run kit-less
+  when the standalone ``isaacsim-asset-isolated`` importer wheel is installed.
 
 We are working with labs in universities and research institutions to integrate their work into
 Isaac Lab and hope that others in the community will join us. If you are interested in

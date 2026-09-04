@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/01_assets/run_surface_gripper.py --device=cpu
+    uv run python scripts/tutorials/01_assets/run_surface_gripper.py --device=cpu
 
 When running this script make sure the --device flag is set to cpu. This is because the surface gripper is
 currently only supported on the CPU.

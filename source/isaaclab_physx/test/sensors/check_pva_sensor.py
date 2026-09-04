@@ -17,7 +17,7 @@ from isaacsim import SimulationApp
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Pva Test Script")
-parser.add_argument("--headless", action="store_true", default=False, help="Force display off at all times.")
+parser.add_argument("--visualize", action="store_true", help="Open a window to display sensor output.")
 parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to clone.")
 parser.add_argument(
     "--terrain_type",
@@ -29,7 +29,7 @@ parser.add_argument(
 args_cli = parser.parse_args()
 
 # launch omniverse app
-config = {"headless": args_cli.headless}
+config = {"headless": not args_cli.visualize}
 simulation_app = SimulationApp(config)
 
 
@@ -38,9 +38,9 @@ simulation_app = SimulationApp(config)
 import logging
 import traceback
 
+import numpy as np
 import torch
-
-from isaacsim.core.rendering_manager import ViewportManager
+from isaaclab_physx.renderers.kit_viewport_utils import _set_kit_camera_view
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
@@ -74,8 +74,8 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
     # Create interface to clone the scene
     # Create environment clones using Lab's cloner utilities
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
-    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0, device=sim.device)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0)
     envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
     # create source prim
     stage.DefinePrim(envs_prim_paths[0], "Xform")
@@ -94,7 +94,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
             collision_props=sim_utils.CollisionPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
-        prim_path="/World/envs/env_.*/ball",
+        prim_path="{ENV_REGEX_NS}/ball",
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
     )
     balls = RigidObject(cfg)
@@ -122,7 +122,7 @@ def main():
     # Load kit helper
     sim = SimulationContext(SimulationCfg())
     # Set main camera
-    ViewportManager.set_camera_view("/OmniverseKit_Persp", eye=[0.0, 30.0, 25.0], target=[0.0, 0.0, -2.5])
+    _set_kit_camera_view([0.0, 30.0, 25.0], [0.0, 0.0, -2.5], "/OmniverseKit_Persp")
 
     # Parameters
     num_envs = args_cli.num_envs
@@ -131,8 +131,8 @@ def main():
 
     # Create a pva sensor
     pva_cfg = PvaCfg(
-        prim_path="/World/envs/env_.*/ball",
-        debug_vis=not args_cli.headless,
+        prim_path="{ENV_REGEX_NS}/ball",
+        debug_vis=args_cli.visualize,
     )
     # increase scale of the arrows for better visualization
     pva_cfg.visualizer_cfg.markers["arrow"].scale = (1.0, 0.2, 0.2)
@@ -145,7 +145,7 @@ def main():
     print(pva)
 
     # Get the ball initial positions
-    sim.step(render=not args_cli.headless)
+    sim.step(render=args_cli.visualize)
     balls.update(sim.get_physics_dt())
     ball_initial_positions = balls.data.root_pos_w.torch.clone()
     ball_initial_orientations = balls.data.root_quat_w.torch.clone()
@@ -159,7 +159,7 @@ def main():
             break
         # If simulation is paused, then skip.
         if not sim.is_playing():
-            sim.step(render=not args_cli.headless)
+            sim.step(render=args_cli.visualize)
             continue
         # Reset the scene
         if step_count % 500 == 0:

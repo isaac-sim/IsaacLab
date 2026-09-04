@@ -27,11 +27,13 @@ class CartpoleCameraEnv(CartpoleEnv):
     cfg: CartpoleCameraEnvCfg
 
     def __init__(self, cfg: CartpoleCameraEnvCfg, render_mode: str | None = None, **kwargs):
-        frame_stack = max(1, cfg.frame_stack)
-        cfg.frame_stack = frame_stack
-        if frame_stack > 1:
-            single_channels = int(cfg.observation_space[0])
-            cfg.observation_space = [single_channels * frame_stack, *cfg.observation_space[1:]]
+        cfg.frame_stack = max(1, cfg.frame_stack)
+        if isinstance(cfg.observation_space, list):
+            cfg.observation_space = [
+                int(cfg.observation_space[0]) * cfg.frame_stack,
+                int(cfg.tiled_camera.height),
+                int(cfg.tiled_camera.width),
+            ]
 
         super().__init__(cfg, render_mode, **kwargs)
 
@@ -42,22 +44,24 @@ class CartpoleCameraEnv(CartpoleEnv):
             )
 
         self._stack: CircularBuffer | None = None
-        if frame_stack > 1:
+        if self.cfg.frame_stack > 1:
             # Channel-stack mode: buffer storage is laid out so that .stacked is a free
             # contiguous reshape into (B, K*C, H, W) -- no per-step permute/reshape alloc.
-            self._stack = CircularBuffer(max_len=frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1)
+            self._stack = CircularBuffer(
+                max_len=self.cfg.frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1
+            )
 
     def _setup_scene(self):
         """Setup the scene with the cartpole and camera (no ground plane, which obstructs the view)."""
         self.cartpole = Articulation(self.cfg.robot_cfg)
         self._tiled_camera = Camera(self.cfg.tiled_camera)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
-        cloner.replicate(plan, stage=self.scene.stage)
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos)
+        cloner.replicate(plan)
 
-        if self.device == "cpu":
-            # we need to explicitly filter collisions for CPU simulation
+        # PhysX replication requires explicit collision filtering between environments.
+        if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions(global_prim_paths=[])
 
         # add articulation and sensors to scene

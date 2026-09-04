@@ -7,13 +7,209 @@ from __future__ import annotations
 
 """Launch Isaac Sim Simulator first."""
 import importlib
+import json
+import logging
+import os
+import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 import isaaclab.utils.assets as assets_utils
 
 pytestmark = pytest.mark.unit
+
+
+def test_asset_root_environment_override_takes_precedence(monkeypatch):
+    """Test the documented Isaac Sim asset-root environment override."""
+    monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "/tmp/isaacsim_assets/Assets/Isaac/X.Y/")
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == "/tmp/isaacsim_assets/Assets/Isaac/X.Y"
+
+
+def test_asset_root_falls_back_to_kit_file(monkeypatch):
+    """Test kitless asset-root resolution when the environment override is absent."""
+    monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
+
+
+def test_asset_root_uses_china_storage_profile(monkeypatch):
+    """Test the China storage profile uses the same public bucket root as Isaac Sim."""
+    monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    expected_root = (
+        f"https://simready-cn.s3.oss-cn-shanghai.aliyuncs.com/Assets/Isaac/{assets_utils._ISAAC_SIM_ASSET_RELEASE}"
+    )
+    assert assets_utils._resolve_asset_root() == expected_root
+
+
+def test_asset_root_ignores_unknown_storage_profile(monkeypatch, caplog):
+    """Test an unknown profile warns and falls back to the experience file."""
+    monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "unknown")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    with caplog.at_level(logging.WARNING, logger=assets_utils.logger.name):
+        assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
+
+    assert "no storage profile named 'unknown'" in caplog.text
+
+
+def test_configure_china_storage_profile_once(monkeypatch):
+    """Test the public initializer installs the in-memory CDN mapping once."""
+    import omni.client
+
+    calls = []
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
+
+    def configure(**kwargs):
+        calls.append(kwargs)
+        return omni.client.Result.OK
+
+    monkeypatch.setattr(omni.client, "set_s3_configuration", configure)
+
+    assets_utils.configure_storage_profile()
+    assets_utils.configure_storage_profile()
+
+    assert calls == [
+        {
+            "url": "simready-cn.s3.oss-cn-shanghai.aliyuncs.com",
+            "bucket": "simready-cn",
+            "region": "oss-cn-shanghai",
+            "cloudfrontUrl": "https://assets.simready.cn/",
+            "cloudfrontForList": False,
+            "writeConfig": False,
+        }
+    ]
+
+
+def test_configure_storage_profile_reports_client_failure(monkeypatch):
+    """Test a rejected OmniClient profile fails before an inaccessible asset is used."""
+    import omni.client
+
+    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
+    monkeypatch.setattr(omni.client, "set_s3_configuration", lambda **_kwargs: "rejected")
+
+    with pytest.raises(RuntimeError, match="Storage profile 'china' failed to configure"):
+        assets_utils.configure_storage_profile()
+
+
+def test_configure_storage_profile_is_lazy_without_selection(monkeypatch):
+    """Test the initializer does not import OmniClient when no profile is selected."""
+    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
+    original_omni_client = sys.modules.pop("omni.client", None)
+    try:
+        assets_utils.configure_storage_profile()
+        assert "omni.client" not in sys.modules
+    finally:
+        if original_omni_client is not None:
+            sys.modules["omni.client"] = original_omni_client
+
+
+def test_asset_client_applies_storage_profile(monkeypatch):
+    """Test remote asset helpers configure routing whenever they import OmniClient."""
+    import omni.client
+
+    configured_clients = []
+    monkeypatch.setattr(assets_utils, "_configure_storage_profile", configured_clients.append)
+
+    assert assets_utils._get_omni_client() is omni.client
+    assert configured_clients == [omni.client]
+
+
+def test_asset_root_environment_override_strips_windows_separator(monkeypatch):
+    """Test the documented Windows form of the environment override."""
+    monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "C:\\assets\\Assets\\Isaac\\X.Y\\")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == "C:\\assets\\Assets\\Isaac\\X.Y"
+
+
+def test_asset_root_ignores_empty_environment_override(monkeypatch):
+    """Test an empty override falls back, matching when ``isaacsim.storage.native`` skips it."""
+    monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "")
+    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
+
+
+def test_kit_experience_path_resolves_to_the_shipped_experience():
+    """Test the unpatched experience-file path so a broken relative walk fails here."""
+    assert Path(assets_utils._KIT_EXPERIENCE_PATH).is_file()
+    assert assets_utils._parse_kit_asset_root()
+
+
+def test_kit_asset_root_prefers_default_setting(tmp_path, monkeypatch):
+    """Test the experience-file fallback reads the setting that Isaac Sim resolves."""
+    kit_file = tmp_path / "isaaclab.python.kit"
+    kit_file.write_text(
+        "[settings]\n"
+        'persistent.isaac.asset_root.default = "https://example.com/default-assets"\n'
+        'persistent.isaac.asset_root.cloud = "https://example.com/cloud-assets"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(assets_utils, "_KIT_EXPERIENCE_PATH", str(kit_file))
+
+    assert assets_utils._parse_kit_asset_root() == "https://example.com/default-assets"
+
+
+def test_kit_asset_root_falls_back_to_cloud_setting(tmp_path, monkeypatch):
+    """Test the experience-file fallback still reads legacy files without a default setting."""
+    kit_file = tmp_path / "isaaclab.python.kit"
+    kit_file.write_text(
+        '[settings]\npersistent.isaac.asset_root.cloud = "https://example.com/cloud-assets"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(assets_utils, "_KIT_EXPERIENCE_PATH", str(kit_file))
+
+    assert assets_utils._parse_kit_asset_root() == "https://example.com/cloud-assets"
+
+
+def test_exported_asset_root_constants_follow_environment_override(monkeypatch):
+    """Test the exported constants, not just the resolver, honor the environment override."""
+    try:
+        # patch in a nested context so leaving it cannot revert patches owned by other fixtures
+        with monkeypatch.context() as patched_env:
+            patched_env.setenv("ISAACSIM_ASSET_ROOT", "/tmp/isaacsim_assets/Assets/Isaac/X.Y")
+            module = importlib.reload(assets_utils)
+
+            assert module.NUCLEUS_ASSET_ROOT_DIR == "/tmp/isaacsim_assets/Assets/Isaac/X.Y"
+            assert module.ISAAC_NUCLEUS_DIR == "/tmp/isaacsim_assets/Assets/Isaac/X.Y/Isaac"
+            assert module.ISAACLAB_NUCLEUS_DIR == "/tmp/isaacsim_assets/Assets/Isaac/X.Y/Isaac/IsaacLab"
+    finally:
+        # the context restored the caller's environment, so a suite run with a real
+        # ISAACSIM_ASSET_ROOT keeps resolving to it
+        importlib.reload(assets_utils)
+
+
+def test_exported_asset_root_constants_follow_china_storage_profile(monkeypatch):
+    """Test kitless asset constants follow the selected China storage profile."""
+    try:
+        with monkeypatch.context() as patched_env:
+            patched_env.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+            patched_env.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+            module = importlib.reload(assets_utils)
+
+            root = f"https://simready-cn.s3.oss-cn-shanghai.aliyuncs.com/Assets/Isaac/{module._ISAAC_SIM_ASSET_RELEASE}"
+            assert root == module.NUCLEUS_ASSET_ROOT_DIR
+            assert f"{root}/Isaac" == module.ISAAC_NUCLEUS_DIR
+            assert f"{root}/Isaac/IsaacLab" == module.ISAACLAB_NUCLEUS_DIR
+    finally:
+        importlib.reload(assets_utils)
 
 
 def test_nucleus_connection():
@@ -125,32 +321,90 @@ def test_retrieve_git_asset_path_clones_default_repo_cache(tmp_path, monkeypatch
     """Test that git assets are pulled into the default asset cache directory."""
     git_commands = []
     git_path = "https://example.com/example-assets.git"
+    cache_dir = tmp_path / "tmp" / "asset_cache"
 
     def mock_run_git_command(command):
         git_commands.append(command)
-        repo_dir = tmp_path / "tmp" / "asset_cache" / "example-assets"
+        repo_dir = Path(command[-1])
+        assert not repo_dir.exists()
         asset_dir = repo_dir / "Robots" / "Disney" / "ExampleBot"
         asset_dir.mkdir(parents=True)
         (repo_dir / ".git").mkdir()
         (asset_dir / "example_bot.usd").write_text("#usda 1.0\n", encoding="utf-8")
 
-    monkeypatch.setattr(assets_utils, "GIT_ASSET_CACHE_DIR", str(tmp_path / "tmp" / "asset_cache"))
+    monkeypatch.setattr(assets_utils, "GIT_ASSET_CACHE_DIR", str(cache_dir))
     monkeypatch.setattr(assets_utils, "_run_git_command", mock_run_git_command)
 
     asset_path = Path(assets_utils.retrieve_git_asset_path(git_path, "Robots/Disney/ExampleBot"))
 
     assert asset_path == tmp_path / "tmp" / "asset_cache" / "example-assets" / "Robots" / "Disney" / "ExampleBot"
     assert (asset_path / "example_bot.usd").read_text(encoding="utf-8") == "#usda 1.0\n"
-    assert git_commands == [
-        [
-            "git",
-            "clone",
-            "--depth",
-            "1",
-            git_path,
-            str(tmp_path / "tmp" / "asset_cache" / "example-assets"),
-        ]
-    ]
+    assert len(git_commands) == 1
+    assert git_commands[0][:-1] == ["git", "clone", "--depth", "1", git_path]
+    temporary_path = Path(git_commands[0][-1])
+    assert temporary_path.name == "checkout"
+    assert temporary_path.parent.parent == cache_dir
+    assert temporary_path.parent.name.startswith(".example-assets.")
+
+
+def test_retrieve_git_asset_path_serializes_cold_cache_population(tmp_path, monkeypatch):
+    """Test concurrent callers publish one complete Git asset checkout."""
+    git_path = "https://example.com/example-assets.git"
+    cache_dir = tmp_path / "asset_cache"
+    clone_count = 0
+    active_clones = 0
+    max_active_clones = 0
+    counter_lock = threading.Lock()
+    start = threading.Barrier(2)
+
+    def mock_run_git_command(command):
+        nonlocal clone_count, active_clones, max_active_clones
+        with counter_lock:
+            clone_count += 1
+            active_clones += 1
+            max_active_clones = max(max_active_clones, active_clones)
+        time.sleep(0.05)
+        repo_dir = Path(command[-1])
+        asset_dir = repo_dir / "Robots" / "Disney" / "ExampleBot"
+        asset_dir.mkdir(parents=True)
+        (repo_dir / ".git").mkdir()
+        (asset_dir / "example_bot.usd").write_text("#usda 1.0\n", encoding="utf-8")
+        with counter_lock:
+            active_clones -= 1
+
+    monkeypatch.setattr(assets_utils, "_run_git_command", mock_run_git_command)
+
+    def retrieve() -> str:
+        start.wait()
+        return assets_utils.retrieve_git_asset_path(git_path, "Robots/Disney/ExampleBot", cache_dir=str(cache_dir))
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        retrieved = list(executor.map(lambda _: retrieve(), range(2)))
+
+    expected = str(cache_dir / "example-assets" / "Robots" / "Disney" / "ExampleBot")
+    assert retrieved == [expected, expected]
+    assert clone_count == 1
+    assert max_active_clones == 1
+
+
+def test_retrieve_git_asset_path_does_not_publish_failed_clone(tmp_path, monkeypatch):
+    """Test a failed clone leaves neither a partial nor final cache checkout."""
+    git_path = "https://example.com/example-assets.git"
+    cache_dir = tmp_path / "asset_cache"
+    repo_dir = cache_dir / "example-assets"
+
+    def mock_run_git_command(command):
+        partial_dir = Path(command[-1])
+        (partial_dir / ".git").mkdir(parents=True)
+        raise RuntimeError("clone failed")
+
+    monkeypatch.setattr(assets_utils, "_run_git_command", mock_run_git_command)
+
+    with pytest.raises(RuntimeError, match="clone failed"):
+        assets_utils.retrieve_git_asset_path(git_path, "Robots/Disney/ExampleBot", cache_dir=str(cache_dir))
+
+    assert not repo_dir.exists()
+    assert not list(cache_dir.glob(".example-assets.*"))
 
 
 def test_retrieve_git_asset_path_uses_cached_asset_without_git(tmp_path, monkeypatch):
@@ -174,6 +428,42 @@ def test_retrieve_git_asset_path_uses_cached_asset_without_git(tmp_path, monkeyp
     assert (asset_path / "example_bot.usd").read_text(encoding="utf-8") == "#usda 1.0\n"
 
 
+def test_retrieve_git_asset_path_preserves_non_repository_cache(tmp_path, monkeypatch):
+    """Test a missing asset never replaces a caller-managed cache directory."""
+    git_path = "https://example.com/example-assets.git"
+    cache_dir = tmp_path / "asset_cache"
+    repo_dir = cache_dir / "example-assets"
+    repo_dir.mkdir(parents=True)
+    marker = repo_dir / "caller-managed.txt"
+    marker.write_text("keep", encoding="utf-8")
+
+    def fail_run_git_command(command):
+        raise AssertionError(f"git should not be called for a non-repository cache: {command}")
+
+    monkeypatch.setattr(assets_utils, "_run_git_command", fail_run_git_command)
+
+    with pytest.raises(RuntimeError, match="cache exists but is not a git repository"):
+        assets_utils.retrieve_git_asset_path(git_path, "Robots/Disney/ExampleBot", cache_dir=str(cache_dir))
+
+    assert marker.read_text(encoding="utf-8") == "keep"
+
+
+@pytest.mark.parametrize(
+    ("git_path", "is_remote"),
+    [
+        ("https://example.com/example-assets.git", True),
+        ("git@example.com:org/example-assets.git", True),
+        ("/home/user/newton-assets", False),
+        # ``urlparse`` reports a drive letter as a scheme, so these read as remote repositories
+        ("C:/Users/user/newton-assets", False),
+        (r"C:\Users\user\newton-assets", False),
+    ],
+)
+def test_git_asset_paths_tell_a_windows_drive_letter_from_a_url_scheme(git_path, is_remote):
+    """Test a local Windows checkout is not mistaken for a repository to clone into the cache."""
+    assert assets_utils._is_git_remote_path(git_path) is is_remote
+
+
 def test_retrieve_git_asset_path_raises_for_missing_asset(tmp_path):
     """Test that git asset retrieval raises when the requested asset is missing."""
     repo_dir = tmp_path / "newton-assets"
@@ -181,6 +471,266 @@ def test_retrieve_git_asset_path_raises_for_missing_asset(tmp_path):
 
     with pytest.raises(FileNotFoundError, match="Unable to find git asset"):
         assets_utils.retrieve_git_asset_path(str(repo_dir), "Robots/Disney/ExampleBot")
+
+
+_REMOTE_URL = "https://example.com/Assets/Isaac/Robots/example.usd"
+
+
+@pytest.fixture
+def asset_cache(tmp_path, monkeypatch):
+    """Isolate the local asset cache: an empty cache directory and no state from other tests."""
+    monkeypatch.setattr(assets_utils.tempfile, "gettempdir", lambda: str(tmp_path))
+    monkeypatch.setattr(assets_utils, "_REMOTE_FINGERPRINTS", {})
+    monkeypatch.setattr(assets_utils, "_ANNOUNCED_MIRROR_DIRS", set())
+    monkeypatch.setattr(assets_utils, "_ANNOUNCED_MIRRORS", set())
+    monkeypatch.setattr(assets_utils, "_MIRRORED_URLS", {})
+    return tmp_path
+
+
+def _serve(monkeypatch, entries: dict[str, dict | None], payloads: dict[str, bytes] | None = None) -> None:
+    """Fake the asset server: ``entries`` maps a URL to its reported metadata (``None`` = absent)."""
+    import omni.client
+
+    def fake_stat(url, *args, **kwargs):
+        reported = entries.get(url)
+        if reported is None:
+            return omni.client.Result.ERROR_NOT_FOUND, SimpleNamespace(hash="", version="", size=0, modified_time="")
+        return omni.client.Result.OK, SimpleNamespace(**reported)
+
+    def fake_read_file(url, *args, **kwargs):
+        if payloads is None or url not in payloads:
+            raise AssertionError(f"the server should not have been read for: {url}")
+        return omni.client.Result.OK, {}, payloads[url]
+
+    monkeypatch.setattr(omni.client, "stat", fake_stat)
+    monkeypatch.setattr(omni.client, "read_file", fake_read_file)
+
+
+def _cache_asset(cache_dir, url: str, payload: bytes, fingerprint: dict | None) -> Path:
+    """Write a locally cached copy of ``url``, with its recorded remote revision."""
+    mirrored = Path(assets_utils._mirror_path(url, str(cache_dir)))
+    mirrored.parent.mkdir(parents=True, exist_ok=True)
+    mirrored.write_bytes(payload)
+    if fingerprint is not None:
+        (mirrored.parent / (mirrored.name + assets_utils._MIRROR_FINGERPRINT_SUFFIX)).write_text(
+            json.dumps(fingerprint), encoding="utf-8"
+        )
+    return mirrored
+
+
+def test_read_file_uses_the_local_copy_when_it_matches_the_server(asset_cache, monkeypatch):
+    """Test an unchanged remote asset is read from disk instead of downloaded again."""
+    revision = {"hash": "abc123", "version": "", "size": 12, "modified_time": "2026-07-01 10:00:00"}
+    _cache_asset(asset_cache, _REMOTE_URL, b"cached bytes", revision)
+    # no payload is served, so any read from the server fails the test
+    _serve(monkeypatch, {_REMOTE_URL: revision})
+
+    assert assets_utils.read_file(_REMOTE_URL).read() == b"cached bytes"
+
+
+def test_read_file_refetches_when_the_server_copy_changed(asset_cache, monkeypatch):
+    """Test a changed remote asset is downloaded again rather than served stale."""
+    stale = {"hash": "abc123", "version": "", "size": 12, "modified_time": "2026-07-01 10:00:00"}
+    current = {"hash": "def456", "version": "", "size": 11, "modified_time": "2026-07-29 10:00:00"}
+    mirrored = _cache_asset(asset_cache, _REMOTE_URL, b"cached bytes", stale)
+    _serve(monkeypatch, {_REMOTE_URL: current}, payloads={_REMOTE_URL: b"fresh bytes"})
+
+    assert assets_utils.read_file(_REMOTE_URL).read() == b"fresh bytes"
+    # the refreshed copy is cached under the new revision, so the next run reads it from disk
+    assert mirrored.read_bytes() == b"fresh bytes"
+    fingerprint = mirrored.parent / (mirrored.name + assets_utils._MIRROR_FINGERPRINT_SUFFIX)
+    assert json.loads(fingerprint.read_text(encoding="utf-8")) == current
+
+
+def test_local_copy_without_a_recorded_revision_is_refetched(asset_cache, monkeypatch):
+    """Test copies left by earlier versions are re-fetched once instead of trusted blindly."""
+    _cache_asset(asset_cache, _REMOTE_URL, b"cached bytes", fingerprint=None)
+    current = {"hash": "def456", "version": "", "size": 11, "modified_time": "2026-07-29 10:00:00"}
+    _serve(monkeypatch, {_REMOTE_URL: current}, payloads={_REMOTE_URL: b"fresh bytes"})
+
+    assert assets_utils.read_file(_REMOTE_URL).read() == b"fresh bytes"
+
+
+def test_retrieve_file_path_serializes_cold_cache_population(asset_cache, monkeypatch):
+    """Test concurrent ranks reuse the mirror populated by the first rank."""
+    import omni.client
+
+    revision = {"hash": "abc123", "version": "", "size": 12, "modified_time": "2026-07-01 10:00:00"}
+    _serve(monkeypatch, {_REMOTE_URL: revision})
+    copy_count = 0
+    active_copies = 0
+    max_active_copies = 0
+    counter_lock = threading.Lock()
+    mirrored = Path(assets_utils._mirror_path(_REMOTE_URL, str(asset_cache)))
+
+    def fake_copy(url, target_path, behavior):
+        nonlocal copy_count, active_copies, max_active_copies
+        assert url == _REMOTE_URL
+        assert behavior == omni.client.CopyBehavior.OVERWRITE
+        assert Path(target_path) != mirrored
+        with counter_lock:
+            copy_count += 1
+            active_copies += 1
+            max_active_copies = max(max_active_copies, active_copies)
+        time.sleep(0.05)
+        Path(target_path).write_bytes(b"#usda 1.0\n")
+        with counter_lock:
+            active_copies -= 1
+        return omni.client.Result.OK
+
+    monkeypatch.setattr(omni.client, "copy", fake_copy)
+    monkeypatch.setattr(assets_utils, "_find_asset_dependencies", lambda path: set())
+    start = threading.Barrier(2)
+
+    def retrieve() -> str:
+        start.wait()
+        return assets_utils.retrieve_file_path(_REMOTE_URL, str(asset_cache))
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        retrieved = list(executor.map(lambda _: retrieve(), range(2)))
+
+    assert retrieved == [str(mirrored)] * 2
+    assert mirrored.read_bytes() == b"#usda 1.0\n"
+    assert copy_count == 1
+    assert max_active_copies == 1
+
+
+def test_size_and_modification_time_identify_a_revision(asset_cache, monkeypatch):
+    """Test providers that report no hash still get a freshness check.
+
+    The local file provider reports only a size and a modification time, and HTTP hosts
+    behave the same way, so the check cannot rely on a content hash being available.
+    """
+    revision = {"hash": "", "version": "", "size": 12, "modified_time": "2026-07-01 10:00:00"}
+    _cache_asset(asset_cache, _REMOTE_URL, b"cached bytes", revision)
+    _serve(monkeypatch, {_REMOTE_URL: revision})
+    assert assets_utils._usable_mirror(_REMOTE_URL)
+
+    assets_utils._REMOTE_FINGERPRINTS.clear()
+    _serve(monkeypatch, {_REMOTE_URL: {**revision, "modified_time": "2026-07-29 10:00:00"}})
+    assert not assets_utils._usable_mirror(_REMOTE_URL)
+
+
+def test_unreachable_server_falls_back_to_the_local_copy(asset_cache, monkeypatch, caplog):
+    """Test offline runs keep working, with the missing freshness guarantee announced."""
+    revision = {"hash": "abc123", "version": "", "size": 12, "modified_time": "2026-07-01 10:00:00"}
+    _cache_asset(asset_cache, _REMOTE_URL, b"cached bytes", revision)
+    _serve(monkeypatch, {_REMOTE_URL: None})
+
+    with caplog.at_level(logging.WARNING, logger=assets_utils.logger.name):
+        assert assets_utils.read_file(_REMOTE_URL).read() == b"cached bytes"
+
+    assert "did not respond" in caplog.text
+    assert "may be out of date" in caplog.text
+
+
+def test_server_without_revision_metadata_is_announced(asset_cache, monkeypatch, caplog):
+    """Test a provider reporting nothing to compare cannot silently serve a stale copy."""
+    _cache_asset(asset_cache, _REMOTE_URL, b"cached bytes", {"hash": "", "version": "", "size": 0, "modified_time": ""})
+    _serve(monkeypatch, {_REMOTE_URL: {"hash": "", "version": "", "size": 0, "modified_time": ""}})
+
+    with caplog.at_level(logging.WARNING, logger=assets_utils.logger.name):
+        assert assets_utils.read_file(_REMOTE_URL).read() == b"cached bytes"
+
+    assert "no revision metadata" in caplog.text
+
+
+def test_two_hosts_serving_the_same_path_do_not_share_a_local_copy(asset_cache, monkeypatch):
+    """Test a cloud and an on-prem server exposing the same layout get separate cache entries.
+
+    The on-prem server is unreachable, the case where an unrelated copy would otherwise be
+    accepted without a freshness check.
+    """
+    revision = {"hash": "abc123", "version": "", "size": 12, "modified_time": "2026-07-01 10:00:00"}
+    on_prem_url = _REMOTE_URL.replace("example.com", "nucleus.example-lab.com")
+    _cache_asset(asset_cache, _REMOTE_URL, b"cached bytes", revision)
+    _serve(monkeypatch, {_REMOTE_URL: revision, on_prem_url: None})
+
+    assert not assets_utils._usable_mirror(on_prem_url)
+    assert assets_utils.check_file_path(on_prem_url) == 0
+
+
+def test_using_local_copies_is_announced_once_per_cache_directory(asset_cache, monkeypatch, caplog):
+    """Test the announcement is visible at the default log level without one line per asset."""
+    revision = {"hash": "abc123", "version": "", "size": 12, "modified_time": "2026-07-01 10:00:00"}
+    other_url = _REMOTE_URL.replace("example.usd", "other.usd")
+    _cache_asset(asset_cache, _REMOTE_URL, b"cached bytes", revision)
+    _cache_asset(asset_cache, other_url, b"cached bytes", revision)
+    _serve(monkeypatch, {_REMOTE_URL: revision, other_url: revision})
+
+    with caplog.at_level(logging.INFO, logger=assets_utils.logger.name):
+        assets_utils.read_file(_REMOTE_URL)
+        assets_utils.read_file(other_url)
+
+    banners = [record for record in caplog.records if record.levelno == logging.WARNING]
+    per_asset = [record for record in caplog.records if record.levelno == logging.INFO]
+    assert len(banners) == 1
+    assert str(asset_cache) in banners[0].getMessage()
+    assert len(per_asset) == 2
+    assert {_REMOTE_URL, other_url} == {record.args[0] for record in per_asset}
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.com/Assets/Isaac/6.0/Isaac/Props/Blocks/DexCube/Materials/dex_cube_mod.png",
+        "http://example.com/Assets/example.usd",
+        "omniverse://nucleus.example-lab.com:3009/Assets/example.usd",
+    ],
+)
+def test_unmirror_file_path_recovers_the_url_a_copy_was_cached_from(asset_cache, url):
+    """Test a cached copy names the asset it came from, so exports do not carry local paths."""
+    assert assets_utils.unmirror_file_path(assets_utils._mirror_path(url, str(asset_cache))) == url
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["/home/user/assets/example.usd", "Materials/dex_cube_mod.png", "OmniPBR.mdl", ""],
+)
+def test_unmirror_file_path_leaves_paths_outside_the_cache_unclaimed(asset_cache, path):
+    """Test a locally authored asset path is not mistaken for a cached remote copy."""
+    assert assets_utils.unmirror_file_path(path) == ""
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        # ``Omniverse`` is where Omniverse puts user projects by default
+        "C:/Users/user/Omniverse/MyProject/scene.usd",
+        "/data/omniverse/assets/robot.usd",
+        "/mnt/nfs/OMNIVERSE/Library/Wood/oak.mdl",
+        "/home/user/projects/https/site/logo.png",
+    ],
+)
+def test_unmirror_file_path_leaves_a_directory_named_after_a_url_scheme_unclaimed(asset_cache, path):
+    """Test an ordinary local layout is not read as a cache layout because of a directory name."""
+    assert assets_utils.unmirror_file_path(path) == ""
+
+
+def test_unmirror_file_path_does_not_claim_a_windows_drive_letter_path(asset_cache):
+    """Test a drive letter, which ``urlparse`` also reports as a scheme, is not read as a URL."""
+    mirrored = assets_utils._mirror_path("C:/Users/user/assets/robot.usd", str(asset_cache))
+
+    assert assets_utils.unmirror_file_path(mirrored) == ""
+
+
+def test_unmirror_file_path_recognises_a_copy_reported_with_forward_slashes(asset_cache):
+    """Test a copy is recognised when USD reports it with forward slashes, as it does on Windows."""
+    url = "https://example.com/Assets/Isaac/example.usd"
+    mirrored = assets_utils._mirror_path(url, str(asset_cache))
+
+    assert assets_utils.unmirror_file_path(mirrored.replace(os.sep, "/")) == url
+
+
+def test_unmirror_file_path_recognises_a_copy_cached_by_an_earlier_run(asset_cache, monkeypatch):
+    """Test a warm cache still names its source, since no download happens to record it."""
+    revision = {"hash": "abc123", "version": "", "size": 12, "modified_time": "2026-07-01 10:00:00"}
+    mirrored = _cache_asset(asset_cache, _REMOTE_URL, b"cached bytes", revision)
+    # no payload is served, so the URL is recovered without the asset being downloaded again
+    _serve(monkeypatch, {_REMOTE_URL: revision})
+    assets_utils.read_file(_REMOTE_URL)
+
+    assert assets_utils.unmirror_file_path(str(mirrored)) == _REMOTE_URL
 
 
 def test_newton_asset_dir_uses_environment_override(tmp_path, monkeypatch):

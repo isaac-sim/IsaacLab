@@ -3,81 +3,85 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Replication queue, :func:`replicate` drain, and :class:`ReplicateSession` sugar."""
+"""Post-construction clone-plan dispatch and :class:`ReplicateSession` sugar."""
 
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
+from isaaclab.sim import SimulationContext
+
+from .clone_plan import make_clone_plan
+from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .cloner_strategies import sequential
+from .usd import UsdReplicateContext
 
 if TYPE_CHECKING:
-    import torch
-
-    from pxr import Usd
-
     from .clone_plan import ClonePlan
 
 
-REPLICATION_QUEUE: list[tuple[Any, type]] = []
-"""``(cfg, BackendCtxCls)`` pairs appended by ``queue_<backend>_replication`` and drained by :func:`replicate`."""
+REPLICATION_QUEUE: list[Any] = []
+"""Constructed cfgs consumed by post-construction :func:`clone_plan_from_env_0` workflows.
+
+Cfg-first :class:`ReplicateSession` planning does not read the queue. Dispatch clears it
+without deriving any backend mapping from it.
+"""
 
 
-def replicate(plan: ClonePlan, *, stage: Usd.Stage) -> None:
-    """Drain :data:`REPLICATION_QUEUE` against ``plan``, dispatch each backend, publish the plan.
+def queue_replication(cfg: Any) -> None:
+    """Register a constructed cfg for post-construction clone planning.
 
-    Cfgs absent from ``plan.cfg_rows`` are silently skipped. Backend contexts run in
-    ascending ``replicate_priority`` order. The queue is cleared up front, so a backend
-    failure cannot leak stale entries into the next call.
+    Args:
+        cfg: Asset cfg with resolved ``prim_path``.
     """
-    from isaaclab.sim import SimulationContext  # noqa: PLC0415
+    REPLICATION_QUEUE.append(cfg)
 
-    queued = list(REPLICATION_QUEUE)
+
+def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
+    """Dispatch a fully routed clone plan and publish it after replication.
+
+    Planning derives routing from the input cfgs; dispatch does not rediscover or reshape that mapping.
+    Every context is owned by the active :class:`~isaaclab.sim.SimulationContext` and receives
+    only ``plan``. The queue is cleared up front, so a backend failure cannot leak stale entries
+    into the next lifecycle.
+
+    Args:
+        plan: Replication layout to dispatch.
+        replicate_physics: Whether physics replication clones each environment. If False,
+            cloning is USD-only; an asset whose contexts are all physics-based is not cloned.
+    """
     REPLICATION_QUEUE.clear()
+    sim = SimulationContext.instance()
+    if sim is None:
+        raise RuntimeError("Clone-plan replication requires an active SimulationContext.")
+    context_types = tuple(
+        context_type for context_type in plan.context_rows if replicate_physics or context_type is UsdReplicateContext
+    )
+    missing = [context_type for context_type in context_types if context_type not in sim._backend_registry]
+    if missing:
+        names = ", ".join(f"{context_type.__module__}.{context_type.__qualname__}" for context_type in missing)
+        raise RuntimeError(f"Clone contexts must be registered before plan dispatch: {names}.")
 
-    # Group queued cfgs by backend, taking the union of row indices each backend owns.
-    # In the homogeneous plan every cfg maps to row 0, so multiple queue_<backend>_replication
-    # calls (e.g. one per body type in RigidObjectCollection) all contribute {0} and the set
-    # union keeps it as a single row — no redundant copy specs are authored.
-    backend_rows: dict[type, set[int]] = {}
-    for cfg, BackendCtxCls in queued:
-        rows = plan.cfg_rows.get(id(cfg))
-        if rows is None:
-            continue
-        backend_rows.setdefault(BackendCtxCls, set()).update(rows)
-
-    backend_ctxs: dict[type, Any] = {}
-    for BackendCtxCls, row_set in backend_rows.items():
-        ctx = BackendCtxCls(stage)
-        backend_ctxs[BackendCtxCls] = ctx
-        row_list = sorted(row_set)
-        ctx.queue_mapping(
-            [plan.sources[i] for i in row_list],
-            [plan.destinations[i] for i in row_list],
-            plan.env_ids,
-            plan.clone_mask[row_list],
-            positions=plan.positions,
-        )
-
-    for ctx in sorted(backend_ctxs.values(), key=lambda c: getattr(c, "replicate_priority", 0)):
-        ctx.replicate()
-
-    SimulationContext.instance().set_clone_plan(plan)
+    contexts = [sim._backend_registry[context_type] for context_type in context_types]
+    for context in sorted(contexts, key=lambda item: item.replicate_priority):
+        context.replicate(plan)
+    sim.set_clone_plan(plan)
 
 
 class ReplicateSession:
     """Folds :func:`make_clone_plan` and :func:`replicate` into a ``with`` block.
 
-    ``__enter__`` builds the plan (and mutates each cfg's ``spawn_path``); asset
-    constructors inside the block register backend replication into
-    :data:`REPLICATION_QUEUE`; ``__exit__`` drains and dispatches.
+    ``__enter__`` builds the complete plan and mutates each cfg's ``spawn_path``;
+    ``__exit__`` clears constructor registrations and dispatches that same plan.
 
     Example:
 
         .. code-block:: python
 
-            with cloner.ReplicateSession(cfgs, num_clones=128, env_spacing=2.0, device="cuda:0", stage=sim.stage):
+            with cloner.ReplicateSession(cfgs, num_clones=128, env_spacing=2.0):
                 for cfg in cfgs:
                     cfg.class_type(cfg)
     """
@@ -87,11 +91,12 @@ class ReplicateSession:
         cfgs: Iterable[Any],
         num_clones: int,
         env_spacing: float,
-        device: str,
         *,
-        stage: Usd.Stage,
-        clone_strategy: Callable = sequential,
-        valid_set: torch.Tensor | None = None,
+        global_paths: tuple[str, ...] = (),
+        clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
+        valid_set: np.ndarray | None = None,
+        replicate_physics: bool = True,
+        env_template: str = DEFAULT_ENV_TEMPLATE,
     ):
         """Capture arguments for :func:`make_clone_plan` and :func:`replicate`.
 
@@ -99,33 +104,34 @@ class ReplicateSession:
             cfgs: Asset cfgs with resolved ``prim_path``.
             num_clones: Number of target envs.
             env_spacing: Grid spacing between env origins [m].
-            device: Torch device for plan tensors.
-            stage: USD stage to author replicated prim specs into.
+            global_paths: Complete shared-asset roots declared by the composition root. Defaults to none.
             clone_strategy: Prototype-to-env assignment function.
-            valid_set: Optional ``[num_combos, num_groups]`` long tensor of valid
+            valid_set: Optional ``[num_combos, num_groups]`` integer array of valid
                 prototype combinations; ``None`` uses the full cartesian product.
+            replicate_physics: Whether physics replication clones each environment;
+                forwarded to :func:`replicate`.
+            env_template: Path template for a replicated env prim, ``{}`` marking the env index.
         """
         self._cfgs = cfgs
-        self._stage = stage
+        self._replicate_physics = replicate_physics
         self._kwargs = dict(
             num_clones=num_clones,
             env_spacing=env_spacing,
-            device=device,
+            global_paths=global_paths,
             clone_strategy=clone_strategy,
             valid_set=valid_set,
+            env_template=env_template,
         )
         self._plan: ClonePlan | None = None
 
     def __enter__(self) -> ReplicateSession:
-        from .cloner_utils import make_clone_plan  # noqa: PLC0415
-
         self._plan = make_clone_plan(self._cfgs, **self._kwargs)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         if exc_type is None:
             assert self._plan is not None
-            replicate(self._plan, stage=self._stage)
+            replicate(self._plan, replicate_physics=self._replicate_physics)
         else:
             # Drop cfgs registered before the failure so the next session is clean.
             REPLICATION_QUEUE.clear()

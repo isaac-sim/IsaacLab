@@ -31,6 +31,8 @@ class NewtonMJWarpManager(NewtonManager):
     :attr:`NewtonCfg.debug_mode` is enabled.
     """
 
+    _builder_attribute_solvers = (SolverMuJoCo,)
+
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:
         """Construct the configured MuJoCo Warp solver."""
@@ -52,6 +54,7 @@ class NewtonMJWarpManager(NewtonManager):
         NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = True
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
+        NewtonManager._supports_rigid_body_force_input = True
 
         cfg = PhysicsManager._cfg
         # Cross-config validation that needs both halves.
@@ -106,9 +109,9 @@ class NewtonMJWarpManager(NewtonManager):
         step.
 
         Args:
-            world_mask: Per-world bool mask of shape ``(world_count,)``;
-                ``True`` for worlds that need their MJWarp internals cleared.
-                ``None`` is treated as a no-op.
+            world_mask: Per-world bool mask of shape ``(world_count + 1,)``.
+                Entries before the last select local worlds; the final entry
+                selects global entities in world -1. ``None`` is a no-op.
         """
         if world_mask is None:
             return

@@ -20,18 +20,32 @@ import warp as wp
 from ...sim import SimulationContext
 from ...utils.buffers import TimestampedBufferWarp
 from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
+from ...utils.warp import ProxyArray
 from ..asset_base import AssetBase
 from . import ordering_kernels
 from .ordering import ArticulationNameMap, ArticulationOrderingConvention, build_articulation_name_map
 from .ordering_resolvers import _resolve_articulation_ordering_names
 
 if TYPE_CHECKING:
+    from isaaclab.actuators import ActuatorCollection
     from isaaclab.utils.wrench_composer import WrenchComposer
 
     from .articulation_cfg import ArticulationCfg
     from .base_articulation_data import BaseArticulationData
 
 logger = logging.getLogger(__name__)
+
+
+def _as_bool_mask(mask: torch.Tensor | wp.array | None) -> wp.array | None:
+    """Coerce legacy nonzero-selectable masks to the ``wp.bool`` masks the command API expects.
+
+    Deprecated with the ``set_joint_*_target_mask`` forwarders that consume it;
+    remove together in 4.0.
+    """
+    if mask is None or (isinstance(mask, wp.array) and mask.dtype == wp.bool):
+        return mask
+    mask_torch = wp.to_torch(mask) if isinstance(mask, wp.array) else mask
+    return wp.from_torch((mask_torch != 0).contiguous(), dtype=wp.bool)
 
 
 class BaseArticulation(AssetBase):
@@ -104,12 +118,13 @@ class BaseArticulation(AssetBase):
     solver-view order matches.
     """
 
-    actuators: dict
-    """Dictionary of actuator instances for the articulation.
+    actuators: ActuatorCollection
+    """Runtime actuator collection for the articulation.
 
-    The keys are the actuator names and the values are the actuator instances. The actuator instances
-    are initialized based on the actuator configurations specified in the :attr:`ArticulationCfg.actuators`
-    attribute. They are used to compute the joint commands during the :meth:`write_data_to_sim` function.
+    This read-only mapping exposes configured groups and owns articulation-wide
+    actuator commands and telemetry. Configure membership through
+    :attr:`ArticulationCfg.actuators` before construction; set runtime commands
+    through ``articulation.actuators.target_command``.
     """
 
     def __init__(self, cfg: ArticulationCfg):
@@ -508,25 +523,38 @@ class BaseArticulation(AssetBase):
     """
 
     @abstractmethod
-    def find_bodies(self, name_keys: str | Sequence[str], preserve_order: bool = False) -> tuple[list[int], list[str]]:
+    def find_bodies(
+        self,
+        name_keys: str | Sequence[str],
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find bodies in the articulation based on the name keys.
 
-        Please check the :meth:`isaaclab.utils.string_utils.resolve_matching_names` function for more
+        Please check the :func:`isaaclab.utils.string.resolve_matching_names` function for more
         information on the name matching.
 
         Args:
             name_keys: A regular expression or a list of regular expressions to match the body names.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Whether to return cached, immutable :class:`ProxyArray` indices. Use ``.warp`` or
+                ``.torch`` and reacquire after invalidation. Defaults to False.
 
         Returns:
-            A tuple of lists containing the body indices and names.
+            Matched body indices and names. Indices are a list by default or a cached proxy when requested.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def find_joints(
-        self, name_keys: str | Sequence[str], joint_subset: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+        self,
+        name_keys: str | Sequence[str],
+        joint_subset: list[str] | None = None,
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find joints in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -537,16 +565,23 @@ class BaseArticulation(AssetBase):
             joint_subset: A subset of joints to search for. Defaults to None, which means all joints
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Whether to return proxy indices. See :meth:`find_bodies`. Subsets use asset-global
+                proxy indices.
 
         Returns:
-            A tuple of lists containing the joint indices, names.
+            Matched joint indices and names. Indices are a list by default or a cached proxy when requested.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def find_fixed_tendons(
-        self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+        self,
+        name_keys: str | Sequence[str],
+        tendon_subsets: list[str] | None = None,
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find fixed tendons in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -558,16 +593,23 @@ class BaseArticulation(AssetBase):
             tendon_subsets: A subset of joints with fixed tendons to search for. Defaults to None, which means
                 all joints in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Whether to return proxy indices. See :meth:`find_bodies`. Subsets use asset-global
+                proxy indices.
 
         Returns:
-            A tuple of lists containing the tendon indices, names.
+            Matched fixed-tendon indices and names. Indices are a list by default or a cached proxy when requested.
         """
         raise NotImplementedError()
 
     @abstractmethod
     def find_spatial_tendons(
-        self, name_keys: str | Sequence[str], tendon_subsets: list[str] | None = None, preserve_order: bool = False
-    ) -> tuple[list[int], list[str]]:
+        self,
+        name_keys: str | Sequence[str],
+        tendon_subsets: list[str] | None = None,
+        preserve_order: bool = False,
+        *,
+        as_proxy: bool = False,
+    ) -> tuple[list[int] | ProxyArray, list[str]]:
         """Find spatial tendons in the articulation based on the name keys.
 
         Please see the :func:`isaaclab.utils.string.resolve_matching_names` function for more information
@@ -578,9 +620,11 @@ class BaseArticulation(AssetBase):
             tendon_subsets: A subset of tendons to search for. Defaults to None, which means all tendons
                 in the articulation are searched.
             preserve_order: Whether to preserve the order of the name keys in the output. Defaults to False.
+            as_proxy: Whether to return proxy indices. See :meth:`find_bodies`. Subsets use asset-global
+                proxy indices.
 
         Returns:
-            A tuple of lists containing the tendon indices, names.
+            Matched spatial-tendon indices and names. Indices are a list by default or a cached proxy when requested.
         """
         raise NotImplementedError()
 
@@ -1377,6 +1421,8 @@ class BaseArticulation(AssetBase):
         self,
         *,
         joint_friction_coeff: torch.Tensor | float | wp.array,
+        joint_dynamic_friction_coeff: torch.Tensor | float | wp.array | None = None,
+        joint_viscous_friction_coeff: torch.Tensor | float | wp.array | None = None,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
@@ -1396,6 +1442,11 @@ class BaseArticulation(AssetBase):
 
         Args:
             joint_friction_coeff: Backend-specific joint friction values. Shape is (len(env_ids), len(joint_ids)).
+            joint_dynamic_friction_coeff: Backend-specific dynamic friction values with the same shape.
+                If None, the dynamic component is not updated. Backends without a dynamic friction
+                property warn on nonzero values.
+            joint_viscous_friction_coeff: Backend-specific viscous friction values with the same shape.
+                If None, the viscous component is not updated.
             joint_ids: The joint indices to set the joint torque limits for. Defaults to None (all joints).
             env_ids: The environment indices to set the joint torque limits for. Defaults to None (all instances).
         """
@@ -1581,173 +1632,280 @@ class BaseArticulation(AssetBase):
         """
         raise NotImplementedError()
 
-    @abstractmethod
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
     def set_joint_position_target_index(
         self,
         *,
-        target: torch.Tensor | wp.array,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ) -> None:
         """Set joint position targets into internal buffers.
 
-        .. note::
-            This method expects partial data.
+        .. deprecated::
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_position_index``.
 
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+        .. note::
+            This method accepts partial or full data.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint position targets. Shape is (len(env_ids), len(joint_ids)).
+            target: Joint position targets [m or rad, depending on joint type]. Shape is
+                ``(len(env_ids), len(joint_ids))``, or ``(num_instances, num_joints)`` when
+                :paramref:`full_data` is true.
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all instances).
+            full_data: Whether :paramref:`target` contains all articulation joints and instances.
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "Articulation.set_joint_position_target_index is deprecated. Use "
+            "articulation.actuators.target_command.set_position_index instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuators.target_command.set_position_index(
+            value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
+        )
 
-    @abstractmethod
+    def _write_deprecated_native_actuator_gain(
+        self,
+        writer_name: Literal["write_actuator_stiffness_to_sim", "write_actuator_damping_to_sim"],
+        gain_name: Literal["kp", "kd"],
+        values: torch.Tensor,
+        env_ids: torch.Tensor,
+        joint_ids: torch.Tensor,
+    ) -> None:
+        """Warn and forward a legacy native-controller gain write."""
+        from isaaclab.actuators.newton import write_group_parameter  # noqa: PLC0415
+
+        warnings.warn(
+            f"{writer_name} is deprecated in 3.x and will be removed in 4.0. Use "
+            "randomize_actuator_gains for managed randomization or "
+            "isaaclab.actuators.newton.write_group_parameter for direct controller writes.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        # Split the articulation-level joint selection into per-group columns.
+        joint_ids_long = joint_ids.to(self.device, dtype=torch.long)
+        for group_name in getattr(self.actuators, "_native_group_names", ()):
+            group_joints = self.actuators._group_joint_indices[group_name]
+            if isinstance(group_joints, slice):
+                in_group = torch.ones_like(joint_ids_long, dtype=torch.bool)
+                group_columns = joint_ids_long
+            else:
+                column_of_joint = torch.full((self.num_joints,), -1, dtype=torch.long, device=self.device)
+                group_joints = group_joints.to(self.device, dtype=torch.long)
+                column_of_joint[group_joints] = torch.arange(group_joints.numel(), device=self.device)
+                columns = column_of_joint[joint_ids_long]
+                in_group = columns >= 0
+                group_columns = columns[in_group]
+            if not bool(in_group.any()):
+                continue
+            write_group_parameter(
+                self.actuators,
+                group_name,
+                "controller",
+                gain_name,
+                values[:, in_group],
+                env_ids=env_ids,
+                joint_ids=group_columns,
+            )
+
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_POSITION, element_names_resolver=joint_names_resolver)
     def set_joint_position_target_mask(
         self,
         *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
+        joint_mask: wp.array(dtype=wp.bool) | None = None,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
     ) -> None:
         """Set joint position targets into internal buffers.
 
+        .. deprecated::
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_position_mask``.
+
         .. note::
             This method expects full data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint position targets. Shape is (num_instances, num_joints).
+            target: Joint position targets [m or rad, depending on joint type]. Shape is
+                ``(num_instances, num_joints)``.
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "Articulation.set_joint_position_target_mask is deprecated. Use "
+            "articulation.actuators.target_command.set_position_mask instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuators.target_command.set_position_mask(
+            value=target,
+            joint_mask=_as_bool_mask(joint_mask),
+            env_mask=_as_bool_mask(env_mask),
+        )
 
-    @abstractmethod
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_VELOCITY, element_names_resolver=joint_names_resolver)
     def set_joint_velocity_target_index(
         self,
         *,
-        target: torch.Tensor | wp.array,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ) -> None:
         """Set joint velocity targets into internal buffers.
 
-        .. note::
-            This method expects partial data.
+        .. deprecated::
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_velocity_index``.
 
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+        .. note::
+            This method accepts partial or full data.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint velocity targets. Shape is (len(env_ids), len(joint_ids)).
+            target: Joint velocity targets [m/s or rad/s, depending on joint type]. Shape is
+                ``(len(env_ids), len(joint_ids))``, or ``(num_instances, num_joints)`` when
+                :paramref:`full_data` is true.
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all instances).
+            full_data: Whether :paramref:`target` contains all articulation joints and instances.
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "Articulation.set_joint_velocity_target_index is deprecated. Use "
+            "articulation.actuators.target_command.set_velocity_index instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuators.target_command.set_velocity_index(
+            value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
+        )
 
-    @abstractmethod
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_VELOCITY, element_names_resolver=joint_names_resolver)
     def set_joint_velocity_target_mask(
         self,
         *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
+        joint_mask: wp.array(dtype=wp.bool) | None = None,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
     ) -> None:
         """Set joint velocity targets into internal buffers.
 
+        .. deprecated::
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_velocity_mask``.
+
         .. note::
             This method expects full data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint velocity targets. Shape is (num_instances, num_joints).
+            target: Joint velocity targets [m/s or rad/s, depending on joint type]. Shape is
+                ``(num_instances, num_joints)``.
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "Articulation.set_joint_velocity_target_mask is deprecated. Use "
+            "articulation.actuators.target_command.set_velocity_mask instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuators.target_command.set_velocity_mask(
+            value=target,
+            joint_mask=_as_bool_mask(joint_mask),
+            env_mask=_as_bool_mask(env_mask),
+        )
 
-    @abstractmethod
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_EFFORT, element_names_resolver=joint_names_resolver)
     def set_joint_effort_target_index(
         self,
         *,
-        target: torch.Tensor | wp.array,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        full_data: bool = False,
     ) -> None:
         """Set joint efforts into internal buffers.
 
-        .. note::
-            This method expects partial data.
+        .. deprecated::
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_effort_index``.
 
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
+        .. note::
+            This method accepts partial or full data.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint effort targets. Shape is (len(env_ids), len(joint_ids)).
+            target: Joint effort targets [N or N·m, depending on joint type]. Shape is
+                ``(len(env_ids), len(joint_ids))``, or ``(num_instances, num_joints)`` when
+                :paramref:`full_data` is true.
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all instances).
+            full_data: Whether :paramref:`target` contains all articulation joints and instances.
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "Articulation.set_joint_effort_target_index is deprecated. Use "
+            "articulation.actuators.target_command.set_effort_index instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuators.target_command.set_effort_index(
+            value=target, joint_ids=joint_ids, env_ids=env_ids, full_data=full_data
+        )
 
-    @abstractmethod
     @leapp_tensor_semantics(kind=OutputKindEnum.JOINT_EFFORT, element_names_resolver=joint_names_resolver)
     def set_joint_effort_target_mask(
         self,
         *,
-        target: torch.Tensor | wp.array,
-        joint_mask: wp.array | None = None,
-        env_mask: wp.array | None = None,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
+        joint_mask: wp.array(dtype=wp.bool) | None = None,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
     ) -> None:
         """Set joint efforts into internal buffers.
 
+        .. deprecated::
+            Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+            ``set_effort_mask``.
+
         .. note::
             This method expects full data.
-
-        .. tip::
-            For maximum performance we recommend looking at the actual implementation of the method in the backend.
-            Some backends may provide optimized implementations for masks / indices.
 
         This function does not apply the joint targets to the simulation. It only fills the buffers with
         the desired values. To apply the joint targets, call the :meth:`write_data_to_sim` function.
 
         Args:
-            target: Joint effort targets. Shape is (num_instances, num_joints).
+            target: Joint effort targets [N or N·m, depending on joint type]. Shape is
+                ``(num_instances, num_joints)``.
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        raise NotImplementedError()
+        warnings.warn(
+            "Articulation.set_joint_effort_target_mask is deprecated. Use "
+            "articulation.actuators.target_command.set_effort_mask instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.actuators.target_command.set_effort_mask(
+            value=target,
+            joint_mask=_as_bool_mask(joint_mask),
+            env_mask=_as_bool_mask(env_mask),
+        )
 
     """
     Operations - Tendons.
@@ -2575,10 +2733,6 @@ class BaseArticulation(AssetBase):
             )
         return backend_data
 
-    """
-    Internal helpers -- Actuators.
-    """
-
     @abstractmethod
     def _process_actuators_cfg(self) -> None:
         """Process and apply articulation joint properties."""
@@ -2587,15 +2741,6 @@ class BaseArticulation(AssetBase):
     @abstractmethod
     def _process_tendons(self) -> None:
         """Process fixed and spatial tendons."""
-        raise NotImplementedError()
-
-    @abstractmethod
-    def _apply_actuator_model(self) -> None:
-        """Processes joint commands for the articulation by forwarding them to the actuators.
-
-        The actions are first processed using actuator models. Depending on the robot configuration,
-        the actuator models compute the joint level simulation commands and sets them into the PhysX buffers.
-        """
         raise NotImplementedError()
 
     """
@@ -3025,48 +3170,60 @@ class BaseArticulation(AssetBase):
 
     def set_joint_position_target(
         self,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
+        joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`set_joint_position_target_index`."""
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        ``set_position_index``.
+        """
         warnings.warn(
-            "The function 'set_joint_position_target' will be deprecated in a future release. Please"
-            " use 'set_joint_position_target_index' instead.",
+            "Articulation.set_joint_position_target is deprecated. Use "
+            "articulation.actuators.target_command.set_position_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_joint_position_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids)
+        if isinstance(joint_ids, slice):
+            joint_ids = range(self.num_joints)[joint_ids]
+        self.actuators.target_command.set_position_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_joint_velocity_target(
         self,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
+        joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`set_joint_velocity_target_index`."""
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        ``set_velocity_index``.
+        """
         warnings.warn(
-            "The function 'set_joint_velocity_target' will be deprecated in a future release. Please"
-            " use 'set_joint_velocity_target_index' instead.",
+            "Articulation.set_joint_velocity_target is deprecated. Use "
+            "articulation.actuators.target_command.set_velocity_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_joint_velocity_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids)
+        if isinstance(joint_ids, slice):
+            joint_ids = range(self.num_joints)[joint_ids]
+        self.actuators.target_command.set_velocity_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_joint_effort_target(
         self,
-        target: torch.Tensor | wp.array,
-        joint_ids: Sequence[int] | slice | None = None,
+        target: torch.Tensor | wp.array(dtype=wp.float32),
+        joint_ids: Sequence[int] | slice | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
-        """Deprecated, same as :meth:`set_joint_effort_target_index`."""
+        """Deprecated. Use :attr:`isaaclab.actuators.ActuatorCollection.command` and call
+        ``set_effort_index``.
+        """
         warnings.warn(
-            "The function 'set_joint_effort_target' will be deprecated in a future release. Please"
-            " use 'set_joint_effort_target_index' instead.",
+            "Articulation.set_joint_effort_target is deprecated. Use "
+            "articulation.actuators.target_command.set_effort_index instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        self.set_joint_effort_target_index(target=target, joint_ids=joint_ids, env_ids=env_ids)
+        if isinstance(joint_ids, slice):
+            joint_ids = range(self.num_joints)[joint_ids]
+        self.actuators.target_command.set_effort_index(value=target, joint_ids=joint_ids, env_ids=env_ids)
 
     def set_fixed_tendon_stiffness(
         self,

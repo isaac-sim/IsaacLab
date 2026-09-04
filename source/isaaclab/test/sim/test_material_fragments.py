@@ -446,11 +446,10 @@ def test_legacy_base_cfg_authors_density():
     assert not prim2.GetAttribute("physics:density").HasAuthoredValue()
 
 
-def test_public_default_material_types_remain_backward_compatible():
-    """Fragment support must not silently replace the released default config objects."""
-    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-
+def test_public_default_material_types_remain_core_importable():
+    """Default rigid materials must not require importing a physics-backend package."""
     from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
+    from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
     from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg
 
     defaults = (
@@ -458,7 +457,7 @@ def test_public_default_material_types_remain_backward_compatible():
         GroundPlaneCfg().physics_material,
         TerrainImporterCfg(prim_path="/World/terrain").physics_material,
     )
-    assert all(type(material) is RigidBodyMaterialCfg for material in defaults)
+    assert all(type(material) is RigidBodyMaterialBaseCfg for material in defaults)
 
 
 def test_physx_fragment_and_legacy_cfg_match_material_api_schema():

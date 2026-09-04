@@ -8,7 +8,7 @@ Isaac Lab supports saving image-like outputs from scene sensors during training 
 Isaac Lab iterates over the environment's :class:`~isaaclab.scene.InteractiveScene` sensors and
 writes each sensor's ``data.output`` tensors (for example, ``rgb``, ``depth``, or ``normals`` from a
 :class:`~isaaclab.sensors.Camera`). The flag value is the number of parallel environment views to
-tile into each saved frame grid. This differs from :doc:`record_video`, which records a single
+tile into each saved frame grid. This differs from :doc:`/source/features/record_video`, which records a single
 perspective viewport clip of the scene.
 
 The capture flags are registered on the shared training entrypoints for RSL-RL, RL-Games, Stable
@@ -33,9 +33,20 @@ needed.
 
 Example usage:
 
-.. code-block:: shell
+.. tab-set::
 
-    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Reorient-Cube-Shadow-Camera-Direct --capture_env_sensors 4 --capture_env_sensors_length 100 --capture_env_sensors_interval 2000 --capture_env_sensors_format file
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: shell
+
+          uv run isaaclab train --rl_library rsl_rl --task=Isaac-Reorient-Cube-Shadow-Camera-Direct --capture_env_sensors 4 --capture_env_sensors_length 100 --capture_env_sensors_interval 2000 --capture_env_sensors_format file
+
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: shell
+
+          ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Reorient-Cube-Shadow-Camera-Direct --capture_env_sensors 4 --capture_env_sensors_length 100 --capture_env_sensors_interval 2000 --capture_env_sensors_format file
 
 
 The captured frames will be saved in the same directory as the training checkpoints, under
@@ -72,7 +83,7 @@ The training entrypoints register the capture flags in ``add_common_train_args``
 
 .. literalinclude:: ../../../source/isaaclab_rl/isaaclab_rl/entrypoints/common.py
    :language: python
-   :lines: 277-300
+   :lines: 407-430
 
 
 Capture schedule
@@ -92,7 +103,7 @@ steps, another capture window opens at episode steps ``2000-2099``, then ``4000-
 
 .. note::
 
-   This schedule uses a **per-episode** step counter. :doc:`record_video` instead keys off the
+   This schedule uses a **per-episode** step counter. :doc:`/source/features/record_video` instead keys off the
    Gymnasium ``RecordVideo`` wrapper's **global** environment-step counter across episodes.
 
 
@@ -120,11 +131,13 @@ Before tiling, each selected environment view is passed through
 :func:`~isaaclab.utils.images.normalize_camera_output_for_display`, which maps common camera data
 types to a ``[0, 1]`` float range suitable for PNG export:
 
-* RGB-like outputs are scaled by ``255``
-* Depth-like outputs (``depth``, ``distance_to_camera``, ``distance_to_image_plane``) are scaled by
-  their per-frame maximum
-* ``albedo`` keeps the first three channels and scales by ``255``
+* ``rgb`` and unrecognized output types are divided by ``255`` to produce ``[0, 1]`` floats
+* Depth-like outputs (``depth``, ``distance_to_camera``, ``distance_to_image_plane``) are
+  divided by their per-frame maximum
+* ``albedo`` keeps the first three channels and divides by ``255``
 * ``normals`` are remapped from ``[-1, 1]`` to ``[0, 1]``
+* ``motion_vectors`` are clamped to ``[-1, 1]``, remapped to ``[0, 1]``, and packed into
+  the RG channels of an RGB image (B channel set to zero)
 
 :func:`~isaaclab.utils.images.make_camera_output_grid` arranges the ``capture_num_envs`` views into a
 roughly square grid (``nrow = round(sqrt(num_envs))``) before the image is written.
@@ -138,9 +151,19 @@ the tag ``<sensor_name>/<data_type>/episode_<index>``. View the captures alongsi
 metrics by pointing TensorBoard at the training log directory or the ``sensor_frames/train``
 subdirectory:
 
-.. code-block:: shell
+.. tab-set::
 
-    ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/Isaac-Reorient-Cube-Shadow-Camera-Direct/<run>/sensor_frames/train
+   .. tab-item:: uv (Recommended)
+
+      .. code-block:: shell
+
+          uv run python -m tensorboard.main --logdir logs/rsl_rl/Isaac-Reorient-Cube-Shadow-Camera-Direct/<run>/sensor_frames/train
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code-block:: shell
+
+          ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/Isaac-Reorient-Cube-Shadow-Camera-Direct/<run>/sensor_frames/train
 
 **File.** PNG images are written per sensor, data type, episode, and step:
 
@@ -169,12 +192,30 @@ Summary
      - Any image viewer or filesystem browser
 
 
+Choosing a capture method
+-------------------------
+
+.. list-table::
+   :widths: 35 30 35
+   :header-rows: 1
+
+   * - Goal
+     - Use
+     - Output
+   * - Inspect sensor outputs during training
+     - This page (``--capture_env_sensors``)
+     - PNG files or TensorBoard images
+   * - Record or share a video
+     - :doc:`/source/features/record_video` (``VideoRecorderCfg``)
+     - MP4 video
+
+
 See also
 --------
 
-* :doc:`record_video` - record a perspective viewport clip with ``--video``
-* :doc:`/source/overview/reinforcement-learning/rl_existing_scripts` - training entrypoints that
-  expose the capture flags
-* :doc:`/source/overview/core-concepts/visualization` - visualizers and rendering during training
+* :doc:`/source/features/record_video` - record a perspective viewport clip with ``--video``
+* :doc:`/source/concepts/reinforcement_learning` - the shared ``train``/``play`` entrypoints
+  that register the capture flags
+* :doc:`/source/concepts/visualization` - visualizers and rendering during training
 * :doc:`/source/overview/core-concepts/sensors/camera` - camera sensors and annotator data types
 * :doc:`proxy_array` - dual CPU/GPU sensor buffers read through ``.torch``

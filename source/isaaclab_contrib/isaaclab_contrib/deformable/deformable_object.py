@@ -13,12 +13,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 import warp as wp
-from isaaclab_newton.cloner import queue_newton_physics_replication
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
-from isaaclab.cloner import queue_usd_replication
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.warp import ProxyArray
@@ -42,7 +40,7 @@ class DeformableRegistryEntry:
     """Entry in the deformable body registry.
 
     Registered by :class:`DeformableObject` during ``__init__``, consumed by
-    ``newton_physics_replicate`` inside the per-world ``begin_world``/``end_world`` loop.
+    the Newton clone context inside the per-world ``begin_world``/``end_world`` loop.
     After replication, ``particle_offsets`` and ``particles_per_body`` are filled in
     so the asset can bind to the correct particle ranges.
     """
@@ -67,7 +65,7 @@ class DeformableRegistryEntry:
     k_mu: float = 1e5
     k_lambda: float = 1e5
     k_damp: float = 0.0
-    # Filled by newton_physics_replicate:
+    # Filled by the Newton clone context:
     particle_offsets: list[int] = field(default_factory=list)
     particles_per_body: int = 0
 
@@ -82,8 +80,8 @@ def add_deformable_entry_to_builder(
     builder,
     entry: DeformableRegistryEntry,
     env_idx: int,
-    env_position: list[float],
-    env_rotation: list[float] | tuple[float, float, float, float],
+    env_position: np.ndarray,
+    env_rotation: np.ndarray,
 ) -> None:
     """Add a deformable registry entry to a Newton ``ModelBuilder`` for one environment.
 
@@ -175,18 +173,12 @@ def add_deformable_entry_to_builder(
 def add_registered_deformables_to_builder(
     builder,
     world_idx: int,
-    env_position: list[float],
-    env_rotation: list[float] | tuple[float, float, float, float],
+    env_position: np.ndarray,
+    env_rotation: np.ndarray,
 ) -> None:
     """Add all registered deformable entries to one Newton builder world."""
     for entry in SimulationManager._deformable_registry:
         add_deformable_entry_to_builder(builder, entry, world_idx, env_position, env_rotation)
-
-
-def color_registered_deformables(builder) -> None:
-    """Color the Newton builder when deformables were registered."""
-    if SimulationManager._deformable_registry:
-        builder.color()
 
 
 def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]) -> None:
@@ -211,8 +203,9 @@ def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]
     synced_any = False
     for entry in manager_cls._deformable_registry:
         for inst_idx, offset in enumerate(entry.particle_offsets):
-            resolved_vis = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.vis_mesh_prim_path)
-            resolved_vis = re.sub(r"\.\*", str(inst_idx), resolved_vis)
+            resolved_vis = re.sub(r"(?<=[Ee]nv_)(?:\[\^/\][*+]|\.\*)", str(inst_idx), entry.vis_mesh_prim_path)
+            # any wildcard left over stands for the instance too, in whichever way it is spelled
+            resolved_vis = re.sub(r"\[\^/\][*+]|\.\*", str(inst_idx), resolved_vis)
             vis_prim = stage.GetPrimAtPath(resolved_vis)
 
             if not vis_prim or not vis_prim.IsValid():
@@ -250,12 +243,8 @@ def install_deformable_builder_hooks() -> None:
     SimulationManager._deformable_registry = []
     if not hasattr(SimulationManager, "_per_world_builder_hooks"):
         SimulationManager._per_world_builder_hooks = []
-    if not hasattr(SimulationManager, "_post_replicate_hooks"):
-        SimulationManager._post_replicate_hooks = []
     if add_registered_deformables_to_builder not in SimulationManager._per_world_builder_hooks:
         SimulationManager._per_world_builder_hooks.append(add_registered_deformables_to_builder)
-    if color_registered_deformables not in SimulationManager._post_replicate_hooks:
-        SimulationManager._post_replicate_hooks.append(color_registered_deformables)
 
 
 def clear_deformable_builder_hooks() -> None:
@@ -266,10 +255,6 @@ def clear_deformable_builder_hooks() -> None:
             hook
             for hook in SimulationManager._per_world_builder_hooks
             if hook is not add_registered_deformables_to_builder
-        ]
-    if hasattr(SimulationManager, "_post_replicate_hooks"):
-        SimulationManager._post_replicate_hooks = [
-            hook for hook in SimulationManager._post_replicate_hooks if hook is not color_registered_deformables
         ]
 
 
@@ -299,8 +284,6 @@ class DeformableObject(BaseDeformableObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        queue_usd_replication(cfg)
-        queue_newton_physics_replication(cfg)
 
         # initialize deformable type to None, should be set to either surface or volume on initialization
         self._deformable_type: str | None = None
@@ -886,7 +869,7 @@ class DeformableObject(BaseDeformableObject):
         if self._num_instances == 0:
             raise RuntimeError(
                 f"No deformable body instances found for '{self.cfg.prim_path}'. "
-                "Ensure newton_physics_replicate or MODEL_INIT processed the registry."
+                "Ensure clone-plan replication or MODEL_INIT processed the registry."
             )
 
         logger.info("Newton deformable object initialized at: %s", self.cfg.prim_path)

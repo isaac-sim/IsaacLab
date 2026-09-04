@@ -12,7 +12,7 @@ mass matricescomputed by PhysX.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/05_controllers/run_osc.py
+    uv run python scripts/tutorials/05_controllers/run_osc.py
 
 """
 
@@ -351,7 +351,7 @@ def update_states(
     contact_forces.update(sim_dt)  # update contact sensor
     # Calculate the contact force by averaging over last four time steps (i.e., to smoothen) and
     # taking the max of three surfaces as only one should be the contact of interest
-    ee_force_w, _ = torch.max(torch.mean(contact_forces.data.net_forces_w_history, dim=1), dim=1)
+    ee_force_w, _ = torch.max(torch.mean(contact_forces.data.net_normal_forces_w_history, dim=1), dim=1)
 
     # This is a simplification, only for the sake of testing.
     ee_force_b = ee_force_w

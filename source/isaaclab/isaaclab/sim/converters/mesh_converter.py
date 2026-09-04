@@ -9,14 +9,14 @@ import os
 
 import omni
 import omni.kit.commands
-from isaacsim.core.experimental.utils.app import enable_extension
 from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
 from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
 from isaaclab.sim.schemas import schemas
 from isaaclab.sim.schemas.schemas_cfg import SchemaFragment
-from isaaclab.sim.utils import delete_prim, export_prim_to_file
+from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
+from isaaclab.sim.utils import delete_prim, enable_extension, export_prim_to_file
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -127,12 +127,18 @@ class MeshConverter(AssetConverterBase):
                 # Apply collider properties to mesh
                 if cfg.collision_props is not None:
                     # -- Collider properties such as offset, scale, etc.
-                    # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
-                    coll_frags = (
-                        cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
-                    )
-                    if coll_frags and all(isinstance(f, SchemaFragment) for f in coll_frags):
-                        schemas.apply_collision_properties(str(child_mesh_prim.GetPath()), coll_frags, stage=stage)
+                    # fragment path: mapping entries anchor at this mesh prim, so ``""`` preserves
+                    # the legacy placement; entries apply in insertion order. Otherwise a legacy
+                    # cfg routes to the legacy writer.
+                    collision_props_mapping = fragment_mapping(cfg.collision_props)
+                    if collision_props_mapping is not None:
+                        for pattern, fragments in collision_props_mapping.items():
+                            schemas.apply_collision_properties(
+                                props_expr(str(child_mesh_prim.GetPath()), pattern),
+                                fragments,
+                                create_if_missing=True,
+                                stage=stage,
+                            )
                     else:
                         schemas.define_collision_properties(
                             prim_path=child_mesh_prim.GetPath(), cfg=cfg.collision_props, stage=stage
@@ -203,19 +209,27 @@ class MeshConverter(AssetConverterBase):
         # Apply mass and rigid body properties after everything else
         # Properties are applied to the top level prim to avoid the case where all instances of this
         #   asset unintentionally share the same rigid body properties
-        # apply mass properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
+        # fragment path: mapping entries anchor at the root Xform prim, so ``""`` preserves the
+        # legacy placement; entries apply in insertion order. Otherwise a legacy cfg routes to the
+        # legacy writer.
+        # apply mass properties
         if cfg.mass_props is not None:
-            # normalize a single fragment to a list so the convenience form routes like a list
-            mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, SchemaFragment) else cfg.mass_props
-            if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, SchemaFragment) for f in mass_frags):
-                schemas.apply_mass_properties(str(xform_prim.GetPath()), mass_frags, stage=stage)
+            mass_props_mapping = fragment_mapping(cfg.mass_props)
+            if mass_props_mapping is not None:
+                for pattern, fragments in mass_props_mapping.items():
+                    schemas.apply_mass_properties(
+                        props_expr(str(xform_prim.GetPath()), pattern), fragments, create_if_missing=True, stage=stage
+                    )
             else:
                 schemas.define_mass_properties(prim_path=xform_prim.GetPath(), cfg=cfg.mass_props, stage=stage)
-        # apply rigid body properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
+        # apply rigid body properties
         if cfg.rigid_props is not None:
-            rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
-            if rigid_frags and all(isinstance(f, SchemaFragment) for f in rigid_frags):
-                schemas.apply_rigid_body_properties(str(xform_prim.GetPath()), rigid_frags, stage=stage)
+            rigid_props_mapping = fragment_mapping(cfg.rigid_props)
+            if rigid_props_mapping is not None:
+                for pattern, fragments in rigid_props_mapping.items():
+                    schemas.apply_rigid_body_properties(
+                        props_expr(str(xform_prim.GetPath()), pattern), fragments, create_if_missing=True, stage=stage
+                    )
             else:
                 schemas.define_rigid_body_properties(prim_path=xform_prim.GetPath(), cfg=cfg.rigid_props, stage=stage)
 
@@ -249,10 +263,10 @@ class MeshConverter(AssetConverterBase):
         """
         enable_extension("omni.kit.asset_converter")
 
-        import omni.kit.asset_converter
+        import omni.kit.asset_converter as kit_asset_converter
 
         # Create converter context
-        converter_context = omni.kit.asset_converter.AssetConverterContext()
+        converter_context = kit_asset_converter.AssetConverterContext()
         # Set up converter settings
         # Don't import/export materials
         converter_context.ignore_materials = not load_materials
@@ -269,7 +283,7 @@ class MeshConverter(AssetConverterBase):
         converter_context.use_double_precision_to_usd_transform_op = True
 
         # Create converter task
-        instance = omni.kit.asset_converter.get_instance()
+        instance = kit_asset_converter.get_instance()
         task = instance.create_converter_task(in_file, out_file, None, converter_context)
         # Start conversion task and wait for it to finish
         success = await task.wait_until_finished()

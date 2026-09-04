@@ -22,8 +22,11 @@ import warp as wp  # noqa: E402
 from pxr import Gf, UsdGeom  # noqa: E402
 
 try:
+    from isaaclab.sim.utils import enable_extension  # noqa: E402
+
+    enable_extension("isaacsim.core.experimental.prims")
     from isaacsim.core.experimental.prims import XformPrim as _IsaacSimXformPrimView
-except (ModuleNotFoundError, ImportError):
+except (ModuleNotFoundError, ImportError, RuntimeError):
     _IsaacSimXformPrimView = None
 
 from frame_view_contract_utils import *  # noqa: F401, F403, E402
@@ -86,7 +89,7 @@ def view_factory():
             sim_utils.create_prim(f"/World/Parent_{i}", "Xform", translation=PARENT_POS, stage=stage)
             sim_utils.create_prim(f"/World/Parent_{i}/Child", "Xform", translation=CHILD_OFFSET, stage=stage)
 
-        view = FrameView("/World/Parent_.*/Child", device=device)
+        view = FrameView("/World/Parent_[^/]*/Child", device=device)
         return ViewBundle(
             view=view,
             get_parent_pos=_get_parent_positions,
@@ -113,7 +116,7 @@ def test_visibility_toggle(device):
     for i in range(num_prims):
         sim_utils.create_prim(f"/World/Object_{i}", "Xform", stage=stage)
 
-    view = FrameView("/World/Object_.*", device=device)
+    view = FrameView("/World/Object_[^/]*", device=device)
 
     assert torch.all(view.get_visibility())
 
@@ -142,7 +145,7 @@ def test_visibility_parent_inheritance(device):
         sim_utils.create_prim(f"/World/Parent/Child_{i}", "Xform", stage=stage)
 
     parent_view = FrameView("/World/Parent", device=device)
-    children_view = FrameView("/World/Parent/Child_.*", device=device)
+    children_view = FrameView("/World/Parent/Child_[^/]*", device=device)
 
     parent_view.set_visibility(torch.tensor([False], dtype=torch.bool, device=device))
     assert not torch.any(children_view.get_visibility())
@@ -169,7 +172,7 @@ def test_prim_ordering_follows_creation_order(device):
         sim_utils.create_prim(f"/World/Env_{i}/Object_0", "Xform", stage=stage)
         sim_utils.create_prim(f"/World/Env_{i}/Object_A", "Xform", stage=stage)
 
-    view = FrameView("/World/Env_.*/Object_.*", device=device)
+    view = FrameView("/World/Env_[^/]*/Object_[^/]*", device=device)
     expected = []
     for i in range(num_envs):
         expected += [f"/World/Env_{i}/Object_1", f"/World/Env_{i}/Object_0", f"/World/Env_{i}/Object_A"]
@@ -180,6 +183,36 @@ def test_prim_ordering_follows_creation_order(device):
 # ==================================================================
 # USD-only: xformOp standardization
 # ==================================================================
+
+
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize(
+    ("scale_precision", "scale_value"),
+    [
+        (UsdGeom.XformOp.PrecisionHalf, Gf.Vec3h(0.25, 0.5, 0.75)),
+        (UsdGeom.XformOp.PrecisionFloat, Gf.Vec3f(0.01, 0.02, 0.03)),
+        (UsdGeom.XformOp.PrecisionDouble, Gf.Vec3d(0.01, 0.02, 0.03)),
+    ],
+    ids=["half3", "float3", "double3"],
+)
+def test_local_scales_accept_all_usd_precisions(device, scale_precision, scale_value):
+    """Scale reads normalize every legal USD precision without changing the FP32 view contract."""
+    stage = sim_utils.get_current_stage()
+    prim = stage.DefinePrim("/World/ScaledPrim", "Xform")
+    xformable = UsdGeom.Xformable(prim)
+    xformable.AddTranslateOp().Set(Gf.Vec3d(0.0))
+    xformable.AddOrientOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Quatf(1.0, Gf.Vec3f(0.0)))
+    xformable.AddScaleOp(scale_precision).Set(scale_value)
+
+    view = FrameView("/World/ScaledPrim", device=device)
+    assert isinstance(prim.GetAttribute("xformOp:scale").Get(), type(scale_value))
+
+    expected = torch.tensor([[float(value) for value in scale_value]], dtype=torch.float32, device=device)
+    scales = view.get_local_scales()
+    assert scales.shape == (1, 3)
+    assert scales.warp.dtype == wp.float32
+    assert scales.torch.dtype == torch.float32
+    torch.testing.assert_close(scales.torch, expected, atol=1e-6, rtol=0)
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -224,8 +257,8 @@ def test_nested_hierarchy_world_poses(device):
         sim_utils.create_prim(f"/World/Frame_{i}", "Xform", translation=frame_positions[i], stage=stage)
         sim_utils.create_prim(f"/World/Frame_{i}/Target", "Xform", translation=target_positions[i], stage=stage)
 
-    frames_view = FrameView("/World/Frame_.*", device=device)
-    targets_view = FrameView("/World/Frame_.*/Target", device=device)
+    frames_view = FrameView("/World/Frame_[^/]*", device=device)
+    targets_view = FrameView("/World/Frame_[^/]*/Target", device=device)
 
     with frames_view.xform_local_space_writer() as w:
         w.set_poses(positions=torch.tensor(frame_positions, device=device))
@@ -257,7 +290,7 @@ def _make_scaled_parent_child_view(device, parent_scale, child_scale=None):
     sim_utils.create_prim("/World/Parent_0", "Xform", translation=PARENT_POS, scale=parent_scale, stage=stage)
     child_kwargs = {} if child_scale is None else {"scale": child_scale}
     sim_utils.create_prim("/World/Parent_0/Child", "Xform", translation=CHILD_OFFSET, stage=stage, **child_kwargs)
-    return FrameView("/World/Parent_.*/Child", device=device)
+    return FrameView("/World/Parent_[^/]*/Child", device=device)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
@@ -318,9 +351,24 @@ def test_compare_get_world_poses_with_isaacsim():
         quat = (0.0, 0.0, 0.0, 1.0) if i % 2 == 0 else (0.0, 0.0, 0.7071068, 0.7071068)
         sim_utils.create_prim(f"/World/Env_{i}/Object", "Xform", translation=pos, orientation=quat, stage=stage)
 
-    pattern = "/World/Env_.*/Object"
+    pattern = "/World/Env_[^/]*/Object"
+    isaacsim_paths = [f"/World/Env_{i}/Object" for i in range(num_prims)]
     isaaclab_view = FrameView(pattern, device="cpu")
-    isaacsim_view = _IsaacSimXformPrimView(pattern, reset_xform_properties=False)
+
+    import omni.usd  # noqa: PLC0415
+
+    context = omni.usd.get_context()
+    context.attach_stage_with_callback(sim_utils.get_current_stage_id())
+    sim_utils.update_stage()
+
+    for kwargs in ({"reset_xform_properties": False}, {"reset_xform_op_properties": False}, {}):
+        try:
+            isaacsim_view = _IsaacSimXformPrimView(isaacsim_paths, **kwargs)
+            break
+        except TypeError as exc:
+            if kwargs and next(iter(kwargs)) in str(exc):
+                continue
+            raise
 
     isaaclab_pos = isaaclab_view.get_world_poses()[0].torch
     isaacsim_pos, isaacsim_quat = isaacsim_view.get_world_poses()
@@ -347,7 +395,7 @@ def test_with_franka_robots(device):
     sim_utils.create_prim("/World/Franka_1", "Xform", usd_path=franka_usd_path, stage=stage)
     sim_utils.create_prim("/World/Franka_2", "Xform", usd_path=franka_usd_path, stage=stage)
 
-    view = FrameView("/World/Franka_.*", device=device)
+    view = FrameView("/World/Franka_[^/]*", device=device)
     assert view.count == 2
 
     positions = view.get_world_poses()[0].torch

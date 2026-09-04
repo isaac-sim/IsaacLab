@@ -14,13 +14,13 @@ Compares batched transform operation performance across:
 
 Usage:
     # All backends
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_view_comparison.py --num_envs 1024 --device cuda:0 --headless
+    uv run python scripts/benchmarks/benchmark_view_comparison.py --num_envs 1024 --device cuda:0
 
     # Select specific backends
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_view_comparison.py --backends usd fabric newton --headless
+    uv run python scripts/benchmarks/benchmark_view_comparison.py --backends usd fabric newton
 
     # With profiling
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_view_comparison.py --num_envs 1024 --profile --headless
+    uv run python scripts/benchmarks/benchmark_view_comparison.py --num_envs 1024 --profile
 """
 
 from __future__ import annotations

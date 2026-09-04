@@ -1,6 +1,400 @@
 Changelog
 ---------
 
+1.10.2 (2026-09-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_visualizers.rerun.RerunVisualizer.set_camera_view` and
+  :meth:`~isaaclab_visualizers.viser.ViserVisualizer.set_camera_view`, letting callers move
+  these visualizers' live 3D camera every simulation step (e.g. to follow a moving robot),
+  matching the existing :class:`~isaaclab_visualizers.kit.KitVisualizer` and Newton
+  implementations. Both backends already had the underlying per-step camera-pose machinery
+  internally; this exposes it through the public :class:`~isaaclab.visualizers.BaseVisualizer`
+  API, which previously no-op'd for these two backends.
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_visualizers.newton.NewtonGLVisualizer.render_rgb_array` omitting
+  visualization markers, so videos recorded with ``--viz newton_gl`` showed the scene without
+  its goal poses, command arrows, and other debug markers visible in the interactive viewer.
+* Fixed :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` unconditionally reporting the
+  streaming/tiled camera view as unsupported. Setting ``streaming_view=True`` now creates the owned
+  streaming camera sensor and produces composites via ``render_tiled_rgb_array()``, usable for headless
+  capture (e.g. through :class:`~isaaclab.envs.VideoRecorderCfg`). The live on-screen streaming preview
+  panel remains unavailable on this backend, since ``ViewerRTX.log_image`` has no display sink.
+
+
+1.10.1 (2026-09-03)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the Newton GL visualizer's "Pause Rendering" button not reflecting the paused
+  state after pressing :kbd:`Space`. Both controls now toggle the same underlying flag, so
+  the button label and :meth:`~isaaclab_visualizers.newton.newton_visualizer.NewtonViewerGL.is_rendering_paused`
+  stay in sync regardless of whether rendering was paused via the button or the keyboard shortcut.
+  Also clarified the on-screen control hint from "Space - Pause/Resume" to "Space - Pause/Resume
+  Rendering".
+
+
+1.10.0 (2026-09-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`, which authors arbitrary RTX
+  attributes onto the OVRTX render product as ``{name: (usd_type_name, value)}``. ``ViewerRTX`` hard-codes its render
+  product and exports the stage before the renderer reads it, so these are applied in the only window that reaches the
+  renderer. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's quality convergence
+  loop, which ``ViewerRTX`` otherwise disables to keep interactive latency down.
+
+
+1.9.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to every concrete visualizer config through its ``class_type`` field.
+
+
+1.8.0 (2026-08-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added renderer-owned visual-material writers to the Kit and Newton visualizers.
+
+
+1.7.0 (2026-08-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a camera speed-boost mode to the Newton GL and RTX visualizers: holding
+  Shift while flying the free camera with WASD doubles the camera translation
+  speed, matching the Kit visualizer's speed-up behavior.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_visualizers.kit.KitVisualizer` to leave its viewport
+  camera unpartitioned when AppLauncher enables the all-environment spectator
+  view. Otherwise, the viewport camera is assigned to the first visible
+  environment.
+
+Fixed
+^^^^^
+
+* Fixed global Kit/USD visualization-marker instances appearing across tiled
+  environments when per-instance environment IDs are provided.
+
+
+1.6.0 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added per-group visibility controls for Isaac Lab visualization markers in
+  Newton GL.
+* Added native framebuffer capture to the Newton RTX visualizer.
+
+Fixed
+^^^^^
+
+* Fixed the streaming camera grid layout producing a portrait-oriented composite instead of
+  filling the visualizer panel. :func:`~isaaclab.envs.utils.camera_view.compose_streaming_grid`
+  now accepts a ``target_aspect`` parameter; the Kit and Newton GL visualizers pass
+  ``window_width / window_height`` so the tile grid matches the panel aspect ratio.
+
+* Fixed the Newton GL viewer **Show Contacts**, **Show Particles**, **Show Springs**, and
+  **Show Cloth** checkboxes remaining interactive when the model contains no elements of
+  that type.  Checkboxes are now greyed out with an explanatory tooltip.
+
+
+1.5.2 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed duplicate Simulation panels in the Newton RTX viewer.
+
+
+1.5.1 (2026-08-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed velocity visualization markers clipping through humanoid robot bodies by making
+  :attr:`~isaaclab.visualizers.VisualizerCfg.streaming_cam_target_prim_path` default to
+  ``None``. When ``None``, visualizers now adopt the first scene camera discovered at
+  initialisation instead of failing on a hardcoded ``/World/envs/*/Robot`` prim that
+  does not exist in non-robot scenes. Also hides the non-functional Rerun timeline panel
+  (``state="hidden"``) across all blueprint configurations.
+
+
+1.5.0 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg` (``--viz newton_rtx``) — an
+  OVRTX path-tracer backend with studio lighting.  Shares the full Isaac Lab HUD with
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizer` via a common mixin.
+  Visualization markers, live plots, and the streaming camera panel are not yet supported
+  in this release.
+* Added streaming camera panel to all visualizers (Newton GL, Kit, Rerun, Viser) via the
+  ``streaming_view=True`` option on :class:`~isaaclab.visualizers.VisualizerCfg`.  The panel
+  composites per-environment camera frames for RGB, depth (turbo colormap), segmentation
+  (golden-ratio palette), and surface normals.
+* Added ``origin_type``, ``origin_env_index``, and ``origin_track_path`` fields to
+  :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`. These replace the removed
+  :class:`~isaaclab.envs.common.ViewerCfg` / ``ViewportCameraController`` and allow the Kit
+  viewport camera to track a world origin, an environment origin, or an asset root / body
+  across simulation steps.  Tracking path format: ``"robot"`` for asset root,
+  ``"robot/panda_hand"`` for a specific body.
+* Added right-click rigid-body dragging to the Newton visualizer with Newton
+  rigid-body solvers.
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` now defaults
+  ``streaming_view=True`` so the streaming camera panel is active without explicit
+  configuration.
+* Newton GL sidebar layout: renamed the **Isaac Lab** section to **Simulation** and promoted
+  **Streaming View** to a standalone top-level section (same level as Simulation, Live Plots,
+  and Visualization Markers).  The section now opens expanded by default and contains a
+  **Toggle** combo (open/hide the floating panel) and a **Source Camera** dropdown to switch
+  between scene cameras at runtime.
+* The streaming camera panel floating window now opens sized to the actual composite
+  aspect ratio of the grid (e.g. 4:3 for 12 environments) rather than always square.
+* Added runtime camera-selector dropdown (**Source Camera**) to the Newton GL streaming view,
+  allowing users to switch between scene cameras (e.g. ``base_camera`` / ``wrist_camera``)
+  without restarting the simulation.
+* Renamed :class:`~isaaclab_visualizers.newton.NewtonVisualizer` to
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg` to
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`.  The old names are kept as
+  deprecated aliases.
+
+Deprecated
+^^^^^^^^^^
+
+* :class:`~isaaclab_visualizers.newton.NewtonVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg` are deprecated in favor of
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg`.
+
+
+1.4.0 (2026-08-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``origin_type``, ``origin_env_index``, and ``origin_track_path`` fields to
+  :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`. These replace the removed
+  :class:`~isaaclab.envs.common.ViewerCfg` / ``ViewportCameraController`` and allow the Kit
+  viewport camera to track a world origin, an environment origin, or an asset root / body
+  across simulation steps.  Tracking path format: ``"robot"`` for asset root,
+  ``"robot/panda_hand"`` for a specific body.
+
+
+1.3.1 (2026-08-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the missing Viser runtime error to recommend the uv-managed ``viser`` extra.
+
+
+1.3.0 (2026-07-31)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added interactive sidebar controls to :class:`~isaaclab_visualizers.viser.ViserVisualizer`:
+  **Pause Rendering** (freezes the 3D view without stopping physics), **Pause Simulation**
+  (pauses the training/rollout loop via :meth:`~isaaclab.visualizers.BaseVisualizer.is_training_paused`),
+  and **Reset Episode** (signals an episode reset via
+  :meth:`~isaaclab.visualizers.BaseVisualizer.consume_reset_request`).
+  Both pause buttons update their label and turn orange when active.
+
+Fixed
+^^^^^
+
+* Deleted stale Newton-tiled golden images (``*-newton-tiled.png``) for all scenes. The golden
+  images were invalidated by a Newton version bump in ``43187ba712`` which changed the Warp
+  renderer's visual output. The test framework will regenerate the golden images on the next CI
+  run, after which the new images should be reviewed and committed.
+
+
+1.2.2 (2026-07-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added golden image correctness tests for :class:`~isaaclab_visualizers.kit.KitVisualizer` and
+  :class:`~isaaclab_visualizers.newton.NewtonVisualizer` in both viewport and tiled-camera capture
+  modes, covering PhysX and Newton MJWarp physics backends across four scenes (cartpole, shadow
+  hand, AnymalD, and franka cloth).  Each combination is compared against a committed reference
+  image using a dual-gate (per-pixel L2 norm + SSIM) system adapted from the renderer correctness
+  tests, with per-visualizer pixel-diff and SSIM thresholds tuned to each backend's rendering
+  determinism.
+
+Fixed
+^^^^^
+
+* Fixed incomplete tiled camera renders for the PhysX physics backend in golden-image and
+  tiled-camera integration tests.  :class:`~isaaclab_visualizers.newton.NewtonVisualizer` skipped
+  ``_log_camera_sensor_image()`` when the Newton physics state was unavailable (PhysX backend),
+  leaving all owned tiled cameras with zero renderer updates during physics warmup; only env 0
+  rendered correctly.  The capture helper now pumps ``camera_sensor.update()`` for
+  ``_TILED_CAMERA_SENSOR_WARMUP_UPDATES`` iterations before sampling, matching the warmup already
+  applied to Kit viewport and Newton viewer paths.
+
+* Fixed :class:`~isaaclab_visualizers.kit.KitVisualizer` silently skipping tiled camera sensor
+  creation in headless mode even when ``--enable_cameras`` is active.  The camera sensor is now
+  always created when camera rendering is available; only the interactive UI image window is
+  suppressed in headless mode.
+
+* Fixed cross-test contamination in golden image tests when tiled-camera and viewport captures
+  run sequentially in the same process.  Three sources were addressed: (1) the stale
+  :class:`~isaaclab_newton.physics.NewtonManager` shadow model from the tiled stage persisting
+  into the viewport test on the PhysX backend (cleared in the between-test prepare step);
+  (2) CUDA RNG state drift causing the initial cartpole pole angle to differ between isolated
+  and suite runs (seed is now applied immediately before ``env.reset()``); and (3) test ordering
+  in both golden test files reordered to run tiled captures before viewport captures to prevent
+  RTX render-product state from contaminating tiled camera output.
+
+* Fixed franka-cloth-with-kit-visualizer tiled and viewport golden image tests failing in heavily
+  contaminated test suites (12 prior Newton tests before franka cloth) due to Newton body
+  transforms never syncing to USD Fabric.  The ``_drain_until_newton_fabric_ready`` helper now
+  uses a higher iteration ceiling (600 vs. 200) and more Kit app updates per iteration (4 vs. 2)
+  for the tiled-camera path, and adds a ``torch.cuda.synchronize()`` before each ``SelectPrims``
+  retry to help flush any queued Fabric CPU-to-GPU attribute propagation work.  The global per-pixel
+  L2-norm difference threshold was raised from 10 to 20 to better reflect the magnitude of RTX
+  global-illumination contamination in heavily loaded suites; the ``franka_cloth-kit-tiled``
+  pixel-diff gate was correspondingly tightened from 40% to 20%.  SSIM thresholds for both
+  captures remain unchanged and continue to detect structural pose regressions.
+
+* Eliminated first-attempt flakiness in tiled-camera and Kit-viewport golden image tests by
+  replacing the fixed renderer warmup loops (20 iterations) with a convergence-based pump that
+  continues until two consecutive frames differ by fewer than 0.5% of pixels at L2 > 1, capped
+  at 50 frames.  This ensures the RTX TAA accumulation buffer has genuinely settled before the
+  golden-image comparison frame is sampled.  The ``anymal_d-kit-tiled`` SSIM threshold was also
+  lowered from 0.945 to 0.910 to accommodate persistent RTX GI cold-start variability (~0.920
+  observed vs warm) while preserving a large safety margin above wrong-pose regressions (~0.69
+  observed for a completely missing body).  Previously ``anymal_d-kit-tiled``,
+  ``shadow_hand-kit-viewport``, and ``franka_cloth-kit-tiled`` routinely required a second
+  attempt; after these changes all 16 Newton tests pass on the first attempt consistently.
+
+* Fixed false-passing golden image tests caused by ``np.frombuffer`` returning a read-only view
+  of the annotator's internal buffer rather than an independent snapshot.  When Replicator reuses
+  the same buffer in place, both the start-frame and end-frame captures reflected the same
+  (current) buffer contents, producing zero pixel differences.  The frame capture helper now calls
+  ``.copy()`` to take an independent snapshot at capture time.
+
+* Fixed the PhysX visualizer integration test taking ~8 minutes instead of ~55 seconds.  Two
+  independent bottlenecks were eliminated: (1) running Newton GL alongside Kit RTX on the PhysX
+  backend caused GPU contention that pushed each ``env.step()`` from ~0.1 s to ~1.5 s across 165
+  steps — the PhysX test now uses a Kit-only environment so Newton GL is absent; (2)
+  ``_drain_until_newton_fabric_ready`` exhausted all 600 iterations per tiled capture on PhysX
+  because ``NewtonManager._newton_fabric_ready`` is never set when Newton MJWarp physics is not
+  simulating — a 20-iteration probe now detects the PhysX path and skips the remaining drain,
+  letting ``_pump_tiled_until_stable`` handle frame convergence instead.
+
+
+1.2.1 (2026-07-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added particle visualization toggle to :class:`~isaaclab_visualizers.rerun.RerunVisualizerCfg`, enabled by default.
+
+
+1.2.0 (2026-07-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``physics_backend`` property to :class:`~isaaclab.visualizers.BaseVisualizer` and surfaced the active
+  physics backend label across all visualizers: a non-interactive "Physics: <backend>" label in the Kit viewport
+  menubar in :class:`~isaaclab_visualizers.kit.KitVisualizer`; a "Physics" collapsing section in the ImGui HUD
+  panel in :class:`~isaaclab_visualizers.newton.NewtonVisualizer`; a sidebar markdown label in
+  :class:`~isaaclab_visualizers.viser.ViserVisualizer`; and a ``TextDocumentView`` strip in the blueprint layout
+  of :class:`~isaaclab_visualizers.rerun.RerunVisualizer`. When Newton MJWarp is active,
+  :class:`~isaaclab_visualizers.kit.KitVisualizer` also hides the built-in "Simulation / PhysX" viewport menu
+  item to avoid a misleading label.
+* Added general USD mesh support for Newton/Rerun/Viser visualization markers via
+  :func:`newton.usd.get_mesh`. Any :class:`~isaaclab.sim.spawners.UsdFileCfg` marker
+  now loads geometry and material properties (color, texture) directly from the USD file,
+  replacing the previous fallback that silently skipped unsupported USD paths.
+  The hardcoded DexCube textured-box workaround has been removed.
+* Added live-plot support to :class:`~isaaclab_visualizers.newton.NewtonVisualizer`,
+  :class:`~isaaclab_visualizers.rerun.RerunVisualizer`, and
+  :class:`~isaaclab_visualizers.viser.ViserVisualizer` via their native
+  ``viewer.log_scalar`` APIs.  All three backends now return ``True`` from
+  :meth:`~isaaclab.visualizers.BaseVisualizer.supports_live_plots` and override
+  :meth:`~isaaclab.visualizers.BaseVisualizer._render_live_plots` to forward
+  manager-term scalars each step.
+* Added :meth:`~isaaclab_visualizers.kit.KitVisualizer.add_live_plots` to
+  :class:`~isaaclab_visualizers.kit.KitVisualizer`, which creates
+  :class:`~isaaclab.ui.widgets.ManagerLiveVisualizer` instances for the omni.ui panel path
+  while also populating the general :attr:`_live_plot_sources` list.
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_visualizers.newton.NewtonVisualizer` now renders live plots in a dedicated
+  ``Live Plots`` collapsing-header section (previously a sub-label inside ``IsaacLab Options``);
+  plots are visible by default and can be toggled per manager.
+* :class:`~isaaclab_visualizers.rerun.RerunVisualizer` now shows per-manager
+  :class:`~rerun.blueprint.TimeSeriesView` panels as visible by default (was hidden, causing a
+  blank white panel).
+* :class:`~isaaclab_visualizers.viser.ViserVisualizer` now renders each scalar as its own
+  collapsible folder named after the term, replacing the single shared ``Plots`` folder.  The
+  viser server label is now ``Live Plots`` (was ``Isaac Lab Simulation``) and non-functional
+  per-manager checkboxes have been removed.
+
+Removed
+^^^^^^^
+
+* Removed ``config/extension.toml`` Kit extension manifest. Inter-package dependencies are now
+  declared via PEP 508 ``file:`` references in ``[project.dependencies]`` of ``pyproject.toml``,
+  ensuring standalone pip installs resolve local checkouts without a package index.
+
+Fixed
+^^^^^
+
+* Fixed the contact-arrow origin fallback in the Newton visualizer to match the body-major
+  ordering of the PhysX contact-sensor view (one view pattern per body).
+* Fixed the Newton viewer silently running headless when no display is available: the implicit
+  EGL fallback in :class:`~isaaclab_visualizers.newton.NewtonVisualizer` now prints a warning
+  explaining that no window will open and how to enable one.
+* Fixed Newton visualization marker cleanup during interpreter shutdown.
+* Fixed headless Kit visualizer camera setup when no viewport window is available.
+
+
 1.1.1 (2026-07-08)
 ~~~~~~~~~~~~~~~~~~
 

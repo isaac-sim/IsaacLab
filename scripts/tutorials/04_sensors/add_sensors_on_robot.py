@@ -15,7 +15,7 @@ We add the following sensors on the quadruped robot, ANYmal-C (ANYbotics):
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/add_sensors_on_robot.py --enable_cameras --viz kit
+    uv run python scripts/tutorials/04_sensors/add_sensors_on_robot.py --viz kit
 
 """
 
@@ -155,7 +155,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         )
         print("-------------------------------")
         print(scene["contact_forces"])
-        print("Received max contact force of: ", torch.max(scene["contact_forces"].data.net_forces_w).item())
+        print("Received max contact force of: ", torch.max(scene["contact_forces"].data.net_normal_forces_w).item())
 
 
 def main():

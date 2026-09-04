@@ -140,6 +140,18 @@ def env_loop(
                     print(f"Reached {generation_num_trials} successes/attempts. Exiting.")
                     break
 
+                # with the success guarantee on, nothing else bounds the run: a task that rarely
+                # succeeds retries forever. max_num_failures is the opt-in bound on that. Without the
+                # guarantee the check above already stops on generation_num_trials attempts, so the
+                # cap has nothing to add and must not cut a fixed-attempt run short.
+                max_num_failures = env.cfg.datagen_config.max_num_failures
+                if generation_guarantee and max_num_failures is not None and num_failures >= max_num_failures:
+                    print(
+                        f"Reached {num_failures} failures (max_num_failures={max_num_failures}) after"
+                        f" {num_success}/{generation_num_trials} successes. Exiting."
+                    )
+                    break
+
             # check that simulation is stopped or not
             if env.sim.is_stopped():
                 break
@@ -167,7 +179,7 @@ def setup_env_config(
         num_envs: Number of environments to run
         device: Device to run on
         generation_num_trials: Optional override for number of trials
-        recorder_cfg: Recorder manager configuration
+        recorder_cfg: Recorder manager configuration. Overrides recorder configurations supplied by the environment.
         dataset_compression: Whether to enable dataset compression
 
     Returns:
@@ -201,9 +213,8 @@ def setup_env_config(
 
     # Setup recorders
     if recorder_cfg is None:
-        env_cfg.recorders = ActionStateRecorderManagerCfg()
-    else:
-        env_cfg.recorders = recorder_cfg
+        recorder_cfg = env_cfg.mimic_recorder_config
+    env_cfg.recorders = recorder_cfg if recorder_cfg is not None else ActionStateRecorderManagerCfg()
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
 

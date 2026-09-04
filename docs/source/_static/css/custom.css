@@ -118,6 +118,15 @@ a {
     width: min(100%, 480px);
 }
 
+/* Keep each showroom demo visually grouped with its options, commands, and image. */
+.showroom-demo-list > li {
+    margin-bottom: 4rem;
+}
+
+.showroom-demo-list > li:last-child {
+    margin-bottom: 0;
+}
+
 .nurec-gif-grid,
 .nurec-gif-grid td {
     border: none;
@@ -177,4 +186,12 @@ figure.nurec-gif-contain img {
 /* Keep sphinx-copybutton visible on code blocks (not only on hover). */
 button.copybtn {
     opacity: 1;
+}
+
+/* Force readable code-block text in dark mode; some rendering paths were
+   showing unstyled text in a dark color against the dark code background. */
+html[data-theme="dark"] pre,
+html[data-theme="dark"] .highlight,
+html[data-theme="dark"] .highlight pre {
+    color: #ffffff !important;
 }

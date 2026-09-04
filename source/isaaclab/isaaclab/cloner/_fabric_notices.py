@@ -9,10 +9,9 @@ Acquires the ``omni::fabric::IFabricUsd`` carb interface directly from the Carbo
 framework so cloning can suspend Fabric's USD notice listener without depending on
 ``isaacsim.core.simulation_manager``.
 
-Mirrors the in-tree pattern in :mod:`isaaclab_newton.physics._cubric` for
-``omni::cubric::IAdapter`` — same problem (base-Kit Carbonite interface with no
-Python binding), same solution. When Kit exposes this from Python, replace this
-module with a one-line import.
+This is a temporary shim for a base-Kit Carbonite interface that has no Python
+binding yet. When Kit exposes this from Python, replace this module with a
+one-line import.
 """
 
 from __future__ import annotations
@@ -22,8 +21,10 @@ import ctypes
 import logging
 import threading
 from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
-from pxr import Usd, UsdUtils
+if TYPE_CHECKING:
+    from pxr import Usd
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +183,9 @@ def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -
     if bindings is None:
         yield
         return
+
+    # Like the rest of the cloner, this module must remain importable before Kit starts.
+    from pxr import UsdUtils  # noqa: PLC0415
 
     # usdrt only works with a live Kit app — defer import so module load stays cheap.
     try:
