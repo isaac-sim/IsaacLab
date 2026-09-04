@@ -1,3 +1,16 @@
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.tensor_types.DOF_DRIVE_TYPE`,
+  :attr:`~isaaclab_ov.tensor_types.DOF_DRIVE_MODEL`,
+  :attr:`~isaaclab_ov.tensor_types.BODY_DISABLE_GRAVITY`,
+  :attr:`~isaaclab_ov.tensor_types.CONTACT_OFFSET`,
+  :attr:`~isaaclab_ov.tensor_types.REST_OFFSET`,
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_DISABLE_GRAVITY`,
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_CONTACT_OFFSET`, and
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_REST_OFFSET` tensor type aliases,
+  documenting the shape, dtype and units of each.
+
 Fixed
 ^^^^^
 
