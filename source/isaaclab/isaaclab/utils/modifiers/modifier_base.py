@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 if TYPE_CHECKING:
-    from .modifier_cfg import ModifierCfg
+    from .modifier_cfg import ModifierBaseCfg
 
 
 class ModifierBase(ABC):
@@ -26,7 +26,7 @@ class ModifierBase(ABC):
     or delays or decaying filters.
 
     Constructor settings for a class-based modifier belong to a dedicated
-    :class:`~isaaclab.utils.modifiers.ModifierCfg` subclass. For example:
+    :class:`~isaaclab.utils.modifiers.ModifierBaseCfg` subclass. For example:
 
     .. code-block:: python
 
@@ -37,7 +37,7 @@ class ModifierBase(ABC):
 
     """
 
-    def __init__(self, cfg: ModifierCfg, data_dim: tuple[int, ...], device: str) -> None:
+    def __init__(self, cfg: ModifierBaseCfg, data_dim: tuple[int, ...], device: str) -> None:
         """Initializes the modifier class.
 
         Args:

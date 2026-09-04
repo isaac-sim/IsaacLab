@@ -3,45 +3,61 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from dataclasses import MISSING
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
 
 from isaaclab.utils.configclass import configclass
 
-from . import modifier
+if TYPE_CHECKING:
+    from .modifier import DigitalFilter, Integrator
+    from .modifier_base import ModifierBase
 
 
 @configclass
 class ModifierCfg:
-    """Configuration parameters modifiers"""
+    """Configuration parameters for stateless function modifiers."""
 
     func: Callable[..., torch.Tensor] = MISSING
-    """Function or callable class used by modifier.
+    """Function used by the modifier.
 
     The function must take a torch tensor as the first argument. The remaining arguments are specified
     in the :attr:`params` attribute.
-
-    It also supports `callable classes <https://docs.python.org/3/reference/datamodel.html#object.__call__>`_,
-    i.e. classes that implement the ``__call__()`` method. In this case, the class should inherit from the
-    :class:`ModifierBase` class and implement the required methods.
     """
 
     params: dict[str, Any] = dict()
-    """The parameters to be passed to the function or callable class as keyword arguments. Defaults to
-    an empty dictionary."""
+    """The parameters passed to the function as keyword arguments. Defaults to an empty dictionary."""
 
 
 @configclass
-class DigitalFilterCfg(ModifierCfg):
+class ModifierBaseCfg(ModifierCfg):
+    """Configuration parameters for stateful class modifiers implemented by :class:`ModifierBase`."""
+
+    func: type[ModifierBase] | str = MISSING
+    """Class implementing the modifier.
+
+    The observation manager constructs this class with the configuration, observation dimensions, and device.
+    """
+
+    params: dict[str, Any] = dict()
+    """Parameters available to the constructor through this configuration.
+
+    These values are not forwarded when calling the constructed modifier instance.
+    """
+
+
+@configclass
+class DigitalFilterCfg(ModifierBaseCfg):
     """Configuration parameters for a digital filter modifier.
 
     For more information, please check the :class:`DigitalFilter` class.
     """
 
-    func: type[modifier.DigitalFilter] = modifier.DigitalFilter
+    func: type[DigitalFilter] | str = "{DIR}.modifier:DigitalFilter"
     """The digital filter function to be called for applying the filter."""
 
     A: list[float] = MISSING
@@ -66,13 +82,13 @@ class DigitalFilterCfg(ModifierCfg):
 
 
 @configclass
-class IntegratorCfg(ModifierCfg):
+class IntegratorCfg(ModifierBaseCfg):
     """Configuration parameters for an integrator modifier.
 
     For more information, please check the :class:`Integrator` class.
     """
 
-    func: type[modifier.Integrator] = modifier.Integrator
+    func: type[Integrator] | str = "{DIR}.modifier:Integrator"
     """The integrator function to be called for applying the integrator."""
 
     dt: float = MISSING

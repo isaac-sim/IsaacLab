@@ -20,9 +20,9 @@ import pytest
 import torch
 
 from isaaclab.envs import ManagerBasedEnv
-from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg, ObservationTermCfg
+from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg
 from isaaclab.managers.manager_base import ManagerBase
-from isaaclab.utils import modifiers
+from isaaclab.utils.configclass import configclass
 
 pytestmark = pytest.mark.integration
 
@@ -68,6 +68,22 @@ def change_dummy1_by_value(env, env_ids: torch.Tensor, value: int):
 
 def reset_dummy2_to_zero(env, env_ids: torch.Tensor):
     env.dummy2[env_ids] = 0
+
+
+@configclass
+class OpaqueCfg:
+    """Configuration that is outside ``ManagerBase`` ownership."""
+
+    func: str = "linear"
+
+
+@configclass
+class NestedFieldTermCfg(ManagerTermBaseCfg):
+    """Manager term with owned and opaque fields outside ``params``."""
+
+    nested_term: ManagerTermBaseCfg = ManagerTermBaseCfg(func=increment_dummy1_by_one)
+    metadata: dict[str, str] = {"func": "linear"}
+    opaque: OpaqueCfg = OpaqueCfg()
 
 
 class reset_dummy2_to_zero_class(ManagerTermBase):
@@ -218,21 +234,21 @@ def test_string_func_in_nested_term_cfg(env):
     torch.testing.assert_close(env.dummy1, 11 * torch.ones_like(env.dummy1))
 
 
-def test_callable_resolution_walks_term_fields_outside_params(env):
-    """Callable references in nested term fields are resolved by ManagerBase."""
+def test_resolution_walks_declared_term_fields_outside_params(env):
+    """Manager-owned values are resolved in declared fields without traversing opaque configurations."""
     cfg = {
-        "observation": ObservationTermCfg(
+        "outer": NestedFieldTermCfg(
             func=increment_dummy1_by_one,
-            modifiers=[modifiers.ModifierCfg(func=f"{__name__}:reset_dummy2_to_zero")],
+            nested_term=ManagerTermBaseCfg(func=f"{__name__}:reset_dummy2_to_zero"),
         )
     }
     manager = SimpleManager(cfg, env)
 
     term_cfg = manager._term_cfgs[0][1]
-    assert isinstance(term_cfg, ObservationTermCfg)
-    assert term_cfg.modifiers is not None
-    modifier_cfg = term_cfg.modifiers[0]
-    assert modifier_cfg.func is reset_dummy2_to_zero
+    assert isinstance(term_cfg, NestedFieldTermCfg)
+    assert term_cfg.nested_term.func is reset_dummy2_to_zero
+    assert term_cfg.metadata == {"func": "linear"}
+    assert term_cfg.opaque.func == "linear"
 
 
 def test_string_func_top_level_class_term(env):

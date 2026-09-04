@@ -220,6 +220,11 @@ class ResolvableString(str):
     def __call__(self, *args, **kwargs):
         return self._resolve()(*args, **kwargs)
 
+    @property
+    def __signature__(self) -> inspect.Signature:
+        """Expose the resolved callable's signature to standard introspection."""
+        return inspect.signature(self._resolve())
+
     def _split_ref(self) -> tuple[str | None, str]:
         """Parse ``module:attribute`` reference without importing."""
         value = str(self)

@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import inspect
 import math
 import random
 
@@ -12,6 +13,11 @@ import isaaclab.utils.string as string_utils
 from isaaclab.utils.string import _resolve_matching_names_impl
 
 pytestmark = pytest.mark.unit
+
+
+def signature_target(data, value: float = 1.0):
+    """Callable used to verify transparent signature introspection."""
+    return data + value
 
 
 def test_resolvable_string_metadata_is_non_eager():
@@ -50,6 +56,17 @@ def test_resolvable_string_runtime_resolution_still_works():
     """Test runtime call path still resolves the callable target."""
     ref = string_utils.ResolvableString("math:sin")
     assert pytest.approx(ref(0.0), rel=0.0, abs=1e-9) == 0.0
+
+
+def test_resolvable_string_supports_standard_signature_introspection():
+    """Standard callable introspection sees the resolved target's signature."""
+    ref = string_utils.ResolvableString(f"{__name__}:signature_target")
+    assert inspect.signature(ref) == inspect.signature(signature_target)
+
+
+def test_resolvable_string_has_no_public_resolution_api():
+    """Callable resolution remains an implementation detail of the lazy string."""
+    assert "resolve" not in string_utils.ResolvableString.__dict__
 
 
 def test_case_conversion():

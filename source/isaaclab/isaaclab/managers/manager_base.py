@@ -10,6 +10,7 @@ import inspect
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 import isaaclab.utils.string as string_utils
@@ -301,7 +302,7 @@ class ManagerBase(ABC):
         Usually, called by the :meth:`_prepare_terms` method to resolve common attributes of the term
         configuration. These include:
 
-        * Resolving callable references throughout the term configuration and checking the term function.
+        * Resolving the term function and checking if it is callable.
         * Checking if the term function's arguments are matched by the parameters.
         * Resolving special attributes of the term configuration like ``asset_cfg``, ``sensor_cfg``, etc.
         * Initializing the term if it is a class.
@@ -334,8 +335,8 @@ class ManagerBase(ABC):
             )
 
         # get the corresponding function or functional class
-        term_cfg.func = self._resolve_param_value(term_name, "func", term_cfg.func)
-
+        if isinstance(term_cfg.func, str):
+            term_cfg.func = string_to_callable(term_cfg.func)
         # check if function is callable
         if not callable(term_cfg.func):
             raise AttributeError(f"The term '{term_name}' is not callable. Received: {term_cfg.func}")
@@ -381,7 +382,7 @@ class ManagerBase(ABC):
         This function is called when the simulation starts playing. It is used to process the term
         configuration at runtime. This includes:
 
-        * Resolving callable references and scene entity configurations throughout the term configuration.
+        * Resolving scene entity configurations and nested terms throughout the term configuration.
         * Initializing the term if it is a class.
 
         Since the above steps rely on PhysX to parse over the simulation scene, they are deferred
@@ -391,17 +392,18 @@ class ManagerBase(ABC):
             term_name: The name of the term.
             term_cfg: The term configuration.
         """
-        for key, value in term_cfg.__dict__.items():
-            setattr(term_cfg, key, self._resolve_param_value(term_name, key, value))
+        for field in fields(term_cfg):
+            if field.name != "func":
+                self._resolve_param_value(term_name, field.name, getattr(term_cfg, field.name))
 
-        # initialize class-based terms
+        # resolve string func references then initialize class-based terms
+        if isinstance(term_cfg.func, str):
+            term_cfg.func = string_to_callable(term_cfg.func)
         if inspect.isclass(term_cfg.func):
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
 
-    def _resolve_param_value(self, term_name: str, key: str | int, value: Any) -> Any:
-        """Recursively resolve a value in a manager term configuration."""
-        if key == "func" and isinstance(value, str):
-            return string_to_callable(value)
+    def _resolve_param_value(self, term_name: str, key: str | int, value: Any):
+        """Recursively resolve manager-owned values in a term configuration."""
         if isinstance(value, SceneEntityCfg):
             try:
                 value.resolve(self._env.scene)
@@ -411,11 +413,7 @@ class ManagerBase(ABC):
             self._process_term_cfg_at_play(f"{term_name}.{key}", value)
         elif isinstance(value, dict):
             for sub_key, sub_value in value.items():
-                value[sub_key] = self._resolve_param_value(f"{term_name}.{key}", sub_key, sub_value)
+                self._resolve_param_value(f"{term_name}.{key}", sub_key, sub_value)
         elif isinstance(value, (list, tuple)):
             for i, item in enumerate(value):
                 self._resolve_param_value(f"{term_name}.{key}", i, item)
-        elif not isinstance(value, type) and hasattr(value, "__dataclass_fields__") and hasattr(value, "__dict__"):
-            for sub_key, sub_value in value.__dict__.items():
-                setattr(value, sub_key, self._resolve_param_value(f"{term_name}.{key}", sub_key, sub_value))
-        return value
