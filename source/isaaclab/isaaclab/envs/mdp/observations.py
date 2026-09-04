@@ -385,7 +385,7 @@ def imu_lin_acc(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg
 def image(
     env: ManagerBasedEnv,
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
-    data_type: str = "rgb",
+    data_type: str | None = "rgb",
     convert_perspective_to_orthogonal: bool = False,
     normalize: bool = True,
     permute: bool = False,
@@ -402,7 +402,8 @@ def image(
     Args:
         env: The environment the cameras are placed within.
         sensor_cfg: The desired sensor to read from. Defaults to SceneEntityCfg("tiled_camera").
-        data_type: The data type to pull from the desired camera. Defaults to "rgb".
+        data_type: The data type to pull from the desired camera. If None, the sensor must have
+            exactly one configured data type, which is selected automatically. Defaults to "rgb".
         convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
             This is used only when the data type is "distance_to_camera". Defaults to False.
         normalize: Whether to normalize the images. This depends on the selected data type.
@@ -419,17 +420,24 @@ def image(
     # extract the used quantities (to enable type-hinting)
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
 
+    if data_type is None:
+        if len(sensor.cfg.data_types) != 1:
+            raise ValueError(
+                f"Camera '{sensor_cfg.name}' has {len(sensor.cfg.data_types)} data types;"
+                " data_type can be omitted only for a single-output camera."
+            )
+        data_type = sensor.cfg.data_types[0]
+
     # obtain the input image
-    images = sensor.data.output[data_type]
+    images = sensor.data.output[data_type].torch
 
     # depth image conversion
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
 
     if normalize:
-        images = normalize_camera_image(images, data_type)
-
-    if permute:
+        images = normalize_camera_image(images, data_type, output_channel_dim=1 if permute else None)
+    elif permute:
         images = images.permute(0, 3, 1, 2)
 
     return images.clone() if clone else images
@@ -551,6 +559,7 @@ class image_features(ManagerTermBase):
             data_type=data_type,
             convert_perspective_to_orthogonal=convert_perspective_to_orthogonal,
             normalize=False,  # we pre-process based on model
+            clone=False,
         )
         # store the device of the image
         image_device = image_data.device

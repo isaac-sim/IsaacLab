@@ -158,10 +158,12 @@ class ObservationsCfg:
         eef_quat = ObsTerm(func=mdp.ee_frame_quat)
         gripper_pos = ObsTerm(func=mdp.gripper_pos)
         table_cam = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
+            func=mdp.image,
+            params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False, "clone": False},
         )
         wrist_cam = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False}
+            func=mdp.image,
+            params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False, "clone": False},
         )
 
         def __post_init__(self):

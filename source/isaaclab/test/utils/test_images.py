@@ -133,6 +133,20 @@ class TestNormalizeCameraImageRGBLike:
         torch.testing.assert_close(out, expected, atol=1e-5, rtol=1e-5)
         assert out.dtype == torch.float32
 
+    def test_uint8_fuses_bhwc_to_bchw_conversion(self, device):
+        """The Warp fast path can write normalized pixels directly in policy layout."""
+        from isaaclab.utils.images import normalize_camera_image
+
+        torch.manual_seed(0)
+        src = torch.randint(0, 255, (2, 8, 6, 3), dtype=torch.uint8, device=device)
+        out = normalize_camera_image(src, "rgb", output_channel_dim=1)
+
+        expected = src.float() / 255.0
+        expected -= torch.mean(expected, dim=(1, 2), keepdim=True)
+        expected = expected.permute(0, 3, 1, 2).contiguous()
+        torch.testing.assert_close(out, expected, atol=1e-5, rtol=1e-5)
+        assert out.is_contiguous()
+
     def test_bchw_float_input_takes_pytorch_fallback(self, device):
         """Non-uint8 BCHW input routes through the PyTorch fallback with BCHW reduction axes."""
         from isaaclab.utils.images import normalize_camera_image

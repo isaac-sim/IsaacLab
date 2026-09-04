@@ -456,6 +456,7 @@ class FrankaCameraObservationsCfg:
                 "data_type": "rgb",
                 "normalize": True,
                 "permute": True,
+                "clone": False,
             },
         )
 

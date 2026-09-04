@@ -16,10 +16,12 @@ from unittest import mock
 
 import pytest
 import torch
+import warp as wp
 
 pytestmark = pytest.mark.integration
 
 from isaaclab.envs.mdp.observations import stacked_image
+from isaaclab.utils.warp import ProxyArray
 
 NUM_ENVS = 4
 HEIGHT = 8
@@ -214,7 +216,10 @@ class TestStackedImage:
 
 def _make_image_env_with_sensor(camera_buf: torch.Tensor) -> SimpleNamespace:
     """Mock env exposing ``env.scene.sensors[name].data.output[type]`` = ``camera_buf``."""
-    sensor = SimpleNamespace(data=SimpleNamespace(output={"rgb": camera_buf}))
+    sensor = SimpleNamespace(
+        cfg=SimpleNamespace(data_types=["rgb"]),
+        data=SimpleNamespace(output={"rgb": ProxyArray(wp.from_torch(camera_buf))}),
+    )
     scene = SimpleNamespace(sensors={"tiled_camera": sensor})
     return SimpleNamespace(scene=scene, num_envs=NUM_ENVS, device="cpu")
 
@@ -241,3 +246,15 @@ class TestImageFunctionCloneKwarg:
         cfg = SimpleNamespace(name="tiled_camera")
         out = image(env, sensor_cfg=cfg, data_type="rgb", normalize=False, clone=True)
         assert out.data_ptr() != camera_buf.data_ptr()
+
+    def test_single_camera_output_can_be_inferred(self):
+        """A single configured camera output does not need to be repeated in the observation config."""
+        from isaaclab.envs.mdp.observations import image
+
+        camera_buf = torch.randint(0, 255, (NUM_ENVS, HEIGHT, WIDTH, CHANNELS), dtype=torch.uint8)
+        env = _make_image_env_with_sensor(camera_buf)
+        cfg = SimpleNamespace(name="tiled_camera")
+
+        out = image(env, sensor_cfg=cfg, data_type=None, normalize=False, clone=False)
+
+        assert out.data_ptr() == camera_buf.data_ptr()

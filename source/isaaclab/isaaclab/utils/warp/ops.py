@@ -463,12 +463,14 @@ def convert_to_warp_mesh(points: np.ndarray, indices: np.ndarray, device: str) -
 def normalize_image_uint8(
     src: torch.Tensor,
     channel_dim: int = -1,
+    output_channel_dim: int | None = None,
     out: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """Compute ``(src / 255.0) - mean(src / 255.0, spatial_dims, keepdim=True)`` via a fused Warp kernel.
 
     Equivalent to the pure-PyTorch expression to within float32 precision. Pass an ``out``
-    tensor to reuse storage across steps.
+    tensor to reuse storage across steps. The kernel can also transpose between BHWC and BCHW
+    while normalizing, avoiding a separate layout-conversion kernel.
 
     Supports both image layouts via ``channel_dim``:
 
@@ -484,8 +486,11 @@ def normalize_image_uint8(
             Must be contiguous.
         channel_dim: Position of the channel axis. Must resolve to ``1`` (BCHW) or ``3`` (BHWC).
             Negative values are supported (``-1`` == BHWC, ``-3`` == BCHW). Defaults to ``-1``.
+        output_channel_dim: Position of the output channel axis. If omitted, preserves the input
+            layout. Supports the same values as ``channel_dim``. Defaults to None.
         out: Optional pre-allocated float32 output. Same shape as ``src``, contiguous, on the
-            same device. If omitted, a fresh tensor is allocated. Defaults to None.
+            same device, except for a requested layout conversion. If omitted, a fresh tensor is
+            allocated. Defaults to None.
 
             .. warning::
 
@@ -517,11 +522,28 @@ def normalize_image_uint8(
             f" got channel_dim={channel_dim} -> {resolved_channel_dim}"
         )
 
+    if output_channel_dim is None:
+        resolved_output_channel_dim = resolved_channel_dim
+    else:
+        resolved_output_channel_dim = output_channel_dim + src.ndim if output_channel_dim < 0 else output_channel_dim
+        if resolved_output_channel_dim not in (1, 3):
+            raise ValueError(
+                f"output_channel_dim must resolve to 1 (BCHW) or 3 (BHWC) for 4D input;"
+                f" got output_channel_dim={output_channel_dim} -> {resolved_output_channel_dim}"
+            )
+
+    if resolved_channel_dim == resolved_output_channel_dim:
+        output_shape = src.shape
+    elif resolved_channel_dim == 1:
+        output_shape = (src.shape[0], src.shape[2], src.shape[3], src.shape[1])
+    else:
+        output_shape = (src.shape[0], src.shape[3], src.shape[1], src.shape[2])
+
     if out is None:
-        out = torch.empty(src.shape, dtype=torch.float32, device=src.device)
-    elif out.shape != src.shape or out.dtype != torch.float32 or out.device != src.device:
+        out = torch.empty(output_shape, dtype=torch.float32, device=src.device)
+    elif out.shape != output_shape or out.dtype != torch.float32 or out.device != src.device:
         raise ValueError(
-            f"out shape/dtype/device mismatch: expected {tuple(src.shape)}/float32/{src.device},"
+            f"out shape/dtype/device mismatch: expected {tuple(output_shape)}/float32/{src.device},"
             f" got {tuple(out.shape)}/{out.dtype}/{out.device}"
         )
     elif not out.is_contiguous():
@@ -538,7 +560,7 @@ def normalize_image_uint8(
     wp.launch(
         kernel=kernels.normalize_image_uint8,
         dim=src.shape,
-        inputs=[src_wp, mean_wp, out_wp, resolved_channel_dim],
+        inputs=[src_wp, mean_wp, out_wp, resolved_channel_dim, resolved_output_channel_dim],
         device=str(src.device),
     )
     return out

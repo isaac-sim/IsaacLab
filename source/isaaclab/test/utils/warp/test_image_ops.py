@@ -234,6 +234,28 @@ class TestNormalizeImageUint8:
         assert result2.data_ptr() == ptr_before
         torch.testing.assert_close(result2, _pytorch_reference(src2, channel_dim=1), atol=1e-5, rtol=1e-5)
 
+    def test_bhwc_to_bchw_layout_conversion(self, device):
+        """Normalization writes directly to a contiguous BCHW output when requested."""
+        from isaaclab.utils.warp.ops import normalize_image_uint8
+
+        src = torch.randint(0, 255, (2, 9, 7, 3), dtype=torch.uint8, device=device)
+        out = normalize_image_uint8(src, output_channel_dim=1)
+
+        expected = _pytorch_reference(src).permute(0, 3, 1, 2).contiguous()
+        torch.testing.assert_close(out, expected, atol=1e-5, rtol=1e-5)
+        assert out.shape == (2, 3, 9, 7)
+        assert out.is_contiguous()
+
+    def test_layout_conversion_validates_preallocated_output_shape(self, device):
+        """A reused output buffer must match the requested layout."""
+        from isaaclab.utils.warp.ops import normalize_image_uint8
+
+        src = torch.zeros((2, 9, 7, 3), dtype=torch.uint8, device=device)
+        wrong_layout = torch.empty(src.shape, dtype=torch.float32, device=device)
+
+        with pytest.raises(ValueError, match="out shape/dtype/device mismatch"):
+            normalize_image_uint8(src, output_channel_dim=1, out=wrong_layout)
+
     def test_partials_cache_keyed_by_channel_dim(self, device):
         """BCHW and BHWC inputs of identical shape must land in separate cache slots."""
         from isaaclab.utils.warp import ops as warp_ops

@@ -42,7 +42,6 @@ __all__ = [
     "object_point_cloud_b",
     "CableUniformPoseCommandCfg",
     "object_quat_b",
-    "vision_camera",
     "contacts",
     "contact_count",
     "deformable_ee_distance",
@@ -84,7 +83,6 @@ from .observations import (
     fingers_contact_force_b,
     object_point_cloud_b,
     object_quat_b,
-    vision_camera,
 )
 from .rewards import (
     CableSegmentGoalDistance,

@@ -62,6 +62,19 @@ class HistoryObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
+@configclass
+class SingleTermObservationsCfg:
+    """Observation configuration with one term and no history."""
+
+    @configclass
+    class PolicyCfg(ObservationGroupCfg):
+        """Single-term policy observation group configuration."""
+
+        dummy: ObservationTermCfg = ObservationTermCfg(func=dummy_observation)
+
+    policy: PolicyCfg = PolicyCfg()
+
+
 def test_compute_updates_history_only_when_requested():
     """Observation history changes only when ``update_history`` is enabled."""
     env = DummyEnv()
@@ -88,3 +101,14 @@ def test_compute_updates_history_only_when_requested():
     manager.compute(update_history=True)
     torch.testing.assert_close(history.current_length, torch.full((env.num_envs,), 2, dtype=torch.int64))
     torch.testing.assert_close(history.buffer[:, -1], env.observation)
+
+
+def test_single_term_concatenated_group_returns_isolated_observation():
+    """A single-term group retains the manager's copy-isolation contract."""
+    env = DummyEnv()
+    manager = ObservationManager(SingleTermObservationsCfg(), cast("ManagerBasedEnv", env))
+
+    observation = manager.compute()["policy"]
+    observation.add_(10.0)
+
+    torch.testing.assert_close(env.observation, torch.arange(env.num_envs, dtype=torch.float32).unsqueeze(-1))

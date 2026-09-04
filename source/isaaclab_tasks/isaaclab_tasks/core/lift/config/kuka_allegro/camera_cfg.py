@@ -11,7 +11,6 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, MultiMeshRayCasterCameraCfg, patterns
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
@@ -213,10 +212,13 @@ class SingleCameraObservationsCfg(StateObservationCfg):
         """Camera observations for policy group."""
 
         object_observation_b = ObsTerm(
-            func=mdp.vision_camera,
-            noise=Unoise(n_min=-0.0, n_max=0.0),
-            clip=(-1.0, 1.0),
-            params={"sensor_cfg": SceneEntityCfg("base_camera")},
+            func=mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("base_camera"),
+                "data_type": None,
+                "permute": True,
+                "clone": False,
+            },
         )
 
     # image groups keep the group default of no history: a stack of frames per step costs more
@@ -231,10 +233,13 @@ class DuoCameraObservationsCfg(SingleCameraObservationsCfg):
     @configclass
     class WristImageObsCfg(ObsGroup):
         wrist_observation = ObsTerm(
-            func=mdp.vision_camera,
-            noise=Unoise(n_min=-0.0, n_max=0.0),
-            clip=(-1.0, 1.0),
-            params={"sensor_cfg": SceneEntityCfg("wrist_camera")},
+            func=mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("wrist_camera"),
+                "data_type": None,
+                "permute": True,
+                "clone": False,
+            },
         )
 
     wrist_image: WristImageObsCfg = WristImageObsCfg()
