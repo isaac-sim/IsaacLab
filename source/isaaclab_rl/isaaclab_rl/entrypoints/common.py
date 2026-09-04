@@ -899,7 +899,7 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
                     f"  ]\n\n"
                     "Frames can also be captured from a scene camera sensor without any visualizer:\n"
                     "  VideoRecorderCfg(source='sensor:<name>')   # add to env_cfg.video_recorders\n\n"
-                    "See: https://isaac-sim.github.io/IsaacLab/main/source/how-to/record_video.html"
+                    "See: https://isaac-sim.github.io/IsaacLab/main/source/features/record_video.html"
                 )
 
             # Use the first capture-capable visualizer as the recording source.
