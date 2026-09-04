@@ -3,21 +3,21 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Private MuJoCo tendon control adapter for the Newton backend.
+"""MJWarp fixed-tendon command submission.
 
 Tendons are a MuJoCo concept, so a fixed tendon is driven by whichever MuJoCo actuator transmits
 to it. :class:`~newton.selection.ArticulationView` exposes the ``mujoco:actuator`` frequency, so
 this maps each fixed tendon to its actuator column and lets the view own the world and instance
 layout; it owns the per-step write that carries buffered targets into ``mujoco.ctrl``.
 
-:class:`MjcTendonControl` holds the articulation it drives, so it reuses that asset's index
-resolution and shape checking rather than restating them -- the same arrangement
-:class:`~isaaclab_newton.assets.articulation.actuator_control.NewtonActuatorControl` uses for
-actuators. The command buffer itself stays on
+:class:`MjWarpTendonControl` holds the articulation it drives, so it reuses that asset's index
+resolution and shape checking rather than restating them. The command buffer itself stays on
 :class:`~isaaclab_newton.assets.ArticulationData`, beside the other fixed-tendon buffers.
 
-Nothing here is exported; :mod:`isaaclab_newton.assets.articulation.articulation` is the only
-importer. That is what lets the whole module be deleted once Newton exposes the mapping itself.
+Tendon submission is solver-specific -- ``mujoco.ctrl`` exists only under MJWarp -- so it lives
+beside the MJWarp manager rather than in the backend-neutral actuator control. The articulation
+owns the target buffer and asks its manager to submit; only
+:class:`~isaaclab_newton.physics.NewtonMJWarpManager` imports this module.
 """
 
 from __future__ import annotations
@@ -32,31 +32,31 @@ import warp as wp
 from newton.solvers import SolverMuJoCo
 
 from isaaclab_newton.assets import kernels as shared_kernels
+from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 
-from . import kernels as articulation_kernels
-from .mjc_view_compat import ensure_custom_frequency_api
+from ._mjwarp_view_compat import ensure_newton_custom_frequency_api
 
 if TYPE_CHECKING:
     from newton import Control, Model
     from newton.selection import ArticulationView
 
-    from .articulation import Articulation
+    from isaaclab_newton.assets.articulation.articulation import Articulation
 
 logger = logging.getLogger(__name__)
 
 
-class MjcTendonControl:
+class MjWarpTendonControl:
     """Drives an articulation's fixed tendons through MuJoCo's native tendon actuators.
 
-    Created by :meth:`~isaaclab_newton.assets.Articulation._process_tendons` when the model carries
-    tendon actuators. Command tendons through the articulation's
+    Created on demand by :meth:`~isaaclab_newton.physics.NewtonMJWarpManager.fixed_tendon_control`
+    when the model carries tendon actuators. Command tendons through the articulation's
     backend-neutral
     :meth:`~isaaclab.assets.articulation.BaseArticulation.set_fixed_tendon_position_target_index`
     rather than through this internal adapter.
     """
 
     @classmethod
-    def create(cls, articulation: Articulation, model: Model) -> MjcTendonControl | None:
+    def create(cls, articulation: Articulation, model: Model) -> MjWarpTendonControl | None:
         """Build the adapter, or None when no actuator drives any of the tendons.
 
         Args:
@@ -66,24 +66,27 @@ class MjcTendonControl:
         Returns:
             The adapter, or None when the articulation's tendons are all passive.
         """
-        view = ensure_custom_frequency_api(articulation.root_view, model)
-        columns = resolve_fixed_tendon_actuator_columns(view, model)
-        if columns is None or not bool((columns >= 0).any()):
+        # Single compatibility seam: on Newton 1.6 this returns both unchanged. Everything below,
+        # and every other module, is written against 1.6 only.
+        view, model = ensure_newton_custom_frequency_api(articulation.root_view, model)
+        mapping = resolve_fixed_tendon_actuator_columns(view, model)
+        if mapping is None or mapping[0].size == 0:
             return None
-        return cls(articulation, columns, view)
+        return cls(articulation, mapping, view)
 
-    def __init__(self, articulation: Articulation, actuator_columns: np.ndarray, view: ArticulationView):
+    def __init__(self, articulation: Articulation, mapping: tuple[np.ndarray, np.ndarray], view: ArticulationView):
         """Bind a tendon-to-actuator mapping to the articulation it drives.
 
         Args:
             articulation: Newton articulation owning the fixed tendons.
-            actuator_columns: ``mujoco:actuator`` column per fixed tendon, ``-1`` where no actuator
-                transmits to that tendon. Shape is ``(num_fixed_tendons,)``.
-            view: Articulation view carrying the custom-frequency API, from
-                :func:`~isaaclab_newton.assets.articulation.mjc_view_compat.ensure_custom_frequency_api`.
+            mapping: ``(actuator_columns, target_tendon_ids)`` from
+                :func:`resolve_fixed_tendon_actuator_columns`, one entry per driving actuator.
+            view: Articulation view exposing the ``mujoco:actuator`` custom frequency.
         """
+        actuator_columns, target_tendon_ids = mapping
         self._articulation = articulation
         self._actuator_columns = wp.array(actuator_columns, dtype=wp.int32, device=articulation.device)
+        self._target_tendon_ids = wp.array(target_tendon_ids, dtype=wp.int32, device=articulation.device)
         self._view = view
         if view.count_per_world != 1:
             raise NotImplementedError(
@@ -100,13 +103,10 @@ class MjcTendonControl:
             device=articulation.device,
         )
         # Name the passive tendons once here rather than per command: the IDs reaching
-        # :meth:`set_position_target` are a device array, so checking them there would synchronize
+        # :meth:`set_position_target_index` are a device array, so checking them there would synchronize
         # the GPU on every step.
-        passive = [
-            name
-            for name, commandable in zip(articulation.fixed_tendon_names, actuator_columns >= 0, strict=True)
-            if not commandable
-        ]
+        driven = set(target_tendon_ids.tolist())
+        passive = [name for tendon, name in enumerate(articulation.fixed_tendon_names) if tendon not in driven]
         if passive:
             logger.warning(
                 "Fixed tendons %s have no MuJoCo actuator, so commanding them has no effect. Author an"
@@ -114,7 +114,7 @@ class MjcTendonControl:
                 passive,
             )
 
-    def set_position_target(
+    def set_position_target_index(
         self,
         *,
         target: float | torch.Tensor | wp.array,
@@ -180,8 +180,8 @@ class MjcTendonControl:
     def write_data_to_sim(self, control: Control) -> None:
         """Scatter the buffered targets into the view's ``mujoco.ctrl`` columns.
 
-        A tendon no actuator transmits to carries column ``-1`` and is skipped, so commanding one
-        is a no-op rather than a stray write; :meth:`__init__` already named it.
+        Only actuators that transmit to a tendon have an entry, so commanding a tendon nothing
+        drives is a no-op rather than a stray write; :meth:`__init__` already named it.
 
         Args:
             control: Newton control carrying ``mujoco.ctrl``.
@@ -192,8 +192,8 @@ class MjcTendonControl:
         commands.zero_()
         wp.launch(
             articulation_kernels.scatter_fixed_tendon_position_targets,
-            dim=position_target.shape,
-            inputs=[position_target, self._actuator_columns],
+            dim=(position_target.shape[0], self._actuator_columns.shape[0]),
+            inputs=[position_target, self._actuator_columns, self._target_tendon_ids],
             outputs=[commands],
             device=position_target.device,
         )
@@ -208,12 +208,13 @@ def resolve_fixed_tendon_actuator_columns(view: ArticulationView, model: Model) 
         model: Newton model carrying the ``mujoco:actuator`` and ``mujoco:tendon`` frequencies.
 
     Returns:
-        Actuator column per fixed tendon, ``-1`` where no actuator transmits to that tendon, or
-        None when the model carries no tendon actuators at all.
+        ``(actuator_columns, target_tendon_ids)`` -- one entry per actuator that transmits to a
+        tendon, so a tendon nothing drives has no entry and several actuators may name the same
+        tendon. None when the model carries no tendon actuators at all.
 
     Raises:
         ValueError: If a tendon actuator targets something that is not one of the articulation's
-            fixed tendons, or if two actuators target the same tendon.
+            fixed tendons.
     """
     # Counts come from the view, not the model: the view's are per-articulation, while the model's
     # are scene-wide and would oversize the mapping when several articulation types coexist.
@@ -231,22 +232,46 @@ def resolve_fixed_tendon_actuator_columns(view: ArticulationView, model: Model) 
     if tendon_actuators.size == 0:
         return None
 
-    labels = view.custom_frequency_labels["mujoco:actuator"]
+    # The TARGET relation, not the display label: ``custom_frequency_labels`` holds actuator names,
+    # so matching tendons against it would resolve nothing. ``actuator_target_label`` is a
+    # ``dtype=str`` model attribute -- the view's stride-based ``get_attribute`` cannot carry
+    # strings -- so it is read off the model and indexed by this articulation's rows, the same way
+    # the view builds its own label lists.
+    target_labels = model.mujoco.actuator_target_label
+    rows = _actuator_template_rows(view, model)
     tendon_names = list(view.tendon_names)
-    columns = np.full(tendon_count, -1, dtype=np.int32)
+    actuator_columns, target_tendon_ids = [], []
     for column in tendon_actuators:
-        label = labels[column]
+        label = str(target_labels[rows[column]])
         name = label.rsplit("/", 1)[-1]
         if name not in tendon_names:
             raise ValueError(
                 f"Actuator column {column} targets '{label}', which is not one of this articulation's fixed"
                 f" tendons {tendon_names}."
             )
-        tendon = tendon_names.index(name)
-        if columns[tendon] >= 0:
-            raise ValueError(
-                f"Fixed tendon '{name}' is driven by actuator columns {columns[tendon]} and {column}; author"
-                " one actuator per tendon."
-            )
-        columns[tendon] = column
-    return columns
+        actuator_columns.append(int(column))
+        target_tendon_ids.append(tendon_names.index(name))
+    return np.array(actuator_columns, dtype=np.int32), np.array(target_tendon_ids, dtype=np.int32)
+
+
+def _actuator_template_rows(view: ArticulationView, model: Model) -> np.ndarray:
+    """Model-global ``mujoco:actuator`` rows owned by this view's template articulation.
+
+    Newton states the relation in ``custom_frequency_articulation`` (newton-physics/newton#4017),
+    so the rows are read rather than inferred from strides.
+
+    Args:
+        view: Articulation view the actuator columns belong to.
+        model: Newton model carrying the ownership relation.
+
+    Returns:
+        The model-global actuator rows of one articulation, in column order.
+    """
+    owners = model.custom_frequency_articulation["mujoco:actuator"]
+    template = int(_to_numpy(view.articulation_ids)[0])
+    return np.flatnonzero(_to_numpy(owners) == template)
+
+
+def _to_numpy(value) -> np.ndarray:
+    """Return *value* as a numpy array, whether it is a Warp array already or a sequence."""
+    return value.numpy() if hasattr(value, "numpy") else np.asarray(value)

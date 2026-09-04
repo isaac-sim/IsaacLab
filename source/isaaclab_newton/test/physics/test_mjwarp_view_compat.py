@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.assets.articulation.mjc_view_compat import ensure_custom_frequency_api
+from isaaclab_newton.physics._mjwarp_view_compat import ensure_newton_custom_frequency_api
 
 pytestmark = pytest.mark.unit
 
@@ -58,7 +58,7 @@ def _view(articulation_ids, *, world_count=2, count_per_world=1, tendon_offset=0
 
 def _right_hand(model=None):
     """The first hand in each world: tendon offset 0."""
-    return ensure_custom_frequency_api(_view([0, 2], tendon_offset=0), model or _model())
+    return ensure_newton_custom_frequency_api(_view([0, 2], tendon_offset=0), model or _model())[0]
 
 
 def test_a_view_that_already_has_the_api_is_returned_unchanged():
@@ -66,7 +66,7 @@ def test_a_view_that_already_has_the_api_is_returned_unchanged():
     view = _view([0, 2])
     view.custom_frequency_counts = {"mujoco:actuator": 2}
 
-    assert ensure_custom_frequency_api(view, _model()) is view
+    assert ensure_newton_custom_frequency_api(view, _model())[0] is view
 
 
 def test_counts_come_from_the_world_partition_not_the_totals():
@@ -80,7 +80,7 @@ def test_counts_come_from_the_world_partition_not_the_totals():
 def test_cloned_articulations_take_their_own_world_block():
     """The CI failure: one articulation cloned across worlds, whose labels are all identical."""
     model = _model(hands_per_world=1, worlds=2, actuators_per_hand=20, tendons_per_hand=4)
-    adapted = ensure_custom_frequency_api(_view([0, 1], tendon_offset=0, tendon_count=4), model)
+    adapted = ensure_newton_custom_frequency_api(_view([0, 1], tendon_offset=0, tendon_count=4), model)[0]
 
     assert adapted.custom_frequency_counts["mujoco:actuator"] == 20
     rows = adapted._rows_per_instance
@@ -92,7 +92,7 @@ def test_cloned_articulations_take_their_own_world_block():
 def test_unrelated_attributes_are_delegated_to_the_wrapped_view():
     view = _view([0, 2])
     view.some_newton_attribute = "delegated"
-    adapted = ensure_custom_frequency_api(view, _model())
+    adapted = ensure_newton_custom_frequency_api(view, _model())[0]
 
     assert adapted.some_newton_attribute == "delegated"
     assert adapted.world_count == 2
@@ -101,8 +101,8 @@ def test_unrelated_attributes_are_delegated_to_the_wrapped_view():
 def test_two_articulations_in_one_world_do_not_claim_each_others_actuators():
     """The handover scene puts two hands in each world, and each view must take only its own."""
     model = _model()
-    right = ensure_custom_frequency_api(_view([0, 2], tendon_offset=0), model)
-    left = ensure_custom_frequency_api(_view([1, 3], tendon_offset=1), model)
+    right = ensure_newton_custom_frequency_api(_view([0, 2], tendon_offset=0), model)[0]
+    left = ensure_newton_custom_frequency_api(_view([1, 3], tendon_offset=1), model)[0]
 
     right.set_attribute(
         "mujoco.ctrl", model, wp.array(np.array([[[1.0, 2.0]], [[5.0, 6.0]]], dtype=np.float32), device="cpu")

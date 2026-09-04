@@ -11,13 +11,14 @@ Newton 1.6 exposes ``mujoco:actuator`` through :class:`~newton.selection.Articul
 custom-frequency branch rejects every other namespace -- so the same calls raise.
 
 #4017 landed on Newton's main but was deliberately not backported to the 1.5 patch series, so it
-arrives with 1.6. :func:`ensure_custom_frequency_api` supplies the missing surface in the
-meantime, which keeps
-:mod:`~isaaclab_newton.assets.articulation.mjc_tendon_control` written against the 1.6 API on
-both versions instead of carrying two code paths.
+arrives with 1.6. :func:`ensure_newton_custom_frequency_api` supplies the missing surface in the meantime -- on the
+view (``custom_frequency_counts``/``custom_frequency_labels`` and actuator ``get_attribute`` /
+``set_attribute``) and on the model (``custom_frequency_articulation``). Because it fills the same
+names Newton 1.6 fills, :mod:`~isaaclab_newton.physics.mjwarp_tendon_control` is written against
+1.6 only and carries no version branch.
 
-Delete this module once the pinned Newton is 1.6 or newer; the only caller reverts to passing
-``articulation.root_view`` straight through.
+Delete this module once the pinned Newton is 1.6 or newer; the only caller reverts to reading
+``articulation.root_view`` and the model straight through.
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ if TYPE_CHECKING:
     from newton import Control, Model, State
     from newton.selection import ArticulationView
 
-__all__ = ["ensure_custom_frequency_api"]
+__all__ = ["ensure_newton_custom_frequency_api"]
 
 
 @wp.kernel
@@ -45,19 +46,20 @@ def _scatter_into_flat_rows(
     flat[rows[world, instance, column]] = values[world, instance, column]
 
 
-def ensure_custom_frequency_api(view: ArticulationView, model: Model) -> ArticulationView:
-    """Return a view that exposes Newton 1.6's custom-frequency API.
+def ensure_newton_custom_frequency_api(view: ArticulationView, model: Model):
+    """Return a ``(view, model)`` pair exposing Newton 1.6's custom-frequency API.
 
     Args:
         view: Articulation view to adapt.
         model: Newton model the view selects from.
 
     Returns:
-        *view* unchanged when Newton already provides the API, otherwise a wrapper adding it.
+        The pair unchanged when Newton already provides the API, otherwise wrappers adding it.
     """
     if hasattr(view, "custom_frequency_counts"):
-        return view
-    return _CustomFrequencyView(view, model)
+        return view, model
+    adapted = _CustomFrequencyView(view, model)
+    return adapted, _OwnershipModel(model, adapted.actuator_owner_rows)
 
 
 class _CustomFrequencyView:
@@ -93,12 +95,25 @@ class _CustomFrequencyView:
             self.custom_frequency_counts["mujoco:tendon"] = self._tendon_count
 
         self.custom_frequency_labels: dict[str, list[str]] = {}
-        labels = getattr(getattr(model, "mujoco", None), "actuator_target_label", None)
+        labels = getattr(getattr(model, "mujoco", None), "actuator_label", None)
         if labels is not None and self._actuator_count:
             self.custom_frequency_labels["mujoco:actuator"] = [str(labels[row]) for row in self._rows_per_instance[0]]
         tendon_names = getattr(view, "tendon_names", None)
         if tendon_names:
             self.custom_frequency_labels["mujoco:tendon"] = list(tendon_names)
+
+    @property
+    def actuator_owner_rows(self) -> np.ndarray:
+        """Owning articulation id per model-global actuator row, as Newton 1.6 states it.
+
+        Newton 1.6 publishes this as ``Model.custom_frequency_articulation["mujoco:actuator"]``;
+        here it is projected from the inferred per-instance rows so the caller reads one shape.
+        """
+        owners = np.full(self._total_actuator_rows, -1, dtype=np.int64)
+        articulation_ids = _to_numpy(self._view.articulation_ids)
+        for instance, rows in enumerate(self._rows_per_instance):
+            owners[rows] = articulation_ids[instance]
+        return owners
 
     def __getattr__(self, name: str) -> Any:
         """Delegate everything this wrapper does not define to the wrapped view."""
@@ -239,3 +254,19 @@ def _assert_rows_usable(rows: np.ndarray, total_rows: int, actuator_count: int) 
 def _to_numpy(value) -> np.ndarray:
     """Return *value* as a numpy array, whether it is a Warp array already or a sequence."""
     return value.numpy() if hasattr(value, "numpy") else np.asarray(value)
+
+
+class _OwnershipModel:
+    """Adds Newton 1.6's ``custom_frequency_articulation`` to a Newton 1.5 :class:`Model`.
+
+    Only the actuator frequency is supplied; everything else is delegated, so the model behaves
+    exactly as Newton's own apart from the one relation 1.5 does not state.
+    """
+
+    def __init__(self, model: Model, actuator_owner_rows: np.ndarray):
+        self._model = model
+        self.custom_frequency_articulation = {"mujoco:actuator": actuator_owner_rows}
+
+    def __getattr__(self, name: str) -> Any:
+        """Delegate everything this wrapper does not define to the wrapped model."""
+        return getattr(self._model, name)

@@ -40,7 +40,6 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .actuator_control import NewtonActuatorControl
 from .articulation_data import ArticulationData
-from .mjc_tendon_control import MjcTendonControl
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
@@ -218,8 +217,9 @@ class Articulation(BaseArticulation):
 
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
-        # MuJoCo tendon control adapter; ``_process_tendons`` creates it when the model has tendon actuators.
-        self._mjc_tendon_control: MjcTendonControl | None = None
+        # Solver-built fixed-tendon adapter, held like ``_actuator_control``; None when the active
+        # solver has no tendon transmission. ``_process_tendons`` asks the manager for it.
+        self._fixed_tendon_control = None
 
     def _register_callbacks(self) -> None:
         """Register Newton lifecycle callbacks required before model finalization."""
@@ -439,9 +439,11 @@ class Articulation(BaseArticulation):
         self.actuators.compute(SimulationManager.get_physics_dt())
         self.actuators.submit_commands()
 
-        # Tendon targets share the per-step write because MuJoCo exposes their controls outside the articulation view.
-        if self._mjc_tendon_control is not None:
-            self._mjc_tendon_control.write_data_to_sim(SimulationManager.get_control())
+        # Tendon submission is solver-specific: MuJoCo drives tendons through actuator controls
+        # outside the articulation view, so the manager owns how a buffered target reaches the solver.
+        if self._fixed_tendon_target_dirty:
+            self._fixed_tendon_control.write_data_to_sim(SimulationManager.get_control())
+            self._fixed_tendon_target_dirty = False
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -2941,12 +2943,15 @@ class Articulation(BaseArticulation):
             fixed_tendon_ids: The tendon indices to command. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
         """
-        if self._mjc_tendon_control is None:
+        if self._fixed_tendon_control is None:
             raise RuntimeError(
                 "This articulation has no MuJoCo tendon actuator, so its tendons cannot be"
                 " commanded. The asset must author an actuator whose transmission is the tendon."
             )
-        self._mjc_tendon_control.set_position_target(target=target, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
+        self._fixed_tendon_control.set_position_target_index(
+            target=target, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids
+        )
+        self._fixed_tendon_target_dirty = True
 
     def set_fixed_tendon_offset_index(
         self,
@@ -2996,14 +3001,15 @@ class Articulation(BaseArticulation):
             fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are commanded.
             env_mask: Environment mask. If None, then all the instances are commanded.
         """
-        if self._mjc_tendon_control is None:
+        if self._fixed_tendon_control is None:
             raise RuntimeError(
                 "This articulation has no MuJoCo tendon actuator, so its tendons cannot be"
                 " commanded. The asset must author an actuator whose transmission is the tendon."
             )
-        self._mjc_tendon_control.set_position_target_mask(
+        self._fixed_tendon_control.set_position_target_mask(
             target=target, fixed_tendon_mask=fixed_tendon_mask, env_mask=env_mask
         )
+        self._fixed_tendon_target_dirty = True
 
     def set_fixed_tendon_offset_mask(
         self,
@@ -3531,14 +3537,13 @@ class Articulation(BaseArticulation):
 
     def _process_tendons(self):
         """Process fixed and spatial tendons."""
-        self._mjc_tendon_control = None
         if self._root_view.tendon_count > 0:
             tendon_types = wp.to_torch(
                 self._root_view.get_attribute("mujoco.tendon_type", SimulationManager.get_model())
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")
-            self._mjc_tendon_control = MjcTendonControl.create(self, SimulationManager.get_model())
+            self._fixed_tendon_control = SimulationManager.create_fixed_tendon_control(self)
 
     """
     Internal helpers -- Debugging.
