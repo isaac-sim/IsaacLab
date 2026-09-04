@@ -561,6 +561,49 @@ def test_resolve_scene_data_body_paths_uses_joint_body_targets():
     assert resolved_paths == ["/World/envs/env_0/Robot/robot0_forearm"]
 
 
+def test_update_visualization_state_copies_identity_mapped_transforms(monkeypatch):
+    """Identity-mapped transforms update the persistent Newton shadow buffer."""
+    import numpy as np
+    import warp as wp
+    from isaaclab_newton.physics import NewtonManager
+
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
+
+    _reset_newton_manager_state()
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, provider=None: False))
+
+    body_paths = ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
+    source_transforms = wp.array(
+        [
+            [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0],
+            [4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 1.0],
+        ],
+        dtype=wp.transformf,
+        device="cpu",
+    )
+    source_data = SceneDataFormat.Transform()
+    source_data.transforms = source_transforms
+    provider_impl = SceneDataProvider(
+        SimpleNamespace(transforms=source_data, transform_paths=body_paths, transform_count=len(body_paths))
+    )
+    provider = SimpleNamespace(
+        usd_stage=None,
+        create_mapping=provider_impl.create_mapping,
+        get_transforms=provider_impl.get_transforms,
+        point_count=0,
+    )
+
+    destination = wp.zeros(len(body_paths), dtype=wp.transformf, device="cpu")
+    NewtonManager._model = SimpleNamespace(body_label=body_paths, body_count=len(body_paths))
+    NewtonManager._state_0 = SimpleNamespace(body_q=destination, particle_q=None)
+
+    NewtonManager.update_visualization_state(provider)
+
+    assert NewtonManager._state_0.body_q is destination
+    assert NewtonManager._scene_data.transforms is destination
+    np.testing.assert_allclose(destination.numpy(), source_transforms.numpy())
+
+
 def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
     """PhysX/OVPhysX shadow sync copies backend points into ``state.particle_q``.
 
