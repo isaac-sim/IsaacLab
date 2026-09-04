@@ -70,7 +70,9 @@ def object_grasped(
     pose_diff = torch.linalg.vector_norm(object_pos - end_effector_pos, dim=1)
 
     if "contact_grasp" in env.scene.keys() and env.scene["contact_grasp"] is not None:
-        contact_force_grasp = env.scene["contact_grasp"].data.net_forces_w.torch  # shape:(N, 2, 3) for two fingers
+        contact_force_grasp = env.scene[
+            "contact_grasp"
+        ].data.net_normal_forces_w.torch  # shape:(N, 2, 3) for two fingers
         contact_force_norm = torch.linalg.vector_norm(
             contact_force_grasp, dim=2
         )  # shape:(N, 2) - force magnitude per finger
@@ -84,7 +86,7 @@ def object_grasped(
     ):
         contact_force_object = env.scene[
             f"contact_grasp_{object_cfg.name}"
-        ].data.net_forces_w.torch  # shape:(N, 2, 3) for two fingers
+        ].data.net_normal_forces_w.torch  # shape:(N, 2, 3) for two fingers
         contact_force_norm = torch.linalg.vector_norm(
             contact_force_object, dim=2
         )  # shape:(N, 2) - force magnitude per finger
