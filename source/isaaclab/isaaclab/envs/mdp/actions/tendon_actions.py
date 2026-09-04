@@ -70,8 +70,25 @@ class FixedTendonPositionAction(ActionTerm):
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self._raw_actions)
 
-        self._scale = cfg.scale
-        self._offset = cfg.offset
+        # parse scale
+        if isinstance(cfg.scale, (float, int)):
+            self._scale = float(cfg.scale)
+        elif isinstance(cfg.scale, dict):
+            # unmatched tendons keep scale 1, so a partial dictionary leaves them unscaled
+            self._scale = torch.ones(self.num_envs, self.action_dim, device=self.device)
+            index_list, _, value_list = string_utils.resolve_matching_names_values(cfg.scale, self._tendon_names)
+            self._scale[:, index_list] = torch.tensor(value_list, device=self.device)
+        else:
+            raise ValueError(f"Unsupported scale type: {type(cfg.scale)}. Supported types are float and dict.")
+        # parse offset
+        if isinstance(cfg.offset, (float, int)):
+            self._offset = float(cfg.offset)
+        elif isinstance(cfg.offset, dict):
+            self._offset = torch.zeros_like(self._raw_actions)
+            index_list, _, value_list = string_utils.resolve_matching_names_values(cfg.offset, self._tendon_names)
+            self._offset[:, index_list] = torch.tensor(value_list, device=self.device)
+        else:
+            raise ValueError(f"Unsupported offset type: {type(cfg.offset)}. Supported types are float and dict.")
         # parse clip
         if cfg.clip is not None:
             if isinstance(cfg.clip, dict):
@@ -108,15 +125,20 @@ class FixedTendonPositionAction(ActionTerm):
         Returns:
             The IO descriptor of the action term.
         """
-        super().IO_descriptor
-        self._IO_descriptor.shape = (self.action_dim,)
-        self._IO_descriptor.dtype = str(self.raw_actions.dtype)
-        self._IO_descriptor.action_type = "FixedTendonPositionAction"
-        self._IO_descriptor.tendon_names = self._tendon_names
-        self._IO_descriptor.scale = self._scale
-        self._IO_descriptor.offset = self._offset
-        self._IO_descriptor.clip = self._clip[0].detach().cpu().numpy().tolist() if self.cfg.clip is not None else None
-        return self._IO_descriptor
+        descriptor = super().IO_descriptor
+        descriptor.shape = (self.action_dim,)
+        descriptor.dtype = str(self.raw_actions.dtype)
+        descriptor.action_type = "FixedTendonPositionAction"
+        descriptor.tendon_names = self._tendon_names
+        # a dictionary scale or offset resolves to a per-tendon tensor, which the descriptor
+        # carries as plain values the way a joint term does
+        for name in ("scale", "offset"):
+            value = getattr(self, f"_{name}")
+            if isinstance(value, torch.Tensor):
+                value = value[0].detach().cpu().numpy().tolist()
+            setattr(descriptor, name, value)
+        descriptor.clip = self._clip[0].detach().cpu().numpy().tolist() if self.cfg.clip is not None else None
+        return descriptor
 
     """
     Operations.
@@ -124,10 +146,10 @@ class FixedTendonPositionAction(ActionTerm):
 
     def process_actions(self, actions: torch.Tensor):
         self._raw_actions[:] = actions
-        # The raw action is clamped to [-1, 1] so scale and offset alone define the commanded span; a
-        # Gaussian policy samples well past 1 early on, which would yank the fingers out of range.
-        # Joint terms instead clip the processed action through ``cfg.clip``, honoured here as well.
-        self._processed_actions[:] = self._raw_actions.clamp(-1.0, 1.0) * self._scale + self._offset
+        # Bounding the raw action would assume every caller sends normalized policy output, which is
+        # the term's assumption about its users rather than a property of the tendon. The physical
+        # bound is the task's to declare, through ``cfg.clip`` as every other action term does.
+        self._processed_actions[:] = self._raw_actions * self._scale + self._offset
         if self.cfg.clip is not None:
             self._processed_actions[:] = torch.clamp(
                 self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]

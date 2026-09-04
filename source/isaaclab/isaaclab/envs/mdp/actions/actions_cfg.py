@@ -57,10 +57,12 @@ class FixedTendonPositionActionCfg(ActionTermCfg):
     preserve_order: bool = False
     """Whether to preserve the order of the tendon names in the action output. Defaults to False."""
 
-    scale: float = 1.0
-    """Scale mapping an action onto the tendon's commandable span. Defaults to 1.0."""
+    scale: float | dict[str, float] = 1.0
+    """Scale mapping an action onto the tendon's commandable span. Defaults to 1.0.
 
-    offset: float = 0.0
+    A dictionary maps tendon-name regular expressions to their own scale, as for a joint term."""
+
+    offset: float | dict[str, float] = 0.0
     """Offset applied to an action after scaling. Defaults to 0.0.
 
     A joint action term rescales to each joint's own position limits, which is what a joint limit

@@ -86,6 +86,8 @@ class ActionsCfg:
         # policy's [-1, 1] onto the tendon's commandable span.
         scale=0.5 * (TENDON_POSITION_LIMITS[1] - TENDON_POSITION_LIMITS[0]),
         offset=0.5 * (TENDON_POSITION_LIMITS[0] + TENDON_POSITION_LIMITS[1]),
+        # the term maps [-1, 1] onto that span; clip states the bound the task guarantees
+        clip={".*": TENDON_POSITION_LIMITS},
     )
     left_hand = mdp.EMAJointPositionToLimitsActionCfg(
         asset_name="left_hand",
@@ -101,6 +103,8 @@ class ActionsCfg:
         # policy's [-1, 1] onto the tendon's commandable span.
         scale=0.5 * (TENDON_POSITION_LIMITS[1] - TENDON_POSITION_LIMITS[0]),
         offset=0.5 * (TENDON_POSITION_LIMITS[0] + TENDON_POSITION_LIMITS[1]),
+        # the term maps [-1, 1] onto that span; clip states the bound the task guarantees
+        clip={".*": TENDON_POSITION_LIMITS},
     )
 
 
