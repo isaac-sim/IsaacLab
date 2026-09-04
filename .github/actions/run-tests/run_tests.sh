@@ -321,7 +321,9 @@ run_tests() {
       cd /workspace/isaaclab
       mkdir -p tests
       rm _isaac_sim || true
-      ln -s /isaac-sim _isaac_sim
+      # The kit-less image ships no Isaac Sim, so linking it there leaves a dangling _isaac_sim that
+      # isaaclab.sh reads as a downloaded package and refuses to combine with the image's venv.
+      if [ -d /isaac-sim ]; then ln -s /isaac-sim _isaac_sim; fi
       if [ -n \"\${WARP_CACHE_PATH:-}\" ]; then
         ./isaaclab.sh -p tools/verify_warp_cache.py
       fi
