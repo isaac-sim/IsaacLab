@@ -34,9 +34,6 @@ class PhysxReplicateContext:
         cache = UsdUtils.StageCache.Get()
         cached_id = cache.GetId(stage)
         self._stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
-        physics_scene_prim = self.stage.GetPrimAtPath("/physicsScene")
-        if physics_scene_prim.IsValid():
-            physics_scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
 
     def replicate(self, plan: ClonePlan) -> None:
         """Register the PhysX replicator for this context's plan rows.
@@ -101,6 +98,10 @@ class PhysxReplicateContext:
         # and PhysX can parse them from the stage without any replicator registration.
         if all(len(envs) == 1 and src == destination.format(envs[0]) for src, destination, envs in physx_queue):
             return
+
+        physics_scene_prim = self.stage.GetPrimAtPath("/physicsScene")
+        if physics_scene_prim.IsValid():
+            physics_scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
 
         current_worlds: list[int] = []
         current_template: str = ""

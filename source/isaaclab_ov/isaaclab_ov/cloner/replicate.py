@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from pxr import Gf, Sdf, Usd, UsdGeom
+from pxr import Gf, Usd, UsdGeom
 
 from isaaclab import cloner
 from isaaclab.physics import PhysicsManager
@@ -116,9 +116,6 @@ class OvPhysxReplicateContext:
         """
         self._sim = sim_context
         self.stage = sim_context.stage
-        physics_scene_prim = self.stage.GetPrimAtPath("/physicsScene")
-        if physics_scene_prim.IsValid():
-            physics_scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
 
     def replicate(self, plan: ClonePlan) -> None:
         """Publish clone operations from this context's plan rows.

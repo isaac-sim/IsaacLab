@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import numpy as np
 import warp as wp
 
-from pxr import UsdPhysics
+from pxr import Sdf, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
@@ -946,6 +946,8 @@ class OvPhysxManager(PhysicsManager):
 
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
         if scene_prim.IsValid():
+            if cls._active_clone_recipes:
+                scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
             cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
         # Flatten the current USD stage to USDA text so OVStage can populate it
@@ -1107,8 +1109,6 @@ class OvPhysxManager(PhysicsManager):
                 values. The GPU buffer-capacity values are only consulted when ``device == "gpu"``.
             device: Resolved physics device — one of ``"cpu"`` or ``"gpu"``.
         """
-        from pxr import Sdf
-
         schemas = Sdf.TokenListOp()
         current = scene_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
         items = list(current.prependedItems) if current.prependedItems else []
