@@ -1603,7 +1603,7 @@ class NewtonVisualizer(BaseVisualizer):
         """Build Newton-style arrow starts/ends from an Isaac Lab contact sensor."""
         try:
             data = sensor.data
-            net_forces_proxy = data.net_forces_w
+            net_forces_proxy = data.net_normal_forces_w
             net_forces = net_forces_proxy.torch if net_forces_proxy is not None else None
         except (AttributeError, NotImplementedError, RuntimeError):
             return None, None
@@ -1618,7 +1618,7 @@ class NewtonVisualizer(BaseVisualizer):
 
         try:
             contact_pos = getattr(data, "contact_pos_w", None)
-            force_matrix = getattr(data, "force_matrix_w", None)
+            force_matrix = getattr(data, "normal_force_matrix_w", None)
         except NotImplementedError:
             contact_pos = None
             force_matrix = None

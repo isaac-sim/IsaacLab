@@ -85,6 +85,10 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         # reset environment
         env.reset()
         zero_action_policy = _create_zero_action_policy(env) if policy == "zero" else None
+        if policy == "zero":
+            print("[INFO] Zero agent is running, press Ctrl+C to exit...")
+        else:
+            print("[INFO] Random agent is running, press Ctrl+C to exit...")
         # simulate environment
         # keep running while any visualizer is open, and until the step budget is exhausted
         sim = env.unwrapped.sim

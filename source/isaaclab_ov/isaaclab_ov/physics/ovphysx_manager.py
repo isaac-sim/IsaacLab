@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import numpy as np
 import warp as wp
 
-from pxr import UsdPhysics
+from pxr import Sdf, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
@@ -39,6 +39,7 @@ from isaaclab.scene_data.deformable_discovery import (
 
 from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
+from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.stage import create_ovstage
 
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR
@@ -400,6 +401,8 @@ class OvPhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
+    clone_context_type = OvPhysxReplicateContext
+
     _cfg: ClassVar[OvPhysxCfg | None] = None
     _physx: ClassVar[Any] = None  # ovphysx.PhysX (lazy import)
     _ovstage: ClassVar[Any] = None
@@ -521,6 +524,7 @@ class OvPhysxManager(PhysicsManager):
         IsaacLab's conservative first-device policy for this process.
         """
         super().initialize(sim_context)
+        sim_context.get_or_create_backend(cls.clone_context_type, sim_context)
         cls._ensure_physx_schemas_registered()
         cls._warmup_done = False
         cls._requires_full_stage = False
@@ -942,6 +946,8 @@ class OvPhysxManager(PhysicsManager):
 
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
         if scene_prim.IsValid():
+            if cls._active_clone_recipes:
+                scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
             cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
         # Flatten the current USD stage to USDA text so OVStage can populate it
@@ -1103,8 +1109,6 @@ class OvPhysxManager(PhysicsManager):
                 values. The GPU buffer-capacity values are only consulted when ``device == "gpu"``.
             device: Resolved physics device — one of ``"cpu"`` or ``"gpu"``.
         """
-        from pxr import Sdf
-
         schemas = Sdf.TokenListOp()
         current = scene_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
         items = list(current.prependedItems) if current.prependedItems else []
