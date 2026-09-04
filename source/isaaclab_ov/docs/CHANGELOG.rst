@@ -1,6 +1,59 @@
 Changelog
 ---------
 
+2.6.0 (2026-09-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``OVRTX_SHADER_CACHE_PATH`` support to
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` for selecting the NVIDIA driver
+  shader-cache directory.
+
+
+2.5.0 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.enable_shadows`, which authors
+  ``omni:rtx:minimal:castShadows`` on the OVRTX render product. It applies to the
+  ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode; OVRTX's
+  path-traced modes provide no shadow switch and always cast shadows.
+* Added translation of :attr:`~isaaclab.physics.PhysicsCfg.deterministic` in ``OvPhysxManager``, which
+  enables ``physxScene:enableEnhancedDeterminism``. Reproducibility on OvPhysX is best-effort and is
+  not verified end to end.
+
+Changed
+^^^^^^^
+
+* Changed the OVRTX renderer to turn shadows off by default in RTX Minimal mode. Renders that need
+  cast shadows from the ``simple_shading_*`` data types must now set
+  ``OVRTXRendererCfg(enable_shadows=True)``.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX CPU-only property writes (joint stiffness, damping, limits, armature, friction,
+  body mass, center of mass, and inertia) on GPU simulations consuming their pinned-host staging
+  buffers before the asynchronous device-to-host copy had completed. Environments could silently
+  receive stale (typically zero) property values, which made repeated training runs diverge.
+  Every pinned-host staging copy in :class:`~isaaclab_ov.assets.Articulation`,
+  :class:`~isaaclab_ov.assets.RigidObject`, and :class:`~isaaclab_ov.assets.RigidObjectCollection`
+  now waits for the device stream before the CPU setter runs.
+
+
+2.4.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to ``OVRTXRendererCfg`` through its ``class_type`` field.
+
+
 2.3.1 (2026-08-29)
 ~~~~~~~~~~~~~~~~~~
 

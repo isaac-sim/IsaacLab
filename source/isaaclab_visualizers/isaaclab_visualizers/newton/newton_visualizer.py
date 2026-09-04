@@ -12,7 +12,7 @@ import logging
 import math
 import os
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np  # noqa: F401 — used in type hints and colorization helpers
 import torch
@@ -467,7 +467,7 @@ class _NewtonViewerUIMixin:
                 imgui.text("Ctrl + Middle Click - Dolly")
                 imgui.text("Scroll - Dolly")
                 imgui.text("Ctrl + Scroll - FOV zoom")
-                imgui.text("Space - Pause/Resume")
+                imgui.text("Space - Pause/Resume Rendering")
                 imgui.text(". - Step one frame (when paused)")
                 imgui.text("H - Toggle UI")
                 imgui.text("F - Frame camera around model")
@@ -487,11 +487,13 @@ class _NewtonViewerUIMixin:
 
         # Pause/Resume Rendering is not exposed on RTX: stopping end_frame() would
         # freeze the imgui, and OVRTX naturally converges when the scene is paused.
+        # ``self._paused`` (not a separately tracked flag) is the single source of truth here
+        # because the Newton viewer's own Space key handler toggles it directly, bypassing this
+        # button; mirroring a separate flag would let the button state drift out of sync with Space.
         if not isinstance(self, NewtonViewerRTX):
-            rendering_label = "Resume Rendering" if self._paused_rendering else "Pause Rendering"
+            rendering_label = "Resume Rendering" if self._paused else "Pause Rendering"
             if imgui.button(rendering_label):
-                self._paused_rendering = not self._paused_rendering
-                self._paused = self._paused_rendering
+                self._paused = not self._paused
 
         if imgui.button("Reset Episode"):
             self._reset_requested = True
@@ -608,13 +610,22 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         no existing Isaac Lab use case is affected by this constraint.
     """
 
-    def __init__(self, *args, metadata: dict | None = None, update_frequency: int = 1, **kwargs):
+    def __init__(
+        self,
+        *args,
+        metadata: dict | None = None,
+        update_frequency: int = 1,
+        render_settings: dict[str, Any] | None = None,
+        **kwargs,
+    ):
         """Initialize Newton RTX viewer wrapper state.
 
         Args:
             *args: Positional arguments forwarded to ``ViewerRTX``.
             metadata: Optional metadata shown in viewer panels.
             update_frequency: Viewer refresh cadence in simulation frames.
+            render_settings: Extra RTX attributes to author on the render product. See
+                :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`.
             **kwargs: Keyword arguments forwarded to ``ViewerRTX``.
         """
         # Patch environment so OVRTX's CRenderApiLibLoader can find libovrtx.dylib.so.
@@ -635,6 +646,11 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
                     os.environ["LD_LIBRARY_PATH"] = _extra + (os.pathsep + _ld if _ld else "")
                 os.environ.setdefault("OMNI_USD_PLUGINS_BASE_PATH", str(_bin))
 
+        # Assigned before super().__init__(): ViewerRTX reaches
+        # _add_camera_lights_and_render_product() during initialization, and the override reads
+        # this. Copied so a caller's dict cannot mutate the viewer's settings afterwards.
+        self._render_settings = dict(render_settings or {})
+
         super().__init__(*args, **kwargs)
         self._paused_training = False
         self._paused_rendering = False
@@ -654,6 +670,24 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # exist.  Register the training controls now (they are buffered by ViewerRTX until
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
+
+    def _add_camera_lights_and_render_product(self) -> None:
+        """Author the configured RTX attributes onto the render product.
+
+        Runs here because ``_init_ovrtx`` exports the stage right after this call and the renderer
+        reads that export, so later edits are ignored.
+        """
+        super()._add_camera_lights_and_render_product()
+        if not self._render_settings:
+            return
+        from pxr import Sdf
+
+        prim = self.stage.GetPrimAtPath(self._render_product_path)
+        for name, (type_name, value) in self._render_settings.items():
+            value_type = getattr(Sdf.ValueTypeNames, type_name, None)
+            if value_type is None:
+                raise ValueError(f"Render setting {name!r} names unknown USD type {type_name!r}.")
+            prim.CreateAttribute(name, value_type).Set(value)
 
     def get_frame(self) -> np.ndarray:
         """Return the latest OVRTX LDR framebuffer as contiguous RGB pixels."""
@@ -701,7 +735,6 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
         """
         super().__init__(*args, **kwargs)
         self._paused_training = False
-        self._paused_rendering = False
         self._reset_requested = False
         self._metadata = metadata or {}
         self._update_frequency = update_frequency
@@ -731,8 +764,12 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
         return self._paused_training
 
     def is_rendering_paused(self) -> bool:
-        """Return whether rendering is paused by viewer controls."""
-        return self._paused_rendering
+        """Return whether rendering is paused by viewer controls.
+
+        Mirrors ``self._paused`` directly since the Newton viewer's Space key handler toggles it
+        in-place, outside the Isaac Lab "Pause Rendering" button.
+        """
+        return self._paused
 
     def on_key_press(self, symbol, modifiers):
         """Forward key presses unless UI is currently capturing input."""
@@ -1317,6 +1354,91 @@ class NewtonVisualizer(BaseVisualizer):
         """Return whether the streaming camera view is active."""
         return bool(self.cfg.streaming_view)
 
+    def render_tiled_rgb_array(self) -> np.ndarray | None:
+        """Return the last composited streaming frame (all GT types side-by-side).
+
+        Returns the full multi-GT composite produced by the streaming camera panel —
+        including depth (turbo colormap), segmentation, and normals when configured via
+        :attr:`~isaaclab.visualizers.VisualizerCfg.streaming_gt_types`.
+
+        When the streaming panel is hidden (headless training or panel closed by the
+        user), this method builds the composite on demand so that :class:`VideoRecorder`
+        and similar consumers always receive a valid frame. Shared by every Newton
+        backend that owns a streaming camera sensor (GL and RTX): RTX has no display
+        sink for the live preview panel (:meth:`_log_streaming_image` stays a no-op
+        there), but headless capture via this method works the same way on both.
+
+        Returns:
+            ``uint8 (H, W, 3)`` composite array, or ``None`` if no camera sensor has
+            been configured or no usable GT output is available.
+        """
+        return self._build_streaming_composite()
+
+    def _build_streaming_composite(self) -> np.ndarray | None:
+        """Build (or return the cached) streaming composite for the current step.
+
+        The composite is built at most once per visualizer step.  A step-counter
+        comparison is used so repeated calls within the same step (e.g. from both
+        :meth:`_log_streaming_image` and :meth:`render_tiled_rgb_array`) share the
+        same result without redundant camera work.
+
+        Returns:
+            ``uint8 (H, W, 3)`` composite array, or ``None`` if no camera sensor has
+            been configured or no usable GT output is available on this step.
+        """
+        if self._camera_sensor is None:
+            return self._last_streaming_composite
+
+        # Return the cached composite when it was already built this step.
+        if self._composite_step == self._step_counter:
+            return self._last_streaming_composite
+
+        if self._camera_is_owned:
+            self._update_owned_camera_poses()
+            self._camera_sensor.update(dt=0.0, force_recompute=True)
+
+        available = frozenset(self._camera_sensor.data.output.keys())
+
+        # Filter configured GT types to those actually available on this camera.
+        # Scene cameras may not produce every GT type; unrecognised keys are silently
+        # dropped so switching cameras never raises.  Fallback to "rgb" when nothing
+        # from the configured list is available.
+        gt_types: list[str] = []
+        for gt in self.cfg.streaming_gt_types:
+            if gt not in SUPPORTED_GT_TYPES:
+                continue
+            try:
+                sensor_key_for_gt_type(gt, available)
+                gt_types.append(gt)
+            except (ValueError, KeyError):
+                pass
+        if not gt_types:
+            try:
+                sensor_key_for_gt_type("rgb", available)
+                gt_types = ["rgb"]
+            except (ValueError, KeyError):
+                return None  # camera has no usable output at all
+
+        frames: list[np.ndarray] = []
+        for env_idx in self._camera_sensor_indices:
+            for gt in gt_types:
+                key = sensor_key_for_gt_type(gt, available)
+                raw = camera_gt_batch(self._camera_sensor, [env_idx], key)[0]
+                frame = CameraFrameColorizer.colorize(
+                    raw,
+                    gt,
+                    depth_min=self.cfg.streaming_depth_min,
+                    depth_max=self.cfg.streaming_depth_max,
+                )
+                frames.append(frame)
+
+        n_envs = len(self._camera_sensor_indices)
+        target_aspect = self.cfg.window_width / self.cfg.window_height if self.cfg.window_height > 0 else 1.0
+        composite = compose_streaming_grid(frames, n_envs, len(gt_types), target_aspect=target_aspect)
+        self._last_streaming_composite = composite
+        self._composite_step = self._step_counter
+        return composite
+
     # ------------------------------------------------------------------
     # Shared internals
     # ------------------------------------------------------------------
@@ -1481,7 +1603,7 @@ class NewtonVisualizer(BaseVisualizer):
         """Build Newton-style arrow starts/ends from an Isaac Lab contact sensor."""
         try:
             data = sensor.data
-            net_forces_proxy = data.net_forces_w
+            net_forces_proxy = data.net_normal_forces_w
             net_forces = net_forces_proxy.torch if net_forces_proxy is not None else None
         except (AttributeError, NotImplementedError, RuntimeError):
             return None, None
@@ -1496,7 +1618,7 @@ class NewtonVisualizer(BaseVisualizer):
 
         try:
             contact_pos = getattr(data, "contact_pos_w", None)
-            force_matrix = getattr(data, "force_matrix_w", None)
+            force_matrix = getattr(data, "normal_force_matrix_w", None)
         except NotImplementedError:
             contact_pos = None
             force_matrix = None
@@ -1924,91 +2046,17 @@ class NewtonGLVisualizer(NewtonVisualizer):
             self._viewer.begin_frame(self._sim_time)
             try:
                 self._viewer.log_state(self._state)
+                # The interactive render path logs markers every frame; a capture that
+                # skips them records the scene without its goal poses and command arrows.
+                if self.cfg.enable_markers:
+                    render_newton_visualization_markers(
+                        self._viewer,
+                        self._resolved_visible_env_ids,
+                        num_envs=NewtonManager.get_num_envs(),
+                    )
             finally:
                 self._viewer.end_frame()
         return self._viewer.get_frame().numpy()
-
-    def render_tiled_rgb_array(self) -> np.ndarray | None:
-        """Return the last composited streaming frame (all GT types side-by-side).
-
-        Returns the full multi-GT composite produced by the streaming camera panel —
-        including depth (turbo colormap), segmentation, and normals when configured via
-        :attr:`~isaaclab.visualizers.VisualizerCfg.streaming_gt_types`.
-
-        When the streaming panel is hidden (headless training or panel closed by the
-        user), this method builds the composite on demand so that :class:`VideoRecorder`
-        and similar consumers always receive a valid frame.
-
-        Returns:
-            ``uint8 (H, W, 3)`` composite array, or ``None`` if no camera sensor has
-            been configured or no usable GT output is available.
-        """
-        return self._build_streaming_composite()
-
-    def _build_streaming_composite(self) -> np.ndarray | None:
-        """Build (or return the cached) streaming composite for the current step.
-
-        The composite is built at most once per visualizer step.  A step-counter
-        comparison is used so repeated calls within the same step (e.g. from both
-        :meth:`_log_streaming_image` and :meth:`render_tiled_rgb_array`) share the
-        same result without redundant camera work.
-
-        Returns:
-            ``uint8 (H, W, 3)`` composite array, or ``None`` if no camera sensor has
-            been configured or no usable GT output is available on this step.
-        """
-        if self._camera_sensor is None:
-            return self._last_streaming_composite
-
-        # Return the cached composite when it was already built this step.
-        if self._composite_step == self._step_counter:
-            return self._last_streaming_composite
-
-        if self._camera_is_owned:
-            self._update_owned_camera_poses()
-            self._camera_sensor.update(dt=0.0, force_recompute=True)
-
-        available = frozenset(self._camera_sensor.data.output.keys())
-
-        # Filter configured GT types to those actually available on this camera.
-        # Scene cameras may not produce every GT type; unrecognised keys are silently
-        # dropped so switching cameras never raises.  Fallback to "rgb" when nothing
-        # from the configured list is available.
-        gt_types: list[str] = []
-        for gt in self.cfg.streaming_gt_types:
-            if gt not in SUPPORTED_GT_TYPES:
-                continue
-            try:
-                sensor_key_for_gt_type(gt, available)
-                gt_types.append(gt)
-            except (ValueError, KeyError):
-                pass
-        if not gt_types:
-            try:
-                sensor_key_for_gt_type("rgb", available)
-                gt_types = ["rgb"]
-            except (ValueError, KeyError):
-                return None  # camera has no usable output at all
-
-        frames: list[np.ndarray] = []
-        for env_idx in self._camera_sensor_indices:
-            for gt in gt_types:
-                key = sensor_key_for_gt_type(gt, available)
-                raw = camera_gt_batch(self._camera_sensor, [env_idx], key)[0]
-                frame = CameraFrameColorizer.colorize(
-                    raw,
-                    gt,
-                    depth_min=self.cfg.streaming_depth_min,
-                    depth_max=self.cfg.streaming_depth_max,
-                )
-                frames.append(frame)
-
-        n_envs = len(self._camera_sensor_indices)
-        target_aspect = self.cfg.window_width / self.cfg.window_height if self.cfg.window_height > 0 else 1.0
-        composite = compose_streaming_grid(frames, n_envs, len(gt_types), target_aspect=target_aspect)
-        self._last_streaming_composite = composite
-        self._composite_step = self._step_counter
-        return composite
 
     def _log_streaming_image(self) -> None:
         """Fetch GT frames, colorize, composite, and push to Newton's image panel.
@@ -2113,6 +2161,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
             environment=self.cfg.rtx_environment,
+            render_settings=self.cfg.render_settings,
         )
 
     def _apply_camera_pose(
@@ -2151,20 +2200,6 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         # Note: full RTX render cost is incurred every tick even while paused.
         self._viewer.begin_frame(self._sim_time)
         self._viewer.end_frame()
-
-    def _uses_streaming_view(self) -> bool:
-        # Newton RTX has no display sink for the composited frame (ViewerRTX.log_image
-        # is a no-op). Return False until a sink is available so no camera is created
-        # and no per-frame colorization work is performed.
-        if self.cfg.streaming_view:
-            import logging
-
-            logging.getLogger(__name__).warning(
-                "streaming_view is not yet supported for NewtonRTXVisualizer (no display sink). "
-                "Use NewtonGLVisualizerCfg or pair with a RerunVisualizerCfg/ViserVisualizerCfg "
-                "for streaming camera output."
-            )
-        return False
 
     def render_rgb_array(self) -> np.ndarray | None:
         """Return the latest RGB frame rendered by the Newton RTX viewer.

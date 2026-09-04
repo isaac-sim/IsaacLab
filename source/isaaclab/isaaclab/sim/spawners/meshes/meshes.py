@@ -101,17 +101,9 @@ def spawn_mesh_cuboid(
 
     Raises:
         ValueError: If a prim already exists at the given path.
-        ValueError: If :attr:`~isaaclab.sim.MeshCuboidCfg.edge_refinement` is less than ``1.0``.
     """
-    if cfg.edge_refinement < 1.0:
-        raise ValueError(f"Cuboid mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
-
     # create a trimesh box
     box = trimesh.creation.box(cfg.size)
-    if cfg.edge_refinement > 1.0:
-        max_edge = float(np.linalg.norm(box.bounding_box.extents)) / cfg.edge_refinement
-        vertices, faces = trimesh.remesh.subdivide_to_size(box.vertices, box.faces, max_edge=max_edge)
-        box = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
     # obtain stage handle
     stage = get_current_stage()
@@ -302,51 +294,48 @@ def spawn_mesh_rectangle(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # create a 2D triangle mesh grid
-    vertices, faces = _create_triangle_mesh_grid(cfg.resolution)
-    vertices[:, 0] *= cfg.size[0]
-    vertices[:, 1] *= cfg.size[1]
-    grid = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    # create a 2D triangle mesh
+    half_x, half_y = cfg.size[0] / 2, cfg.size[1] / 2
+    vertices = np.array(
+        [(-half_x, -half_y, 0.0), (half_x, -half_y, 0.0), (half_x, half_y, 0.0), (-half_x, half_y, 0.0)],
+        dtype=np.float32,
+    )
+    rectangle = trimesh.Trimesh(vertices=vertices, faces=((0, 1, 2), (0, 2, 3)), process=False)
 
     # obtain stage handle
     stage = get_current_stage()
     # spawn the rectangle as a mesh
-    _spawn_mesh_geom_from_mesh(prim_path, cfg, grid, translation, orientation, None, stage=stage)
+    _spawn_mesh_geom_from_mesh(prim_path, cfg, rectangle, translation, orientation, None, stage=stage)
     # return the prim
     return stage.GetPrimAtPath(prim_path)
-
-
-def _create_triangle_mesh_grid(resolution: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
-    """Create a centered triangle grid for :class:`MeshRectangleCfg`."""
-    if resolution[0] < 1 or resolution[1] < 1:
-        raise ValueError(f"Rectangle mesh resolution must be positive, got {resolution}.")
-
-    num_x, num_y = resolution
-    xs = np.linspace(-0.5, 0.5, num_x + 1, dtype=np.float32)
-    ys = np.linspace(-0.5, 0.5, num_y + 1, dtype=np.float32)
-    vertices = np.array([(x, y, 0.0) for y in ys for x in xs], dtype=np.float32)
-
-    faces = []
-    row_stride = num_x + 1
-    for iy in range(num_y):
-        for ix in range(num_x):
-            v0 = iy * row_stride + ix
-            v1 = v0 + 1
-            v2 = v0 + row_stride
-            v3 = v2 + 1
-            if (ix % 2 == 0) != (iy % 2 == 0):
-                faces.append((v0, v1, v2))
-                faces.append((v1, v3, v2))
-            else:
-                faces.append((v0, v1, v3))
-                faces.append((v0, v3, v2))
-
-    return vertices, np.asarray(faces, dtype=np.int64)
 
 
 """
 Helper functions.
 """
+
+
+def _refine_surface_mesh(mesh: trimesh.Trimesh, cfg: meshes_cfg.MeshCfg) -> trimesh.Trimesh:
+    """Subdivide a deformable's surface mesh to the configured edge-length target.
+
+    Args:
+        mesh: The mesh to refine.
+        cfg: The config carrying :attr:`~isaaclab.sim.MeshCfg.edge_refinement`.
+
+    Returns:
+        The refined mesh, or the input mesh when refinement does not apply.
+
+    Raises:
+        ValueError: If the edge refinement is less than ``1.0``.
+    """
+    if cfg.edge_refinement < 1.0:
+        raise ValueError(f"Mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
+    if cfg.deformable_props is None or cfg.edge_refinement == 1.0:
+        return mesh
+
+    max_edge = float(np.linalg.norm(mesh.bounding_box.extents)) / cfg.edge_refinement
+    vertices, faces = trimesh.remesh.subdivide_to_size(mesh.vertices, mesh.faces, max_edge=max_edge)
+    return trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
 
 def _apply_deformable_collision_props(prim_path: str, collision_props, stage: Usd.Stage) -> None:
@@ -405,6 +394,7 @@ def _spawn_mesh_geom_from_mesh(
 
     Raises:
         ValueError: If a prim already exists at the given path.
+        ValueError: If edge refinement is less than ``1.0``.
         ValueError: If both deformable and rigid properties are used.
         ValueError: If the physics material is not of the correct type. Deformable properties require a deformable
             physics material, and rigid properties require a rigid physics material.
@@ -412,6 +402,8 @@ def _spawn_mesh_geom_from_mesh(
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
+    mesh = _refine_surface_mesh(mesh, cfg)
+
     # obtain stage handle
     stage = stage if stage is not None else get_current_stage()
 
@@ -471,8 +463,15 @@ def _spawn_mesh_geom_from_mesh(
         deformable_type = (
             "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
         )
+        deformable_kwargs = {}
+        if deformable_type == "volume":
+            deformable_kwargs["tetrahedralization_edge_length_fac"] = 1.0 / cfg.edge_refinement
         schemas.define_deformable_body_properties(
-            prim_path, cfg.deformable_props, stage=stage, deformable_type=deformable_type
+            prim_path,
+            cfg.deformable_props,
+            stage=stage,
+            deformable_type=deformable_type,
+            **deformable_kwargs,
         )
         if cfg.collision_props is not None:
             _apply_deformable_collision_props(prim_path, cfg.collision_props, stage)

@@ -5,7 +5,7 @@ Robot Configurations
 
 Robots are entirely defined as instances of configurations within Isaac Lab.  If you examine ``source/isaaclab_assets/isaaclab_assets/robots``, you will see a number of files, each of which
 contains configurations for the robot in question.  The purpose of these individual files is to better define scope for all the different robots, but there is nothing preventing
-you from :ref:`adding your own <how-to-write-articulation-config>` to your project or even to the ``isaaclab`` repository! For example, consider the following configuration for
+you from :ref:`adding your own <tutorial-add-new-robot>` to your project or even to the ``isaaclab`` repository! For example, consider the following configuration for
 the Dofbot
 
 .. code-block:: python

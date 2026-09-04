@@ -1,6 +1,61 @@
 Changelog
 ---------
 
+0.16.4 (2026-09-04)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the zero and random agents to use the Newton GL visualizer by default. Pass ``--viz kit`` to keep using
+  the Kit visualizer.
+
+Fixed
+^^^^^
+
+* Fixed single-GPU reinforcement learning entrypoints eagerly importing the multi-GPU Torch Elastic launcher.
+* Fixed pretrained checkpoint resolution for coupled tasks such as ``Isaac-Lift-Cable-Franka``,
+  ``Isaac-Lift-Cloth-Franka``, and ``Isaac-Lift-Soft-Franka``, which raised
+  ``Unsupported Newton solver for pretrained checkpoints: CouplerProxyCfg``. A Newton coupled
+  solver is now named by its entry solvers in order followed by its coupling scheme, so a proxy
+  coupler over MJWarp and VBD entries resolves to the ``newtonmjwarpvbdproxy`` physics token.
+  Checkpoint names for uncoupled solvers are unchanged.
+* Fixed ``play.py`` (all RL library backends) stopping the rollout after
+  ``video_recorders[0].video_length`` steps instead of ``video_length + step_offset`` steps
+  when ``--video`` is passed without an explicit ``--video_length``, which silently truncated
+  clips recorded with a nonzero :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.step_offset`.
+
+
+0.16.3 (2026-09-03)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``--deterministic`` to set :attr:`~isaaclab.physics.PhysicsCfg.deterministic` on the
+  resolved physics config. The entrypoint no longer selects backend-specific determinism settings or
+  validates solvers; each physics manager translates the request and rejects what it cannot support.
+  Deterministic physics costs runtime and memory; drop the flag to opt out.
+
+Fixed
+^^^^^
+
+* Fixed RSL-RL training resolving agent metadata before external task registration callbacks run.
+* Fixed ``--deterministic`` not making training runs reproducible. The flag configured PyTorch and
+  the Isaac RTX renderer but never reached the physics solver, so runs on Newton backends stayed
+  free-running and their reward curves diverged.
+
+
+0.16.2 (2026-09-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the zero agent to infer finite hold commands for absolute task-space controllers, support composite and
+  multi-agent action spaces, and reject invalid task configurations before launching the simulator.
+
+
 0.16.1 (2026-08-25)
 ~~~~~~~~~~~~~~~~~~~
 

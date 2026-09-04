@@ -61,6 +61,8 @@ dependencies = [
     "omniverseclient==2.72.3",
     "filelock",
     "lazy_loader>=0.4",
+    # ----- project template generator -----
+    "Jinja2",
     # Pink IK stack; the install CLI derives its force-install list from these entries.
     # pin-pink: Isaac Sim 6.x needs >=3.3, 3.4+ breaks pink_ik; daqp >0.8.5 changes behavior.
     "pin ; platform_system == 'Linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64')",
@@ -85,9 +87,8 @@ dependencies = [
     "rsl-rl-lib==5.4.1",  # default RL framework
     "onnxscript>=0.5",
     # ----- newton (default physics engine) -----
-    # Loose bound so the wheel co-resolves with isaacsim's newton[sim]==1.2.0 pin; the
-    # exact PyPI release is forced via [tool.uv].override-dependencies (uv sync only).
-    "newton[sim]>=1.2.0",
+    # Pin the Newton build used by both workspace and wheel installs until the 1.6 release.
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@24bd863528d6b91137408930d0fbe8fa216ad962",
     # Import and mesh-processing packages used by Newton, including the ones that honoring
     # USD-authored ``physics:approximation`` requires. Keep these explicit instead of selecting
     # newton[importers], whose standalone USD dependency would overlap with usd-exchange.
@@ -119,6 +120,8 @@ importers = [
     "tinyobjloader==2.0.0rc13",
 ]
 
+# The test suite only. Kept free of the docs stack: Sphinx pulls docutils, which is
+# GPL-3.0-or-later and not allowed in the distributed images.
 test = [
     "pytest",
     "pytest-mock",
@@ -126,6 +129,11 @@ test = [
     "flaky",
     # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
     "coverage>=7.6.1",
+]
+
+# Everything a contributor needs: the test suite plus the documentation toolchain.
+dev = [
+    "isaaclab-dev[test]",
     "sphinx>=7.0,<9",
     "sphinx-book-theme>=1.1",
     "myst-parser",
@@ -173,8 +181,10 @@ mimic = [
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
+# XR teleop needs the Kit XR runtime, but Isaac Sim is a separate extra so environments that
+# already provide Kit (the containers) can take this stack without a second copy of it.
+# Users who need the wheel install ``--extra teleop,isaacsim``.
 teleop = [
-    "isaacsim[all,extscache]==6.0.1.0",
     "isaaclab-teleop",
     "isaaclab-mimic",
     "isaacteleop[retargeters,ui,cloudxr]~=1.4.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
@@ -394,7 +404,7 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.11.0",
     "mujoco-warp~=3.11.0",
-    "newton[sim]==1.5.1",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@24bd863528d6b91137408930d0fbe8fa216ad962",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.1",
     "torch==2.11.0",

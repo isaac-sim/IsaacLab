@@ -75,6 +75,15 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
         If None, then no physics material will be added.
     """
 
+    edge_refinement: float = 4.0
+    """Mesh edge refinement factor for deformable bodies.
+
+    The maximum surface edge length is the bounding-box diagonal divided by this value. Volume deformables use the
+    same normalized target for automatic tetrahedralization. The factor must be at least ``1.0``. For volume
+    deformables, values near ``1.0`` should be avoided because they can make TetWild tetrahedralization significantly
+    slower. Defaults to ``4.0``.
+    """
+
 
 @configclass
 class MeshSphereCfg(MeshCfg):
@@ -100,13 +109,6 @@ class MeshCuboidCfg(MeshCfg):
 
     size: tuple[float, float, float] = MISSING
     """Size of the cuboid [m]."""
-
-    edge_refinement: float = 1.0
-    """Surface edge refinement factor relative to the bounding-box diagonal.
-
-    The maximum edge length is the diagonal divided by this value. The factor must be at least
-    ``1.0``. Defaults to ``1.0``, which leaves the base mesh unchanged.
-    """
 
 
 @configclass
@@ -171,5 +173,3 @@ class MeshRectangleCfg(MeshCfg):
 
     size: tuple[float, float] = MISSING
     """Edge lengths of the rectangle along the X and Y axes [m]."""
-    resolution: tuple[int, int] = (5, 5)
-    """Resolution of the rectangle (in elements/edges per side)."""

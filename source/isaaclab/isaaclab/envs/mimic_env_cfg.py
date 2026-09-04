@@ -38,8 +38,21 @@ class DataGenConfig:
     Keeping failed demonstrations is useful for visualizing and debugging low success rates.
     """
 
-    max_num_failures: int = 50
-    """Maximum number of failures allowed before stopping generation."""
+    max_num_failures: int | None = None
+    """Maximum number of failed generation attempts before stopping, or None for no limit.
+
+    Only applies together with :attr:`generation_guarantee`. With the guarantee enabled, generation
+    keeps retrying until :attr:`generation_num_trials` demos succeed, so a task whose success rate is
+    low can run for an unbounded number of attempts; this caps that. Defaults to None so the
+    guarantee keeps its usual meaning unless a limit is asked for.
+
+    With the guarantee disabled, generation already stops after :attr:`generation_num_trials`
+    attempts and this field is ignored, so setting it cannot cut a fixed-attempt run short.
+
+    The bound is read once per simulation step. Attempts that end on the step that crosses it are
+    already complete, so a run over ``num_envs`` parallel environments can record up to
+    ``num_envs - 1`` failures beyond the bound; it is exact whenever attempts end on separate steps.
+    """
 
     seed: int = 1
     """Seed for randomization to ensure reproducibility."""

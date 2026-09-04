@@ -68,8 +68,9 @@ For reinforcement learning, much of this has been done for you already! In most 
 
 .. seealso::
 
-    Follow the :ref:`SO-101 vial-placement tutorial <tutorial-so101-task>` for a complete manager-based
-    manipulation task, including its scene, MDP terms, reset curriculum, and agent configuration.
+    Start with :ref:`tutorial-create-manager-rl-env` for a focused manager-based environment example. Then follow
+    the :ref:`SO-101 vial-placement tutorial <tutorial-so101-task>` for a complete manipulation task, including its
+    scene, MDP terms, reset curriculum, and agent configuration.
 
 
 Direct Environments
@@ -114,6 +115,11 @@ difficult to decompose into separate components. Additionally, the direct-style 
 benefits for the environment, as it allows implementing large chunks of logic with optimized frameworks such as
 `PyTorch JIT`_ or `Warp`_. This may be valuable when scaling up training tremendously which requires optimizing individual
 operations in the environment.
+
+.. seealso::
+
+    We provide a detailed tutorial for setting up a direct RL environment at
+    :ref:`tutorial-create-direct-rl-env`.
 
 .. _IsaacGymEnvs: https://github.com/isaac-sim/IsaacGymEnvs
 .. _OmniIsaacGymEnvs: https://github.com/isaac-sim/OmniIsaacGymEnvs

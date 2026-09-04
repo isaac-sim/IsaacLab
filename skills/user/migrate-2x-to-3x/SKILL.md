@@ -18,9 +18,9 @@ Do not copy migration tables into answers from memory. Read the official migrati
 ## Workflow
 
 1. Read the official migration guide in `docs/source/migration/migrating_to_isaaclab_3-0.rst`.
-2. Identify which migration area applies: visualization CLI, backend packages, schema cfgs, actuator collection
-   ownership and runtime topology, quaternion order, `ProxyArray`, asset views, RSL-RL config, Isaac Sim extension
-   enablement, or project-specific scripts.
+2. Identify which migration area applies: installation, backend packages and presets, asset and actuator APIs,
+   sensors, quaternion order, `ProxyArray`, RL entrypoints, visualizers and recording, importers, Isaac Sim
+   extension enablement, or project-specific scripts.
 3. Search the downstream project for old API symbols before editing.
 4. For user code that imports Isaac Sim extension modules directly:
    - Prefer an Isaac Lab in-tree API when the migration guide lists one.
