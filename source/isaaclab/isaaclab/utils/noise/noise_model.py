@@ -182,11 +182,22 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         Returns:
             The data with the noise applied. Shape is the same as the input data.
         """
-        # if sample_bias_per_component, on first apply, expand bias to match last dim of data
+        # if sample_bias_per_component, on first apply, expand bias to match every
+        # non-batch component of the input rather than only its final dimension
         if self._sample_bias_per_component and self._num_components is None:
-            *_, self._num_components = data.shape
-            # expand bias from (num_envs,1) to (num_envs, num_components)
-            self._bias = self._bias.repeat(1, self._num_components)
+            component_shape = tuple(data.shape[1:]) if data.ndim > 1 else (1,)
+            self._bias = self._bias.reshape(self._num_envs, *([1] * len(component_shape))).repeat(1, *component_shape)
+            self._num_components = self._bias[0].numel()
             # now re-sample that expanded bias in-place
             self.reset()
-        return super().__call__(data) + self._bias
+
+        # A scalar-per-environment bias needs singleton dimensions to broadcast
+        # over multidimensional observations. Per-component bias already has the
+        # same rank as the input and can be applied directly.
+        if data.ndim == 1:
+            bias = self._bias[:, 0]
+        elif self._bias.ndim == data.ndim:
+            bias = self._bias
+        else:
+            bias = self._bias.view(self._num_envs, *([1] * (data.ndim - 1)))
+        return super().__call__(data) + bias
