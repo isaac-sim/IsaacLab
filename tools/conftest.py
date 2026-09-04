@@ -37,12 +37,10 @@ def pytest_ignore_collect(collection_path, config):
 
 
 COLD_CACHE_BUFFER = 700
-"""Extra seconds added to the first camera-enabled test's hard timeout.
+"""Extra seconds granted to the first camera-enabled test for cold shader compilation.
 
-The first test that uses ``enable_cameras=True`` may compile shaders during its
-run (~600 s).  This buffer prevents that from being misreported as a test
-timeout.  Only the first such test gets the extension — after it runs, the
-on-disk cache is populated.
+Only the first test using ``enable_cameras=True`` gets the extension; by the time
+it finishes, the on-disk shader cache is populated and later tests are fast.
 """
 
 STARTUP_DEADLINE = 120
