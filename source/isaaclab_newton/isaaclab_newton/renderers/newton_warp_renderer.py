@@ -551,8 +551,6 @@ class NewtonWarpRenderer(BaseRenderer):
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
 
-        # Refresh the shadow state under PhysX before the manager refits the BVH.
-        NewtonManager.get_state()
         if render_data.sensor_task_name is None:
             render_data.sensor_task_name = f"newton_warp_render:{id(render_data)}"
             NewtonManager._register_sensor_task(render_data.sensor_task_name, lambda: self._launch_render(render_data))
