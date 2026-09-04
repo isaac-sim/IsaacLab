@@ -714,6 +714,141 @@ def test_active_manager_create_builder_registers_mpm_attributes():
     assert builder.has_custom_attribute("mpm:young_modulus")
 
 
+@pytest.mark.parametrize("import_path", ["clone", "standalone"])
+@pytest.mark.parametrize(
+    ("manager_cls", "solver_cfg", "expected_friction", "expected_damping"),
+    [
+        pytest.param(NewtonMJWarpManager, MJWarpSolverCfg(), 0.11, 0.23, id="mjwarp"),
+        pytest.param(NewtonFeatherstoneManager, FeatherstoneSolverCfg(), 0.0, 0.0, id="featherstone"),
+    ],
+)
+def test_production_imports_scope_mujoco_joint_properties(
+    monkeypatch, import_path, manager_cls, solver_cfg, expected_friction, expected_damping
+):
+    """Only MJWarp imports MuJoCo joint properties through either production path."""
+    from isaaclab_newton.cloner.replicate import _build_newton_builder_from_mapping
+
+    from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    physics_prim_path = "/physicsScene"
+    UsdPhysics.Scene.Define(stage, physics_prim_path)
+
+    root_path = "/Sources/robot" if import_path == "clone" else "/World/robot"
+    root = UsdGeom.Cube.Define(stage, root_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+
+    child_path = f"{root_path}/child"
+    child = UsdGeom.Cube.Define(stage, child_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(child)
+
+    joint = UsdPhysics.RevoluteJoint.Define(stage, f"{child_path}/joint")
+    joint.CreateAxisAttr().Set("Z")
+    joint.CreateBody0Rel().SetTargets([root_path])
+    joint.CreateBody1Rel().SetTargets([child_path])
+    joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
+    joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
+
+    monkeypatch.setattr(
+        PhysicsManager,
+        "_sim",
+        SimpleNamespace(physics_manager=manager_cls, cfg=SimpleNamespace(physics_prim_path=physics_prim_path)),
+    )
+    monkeypatch.setattr(PhysicsManager, "_cfg", NewtonCfg(solver_cfg=solver_cfg))
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
+    monkeypatch.setattr(NewtonManager, "_builder", None)
+    monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
+    monkeypatch.setattr(NewtonManager, "_cl_pending_sites", {})
+    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [])
+    monkeypatch.setattr(NewtonManager, "_world_xforms", None)
+
+    if import_path == "clone":
+        builder, *_ = _build_newton_builder_from_mapping(
+            stage=stage,
+            sources=(root_path,),
+            destinations=("/World/envs/env_{}/robot",),
+            env_ids=np.array([0], dtype=np.int64),
+            mapping=np.ones((1, 1), dtype=np.bool_),
+            load_visual_shapes=False,
+        )
+    else:
+        monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda: stage)
+        monkeypatch.setattr(
+            newton_manager_module, "_restore_visible_colliders_without_visual_shapes", lambda *args: None
+        )
+        monkeypatch.setattr(newton_manager_module, "replace_newton_builder_shape_colors", lambda *args: None)
+        monkeypatch.setattr(newton_manager_module, "import_builder_visual_material_paths", lambda *args: None)
+        manager_cls.instantiate_builder_from_stage()
+        builder = NewtonManager._builder
+
+    model = builder.finalize(device="cpu")
+
+    assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)
+    assert model.joint_damping.numpy()[-1] == pytest.approx(expected_damping)
+
+
+@pytest.mark.parametrize(
+    ("manager_cls", "imports_mujoco"),
+    [
+        pytest.param(NewtonMJWarpManager, True, id="mjwarp"),
+        pytest.param(NewtonFeatherstoneManager, False, id="featherstone"),
+    ],
+)
+@pytest.mark.parametrize(
+    "author_newton_values",
+    [
+        pytest.param(False, id="physx-over-mjc"),
+        pytest.param(True, id="newton-over-physx-over-mjc"),
+    ],
+)
+def test_schema_resolver_policy_and_precedence(manager_cls, imports_mujoco, author_newton_values):
+    """Resolver precedence and MuJoCo fallback selection follow active solver needs."""
+    from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+
+    stage = Usd.Stage.CreateInMemory()
+    root_path = "/World/robot"
+    root = UsdGeom.Cube.Define(stage, root_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    child_path = f"{root_path}/child"
+    child = UsdGeom.Cube.Define(stage, child_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(child)
+    joint = UsdPhysics.RevoluteJoint.Define(stage, f"{child_path}/joint")
+    joint.CreateAxisAttr().Set("Z")
+    joint.CreateBody0Rel().SetTargets([root_path])
+    joint.CreateBody1Rel().SetTargets([child_path])
+    joint_prim = joint.GetPrim()
+    joint_prim.CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
+    joint_prim.CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
+    joint_prim.CreateAttribute("mjc:armature", Sdf.ValueTypeNames.Double, True).Set(0.12)
+    joint_prim.CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float, True).Set(0.21)
+    if author_newton_values:
+        joint_prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Double, True).Set(0.31)
+        joint_prim.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Double, True).Set(0.41)
+
+    schema_resolvers = manager_cls._get_usd_import_schema_resolvers()
+    assert [type(resolver).__name__ for resolver in schema_resolvers] == [
+        "SchemaResolverNewton",
+        "SchemaResolverPhysx",
+        *(["SchemaResolverMjc"] if imports_mujoco else []),
+    ]
+
+    builder = ModelBuilder()
+    manager_cls._register_builder_attributes(builder)
+    builder.add_usd(stage, schema_resolvers=schema_resolvers)
+    model = builder.finalize(device="cpu")
+
+    expected_friction = 0.31 if author_newton_values else (0.11 if imports_mujoco else 0.0)
+    expected_damping = 0.23 if imports_mujoco else 0.0
+    expected_armature = 0.41 if author_newton_values else 0.21
+    assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)
+    assert model.joint_damping.numpy()[-1] == pytest.approx(expected_damping)
+    assert model.joint_armature.numpy()[-1] == pytest.approx(expected_armature)
+
+
 def test_mpm_end_to_end_with_particle_custom_attributes():
     """End-to-end MPM step using ``add_particles(custom_attributes=...)`` — the production path."""
     sim_cfg = SimulationCfg(
