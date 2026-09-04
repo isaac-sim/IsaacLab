@@ -394,6 +394,101 @@ def test_sphere_contact_time(setup_simulation, disable_contact_processing):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("clock_age", [2.5, 10.0, 30.0])
+def test_first_transition_with_aged_clock(setup_simulation, device, clock_age):
+    """Regression for #7283: transitions must still be reported once the sensor clock has aged.
+
+    The sensor clock is a float32 accumulator whose rounding error grows with simulated time. On a
+    transition step the contact (resp. air) timer is exactly one polling period, so the default
+    tolerance of :meth:`ContactSensor.compute_first_contact` has to absorb that error. A fixed 1e-8
+    tolerance is orders of magnitude too small after a few seconds of simulated time.
+    """
+    sim_dt = setup_simulation[0]
+    # The sensor keeps history, so it refreshes every physics step and is polled at that same rate.
+    # The lazy (zero-history) cadence is covered by the kernel-level tolerance test: on GPU this
+    # backend serves stale contact forces when buffers refresh only on data access, which is
+    # unrelated to the tolerance under test here.
+    history_length = 1
+    decimation = 1
+    poll_dt = decimation * sim_dt
+    poll_steps = 16
+
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG
+        scene_cfg.shape = CUBE_CFG
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path=CUBE_CFG.prim_path,
+            track_pose=True,
+            debug_vis=False,
+            update_period=0.0,
+            track_air_time=True,
+            history_length=history_length,
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+
+        sensor: ContactSensor = scene["contact_sensor"]
+        shape: RigidObject = scene["shape"]
+        contact_pose = CUBE_CFG.contact_pose.to(device=shape.device).unsqueeze(0)
+        non_contact_pose = CUBE_CFG.non_contact_pose.to(device=shape.device).unsqueeze(0)
+
+        def _in_contact() -> bool:
+            """Ground truth for the contact state, read through the public data accessor."""
+            return torch.norm(sensor.data.net_normal_forces_w.torch, dim=-1).max().item() > 0.1
+
+        def _hold(pose: torch.Tensor, num_steps: int) -> None:
+            """Pin the cube to a pose for the given number of physics steps."""
+            for _ in range(num_steps):
+                shape.write_root_pose_to_sim_index(root_pose=pose)
+                _perform_sim_step(sim, scene, sim_dt)
+
+        # Settle the cube on the ground so the sensor starts in contact.
+        _hold(contact_pose, 8)
+        assert _in_contact(), "Cube should be in contact with the ground before the clock is aged."
+
+        # Age the sensor clock without stepping physics: the resting contact state is unchanged, so
+        # this isolates the float32 clock drift from any change in the contact forces.
+        for tick in range(int(round(clock_age / sim_dt))):
+            sensor.update(sim_dt)
+        aged_clock = wp.to_torch(sensor._timestamp).max().item()
+        assert aged_clock == pytest.approx(clock_age + 8 * sim_dt, abs=0.05)
+
+        # Lift the cube off the ground for half the window, then set it back down.
+        reported_air: list[int] = []
+        reported_contact: list[int] = []
+        expected_air: list[int] = []
+        expected_contact: list[int] = []
+        was_in_contact = True
+        for step in range(poll_steps):
+            _hold(non_contact_pose if step < poll_steps // 2 else contact_pose, decimation)
+            # Read the data first, exactly as a policy-rate consumer would, then poll transitions.
+            in_contact = _in_contact()
+            if in_contact and not was_in_contact:
+                expected_contact.append(step)
+            if not in_contact and was_in_contact:
+                expected_air.append(step)
+            was_in_contact = in_contact
+            if sensor.compute_first_contact(poll_dt).torch.any().item():
+                reported_contact.append(step)
+            if sensor.compute_first_air(poll_dt).torch.any().item():
+                reported_air.append(step)
+
+        assert len(expected_air) == 1, f"Expected exactly one lift-off in the window; got {expected_air}."
+        assert len(expected_contact) == 1, f"Expected exactly one touchdown in the window; got {expected_contact}."
+        assert reported_air == expected_air, (
+            f"compute_first_air missed or mis-reported the lift-off at clock {aged_clock:.3f}s: "
+            f"reported {reported_air}, expected {expected_air}."
+        )
+        assert reported_contact == expected_contact, (
+            f"compute_first_contact missed or mis-reported the touchdown at clock {aged_clock:.3f}s: "
+            f"reported {reported_contact}, expected {expected_contact}."
+        )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 6, 24])
 def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
     """Checks contact sensor reporting for filtering stacked cube prims."""
