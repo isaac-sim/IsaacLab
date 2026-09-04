@@ -497,6 +497,29 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any, *, apply_dev
         physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
         if physics_cfg is not None:
             physics_cfg.deterministic = True
+        request_warp_determinism()
+
+
+def request_warp_determinism() -> None:
+    """Ask Warp for run-to-run deterministic atomics process-wide.
+
+    Newton's solvers take a ``deterministic`` argument and apply it as a per-module option, so a
+    solver-level request already covers the physics kernels. Its sensor and geometry modules take
+    no such argument and fall back to ``warp.config.deterministic``, which defaults to
+    ``NOT_GUARANTEED``. One of them, the BVH shape compaction in ``newton._src.geometry.bvh``,
+    claims output slots with ``wp.atomic_add``, so the enabled-shape order -- and with it the
+    order of the primitives the scene BVH is built over -- varies between processes. Ray queries
+    then break ties differently and a tiled camera renders a handful of pixels differently from
+    identical simulation state, which is enough to make an image-observation policy diverge.
+
+    Warp reads this at module build time, so it must be set before the first kernel launch;
+    :func:`apply_env_overrides` runs before the environment is created. An explicit setting is
+    left alone so a caller can still opt into ``GPU_TO_GPU``.
+    """
+    import warp as wp
+
+    if wp.config.deterministic == wp.DeterministicMode.NOT_GUARANTEED:
+        wp.config.deterministic = wp.DeterministicMode.RUN_TO_RUN
 
 
 def validate_distributed_device(args_cli: argparse.Namespace) -> None:

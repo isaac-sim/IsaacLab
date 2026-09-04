@@ -420,6 +420,48 @@ def test_apply_env_overrides_leaves_physics_alone_without_the_flag(monkeypatch: 
     assert env_cfg.sim.physics.deterministic is False
 
 
+def test_apply_env_overrides_requests_warp_determinism(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The request reaches Warp's global too, which is all that covers Newton's sensor kernels."""
+    import warp as wp
+
+    monkeypatch.setattr(wp.config, "deterministic", wp.DeterministicMode.NOT_GUARANTEED)
+    physics = _fake_physics_cfg("NewtonCfg")
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert wp.config.deterministic == wp.DeterministicMode.RUN_TO_RUN
+
+
+def test_apply_env_overrides_keeps_an_explicit_warp_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A caller that already chose a stronger guarantee keeps it."""
+    import warp as wp
+
+    monkeypatch.setattr(wp.config, "deterministic", wp.DeterministicMode.GPU_TO_GPU)
+    physics = _fake_physics_cfg("NewtonCfg")
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert wp.config.deterministic == wp.DeterministicMode.GPU_TO_GPU
+
+
+def test_apply_env_overrides_leaves_warp_alone_without_the_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without ``--deterministic`` Warp keeps its default, so no run pays for determinism."""
+    import warp as wp
+
+    monkeypatch.setattr(wp.config, "deterministic", wp.DeterministicMode.NOT_GUARANTEED)
+    physics = _fake_physics_cfg("NewtonCfg")
+    env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
+
+    args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=False)
+    _rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+
+    assert wp.config.deterministic == wp.DeterministicMode.NOT_GUARANTEED
+
+
 @pytest.mark.parametrize("class_name", ["PhysxCfg", "OvPhysxCfg", "NewtonCfg", "SomeFutureBackendCfg"])
 def test_apply_env_overrides_records_the_request_for_every_backend(class_name: str) -> None:
     """The request is backend-agnostic, so the entrypoint needs no per-backend knowledge."""
