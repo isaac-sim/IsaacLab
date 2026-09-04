@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -18,6 +19,8 @@ from isaaclab.cloner import path as clone_path
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
+
+logger = logging.getLogger(__name__)
 
 
 def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> bool:
@@ -229,6 +232,51 @@ def _rebase_labels(builder: ModelBuilder, source: str, destination: str) -> str:
     return prefix
 
 
+def _collect_replication_preparers(
+    hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]],
+    xforms: np.ndarray,
+) -> list[Callable[..., Callable[[], None]]] | None:
+    """Replication preparers for every hook, or ``None`` if any hook needs the per-world loop.
+
+    Args:
+        hooks: Per-world builder hooks registered for this replication.
+        xforms: Per-world transforms relative to world 0, shape ``[num_worlds, 7]``, position [m]
+            followed by a quaternion in xyzw order.
+
+    Returns:
+        One preparer per hook, in registration order, or ``None`` if any hook does not support
+        replication or declines these transforms.
+
+    Raises:
+        TypeError: If a hook carries one opt-in attribute as a callable but not the other.
+    """
+    opted_in = []
+    for hook in hooks:
+        can_replicate = getattr(hook, "_can_replicate_builder", None)
+        prepare = getattr(hook, "_prepare_builder_replication", None)
+        # Checked for every hook before any is consulted, so a half-implemented hook is rejected
+        # regardless of registration order.
+        if callable(can_replicate) != callable(prepare):
+            missing = "_prepare_builder_replication" if callable(can_replicate) else "_can_replicate_builder"
+            raise TypeError(
+                f"Newton world-builder hook '{getattr(hook, '__qualname__', repr(hook))}' opts into replication"
+                f" but has no callable '{missing}'."
+            )
+        opted_in.append((hook, can_replicate, prepare))
+
+    preparers = []
+    for hook, can_replicate, prepare in opted_in:
+        name = getattr(hook, "__qualname__", repr(hook))
+        if not callable(can_replicate):
+            logger.debug("Hook '%s' does not support replication; building each Newton world separately.", name)
+            return None
+        if not can_replicate(xforms):
+            logger.debug("Hook '%s' declined replication; building each Newton world separately.", name)
+            return None
+        preparers.append(prepare)
+    return preparers
+
+
 def replicate_builder_mapping(
     builder: ModelBuilder,
     sources: Sequence[str],
@@ -243,7 +291,13 @@ def replicate_builder_mapping(
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]]]:
-    """Replicate source builders, naming homogeneous copies at their destinations."""
+    """Replicate source builders, naming homogeneous copies at their destinations.
+
+    A hook joins the batched path by carrying ``_can_replicate_builder(xforms)`` and
+    ``_prepare_builder_replication(builder, source_builder, num_worlds, source_position,
+    source_rotation)``, the latter returning a callback invoked after replication. One hook
+    that declines sends them all back to the per-world loop.
+    """
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
     num_worlds = mapping.shape[1]
@@ -253,51 +307,57 @@ def replicate_builder_mapping(
     xforms_np = np.concatenate((positions, quaternions), axis=1)
     world_xforms = [wp.transform(*row) for row in xforms_np]
 
-    can_batch = (
+    if (
         len(sources) == 1
         and mapping.shape[0] == 1
         and num_worlds > 0
         and bool(mapping.all())
-        and not per_world_builder_hooks
         and bool(destinations)
         and env_ids is not None
-    )
-    if can_batch:
+    ):
         source_builder = source_builders[sources[0]]
+        xforms = _compose_world_xforms(positions, quaternions, _invert_xform(xforms_np[0]))
+        hook_preparers = _collect_replication_preparers(per_world_builder_hooks, xforms)
 
-        # Inject env-root sites into the source so replicate() copies them. Prefixed
-        # by world_xforms[0] so R_w = world_xform_w * inv(world_xform_0) lands each
-        # copy at world_xform_w * xform.
-        site_local_indices: dict[str, list[int]] = {}
-        for label, xform in env_root_sites.items():
-            idx = source_builder.add_site(body=-1, xform=wp.transform_multiply(world_xforms[0], xform), label=label)
-            site_local_indices.setdefault(label, []).append(idx)
-        for label, indices in source_site_indices.get(id(source_builder), {}).items():
-            site_local_indices.setdefault(label, []).extend(indices)
+        if hook_preparers is not None:
+            # Inject env-root sites into the source so replicate() copies them. Prefixed
+            # by world_xforms[0] so R_w = world_xform_w * inv(world_xform_0) lands each
+            # copy at world_xform_w * xform.
+            site_local_indices: dict[str, list[int]] = {}
+            for label, xform in env_root_sites.items():
+                idx = source_builder.add_site(body=-1, xform=wp.transform_multiply(world_xforms[0], xform), label=label)
+                site_local_indices.setdefault(label, []).append(idx)
+            for label, indices in source_site_indices.get(id(source_builder), {}).items():
+                site_local_indices.setdefault(label, []).extend(indices)
 
-        # Site index after replicate: base_shape + world * stride + source_local_index.
-        base_shape = builder.shape_count
-        stride = source_builder.shape_count
-        source_xform_inv = _invert_xform(xforms_np[0])
-        xforms = _compose_world_xforms(positions, quaternions, source_xform_inv)
-
-        label_groups = _label_groups(source_builder)
-        original_labels = {name: list(labels) for name, labels in label_groups.items()}
-        try:
-            prefix = _rebase_labels(source_builder, sources[0], destinations[0])
-            prefixes = [prefix.format(int(env_id)) for env_id in env_ids]
-            builder.replicate(source_builder, num_worlds, xforms=xforms, label_prefixes=prefixes)
-        finally:
-            for name, labels in original_labels.items():
-                label_groups[name][:] = labels
-
-        for label, local_indices in site_local_indices.items():
-            local_site_map[label] = [
-                [base_shape + world * stride + local for local in local_indices] for world in range(num_worlds)
+            finish_callbacks = [
+                prepare(builder, source_builder, num_worlds, xforms_np[0, :3].copy(), xforms_np[0, 3:].copy())
+                for prepare in hook_preparers
             ]
+            # Site index after replicate: base_shape + world * stride + source_local_index. Read
+            # after the site injection and the preparers, both of which can add shapes.
+            base_shape = builder.shape_count
+            stride = source_builder.shape_count
 
-        bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
-        return local_site_map, world_xforms, bindings
+            label_groups = _label_groups(source_builder)
+            original_labels = {name: list(labels) for name, labels in label_groups.items()}
+            try:
+                prefix = _rebase_labels(source_builder, sources[0], destinations[0])
+                prefixes = [prefix.format(int(env_id)) for env_id in env_ids]
+                builder.replicate(source_builder, num_worlds, xforms=xforms, label_prefixes=prefixes)
+            finally:
+                for name, labels in original_labels.items():
+                    label_groups[name][:] = labels
+            for finish in finish_callbacks:
+                finish()
+
+            for label, local_indices in site_local_indices.items():
+                local_site_map[label] = [
+                    [base_shape + world * stride + local for local in local_indices] for world in range(num_worlds)
+                ]
+
+            bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
+            return local_site_map, world_xforms, bindings
 
     source_world_indices = mapping.argmax(axis=1)
 

@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -39,10 +39,9 @@ from .kernels import (
 class DeformableRegistryEntry:
     """Entry in the deformable body registry.
 
-    Registered by :class:`DeformableObject` during ``__init__``, consumed by
-    the Newton clone context inside the per-world ``begin_world``/``end_world`` loop.
-    After replication, ``particle_offsets`` and ``particles_per_body`` are filled in
-    so the asset can bind to the correct particle ranges.
+    Registered by :class:`DeformableObject` during ``__init__`` and consumed when the Newton
+    clone context builds the worlds. After builder construction, ``particle_offsets`` and
+    ``particles_per_body`` identify the particle ranges bound to the asset.
     """
 
     prim_path: str
@@ -65,7 +64,6 @@ class DeformableRegistryEntry:
     k_mu: float = 1e5
     k_lambda: float = 1e5
     k_damp: float = 0.0
-    # Filled by the Newton clone context:
     particle_offsets: list[int] = field(default_factory=list)
     particles_per_body: int = 0
 
@@ -99,12 +97,32 @@ def add_deformable_entry_to_builder(
         env_position: World position [x, y, z] [m] for this environment.
         env_rotation: World orientation as quaternion ``(x, y, z, w)`` for this environment.
     """
+    # Cleared before the mesh is added, so a build that fails partway cannot leave offsets from
+    # an earlier build behind: they would have the expected length and pass every later check.
     if env_idx == 0:
         entry.particle_offsets.clear()
         entry.particles_per_body = 0
 
-    before_count = getattr(builder, "particle_count", 0)
+    before_count, particle_count = _add_deformable_entry_geometry(builder, entry, env_position, env_rotation)
 
+    if env_idx == 0:
+        entry.particles_per_body = particle_count
+    elif entry.particles_per_body != particle_count:
+        raise RuntimeError(
+            f"Deformable body '{entry.prim_path}' produced {particle_count} particles in env {env_idx}, "
+            f"but env 0 produced {entry.particles_per_body}."
+        )
+    entry.particle_offsets.append(before_count)
+
+
+def _add_deformable_entry_geometry(
+    builder,
+    entry: DeformableRegistryEntry,
+    env_position: Sequence[float],
+    env_rotation: Sequence[float],
+) -> tuple[int, int]:
+    """Add one deformable mesh and return its particle offset and count."""
+    before_count = getattr(builder, "particle_count", 0)
     env_pos = wp.vec3(float(env_position[0]), float(env_position[1]), float(env_position[2]))
     env_rot = wp.quat(
         float(env_rotation[0]),
@@ -158,16 +176,7 @@ def add_deformable_entry_to_builder(
         )
 
     after_count = getattr(builder, "particle_count", 0)
-    delta = after_count - before_count
-
-    entry.particle_offsets.append(before_count)
-    if env_idx == 0:
-        entry.particles_per_body = delta
-    elif entry.particles_per_body != delta:
-        raise RuntimeError(
-            f"Deformable body '{entry.prim_path}' produced {delta} particles in env {env_idx}, "
-            f"but env 0 produced {entry.particles_per_body}."
-        )
+    return before_count, after_count - before_count
 
 
 def add_registered_deformables_to_builder(
@@ -179,6 +188,65 @@ def add_registered_deformables_to_builder(
     """Add all registered deformable entries to one Newton builder world."""
     for entry in SimulationManager._deformable_registry:
         add_deformable_entry_to_builder(builder, entry, world_idx, env_position, env_rotation)
+
+
+def _can_replicate_registered_deformables(xforms: np.ndarray) -> bool:
+    """Return whether Newton replication can apply every relative particle transform.
+
+    ``ModelBuilder.replicate`` offsets ``particle_q`` by each transform's translation and drops
+    its rotation.
+    """
+    if not SimulationManager._deformable_registry:
+        return True
+    rotations = xforms[:, 3:]
+    return bool(
+        np.allclose(rotations[:, :3], 0.0, atol=1.0e-6, rtol=0.0)
+        and np.allclose(np.abs(rotations[:, 3]), 1.0, atol=1.0e-6, rtol=0.0)
+    )
+
+
+def _prepare_registered_deformable_replication(
+    builder,
+    source_builder,
+    num_worlds: int,
+    source_position: Sequence[float],
+    source_rotation: Sequence[float],
+) -> Callable[[], None]:
+    """Add registered deformables once to the source builder and return the offset binding."""
+    destination_particle_base = getattr(builder, "particle_count", 0)
+    # Cleared first, for the same reason as in ``add_deformable_entry_to_builder``.
+    for entry in SimulationManager._deformable_registry:
+        entry.particle_offsets.clear()
+        entry.particles_per_body = 0
+    replicated_entries = [
+        (entry, *_add_deformable_entry_geometry(source_builder, entry, source_position, source_rotation))
+        for entry in SimulationManager._deformable_registry
+    ]
+
+    def finish_replication() -> None:
+        source_particle_stride = getattr(source_builder, "particle_count", 0)
+        expected_particle_count = destination_particle_base + num_worlds * source_particle_stride
+        replicated_particle_count = getattr(builder, "particle_count", 0)
+        # The offsets below assume replication appended ``num_worlds`` contiguous copies of the
+        # source, so that layout is verified rather than trusted.
+        if replicated_particle_count != expected_particle_count:
+            raise RuntimeError(
+                f"Builder holds {replicated_particle_count} particles after replication, but deformable"
+                f" particle offsets assume {expected_particle_count} ({num_worlds} worlds of"
+                f" {source_particle_stride} particles after {destination_particle_base} existing particles)."
+            )
+        for entry, source_offset, particle_count in replicated_entries:
+            entry.particles_per_body = particle_count
+            entry.particle_offsets = [
+                destination_particle_base + world * source_particle_stride + source_offset
+                for world in range(num_worlds)
+            ]
+
+    return finish_replication
+
+
+add_registered_deformables_to_builder._can_replicate_builder = _can_replicate_registered_deformables
+add_registered_deformables_to_builder._prepare_builder_replication = _prepare_registered_deformable_replication
 
 
 def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]) -> None:
