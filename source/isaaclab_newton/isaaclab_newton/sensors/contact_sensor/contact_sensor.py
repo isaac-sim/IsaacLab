@@ -161,6 +161,10 @@ class ContactSensor(BaseContactSensor):
                 self._data._last_air_time,
                 self._data._current_contact_time,
                 self._data._last_contact_time,
+                self._data._first_contact_latch,
+                self._data._first_air_latch,
+                self._data._first_contact_time,
+                self._data._first_air_time,
             ],
             device=self._device,
         )
@@ -217,10 +221,17 @@ class ContactSensor(BaseContactSensor):
                 "The contact sensor is not configured to track contact time."
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
+        # refresh latches if the sensor buffers are outdated
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_contact_time],
+            inputs=[
+                float(dt),
+                float(abs_tol),
+                self._data._first_contact_latch,
+                self._data._first_contact_time,
+            ],
             outputs=[self._data._first_transition],
             device=self._device,
         )
@@ -259,10 +270,17 @@ class ContactSensor(BaseContactSensor):
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
 
+        # refresh latches if the sensor buffers are outdated
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_air_time],
+            inputs=[
+                float(dt),
+                float(abs_tol),
+                self._data._first_air_latch,
+                self._data._first_air_time,
+            ],
             outputs=[self._data._first_transition],
             device=self._device,
         )
@@ -436,6 +454,10 @@ class ContactSensor(BaseContactSensor):
                 self._data._current_contact_time,
                 self._data._last_air_time,
                 self._data._last_contact_time,
+                self._data._first_contact_latch,
+                self._data._first_air_latch,
+                self._data._first_contact_time,
+                self._data._first_air_time,
             ],
             device=self._device,
         )

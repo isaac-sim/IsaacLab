@@ -275,6 +275,12 @@ class ContactSensorData(BaseContactSensorData):
             self._current_contact_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
             self._first_transition = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
             self._first_transition_ta = ProxyArray(self._first_transition)
+            # Latched first-contact / first-air events and their phase ages, used
+            # by compute_first_contact / compute_first_air (see issue #7283).
+            self._first_contact_latch = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
+            self._first_air_latch = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
+            self._first_contact_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
+            self._first_air_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
         else:
             self._last_air_time = None
             self._current_air_time = None
@@ -282,6 +288,10 @@ class ContactSensorData(BaseContactSensorData):
             self._current_contact_time = None
             self._first_transition = None
             self._first_transition_ta = None
+            self._first_contact_latch = None
+            self._first_air_latch = None
+            self._first_contact_time = None
+            self._first_air_time = None
 
         # Track contact points if requested - filled with NaN
         if track_contact_points:

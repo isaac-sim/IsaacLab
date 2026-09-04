@@ -185,6 +185,10 @@ class ContactSensor(BaseContactSensor):
                 self._data._last_air_time,
                 self._data._current_contact_time,
                 self._data._last_contact_time,
+                self._data._first_contact_latch,
+                self._data._first_air_latch,
+                self._data._first_contact_time,
+                self._data._first_air_time,
                 self._data._friction_forces_w,
                 self._data._contact_pos_w,
             ],
@@ -194,9 +198,10 @@ class ContactSensor(BaseContactSensor):
     def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
         """Checks if bodies that have established contact within the last :attr:`dt` seconds.
 
-        This function checks if the bodies have established contact within the last :attr:`dt` seconds
-        by comparing the current contact time with the given time period. If the contact time is less
-        than the given time period, then the bodies are considered to be in contact.
+        This function checks if the bodies have established contact within the last :attr:`dt` seconds.
+        Contact transitions are latched by the sensor update kernel at the buffer refresh where they
+        occur, together with the age of the ended phase. A body is reported when a touchdown event is
+        latched and the event is younger than the given time period.
 
         .. note::
             The function assumes that :attr:`dt` is a factor of the sensor update time-step. In other
@@ -227,10 +232,17 @@ class ContactSensor(BaseContactSensor):
                 "The contact sensor is not configured to track contact time."
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
+        # refresh latches if the sensor buffers are outdated
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_contact_time],
+            inputs=[
+                float(dt),
+                float(abs_tol),
+                self._data._first_contact_latch,
+                self._data._first_contact_time,
+            ],
             outputs=[self._data._first_transition],
             device=self._device,
         )
@@ -271,11 +283,17 @@ class ContactSensor(BaseContactSensor):
                 "The contact sensor is not configured to track air time."
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
-
+        # refresh latches if the sensor buffers are outdated
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_air_time],
+            inputs=[
+                float(dt),
+                float(abs_tol),
+                self._data._first_air_latch,
+                self._data._first_air_time,
+            ],
             outputs=[self._data._first_transition],
             device=self._device,
         )
@@ -407,6 +425,10 @@ class ContactSensor(BaseContactSensor):
                 self._data._current_contact_time,
                 self._data._last_air_time,
                 self._data._last_contact_time,
+                self._data._first_contact_latch,
+                self._data._first_air_latch,
+                self._data._first_contact_time,
+                self._data._first_air_time,
             ],
             device=self._device,
         )
