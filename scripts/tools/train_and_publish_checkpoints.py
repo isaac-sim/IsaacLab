@@ -59,7 +59,6 @@ import csv
 import fnmatch
 import json
 import os
-import posixpath
 import shutil
 import subprocess
 import sys
@@ -78,23 +77,12 @@ for source_path in reversed(_REPO_SOURCE_PATHS):
 import gymnasium as gym
 
 from isaaclab.envs import DirectMARLEnvCfg
-from isaaclab.utils import Checkpoint
+from isaaclab.utils.assets import NUCLEUS_ASSET_ROOT_DIR
 
 from isaaclab_rl.utils.pretrained_checkpoint import (
     WORKFLOW_EXPERIMENT_NAME_VARIABLE,
     WORKFLOWS,
-    get_declared_checkpoint_path,
-    get_declared_checkpoints,
-    get_latest_job_run_path,
-    get_pretrained_checkpoint_backend_names,
-    get_pretrained_checkpoint_filename,
-    get_pretrained_checkpoint_path,
-    get_pretrained_checkpoint_publish_path,
-    get_pretrained_checkpoint_review,
-    get_pretrained_checkpoint_review_path,
-    has_pretrained_checkpoint_job_finished,
-    has_pretrained_checkpoint_job_run,
-    has_pretrained_checkpoints_asset_root_dir,
+    CheckpointBundle,
 )
 
 import isaaclab_tasks  # noqa: F401
@@ -108,19 +96,13 @@ _CORE_WORKFLOWS = ("rl_games", "rsl_rl", "skrl")
 
 
 @dataclass(frozen=True)
-class CheckpointJob:
+class CheckpointJob(CheckpointBundle):
     """One workflow, task, physics, and renderer training combination."""
 
-    workflow: str
-    task_name: str
-    physics_backend: str | None = None
-    render_backend: str | None = None
     physics_selector: str | None = None
     render_selector: str | None = None
     agent: str | None = None
     algorithm: str | None = None
-    declared_checkpoints: tuple[Checkpoint, ...] = ()
-    """Run artifacts the task publishes beside its policy."""
 
     @property
     def job_id(self) -> str:
@@ -130,18 +112,27 @@ class CheckpointJob:
         return f"{self.workflow}:{self.task_name}:{self.physics_backend}:{self.render_backend}"
 
     @property
-    def experiment_name(self) -> str:
-        """Return the experiment directory name used by the RL workflow."""
-        if self.physics_backend is None and self.render_backend is None:
-            return self.task_name
-        filename = get_pretrained_checkpoint_filename(
-            self.workflow,
-            self.task_name,
-            self.physics_backend,
-            self.render_backend,
-        )
-        extension = os.path.splitext(filename)[1]
-        return filename.removesuffix(extension)
+    def is_trained(self) -> bool:
+        """Whether this job's training finished and left a checkpoint.
+
+        A core job must also carry the marker its training subprocess writes, so a run killed
+        after writing a checkpoint is retried. Legacy jobs predate the marker.
+        """
+        if self.is_legacy:
+            return self.has_finished
+        run_path = self.latest_run
+        if run_path is None or not os.path.isfile(os.path.join(run_path, _TRAINING_COMPLETE_FILENAME)):
+            return False
+        return self.has_finished
+
+    def mark_trained(self) -> None:
+        """Record that the latest training subprocess exited successfully."""
+        run_path = self.latest_run
+        if run_path is None:
+            raise RuntimeError(f"Unable to determine the latest run for {self.job_id}")
+        marker_path = os.path.join(run_path, _TRAINING_COMPLETE_FILENAME)
+        with open(marker_path, "w", encoding="utf-8") as marker_file:
+            marker_file.write(f"{self.job_id}\n")
 
     @property
     def preset_args(self) -> list[str]:
@@ -293,7 +284,7 @@ def _resolve_physics_backend(task_name: str, physics_selector: str | None, defau
     if physics_selector is None:
         return default_backend
     env_cfg, _ = resolve_task_config(task_name, None, overrides=(f"physics={physics_selector}",))
-    physics_backend, _ = get_pretrained_checkpoint_backend_names(env_cfg)
+    physics_backend, _ = CheckpointBundle.backend_names(env_cfg)
     return physics_backend
 
 
@@ -343,7 +334,7 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
         workflow, agent, algorithm = _select_workflow(task_spec, env_cfg)
         default_physics = None
         if not physics_variants:
-            default_physics, _ = get_pretrained_checkpoint_backend_names(env_cfg)
+            default_physics, _ = CheckpointBundle.backend_names(env_cfg)
 
         physics_selections = _select_physics_variants(
             task_spec.id,
@@ -356,16 +347,16 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
             physics_backend = _resolve_physics_backend(task_spec.id, physics_selector, default_physics)
             for render_backend, render_selector in render_selections:
                 jobs.append(
-                    CheckpointJob(
-                        workflow=workflow,
-                        task_name=task_spec.id,
-                        physics_backend=physics_backend,
-                        render_backend=render_backend,
+                    CheckpointJob.from_env_cfg(
+                        workflow,
+                        task_spec.id,
+                        env_cfg,
+                        physics_backend,
+                        render_backend,
                         physics_selector=physics_selector,
                         render_selector=render_selector,
                         agent=agent,
                         algorithm=algorithm,
-                        declared_checkpoints=tuple(get_declared_checkpoints(env_cfg)),
                     )
                 )
     return jobs
@@ -411,7 +402,7 @@ def _training_command(job: CheckpointJob, args: argparse.Namespace, smoke: bool)
     if job.algorithm is not None:
         command.extend(["--algorithm", job.algorithm])
 
-    experiment_name = f"{job.experiment_name}_smoke" if smoke else job.experiment_name
+    experiment_name = f"{job.stem}_smoke" if smoke else job.stem
     experiment_variable = WORKFLOW_EXPERIMENT_NAME_VARIABLE[job.workflow]
     if experiment_variable is not None:
         command.append(f"{experiment_variable}={experiment_name}")
@@ -469,42 +460,9 @@ def _run_command(command: list[str], dry_run: bool) -> int:
     return subprocess.run(command, check=False, cwd=_REPO_ROOT, env=env).returncode
 
 
-def _has_training_job_completed(job: CheckpointJob) -> bool:
-    """Return whether the latest run exited successfully with a checkpoint."""
-    run_path = get_latest_job_run_path(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    )
-    if run_path is None or not os.path.isfile(os.path.join(run_path, _TRAINING_COMPLETE_FILENAME)):
-        return False
-    return has_pretrained_checkpoint_job_finished(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    )
-
-
-def _mark_training_job_completed(job: CheckpointJob) -> None:
-    """Record that the latest training subprocess exited successfully."""
-    run_path = get_latest_job_run_path(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    )
-    if run_path is None:
-        raise RuntimeError(f"Unable to determine the latest run for {job.job_id}")
-    marker_path = os.path.join(run_path, _TRAINING_COMPLETE_FILENAME)
-    with open(marker_path, "w", encoding="utf-8") as marker_file:
-        marker_file.write(f"{job.job_id}\n")
-
-
 def train_job(job: CheckpointJob, args: argparse.Namespace, smoke: bool = False) -> bool:
     """Train or smoke-test one checkpoint job."""
-    if not smoke and not args.force and _has_training_job_completed(job):
+    if not smoke and not args.force and job.is_trained:
         print(f"Skipping completed training job {job.job_id}")
         return True
 
@@ -514,31 +472,21 @@ def train_job(job: CheckpointJob, args: argparse.Namespace, smoke: bool = False)
         return False
     if smoke or args.dry_run:
         return True
-    if not has_pretrained_checkpoint_job_finished(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    ):
+    if not job.has_finished:
         print(f"Training did not produce a checkpoint for {job.job_id}", file=sys.stderr)
         return False
-    _mark_training_job_completed(job)
+    job.mark_trained()
     return True
 
 
 def collect_pretrained_checkpoint(job: CheckpointJob, output_dir: str, dry_run: bool = False) -> str | None:
     """Copy the last or best checkpoint into the structured output directory."""
-    destination = _get_collected_checkpoint_path(job, output_dir)
+    destination = job.collected_path(output_dir)
     if dry_run:
         print(f"Would collect the completed checkpoint -> {destination}")
         return destination
 
-    source_path = get_pretrained_checkpoint_path(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    )
+    source_path = job.trained_path()
     if source_path is None or not os.path.isfile(source_path):
         print(f"No completed checkpoint to collect for {job.job_id}")
         return None
@@ -546,13 +494,12 @@ def collect_pretrained_checkpoint(job: CheckpointJob, output_dir: str, dry_run: 
     print(f"Collecting {source_path} -> {destination}")
     os.makedirs(os.path.dirname(destination), exist_ok=True)
     shutil.copy2(source_path, destination)
-    run_path = get_latest_job_run_path(job.workflow, job.task_name, job.physics_backend, job.render_backend)
-    for checkpoint in job.declared_checkpoints:
-        declared_source = checkpoint.find_in(run_path)
+    for checkpoint in job.checkpoints:
+        declared_source = job.trained_path(checkpoint)
         if declared_source is None:
             print(f"No {checkpoint.name} checkpoint matched {checkpoint.run_glob!r} for {job.job_id}")
             continue
-        declared_destination = get_declared_checkpoint_path(destination, job.workflow, checkpoint)
+        declared_destination = job.collected_path(output_dir, checkpoint)
         print(f"Collecting {declared_source} -> {declared_destination}")
         shutil.copy2(declared_source, declared_destination)
     return destination
@@ -560,39 +507,19 @@ def collect_pretrained_checkpoint(job: CheckpointJob, output_dir: str, dry_run: 
 
 def review_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) -> bool:
     """Play and interactively review one checkpoint."""
-    if not has_pretrained_checkpoint_job_run(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    ):
+    if not job.has_run:
         print(f"Skipping review of {job.job_id}; it has not been trained")
         return False
-    if not has_pretrained_checkpoint_job_finished(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    ):
+    if not job.has_finished:
         print(f"Skipping review of {job.job_id}; training is incomplete")
         return False
 
-    review = get_pretrained_checkpoint_review(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    )
+    review = job.review
     if not args.force_review and review and review.get("reviewed"):
         print(f"Review already complete for {job.job_id}")
         return True
 
-    checkpoint_path = get_pretrained_checkpoint_path(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    )
+    checkpoint_path = job.trained_path()
     if checkpoint_path is None:
         print(f"Skipping review of {job.job_id}; no checkpoint was found")
         return False
@@ -610,12 +537,7 @@ def review_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) -
     if notes:
         review_data["notes"] = notes
 
-    review_path = get_pretrained_checkpoint_review_path(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    )
+    review_path = job.review_path
     if review_path is None:
         raise RuntimeError(f"Unable to determine review path for {job.job_id}")
     with open(review_path, "w", encoding="utf-8") as review_file:
@@ -625,46 +547,27 @@ def review_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) -
 
 def publish_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) -> bool:
     """Publish an accepted checkpoint to the configured Nucleus asset root."""
-    if args.publish_root is None and not has_pretrained_checkpoints_asset_root_dir():
+    if args.publish_root is None and not NUCLEUS_ASSET_ROOT_DIR:
         raise RuntimeError("A pretrained-checkpoint Nucleus asset root is not configured")
-    local_path = _get_collected_checkpoint_path(job, args.output_dir)
+    local_path = job.collected_path(args.output_dir)
     if not os.path.isfile(local_path):
         print(f"Skipping publish of {job.job_id}; no collected checkpoint was found")
         return False
 
     if not args.force_publish:
-        review = get_pretrained_checkpoint_review(
-            job.workflow,
-            job.task_name,
-            job.physics_backend,
-            job.render_backend,
-        )
+        review = job.review
         if not review or review.get("result") != "accepted":
             print(f"Skipping publish of {job.job_id}; it does not have an accepted review")
             return False
 
-    if args.publish_root is None:
-        publish_path = get_pretrained_checkpoint_publish_path(
-            job.workflow,
-            job.task_name,
-            job.physics_backend,
-            job.render_backend,
-        )
-    else:
-        filename = get_pretrained_checkpoint_filename(
-            job.workflow,
-            job.task_name,
-            job.physics_backend,
-            job.render_backend,
-        )
-        publish_path = posixpath.join(args.publish_root.rstrip("/"), job.workflow, filename)
+    publish_path = job.published_path(root=args.publish_root)
     uploads = [(local_path, publish_path)]
-    for checkpoint in job.declared_checkpoints:
-        local_declared = get_declared_checkpoint_path(local_path, job.workflow, checkpoint)
+    for checkpoint in job.checkpoints:
+        local_declared = job.collected_path(args.output_dir, checkpoint)
         if not os.path.isfile(local_declared):
             print(f"Skipping the {checkpoint.name} checkpoint for {job.job_id}; it was not collected")
             continue
-        uploads.append((local_declared, get_declared_checkpoint_path(publish_path, job.workflow, checkpoint)))
+        uploads.append((local_declared, job.published_path(checkpoint, root=args.publish_root)))
     for source, destination in uploads:
         print(f"Publishing {source} -> {destination}")
     if args.dry_run:
@@ -683,24 +586,10 @@ def publish_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) 
 
 def _summary_row(job: CheckpointJob, output_dir: str) -> list[str | bool]:
     """Return one CSV summary row."""
-    has_run = has_pretrained_checkpoint_job_run(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    )
-    has_finished = (
-        _has_training_job_completed(job)
-        if job.physics_backend is not None
-        else has_pretrained_checkpoint_job_finished(job.workflow, job.task_name)
-    )
-    collected_path = _get_collected_checkpoint_path(job, output_dir)
-    review = get_pretrained_checkpoint_review(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    )
+    has_run = job.has_run
+    has_finished = job.is_trained
+    collected_path = job.collected_path(output_dir)
+    review = job.review
     return [
         job.workflow,
         job.task_name,
@@ -713,20 +602,6 @@ def _summary_row(job: CheckpointJob, output_dir: str) -> list[str | bool]:
         os.path.isfile(collected_path),
         (review or {}).get("result", ""),
     ]
-
-
-def _get_collected_checkpoint_path(job: CheckpointJob, output_dir: str) -> str:
-    """Return the absolute path of a checkpoint in the collection directory."""
-    filename = get_pretrained_checkpoint_filename(
-        job.workflow,
-        job.task_name,
-        job.physics_backend,
-        job.render_backend,
-    )
-    path_parts = [output_dir, job.workflow]
-    if job.physics_backend is None:
-        path_parts.append(job.task_name)
-    return os.path.abspath(os.path.join(*path_parts, filename))
 
 
 def main(argv: list[str] | None = None) -> int:

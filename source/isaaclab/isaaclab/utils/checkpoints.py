@@ -11,6 +11,7 @@ from dataclasses import MISSING
 
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.io import latest_file
 
 
 @configclass
@@ -56,8 +57,7 @@ class Checkpoint:
         """
         if not self.is_run_artifact:
             return None
-        matches = glob.glob(os.path.join(run_dir, self.run_glob))
-        return max(matches, key=os.path.getmtime) if matches else None
+        return latest_file(run_dir, self.run_glob)
 
     def resolve(self, log_dir: str | None = None, cache_dir: str | None = None) -> str:
         """Return the local file a component should load.

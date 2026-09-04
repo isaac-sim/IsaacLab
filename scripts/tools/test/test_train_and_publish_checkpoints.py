@@ -42,7 +42,7 @@ def test_build_core_jobs_skips_unsupported_preset_without_normalizing_default(
         lambda _: {PresetTarget.PHYSICS: ["newton_kamino"]},
     )
     monkeypatch.setattr(
-        "scripts.tools.train_and_publish_checkpoints.get_pretrained_checkpoint_backend_names",
+        "scripts.tools.train_and_publish_checkpoints.CheckpointBundle.backend_names",
         lambda _: pytest.fail("preset-only tasks must not normalize their unsupported default backend"),
     )
     args = Namespace(physics_backends="physx,newtonmjwarp", render_backends="rtx,newton")
@@ -104,11 +104,11 @@ def test_select_physics_variants_does_not_fall_back_to_automatic_physx() -> None
     assert selections == []
 
 
-def test_legacy_job_experiment_name_preserves_task_name() -> None:
+def test_legacy_job_stem_preserves_task_name() -> None:
     """Legacy jobs must keep separate experiment directories for each task."""
     job = CheckpointJob(workflow="rsl_rl", task_name="Isaac-Test")
 
-    assert job.experiment_name == "Isaac-Test"
+    assert job.stem == "Isaac-Test"
 
 
 def test_legacy_collection_preserves_task_directory(tmp_path: Path) -> None:
@@ -118,6 +118,37 @@ def test_legacy_collection_preserves_task_directory(tmp_path: Path) -> None:
     path = collect_pretrained_checkpoint(job, str(tmp_path), dry_run=True)
 
     assert path == str(tmp_path / "rsl_rl" / "Isaac-Test" / "checkpoint.pt")
+
+
+def test_core_job_needs_the_completion_marker_to_count_as_trained(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A run killed after writing a checkpoint must be retried, not skipped."""
+    monkeypatch.chdir(tmp_path)
+    job = CheckpointJob(
+        workflow="rsl_rl", task_name="Isaac-Test", physics_backend="newtonmjwarp", render_backend="none"
+    )
+    run_dir = Path(job.log_root) / "2026-01-01_00-00-00"
+    run_dir.mkdir(parents=True)
+    (run_dir / "model_0.pt").write_bytes(b"")
+
+    assert job.has_finished
+    assert not job.is_trained
+
+    job.mark_trained()
+
+    assert job.is_trained
+
+
+def test_legacy_job_counts_as_trained_without_the_marker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Legacy runs predate the marker, so requiring one would retrain every published checkpoint."""
+    monkeypatch.chdir(tmp_path)
+    job = CheckpointJob(workflow="rsl_rl", task_name="Isaac-Test")
+    run_dir = Path(job.log_root) / "2026-01-01_00-00-00"
+    run_dir.mkdir(parents=True)
+    (run_dir / "model_0.pt").write_bytes(b"")
+
+    assert job.is_trained
 
 
 def test_publish_uses_collected_checkpoint_without_training_logs(
