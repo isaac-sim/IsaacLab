@@ -596,5 +596,7 @@ class TestRootJointNaming(unittest.TestCase):
             original = list(builder.joint_label)
             newton_clone_utils_module._name_root_joints_after_their_body(builder)
             self.assertEqual(builder.joint_label, original)
+
+
 if __name__ == "__main__":
     unittest.main()
