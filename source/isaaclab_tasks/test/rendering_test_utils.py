@@ -14,7 +14,6 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
-from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp import ProxyArray
 
 # Directory containing golden images.
@@ -697,16 +696,25 @@ def _compare_images(
 
 
 def _resolve_golden_image_path(test_name: str, physics_backend: str, renderer: str, data_type: str) -> str:
-    """Resolve a simulator-version-specific golden image when one exists."""
+    """Resolve a simulator-version-specific golden image when one exists.
+
+    Versioned baselines currently apply only to the Isaac RTX renderer.  Keep
+    kitless renderers independent of Isaac Sim's Python packages.
+    """
     golden_image_dir = os.path.join(_GOLDEN_IMAGES_DIRECTORY, test_name)
     filename_stem = f"{physics_backend}-{renderer}-{data_type}"
-    isaac_sim_version = get_isaac_sim_version()
-    versioned_path = os.path.join(
-        golden_image_dir,
-        f"{filename_stem}-isaacsim-{isaac_sim_version.major}.{isaac_sim_version.minor}.png",
-    )
-    if os.path.exists(versioned_path):
-        return versioned_path
+
+    if renderer == "isaacsim_rtx_renderer":
+        from isaaclab.utils.version import get_isaac_sim_version
+
+        isaac_sim_version = get_isaac_sim_version()
+        versioned_path = os.path.join(
+            golden_image_dir,
+            f"{filename_stem}-isaacsim-{isaac_sim_version.major}.{isaac_sim_version.minor}.png",
+        )
+        if os.path.exists(versioned_path):
+            return versioned_path
+
     return os.path.join(golden_image_dir, f"{filename_stem}.png")
 
 
