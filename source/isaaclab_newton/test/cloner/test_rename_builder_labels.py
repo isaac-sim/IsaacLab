@@ -16,7 +16,7 @@ from isaaclab_newton.cloner.newton_clone_utils import rename_builder_labels, rep
 from isaaclab_newton.physics import visualization_builder as visualization_builder_module
 from isaaclab_newton.physics import visualization_deformables as visualization_deformables_module
 
-from pxr import Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.cloner import ClonePlan
 from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
@@ -40,6 +40,8 @@ _DST = "/World/envs/env_{}/protoA"
 class _FakeVisualizationModelBuilder:
     def __init__(self, up_axis=None):
         self.up_axis = up_axis
+        self.shape_collision_filter_pairs = []
+        self.shape_collision_group = []
         for attr in _VIS_BUILTIN_LABEL_ATTRS:
             setattr(self, attr, [])
             setattr(self, attr.replace("_label", "_world"), [])
@@ -80,6 +82,7 @@ class _FakeVisualizationModelBuilder:
         for attr in _VIS_BUILTIN_LABEL_ATTRS:
             getattr(self, attr).append(f"{root_path}/{_VIS_LABEL_SUFFIXES[attr]}")
             getattr(self, attr.replace("_label", "_world")).append(self._current_world or 0)
+        self.shape_collision_group.append(1)
         self.custom_attributes["mujoco:equality_constraint_label"].values.append(
             f"{root_path}/{_VIS_LABEL_SUFFIXES['equality_constraint_label']}"
         )
@@ -96,6 +99,7 @@ class _FakeVisualizationModelBuilder:
             labels = getattr(builder, attr)
             getattr(self, attr).extend(labels)
             getattr(self, attr.replace("_label", "_world")).extend([self._current_world] * len(labels))
+        self.shape_collision_group.extend(builder.shape_collision_group)
         eq_labels = builder.custom_attributes["mujoco:equality_constraint_label"].values
         self.custom_attributes["mujoco:equality_constraint_label"].values.extend(eq_labels)
         self.custom_attributes["mujoco:equality_constraint_world"].values.extend([self._current_world] * len(eq_labels))
@@ -363,6 +367,9 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self._define_xform(stage, "/World")
         self._define_xform(stage, "/World/Robot")
         builder = mock.Mock()
+        builder.shape_collision_filter_pairs = []
+        builder.shape_collision_group = []
+        builder.shape_count = 0
         builder.add_usd.return_value = {"path_shape_map": {}}
 
         with (
@@ -379,6 +386,47 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertEqual(shadow_entities, [])
         self.assertEqual(registry_groups, [])
         builder.add_usd.assert_called_once_with(stage, schema_resolvers=["newton", "physx"], ignore_paths=None)
+
+    def test_visualization_builder_disables_collision_pairs(self):
+        stage = Usd.Stage.CreateInMemory()
+        robot_path = "/World/envs/env_0/Robot"
+        self._define_xform(stage, "/World")
+        self._define_xform(stage, "/World/envs")
+        self._define_xform(stage, "/World/envs/env_0")
+        self._define_xform(stage, "/World/envs/env_1", (2.0, 0.0, 0.0))
+        robot = UsdGeom.Xform.Define(stage, robot_path).GetPrim()
+        UsdPhysics.ArticulationRootAPI.Apply(robot)
+        robot.CreateAttribute("physxArticulation:enabledSelfCollisions", Sdf.ValueTypeNames.Bool).Set(False)
+        for name, translation in (("A", 0.0), ("B", 1.0)):
+            body_path = f"{robot_path}/{name}"
+            body = UsdGeom.Xform.Define(stage, body_path)
+            body.AddTranslateOp().Set((translation, 0.0, 0.0))
+            UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+            collision = UsdGeom.Cube.Define(stage, f"{body_path}/Collision")
+            collision.CreateSizeAttr(0.2)
+            UsdPhysics.CollisionAPI.Apply(collision.GetPrim())
+        joint = UsdPhysics.RevoluteJoint.Define(stage, f"{robot_path}/Joint")
+        joint.CreateBody0Rel().SetTargets([Sdf.Path(f"{robot_path}/A")])
+        joint.CreateBody1Rel().SetTargets([Sdf.Path(f"{robot_path}/B")])
+
+        clone_plan = ClonePlan(
+            sources=(robot_path,),
+            destinations=("/World/envs/env_{}/Robot",),
+            clone_mask=torch.ones((1, 2), dtype=torch.bool),
+            env_ids=torch.arange(2),
+        )
+        for env_paths, plan, expected_shape_count in (
+            ([], None, 2),
+            ([(0, "/World/envs/env_0"), (1, "/World/envs/env_1")], clone_plan, 4),
+        ):
+            builder, _shadow_metadata = visualization_builder_module.build_visualization_builder_from_stage_envs(
+                stage, env_paths, plan
+            )
+            model = builder.finalize(device="cpu")
+
+            self.assertEqual(model.shape_count, expected_shape_count)
+            self.assertEqual(len(model.shape_collision_filter_pairs), 0)
+            self.assertEqual(model.shape_contact_pair_count, 0)
 
     def test_visualization_builder_rejects_clone_plan_without_environment_paths(self):
         """A cloned scene must not be cached as an incomplete single-world model."""

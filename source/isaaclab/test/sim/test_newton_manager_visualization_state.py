@@ -826,6 +826,10 @@ def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import
     UsdGeom.Xform.Define(stage, "/World/envs/env_1")
 
     fake_builder = _FakeShadowBuilder(body_count=1, cloth_delta=3, track_usd=True)
+    fake_builder.shape_collision_filter_pairs = []
+    fake_builder.shape_collision_group = []
+    fake_builder.shape_count = 0
+    fake_builder.add_builder = lambda _builder: None
     clone_plan = SimpleNamespace(
         sources=("/World/envs/env_0",),
         destinations=("/World/envs/env_{}",),
