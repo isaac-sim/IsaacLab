@@ -70,6 +70,48 @@ _EXPECTED_READ_ONLY_NAMES = frozenset(
     }
 )
 
+# CPU-resident on a GPU sim. Each name was measured, not assumed: with DirectGPU
+# (``suppressReadback=True``) the residency of every tensor type was determined by counting
+# CUDA memcpys around a binding read into a host buffer and into a device buffer.
+_EXPECTED_CPU_ONLY_NAMES = frozenset(
+    {
+        "articulation_body_com_pose",
+        "articulation_body_disable_gravity",
+        "articulation_body_inertia",
+        "articulation_body_inv_inertia",
+        "articulation_body_inv_mass",
+        "articulation_body_mass",
+        "articulation_contact_offset",
+        "articulation_dof_armature",
+        "articulation_dof_damping",
+        "articulation_dof_drive_model",
+        "articulation_dof_drive_type",
+        "articulation_dof_friction_properties",
+        "articulation_dof_limit",
+        "articulation_dof_max_force",
+        "articulation_dof_max_velocity",
+        "articulation_dof_stiffness",
+        "articulation_rest_offset",
+        "articulation_shape_friction_and_restitution",
+        "deformable_material_bending_damping",
+        "deformable_material_bending_stiffness",
+        "deformable_material_dynamic_friction",
+        "deformable_material_elasticity_damping",
+        "deformable_material_poissons_ratio",
+        "deformable_material_thickness",
+        "deformable_material_youngs_modulus",
+        "rigid_body_com_pose",
+        "rigid_body_contact_offset",
+        "rigid_body_disable_gravity",
+        "rigid_body_inertia",
+        "rigid_body_inv_inertia",
+        "rigid_body_inv_mass",
+        "rigid_body_mass",
+        "rigid_body_rest_offset",
+        "rigid_body_shape_friction_and_restitution",
+    }
+)
+
 # Per-type shapes used by the fakes (only the types touched by the tests).
 _SHAPES = {
     TensorType.RIGID_BODY_POSE: lambda n: (n, 7),
@@ -204,15 +246,21 @@ def test_read_only_and_cpu_only_classification():
     assert not is_read_only("articulation_dof_stiffness")
     assert is_cpu_only("articulation_dof_stiffness")
     assert is_cpu_only("rigid_body_mass")
+    assert is_cpu_only("rigid_body_disable_gravity")
+    assert is_cpu_only("articulation_dof_drive_type")
     assert not is_cpu_only("rigid_body_pose")
 
 
 def test_cpu_only_names_match_canonical_set():
-    # The view derives its CPU-only set from tensor_types so the two cannot drift.
+    # Comparing the view's derived set against the canonical one cannot fail, since the
+    # former is built from the latter. The expected inventory is what gives this test
+    # teeth: it is measured residency, so it also rejects a set that is merely incomplete.
     from isaaclab_ov.sim.views import ovphysx_view as mod
     from isaaclab_ov.tensor_types import _CPU_ONLY_TYPES
 
-    assert frozenset(tt.name.lower() for tt in _CPU_ONLY_TYPES) == mod._CPU_ONLY_NAMES
+    assert frozenset(tt.name.lower() for tt in _CPU_ONLY_TYPES) == _EXPECTED_CPU_ONLY_NAMES
+    assert mod._CPU_ONLY_NAMES == _EXPECTED_CPU_ONLY_NAMES
+    assert set(attribute_vocabulary()) >= mod._CPU_ONLY_NAMES
 
 
 # -----------------------------------------------------------------------------
