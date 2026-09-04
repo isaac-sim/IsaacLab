@@ -195,7 +195,7 @@ def main() -> None:
             invalid_message="External project path cannot be within the Isaac Lab project",
         )
 
-    # project/task name
+    # project/task names
     project_name = cli_handler.input_text(
         "Project name:" if is_external_project else "Task's folder name:",
         validate=lambda name: name.isidentifier(),
@@ -203,6 +203,34 @@ def main() -> None:
             "Project/task name must be a valid identifier (Letters, numbers and underscores only. No spaces, etc.)"
         ),
     )
+    if is_external_project:
+        task_name = cli_handler.input_text(
+            "Task family name:",
+            default="balance",
+            validate=lambda name: name.isidentifier(),
+            invalid_message="Task family name must be a valid Python identifier.",
+        )
+        robot_name = cli_handler.input_text(
+            "Robot/config name:",
+            default="cartpole",
+            validate=lambda name: name.isidentifier(),
+            invalid_message="Robot/config name must be a valid Python identifier.",
+        )
+        include_ui_extension = (
+            cli_handler.input_select(
+                "Include Isaac Sim UI extension:",
+                choices=["No", "Yes"],
+                default="No",
+                long_instruction=(
+                    "Choose Yes only if this project needs an extension loaded through the Isaac Sim Extension Manager."
+                ),
+            ).lower()
+            == "yes"
+        )
+    else:
+        task_name = project_name
+        robot_name = "cartpole"
+        include_ui_extension = False
 
     # Isaac Lab workflow
     # - show supported workflows and features
@@ -268,6 +296,9 @@ def main() -> None:
         "external": is_external_project,
         "path": project_path,
         "name": project_name,
+        "task_name": task_name,
+        "robot_name": robot_name,
+        "include_ui_extension": include_ui_extension,
         "workflows": workflow,
         "rl_libraries": rl_library_algorithms,
     }

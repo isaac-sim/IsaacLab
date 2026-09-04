@@ -36,6 +36,20 @@ def _handler() -> tuple[CLIHandler, io.StringIO]:
     return CLIHandler(Console(file=output, force_terminal=False)), output
 
 
+def _external_specification(tmp_path: Path, include_ui_extension: bool = False) -> dict:
+    """Create a canonical external-project specification."""
+    return {
+        "external": True,
+        "path": str(tmp_path),
+        "name": "test_project",
+        "task_name": "place_vial",
+        "robot_name": "so101",
+        "include_ui_extension": include_ui_extension,
+        "workflows": [{"name": "manager-based", "type": "single-agent"}],
+        "rl_libraries": [{"name": "rsl_rl", "algorithms": ["ppo"]}],
+    }
+
+
 def test_select_uses_rich_prompt_and_displays_long_instruction():
     """Single selection must retain explanatory text and return the chosen value."""
     handler, output = _handler()
@@ -83,12 +97,12 @@ def test_text_reprompts_until_validation_succeeds():
     assert "Project name must be a valid identifier." in output.getvalue()
 
 
-def test_main_lists_flagship_options_first():
-    """The interactive prompts must list Manager-based, RSL-RL, and PPO first."""
+def test_main_collects_canonical_external_project_choices():
+    """The prompts must collect project layers and list flagship choices first."""
     handler = mock.Mock(spec=CLIHandler)
-    handler.input_select.return_value = "External"
+    handler.input_select.side_effect = ["External", "No"]
     handler.input_path.return_value = "/tmp"
-    handler.input_text.return_value = "test_project"
+    handler.input_text.side_effect = ["test_project", "place_vial", "so101"]
     handler.input_checkbox.side_effect = lambda message, choices: [choices[0]]
     handler.get_choices.side_effect = CLIHandler.get_choices
 
@@ -96,7 +110,7 @@ def test_main_lists_flagship_options_first():
     with (
         mock.patch.object(_MODULE, "CLIHandler", return_value=handler),
         mock.patch.object(_MODULE.importlib, "import_module", return_value=source_install),
-        mock.patch.object(_MODULE, "generate"),
+        mock.patch.object(_MODULE, "generate") as generate,
     ):
         _MODULE.main()
 
@@ -104,44 +118,98 @@ def test_main_lists_flagship_options_first():
     assert checkbox_calls[0].kwargs["choices"][0] == "Manager-based | single-agent"
     assert checkbox_calls[1].kwargs["choices"][0] == "rsl_rl"
     assert checkbox_calls[2].kwargs["choices"][0] == "PPO"
+    ui_prompt = handler.input_select.call_args_list[1]
+    assert ui_prompt.kwargs["choices"] == ["No", "Yes"]
+    assert ui_prompt.kwargs["default"] == "No"
+    specification = generate.call_args.args[0]
+    assert specification["task_name"] == "place_vial"
+    assert specification["robot_name"] == "so101"
+    assert specification["include_ui_extension"] is False
 
 
-def test_generated_project_metadata(tmp_path):
-    """A generated project must declare optional backends and development tooling."""
-    specification = {
-        "external": True,
-        "path": str(tmp_path),
-        "name": "test_project",
-        "workflows": [{"name": "manager-based", "type": "single-agent"}],
-        "rl_libraries": [{"name": "rsl_rl", "algorithms": ["ppo"]}],
-    }
+def test_generated_project_matches_canonical_uv_layout(tmp_path):
+    """A generated project must use one uv project with a src package and tests."""
+    specification = _external_specification(tmp_path)
 
     with mock.patch.object(_GENERATOR, "_setup_git_repo"):
         _GENERATOR.generate(specification)
 
     project_dir = tmp_path / "test_project"
     with (project_dir / "pyproject.toml").open("rb") as file:
-        development_config = tomllib.load(file)
-    with (project_dir / "source" / "test_project" / "pyproject.toml").open("rb") as file:
-        task_package = tomllib.load(file)["project"]
+        project_config = tomllib.load(file)
 
-    development_project = development_config["project"]
-    assert development_project["dependencies"] == ["test_project"]
-    assert development_project["optional-dependencies"] == {
+    assert project_config["build-system"] == {
+        "requires": ["uv_build>=0.12.6,<0.13"],
+        "build-backend": "uv_build",
+    }
+    assert project_config["project"]["dependencies"] == ["isaaclab[rsl-rl]"]
+    assert project_config["project"]["entry-points"]["isaaclab.tasks"] == {"test_project": "test_project.tasks"}
+    assert project_config["project"]["optional-dependencies"] == {
         "isaacsim": ["isaaclab[isaacsim]"],
         "ov": ["isaaclab[ov]"],
         "ovphysx": ["isaaclab[ovphysx]"],
         "ovrtx": ["isaaclab[ovrtx]"],
     }
-    assert task_package["dependencies"] == ["isaaclab[rsl-rl]"]
-    assert development_config["dependency-groups"]["dev"] == ["pre-commit", "pytest"]
-    assert development_config["tool"]["pytest"]["ini_options"]["markers"] == [
+    assert project_config["dependency-groups"]["dev"] == [
+        "codespell>=2.4",
+        "pre-commit>=4.2",
+        "pytest>=8.3",
+        "ruff>=0.11",
+    ]
+    assert project_config["tool"]["uv"]["build-backend"]["module-name"] == "test_project"
+    assert project_config["tool"]["pytest"]["ini_options"]["testpaths"] == ["tests"]
+    assert project_config["tool"]["pytest"]["ini_options"]["markers"] == [
         "unit: test exercises isolated logic and does not launch the simulator",
         "integration: test drives the simulator/scene/environment end-to-end",
         "smoke: tests for core installation, task, and RL functionality",
         "kitless: test must pass inside the Kit-less container, which has no Isaac Sim runtime",
     ]
-    assert development_config["tool"]["ruff"]["lint"]["per-file-ignores"]["**/__init__.pyi"] == [
-        "F401",
-        "F403",
-    ]
+
+    module_dir = project_dir / "src" / "test_project"
+    task_dir = module_dir / "tasks" / "place_vial" / "config" / "so101"
+    assert (project_dir / "LICENSE").is_file()
+    assert (project_dir / "tests" / "test_registration.py").is_file()
+    assert 'default="TestProject-"' in (project_dir / "scripts" / "list_envs.py").read_text()
+    assert (task_dir / "env_cfg.py").is_file()
+    assert (task_dir / "agents" / "rsl_rl_ppo_cfg.py").is_file()
+    assert not (project_dir / "source").exists()
+    assert not (project_dir / "config" / "extension.toml").exists()
+    assert not (module_dir / "ui_extension_example.py").exists()
+    assert "from .tasks import" not in (module_dir / "__init__.py").read_text()
+
+
+def test_generated_project_can_opt_into_ui_extension(tmp_path):
+    """Direct tasks and UI extension files must follow the canonical project layout."""
+    specification = _external_specification(tmp_path, include_ui_extension=True)
+    specification["workflows"] = [{"name": "direct", "type": "single-agent"}]
+
+    with mock.patch.object(_GENERATOR, "_setup_git_repo"):
+        _GENERATOR.generate(specification)
+
+    project_dir = tmp_path / "test_project"
+    task_dir = project_dir / "src" / "test_project" / "tasks" / "place_vial_direct" / "config" / "so101"
+    registration_test = (project_dir / "tests" / "test_registration.py").read_text()
+    with (project_dir / "config" / "extension.toml").open("rb") as file:
+        extension_config = tomllib.load(file)
+    assert (task_dir / "env.py").is_file()
+    assert (task_dir / "env_cfg.py").is_file()
+    assert "test_project.tasks.place_vial_direct.config.so101.env:PlaceVialEnv" in registration_test
+    assert extension_config["python"]["module"] == [{"name": "test_project.ui_extension_example"}]
+    assert (project_dir / "src" / "test_project" / "ui_extension_example.py").is_file()
+
+
+def test_internal_task_keeps_repository_layout(tmp_path):
+    """Aligning external projects must not change internal task filenames or layout."""
+    specification = {
+        "external": False,
+        "name": "test_task",
+        "workflows": [{"name": "manager-based", "type": "single-agent"}],
+        "rl_libraries": [{"name": "rsl_rl", "algorithms": ["ppo"]}],
+    }
+
+    generated = _GENERATOR._generate_tasks(specification, str(tmp_path))
+
+    task = generated[0]["task"]
+    task_dir = tmp_path / "test_task" / "config" / "cartpole"
+    assert task["id"] == "Isaac-Test-Task"
+    assert (task_dir / "test_task_env_cfg.py").is_file()

@@ -6,6 +6,8 @@ Changed
 * Added pytest and the standard test-marker configuration to generated projects, and allowed lazy-export ``.pyi``
   files in their Ruff configuration.
 * Prioritized the manager-based workflow, RSL-RL, and PPO as the first applicable template generator choices.
+* Aligned external projects with the canonical single-project uv ``src`` layout, separated package, task-family, and
+  robot configuration names, added a registration test, and made Isaac Sim UI extension files opt-in.
 
 Fixed
 ^^^^^

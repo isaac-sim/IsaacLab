@@ -25,7 +25,7 @@ The first prompt chooses where the new task will live.
    * - External (recommended)
      - You are creating an application, experiment, or reusable project outside
        the Isaac Lab repository.
-     - A standalone Git repository and uv workspace.
+     - A standalone, installable uv project using a ``src`` layout.
    * - Internal
      - You intend to contribute the task to the Isaac Lab repository.
      - A task package under ``source/isaaclab_tasks``.
@@ -81,7 +81,10 @@ Select the following options for a small first project:
 
 * **External** project
 * A parent directory outside the Isaac Lab repository
-* A Python-compatible project name, such as ``my_cartpole``
+* A Python-compatible project name, such as ``my_robot_project``
+* A task family name, such as ``balance``
+* A robot/config name, such as ``cartpole``
+* **No** Isaac Sim UI extension for a headless task package
 * **Manager-based | single-agent** workflow
 * **rsl_rl** with **PPO**
 
@@ -94,7 +97,7 @@ Enter the generated project and create its environment:
 
 .. code-block:: bash
 
-   cd <parent-directory>/my_cartpole
+   cd <parent-directory>/my_robot_project
    uv sync
 
 This default environment includes the selected RL library and the kit-less
@@ -143,29 +146,16 @@ visualizer combinations.
 Understand the generated project
 --------------------------------
 
-An external project is both an installable Python package and an Isaac Sim
-extension. Its top-level ``pyproject.toml`` defines the uv workspace and backend
-extras. The package under ``source`` declares the selected RL dependencies and
-registers its task module through the ``isaaclab.tasks`` entry-point group.
+An external project is a single installable Python package with the same
+standard uv ``src`` layout used by maintained downstream examples. Its root
+``pyproject.toml`` declares the package, development tools, backend extras, and
+``isaaclab.tasks`` entry point.
 
-.. figure:: ../_static/setup/walkthrough_project_setup.svg
-   :align: center
-   :figwidth: 100%
-   :alt: Structure of a generated Isaac Lab project.
-
-The generated files are organized into four layers:
-
-* **Project:** The Git repository, uv workspace, README, VS Code configuration,
-  and utility scripts.
-* **Extension:** The installable package under ``source``. Its
-  ``config/extension.toml`` also lets Isaac Sim load it through the Extension
-  Manager.
-* **Module:** The Python package containing task implementations. Installing it
-  in editable mode means code changes are available immediately.
-* **Task:** An environment family and its environment and agent configurations.
-  The generated ``config/cartpole`` directory is one common organization, not a
-  required robot-based hierarchy. A project can instead organize families by
-  behavior or another useful axis.
+The project name identifies the repository and Python package. Task-wide MDP
+terms live under the separately named task family. Robot-specific scenes,
+registrations, and agent configurations live under ``config/<robot-name>``.
+This separation lets a project add another robot configuration without copying
+the task MDP, or add another task family without creating another repository.
 
 Code shared by several task families can live in a package such as
 ``tasks/mdp``. The generated task importer skips packages named ``mdp`` while it
@@ -176,37 +166,38 @@ A generated project resembles:
 
 .. code-block:: text
 
-   my_cartpole/
+   my_robot_project/
+   ├── LICENSE
    ├── pyproject.toml
    ├── README.md
    ├── scripts/
    │   └── list_envs.py
-   └── source/
-       └── my_cartpole/
-           ├── pyproject.toml
-           ├── docs/
-           │   └── CHANGELOG.rst
-           ├── config/
-           │   └── extension.toml
-           └── my_cartpole/
-               ├── __init__.py
-               ├── ui_extension_example.py
-               └── tasks/
-                   ├── __init__.py
-                   └── my_cartpole/
-                       ├── mdp/
-                       └── config/
-                           └── cartpole/
-                               ├── agents/
-                               └── my_cartpole_env_cfg.py
+   ├── src/
+   │   └── my_robot_project/
+   │       ├── __init__.py
+   │       └── tasks/
+   │           ├── __init__.py
+   │           └── balance/
+   │               ├── mdp/
+   │               └── config/
+   │                   └── cartpole/
+   │                       ├── agents/
+   │                       └── env_cfg.py
+   └── tests/
+       └── test_registration.py
 
-The optional ``ui_extension_example.py`` demonstrates an Isaac Sim Extension
-Manager UI. If the project does not need that UI, delete the file and its
-``[[python.module]]`` entry from ``config/extension.toml``.
+The generated package ``__init__.py`` is intentionally passive. Installing the
+project exposes ``my_robot_project.tasks`` through the ``isaaclab.tasks`` entry
+point, so importing the package for utilities does not eagerly register tasks.
 
-Run commands from the project root so ``uv`` can find the workspace and task
-entry point. Commit both ``pyproject.toml`` files and ``uv.lock`` to give
-collaborators the same dependency resolution.
+If you opt into the Isaac Sim UI extension, the generator additionally creates
+``config/extension.toml`` and ``src/my_robot_project/ui_extension_example.py``.
+Launch Isaac Sim with the generated ``isaacsim`` extra when using it. The
+default is a headless task package and does not include these files.
+
+Run commands from the project root so ``uv`` can find the package and task entry
+point. Commit ``pyproject.toml`` and ``uv.lock`` to give collaborators the same
+dependency resolution.
 
 Develop the generated task
 --------------------------
@@ -221,7 +212,7 @@ the action and observation paths:
    uv run isaaclab random_agent --task <TASK_NAME> --num_envs 16
 
 Edit the generated environment configuration and task terms under
-``source/<project-name>/<project-name>/tasks``. The generated package is
+``src/<project-name>/tasks``. The generated package is
 installed in editable mode, so you do not need to reinstall it after each
 change.
 
@@ -235,9 +226,11 @@ Use the remaining project commands as the task matures:
       --num_envs 16 --num_steps 1000
    uv run pre-commit run --all-files
 
-The generated ``pyproject.toml`` installs pytest for development and registers
-the ``unit``, ``integration``, ``smoke``, and ``kitless`` markers. Put
-project-owned tests under ``tests`` and run them with:
+The generator includes ``tests/test_registration.py`` to verify the task IDs,
+environment entry points, and default agent. Its ``pyproject.toml`` installs
+pytest for development and registers the ``unit``, ``integration``, ``smoke``,
+and ``kitless`` markers. Add project-owned behavioral tests under ``tests`` and
+run them with:
 
 .. code-block:: bash
 
@@ -278,6 +271,10 @@ Troubleshooting
 **The project name is rejected**
    Use a valid Python identifier containing letters, numbers, and underscores,
    without spaces or hyphens. The name cannot begin with a number.
+
+**The task family or robot/config name is rejected**
+   Use a valid Python identifier for each name. These names become package
+   directories under ``src/<project-name>/tasks``.
 
 **The CLI cannot find the generated task**
    Run ``uv sync`` and invoke the command from the generated project root. Then
