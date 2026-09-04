@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from pxr import Usd
+
 from isaaclab.sim import usd_export as shared
 from isaaclab.sim.usd_export import ArticulationPrimPaths
 
@@ -46,18 +48,22 @@ def resolve_articulation_prim_paths(articulation: Articulation, env_index: int =
     )
 
 
-def write_articulation_state_to_stage(articulation: Articulation, env_index: int = 0) -> list[str]:
+def write_articulation_state_to_stage(
+    articulation: Articulation, env_index: int = 0, *, stage: Usd.Stage | None = None
+) -> list[str]:
     """Author a PhysX articulation's simulated state onto the prims it was spawned from.
 
     Args:
         articulation: The articulation to read.
         env_index: Environment to write. Defaults to ``0``.
+        stage: Stage to author onto; defaults to the live stage. See
+            :func:`isaaclab.sim.usd_export.write_articulation_state_to_stage`.
 
     Returns:
         The prim paths written, bodies first.
     """
     paths = resolve_articulation_prim_paths(articulation, env_index)
-    return shared.write_articulation_state_to_stage(articulation, paths, env_index=env_index)
+    return shared.write_articulation_state_to_stage(articulation, paths, env_index=env_index, stage=stage)
 
 
 def export_articulation_to_usd(articulation: Articulation, usd_path: str, env_index: int = 0) -> str:

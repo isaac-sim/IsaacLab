@@ -54,14 +54,20 @@ if TYPE_CHECKING:
 # wrong one returns an unauthored drive rather than an error.
 _DRIVE_TOKEN = {"PhysicsPrismaticJoint": "linear", "PhysicsRevoluteJoint": "angular"}
 
-# Revolute joints are radians in the simulation and degrees on the stage: limits scale by 180/pi and
-# drive gains, being per unit angle, by pi/180. Prismatic joints are metres on both sides.
+# Revolute joints are radians in the simulation and degrees on the stage: limits scale by 180/pi;
+# drive gains and the viscous friction coefficient, being per unit angle or angular rate, by pi/180.
+# Prismatic joints are metres on both sides.
 _DEGREE_LIMIT_JOINT = "PhysicsRevoluteJoint"
 _PER_DEGREE = math.pi / 180.0
 
 # Armature and joint friction have no UsdPhysics home. They are authored under the PhysX add-on
 # namespace directly rather than through ``PhysxSchema``, which the kitless runtimes do not ship.
+# Friction is the per-axis static/dynamic/viscous model the runtimes simulate; the legacy scalar
+# ``physxJoint:jointFriction`` is not read back into it, so it is not written. Once the per-axis
+# schema is applied it shadows the joint-level armature, so armature is authored in both places.
 _PHYSX_JOINT_SCHEMA = "PhysxJointAPI"
+_PHYSX_JOINT_AXIS_SCHEMA = "PhysxJointAxisAPI"
+_AXIS_ATTRIBUTES = ("armature", "staticFrictionEffort", "dynamicFrictionEffort", "viscousFrictionCoefficient")
 
 
 @dataclass(frozen=True)
@@ -86,22 +92,36 @@ def _author_joint_state(
     stiffness: float,
     damping: float,
     armature: float,
-    friction: float,
+    friction: tuple[float, float, float],
     lower_limit: float,
     upper_limit: float,
 ) -> None:
-    """Write one joint's simulated properties onto its prim."""
+    """Write one joint's simulated properties onto its prim.
+
+    ``friction`` is the (static effort, dynamic effort, viscous coefficient) triple of the drive axis.
+    """
     token = _DRIVE_TOKEN.get(prim.GetTypeName())
     if token is not None:
         gain_scale = _PER_DEGREE if prim.GetTypeName() == _DEGREE_LIMIT_JOINT else 1.0
-        drive = UsdPhysics.DriveAPI.Apply(prim, token)
+        drive = (
+            UsdPhysics.DriveAPI(prim, token)
+            if prim.HasAPI(UsdPhysics.DriveAPI, token)
+            else UsdPhysics.DriveAPI.Apply(prim, token)
+        )
         drive.CreateStiffnessAttr().Set(float(stiffness) * gain_scale)
         drive.CreateDampingAttr().Set(float(damping) * gain_scale)
+
+        axis_schema = f"{_PHYSX_JOINT_AXIS_SCHEMA}:{token}"
+        if axis_schema not in prim.GetAppliedSchemas():
+            prim.AddAppliedSchema(axis_schema)
+        static_friction, dynamic_friction, viscous_friction = friction
+        axis_values = (armature, static_friction, dynamic_friction, viscous_friction * gain_scale)
+        for name, value in zip(_AXIS_ATTRIBUTES, axis_values):
+            safe_set_attribute_on_usd_prim(prim, f"physxJointAxis:{token}:{name}", float(value), camel_case=False)
 
     if _PHYSX_JOINT_SCHEMA not in prim.GetAppliedSchemas():
         prim.AddAppliedSchema(_PHYSX_JOINT_SCHEMA)
     safe_set_attribute_on_usd_prim(prim, "physxJoint:armature", float(armature), camel_case=False)
-    safe_set_attribute_on_usd_prim(prim, "physxJoint:jointFriction", float(friction), camel_case=False)
 
     if not (math.isfinite(lower_limit) and math.isfinite(upper_limit)):
         return
@@ -114,18 +134,28 @@ def _author_joint_state(
 
 
 def write_articulation_state_to_stage(
-    articulation: BaseArticulation, prim_paths: ArticulationPrimPaths, env_index: int = 0
+    articulation: BaseArticulation,
+    prim_paths: ArticulationPrimPaths,
+    env_index: int = 0,
+    *,
+    stage: Usd.Stage | None = None,
 ) -> list[str]:
     """Author an articulation's simulated state onto the prims it was spawned from.
 
     Body masses and joint drive gains, armature, friction and limits are read from the simulation
-    and written onto the stage, replacing the spawn-time values it still carries.
+    and written onto the stage, replacing the spawn-time values it still carries. Schemas are applied
+    only where absent; existing attributes are overwritten in place.
 
     Args:
         articulation: The articulation to read. It must be initialized, since the values come from
             the running simulation rather than from its configuration.
         prim_paths: The environment's prim paths, supplied by the backend.
         env_index: Environment whose state to author. Defaults to ``0``.
+        stage: Stage to author onto; it must hold the same prim paths as the live stage. Defaults to
+            the live stage itself, which the simulation keeps reading: on PhysX, applying a schema to
+            a prim that is an articulation root invalidates every articulation view on the stage for
+            the rest of the session. Pass a flattened copy, as :func:`export_articulation_to_usd`
+            does, to leave the running simulation untouched.
 
     Returns:
         The prim paths written, bodies first.
@@ -144,7 +174,7 @@ def write_articulation_state_to_stage(
         )
 
     data = articulation.data
-    stage = articulation.stage
+    stage = articulation.stage if stage is None else stage
 
     # Backend order indexes the paths; public order indexes the data. Join by name -- a reordered
     # articulation would otherwise take every value from the wrong row.
@@ -156,7 +186,9 @@ def write_articulation_state_to_stage(
     stiffness = data.joint_stiffness.torch[env_index].tolist()
     damping = data.joint_damping.torch[env_index].tolist()
     armature = data.joint_armature.torch[env_index].tolist()
-    friction = data.joint_friction_coeff.torch[env_index].tolist()
+    static_friction = data.joint_friction_coeff.torch[env_index].tolist()
+    dynamic_friction = data.joint_dynamic_friction_coeff.torch[env_index].tolist()
+    viscous_friction = data.joint_viscous_friction_coeff.torch[env_index].tolist()
     limits = data.joint_pos_limits.torch[env_index].tolist()
 
     def resolve(path: str, name: str, rows: dict[str, int], kind: str) -> tuple[Usd.Prim, int]:
@@ -168,20 +200,26 @@ def write_articulation_state_to_stage(
             raise RuntimeError(f"{kind} '{name}' is in the backend order but absent from the public order.")
         return prim, row
 
-    written: list[str] = []
-    for backend_index, path in enumerate(prim_paths.bodies):
-        prim, row = resolve(path, articulation.backend_body_names[backend_index], body_row, "Body")
-        UsdPhysics.MassAPI.Apply(prim).CreateMassAttr().Set(masses[row])
-        written.append(path)
+    # Read everything before writing anything. Applying a schema to a prim on a live PhysX stage
+    # invalidates the tensor view the articulation reads its names through, so a read interleaved
+    # with the writes fails on assets that did not already carry the schema.
+    body_names = list(articulation.backend_body_names)
+    joint_names = list(articulation.backend_joint_names)
+    body_targets = [resolve(path, body_names[i], body_row, "Body") for i, path in enumerate(prim_paths.bodies)]
+    joint_targets = [resolve(path, joint_names[i], joint_row, "Joint") for i, path in enumerate(prim_paths.joints)]
 
-    for backend_index, path in enumerate(prim_paths.joints):
-        prim, row = resolve(path, articulation.backend_joint_names[backend_index], joint_row, "Joint")
+    written: list[str] = []
+    for (prim, row), path in zip(body_targets, prim_paths.bodies):
+        mass_api = UsdPhysics.MassAPI(prim) if prim.HasAPI(UsdPhysics.MassAPI) else UsdPhysics.MassAPI.Apply(prim)
+        mass_api.CreateMassAttr().Set(masses[row])
+        written.append(path)
+    for (prim, row), path in zip(joint_targets, prim_paths.joints):
         _author_joint_state(
             prim,
             stiffness=stiffness[row],
             damping=damping[row],
             armature=armature[row],
-            friction=friction[row],
+            friction=(static_friction[row], dynamic_friction[row], viscous_friction[row]),
             lower_limit=limits[row][0],
             upper_limit=limits[row][1],
         )
@@ -195,8 +233,8 @@ def export_articulation_to_usd(
 ) -> str:
     """Export one environment's articulation, as simulated, to a USD file.
 
-    The live stage is patched in place -- it now describes the simulation -- and its flattened form is
-    written to ``usd_path``. The live stage's own file is not saved.
+    The live stage is flattened first and the simulated state is authored onto that snapshot, so the
+    running simulation never sees the edits. The live stage's own file is not saved.
 
     Args:
         articulation: The articulation to export.
@@ -207,6 +245,7 @@ def export_articulation_to_usd(
     Returns:
         The path the stage was written to.
     """
-    write_articulation_state_to_stage(articulation, prim_paths, env_index=env_index)
-    articulation.stage.Flatten().Export(str(usd_path))
+    snapshot = Usd.Stage.Open(articulation.stage.Flatten())
+    write_articulation_state_to_stage(articulation, prim_paths, env_index=env_index, stage=snapshot)
+    snapshot.Export(str(usd_path))
     return str(usd_path)

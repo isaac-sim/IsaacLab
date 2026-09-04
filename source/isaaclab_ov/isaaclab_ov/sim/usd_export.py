@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from pxr import Usd
+from pxr import Usd, UsdPhysics
 
 from isaaclab.sim import usd_export as shared
 from isaaclab.sim.usd_export import ArticulationPrimPaths
@@ -29,32 +29,34 @@ if TYPE_CHECKING:
 __all__ = ["export_articulation_to_usd", "resolve_articulation_prim_paths", "write_articulation_state_to_stage"]
 
 
-def _index_subtree_by_name(stage: Usd.Stage, root_path: str) -> dict[str, str]:
-    """Map prim name to prim path for everything under ``root_path``.
+def _index_subtree_by_name(stage: Usd.Stage, root_path: str) -> tuple[dict[str, str], dict[str, str]]:
+    """Map prim name to prim path under ``root_path``, separately for joints and for everything else.
 
-    Names are unique within an articulation -- the backend identifies bodies and joints by them --
-    so a name-keyed index is enough to recover a path. Where a name does repeat, the shallowest prim
-    wins, matching the one the articulation was built from rather than a nested duplicate.
+    Bodies and joints are separate name spaces in the backend and may collide on the stage -- Ant has a
+    body and a joint both called ``front_left_leg`` -- so a single index would send joint writes onto
+    the body prim. Within a kind the shallowest prim wins, matching the one the articulation was built
+    from rather than a nested duplicate.
 
     Args:
         stage: Stage holding the articulation.
-        root_path: Prim path of the articulation root.
+        root_path: Prim path to index beneath.
 
     Returns:
-        A map of prim name to prim path.
+        ``(bodies, joints)`` maps of prim name to prim path.
     """
     root = stage.GetPrimAtPath(root_path)
     if not root.IsValid():
         raise ValueError(f"Articulation root '{root_path}' is not a prim on the stage.")
 
-    index: dict[str, str] = {}
+    bodies: dict[str, str] = {}
+    joints: dict[str, str] = {}
     for prim in Usd.PrimRange(root):
+        index = joints if prim.IsA(UsdPhysics.Joint) else bodies
         path = prim.GetPath().pathString
-        name = prim.GetName()
-        current = index.get(name)
+        current = index.get(prim.GetName())
         if current is None or path.count("/") < current.count("/"):
-            index[name] = path
-    return index
+            index[prim.GetName()] = path
+    return bodies, joints
 
 
 def resolve_articulation_prim_paths(articulation: Articulation, env_index: int = 0) -> ArticulationPrimPaths:
@@ -75,35 +77,53 @@ def resolve_articulation_prim_paths(articulation: Articulation, env_index: int =
     if env_index >= len(roots):
         raise ValueError(f"Environment {env_index} is out of range for a view matching {len(roots)} articulations.")
 
-    by_name = _index_subtree_by_name(articulation.stage, roots[env_index])
+    # The view matches the prim carrying ArticulationRootAPI. Where that sits varies by asset: the
+    # top-level Xform (Franka), or a link whose siblings are the other links (Ant's torso). Walk up
+    # from it to the nearest ancestor whose subtree holds every body and joint name; that ancestor is
+    # the articulation, whatever the asset called it.
+    stage = articulation.stage
+    body_names, joint_names = articulation.backend_body_names, articulation.backend_joint_names
+    prim = stage.GetPrimAtPath(roots[env_index])
+    while True:
+        index_root = prim.GetPath().pathString
+        body_paths, joint_paths = _index_subtree_by_name(stage, index_root)
+        if set(body_names) <= set(body_paths) and set(joint_names) <= set(joint_paths):
+            break
+        if prim.GetParent().IsPseudoRoot() or not prim.GetParent().IsValid():
+            break
+        prim = prim.GetParent()
 
-    def resolve(names: list[str], kind: str) -> list[str]:
-        missing = [name for name in names if name not in by_name]
+    def resolve(names: list[str], paths: dict[str, str], kind: str) -> list[str]:
+        missing = [name for name in names if name not in paths]
         if missing:
             raise ValueError(
-                f"No prim under '{roots[env_index]}' for {kind}: {', '.join(missing)}. Exporting would"
+                f"No {kind} prim under '{index_root}' for: {', '.join(missing)}. Exporting would"
                 f" describe only part of the articulation."
             )
-        return [by_name[name] for name in names]
+        return [paths[name] for name in names]
 
     return ArticulationPrimPaths(
-        bodies=resolve(articulation.backend_body_names, "bodies"),
-        joints=resolve(articulation.backend_joint_names, "joints"),
+        bodies=resolve(body_names, body_paths, "body"),
+        joints=resolve(joint_names, joint_paths, "joint"),
     )
 
 
-def write_articulation_state_to_stage(articulation: Articulation, env_index: int = 0) -> list[str]:
+def write_articulation_state_to_stage(
+    articulation: Articulation, env_index: int = 0, *, stage: Usd.Stage | None = None
+) -> list[str]:
     """Author an OVPhysX articulation's simulated state onto the prims it was spawned from.
 
     Args:
         articulation: The articulation to read.
         env_index: Environment to write. Defaults to ``0``.
+        stage: Stage to author onto; defaults to the live stage. See
+            :func:`isaaclab.sim.usd_export.write_articulation_state_to_stage`.
 
     Returns:
         The prim paths written, bodies first.
     """
     paths = resolve_articulation_prim_paths(articulation, env_index)
-    return shared.write_articulation_state_to_stage(articulation, paths, env_index=env_index)
+    return shared.write_articulation_state_to_stage(articulation, paths, env_index=env_index, stage=stage)
 
 
 def export_articulation_to_usd(articulation: Articulation, usd_path: str, env_index: int = 0) -> str:
