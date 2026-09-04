@@ -411,8 +411,8 @@ class TerrainImporter:
         """Compute the origins of the environments in a grid based on configured spacing."""
         from isaaclab.cloner import grid_transforms
 
-        env_origins, _ = grid_transforms(num_envs, env_spacing, device=self.device)
-        return env_origins
+        env_origins, _ = grid_transforms(num_envs, env_spacing)
+        return torch.as_tensor(env_origins, device=self.device)
 
     """
     Deprecated.

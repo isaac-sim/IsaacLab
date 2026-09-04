@@ -727,19 +727,8 @@ def test_mixed_deformable_rigid_scene_does_not_duplicate_runtime_clones():
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="OVPhysX deformables require CUDA")
-def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets(
-    monkeypatch: pytest.MonkeyPatch,
-):
+def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets():
     """Materialize missing rigid targets beside full-stage deformable clones without duplicates."""
-    from isaaclab import cloner
-
-    clone_cfg_type = cloner.CloneCfg
-    monkeypatch.setattr(
-        cloner,
-        "CloneCfg",
-        lambda device: clone_cfg_type(device=device, clone_strategy=cloner.sequential),
-    )
-
     with _ovphysx_sim_context(device="cuda:0") as sim:
         num_envs = 4
         scene = InteractiveScene(
@@ -753,8 +742,8 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         assert plan is not None
         shape_rows = plan.cfg_rows[id(scene.cfg.shape)]
         shape_mask = plan.clone_mask[list(shape_rows)]
-        assert shape_mask.sum(dim=1).tolist() == [2, 2]
-        assert shape_mask.sum(dim=0).tolist() == [1, 1, 1, 1]
+        assert shape_mask.sum(axis=1).tolist() == [2, 2]
+        assert shape_mask.sum(axis=0).tolist() == [1, 1, 1, 1]
 
         expected_paths = {f"/World/envs/env_{index}/Shape" for index in range(num_envs)}
         source_paths = {plan.sources[row] for row in shape_rows}

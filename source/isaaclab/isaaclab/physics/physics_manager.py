@@ -86,6 +86,7 @@ class PhysicsManager(ABC):
     _callbacks: ClassVar[dict[int, tuple[Any, Callable, int, str | None, Any]]] = {}
     _callback_id: ClassVar[int] = 0
     views: ClassVar[dict[tuple[type, str], Any]] = {}
+    clone_context_type: ClassVar[type[object] | None] = None
 
     supports_anim_recording: ClassVar[bool] = False
     """Whether this backend can service ``--anim_recording_enabled`` (OVD Recorder).
