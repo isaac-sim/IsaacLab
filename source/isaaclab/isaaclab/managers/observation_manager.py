@@ -396,7 +396,7 @@ class ObservationManager(ManagerBase):
             # apply post-processing
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
-                    if isinstance(modifier, modifiers.ModifierBaseCfg):
+                    if isinstance(modifier.func, modifiers.ModifierBase):
                         obs = modifier.func(obs)
                     else:
                         obs = modifier.func(obs, **modifier.params)
@@ -589,7 +589,7 @@ class ObservationManager(ManagerBase):
                             )
 
                         # construct stateful modifiers with the observation size
-                        if isinstance(mod_cfg, modifiers.ModifierBaseCfg):
+                        if inspect.isclass(mod_cfg.func):
                             mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
                             if not isinstance(mod_cfg.func, modifiers.ModifierBase):
                                 raise TypeError(

@@ -20,38 +20,25 @@ if TYPE_CHECKING:
 
 @configclass
 class ModifierCfg:
-    """Configuration parameters for stateless function modifiers."""
+    """Configuration parameters for function and class modifiers."""
 
-    func: Callable[..., torch.Tensor] = MISSING
-    """Function used by the modifier.
+    func: Callable[..., torch.Tensor] | type[ModifierBase] | str = MISSING
+    """Function or :class:`ModifierBase` class used by the modifier.
 
-    The function must take a torch tensor as the first argument. The remaining arguments are specified
-    in the :attr:`params` attribute.
+    Functions must take a tensor as their first argument. Classes must inherit from :class:`ModifierBase`; the
+    observation manager constructs them with the configuration, observation dimensions, and device.
     """
 
     params: dict[str, Any] = dict()
-    """The parameters passed to the function as keyword arguments. Defaults to an empty dictionary."""
+    """Parameters used by the modifier. Defaults to an empty dictionary.
 
-
-@configclass
-class ModifierBaseCfg(ModifierCfg):
-    """Configuration parameters for stateful class modifiers implemented by :class:`ModifierBase`."""
-
-    func: type[ModifierBase] | str = MISSING
-    """Class implementing the modifier.
-
-    The observation manager constructs this class with the configuration, observation dimensions, and device.
-    """
-
-    params: dict[str, Any] = dict()
-    """Parameters available to the constructor through this configuration.
-
-    These values are not forwarded when calling the constructed modifier instance.
+    Function modifiers receive them as keyword arguments on each call. Class modifiers access them through this
+    configuration during construction; they are not forwarded to the constructed instance.
     """
 
 
 @configclass
-class DigitalFilterCfg(ModifierBaseCfg):
+class DigitalFilterCfg(ModifierCfg):
     """Configuration parameters for a digital filter modifier.
 
     For more information, please check the :class:`DigitalFilter` class.
@@ -82,7 +69,7 @@ class DigitalFilterCfg(ModifierBaseCfg):
 
 
 @configclass
-class IntegratorCfg(ModifierBaseCfg):
+class IntegratorCfg(ModifierCfg):
     """Configuration parameters for an integrator modifier.
 
     For more information, please check the :class:`Integrator` class.

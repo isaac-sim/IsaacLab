@@ -168,8 +168,7 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     or stateful, and can be used to apply transformations to the observation data. For example,
     a modifier can be used to normalize the observation data or to apply a rolling average.
 
-    For more information on modifiers, see :class:`~isaaclab.utils.modifiers.ModifierCfg` and
-    :class:`~isaaclab.utils.modifiers.ModifierBaseCfg`.
+    For more information on modifiers, see the :class:`~isaaclab.utils.modifiers.ModifierCfg` class.
     """
 
     noise: NoiseCfg | NoiseModelCfg | None = None

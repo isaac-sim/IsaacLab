@@ -51,7 +51,7 @@ class DummyEnv:
 class StatefulBiasModifier(modifiers.ModifierBase):
     """Stateful modifier used to verify lazy callable resolution."""
 
-    def __init__(self, cfg: modifiers.ModifierBaseCfg, data_dim: tuple[int, ...], device: str) -> None:
+    def __init__(self, cfg: modifiers.ModifierCfg, data_dim: tuple[int, ...], device: str) -> None:
         super().__init__(cfg, data_dim, device)
         self.value = cfg.params["value"]
         self.reset_count = 0
@@ -63,9 +63,11 @@ class StatefulBiasModifier(modifiers.ModifierBase):
         return data + self.value
 
 
-def invalid_modifier_factory(cfg, data_dim, device):
-    """Return an invalid stateful modifier implementation."""
-    return object()
+class InvalidModifier:
+    """Class with the modifier constructor contract but the wrong base type."""
+
+    def __init__(self, cfg, data_dim, device):
+        pass
 
 
 @configclass
@@ -84,18 +86,18 @@ class HistoryObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-def test_stateful_modifier_cfg_roundtrip_preserves_func():
-    """A stateful modifier remains usable after its function becomes a lazy string."""
+def test_class_modifier_roundtrip_preserves_func_and_params():
+    """Reproduce #6067 with a class modifier and non-empty parameters."""
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = None
-    cfg.policy.dummy.modifiers = [modifiers.ModifierBaseCfg(func=StatefulBiasModifier, params={"value": 2.0})]
+    cfg.policy.dummy.modifiers = [modifiers.ModifierCfg(func=StatefulBiasModifier, params={"value": 2.0})]
     cfg.from_dict(cfg.to_dict())
     term_cfg = cfg.policy.dummy
     assert term_cfg.modifiers is not None
     modifier_cfg = term_cfg.modifiers[0]
-    assert isinstance(modifier_cfg, modifiers.ModifierBaseCfg)
+    assert isinstance(modifier_cfg, modifiers.ModifierCfg)
+    assert isinstance(modifier_cfg.func, str)
     assert modifier_cfg.params == {"value": 2.0}
-    assert not hasattr(modifier_cfg, "class_type")
 
     env = DummyEnv()
     manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
@@ -123,22 +125,27 @@ def test_stateless_modifier_cfg_roundtrip_preserves_signature_validation():
     torch.testing.assert_close(observations, env.observation + 2.0)
 
 
-def test_stateful_modifier_cfg_validates_constructed_instance():
-    """Stateful modifier validation checks the constructed object."""
+def test_class_modifier_validates_constructed_instance():
+    """Class modifier validation checks the constructed object."""
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = None
-    cfg.policy.dummy.modifiers = [modifiers.ModifierBaseCfg(func=invalid_modifier_factory)]
+    cfg.policy.dummy.modifiers = [modifiers.ModifierCfg(func=InvalidModifier)]
     cfg.from_dict(cfg.to_dict())
 
     with pytest.raises(TypeError, match="is not an instance of 'ModifierBase'"):
         ObservationManager(cfg, cast("ManagerBasedEnv", DummyEnv()))
 
 
-def test_stateful_modifier_dispatch_does_not_inspect_implementation_class():
-    """Stateful modifier lifecycle is selected from its configuration type."""
+def test_modifier_resolution_stays_out_of_observation_manager():
+    """Observation-specific code receives resolved modifier callables from ``ManagerBase``."""
     source = inspect.getsource(ObservationManager._prepare_terms)
-    assert "inspect.isclass(mod_cfg.func)" not in source
+    assert "inspect.isclass(mod_cfg.func)" in source
     assert "string_to_callable" not in source
+
+
+def test_modifier_base_cfg_marker_does_not_exist():
+    """Stateful modifiers must not require a marker configuration subtype."""
+    assert not hasattr(modifiers, "ModifierBaseCfg")
 
 
 def test_compute_updates_history_only_when_requested():

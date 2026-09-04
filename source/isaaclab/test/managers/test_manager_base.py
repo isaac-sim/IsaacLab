@@ -22,6 +22,7 @@ import torch
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg
 from isaaclab.managers.manager_base import ManagerBase
+from isaaclab.utils import modifiers
 from isaaclab.utils.configclass import configclass
 
 pytestmark = pytest.mark.integration
@@ -74,7 +75,7 @@ def reset_dummy2_to_zero(env, env_ids: torch.Tensor):
 class OpaqueCfg:
     """Configuration that is outside ``ManagerBase`` ownership."""
 
-    func: str = "linear"
+    func: str = f"{__name__}:reset_dummy2_to_zero"
 
 
 @configclass
@@ -82,7 +83,8 @@ class NestedFieldTermCfg(ManagerTermBaseCfg):
     """Manager term with owned and opaque fields outside ``params``."""
 
     nested_term: ManagerTermBaseCfg = ManagerTermBaseCfg(func=increment_dummy1_by_one)
-    metadata: dict[str, str] = {"func": "linear"}
+    modifier: modifiers.ModifierCfg = modifiers.ModifierCfg(func=increment_dummy1_by_one)
+    metadata: dict[str, str] = {"func": f"{__name__}:reset_dummy2_to_zero"}
     opaque: OpaqueCfg = OpaqueCfg()
 
 
@@ -235,20 +237,21 @@ def test_string_func_in_nested_term_cfg(env):
 
 
 def test_resolution_walks_declared_term_fields_outside_params(env):
-    """Manager-owned values are resolved in declared fields without traversing opaque configurations."""
-    cfg = {
-        "outer": NestedFieldTermCfg(
-            func=increment_dummy1_by_one,
-            nested_term=ManagerTermBaseCfg(func=f"{__name__}:reset_dummy2_to_zero"),
-        )
-    }
+    """Resolve nested term and modifier callables without interpreting arbitrary ``func`` keys."""
+    outer_cfg = NestedFieldTermCfg(
+        func=increment_dummy1_by_one,
+        nested_term=ManagerTermBaseCfg(func=f"{__name__}:reset_dummy2_to_zero"),
+    )
+    outer_cfg.from_dict(outer_cfg.to_dict())
+    cfg = {"outer": outer_cfg}
     manager = SimpleManager(cfg, env)
 
     term_cfg = manager._term_cfgs[0][1]
     assert isinstance(term_cfg, NestedFieldTermCfg)
     assert term_cfg.nested_term.func is reset_dummy2_to_zero
-    assert term_cfg.metadata == {"func": "linear"}
-    assert term_cfg.opaque.func == "linear"
+    assert term_cfg.modifier.func is increment_dummy1_by_one
+    assert isinstance(term_cfg.metadata["func"], str)
+    assert isinstance(term_cfg.opaque.func, str)
 
 
 def test_string_func_top_level_class_term(env):

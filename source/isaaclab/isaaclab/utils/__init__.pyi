@@ -30,7 +30,6 @@ __all__ = [
     "convert_faces_to_triangles",
     "PRIMITIVE_MESH_TYPES",
     "ModifierCfg",
-    "ModifierBaseCfg",
     "ModifierBase",
     "DigitalFilter",
     "DigitalFilterCfg",
@@ -81,7 +80,6 @@ from .mesh import (
     PRIMITIVE_MESH_TYPES,
 )
 from .modifiers import (
-    ModifierBaseCfg,
     ModifierCfg,
     ModifierBase,
     DigitalFilter,

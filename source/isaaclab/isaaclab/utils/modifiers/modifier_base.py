@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 if TYPE_CHECKING:
-    from .modifier_cfg import ModifierBaseCfg
+    from .modifier_cfg import ModifierCfg
 
 
 class ModifierBase(ABC):
@@ -25,19 +25,25 @@ class ModifierBase(ABC):
     This is useful for modifiers that require stateful operations, such as rolling averages
     or delays or decaying filters.
 
-    Constructor settings for a class-based modifier belong to a dedicated
-    :class:`~isaaclab.utils.modifiers.ModifierBaseCfg` subclass. For example:
+    Example pseudo-code to create and use the class:
 
     .. code-block:: python
 
         from isaaclab.utils import modifiers
 
-        modifier_config = modifiers.DigitalFilterCfg(A=[0.0], B=[0.0, 1.0])
-        my_modifier = modifiers.DigitalFilter(cfg=modifier_config, data_dim=(256, 128), device="cuda")
+        # define custom keyword arguments to pass to ModifierCfg
+        kwarg_dict = {"arg_1": VAL_1, "arg_2": VAL_2}
+
+        # create modifier configuration object
+        # func is the class name of the modifier and params is the dictionary of arguments
+        modifier_config = modifiers.ModifierCfg(func=modifiers.ModifierBase, params=kwarg_dict)
+
+        # define modifier instance
+        my_modifier = modifiers.ModifierBase(cfg=modifier_config)
 
     """
 
-    def __init__(self, cfg: ModifierBaseCfg, data_dim: tuple[int, ...], device: str) -> None:
+    def __init__(self, cfg: ModifierCfg, data_dim: tuple[int, ...], device: str) -> None:
         """Initializes the modifier class.
 
         Args:
