@@ -518,7 +518,7 @@ class IsaacRtxRenderer(BaseRenderer):
             rows = math.ceil(view_count / cols)
             return (cols, rows)
 
-        num_tiles_x = tiling_grid_shape()[0]
+        num_tiles_x, num_tiles_y = tiling_grid_shape()
 
         # Extract the flattened image buffer
         for data_type, annotator in render_data.annotators.items():
@@ -588,13 +588,18 @@ class IsaacRtxRenderer(BaseRenderer):
             else:
                 buf_wp = output_data[data_type].warp
 
-            # ``reshape_tiled_image`` indexes the tiled buffer as (rows, cols, channels). Single-channel
-            # annotators (e.g. depth, non-colorized segmentation) hand back a 2D buffer, so add the
-            # trailing channel dimension. Passing the buffer in 3D rather than flattening it keeps every
-            # dimension well inside Warp's per-dimension array size limit, so large environment counts and
+            # ``reshape_tiled_image`` indexes the tiled buffer as
+            # (num_tiles_y * height, num_tiles_x * width, channels). Annotators hand this data back with
+            # varying shapes: 3D for multi-channel outputs, 2D for single-channel ones, and 2D
+            # ``(pixels, 4)`` for the colorized segmentation buffers reinterpreted above. Reshape to the
+            # documented tiled geometry rather than inferring it from ``ndim``, which silently mis-indexes
+            # the reinterpreted segmentation buffers. Reshaping instead of flattening keeps every
+            # dimension within Warp's per-dimension array size limit, so large environment counts and
             # camera resolutions no longer overflow a single flattened dimension.
-            if tiled_data_buffer.ndim == 2:
-                tiled_data_buffer = tiled_data_buffer.reshape((*tiled_data_buffer.shape, 1))
+            tile_height, tile_width, num_channels = (int(dim) for dim in buf_wp.shape[1:])
+            tiled_data_buffer = tiled_data_buffer.reshape(
+                (num_tiles_y * tile_height, num_tiles_x * tile_width, num_channels)
+            )
 
             wp.launch(
                 kernel=reshape_tiled_image,
