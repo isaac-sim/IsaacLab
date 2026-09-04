@@ -1317,6 +1317,51 @@ If you need to track sensor poses in world frame, please use a dedicated sensor 
    sensor_quat = frame_transformer.data.target_quat_w
 
 
+.. rubric:: Contact force property names
+
+Contact sensor force properties now state whether they contain aggregate or filtered normal and
+friction forces. ``net_forces_w`` is the total contact force (normal + friction). Newton reports
+this quantity directly. PhysX and OVPhysX cannot compute a total force, so they return the
+corresponding normal-force quantity and warn. ``friction_forces_w`` is the aggregate friction
+force. Newton reports it as ``net_friction_forces_w``; PhysX and OVPhysX only provide filtered
+friction, so they return ``friction_force_matrix_w`` and warn.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Property
+     - Meaning
+     - PhysX / OVPhysX
+     - Newton
+   * - ``net_forces_w``
+     - Total contact force
+     - Returns ``net_normal_forces_w`` (cannot compute total force)
+     - Total force (``normal + friction``)
+   * - ``net_forces_w_history``
+     - Total contact-force history
+     - Returns ``net_normal_forces_w_history``
+     - Total-force history
+   * - ``force_matrix_w``
+     - Total filtered force matrix
+     - Returns ``normal_force_matrix_w``
+     - Total filtered matrix
+   * - ``force_matrix_w_history``
+     - Total filtered force history
+     - Returns ``normal_force_matrix_w_history``
+     - Total filtered-matrix history
+   * - ``friction_forces_w``
+     - Aggregate friction force
+     - Returns ``friction_force_matrix_w`` (filtered friction only)
+     - Aggregate friction (``net_friction_forces_w``)
+
+Prefer the explicit names ``net_normal_forces_w``, ``net_friction_forces_w``,
+``normal_force_matrix_w``, and ``friction_force_matrix_w`` (and their ``*_history`` variants)
+when the normal / friction split matters. Newton also exposes ``net_friction_forces_w_history``
+and ``friction_force_matrix_w_history``. PhysX cannot report an unfiltered aggregate friction
+force and raises ``NotImplementedError`` when ``net_friction_forces_w`` or
+``net_friction_forces_w_history`` is accessed; use the filtered friction matrix instead.
+
+
 .. rubric:: Articulation Joint Wrench Data Moved to ``JointWrenchSensor``
 
 The ``ArticulationData.body_incoming_joint_wrench_b`` property has been removed. In
@@ -1872,12 +1917,12 @@ To use a data property as a ``torch.Tensor``, append ``.torch``:
    # After (Isaac Lab 3.x)
    root_pos = robot.data.root_pos_w              # ProxyArray
    joint_pos = robot.data.joint_pos              # ProxyArray
-   contact_forces = sensor.data.net_forces_w     # ProxyArray
+   contact_forces = sensor.data.net_normal_forces_w     # ProxyArray
 
    # To use with torch operations, access .torch
    root_pos_torch = robot.data.root_pos_w.torch        # torch.Tensor
    joint_pos_torch = robot.data.joint_pos.torch        # torch.Tensor
-   contact_torch = sensor.data.net_forces_w.torch      # torch.Tensor
+   contact_torch = sensor.data.net_normal_forces_w.torch      # torch.Tensor
 
 Common patterns that need updating:
 
