@@ -56,6 +56,7 @@ Keep this skill synchronized with `docs/source/overview/core-concepts/multi_back
 - [Examples](examples.md)
 - [Prepare assets for Newton skill](../prepare-assets-for-newton/SKILL.md)
 - [Multi-backend architecture](../../../docs/source/overview/core-concepts/multi_backend_architecture.rst)
+- [Renderers, including asynchronous rendering](../../../docs/source/overview/core-concepts/renderers.rst)
 - [Schema cfgs](../../../docs/source/overview/core-concepts/schema_cfgs.rst)
 - [PhysX installation](../../../docs/source/overview/core-concepts/physical-backends/physx/installation.rst)
 - [Newton installation](../../../docs/source/overview/core-concepts/physical-backends/newton/installation.rst)

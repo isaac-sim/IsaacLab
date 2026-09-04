@@ -78,6 +78,26 @@ JSON. ``schema`` writes the stable, typed JSON bundle used for programmatic
 comparison. With multiple formatters, their filenames include ``_summary`` and
 ``_schema`` respectively.
 
+OVRTX camera tasks can compare synchronous against asynchronous (pipelined) rendering through a
+Hydra override on the camera's renderer configuration. ``True`` trades one frame of camera latency
+for pipelined rendering; ``False`` renders synchronously:
+
+.. code-block:: bash
+
+   uv run isaaclab benchmark runtime \
+       --task Isaac-Cartpole-Camera-Direct \
+       --num_envs 256 \
+       --warmup_steps 30 \
+       --num_steps 200 \
+       --benchmark_formatter schema,omniperf \
+       --output_path ./results/ovrtx_async \
+       physics=newton_mjwarp renderer=ovrtx presets=rgb \
+       env.tiled_camera.renderer_cfg.async_rendering=True
+
+The ``ISAAC_LAB_ASYNC_RENDERING`` environment variable overrides the same setting for any task.
+Only the OVRTX renderer pipelines renders. The other renderers warn and render synchronously.
+See :ref:`renderers-async-data-flow` for how states, observations, and frames line up in each mode.
+
 Warm-Up
 ~~~~~~~
 
