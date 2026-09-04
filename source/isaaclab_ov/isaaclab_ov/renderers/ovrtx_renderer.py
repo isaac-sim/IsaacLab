@@ -1020,9 +1020,9 @@ class OVRTXRenderer(BaseRenderer):
         if body_q is None:
             return
 
-        # The strategy yields the staging buffer for this frame and publishes it to the binding on
-        # context exit. The publication orders OVRTX's read against the device's current Warp stream --
-        # where an unqualified wp.launch enqueues -- so the kernel needs no explicit stream.
+        # The strategy yields this frame's staging buffer and writes it to the binding on context
+        # exit. The write orders OVRTX's read against the device's current Warp stream, where an
+        # unqualified wp.launch enqueues, so the kernel needs no explicit stream.
         num_objects = len(self._object_newton_indices)
         with self._strategy.stage_object_transforms(
             self._object_xform_binding, num_objects, self._object_transform_buffer
@@ -1119,9 +1119,9 @@ class OVRTXRenderer(BaseRenderer):
         if self._camera_xform_binding is None:
             return
         num_envs = positions.shape[0]
-        # The strategy yields staging buffers and publishes the transforms to the binding on context
-        # exit. The publication orders OVRTX's read against the device's current Warp stream -- where
-        # unqualified wp.launch/wp.copy calls enqueue -- so the fill work needs no explicit stream.
+        # The strategy yields staging buffers and writes the transforms to the binding on context
+        # exit. The write orders OVRTX's read against the device's current Warp stream, where
+        # unqualified wp.launch/wp.copy calls enqueue, so the fill work needs no explicit stream.
         with self._strategy.stage_camera_transforms(self._camera_xform_binding, num_envs) as (
             converted_wp,
             camera_transforms,
