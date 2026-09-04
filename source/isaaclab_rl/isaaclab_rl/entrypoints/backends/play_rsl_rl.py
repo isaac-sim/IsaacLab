@@ -218,6 +218,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             screen.close()
             obs = env.get_observations()
             timestep = 0
+            print("[INFO] Policy playback is running, press Ctrl+C to exit...")
             try:
                 while True:
                     start_time = time.time()
