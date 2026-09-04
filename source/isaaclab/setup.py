@@ -33,7 +33,7 @@ INSTALL_REQUIRES = [
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang==1.13.0",
+    "warp-lang>=1.13.0,<2",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).

@@ -61,6 +61,26 @@ def _requirements_from_setup(package_name: str, extra_name: str, dependency_name
     raise AssertionError(f"Could not find EXTRAS_REQUIRE in {setup_path}")
 
 
+def _install_requirements_from_setup(package_name: str, dependency_name: str) -> list[Requirement]:
+    """Return matching install requirements from a source package."""
+    setup_path = _repo_root() / f"source/{package_name}/setup.py"
+    module = ast.parse(setup_path.read_text(encoding="utf-8"))
+
+    for node in module.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(isinstance(target, ast.Name) and target.id == "INSTALL_REQUIRES" for target in node.targets):
+            continue
+        install_requires = ast.literal_eval(node.value)
+        return [
+            requirement
+            for dependency in install_requires
+            if (requirement := Requirement(dependency)).name == dependency_name
+        ]
+
+    raise AssertionError(f"Could not find INSTALL_REQUIRES in {setup_path}")
+
+
 def test_wheel_builder_rsl_rl_pin_matches_source_package():
     """The bundled wheel metadata must install the RSL-RL version required by training scripts."""
     expected_pin = _rsl_rl_pin_from_setup()
@@ -100,6 +120,31 @@ def test_newton_requirements_support_isaac_sim_6_0_and_6_1():
     for requirement in requirements:
         assert Version("1.2.1") in requirement.specifier
         assert Version("1.5.0") in requirement.specifier
+        assert Version("2.0.0") not in requirement.specifier
+
+
+def test_warp_requirements_support_newton_bundled_by_isaac_sim_6_0_and_6_1():
+    """Core Warp requirements must accept the releases needed by bundled Newton versions."""
+    requirements = _install_requirements_from_setup("isaaclab", "warp-lang")
+
+    packages_path = _repo_root() / "tools/wheel_builder/res/python_packages.toml"
+    with packages_path.open("rb") as f:
+        packages = tomllib.load(f)
+    requirements.extend(
+        Requirement(dependency)
+        for dependency in packages["isaaclab"]["pyproject"]["dependencies"]["all"]
+        if dependency.startswith("warp-lang")
+    )
+    optional_dependencies = packages["isaaclab"]["pyproject"]["optional-dependencies"]["all"]
+    dependencies_by_extra = {name: deps for entry in optional_dependencies for name, deps in entry.items()}
+    requirements.extend(
+        Requirement(dependency) for dependency in dependencies_by_extra["newton"] if dependency.startswith("warp-lang")
+    )
+
+    assert len(requirements) == 3
+    for requirement in requirements:
+        assert Version("1.13.0") in requirement.specifier
+        assert Version("1.17.0") in requirement.specifier
         assert Version("2.0.0") not in requirement.specifier
 
 
