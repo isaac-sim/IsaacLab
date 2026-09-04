@@ -9,3 +9,6 @@ Fixed
   ``usd-exchange`` consistently.
 * Kept Fabric change-notice suspension a no-op when ``usdrt`` is unavailable outside a live Kit
   application.
+* Added an FFmpeg-backed fallback for MP4 conversion when Isaac Sim's OpenCV build does not provide
+  video encoder or decoder plugins.
+* Supported Newton 1.5 model-change flags in physics randomization events.

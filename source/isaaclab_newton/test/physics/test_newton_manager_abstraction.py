@@ -201,12 +201,15 @@ def test_initialize_solver_populates_canonical_state(
        :meth:`NewtonManager.start_simulation` to skip
        :meth:`instantiate_builder_from_stage`, so the test does not depend on
        USD asset packages.
+    3. Kamino's internal collision detector requires collidable geometry to
+       construct its collision pipeline.
     """
+    solver_cfg = solver_cfg_factory()
     sim_cfg = SimulationCfg(
         dt=1.0 / 120.0,
         device="cuda:0",
         gravity=(0.0, 0.0, -9.81),
-        physics=NewtonCfg(solver_cfg=solver_cfg_factory(), use_cuda_graph=False),
+        physics=NewtonCfg(solver_cfg=solver_cfg, use_cuda_graph=False),
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
@@ -222,6 +225,9 @@ def test_initialize_solver_populates_canonical_state(
         builder = NewtonManager.create_builder()
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+        if isinstance(solver_cfg, KaminoSolverCfg) and solver_cfg.use_collision_detector:
+            builder.add_shape_sphere(body=body, radius=0.05)
+            builder.add_ground_plane()
         NewtonManager.set_builder(builder)
 
         # Force resolution and bring up the solver.

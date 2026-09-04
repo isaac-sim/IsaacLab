@@ -206,6 +206,7 @@ class OVRTXRenderer(BaseRenderer):
         self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
+        self._env_root_xforms: np.ndarray | None = None
 
         self._use_ovrtx_cloning = self.cfg.use_ovrtx_cloning and _IS_OVRTX_0_3_0_OR_NEWER
 
@@ -262,6 +263,19 @@ class OVRTXRenderer(BaseRenderer):
             return
 
         logger.info("Preparing stage for export (%d envs, cloning=%s)...", num_envs, self._use_ovrtx_cloning)
+        if self._use_ovrtx_cloning and num_envs > 1:
+            from pxr import UsdGeom
+
+            xform_cache = UsdGeom.XformCache()
+            self._env_root_xforms = np.stack(
+                [
+                    np.array(
+                        xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(f"/World/envs/env_{i}")),
+                        dtype=np.float64,
+                    ).reshape(4, 4)
+                    for i in range(num_envs)
+                ]
+            )
         create_scene_partition_attributes(stage, num_envs, self._use_ovrtx_cloning, not _IS_OVRTX_0_3_0_OR_NEWER)
 
         self._exported_usd_string = export_stage_to_string(stage, num_envs, self._use_ovrtx_cloning)
@@ -375,6 +389,17 @@ class OVRTXRenderer(BaseRenderer):
         except Exception as e:
             logger.error("Failed to clone environments: %s", e)
             raise RuntimeError(f"OvRTX environment cloning failed: {e}")
+
+        if self._env_root_xforms is None:
+            raise RuntimeError("Environment root transforms were not captured before OVRTX cloning")
+        self._renderer.write_attribute(
+            prim_paths=[f"/World/envs/env_{i}" for i in range(num_envs)],
+            attribute_name="omni:xform",
+            tensor=self._env_root_xforms,
+            semantic=Semantic.XFORM_MAT4x4,
+            prim_mode=PrimMode.MUST_EXIST,
+        )
+        self._env_root_xforms = None
 
     def _update_scene_partitions_after_clone(self, num_envs: int):
         """Update scene partition attributes on cloned environments and cameras in OvRTX."""
@@ -803,4 +828,5 @@ class OVRTXRenderer(BaseRenderer):
 
         self._render_product_paths.clear()
         self._output_semantic_color_buffer = None
+        self._env_root_xforms = None
         self._initialized_scene = False

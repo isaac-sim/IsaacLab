@@ -19,7 +19,6 @@ import torch
 import warp as wp
 from newton import JointType
 from newton.selection import ArticulationView
-from newton.solvers import SolverNotifyFlags
 from prettytable import PrettyTable
 
 from pxr import UsdPhysics
@@ -36,6 +35,7 @@ from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.wrench_composer import WrenchComposer
 
+from isaaclab_newton._newton_compat import ModelFlags
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -1339,7 +1339,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_stiffness_to_sim_mask(
         self,
@@ -1394,7 +1394,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_damping_to_sim_index(
         self,
@@ -1452,7 +1452,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_damping_to_sim_mask(
         self,
@@ -1507,7 +1507,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_actuator_stiffness_to_sim(
         self,
@@ -1652,7 +1652,7 @@ class Articulation(BaseArticulation):
             else:
                 logger.info(violation_message)
         # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_position_limit_to_sim_mask(
         self,
@@ -1713,7 +1713,7 @@ class Articulation(BaseArticulation):
             else:
                 logger.info(violation_message)
         # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_velocity_limit_to_sim_index(
         self,
@@ -1774,7 +1774,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_velocity_limit_to_sim_mask(
         self,
@@ -1833,7 +1833,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_effort_limit_to_sim_index(
         self,
@@ -1894,7 +1894,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_effort_limit_to_sim_mask(
         self,
@@ -1952,7 +1952,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_armature_to_sim_index(
         self,
@@ -2012,7 +2012,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_armature_to_sim_mask(
         self,
@@ -2071,7 +2071,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_friction_coefficient_to_sim_index(
         self,
@@ -2143,7 +2143,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_friction_coefficient_to_sim_mask(
         self,
@@ -2213,7 +2213,7 @@ class Articulation(BaseArticulation):
                 device=self.device,
             )
         # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     """
     Operations - Newton Actuator Parameter Writers.
@@ -2277,7 +2277,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_masses_mask(
         self,
@@ -2318,7 +2318,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_index(
         self,
@@ -2366,7 +2366,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_mask(
         self,
@@ -2414,7 +2414,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_index(
         self,
@@ -2457,7 +2457,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_mask(
         self,
@@ -2498,7 +2498,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_joint_position_target_index(
         self,
