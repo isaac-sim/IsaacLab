@@ -52,8 +52,9 @@ def _make_view_and_model(trntypes=(_JOINT, _TENDON, _TENDON), tendon_count=2, ta
         custom_frequency_labels={"mujoco:actuator": [f"a{i}" for i in range(actuator_count)]},
         tendon_names=[f"t{k}" for k in range(tendon_count)],
         get_attribute=lambda name, source: wp.array(attrs[name], dtype=wp.int32, device="cpu"),
-        # Newton 1.6 names the articulation each actuator row belongs to; one articulation here.
-        articulation_ids=np.zeros(1, dtype=np.int64),
+        # Newton shapes this per world and instance, not flat -- a resolver that indexes it
+        # directly gets a row rather than an id.
+        articulation_ids=np.zeros((1, 1), dtype=np.int64),
     )
     model = SimpleNamespace(
         mujoco=SimpleNamespace(actuator_target_label=labels),

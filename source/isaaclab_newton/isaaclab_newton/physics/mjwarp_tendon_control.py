@@ -268,7 +268,9 @@ def _actuator_template_rows(view: ArticulationView, model: Model) -> np.ndarray:
         The model-global actuator rows of one articulation, in column order.
     """
     owners = model.custom_frequency_articulation["mujoco:actuator"]
-    template = int(_to_numpy(view.articulation_ids)[0])
+    # ``articulation_ids`` is shaped per world and instance, so flatten before taking the
+    # template articulation -- every instance selects the same actuator layout.
+    template = int(_to_numpy(view.articulation_ids).reshape(-1)[0])
     return np.flatnonzero(_to_numpy(owners) == template)
 
 
