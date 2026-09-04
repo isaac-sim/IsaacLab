@@ -113,6 +113,12 @@ def _build_newton_builder_from_mapping(
     committing path can retain them for single-model consumers such as the
     batched Newton IK action.
     """
+    from isaaclab_newton.assets.mpm_object.mpm_object import (  # noqa: PLC0415
+        record_registered_mpm_particle_ranges,
+        reset_registered_mpm_particle_ranges,
+    )
+
+    reset_registered_mpm_particle_ranges()
     if positions is None:
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
     if quaternions is None:
@@ -137,6 +143,7 @@ def _build_newton_builder_from_mapping(
         _restore_visible_colliders_without_visual_shapes(
             builder, stage, import_result["path_shape_map"], load_visual_shapes
         )
+        record_registered_mpm_particle_ranges(import_result["path_particle_map"])
         import_results.append(import_result)
     stage_info = import_results[0]
     replace_newton_builder_shape_colors(builder, stage)
@@ -157,6 +164,7 @@ def _build_newton_builder_from_mapping(
                 if any(pattern.fullmatch(child_path) for pattern in deformable_patterns):
                     deformable_ignore_paths.append(child_path)
 
+    source_import_results: dict[str, dict] = {}
     source_builders = build_source_builders(
         stage,
         sources,
@@ -164,17 +172,34 @@ def _build_newton_builder_from_mapping(
         schema_resolvers,
         ignore_paths=deformable_ignore_paths or None,
         load_visual_shapes=load_visual_shapes,
+        import_results=source_import_results,
     )
 
     # Inject registered sites into source builders (and global sites into main builder).
     global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
 
     replicate_args = (builder, sources, mapping, positions, quaternions, source_builders)
+
+    def record_source_particle_ranges(
+        source: str,
+        particle_offset: int,
+        source_builder: ModelBuilder,
+        source_xform: Sequence[float],
+    ) -> None:
+        record_registered_mpm_particle_ranges(
+            source_import_results[source]["path_particle_map"],
+            particle_offset,
+            builder=builder,
+            source_builder=source_builder,
+            source_xform=source_xform,
+        )
+
     local_site_map, world_xforms = replicate_builder_mapping(
         *replicate_args,
         source_site_indices=source_sites,
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
+        source_builder_added=record_source_particle_ranges,
     )
 
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}

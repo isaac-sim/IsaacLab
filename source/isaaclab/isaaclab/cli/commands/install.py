@@ -350,12 +350,11 @@ def _ensure_cuda_torch() -> None:
 
 
 def _ensure_newton() -> None:
-    """Install the pinned Newton release, replacing any other version.
+    """Install the pinned Newton build, replacing any other version.
 
-    Isaac Sim bundles ``newton[sim]==1.2.0``, which satisfies the loose core bound in
-    the root pyproject, so the centralized install would otherwise keep the older
-    Newton. Isaac Lab owns the exact pin via ``[tool.uv].override-dependencies``
-    (``uv sync`` honors it, ``pip``/``uv pip`` installs do not), so force it in here
+    Isaac Sim bundles an older Newton build. Isaac Lab owns the exact pin via
+    ``[tool.uv].override-dependencies`` (``uv sync`` honors it, while existing
+    ``pip``/``uv pip`` environments may retain the bundled build), so force it here
     from that single source.
     """
     overrides = _load_root_pyproject().get("tool", {}).get("uv", {}).get("override-dependencies", [])
@@ -1317,9 +1316,8 @@ def command_install(install_type: str = "all") -> None:
                 for feature_name, selector in extra_features:
                     _install_extra_feature(feature_name, selector)
 
-            # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
-            # pinned Newton release (the default physics engine) over it. This runs after every
-            # install pass because they go through pip, which does not see
+            # Force Isaac Lab's pinned Newton build (the default physics engine) over Isaac Sim's
+            # older bundled build. This runs after every install pass because pip does not see
             # [tool.uv].override-dependencies: isaacsim-asset-isolated's exact mujoco and
             # newton-usd-schemas pins would otherwise stand.
             _ensure_newton()

@@ -112,8 +112,28 @@ def _expose_mujoco_usd_schemas():
         os.environ["PXR_PLUGINPATH_NAME"] = os.pathsep.join(filter(None, (search_path, plugins)))
 
 
+def _expose_newton_usd_schemas():
+    """Put Newton's codeless USD schemas on OpenUSD's plugin search path.
+
+    OpenUSD builds its schema registry once. Exposing the installed plugin before
+    a standalone stage or Kit starts lets Newton schemas work without importing
+    ``newton_usd_schemas`` (and therefore ``pxr``) during configuration loading.
+    """
+    spec = find_spec("newton_usd_schemas")
+    if spec is None or spec.origin is None:
+        return
+    plugins = os.path.dirname(spec.origin)
+    if not os.path.isfile(os.path.join(plugins, "plugInfo.json")):
+        return
+    search_path = os.environ.get("PXR_PLUGINPATH_NAME", "")
+    if plugins not in search_path.split(os.pathsep):
+        # Prefer the project requirement over older copies bundled by Isaac Sim.
+        os.environ["PXR_PLUGINPATH_NAME"] = os.pathsep.join(filter(None, (plugins, search_path)))
+
+
 _deprioritize_prebundle_paths()
 _expose_mujoco_usd_schemas()
+_expose_newton_usd_schemas()
 
 
 # TODO(myurasov-nv): bootstrap_kernel() is ported from the internal GitLab wheel builder

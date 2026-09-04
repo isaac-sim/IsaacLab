@@ -611,7 +611,7 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
                     friction=0.0,
                     damping=0.02,
                     yield_pressure=1.0e15,
-                    tensile_yield_ratio=5.0,
+                    tensile_yield_ratio=1.0,
                 ),
                 visual_color=WATER_COLOR,
                 visual_material=sim_utils.PreviewSurfaceCfg(
@@ -625,7 +625,7 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
 
         ground = AssetBaseCfg(
             prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(size=(20.0, 20.0), color=(0.30, 0.30, 0.30)),
+            spawn=sim_utils.GroundPlaneCfg(),
         )
 
         dome_light = AssetBaseCfg(

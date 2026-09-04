@@ -85,9 +85,8 @@ dependencies = [
     "rsl-rl-lib==5.4.1",  # default RL framework
     "onnxscript>=0.5",
     # ----- newton (default physics engine) -----
-    # Loose bound so the wheel co-resolves with isaacsim's newton[sim]==1.2.0 pin; the
-    # exact PyPI release is forced via [tool.uv].override-dependencies (uv sync only).
-    "newton[sim]>=1.2.0",
+    # Pin the authored-MPM import revision until a compatible Newton release is available.
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@24bd863528d6b91137408930d0fbe8fa216ad962",
     # Import and mesh-processing packages used by Newton, including the ones that honoring
     # USD-authored ``physics:approximation`` requires. Keep these explicit instead of selecting
     # newton[importers], whose standalone USD dependency would overlap with usd-exchange.
@@ -100,8 +99,9 @@ dependencies = [
     "pycollada>=0.9",
     "resolve-robotics-uri-py>=0.4.0",
     "open3d>=0.19.0 ; python_version < '3.13' and (sys_platform != 'linux' or platform_machine != 'aarch64')",
-    # Loose bound co-resolves with isaacsim's ==0.2.0; the override below forces >=0.4.1.
-    "newton-usd-schemas>=0.2.0",
+    # Authored MPM particle import requires the 0.5 schema revision. The managed
+    # Isaac Sim workflow overrides its older exact transitive pin below.
+    "newton-usd-schemas>=0.5.0",
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
     "imgui-bundle>=1.92.5",
@@ -403,9 +403,9 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.11.0",
     "mujoco-warp~=3.11.0",
-    "newton[sim]==1.5.1",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@24bd863528d6b91137408930d0fbe8fa216ad962",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
-    "newton-usd-schemas>=0.4.1",
+    "newton-usd-schemas>=0.5.0",
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",

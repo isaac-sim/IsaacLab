@@ -18,10 +18,9 @@ from isaaclab.utils.configclass import configclass
 class MPMParticleMaterialCfg:
     """Per-particle material values consumed by Newton's implicit MPM solver.
 
-    This lightweight value configuration does not create or bind a USD material.
-    Its values are forwarded to Newton as ``mpm:*`` custom attributes when
-    particles are emitted into the model builder. Density is used only when a
-    particle generator derives mass.
+    The spawner authors these values on a physics-purpose USD material carrying
+    ``NewtonMPMMaterialAPI``. Density is also used when a particle generator
+    derives mass.
 
     The defaults model a dry sand-like granular material.
     """
@@ -59,14 +58,19 @@ class MPMParticleMaterialCfg:
     dilatancy: float = 0.0
     """Dimensionless granular dilatancy factor."""
 
+    hardening_rate: float = 1.0
+    """Dimensionless plastic hardening rate."""
+
+    softening_rate: float = 1.0
+    """Dimensionless plastic softening rate."""
+
 
 @configclass
 class MPMParticleSpawnerCfg(SpawnerCfg):
     """Base configuration for declarative Newton MPM particle generation.
 
-    Particle geometry is emitted directly into Newton during scene replication.
-    The USD spawner creates only a lightweight placeholder prim used by Isaac
-    Lab's scene and cloning machinery.
+    Particle geometry and material properties are authored in USD and imported
+    through Newton's normal USD path during scene replication.
     """
 
     func: Callable | str = "{DIR}.mpm:spawn_mpm_particles"
@@ -114,9 +118,10 @@ class MPMGridCfg(MPMParticleSpawnerCfg):
     """
 
     jitter: float = 0.0
-    """Width of Newton's uniform per-axis jitter interval [m].
+    """Width of Isaac Lab's uniform per-axis jitter interval [m].
 
-    Newton samples each position component in ``[-jitter / 2, jitter / 2]``.
+    Isaac Lab samples each local position component in ``[-jitter / 2, jitter / 2]``
+    once with a fixed seed. USD clones share the authored local offsets.
     """
 
     mass: float | None = None
