@@ -75,7 +75,7 @@ class VisualizerCfg:
     :attr:`streaming_sensor_prim_path` is set).
 
     When ``None`` (the default), the visualizer adopts the first scene camera
-    sensor it discovers dynamically at initialisation time.  If no scene camera
+    sensor it discovers dynamically at initialization time.  If no scene camera
     exists the streaming panel remains empty.  Set this explicitly (e.g.
     ``"/World/envs/*/Robot"``) only when you need an auto-created follow-camera
     and no suitable scene camera is present.
@@ -104,9 +104,9 @@ class VisualizerCfg:
     streaming_gt_types: tuple[str, ...] = ("rgb",)
     """GT data types displayed left-to-right per environment row.
 
-    Valid values: ``"rgb"``, ``"depth"``, ``"segmentation"``.
+    Valid values: ``"rgb"``, ``"depth"``, ``"segmentation"``, ``"normals"``.
     Validated against :data:`~isaaclab.envs.utils.camera_colorizer.SUPPORTED_GT_TYPES`
-    at initialisation time (only when :attr:`streaming_view` is ``True``).
+    at initialization time (only when :attr:`streaming_view` is ``True``).
     """
 
     streaming_depth_min: float = 0.1
