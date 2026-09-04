@@ -54,6 +54,27 @@ requires.
 Cosmos Augmentation
 ~~~~~~~~~~~~~~~~~~~
 
+.. important::
+    The ``hdf5_to_mp4.py`` and ``mp4_to_hdf5.py`` scripts below read and write MP4 files through OpenCV's
+    video I/O, which requires ffmpeg support. Recent Isaac Sim releases ship an OpenCV build without ffmpeg,
+    so install the full OpenCV package into the environment before running these conversions:
+
+    .. tab-set::
+
+       .. tab-item:: uv (Recommended)
+
+          .. code:: bash
+
+              uv pip install opencv-python
+
+       .. tab-item:: isaaclab.sh / isaaclab.bat
+
+          .. code:: bash
+
+              ./isaaclab.sh -p -m pip install opencv-python
+
+    Without it, the conversion scripts fail to open or write the video files.
+
 HDF5 to MP4 Conversion
 ^^^^^^^^^^^^^^^^^^^^^^
 
