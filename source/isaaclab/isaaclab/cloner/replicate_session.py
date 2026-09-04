@@ -18,7 +18,6 @@ from .clone_plan import make_clone_plan
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .cloner_strategies import sequential
 from .path import under
-from .query import path_to_source
 from .usd import UsdReplicateContext
 
 if TYPE_CHECKING:
@@ -45,14 +44,12 @@ def queue_replication(cfg: Any) -> None:
         REPLICATION_QUEUE.append(cfg)
         return
 
-    prim_path = getattr(cfg, "prim_path", None)
-    global_owned = isinstance(prim_path, str) and any(under(prim_path, root) for root in plan.global_paths)
-    row_owned = isinstance(prim_path, str) and path_to_source(plan, prim_path) is not None
-    if not sim._clone_plan_consumed and (id(cfg) in plan.cfg_rows or global_owned or row_owned):
+    if cfg.spawn is None:
         return
-    if getattr(cfg, "spawn", None) is None and (global_owned or row_owned):
+    global_owned = any(under(cfg.prim_path, root) for root in plan.global_paths)
+    if not sim._clone_plan_consumed and (id(cfg) in plan.cfg_rows or global_owned):
         return
-    raise RuntimeError(f"{type(cfg).__name__} at {prim_path!r} is not owned by the active ClonePlan.")
+    raise RuntimeError(f"{type(cfg).__name__} at {cfg.prim_path!r} is not owned by the active ClonePlan.")
 
 
 def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:

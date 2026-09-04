@@ -81,10 +81,10 @@ def test_queue_accepts_only_cfgs_owned_by_published_plan(monkeypatch):
     monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
 
     replicate_session.queue_replication(planned)
-    simulation._clone_plan_consumed = True
-    replicate_session.queue_replication(reference)
     with pytest.raises(RuntimeError, match="not owned"):
         replicate_session.queue_replication(unplanned)
+    simulation._clone_plan_consumed = True
+    replicate_session.queue_replication(reference)
 
     assert replicate_session.REPLICATION_QUEUE == []
 

@@ -371,7 +371,11 @@ class InteractiveScene:
         if self._terrain is not None:
             return self._terrain.env_origins
         plan = self.sim.get_clone_plan()
-        return torch.as_tensor(plan.positions, device=self.device) if plan is not None else self._env_origins
+        if plan is not self._env_origins_plan:
+            self._env_origins_plan = plan
+            if plan is not None and plan.positions is not None:
+                self._env_origins = torch.as_tensor(plan.positions, device=self.device)
+        return self._env_origins
 
     @property
     def terrain(self) -> TerrainImporter | None:
@@ -779,6 +783,7 @@ class InteractiveScene:
         """Author environment roots from the active layout."""
         self._ALL_INDICES = torch.as_tensor(env_ids, device=self.device)
         self._env_origins = torch.as_tensor(positions, device=self.device)
+        self._env_origins_plan = self.sim.get_clone_plan()
         self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
         with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
             cloner.usd_replicate(self.stage, [self.env_prim_paths[0]], [self._env_fmt], env_ids, positions=positions)
