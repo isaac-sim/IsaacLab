@@ -5,7 +5,7 @@
 
 """Tests for ancestor authoring in :func:`~isaaclab.cloner.usd_replicate`."""
 
-import torch
+import numpy as np
 
 from pxr import Sdf, Usd
 
@@ -28,7 +28,7 @@ def test_usd_replicate_defines_nested_destination_ancestors():
         stage,
         sources=["/World/envs/env_0/Groceries/Object"],
         destinations=["/World/envs/env_{}/Groceries/Object"],
-        env_ids=torch.tensor([0, 1]),
+        env_ids=np.asarray([0, 1], dtype=np.int64),
     )
 
     copied_scope = stage.GetPrimAtPath("/World/envs/env_1/Groceries")
@@ -47,7 +47,7 @@ def test_usd_replicate_keeps_existing_ancestor_specs():
         stage,
         sources=["/World/envs/env_0/Groceries/Object"],
         destinations=["/World/envs/env_{}/Groceries/Object"],
-        env_ids=torch.tensor([0, 1]),
+        env_ids=np.asarray([0, 1], dtype=np.int64),
     )
 
     scope = stage.GetPrimAtPath("/World/envs/env_1/Groceries")

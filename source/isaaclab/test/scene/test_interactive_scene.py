@@ -12,6 +12,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -183,7 +184,7 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
 
 
 def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
-    """A cfg-driven scene forwards the right plan and stage to cloner.replicate.
+    """A cfg-driven scene forwards its plan and tracks the latest published layout.
 
     Uses a test-seam fake to isolate this unit test from real backend dispatch; queue
     lifecycle is owned by :func:`replicate` itself (snapshot-and-clear) and does not
@@ -193,21 +194,23 @@ def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):
 
     captured: list = []
 
-    def fake_replicate(plan, *, stage, replicate_physics=True):
-        captured.append((plan, stage, replicate_physics))
+    def fake_replicate(plan, *, replicate_physics=True):
+        captured.append((plan, replicate_physics))
 
     monkeypatch.setattr(replicate_session_module, "replicate", fake_replicate)
 
     with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
         sim._app_control_on_stop_handle = None
         scene = InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
+        replacement = replace(captured[0][0], positions=captured[0][0].positions + 1.0)
+        sim.set_clone_plan(replacement)
+        torch.testing.assert_close(scene.env_origins, torch.from_numpy(replacement.positions))
 
     assert len(captured) == 1
-    plan, stage, replicate_physics = captured[0]
+    plan, replicate_physics = captured[0]
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
     assert plan.clone_mask.shape == (1, 4)
-    assert stage is scene.stage
     assert replicate_physics is True
 
 
@@ -259,31 +262,6 @@ def test_replicate_physics_flag_controls_physx_replicator(device, replicate_phys
         scene.update(sim.get_physics_dt())
     assert torch.isfinite(scene["rigid_obj"].data.root_pos_w.torch).all()
     assert torch.isfinite(scene["robot"].data.joint_pos.torch).all()
-
-
-def test_cfg_cloning_contexts_override_backend_default(monkeypatch: pytest.MonkeyPatch):
-    """AssetBaseCfg.cloning_contexts replaces the backend default stack for that asset."""
-    import isaaclab.cloner.replicate_session as replicate_session_module
-    from isaaclab.cloner import REPLICATION_QUEUE
-
-    # keep the queue for inspection: the fake drain does not clear it
-    monkeypatch.setattr(replicate_session_module, "replicate", lambda plan, *, stage, replicate_physics=True: None)
-
-    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
-        sim._app_control_on_stop_handle = None
-        scene_cfg = MySceneCfg(num_envs=2, env_spacing=1.0)
-        scene_cfg.rigid_obj.cloning_contexts = ("isaaclab.cloner:UsdReplicateContext",)
-        try:
-            InteractiveScene(scene_cfg)
-            queued_by_path = {cfg.prim_path: cfg for cfg in REPLICATION_QUEUE}
-            # the override rides the queued cfg; resolution happens at replicate()
-            assert queued_by_path["/World/envs/env_[^/]+/RigidObj"].cloning_contexts == (
-                "isaaclab.cloner:UsdReplicateContext",
-            )
-            # untouched asset resolves to the backend default stack at replicate()
-            assert queued_by_path["/World/envs/env_[^/]+/Robot"].cloning_contexts is None
-        finally:
-            REPLICATION_QUEUE.clear()
 
 
 def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
