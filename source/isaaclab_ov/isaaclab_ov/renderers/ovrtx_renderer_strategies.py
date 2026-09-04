@@ -267,11 +267,7 @@ class _AsyncRenderStrategy(_RenderStrategy):
 
     @classmethod
     def try_create(cls, cfg: OVRTXRendererCfg) -> _AsyncRenderStrategy | None:
-        """Create the strategy when async rendering is enabled. Return ``None`` otherwise.
-
-        :func:`~isaaclab.renderers.resolve_async_rendering_enabled` reads the flag from the
-        configuration and the environment variable.
-        """
+        """Create the strategy when async rendering is enabled. Return ``None`` otherwise."""
         return cls() if resolve_async_rendering_enabled(cfg) else None
 
     def __init__(self) -> None:
@@ -305,10 +301,7 @@ class _AsyncRenderStrategy(_RenderStrategy):
         return entry
 
     def initialize(self, num_envs: int) -> None:
-        """Reset staging slots and record the camera count for future slot builds.
-
-        See :meth:`_RenderStrategy.initialize`.
-        """
+        """Reset the staging slots for a new scene. See :meth:`_RenderStrategy.initialize`."""
         self._reset_slots(num_envs)
 
     def _reset_slots(self, num_envs: int) -> None:
