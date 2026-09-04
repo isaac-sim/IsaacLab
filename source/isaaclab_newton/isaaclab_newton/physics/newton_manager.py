@@ -2658,10 +2658,10 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def get_state(cls, scene_data_provider: SceneDataProvider | None = None) -> State:
-        """Get the current Newton state for visualization.
+        """Get the current Newton state with derived transforms refreshed.
 
-        Use this method from visualizers/renderers/video recorders that need a
-        backend-agnostic Newton ``State``. When the sim backend is PhysX this
+        Use this method from sensors, visualizers, renderers, and video recorders that need
+        a backend-agnostic Newton ``State``. When the sim backend is PhysX this
         refreshes the shadow ``_state_0.body_q`` from the live PhysX scene via
         :meth:`update_visualization_state` before returning, so callers never
         observe stale transforms. Under the Newton sim backend, pending
@@ -2708,12 +2708,13 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _update_sensor_tasks(cls, *names: str) -> None:
-        """Refit the shape and particle BVHs and run the requested scene-query tasks."""
+        """Refresh derived state, refit the BVHs, and run the requested scene-query tasks."""
         for name in names:
             if name not in cls._sensor_tasks:
                 raise KeyError(f"Newton sensor task '{name}' is not registered.")
 
-        state = cls.get_state_0()
+        # Resolve pending FK before entering the graph-capturable sensor pipeline.
+        state = cls.get_state()
         if state is not cls._sensor_state:
             cls._sensor_state = state
             cls._sensor_state_dirty = True
