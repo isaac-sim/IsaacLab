@@ -9,3 +9,9 @@ Fixed
   incurred a hidden per-call host-to-device staging copy, and a correctly placed
   host buffer was rejected with ``OvPhysxView.DeviceMismatch``. Residency was
   measured on a GPU simulation by counting CUDA memcpys around a binding read.
+* **Breaking:** Fixed ``articulation_dof_drive_type`` not being classified as
+  read-only. The underlying tensor type is read-only, but
+  :meth:`~isaaclab_ov.sim.views.OvPhysxView.set_attribute` previously accepted
+  writes to it and silently forwarded them. Such calls now raise
+  ``OvPhysxView.ReadOnlyAttribute``. Remove any write to this attribute; drive
+  type is authored through the USD drive schema, not the tensor path.

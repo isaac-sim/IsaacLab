@@ -54,6 +54,7 @@ _EXPECTED_READ_ONLY_NAMES = frozenset(
         "articulation_body_inv_mass",
         "articulation_body_inv_inertia",
         "articulation_dof_projected_joint_force",
+        "articulation_dof_drive_type",
         "articulation_link_incoming_joint_force",
         "articulation_mass_center_world",
         "articulation_mass_center_local",
@@ -243,6 +244,7 @@ def test_read_only_names_are_valid_vocabulary():
 def test_read_only_and_cpu_only_classification():
     assert is_read_only("articulation_jacobian")
     assert is_read_only("rigid_body_acceleration")
+    assert is_read_only("articulation_dof_drive_type")
     assert not is_read_only("articulation_dof_stiffness")
     assert is_cpu_only("articulation_dof_stiffness")
     assert is_cpu_only("rigid_body_mass")
