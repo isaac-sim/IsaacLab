@@ -164,7 +164,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             log_dir = os.path.dirname(resume_path)
 
             env_cfg.log_dir = log_dir
-            apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
+            apply_video_recording(env_cfg, log_dir, args_cli, subdir="play", checkpoint_path=resume_path)
 
             screen.stage("Creating environment")
             env = create_isaaclab_env(
