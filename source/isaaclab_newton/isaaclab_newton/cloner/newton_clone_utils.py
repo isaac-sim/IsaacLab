@@ -246,26 +246,11 @@ def _collect_replication_preparers(
     Returns:
         One preparer per hook, in registration order, or ``None`` if any hook does not support
         replication or declines these transforms.
-
-    Raises:
-        TypeError: If a hook carries one opt-in attribute as a callable but not the other.
     """
-    opted_in = []
+    preparers = []
     for hook in hooks:
         can_replicate = getattr(hook, "_can_replicate_builder", None)
         prepare = getattr(hook, "_prepare_builder_replication", None)
-        # Checked for every hook before any is consulted, so a half-implemented hook is rejected
-        # regardless of registration order.
-        if callable(can_replicate) != callable(prepare):
-            missing = "_prepare_builder_replication" if callable(can_replicate) else "_can_replicate_builder"
-            raise TypeError(
-                f"Newton world-builder hook '{getattr(hook, '__qualname__', repr(hook))}' opts into replication"
-                f" but has no callable '{missing}'."
-            )
-        opted_in.append((hook, can_replicate, prepare))
-
-    preparers = []
-    for hook, can_replicate, prepare in opted_in:
         name = getattr(hook, "__qualname__", repr(hook))
         if not callable(can_replicate):
             logger.debug("Hook '%s' does not support replication; building each Newton world separately.", name)
@@ -275,6 +260,21 @@ def _collect_replication_preparers(
             return None
         preparers.append(prepare)
     return preparers
+
+
+def _validate_replication_hook_attributes(
+    hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]],
+) -> None:
+    """Reject hooks that define only half of the replication opt-in contract."""
+    for hook in hooks:
+        can_replicate = getattr(hook, "_can_replicate_builder", None)
+        prepare = getattr(hook, "_prepare_builder_replication", None)
+        if callable(can_replicate) != callable(prepare):
+            missing = "_prepare_builder_replication" if callable(can_replicate) else "_can_replicate_builder"
+            raise TypeError(
+                f"Newton world-builder hook '{getattr(hook, '__qualname__', repr(hook))}' opts into replication"
+                f" but has no callable '{missing}'."
+            )
 
 
 def replicate_builder_mapping(
@@ -306,6 +306,7 @@ def replicate_builder_mapping(
     quaternions = quaternions.astype(np.float32, copy=False)
     xforms_np = np.concatenate((positions, quaternions), axis=1)
     world_xforms = [wp.transform(*row) for row in xforms_np]
+    _validate_replication_hook_attributes(per_world_builder_hooks)
 
     if (
         len(sources) == 1
@@ -329,6 +330,11 @@ def replicate_builder_mapping(
                 site_local_indices.setdefault(label, []).append(idx)
             for label, indices in source_site_indices.get(id(source_builder), {}).items():
                 site_local_indices.setdefault(label, []).extend(indices)
+
+            # Hook-added particles inherit the aggregate builder's model-wide velocity limit.
+            # A source that already owns particles keeps Newton's source-wins behavior.
+            if source_builder.particle_count == 0:
+                source_builder.particle_max_velocity = builder.particle_max_velocity
 
             finish_callbacks = [
                 prepare(builder, source_builder, num_worlds, xforms_np[0, :3].copy(), xforms_np[0, 3:].copy())
