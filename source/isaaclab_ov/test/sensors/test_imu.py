@@ -570,10 +570,8 @@ def test_reset(sim_ctx, device):
     # bypasses the reset.
     ang_vel_after = wp.to_torch(imu_ball._data._ang_vel_b)
     lin_acc_after = wp.to_torch(imu_ball._data._lin_acc_b)
-    prev_vel_after = wp.to_torch(imu_ball._prev_lin_vel_w)
     torch.testing.assert_close(ang_vel_after, torch.zeros_like(ang_vel_after))
     torch.testing.assert_close(lin_acc_after, torch.zeros_like(lin_acc_after))
-    torch.testing.assert_close(prev_vel_after, torch.zeros_like(prev_vel_after))
 
 
 @pytest.mark.parametrize("device", _DEVICES)

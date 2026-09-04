@@ -656,14 +656,6 @@ def test_reset(sim_ctx, device):
     expected_pg[:, 2] = -1.0
     torch.testing.assert_close(pg, expected_pg)
 
-    # previous-velocity buffers cleared
-    torch.testing.assert_close(
-        wp.to_torch(pva_ball._prev_lin_vel_w), torch.zeros_like(wp.to_torch(pva_ball._prev_lin_vel_w))
-    )
-    torch.testing.assert_close(
-        wp.to_torch(pva_ball._prev_ang_vel_w), torch.zeros_like(wp.to_torch(pva_ball._prev_ang_vel_w))
-    )
-
 
 @pytest.mark.parametrize("device", _DEVICES)
 def test_no_stale_data_after_scene_reset(sim_ctx, device):

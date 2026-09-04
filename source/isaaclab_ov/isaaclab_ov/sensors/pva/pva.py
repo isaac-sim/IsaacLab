@@ -23,7 +23,7 @@ import isaaclab_ov.tensor_types as TT
 from isaaclab_ov.physics import OvPhysxManager as SimulationManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
-from .kernels import pva_reset_kernel, pva_update_kernel, pva_update_solver_acc_kernel
+from .kernels import pva_reset_kernel, pva_update_kernel
 from .pva_data import PvaData
 
 if TYPE_CHECKING:
@@ -117,15 +117,9 @@ class Pva(BasePva):
                 self._data._lin_acc_b,
                 self._data._ang_acc_b,
                 self._data._projected_gravity_b,
-                self._prev_lin_vel_w,
-                self._prev_ang_vel_w,
             ],
             device=self._device,
         )
-
-    def update(self, dt: float, force_recompute: bool = False):
-        self._dt = dt
-        super().update(dt, force_recompute)
 
     """
     Implementation.
@@ -153,9 +147,7 @@ class Pva(BasePva):
         self._num_bodies = self._root_view.binding_for(TT.RIGID_BODY_POSE).count
         # Solver-reported accelerations ship in newer OVPhysX wheels only; fall back to
         # finite differencing when the binding is unavailable (see isaaclab_ov.tensor_types).
-        self._acc_binding = (
-            self._root_view.binding_for(TT.RIGID_BODY_ACCELERATION) if hasattr(TT, "RIGID_BODY_ACCELERATION") else None
-        )
+        self._acc_binding = self._root_view.binding_for(TT.RIGID_BODY_ACCELERATION)
 
         if self._num_bodies != self._num_envs:
             raise ValueError(
@@ -221,72 +213,40 @@ class Pva(BasePva):
         # cached float32 reinterpret; no manual float32 alias is needed.
         self._root_view.read_into(TT.RIGID_BODY_POSE, self._transforms)
         self._root_view.read_into(TT.RIGID_BODY_VELOCITY, self._velocities)
-        if self._acc_binding is not None:
-            self._root_view.read_into(TT.RIGID_BODY_ACCELERATION, self._accelerations)
+        self._root_view.read_into(TT.RIGID_BODY_ACCELERATION, self._accelerations)
         # RIGID_BODY_COM_POSE is a CPU tensor type in the OVPhysX wheel.
         # For GPU simulations, stage on CPU then copy into the kernel buffer.
         self._root_view.read_into(TT.RIGID_BODY_COM_POSE, self._coms_read_view)
         if self._coms_read_view is not self._coms_buffer:
             wp.copy(self._coms_buffer, self._coms_read_view)
 
-        if self._acc_binding is not None:
-            wp.launch(
-                pva_update_solver_acc_kernel,
-                dim=self._num_envs,
-                inputs=[
-                    env_mask,
-                    self._transforms,
-                    self._velocities,
-                    self._accelerations,
-                    self._coms_buffer,
-                    self._offset_pos_b,
-                    self._offset_quat_b,
-                    self._gravity_vec_w,
-                    self._timestamp,
-                    self._data._pos_w,
-                    self._data._quat_w,
-                    self._data._lin_vel_b,
-                    self._data._ang_vel_b,
-                    self._data._lin_acc_b,
-                    self._data._ang_acc_b,
-                    self._data._projected_gravity_b,
-                ],
-                device=self._device,
-            )
-        else:
-            wp.launch(
-                pva_update_kernel,
-                dim=self._num_envs,
-                inputs=[
-                    env_mask,
-                    self._transforms,
-                    self._velocities,
-                    self._coms_buffer,
-                    self._offset_pos_b,
-                    self._offset_quat_b,
-                    self._gravity_vec_w,
-                    1.0 / self._dt,
-                    self._timestamp,
-                    self._prev_lin_vel_w,
-                    self._prev_ang_vel_w,
-                    self._data._pos_w,
-                    self._data._quat_w,
-                    self._data._lin_vel_b,
-                    self._data._ang_vel_b,
-                    self._data._lin_acc_b,
-                    self._data._ang_acc_b,
-                    self._data._projected_gravity_b,
-                ],
-                device=self._device,
-            )
+        wp.launch(
+            pva_update_kernel,
+            dim=self._num_envs,
+            inputs=[
+                env_mask,
+                self._transforms,
+                self._velocities,
+                self._accelerations,
+                self._coms_buffer,
+                self._offset_pos_b,
+                self._offset_quat_b,
+                self._gravity_vec_w,
+                self._timestamp,
+                self._data._pos_w,
+                self._data._quat_w,
+                self._data._lin_vel_b,
+                self._data._ang_vel_b,
+                self._data._lin_acc_b,
+                self._data._ang_acc_b,
+                self._data._projected_gravity_b,
+            ],
+            device=self._device,
+        )
 
     def _initialize_buffers_impl(self):
         """Create buffers for storing data."""
         self._data.create_buffers(num_envs=self._num_bodies, device=self._device)
-
-        # Sensor-internal buffers for velocity tracking (not exposed via data).
-        self._prev_lin_vel_w = wp.zeros(self._num_bodies, dtype=wp.vec3f, device=self._device)
-        self._prev_ang_vel_w = wp.zeros(self._num_bodies, dtype=wp.vec3f, device=self._device)
 
         offset_pos_torch = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._num_bodies, 1)
         offset_quat_torch = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._num_bodies, 1)
@@ -296,8 +256,7 @@ class Pva(BasePva):
         # Structured-dtype buffers filled in place by :meth:`OvPhysxView.read_into`.
         self._transforms = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
         self._velocities = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)
-        if self._acc_binding is not None:
-            self._accelerations = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)
+        self._accelerations = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)
         self._coms_buffer = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
 
         # RIGID_BODY_COM_POSE is CPU-resident even on a GPU sim, so its binding requires a
