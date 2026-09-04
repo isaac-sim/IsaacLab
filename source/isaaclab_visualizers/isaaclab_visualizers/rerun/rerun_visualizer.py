@@ -203,6 +203,8 @@ class NewtonViewerRerun(ViewerRerun):
             if self._live_plot_manager_names
             else []
         )
+        # TimePanel is always hidden (this viewer has no scrubbing UI use case).
+        panel_states = [rrb.TimePanel(state="hidden")]
 
         # Streaming-view blueprint: 2D composite panel is dominant.
         if self._streaming_view_active:
@@ -214,12 +216,12 @@ class NewtonViewerRerun(ViewerRerun):
                         rrb.Vertical(*manager_views),
                         column_shares=[4, 1],
                     ),
-                    rrb.TimePanel(state="hidden"),
+                    *panel_states,
                     collapse_panels=True,
                 )
             return rrb.Blueprint(
                 streaming_panel,
-                rrb.TimePanel(state="hidden"),
+                *panel_states,
                 collapse_panels=True,
             )
 
@@ -241,12 +243,12 @@ class NewtonViewerRerun(ViewerRerun):
                     rrb.Vertical(*manager_views),
                     column_shares=[4, 1],
                 ),
-                rrb.TimePanel(state="hidden"),
+                *panel_states,
                 collapse_panels=True,
             )
         return rrb.Blueprint(
             view_3d,
-            rrb.TimePanel(state="hidden"),
+            *panel_states,
             collapse_panels=True,
         )
 
@@ -687,6 +689,7 @@ class RerunVisualizer(BaseVisualizer):
         # by a 3D view, hiding the streaming composite panel entirely.
         if self._streaming_view_active:
             return
+        panel_states = [rrb.TimePanel(state="hidden")]
         rr.send_blueprint(
             rrb.Blueprint(
                 rrb.Vertical(
@@ -704,11 +707,24 @@ class RerunVisualizer(BaseVisualizer):
                     ),
                     row_shares=[20, 1],
                 ),
-                rrb.TimePanel(state="hidden"),
+                *panel_states,
                 collapse_panels=True,
             )
         )
         self._last_camera_pose = (cam_pos, cam_target)
+
+    def set_camera_view(
+        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
+    ) -> None:
+        """Set the 3D view's camera eye/target.
+
+        Args:
+            eye: Camera eye position.
+            target: Camera look-at target.
+        """
+        eye_t = (float(eye[0]), float(eye[1]), float(eye[2]))
+        target_t = (float(target[0]), float(target[1]), float(target[2]))
+        self._apply_camera_pose((eye_t, target_t))
 
     def supports_markers(self) -> bool:
         """Rerun backend supports Isaac Lab markers through Newton viewer primitives."""

@@ -21,8 +21,10 @@ import ctypes
 import logging
 import threading
 from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
-from pxr import Usd, UsdUtils
+if TYPE_CHECKING:
+    from pxr import Usd
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +183,9 @@ def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -
     if bindings is None:
         yield
         return
+
+    # Like the rest of the cloner, this module must remain importable before Kit starts.
+    from pxr import UsdUtils  # noqa: PLC0415
 
     # usdrt only works with a live Kit app — defer import so module load stays cheap.
     try:
