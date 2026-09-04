@@ -964,7 +964,7 @@ class OVRTXRenderer(BaseRenderer):
         # TODO: The scene is built from the first camera's spec, and later specs are silently
         # ignored. A second camera that dedups onto this renderer through
         # RenderContext.get_renderer therefore receives the first camera's images. Detect the
-        # mismatch and warn or raise. This predates asynchronous rendering.
+        # mismatch and warn or raise.
         return OVRTXRenderData(spec, self._device)
 
     def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, ProxyArray]) -> None:
