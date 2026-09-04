@@ -369,6 +369,8 @@ def test_single_dof_pendulum(setup_sim):
     sim, scene = setup_sim
     # pendulum length
     pend_length = PEND_POS_OFFSET[0]
+    pendulum = scene.articulations["pendulum"]
+    pendulum_link_id = pendulum.find_bodies("link_1")[0][0]
 
     # should achieve same results between the two pva sensors on the robot
     for idx in range(500):
@@ -380,9 +382,11 @@ def test_single_dof_pendulum(setup_sim):
         scene.update(sim.get_physics_dt())
 
         # get pendulum joint state
-        joint_pos = scene.articulations["pendulum"].data.joint_pos.torch
-        joint_vel = scene.articulations["pendulum"].data.joint_vel.torch
-        joint_acc = scene.articulations["pendulum"].data.joint_acc.torch
+        joint_pos = pendulum.data.joint_pos.torch
+        joint_vel = pendulum.data.joint_vel.torch
+        # Use the solver-reported link acceleration as the reference. The public joint
+        # acceleration is finite-differenced and intentionally differs from PVA semantics.
+        joint_ang_acc_w_y = pendulum.data.body_com_acc_w.torch[:, pendulum_link_id, 4].unsqueeze(-1)
 
         # PVA and base data
         pva_data = scene.sensors["pva_pendulum_imu_link"].data
@@ -402,9 +406,15 @@ def test_single_dof_pendulum(setup_sim):
         vz = -joint_vel * pend_length * torch.cos(joint_pos)
         gt_linear_vel_w = torch.cat([vx, vy, vz], dim=-1)
 
-        ax = -joint_acc * pend_length * torch.sin(joint_pos) - joint_vel**2 * pend_length * torch.cos(joint_pos)
+        ax = (
+            -joint_ang_acc_w_y * pend_length * torch.sin(joint_pos)
+            - joint_vel**2 * pend_length * torch.cos(joint_pos)
+        )
         ay = torch.zeros(2, 1, device=scene.device)
-        az = -joint_acc * pend_length * torch.cos(joint_pos) + joint_vel**2 * pend_length * torch.sin(joint_pos)
+        az = (
+            -joint_ang_acc_w_y * pend_length * torch.cos(joint_pos)
+            + joint_vel**2 * pend_length * torch.sin(joint_pos)
+        )
         gt_linear_acc_w = torch.cat([ax, ay, az], dim=-1)
 
         # skip first step where initial velocity is zero
@@ -426,9 +436,9 @@ def test_single_dof_pendulum(setup_sim):
             rtol=1e-1,
             atol=1e-3,
         )
-        # compare pva angular acceleration with joint acceleration
+        # compare pva angular acceleration with solver-reported link acceleration
         torch.testing.assert_close(
-            joint_acc,
+            joint_ang_acc_w_y,
             joint_acc_pva,
             rtol=1e-1,
             atol=1e-3,
@@ -502,6 +512,8 @@ def test_indirect_attachment(setup_sim):
     sim, scene = setup_sim
     # pendulum length
     pend_length = PEND_POS_OFFSET[0]
+    pendulum = scene.articulations["pendulum2"]
+    pendulum_link_id = pendulum.find_bodies("link_1")[0][0]
 
     # should achieve same results between the two pva sensors on the robot
     for idx in range(500):
@@ -513,9 +525,11 @@ def test_indirect_attachment(setup_sim):
         scene.update(sim.get_physics_dt())
 
         # get pendulum joint state
-        joint_pos = scene.articulations["pendulum2"].data.joint_pos.torch
-        joint_vel = scene.articulations["pendulum2"].data.joint_vel.torch
-        joint_acc = scene.articulations["pendulum2"].data.joint_acc.torch
+        joint_pos = pendulum.data.joint_pos.torch
+        joint_vel = pendulum.data.joint_vel.torch
+        # Use the solver-reported link acceleration as the reference. The public joint
+        # acceleration is finite-differenced and intentionally differs from PVA semantics.
+        joint_ang_acc_w_y = pendulum.data.body_com_acc_w.torch[:, pendulum_link_id, 4].unsqueeze(-1)
 
         pva = scene.sensors["pva_indirect_pendulum_link"]
         pva_base = scene.sensors["pva_indirect_pendulum_base"]
@@ -548,9 +562,15 @@ def test_indirect_attachment(setup_sim):
         vz = -joint_vel * pend_length * torch.cos(joint_pos)
         gt_linear_vel_w = torch.cat([vx, vy, vz], dim=-1)
 
-        ax = -joint_acc * pend_length * torch.sin(joint_pos) - joint_vel**2 * pend_length * torch.cos(joint_pos)
+        ax = (
+            -joint_ang_acc_w_y * pend_length * torch.sin(joint_pos)
+            - joint_vel**2 * pend_length * torch.cos(joint_pos)
+        )
         ay = torch.zeros(2, 1, device=scene.device)
-        az = -joint_acc * pend_length * torch.cos(joint_pos) + joint_vel**2 * pend_length * torch.sin(joint_pos)
+        az = (
+            -joint_ang_acc_w_y * pend_length * torch.cos(joint_pos)
+            + joint_vel**2 * pend_length * torch.sin(joint_pos)
+        )
         gt_linear_acc_w = torch.cat([ax, ay, az], dim=-1)
 
         # skip first step where initial velocity is zero
@@ -572,9 +592,9 @@ def test_indirect_attachment(setup_sim):
             rtol=1e-1,
             atol=1e-3,
         )
-        # compare pva angular acceleration with joint acceleration
+        # compare pva angular acceleration with solver-reported link acceleration
         torch.testing.assert_close(
-            joint_acc,
+            joint_ang_acc_w_y,
             joint_acc_pva,
             rtol=1e-1,
             atol=1e-3,
