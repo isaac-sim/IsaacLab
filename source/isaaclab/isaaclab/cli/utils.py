@@ -60,6 +60,70 @@ def is_isaac_sim_source_build(isaac_sim_path: Path = DEFAULT_ISAAC_SIM_PATH) -> 
     return (isaac_sim_path / ISAAC_SIM_SOURCE_BUILD_MARKER).is_file()
 
 
+def _pyvenv_home(venv_path: Path) -> Path | None:
+    """Return the interpreter directory a virtual environment was created from.
+
+    Args:
+        venv_path: Virtual environment root.
+
+    Returns:
+        The ``home`` directory recorded in ``pyvenv.cfg``, or ``None`` when it cannot be read.
+    """
+    config = venv_path / "pyvenv.cfg"
+    if not config.is_file():
+        return None
+    for line in config.read_text(encoding="utf-8").splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key.strip() == "home":
+            return Path(value.strip())
+    return None
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    """Check whether a path resolves inside a directory."""
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    return resolved == root or root in resolved.parents
+
+
+def runs_isaac_sim_python(
+    isaac_sim_path: Path = DEFAULT_ISAAC_SIM_PATH, python_exe: str | None = None, venv_path: str | None = None
+) -> bool:
+    """Check whether the interpreter about to run Isaac Sim is the package's own Python.
+
+    A virtual environment adds a ``site-packages`` directory but reuses the interpreter it was
+    created from, so one created on the Isaac Sim package's Python runs that exact binary and loads
+    Kit's extension modules unchanged. Environments that supply their own interpreter and native
+    libraries, such as conda, do not qualify: a conda environment has no ``pyvenv.cfg``, and a
+    virtual environment layered on one records that interpreter instead.
+
+    Args:
+        isaac_sim_path: Isaac Sim installation directory.
+        python_exe: Interpreter that will be launched, if known.
+        venv_path: Virtual environment root, usually ``VIRTUAL_ENV``.
+
+    Returns:
+        Whether the interpreter resolves inside ``isaac_sim_path``. Anything unproven is ``False``
+        so the caller keeps rejecting environments it cannot verify.
+    """
+    try:
+        root = isaac_sim_path.resolve()
+    except OSError:
+        return False
+
+    # ``uv venv`` symlinks ``bin/python`` at its base interpreter; resolving it is the direct answer.
+    if python_exe and _is_within(Path(python_exe), root):
+        return True
+    # Fall back to the recorded base for environments whose interpreter is a copy, not a symlink.
+    if venv_path:
+        home = _pyvenv_home(Path(venv_path))
+        if home is not None and _is_within(home, root):
+            return True
+    return False
+
+
 def _colorize(text: str, color: str, stream: IO[str]) -> str:
     """Colorize bit of text, if the stream supports colors or colors aren't disabled.
 
@@ -636,11 +700,13 @@ def run_python_command(
         and python_launcher.is_file()
         and not is_isaac_sim_source_build(local_sim)
         and using_virtual_environment
+        and not runs_isaac_sim_python(local_sim, python_exe, command_env.get("VIRTUAL_ENV"))
     ):
         print_error("Downloaded Isaac Sim packages cannot be combined with a Python virtual environment.")
         print_error(
-            "Use the bundled Python through isaaclab.sh/isaaclab.bat, or remove '_isaac_sim' and install "
-            "Isaac Sim from pip in the virtual environment."
+            "Use the bundled Python through isaaclab.sh/isaaclab.bat, create the virtual environment on "
+            f"that Python ('uv venv --python {local_sim / 'kit' / 'python' / 'bin' / 'python3'}'), or "
+            "remove '_isaac_sim' and install Isaac Sim from pip in the virtual environment."
         )
         raise SystemExit(1)
     isaac_env_active = (
