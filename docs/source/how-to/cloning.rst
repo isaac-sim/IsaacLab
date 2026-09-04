@@ -216,7 +216,7 @@ them is purely about ergonomics:
   when you want the lifecycle hidden and you are authoring assets through a
   scene config.
 * The second spells the same flow out as plain function calls, leaving a moment
-  between the build and the drain where you can inspect or mutate the plan.
+  between the build and the drain where you can inspect the plan.
   Reach for it when you are assembling a scene outside
   :class:`~isaaclab.scene.InteractiveScene` or want fine control over timing.
 * The third is a one-shot shortcut for the case where every env is just a copy
