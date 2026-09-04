@@ -85,9 +85,11 @@ dependencies = [
     "rsl-rl-lib==5.4.1",  # default RL framework
     "onnxscript>=0.5",
     # ----- newton (default physics engine) -----
-    # Loose bound so the wheel co-resolves with isaacsim's newton[sim]==1.2.0 pin; the
-    # exact PyPI release is forced via [tool.uv].override-dependencies (uv sync only).
-    "newton[sim]>=1.2.0",
+    # Pin the Newton release used by both workspace and wheel installs until 1.6.0 final.
+    # [tool.uv].override-dependencies only reaches uv sync, so a wheel built from this
+    # metadata would otherwise resolve the newest stable (1.5.1) and miss newton#4017:
+    # 1.6.0rc1 is a prerelease, which a default resolve skips.
+    "newton[sim]==1.6.0rc1",
     # Import and mesh-processing packages used by Newton, including the ones that honoring
     # USD-authored ``physics:approximation`` requires. Keep these explicit instead of selecting
     # newton[importers], whose standalone USD dependency would overlap with usd-exchange.
