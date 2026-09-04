@@ -525,6 +525,9 @@ def launch_simulation(
     # Kit-based backends apply the Python logging level inside AppLauncher; kitless backends
     # never construct it, so honor --verbose / --info here to keep behavior consistent.
     if not needs_kit:
+        # Avoid auto-launching a globally installed Omniverse Hub for kitless USD access.
+        # Explicit shared/exclusive modes remain available through the environment variable.
+        os.environ.setdefault("OMNICLIENT_HUB_MODE", "disabled")
         apply_python_logging_level(resolve_python_logging_level(launcher_args))
 
     if needs_kit and (config_scan.has_kit_camera or config_scan.visualizer_intent.get("has_kit_streaming_view")):
