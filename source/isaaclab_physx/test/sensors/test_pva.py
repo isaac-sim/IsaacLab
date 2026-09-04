@@ -406,15 +406,9 @@ def test_single_dof_pendulum(setup_sim):
         vz = -joint_vel * pend_length * torch.cos(joint_pos)
         gt_linear_vel_w = torch.cat([vx, vy, vz], dim=-1)
 
-        ax = (
-            -joint_ang_acc_w_y * pend_length * torch.sin(joint_pos)
-            - joint_vel**2 * pend_length * torch.cos(joint_pos)
-        )
+        ax = -joint_ang_acc_w_y * pend_length * torch.sin(joint_pos) - joint_vel**2 * pend_length * torch.cos(joint_pos)
         ay = torch.zeros(2, 1, device=scene.device)
-        az = (
-            -joint_ang_acc_w_y * pend_length * torch.cos(joint_pos)
-            + joint_vel**2 * pend_length * torch.sin(joint_pos)
-        )
+        az = -joint_ang_acc_w_y * pend_length * torch.cos(joint_pos) + joint_vel**2 * pend_length * torch.sin(joint_pos)
         gt_linear_acc_w = torch.cat([ax, ay, az], dim=-1)
 
         # skip first step where initial velocity is zero
@@ -562,15 +556,9 @@ def test_indirect_attachment(setup_sim):
         vz = -joint_vel * pend_length * torch.cos(joint_pos)
         gt_linear_vel_w = torch.cat([vx, vy, vz], dim=-1)
 
-        ax = (
-            -joint_ang_acc_w_y * pend_length * torch.sin(joint_pos)
-            - joint_vel**2 * pend_length * torch.cos(joint_pos)
-        )
+        ax = -joint_ang_acc_w_y * pend_length * torch.sin(joint_pos) - joint_vel**2 * pend_length * torch.cos(joint_pos)
         ay = torch.zeros(2, 1, device=scene.device)
-        az = (
-            -joint_ang_acc_w_y * pend_length * torch.cos(joint_pos)
-            + joint_vel**2 * pend_length * torch.sin(joint_pos)
-        )
+        az = -joint_ang_acc_w_y * pend_length * torch.cos(joint_pos) + joint_vel**2 * pend_length * torch.sin(joint_pos)
         gt_linear_acc_w = torch.cat([ax, ay, az], dim=-1)
 
         # skip first step where initial velocity is zero
