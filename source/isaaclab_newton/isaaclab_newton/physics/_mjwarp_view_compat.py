@@ -200,6 +200,18 @@ def _actuator_rows_per_instance(view: ArticulationView, model: Model, tendon_cou
     tendon_worlds = _to_numpy(model.mujoco.tendon_world).astype(np.int64, copy=False)
     ordinal = _ordinal_within_world(view, tendon_count)
 
+    # An articulation spawned outside a cloned scene keeps ``actuator_world`` at the -1 the
+    # importer writes, so partitioning by world would select nothing and silently report the
+    # articulation as having no actuators. Every row belongs to this view's single world in that
+    # case -- MEASURED on the hands demo: 20 actuators all at -1 against tendons at world 0.
+    if actuator_worlds.size and int(actuator_worlds.max()) < 0:
+        if view.count != 1:
+            raise ValueError(
+                f"MuJoCo actuator rows carry no world assignment, so the {view.count} articulations"
+                " this view selects cannot be told apart."
+            )
+        return np.arange(actuator_worlds.size, dtype=np.int64).reshape(1, -1)
+
     per_instance = []
     for world in range(view.world_count):
         rows = np.flatnonzero(actuator_worlds == world)

@@ -54,6 +54,7 @@ from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG  # isort:skip
 from isaaclab_assets.robots.shadow_hand import (
     SHADOW_HAND_NEWTON_CFG,
     SHADOW_HAND_PHYSX_CFG,
+    TENDON_POSITION_LIMITS,
 )
 
 if TYPE_CHECKING:
@@ -98,7 +99,14 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
     # -- Robot
     shadow_hand_cfg = SHADOW_HAND_NEWTON_CFG if args_cli.physics == "newton_mjwarp" else SHADOW_HAND_PHYSX_CFG
-    shadow_hand_cfg = shadow_hand_cfg.replace(prim_path="/World/Origin2/Robot")
+    # Pose for this side-by-side scene; the asset's own pose is the reorientation task's.
+    shadow_hand_cfg = shadow_hand_cfg.replace(
+        prim_path="/World/Origin2/Robot",
+        init_state=shadow_hand_cfg.init_state.replace(
+            pos=(0.0, 0.2, 0.5),
+            rot=(0.52296271, -0.47593067, 0.47593067, 0.52296271),
+        ),
+    )
     shadow_hand = shadow_hand_cfg.class_type(shadow_hand_cfg)
 
     # return the scene information
@@ -151,6 +159,15 @@ def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Artic
             joint_pos_target = robot.data.soft_joint_pos_limits.torch[..., grasp_mode]
             # apply action to the robot
             robot.set_joint_position_target_index(target=joint_pos_target)
+            # A tendon has no actuator on its spanned joints, so it needs its own command.
+            # Span comes from the asset: a fixed tendon authors no position limit of its own.
+            if robot.num_fixed_tendons > 0:
+                tendon_pos_target = torch.full(
+                    (robot.num_instances, robot.num_fixed_tendons),
+                    TENDON_POSITION_LIMITS[grasp_mode],
+                    device=robot.device,
+                )
+                robot.set_fixed_tendon_position_target_index(target=tendon_pos_target)
             # write data to sim
             robot.write_data_to_sim()
         # perform step
@@ -168,6 +185,9 @@ def main():
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
         # The default newton mjwarp solver configuration needs to be tuned for these hands.
         if isinstance(physics_cfg, NewtonCfg) and isinstance(physics_cfg.solver_cfg, MJWarpSolverCfg):
+            # The tendon-coupled fingers diverge past their limits under the default explicit
+            # integrator; the reorientation task's preset uses this one for the same reason.
+            physics_cfg.solver_cfg.integrator = "implicitfast"
             physics_cfg.solver_cfg.njmax = 200
             physics_cfg.solver_cfg.nconmax = 70
             physics_cfg.solver_cfg.impratio = 10.0
