@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the scene-write barrier that bounds pipelined renders under ovstage."""
+"""Tests for the OVRTX render strategies: pipelining, delivery, staging slots, and teardown."""
 
 from __future__ import annotations
 
