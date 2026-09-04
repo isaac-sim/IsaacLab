@@ -83,8 +83,8 @@ def get_pretrained_checkpoint_filename(
     Args:
         workflow: RL workflow name.
         task_name: Registered task name.
-        physics_backend: Physics backend name, such as ``"physx"`` or
-            ``"newtonmjwarp"``.
+        physics_backend: Physics backend name, such as ``"physx"``,
+            ``"newtonmjwarp"``, or ``"newtonmjwarpvbdproxy"`` for a coupled solver.
         render_backend: Render backend name, such as ``"rtx"``, ``"newton"``, or ``"none"``.
 
     Returns:
@@ -99,7 +99,7 @@ def get_pretrained_checkpoint_filename(
         return WORKFLOW_PRETRAINED_CHECKPOINT_FILENAMES[workflow]
     if physics_backend is None or render_backend is None:
         raise ValueError("physics_backend and render_backend must be provided together")
-    if physics_backend not in {"newtonmjwarp", "physx"}:
+    if not physics_backend:
         raise ValueError(f"Unsupported physics backend: {physics_backend!r}")
     if render_backend not in {"newton", "none", "rtx"}:
         raise ValueError(f"Unsupported render backend: {render_backend!r}")
@@ -319,13 +319,29 @@ def _get_physics_backend_name(physics_cfg: PhysicsCfg | None) -> str:
     type_path = f"{type(physics_cfg).__module__}.{type(physics_cfg).__name__}".lower()
     if "newton" in type_path:
         solver_cfg = getattr(physics_cfg, "solver_cfg", None)
-        solver_type_path = f"{type(solver_cfg).__module__}.{type(solver_cfg).__name__}".lower()
-        if "mjwarp" in solver_type_path:
-            return "newtonmjwarp"
-        raise ValueError(f"Unsupported Newton solver for pretrained checkpoints: {type(solver_cfg).__name__}")
+        solver_name = _get_newton_solver_name(solver_cfg)
+        if solver_name is None:
+            raise ValueError(f"Unsupported Newton solver for pretrained checkpoints: {type(solver_cfg).__name__}")
+        return f"newton{solver_name}"
     if "physx" in type_path:
         return "physx"
     raise ValueError(f"Unable to identify physics backend from {type(physics_cfg).__name__}")
+
+
+def _get_newton_solver_name(solver_cfg) -> str | None:
+    """Return the checkpoint name of a Newton solver config, or ``None`` when unpublished.
+
+    A coupled solver is named by its entry solvers in order followed by its coupling
+    scheme, so a proxy coupler over MJWarp and VBD entries gives ``mjwarpvbdproxy``.
+    """
+    if solver_cfg is None:
+        return None
+    class_name = type(solver_cfg).__name__
+    entries = getattr(solver_cfg, "entries", None)
+    if entries is None:
+        return "mjwarp" if "mjwarp" in class_name.lower() else None
+    families = (type(entry.solver_cfg).__name__.removesuffix("SolverCfg").lower() for entry in entries)
+    return "".join(families) + class_name.removeprefix("Coupler").removesuffix("Cfg").lower()
 
 
 def _normalize_render_backend_name(renderer_type: str) -> str:
