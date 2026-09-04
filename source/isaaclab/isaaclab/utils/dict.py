@@ -330,6 +330,8 @@ def replace_slices_with_strings(data: dict) -> dict:
         return {k: replace_slices_with_strings(v) for k, v in data.items()}
     elif isinstance(data, list):
         return [replace_slices_with_strings(v) for v in data]
+    elif type(data) is tuple:
+        return tuple(replace_slices_with_strings(v) for v in data)
     elif isinstance(data, slice):
         return f"slice({data.start},{data.stop},{data.step})"
     else:
@@ -349,6 +351,8 @@ def replace_strings_with_slices(data: dict) -> dict:
         return {k: replace_strings_with_slices(v) for k, v in data.items()}
     elif isinstance(data, list):
         return [replace_strings_with_slices(v) for v in data]
+    elif type(data) is tuple:
+        return tuple(replace_strings_with_slices(v) for v in data)
     elif isinstance(data, str) and data.startswith("slice("):
         return string_to_slice(data)
     else:
