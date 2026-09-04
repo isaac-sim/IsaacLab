@@ -23,9 +23,10 @@ from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_c
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
-    build_source_builders,
+    build_source_builders_with_provenance,
+    merge_import_results,
     rename_builder_labels,
-    replicate_builder_mapping,
+    replicate_builder_mapping_with_provenance,
 )
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
@@ -138,7 +139,6 @@ def _build_newton_builder_from_mapping(
             builder, stage, import_result["path_shape_map"], load_visual_shapes
         )
         import_results.append(import_result)
-    stage_info = import_results[0]
     replace_newton_builder_shape_colors(builder, stage)
     if load_visual_shapes:
         import_builder_visual_material_paths(builder, stage)
@@ -157,7 +157,7 @@ def _build_newton_builder_from_mapping(
                 if any(pattern.fullmatch(child_path) for pattern in deformable_patterns):
                     deformable_ignore_paths.append(child_path)
 
-    source_builders = build_source_builders(
+    source_builders, source_results = build_source_builders_with_provenance(
         stage,
         sources,
         lambda: manager_cls.create_builder(up_axis=up_axis),
@@ -170,11 +170,15 @@ def _build_newton_builder_from_mapping(
     global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
 
     replicate_args = (builder, sources, mapping, positions, quaternions, source_builders)
-    local_site_map, world_xforms = replicate_builder_mapping(
+    local_site_map, world_xforms, world0_offsets = replicate_builder_mapping_with_provenance(
         *replicate_args,
         source_site_indices=source_sites,
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
+    )
+    # The cloner reports where each of world 0's sources landed, so provenance is lifted exactly.
+    stage_info = merge_import_results(
+        import_results, [(source_results[sources[row]], offsets) for row, offsets in sorted(world0_offsets.items())]
     )
 
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
@@ -327,6 +331,7 @@ class NewtonReplicateContext:
             NewtonManager._cl_fabric_body_bindings = fabric_body_bindings
             NewtonManager._world_xforms = world_xforms
             NewtonManager._cl_protos = source_builders
+            NewtonManager._stage_info = stage_info
             NewtonManager.set_builder(builder)
             NewtonManager._num_envs = mapping.size(1)
         self._queue.clear()

@@ -148,7 +148,7 @@ def build_visualization_builder_from_stage_envs(
         schema_resolvers,
         ignore_paths=source_deformable_ignore_paths or None,
     )
-    replicate_builder_mapping(builder, sources, mapping, positions, quaternions, source_builders)
+    replicate_builder_mapping(builder, sources, mapping, positions, quaternions, source_builders)  # offsets unused here
     rename_builder_labels(builder, sources, destinations, env_ids, mapping)
     shadow_entities, registry_groups = add_shadow_deformables_to_builder(
         builder, stage, env_paths, device=device, entries=deformable_entries, clone_plan=clone_plan

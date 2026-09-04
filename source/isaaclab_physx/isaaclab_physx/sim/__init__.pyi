@@ -17,6 +17,8 @@ __all__ = [
     "PhysxDeformableBodyMaterialCfg",
     "PhysxSurfaceDeformableBodyMaterialCfg",
     "SurfaceDeformableBodyMaterialCfg",
+    "export_articulation_to_usd",
+    "write_articulation_state_to_stage",
     "views",
 ]
 
@@ -37,4 +39,5 @@ from .spawners import (
     PhysxSurfaceDeformableBodyMaterialCfg,
     SurfaceDeformableBodyMaterialCfg,
 )
+from .usd_export import export_articulation_to_usd, write_articulation_state_to_stage
 from . import views
