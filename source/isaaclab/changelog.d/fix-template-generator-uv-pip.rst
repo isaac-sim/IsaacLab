@@ -5,6 +5,7 @@ Changed
   ``ovphysx``, or ``ovrtx`` uv extra when running a generated project that needs the corresponding optional backend.
 * Added pytest and the standard test-marker configuration to generated projects, and allowed lazy-export ``.pyi``
   files in their Ruff configuration.
+* Prioritized the manager-based workflow, RSL-RL, and PPO as the first applicable template generator choices.
 
 Fixed
 ^^^^^

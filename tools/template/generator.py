@@ -203,7 +203,8 @@ def _external(specification: dict) -> None:
 
 def get_algorithms_per_rl_library(single_agent: bool = True, multi_agent: bool = True):
     assert single_agent or multi_agent, "At least one of 'single_agent' or 'multi_agent' must be True"
-    data = {"rl_games": [], "rsl_rl": [], "skrl": [], "sb3": []}
+    data = {"rsl_rl": [], "rl_games": [], "skrl": [], "sb3": []}
+    algorithm_order = SINGLE_AGENT_ALGORITHMS + MULTI_AGENT_ALGORITHMS
     for file in glob.glob(os.path.join(TEMPLATE_DIR, "agents", "*_cfg")):
         for rl_library in data.keys():
             basename = os.path.basename(file).replace("_cfg", "")
@@ -217,7 +218,7 @@ def get_algorithms_per_rl_library(single_agent: bool = True, multi_agent: bool =
                 if multi_agent and algorithm in MULTI_AGENT_ALGORITHMS:
                     data[rl_library].append(algorithm)
     for rl_library in data.keys():
-        data[rl_library] = sorted(list(set(data[rl_library])))
+        data[rl_library] = sorted(set(data[rl_library]), key=algorithm_order.index)
     return data
 
 

@@ -15,6 +15,9 @@ from common import ROOT_DIR
 from generator import generate, get_algorithms_per_rl_library
 from rich.prompt import Prompt
 
+_SUPPORTED_WORKFLOWS = ["Manager-based | single-agent", "Direct | single-agent", "Direct | multi-agent"]
+_SINGLE_AGENT_RL_LIBRARIES = ["rsl_rl", "rl_games", "skrl", "sb3"]
+
 
 class CLIHandler:
     """CLI handler for the Isaac Lab template."""
@@ -205,17 +208,16 @@ def main() -> None:
     # - show supported workflows and features
     workflow_table = rich.table.Table(title="RL environment features support according to Isaac Lab workflows")
     workflow_table.add_column("Environment feature", no_wrap=True)
-    workflow_table.add_column("Direct", justify="center")
     workflow_table.add_column("Manager-based", justify="center")
+    workflow_table.add_column("Direct", justify="center")
     workflow_table.add_row("Single-agent", State.Yes, State.Yes)
-    workflow_table.add_row("Multi-agent", State.Yes, State.No)
-    workflow_table.add_row("Fundamental/composite spaces (apart from 'Box')", State.Yes, State.No)
+    workflow_table.add_row("Multi-agent", State.No, State.Yes)
+    workflow_table.add_row("Fundamental/composite spaces (apart from 'Box')", State.No, State.Yes)
     cli_handler.output_table(workflow_table)
     # - prompt for workflows
-    supported_workflows = ["Direct | single-agent", "Direct | multi-agent", "Manager-based | single-agent"]
     workflow = cli_handler.get_choices(
-        cli_handler.input_checkbox("Isaac Lab workflow:", choices=[*supported_workflows, "---", "all"]),
-        default=supported_workflows,
+        cli_handler.input_checkbox("Isaac Lab workflow:", choices=[*_SUPPORTED_WORKFLOWS, "---", "all"]),
+        default=_SUPPORTED_WORKFLOWS,
     )
     workflow = [{"name": item.split(" | ")[0].lower(), "type": item.split(" | ")[1].lower()} for item in workflow]
     single_agent_workflow = [item for item in workflow if item["type"] == "single-agent"]
@@ -227,16 +229,16 @@ def main() -> None:
     # - show supported RL libraries and features
     rl_library_table = rich.table.Table(title="Supported RL libraries")
     rl_library_table.add_column("RL/training feature", no_wrap=True)
-    rl_library_table.add_column("rl_games", overflow="fold")
     rl_library_table.add_column("rsl_rl", overflow="fold")
+    rl_library_table.add_column("rl_games", overflow="fold")
     rl_library_table.add_column("skrl", overflow="fold")
     rl_library_table.add_column("sb3", overflow="fold")
     rl_library_table.add_row("ML frameworks", "PyTorch", "PyTorch", "PyTorch, JAX", "PyTorch")
     rl_library_table.add_row("Relative performance", "~1X", "~1X", "~1X", "~0.03X")
     rl_library_table.add_row(
         "Algorithms",
-        fill(", ".join(algorithms_per_rl_library.get("rl_games", [])), width=12, break_long_words=False),
         fill(", ".join(algorithms_per_rl_library.get("rsl_rl", [])), width=12, break_long_words=False),
+        fill(", ".join(algorithms_per_rl_library.get("rl_games", [])), width=12, break_long_words=False),
         fill(", ".join(algorithms_per_rl_library.get("skrl", [])), width=12, break_long_words=False),
         fill(", ".join(algorithms_per_rl_library.get("sb3", [])), width=12, break_long_words=False),
     )
@@ -246,7 +248,7 @@ def main() -> None:
     rl_library_table.add_row("Fundamental/composite spaces", State.No, State.No, State.Yes, State.No)
     cli_handler.output_table(rl_library_table)
     # - prompt for RL libraries
-    supported_rl_libraries = ["rl_games", "rsl_rl", "skrl", "sb3"] if len(single_agent_workflow) else ["skrl"]
+    supported_rl_libraries = _SINGLE_AGENT_RL_LIBRARIES if len(single_agent_workflow) else ["skrl"]
     selected_rl_libraries = cli_handler.get_choices(
         cli_handler.input_checkbox("RL library:", choices=[*supported_rl_libraries, "---", "all"]),
         default=supported_rl_libraries,

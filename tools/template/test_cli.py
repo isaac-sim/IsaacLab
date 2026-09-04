@@ -8,6 +8,7 @@
 import importlib.util
 import io
 import sys
+import types
 from pathlib import Path
 from unittest import mock
 
@@ -80,6 +81,29 @@ def test_text_reprompts_until_validation_succeeds():
 
     assert result == "valid_name"
     assert "Project name must be a valid identifier." in output.getvalue()
+
+
+def test_main_lists_flagship_options_first():
+    """The interactive prompts must list Manager-based, RSL-RL, and PPO first."""
+    handler = mock.Mock(spec=CLIHandler)
+    handler.input_select.return_value = "External"
+    handler.input_path.return_value = "/tmp"
+    handler.input_text.return_value = "test_project"
+    handler.input_checkbox.side_effect = lambda message, choices: [choices[0]]
+    handler.get_choices.side_effect = CLIHandler.get_choices
+
+    source_install = types.SimpleNamespace(__file__="/repo/source/isaaclab/isaaclab/__init__.py")
+    with (
+        mock.patch.object(_MODULE, "CLIHandler", return_value=handler),
+        mock.patch.object(_MODULE.importlib, "import_module", return_value=source_install),
+        mock.patch.object(_MODULE, "generate"),
+    ):
+        _MODULE.main()
+
+    checkbox_calls = handler.input_checkbox.call_args_list
+    assert checkbox_calls[0].kwargs["choices"][0] == "Manager-based | single-agent"
+    assert checkbox_calls[1].kwargs["choices"][0] == "rsl_rl"
+    assert checkbox_calls[2].kwargs["choices"][0] == "PPO"
 
 
 def test_generated_project_metadata(tmp_path):
