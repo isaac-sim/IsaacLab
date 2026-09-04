@@ -37,6 +37,7 @@ run_tests() {
   local standalone_script_runtime_group="${24}"
   local warp_cache_host_dir="${25}"
   local extra_uv_packages="${26}"
+  local ovrtx_shader_cache_host_dir="${27}"
   local logs_pid=""
   local wait_pid=""
   local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -268,6 +269,28 @@ run_tests() {
       -e WARP_CACHE_PATH=/tmp/isaaclab-warp-cache"
   fi
 
+  if [ -n "$ovrtx_shader_cache_host_dir" ]; then
+    # Canonical OVRTX shader cache mount layout; other boundaries refer here.
+    #   host kit/     -> /isaac-sim/kit/cache/nv_shadercache  (Kit / AppLauncher rendering)
+    #   host kitless/ -> OVRTX_SHADER_CACHE_PATH              (standalone OVRTXRenderer)
+    #
+    # kit/ is a nested bind mount overlaying the nv_shadercache directory that the
+    # enclosing kit/cache tmpdir mount would otherwise present as empty; Docker
+    # sorts mounts by destination depth, so the deeper path wins regardless of
+    # declaration order. kitless/ goes through an env var instead because
+    # OVRTXRenderer applies it as a carb setting. Both paths are exported so
+    # verify_ovrtx_shader_cache.py can confirm each mount landed.
+    kit_cache_dir="${ovrtx_shader_cache_host_dir}/kit"
+    kitless_cache_dir="${ovrtx_shader_cache_host_dir}/kitless"
+    mkdir -p "$kit_cache_dir" "$kitless_cache_dir"
+    docker_volume_args="$docker_volume_args \
+      -v ${kit_cache_dir}:/isaac-sim/kit/cache/nv_shadercache:rw \
+      -v ${kitless_cache_dir}:/tmp/isaaclab-ovrtx-kitless-cache:rw"
+    docker_env_vars="$docker_env_vars \
+      -e OVRTX_SHADER_CACHE_PATH=/tmp/isaaclab-ovrtx-kitless-cache \
+      -e OVRTX_KIT_SHADER_CACHE_PATH=/isaac-sim/kit/cache/nv_shadercache"
+  fi
+
   if [ -n "$wheelhouse_host_dir" ]; then
     if [ -z "$wheelhouse_packages" ]; then
       echo "::error::wheelhouse-host-dir was provided but wheelhouse-packages is empty"
@@ -327,6 +350,9 @@ run_tests() {
       if [ -x /isaac-sim/python.sh ]; then ln -s /isaac-sim _isaac_sim; fi
       if [ -n \"\${WARP_CACHE_PATH:-}\" ]; then
         ./isaaclab.sh -p tools/verify_warp_cache.py
+      fi
+      if [ -n \"\${OVRTX_SHADER_CACHE_PATH:-}\" ] || [ -n \"\${OVRTX_KIT_SHADER_CACHE_PATH:-}\" ]; then
+        ./isaaclab.sh -p tools/verify_ovrtx_shader_cache.py
       fi
       if [ -n \"\${TEST_WHEELHOUSE_PACKAGES:-}\" ]; then
         if [ ! -d \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then

@@ -94,6 +94,7 @@ from .ovrtx_renderer_kernels import (
     generate_random_colors_from_ids_kernel,
     sync_newton_transforms_kernel,
 )
+from .ovrtx_shader_cache import redirect_shader_cache
 from .ovrtx_usd import (
     build_render_product_as_string,
     create_scene_partition_attributes,
@@ -340,6 +341,12 @@ class OVRTXRenderer(BaseRenderer):
             suppress_deprecation_warnings=True,
             texture_streaming_mode=TextureStreamingMode.SYNCHRONOUS,
         )
+
+        # Takes the config because the redirect can be what first loads the ovrtx
+        # library, and initialization only happens once, so it has to see the
+        # same config the renderer below is built with.
+        redirect_shader_cache(config)
+
         self._renderer = Renderer(config)
         if not self._renderer:
             raise RuntimeError(
