@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 import torch
 import warp as wp
-from newton import GeoType, ModelBuilder, ShapeFlags
+from newton import GeoType, JointType, ModelBuilder, ShapeFlags
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -148,7 +148,20 @@ def _build_source_builder(
     replace_newton_builder_shape_colors(builder, stage)
     if load_visual_shapes:
         import_builder_visual_material_paths(builder, stage)
+    _name_root_joints_after_their_body(builder)
     return builder
+
+
+def _name_root_joints_after_their_body(builder: ModelBuilder) -> None:
+    """Name importer-generated free root joints after their child bodies, in place."""
+    for index, label in enumerate(builder.joint_label):
+        if not isinstance(label, str) or not label.startswith("joint_") or not label[6:].isdigit():
+            continue
+        if builder.joint_type[index] != JointType.FREE or builder.joint_parent[index] != -1:
+            continue
+        body_label = builder.body_label[builder.joint_child[index]]
+        if isinstance(body_label, str) and body_label.startswith("/"):
+            builder.joint_label[index] = f"{body_label}_free_joint"
 
 
 def _quat_multiply(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -186,6 +199,37 @@ def _invert_xform(xform: Sequence[float] | np.ndarray) -> np.ndarray:
     return np.concatenate([-_quat_rotate(quat_inv, xform[:3]), quat_inv])
 
 
+def _label_groups(builder: ModelBuilder) -> dict[str, list]:
+    """Return every entity-label container owned by a Newton builder."""
+    groups = {
+        name: value for name, value in vars(builder).items() if name.endswith("_label") and isinstance(value, list)
+    }
+    groups["mujoco:equality_constraint_label"] = builder.custom_attributes["mujoco:equality_constraint_label"].values
+    return groups
+
+
+def _rebase_labels(builder: ModelBuilder, source: str, destination: str) -> str:
+    """Make entity labels relative to the nearest templated destination ancestor."""
+    source = source.rstrip("/") or "/"
+    destination = destination.rstrip("/") or "/"
+    prefix, _, destination_name = destination.rpartition("/")
+    if "{}" in destination_name:
+        prefix, destination_name = destination, ""
+    for labels in _label_groups(builder).values():
+        for index, label in enumerate(labels):
+            if not isinstance(label, str) or not label or not label.startswith("/"):
+                continue
+            suffix = clone_path.relative_to(label, source)
+            if suffix is None:
+                suffix = label[len(source) :] if label.startswith(source + "_") else None
+            if suffix is None:
+                raise ValueError(f"Newton label {label!r} is outside clone source {source!r}.")
+            labels[index] = (destination_name + suffix).lstrip("/")
+            if not labels[index]:
+                raise ValueError(f"Newton label {label!r} cannot be prefixed by destination {destination!r}.")
+    return prefix
+
+
 def replicate_builder_mapping(
     builder: ModelBuilder,
     sources: Sequence[str],
@@ -193,12 +237,14 @@ def replicate_builder_mapping(
     positions: torch.Tensor,
     quaternions: torch.Tensor,
     source_builders: dict[str, ModelBuilder],
+    destinations: Sequence[str] | None = None,
+    env_ids: torch.Tensor | None = None,
     *,
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, list[float], list[float]], None]] = (),
-) -> tuple[dict[str, list[list[int]]], list[wp.transform]]:
-    """Replicate source builders into per-env Newton worlds."""
+) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]]]:
+    """Replicate source builders, naming homogeneous copies at their destinations."""
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
     num_worlds = mapping.size(1)
@@ -215,6 +261,8 @@ def replicate_builder_mapping(
         and num_worlds > 0
         and bool(mapping.all().item())
         and not per_world_builder_hooks
+        and bool(destinations)
+        and env_ids is not None
     )
     if can_batch:
         source_builder = source_builders[sources[0]]
@@ -234,14 +282,24 @@ def replicate_builder_mapping(
         stride = source_builder.shape_count
         source_xform_inv = _invert_xform(xforms_np[0])
         xforms = _compose_world_xforms(positions_np, quaternions_np, source_xform_inv)
-        builder.replicate(source_builder, num_worlds, xforms=xforms)
+
+        label_groups = _label_groups(source_builder)
+        original_labels = {name: list(labels) for name, labels in label_groups.items()}
+        try:
+            prefix = _rebase_labels(source_builder, sources[0], destinations[0])
+            prefixes = [prefix.format(env_id) for env_id in env_ids.tolist()]
+            builder.replicate(source_builder, num_worlds, xforms=xforms, label_prefixes=prefixes)
+        finally:
+            for name, labels in original_labels.items():
+                label_groups[name][:] = labels
 
         for label, local_indices in site_local_indices.items():
             local_site_map[label] = [
                 [base_shape + world * stride + local for local in local_indices] for world in range(num_worlds)
             ]
 
-        return local_site_map, world_xforms
+        bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
+        return local_site_map, world_xforms, bindings
 
     source_world_indices = mapping.to(dtype=torch.int64).argmax(dim=1).tolist()
 
@@ -273,35 +331,22 @@ def replicate_builder_mapping(
 
     for col in range(num_worlds):
         builder.begin_world()
-
         for label, world_site_xforms in root_site_xforms.items():
             site_idx = builder.add_site(body=-1, xform=world_site_xforms[col], label=label)
             local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col].append(site_idx)
-
         for row in rows_per_world[col]:
             source_builder = source_builders[sources[row]]
             offset = builder.shape_count
             builder.add_builder(source_builder, xform=source_xforms[row, col])
-
             for label, source_shape_indices in source_site_indices.get(id(source_builder), {}).items():
                 local_indices = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col]
                 local_indices.extend(offset + shape_idx for shape_idx in source_shape_indices)
-
         for hook in per_world_builder_hooks:
             hook(builder, col, xform_rows[col][:3], xform_rows[col][3:])
         builder.end_world()
 
-    return local_site_map, world_xforms
-
-
-_BUILTIN_LABEL_TYPES: tuple[str, ...] = (
-    "body",
-    "joint",
-    "shape",
-    "articulation",
-    "constraint_mimic",
-    "equality_constraint",
-)
+    bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping) if destinations else []
+    return local_site_map, world_xforms, bindings
 
 
 def rename_builder_labels(
@@ -310,6 +355,8 @@ def rename_builder_labels(
     destinations: Sequence[str],
     env_ids: torch.Tensor,
     mapping: torch.Tensor,
+    *,
+    skip_entity_labels: bool = False,
 ) -> list[tuple[str, int]]:
     """Rewrite source-root labels to per-env destination roots and return Fabric body bindings."""
     fabric_body_bindings: list[tuple[str, int]] = []
@@ -321,10 +368,7 @@ def rename_builder_labels(
         world_cols = torch.nonzero(mapping[source_index], as_tuple=True)[0].tolist()
         # Pre-normalize the destination roots
         destination = destinations[source_index]
-        world_roots = {
-            env_id: (destination.format(env_id).rstrip("/") or "/")
-            for env_id in (env_ids_list[col] for col in world_cols)
-        }
+        world_roots = {col: (destination.format(env_ids_list[col]).rstrip("/") or "/") for col in world_cols}
 
         def _rename_pair(values, worlds, src_root=source_root, roots=world_roots, *, collect_body_bindings=False):
             rows = (
@@ -346,14 +390,11 @@ def rename_builder_labels(
                         fabric_body_bindings.append((renamed_value, index))
                         bound_body_indices.add(index)
 
-        for labels, worlds, collect_body_bindings in (
-            (builder.body_label, builder.body_world, True),
-            (builder.joint_label, builder.joint_world, False),
-            (builder.shape_label, builder.shape_world, False),
-            (builder.articulation_label, builder.articulation_world, False),
-            (builder.constraint_mimic_label, builder.constraint_mimic_world, False),
-        ):
-            _rename_pair(labels, worlds, collect_body_bindings=collect_body_bindings)
+        if not skip_entity_labels:
+            for name, labels in vars(builder).items():
+                worlds = getattr(builder, f"{name[:-6]}_world", None) if name.endswith("_label") else None
+                if isinstance(labels, list) and worlds is not None:
+                    _rename_pair(labels, worlds, collect_body_bindings=name == "body_label")
 
         custom_attrs = builder.custom_attributes.values()
         worlds_by_freq = {attr.frequency: attr.values for attr in custom_attrs if attr.references == "world"}
