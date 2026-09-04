@@ -30,7 +30,6 @@ from isaaclab_rl.entrypoints.common import (
     apply_video_recording,
     create_isaaclab_env,
     pre_launch_video_config,
-    print_playback_ready,
     resolve_checkpoint_selector,
     resolve_play_task_name,
     show_run_summary,
@@ -200,7 +199,7 @@ def main():
             _ = agent.get_batch_size(obs, 1)
             if agent.is_rnn:
                 agent.init_rnn()
-            print_playback_ready("play")
+            print("[INFO] Policy playback is running, press Ctrl+C to exit...")
             try:
                 while True:
                     start_time = time.time()

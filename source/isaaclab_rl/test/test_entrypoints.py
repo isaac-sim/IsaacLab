@@ -13,7 +13,6 @@ import subprocess
 import sys
 import types
 from types import SimpleNamespace
-from typing import Literal
 
 import gymnasium as gym
 import numpy as np
@@ -22,25 +21,7 @@ import torch
 
 from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch
 from isaaclab_rl.entrypoints import simple_agents as _simple_agents
-from isaaclab_rl.entrypoints.common import print_playback_ready
 from isaaclab_rl.entrypoints.simple_agents import _create_zero_action_policy
-
-
-@pytest.mark.parametrize(
-    ("mode", "message"),
-    [
-        ("play", "Policy playback is running. Press Ctrl+C to stop."),
-        ("zero", "Zero-action agent is running. Press Ctrl+C to stop."),
-        ("random", "Random-action agent is running. Press Ctrl+C to stop."),
-    ],
-)
-def test_print_playback_ready(
-    mode: Literal["play", "zero", "random"], message: str, capsys: pytest.CaptureFixture
-) -> None:
-    """Each playback mode reports that initialization is complete."""
-    print_playback_ready(mode)
-
-    assert capsys.readouterr().out == f"[INFO] {message}\n"
 
 
 @pytest.mark.parametrize(

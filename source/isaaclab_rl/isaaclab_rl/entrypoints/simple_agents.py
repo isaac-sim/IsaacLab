@@ -24,8 +24,6 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.utils import math as math_utils
 
-from isaaclab_rl.entrypoints.common import print_playback_ready
-
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
     resolve_task_config,
@@ -87,7 +85,10 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         # reset environment
         env.reset()
         zero_action_policy = _create_zero_action_policy(env) if policy == "zero" else None
-        print_playback_ready(policy)
+        if policy == "zero":
+            print("[INFO] Zero agent is running, press Ctrl+C to exit...")
+        else:
+            print("[INFO] Random agent is running, press Ctrl+C to exit...")
         # simulate environment
         # keep running while any visualizer is open, and until the step budget is exhausted
         sim = env.unwrapped.sim

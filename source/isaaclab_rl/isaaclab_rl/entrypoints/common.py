@@ -21,7 +21,7 @@ from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Literal
+from typing import Any
 
 import gymnasium as gym
 import torch
@@ -42,21 +42,6 @@ RUN_MANIFEST_VERSION = 1
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
 logger = logging.getLogger(__name__)
 _MISSING = object()
-
-_PLAYBACK_READY_MESSAGES = {
-    "play": "Policy playback is running. Press Ctrl+C to stop.",
-    "zero": "Zero-action agent is running. Press Ctrl+C to stop.",
-    "random": "Random-action agent is running. Press Ctrl+C to stop.",
-}
-
-
-def print_playback_ready(mode: Literal["play", "zero", "random"]) -> None:
-    """Print the ready message for a playback mode.
-
-    Args:
-        mode: Playback mode that finished initialization.
-    """
-    print(f"[INFO] {_PLAYBACK_READY_MESSAGES[mode]}")
 
 
 @contextmanager

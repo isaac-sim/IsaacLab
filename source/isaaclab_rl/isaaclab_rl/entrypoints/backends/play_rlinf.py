@@ -33,7 +33,6 @@ from datetime import datetime
 from pathlib import Path
 
 from isaaclab_rl.entrypoints.backends import cli_args_rlinf as cli_args
-from isaaclab_rl.entrypoints.common import print_playback_ready
 
 # required for RLinf to register IsaacLab tasks and converters
 os.environ.setdefault("RLINF_EXT_MODULE", "isaaclab_contrib.rl.rlinf.extension")
@@ -162,7 +161,7 @@ def main():
     )
 
     runner.init_workers()
-    print_playback_ready("play")
+    print("[INFO] Policy playback is running, press Ctrl+C to exit...")
     runner.run()
 
 

@@ -32,7 +32,6 @@ from isaaclab_rl.entrypoints.common import (
     create_isaaclab_env,
     pre_launch_video_config,
     preserve_attribute,
-    print_playback_ready,
     resolve_checkpoint_selector,
     resolve_play_task_name,
     show_run_summary,
@@ -243,7 +242,7 @@ def _main():
             obs, _ = env.reset()
             states = env.state()
             timestep = 0
-            print_playback_ready("play")
+            print("[INFO] Policy playback is running, press Ctrl+C to exit...")
             try:
                 while True:
                     start_time = time.time()
