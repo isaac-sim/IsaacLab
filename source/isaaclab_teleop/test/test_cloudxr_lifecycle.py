@@ -373,6 +373,12 @@ class TestCloudXREulaAcceptance:
             os.environ.pop("ISAACLAB_CXR_ACCEPT_EULA", None)
             assert cloudxr_eula_accepted() is False
 
+    def test_exported_from_package_root(self):
+        """``teleop_replay_agent.py`` imports the helper from the package root, not the submodule."""
+        import isaaclab_teleop
+
+        assert isaaclab_teleop.cloudxr_eula_accepted is cloudxr_eula_accepted
+
 
 # ============================================================================
 # Lifecycle start/stop integration with CloudXR
