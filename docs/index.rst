@@ -154,6 +154,7 @@ Table of Contents
    source/experimental-features/bleeding-edge
    source/experimental-features/visuo_tactile_sensor
    source/experimental-features/rlinf_vla_posttraining
+   source/experimental-features/trail
 
 .. toctree::
    :maxdepth: 1
