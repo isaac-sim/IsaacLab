@@ -107,7 +107,7 @@ def contact_force_magnitude(left_sensor_name: str, right_sensor_name: str) -> Si
         magnitudes = {
             endpoint: torch.linalg.vector_norm(forces.torch[0], dim=-1).sum().item()
             for endpoint, name in names.items()
-            if (forces := env.scene[name].data.net_forces_w) is not None
+            if (forces := env.scene[name].data.net_normal_forces_w) is not None
         }
         return {endpoint: np.array([magnitudes.get(endpoint, 0.0)], dtype=np.float32) for endpoint in names}
 
@@ -121,7 +121,7 @@ def per_finger_object_grip(
 ) -> SignalFn:
     """Signal source: per-finger grip force against the filtered object.
 
-    Reads each hand's contact sensor ``force_matrix_w`` -- the contact force
+    Reads each hand's contact sensor ``normal_force_matrix_w`` -- the contact force
     *filtered against the grasped object* (see
     :attr:`ContactSensorCfg.filter_prim_paths_expr`) -- and accumulates it into one
     channel per finger. Only force against the object contributes, so incidental
@@ -159,8 +159,8 @@ def per_finger_object_grip(
         for endpoint, name in names.items():
             sensor = env.scene[name]
             vec = np.zeros(num_channels, dtype=np.float32)
-            # force_matrix_w: [num_envs, num_bodies, num_filters, 3] (None before first contact).
-            force_matrix = sensor.data.force_matrix_w
+            # normal_force_matrix_w: [num_envs, num_bodies, num_filters, 3] (None before first contact).
+            force_matrix = sensor.data.normal_force_matrix_w
             if force_matrix is not None:
                 channels = body_channels.get(name)
                 if channels is None:

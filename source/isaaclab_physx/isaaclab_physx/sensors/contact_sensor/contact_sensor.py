@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import re
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,7 @@ import omni.physics.tensors as physx
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
+from isaaclab.sensors.contact_sensor.contact_force_marker import ContactForceVisualizer
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
 from isaaclab.utils.warp import ProxyArray
 
@@ -32,6 +34,7 @@ from .kernels import (
     reset_contact_sensor_kernel,
     split_flat_pose_to_pos_quat,
     unpack_contact_buffer_data,
+    update_filtered_force_history_kernel,
     update_net_forces_kernel,
 )
 
@@ -55,7 +58,7 @@ class ContactSensor(BaseContactSensor):
     The sensor can be configured to report the contact forces on a set of bodies with a given
     filter pattern using the :attr:`ContactSensorCfg.filter_prim_paths_expr`. This is useful
     when you want to report the contact forces between the sensor bodies and a specific set of
-    bodies in the scene. The data can be accessed using the :attr:`ContactSensorData.force_matrix_w`.
+    bodies in the scene. The data can be accessed using the :attr:`ContactSensorData.normal_force_matrix_w`.
     Please check the documentation on `RigidContact`_ for more details.
 
     The reporting of the filtered contact forces is only possible as one-to-many. This means that only one
@@ -200,16 +203,17 @@ class ContactSensor(BaseContactSensor):
                 self._history_length,
                 self._num_filter_shapes,
                 env_mask,
-                self._data._net_forces_w,
-                self._data._net_forces_w_history,
-                self._data._force_matrix_w,
+                self._data._net_normal_forces_w,
+                self._data._net_normal_forces_w_history,
+                self._data._normal_force_matrix_w,
             ],
             outputs=[
                 self._data._current_air_time,
                 self._data._last_air_time,
                 self._data._current_contact_time,
                 self._data._last_contact_time,
-                self._data._friction_forces_w,
+                self._data._friction_force_matrix_w,
+                self._data._friction_force_matrix_w_history,
                 self._data._contact_pos_w,
             ],
             device=self._device,
@@ -541,10 +545,10 @@ class ContactSensor(BaseContactSensor):
                 self._timestamp_last_update,
             ],
             outputs=[
-                self._data._net_forces_w,
-                self._data._net_forces_w_history,
-                self._data._force_matrix_w,
-                self._data._force_matrix_w_history,
+                self._data._net_normal_forces_w,
+                self._data._net_normal_forces_w_history,
+                self._data._normal_force_matrix_w,
+                self._data._normal_force_matrix_w_history,
                 self._data._current_air_time,
                 self._data._current_contact_time,
                 self._data._last_air_time,
@@ -595,7 +599,19 @@ class ContactSensor(BaseContactSensor):
                     False,
                     0.0,
                 ],
-                outputs=[self._data._friction_forces_w],
+                outputs=[self._data._friction_force_matrix_w],
+                device=self.device,
+            )
+            wp.launch(
+                update_filtered_force_history_kernel,
+                dim=(self._num_envs, self._num_sensors),
+                inputs=[
+                    self._history_length,
+                    self._num_filter_shapes,
+                    self._env_mask,
+                    self._data._friction_force_matrix_w,
+                    self._data._friction_force_matrix_w_history,
+                ],
                 device=self.device,
             )
 
@@ -606,11 +622,24 @@ class ContactSensor(BaseContactSensor):
             # create markers if necessary for the first time
             if not hasattr(self, "contact_visualizer"):
                 self.contact_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
+                self.normal_force_visualizer = ContactForceVisualizer(
+                    self.cfg.normal_force_visualizer_cfg,
+                    self.cfg.force_visualization_scale,
+                )
             # set their visibility to true
             self.contact_visualizer.set_visibility(True)
+            self.normal_force_visualizer.set_visibility(True)
+            if not getattr(self, "_warned_missing_net_friction_vis", False):
+                warnings.warn(
+                    "PhysX contact sensor visualization cannot display net friction forces because the backend"
+                    " only reports friction for configured filter objects.",
+                    stacklevel=2,
+                )
+                self._warned_missing_net_friction_vis = True
         else:
             if hasattr(self, "contact_visualizer"):
                 self.contact_visualizer.set_visibility(False)
+                self.normal_force_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
         # safely return if view becomes invalid
@@ -618,7 +647,7 @@ class ContactSensor(BaseContactSensor):
         if self.body_physx_view is None:
             return
         # Convert warp data to torch at the boundary for visualization
-        net_forces_torch = self._data.net_forces_w.torch  # (N, B, 3)
+        net_forces_torch = self._data.net_normal_forces_w.torch  # (N, B, 3)
         net_contact_force_w = torch.linalg.norm(net_forces_torch, dim=-1)
         # marker indices: 0 = contact, 1 = no contact
         marker_indices = torch.where(net_contact_force_w > self.cfg.force_threshold, 0, 1)
@@ -631,6 +660,12 @@ class ContactSensor(BaseContactSensor):
             frame_origins = pose_torch.view(self._num_sensors, -1, 7).transpose(0, 1)[:, :, :3]
         # visualize
         self.contact_visualizer.visualize(frame_origins.reshape(-1, 3), marker_indices=marker_indices.reshape(-1))
+        assert self.cfg.force_threshold is not None
+        self.normal_force_visualizer.visualize(
+            frame_origins,
+            net_forces_torch,
+            self.cfg.force_threshold,
+        )
 
     """
     Internal simulation callbacks.
