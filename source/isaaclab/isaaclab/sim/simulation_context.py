@@ -8,7 +8,7 @@ from __future__ import annotations
 import gc
 import logging
 import traceback
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any, TypeVar, cast
@@ -709,11 +709,18 @@ class SimulationContext:
                 return float(viz_dt)
         return self._viz_dt
 
-    def set_camera_view(self, eye: tuple, target: tuple) -> None:
-        """Set camera view on all visualizers that support it."""
-        self._pending_camera_view = (tuple(eye), tuple(target))
+    def set_camera_view(self, eye: Sequence[float], target: Sequence[float]) -> None:
+        """Set camera view on all visualizers that support it.
+
+        Args:
+            eye: Camera eye position [m] as a three-element sequence.
+            target: Camera target position [m] as a three-element sequence.
+        """
+        eye_tuple = tuple(eye)
+        target_tuple = tuple(target)
+        self._pending_camera_view = (eye_tuple, target_tuple)
         for viz in self._visualizers:
-            viz.set_camera_view(eye, target)
+            viz.set_camera_view(eye_tuple, target_tuple)
 
     def add_render_callback(self, name: str, fn: Callable[[Any], None], order: int = 0) -> None:
         """Register a callback to fire after every render step.
