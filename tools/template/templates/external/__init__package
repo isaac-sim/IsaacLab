@@ -3,8 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Python package for the generated extension."""
-
-from .tasks import *
-
-# Kit loads ``ui_extension_example`` through ``extension.toml`` after startup.
+"""Isaac Lab environments for {{ name }}."""
