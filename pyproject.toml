@@ -346,6 +346,13 @@ ignore-words-list = "aheared,collet,followng,haa,publically,rouines,slq,collapsa
 
 [tool.pytest.ini_options]
 
+# Record each test's captured stdout/stderr/logging in the JUnit XML. CI's
+# ``upload-omni-github-test-results`` action splits that report into one log file per test id
+# so the uploaded artifact carries a real log for every ``log_paths`` entry. Passing tests are
+# excluded because Kit startup output is verbose enough to bloat the report.
+junit_logging = "all"
+junit_log_passing_tests = false
+
 markers = [
     "isaacsim_ci: mark test to run in isaacsim ci",
     "device_split: re-invoke this file once per device (CPU and GPU) in CI due to process-global device locks (e.g., ovphysx<=0.3.7 gap G5)",
