@@ -64,32 +64,23 @@ def test_make_clone_plan_routes_default_and_explicit_contexts(monkeypatch):
 
     cfg.cloning_contexts = (Explicit,)
     assert make_clone_plan((cfg,), 2, 1.0).context_rows == {Explicit: (0,)}
-    empty = make_clone_plan((), 2, 1.0, global_paths=("/World/Ground",))
-    assert empty.context_rows == {_Context: ()}
-    assert empty.global_paths == ("/World/Ground",)
 
 
-def test_queue_accepts_only_cfgs_owned_by_published_plan(monkeypatch):
-    """Cfg-first constructors cannot escape the published plan."""
-    planned = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot", spawn=object())
-    unplanned = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Object", spawn=object())
-    covered_reference = SimpleNamespace(prim_path="/World/envs/env_[^/]+/Existing", spawn=None)
-    unplanned_reference = SimpleNamespace(prim_path="/World/Outside", spawn=None)
+def test_queue_collects_only_before_plan_publication(monkeypatch):
+    """Post-construction planning ignores cfgs built after a plan is active."""
+    cfg = object()
     plan = _plan()
-    plan.cfg_rows[id(planned)] = (0,)
-    simulation = SimpleNamespace(get_clone_plan=lambda: plan, _clone_plan_consumed=False)
+    published = None
+    simulation = SimpleNamespace(get_clone_plan=lambda: published)
     replicate_session.REPLICATION_QUEUE.clear()
     monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
 
-    replicate_session.queue_replication(planned)
-    with pytest.raises(RuntimeError, match="not owned"):
-        replicate_session.queue_replication(unplanned)
-    simulation._clone_plan_consumed = True
-    replicate_session.queue_replication(covered_reference)
-    with pytest.raises(RuntimeError, match="not owned"):
-        replicate_session.queue_replication(unplanned_reference)
+    replicate_session.queue_replication(cfg)
+    assert [cfg] == replicate_session.REPLICATION_QUEUE
 
-    assert replicate_session.REPLICATION_QUEUE == []
+    published = plan
+    replicate_session.queue_replication(object())
+    assert [cfg] == replicate_session.REPLICATION_QUEUE
 
 
 @pytest.mark.parametrize("valid_set", [np.asarray([["0"]]), np.asarray([[0 + 1j]])])
@@ -121,21 +112,19 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(monkeypatch):
         replicate_priority = -1
 
     plan = _plan(Late, Early)
+    published = []
     simulation = SimpleNamespace(
         physics_manager=SimpleNamespace(clone_context_type=Late),
         _backend_registry={Late: Late(calls), Early: Early(calls)},
-        _clone_plan=None,
-        _clone_plan_consumed=False,
+        get_clone_plan=lambda: None,
+        set_clone_plan=published.append,
     )
-    simulation.get_clone_plan = lambda: simulation._clone_plan
-    simulation.set_clone_plan = lambda value: SimulationContext.set_clone_plan(simulation, value)
-    simulation._consume_clone_plan = lambda value: SimulationContext._consume_clone_plan(simulation, value)
     monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
 
     replicate_session.replicate(plan)
 
     assert calls == [(Early, plan), (Late, plan)]
-    assert simulation._clone_plan is plan
+    assert published == [plan]
 
 
 def test_replicate_physics_false_runs_only_usd(monkeypatch):
@@ -152,12 +141,8 @@ def test_replicate_physics_false_runs_only_usd(monkeypatch):
     simulation = SimpleNamespace(
         physics_manager=SimpleNamespace(clone_context_type=Physics),
         _backend_registry={UsdReplicateContext: Usd(calls)},
-        _clone_plan=plan,
         get_clone_plan=lambda: plan,
-        _clone_plan_consumed=False,
     )
-    simulation.set_clone_plan = lambda value: SimulationContext.set_clone_plan(simulation, value)
-    simulation._consume_clone_plan = lambda value: SimulationContext._consume_clone_plan(simulation, value)
     monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
 
     replicate_session.replicate(plan, replicate_physics=False)
@@ -171,30 +156,9 @@ def test_replicate_rejects_unregistered_context(monkeypatch):
     simulation = SimpleNamespace(
         physics_manager=SimpleNamespace(clone_context_type=_Context),
         _backend_registry={},
-        _clone_plan=plan,
         get_clone_plan=lambda: plan,
-        _clone_plan_consumed=False,
     )
-    simulation.set_clone_plan = lambda value: SimulationContext.set_clone_plan(simulation, value)
-    simulation._consume_clone_plan = lambda value: SimulationContext._consume_clone_plan(simulation, value)
     monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
 
     with pytest.raises(RuntimeError, match="must be registered"):
         replicate_session.replicate(plan)
-    assert simulation._clone_plan_consumed is False
-
-
-def test_replicate_rejects_a_second_dispatch(monkeypatch):
-    """One published plan has exactly one backend dispatch."""
-    plan = _plan()
-    simulation = SimpleNamespace(_clone_plan=plan, get_clone_plan=lambda: plan, _clone_plan_consumed=True)
-    simulation.set_clone_plan = lambda value: SimulationContext.set_clone_plan(simulation, value)
-    simulation._consume_clone_plan = lambda value: SimulationContext._consume_clone_plan(simulation, value)
-    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
-    replicate_session.REPLICATION_QUEUE.append(object())
-
-    with pytest.raises(RuntimeError, match="consumed"):
-        replicate_session.replicate(plan)
-    assert replicate_session.REPLICATION_QUEUE == []
-    with pytest.raises(RuntimeError, match="consumed"):
-        simulation.set_clone_plan(None)

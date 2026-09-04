@@ -14,6 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 
@@ -213,16 +214,30 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_empty_scene_leaves_clone_lifecycle_to_caller():
-    """An empty scene authors usable env roots without claiming the direct task's plan."""
+    """An empty scene authors one prototype and leaves its replication to the direct task."""
     with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
         sim._app_control_on_stop_handle = None
         scene = InteractiveScene(InteractiveSceneCfg(num_envs=4, env_spacing=1.0))
 
         assert sim.get_clone_plan() is None
-        torch.testing.assert_close(scene.env_origins, torch.from_numpy(cloner.grid_transforms(4, 1.0)[0]))
-        positions = cloner.grid_transforms(4, 2.0)[0]
         env_template = scene.cfg.clone_cfg.clone_template
-        sim.set_clone_plan(cloner.clone_plan_from_env_0(env_template.format(0), env_template, 4, positions))
+        grid_positions = cloner.grid_transforms(4, 1.0)[0]
+        torch.testing.assert_close(scene.env_origins, torch.from_numpy(grid_positions))
+        assert scene.stage.GetPrimAtPath(env_template.format(0)).IsValid()
+        assert all(not scene.stage.GetPrimAtPath(env_template.format(i)).IsValid() for i in range(1, 4))
+
+        cube_cfg = RigidObjectCfg(
+            prim_path=f"{env_template.format('[^/]+')}/Cube",
+            spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
+            cloning_contexts=(cloner.UsdReplicateContext,),
+        )
+        cube_cfg.class_type(cube_cfg)
+        positions = grid_positions + np.asarray((0.25, 0.5, 0.75), dtype=np.float32)
+        plan = cloner.clone_plan_from_env_0(env_template.format(0), env_template, 4, positions)
+        cloner.replicate(plan)
+
+        assert sim.get_clone_plan() is plan
+        assert all(scene.stage.GetPrimAtPath(f"{env_template.format(i)}/Cube").IsValid() for i in range(4))
         torch.testing.assert_close(scene.env_origins, torch.from_numpy(positions))
 
 
@@ -297,7 +312,7 @@ def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
     scene.cloner_cfg = CloneCfg()
     scene._env_fmt = scene.cloner_cfg.clone_template
 
-    cfgs, global_paths = scene._collect_asset_cfgs()
+    cfgs, global_paths, _ = scene._collect_asset_cfgs()
 
     prim_paths = sorted(c.prim_path for c in cfgs)
     assert prim_paths == ["/World/envs/env_[^/]+/Cube", "/World/envs/env_[^/]+/Shape"]
@@ -313,7 +328,7 @@ def test_collect_asset_cfgs_excludes_entities_without_spawners():
     scene.cloner_cfg = CloneCfg()
     scene._env_fmt = scene.cloner_cfg.clone_template
 
-    cfgs, global_paths = scene._collect_asset_cfgs()
+    cfgs, global_paths, _ = scene._collect_asset_cfgs()
 
     assert cfgs == []
     assert global_paths == ()

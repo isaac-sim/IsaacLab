@@ -168,29 +168,41 @@ class InteractiveScene:
         # the template is authoritative; the regex form is the same namespace spelled for matching
         self._env_fmt = self.cloner_cfg.clone_template
         self.env_prim_paths = [self._env_fmt.format(i) for i in range(self.cfg.num_envs)]
-        self._scene_asset_names: list[str] = []
-        self._clone_valid_set: np.ndarray | None = None
+        self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
 
         self._global_prim_paths = list()
-        clone_cfgs, global_paths = self._collect_asset_cfgs()
-        scene_from_cfg = bool(self._scene_asset_names)
+        asset_cfgs, global_paths, valid_set = self._collect_asset_cfgs()
+        scene_from_cfg = any(
+            name not in InteractiveSceneCfg.__dataclass_fields__ and cfg is not None
+            for name, cfg in self.cfg.__dict__.items()
+        )
         if scene_from_cfg:
             with cloner.ReplicateSession(
-                clone_cfgs,
+                asset_cfgs,
                 num_clones=self.num_envs,
                 env_spacing=self.cfg.env_spacing,
                 global_paths=global_paths,
                 env_template=self._env_fmt,
                 clone_strategy=self.cloner_cfg.clone_strategy,
-                valid_set=self._clone_valid_set,
+                valid_set=valid_set,
                 replicate_physics=self.cloner_cfg.replicate_physics,
             ) as session:
-                self._author_envs(session.plan.env_ids, session.plan.positions)
+                self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
+                with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
+                    cloner.usd_replicate(
+                        self.stage,
+                        [self.env_prim_paths[0]],
+                        [self._env_fmt],
+                        session.plan.env_ids,
+                        positions=session.plan.positions,
+                    )
                 self._add_entities_from_cfg()
+            positions = session.plan.positions
         else:
-            env_ids = np.arange(self.num_envs, dtype=np.int64)
-            env_origins = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing)[0]
-            self._author_envs(env_ids, env_origins)
+            self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
+            positions = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing)[0]
+        self._env_origins = torch.as_tensor(positions, device=self.device)
+        self._env_origins_plan = self.sim.get_clone_plan()
 
         # Every sensor exists by now, so all visualizer and camera-renderer requirements are visible.
         cam_types = [s.cfg.renderer_cfg.renderer_type for s in self._sensors.values() if isinstance(s.cfg, CameraCfg)]
@@ -203,17 +215,17 @@ class InteractiveScene:
         if self.cfg.filter_collisions and "physx" in self.physics_backend and scene_from_cfg:
             self.filter_collisions(self._global_prim_paths)
 
-    def _collect_asset_cfgs(self) -> tuple[list[Any], tuple[str, ...]]:
+    def _collect_asset_cfgs(self) -> tuple[list[Any], tuple[str, ...], np.ndarray | None]:
         """Flatten user-declared cfgs and declare shared prim roots for clone planning.
 
         Expands :class:`~isaaclab.assets.RigidObjectCollectionCfg` into its members,
         resolves ``{ENV_REGEX_NS}`` macros, lets an enclosing asset's row own nested materials,
-        and returns only env-scoped configs with a spawner. Global roots are returned separately.
+        and returns env-scoped configs with a spawner, global roots, and valid clone combinations.
         """
 
         cfg_fields = InteractiveSceneCfg.__dataclass_fields__
         items = [(name, cfg) for name, cfg in self.cfg.__dict__.items() if name not in cfg_fields and cfg is not None]
-        self._scene_asset_names = [name for name, _ in items]
+        scene_asset_names = [name for name, _ in items]
         flat_items: list[tuple[str, Any]] = []
         for asset_name, asset_cfg in items:
             children = (
@@ -239,7 +251,7 @@ class InteractiveScene:
             and any(cloner.path.relative_to(cfg.prim_path, owner) not in (None, "") for owner in owner_paths)
         }
         nested_material_names = {name for name, cfg in flat_items if id(cfg) in nested_visual_material_ids}
-        self._scene_asset_names = [name for name in self._scene_asset_names if name not in nested_material_names]
+        scene_asset_names = [name for name in scene_asset_names if name not in nested_material_names]
 
         cfgs: list[Any] = []
         global_paths: tuple[str, ...] = ()
@@ -259,15 +271,15 @@ class InteractiveScene:
                 variant_counts.append(cloner.num_spawn_variants(child.spawn))
 
         if self.cloner_cfg.clone_combinations and clone_asset_names:
-            self._clone_valid_set = cloner.make_valid_clone_combinations(
+            valid_set = cloner.make_valid_clone_combinations(
                 clone_asset_names,
                 variant_counts,
                 self.cloner_cfg.clone_combinations,
-                all_asset_names=self._scene_asset_names,
+                all_asset_names=scene_asset_names,
             )
         else:
-            self._clone_valid_set = None
-        return cfgs, global_paths
+            valid_set = None
+        return cfgs, global_paths, valid_set
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
@@ -371,10 +383,9 @@ class InteractiveScene:
         if self._terrain is not None:
             return self._terrain.env_origins
         plan = self.sim.get_clone_plan()
-        if plan is not self._env_origins_plan:
+        if plan is not None and plan is not self._env_origins_plan:
+            self._env_origins = torch.as_tensor(plan.positions, device=self.device)
             self._env_origins_plan = plan
-            if plan is not None and plan.positions is not None:
-                self._env_origins = torch.as_tensor(plan.positions, device=self.device)
         return self._env_origins
 
     @property
@@ -778,15 +789,6 @@ class InteractiveScene:
     """
     Internal methods.
     """
-
-    def _author_envs(self, env_ids: np.ndarray, positions: np.ndarray) -> None:
-        """Author environment roots from the active layout."""
-        self._ALL_INDICES = torch.as_tensor(env_ids, device=self.device)
-        self._env_origins = torch.as_tensor(positions, device=self.device)
-        self._env_origins_plan = self.sim.get_clone_plan()
-        self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
-        with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
-            cloner.usd_replicate(self.stage, [self.env_prim_paths[0]], [self._env_fmt], env_ids, positions=positions)
 
     def _add_entities_from_cfg(self):  # noqa: C901
         """Add scene entities from the config."""

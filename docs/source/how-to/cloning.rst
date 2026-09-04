@@ -207,7 +207,7 @@ need every variant behind a template. Note that environment ids are not mask col
 column ``j`` stands for ``env_ids[j]``, and the queries speak ids throughout.
 
 A plan is the *what*. Putting one together and handing it to the backends is
-the *how*, and Isaac Lab exposes three idiomatic ways to do that. All three end
+the *how*, and Isaac Lab exposes two idiomatic ways to do that. Both end
 in the same ``cloner.replicate(plan)`` call, so the choice between
 them is purely about ergonomics:
 
@@ -215,11 +215,7 @@ them is purely about ergonomics:
   :class:`~isaaclab.scene.InteractiveScene` runs under the hood. Reach for it
   when you want the lifecycle hidden and you are authoring assets through a
   scene config.
-* The second spells the same flow out as plain function calls, leaving a moment
-  between the build and the drain where you can inspect the plan.
-  Reach for it when you are assembling a scene outside
-  :class:`~isaaclab.scene.InteractiveScene` or want fine control over timing.
-* The third is a one-shot shortcut for the case where every env is just a copy
+* The second is a one-shot shortcut for the case where every env is just a copy
   of env_0. Reach for it in :class:`~isaaclab.envs.DirectRLEnv` and standalone
   scripts that hand-build the env-0 prototype prim by prim.
 
@@ -256,21 +252,6 @@ When envs need to differ across the population, use
 :class:`~isaaclab.sim.spawners.wrappers.MultiUsdFileCfg`; see
 :doc:`multi_asset_spawning`.
 
-``make_clone_plan`` + ``replicate``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The same lifecycle as the session, written as separate function calls. Publish the
-plan before construction so every participant observes the same layout, then
-dispatch it after the prototypes exist:
-
-.. code-block:: python
-
-    plan = cloner.make_clone_plan(cfgs, num_clones=N, env_spacing=2.0)
-    sim.set_clone_plan(plan)
-    for cfg in cfgs:
-        cfg.class_type(cfg)
-    cloner.replicate(plan)
-
 ``clone_plan_from_env_0`` + ``replicate``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -294,9 +275,10 @@ subclasses use — they author the env-0 prototype prim by prim in
         plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
         cloner.replicate(plan)
 
-Every env receives the same prototype. When envs need to differ, use one of the
-other two. Hand-built scenes must pass every shared asset root in ``global_paths``;
-use ``()`` when there are none.
+Every env receives the same prototype. When envs need to differ, declare their
+assets on :class:`~isaaclab.scene.InteractiveSceneCfg` so the scene owns the
+session-backed lifecycle. Hand-built scenes must pass every shared asset root in
+``global_paths``; use ``()`` when there are none.
 
 
 Under the Hood
@@ -325,15 +307,14 @@ execution contract:
 
 .. code-block:: python
 
-    simulation.set_clone_plan(plan)
-    construct_prototypes()
+    plan = published_clone_plan
     for context_type in plan.context_rows:
         simulation_backends[context_type].replicate(plan)
 
 The cfg-first lifecycle publishes before ``construct_prototypes()``. The direct
 single-source workflow remains post-construction and is published by
 :func:`~isaaclab.cloner.replicate` immediately before dispatch. In either form,
-the simulation accepts one plan and each backend receives that exact object once.
+each maintained lifecycle passes that exact object to every backend.
 
 USD runs before native physics contexts so the destination topology exists when
 they consume it. No fallback context is constructed during dispatch.

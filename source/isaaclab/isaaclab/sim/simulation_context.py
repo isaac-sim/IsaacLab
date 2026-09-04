@@ -196,7 +196,6 @@ class SimulationContext:
         # Clone plan published before cfg-owned scene construction. Constructors and
         # backends therefore consume the same immutable layout through one lifecycle.
         self._clone_plan: ClonePlan | None = None
-        self._clone_plan_consumed: bool = False
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
         self._viz_dt = (physics_dt if physics_dt is not None else self.cfg.dt) * self.cfg.render_interval
@@ -692,24 +691,8 @@ class SimulationContext:
         return self._clone_plan
 
     def set_clone_plan(self, plan: ClonePlan | None) -> None:
-        """Publish or clear this simulation's single clone plan.
-
-        Raises:
-            RuntimeError: If another plan is active or the current plan was consumed.
-        """
-        if self._clone_plan_consumed:
-            raise RuntimeError("A consumed clone lifecycle cannot be cleared or replaced.")
-        if plan is self._clone_plan:
-            return
-        if plan is not None and self._clone_plan is not None:
-            raise RuntimeError("A SimulationContext owns exactly one clone lifecycle.")
+        """Set the cloner's active clone plan."""
         self._clone_plan = plan
-        self._clone_plan_consumed = False
-
-    def _consume_clone_plan(self, plan: ClonePlan) -> None:
-        """Publish ``plan`` and atomically claim its single backend dispatch."""
-        self.set_clone_plan(plan)
-        self._clone_plan_consumed = True
 
     @property
     def visualizers(self) -> list[BaseVisualizer]:

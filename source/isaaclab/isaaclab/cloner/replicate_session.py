@@ -17,8 +17,6 @@ from isaaclab.sim import SimulationContext
 from .clone_plan import make_clone_plan
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .cloner_strategies import sequential
-from .path import under
-from .query import path_to_source
 from .usd import UsdReplicateContext
 
 if TYPE_CHECKING:
@@ -34,23 +32,13 @@ without deriving any backend mapping from it.
 
 
 def queue_replication(cfg: Any) -> None:
-    """Register a constructed cfg or verify that the active plan owns it.
+    """Register a constructed cfg when no clone plan is active.
 
     Args:
         cfg: Asset cfg with resolved ``prim_path``.
     """
-    sim = SimulationContext.instance()
-    plan = None if sim is None else sim.get_clone_plan()
-    if plan is None:
+    if (sim := SimulationContext.instance()) is None or sim.get_clone_plan() is None:
         REPLICATION_QUEUE.append(cfg)
-        return
-
-    global_owned = any(under(cfg.prim_path, root) for root in plan.global_paths)
-    if not sim._clone_plan_consumed and (id(cfg) in plan.cfg_rows or global_owned):
-        return
-    if cfg.spawn is None and (global_owned or path_to_source(plan, cfg.prim_path) is not None):
-        return
-    raise RuntimeError(f"{type(cfg).__name__} at {cfg.prim_path!r} is not owned by the active ClonePlan.")
 
 
 def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
@@ -78,8 +66,12 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
         names = ", ".join(f"{context_type.__module__}.{context_type.__qualname__}" for context_type in missing)
         raise RuntimeError(f"Clone contexts must be registered before plan dispatch: {names}.")
 
+    if (active_plan := sim.get_clone_plan()) is None:
+        sim.set_clone_plan(plan)
+    elif active_plan is not plan:
+        raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
+
     contexts = [sim._backend_registry[context_type] for context_type in context_types]
-    sim._consume_clone_plan(plan)
     for context in sorted(contexts, key=lambda item: item.replicate_priority):
         context.replicate(plan)
 
@@ -138,8 +130,7 @@ class ReplicateSession:
         self._plan: ClonePlan | None = None
 
     def __enter__(self) -> ReplicateSession:
-        sim = SimulationContext.instance()
-        if sim is None:
+        if (sim := SimulationContext.instance()) is None:
             raise RuntimeError("Clone planning requires an active SimulationContext.")
         if sim.get_clone_plan() is not None:
             raise RuntimeError("A SimulationContext owns exactly one clone lifecycle.")
@@ -154,8 +145,7 @@ class ReplicateSession:
         else:
             # Drop cfgs registered before the failure so the next session is clean.
             REPLICATION_QUEUE.clear()
-            sim = SimulationContext.instance()
-            if sim is not None and sim.get_clone_plan() is self._plan:
+            if (sim := SimulationContext.instance()) is not None and sim.get_clone_plan() is self._plan:
                 sim.set_clone_plan(None)
 
     @property
