@@ -95,11 +95,11 @@ thread. Set ``PXR_WORK_THREAD_LIMIT`` before launching Python so the limit is pr
 
          PXR_WORK_THREAD_LIMIT=1 uv run isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
 
-   .. tab-item:: Windows PowerShell
+   .. tab-item:: Windows
 
-      .. code-block:: powershell
+      .. code-block:: batch
 
-         $env:PXR_WORK_THREAD_LIMIT = "1"
+         set PXR_WORK_THREAD_LIMIT=1
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
 
 This environment variable limits OpenUSD's process-wide worker pool to one thread and can reduce
