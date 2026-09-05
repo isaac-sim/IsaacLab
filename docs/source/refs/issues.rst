@@ -65,9 +65,9 @@ Newton backends
 OpenUSD can crash while parsing collider-rich rigid bodies
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Affects:** Kitless Newton workflows using OpenUSD releases earlier than 26.05
-(``usd-core<26.5``). Isaac Sim workflows are not affected because the bundled OpenUSD
-contains the upstream fix.
+**Affects:** Kitless Newton workflows using OpenUSD releases earlier than 26.05, and Isaac Sim
+releases earlier than 6.1. Isaac Sim 6.1 and later contain the upstream fix in their bundled
+OpenUSD runtime.
 
 Older OpenUSD releases have a thread-safety issue in
 ``UsdPhysics.LoadUsdPhysicsFromRange`` when multiple colliders belong to the same rigid body.
@@ -75,9 +75,17 @@ Newton uses this API while importing a USD stage, so affected processes can term
 scene creation with a segmentation fault, access violation, heap-corruption message, or hang.
 The issue and upstream fix are described in `OpenUSD PR #4002`_.
 
-As a workaround, limit OpenUSD to one worker thread. For a kitless Isaac Lab command, set
-``PXR_WORK_THREAD_LIMIT`` before launching Python so the limit is present before any ``pxr``
-module initializes:
+.. note::
+
+   For kitless workflows, Isaac Lab obtains the ``pxr`` modules from ``usd-exchange``.
+   ``usd-exchange`` and ``usd-core`` are alternative Python distributions of the same OpenUSD
+   runtime and should not be installed together because both provide ``pxr``. They use different
+   distribution version schemes: for example, ``usd-exchange==2.3.0`` provides OpenUSD 25.05.
+   Isaac Sim instead uses its own Kit-bundled OpenUSD runtime.
+
+As a workaround for an affected kitless or pre-6.1 Isaac Sim runtime, limit OpenUSD to one worker
+thread. Set ``PXR_WORK_THREAD_LIMIT`` before launching Python so the limit is present before any
+``pxr`` module initializes:
 
 .. tab-set::
 
@@ -95,8 +103,8 @@ module initializes:
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
 
 This environment variable limits OpenUSD's process-wide worker pool to one thread and can reduce
-USD import performance. Use it only with affected kitless OpenUSD releases, and remove it after
-upgrading to ``usd-core>=26.5``.
+USD import performance. Use it only with affected runtimes, and remove it after upgrading to an
+OpenUSD provider that contains the fix or to Isaac Sim 6.1 or later.
 
 .. _known-issues-closed-loop-newton:
 
