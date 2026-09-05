@@ -320,10 +320,19 @@ class NewtonManager(PhysicsManager):
     def reset(cls, soft: bool = False) -> None:
         """Reset physics simulation.
 
+        A hard reset re-finalizes the Newton model and reallocates its device
+        arrays. Cached collision state and CUDA graphs reference the old
+        buffers, so they must be released and rebuilt with the model.
+
         Args:
             soft: If True, skip full reinitialization.
         """
         if not soft:
+            NewtonManager._graph = None
+            NewtonManager._graph_capture_pending = False
+            NewtonManager._collision_pipeline = None
+            NewtonManager._contacts = None
+
             cls.start_simulation()
             cls.initialize_solver()
 

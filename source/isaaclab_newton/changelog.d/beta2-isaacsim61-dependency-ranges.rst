@@ -5,3 +5,5 @@ Fixed
   its USD importer dependencies.
 * Supported the Newton 1.5 model-change flags, joint-target buffers, reset masks, shape BVH refitting,
   and Kamino reset interface while retaining compatibility with Newton 1.2.
+* Rebuilt cached collision state and CUDA graphs after hard resets to prevent stale model buffers from
+  causing illegal CUDA memory accesses.
