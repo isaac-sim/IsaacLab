@@ -2902,7 +2902,7 @@ class NewtonManager(PhysicsManager):
                 "deferring visualization model creation."
             )
             return
-        NewtonManager._num_envs = len(env_paths) if clone_plan is not None else 1
+        NewtonManager._num_envs = clone_plan.clone_mask.shape[1] if clone_plan is not None else 1
         builder, (shadow_entities, registry_groups) = build_visualization_builder_from_stage_envs(
             stage, env_paths, clone_plan, up_axis=up_axis, device=str(PhysicsManager._device or "cpu")
         )

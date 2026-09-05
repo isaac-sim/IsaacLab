@@ -52,7 +52,7 @@ def _make_standalone_stage():
 
 
 def _set_sim_context(monkeypatch, nm, clone_plan=_DEFAULT, scene_data_provider=_DEFAULT):
-    clone_plan = SimpleNamespace() if clone_plan is _DEFAULT else clone_plan
+    clone_plan = SimpleNamespace(clone_mask=np.ones((1, 1), dtype=np.bool_)) if clone_plan is _DEFAULT else clone_plan
     scene_data_provider = SimpleNamespace() if scene_data_provider is _DEFAULT else scene_data_provider
     sim = SimpleNamespace(
         get_clone_plan=lambda: clone_plan,
@@ -418,9 +418,9 @@ def test_ensure_visualization_model_populates_num_envs_when_backend_is_physx(mon
 
     _reset_newton_manager_state()
     monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
-    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage(num_envs=4))
+    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage())
     monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
-    _set_sim_context(monkeypatch, nm)
+    _set_sim_context(monkeypatch, nm, clone_plan=SimpleNamespace(clone_mask=np.ones((1, 4), dtype=np.bool_)))
     monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
 
     builder = _make_finalize_builder(body_count=3)
@@ -835,6 +835,7 @@ def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import
         destinations=("/World/envs/env_{}",),
         env_ids=np.asarray([0, 1], dtype=np.int64),
         clone_mask=np.asarray([[False, False]], dtype=np.bool_),
+        positions=np.zeros((2, 3), dtype=np.float32),
     )
     monkeypatch.setattr(vb, "ModelBuilder", lambda up_axis="Z": fake_builder)
     monkeypatch.setattr(vb, "_restore_visible_colliders_without_visual_shapes", lambda *args, **kwargs: None)
