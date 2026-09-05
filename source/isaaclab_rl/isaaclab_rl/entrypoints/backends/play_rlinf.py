@@ -161,6 +161,7 @@ def main():
     )
 
     runner.init_workers()
+    print("[INFO] Policy playback is running, press Ctrl+C to exit...")
     runner.run()
 
 

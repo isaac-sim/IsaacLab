@@ -1,6 +1,69 @@
 Changelog
 ---------
 
+1.10.2 (2026-09-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_visualizers.rerun.RerunVisualizer.set_camera_view` and
+  :meth:`~isaaclab_visualizers.viser.ViserVisualizer.set_camera_view`, letting callers move
+  these visualizers' live 3D camera every simulation step (e.g. to follow a moving robot),
+  matching the existing :class:`~isaaclab_visualizers.kit.KitVisualizer` and Newton
+  implementations. Both backends already had the underlying per-step camera-pose machinery
+  internally; this exposes it through the public :class:`~isaaclab.visualizers.BaseVisualizer`
+  API, which previously no-op'd for these two backends.
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_visualizers.newton.NewtonGLVisualizer.render_rgb_array` omitting
+  visualization markers, so videos recorded with ``--viz newton_gl`` showed the scene without
+  its goal poses, command arrows, and other debug markers visible in the interactive viewer.
+* Fixed :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` unconditionally reporting the
+  streaming/tiled camera view as unsupported. Setting ``streaming_view=True`` now creates the owned
+  streaming camera sensor and produces composites via ``render_tiled_rgb_array()``, usable for headless
+  capture (e.g. through :class:`~isaaclab.envs.VideoRecorderCfg`). The live on-screen streaming preview
+  panel remains unavailable on this backend, since ``ViewerRTX.log_image`` has no display sink.
+
+
+1.10.1 (2026-09-03)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the Newton GL visualizer's "Pause Rendering" button not reflecting the paused
+  state after pressing :kbd:`Space`. Both controls now toggle the same underlying flag, so
+  the button label and :meth:`~isaaclab_visualizers.newton.newton_visualizer.NewtonViewerGL.is_rendering_paused`
+  stay in sync regardless of whether rendering was paused via the button or the keyboard shortcut.
+  Also clarified the on-screen control hint from "Space - Pause/Resume" to "Space - Pause/Resume
+  Rendering".
+
+
+1.10.0 (2026-09-01)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`, which authors arbitrary RTX
+  attributes onto the OVRTX render product as ``{name: (usd_type_name, value)}``. ``ViewerRTX`` hard-codes its render
+  product and exports the stage before the renderer reads it, so these are applied in the only window that reaches the
+  renderer. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's quality convergence
+  loop, which ``ViewerRTX`` otherwise disables to keep interactive latency down.
+
+
+1.9.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to every concrete visualizer config through its ``class_type`` field.
+
+
 1.8.0 (2026-08-22)
 ~~~~~~~~~~~~~~~~~~
 

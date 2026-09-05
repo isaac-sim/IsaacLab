@@ -92,6 +92,7 @@ Table of Contents
    source/setup/installation/index
    source/setup/environments
    source/setup/quickstart
+   source/setup/tutorial
    source/migration/migrating_to_isaaclab_3-0
 
 
@@ -101,6 +102,10 @@ Table of Contents
 
    source/concepts/backends_and_presets
    source/concepts/actuators
+   source/concepts/coupled_solvers
+   source/concepts/scene_data_providers
+   source/concepts/visualization
+   source/concepts/reinforcement_learning
 
 
 .. toctree::
@@ -108,12 +113,9 @@ Table of Contents
    :caption: Getting Started
    :titlesonly:
 
-   source/overview/own-project/index
-   source/setup/walkthrough/index
    source/tutorials/index
    source/how-to/index
    source/overview/developer-guide/index
-   source/testing/index
 
 
 .. toctree::
@@ -123,7 +125,6 @@ Table of Contents
 
 
    source/overview/core-concepts/index
-   source/overview/reinforcement-learning/index
    source/overview/imitation-learning/index
    source/overview/showroom
 
@@ -139,6 +140,17 @@ Table of Contents
    source/features/population_based_training
    source/features/ray
    source/features/reproducibility
+   source/features/draw_markers
+   source/features/record_video
+   source/features/visualizer_tiled_camera
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Developer Tools
+
+   source/developer-tools/template_generator
+   source/developer-tools/benchmarking/index
 
 
 .. toctree::

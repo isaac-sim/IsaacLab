@@ -116,9 +116,7 @@ class TestRendererWantsVisualShapes:
     """The auto mode must follow whatever will actually draw the shapes."""
 
     def _patch_sim(self, monkeypatch, sim):
-        import isaaclab.sim as sim_module
-
-        monkeypatch.setattr(sim_module.SimulationContext, "instance", staticmethod(lambda: sim))
+        monkeypatch.setattr(replicate_module.PhysicsManager, "_sim", sim)
 
     def test_headless_run_skips_visual_shapes(self, monkeypatch):
         """Nothing rendering means nothing needs the visual-only shapes."""

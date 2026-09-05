@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from ..utils import (
+    ISAAC_SIM_SOURCE_BUILD_MARKER,
     ISAACLAB_ROOT,
     extract_isaacsim_exe,
     is_windows,
@@ -45,10 +46,6 @@ def command_new(new_args: list[str]) -> None:
     Args:
         new_args: Arguments forwarded to the template generator CLI.
     """
-
-    print_info("Installing template dependencies...")
-    reqs = ISAACLAB_ROOT / "tools" / "template" / "requirements.txt"
-    run_python_command("pip", ["install", "-q", "-r", str(reqs)], is_module=True)
 
     print_info("Running template generator...")
     cli_script = ISAACLAB_ROOT / "tools" / "template" / "cli.py"
@@ -163,6 +160,7 @@ def command_build_isaacsim(source_path: str) -> None:
         if is_windows():
             print_info("Enable Windows Developer Mode or run from an elevated terminal, then retry.")
         raise SystemExit(1) from error
+    (release_dir / ISAAC_SIM_SOURCE_BUILD_MARKER).touch()
     print_info(f"Linked {link_path} -> {release_dir}")
     _repoint_source_build_prebundles()
 

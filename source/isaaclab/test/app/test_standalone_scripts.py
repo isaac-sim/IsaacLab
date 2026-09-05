@@ -232,7 +232,7 @@ def test_commands_respect_script_launcher_capabilities():
         if case.spec.relative_path == "scripts/tutorials/04_sensors/run_ray_caster_camera.py"
         and case.visualizer == "none"
     )
-    assert "--enable_cameras" in ray_camera_case.command()
+    assert "--enable_cameras" not in ray_camera_case.command()
 
     usd_camera_case = next(
         case
@@ -261,7 +261,6 @@ def test_hands_demo_uses_asset_owned_shadow_hand_configs():
     "relative_path",
     [
         "scripts/demos/sensors/cameras.py",
-        "scripts/demos/sensors/contact_sensor.py",
         "scripts/demos/sensors/frame_transformer_sensor.py",
         "scripts/demos/sensors/imu_sensor.py",
         "scripts/demos/sensors/multi_mesh_raycaster_camera.py",
@@ -274,6 +273,12 @@ def test_physx_only_sensor_demos_accept_explicit_physics_selector(relative_path)
     """PhysX-only sensor demos must accept their documented backend explicitly."""
     spec = next(spec for spec in SPECS if spec.relative_path == relative_path)
     assert spec.physics_backends == (("--physics", "isaacsim_physx"),)
+
+
+def test_contact_sensor_demo_accepts_physx_and_newton_selectors():
+    """The contact sensor demo exposes both PhysX and Newton MJWarp."""
+    spec = next(spec for spec in SPECS if spec.relative_path == "scripts/demos/sensors/contact_sensor.py")
+    assert spec.physics_backends == (("--physics", "isaacsim_physx"), ("--physics", "newton_mjwarp"))
 
 
 def test_cable_demo_accepts_explicit_newton_vbd_selector():

@@ -19,8 +19,9 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 
 class _FakePhysXConfig:
-    def __init__(self, num_threads=None, carbonite_overrides=None):
+    def __init__(self, num_threads=None, cooked_collider_cache_dir=None, carbonite_overrides=None):
         self.num_threads = num_threads
+        self.cooked_collider_cache_dir = cooked_collider_cache_dir
         self.carbonite_overrides = carbonite_overrides or {}
 
 
@@ -55,6 +56,7 @@ def manager_module(monkeypatch):
         "_atexit_registered": False,
         "_scene_data_backend": None,
         "_physx_schemas_registered": False,
+        "_gravity": None,
     }
     for name, value in test_state.items():
         monkeypatch.setattr(manager, name, value)
@@ -304,15 +306,20 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
     monkeypatch.setattr(manager, "_ovstage", FakeStage())
     monkeypatch.setattr(manager, "_physx", FakePhysX())
-    monkeypatch.setattr(manager, "_sim", SimpleNamespace(cfg=SimpleNamespace(physics_prim_path="/World/physicsScene")))
+    monkeypatch.setattr(
+        manager,
+        "_sim",
+        SimpleNamespace(cfg=SimpleNamespace(physics_prim_path="/World/physicsScene", gravity=(0.0, 0.0, -9.81))),
+    )
+    monkeypatch.setattr(manager, "_gravity", (0.0, 0.0, -9.81))
 
     if failure is None:
-        manager.set_gravity((0.0, 0.0, -9.81))
+        manager.set_gravity((0.0, 0.0, -3.72))
         expected_calls = [
             ("paths", ["/World/physicsScene"]),
             ("query", "physics-scene-paths"),
             ("write", "physics-scene-query", "physics:gravityDirection", 2, [[0.0, 0.0, -1.0]], False),
-            ("write", "physics-scene-query", "physics:gravityMagnitude", 2, [pytest.approx(9.81)], False),
+            ("write", "physics-scene-query", "physics:gravityMagnitude", 2, [pytest.approx(3.72)], False),
             ("seal", 2),
             ("update", 2, 2),
             ("release_query", "physics-scene-query"),
@@ -321,7 +328,7 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
         ]
     else:
         with pytest.raises(RuntimeError, match=f"{failure} failed"):
-            manager.set_gravity((0.0, 0.0, -9.81))
+            manager.set_gravity((0.0, 0.0, -3.72))
         expected_calls = [
             ("paths", ["/World/physicsScene"]),
             ("query", "physics-scene-paths"),
@@ -341,6 +348,12 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
         )
 
     assert calls == expected_calls
+    # ``get_gravity`` must report what the scene is actually running with: the new vector
+    # once the ordinal was applied, and the previous one when the update failed.
+    expected_gravity = (0.0, 0.0, -3.72) if failure is None else (0.0, 0.0, -9.81)
+    assert manager.get_gravity() == pytest.approx(expected_gravity)
+    # ``cfg.gravity`` stays the nominal base that randomization terms resample from.
+    assert manager._sim.cfg.gravity == (0.0, 0.0, -9.81)
 
 
 def _retained_binding_script() -> str:
@@ -419,3 +432,77 @@ def test_retained_binding_preserves_uncaught_failure_exit_status():
     assert "NORMAL_ATEXIT" in output, output[-8000:]
     assert "OVPHYSX_STOP" in output, output[-8000:]
     _assert_no_atexit_errors(output)
+
+
+def test_construct_physx_passes_the_configured_cooked_collider_cache_dir(monkeypatch, manager_module, tmp_path):
+    """The configured cache directory reaches ``PhysXConfig``; without a config the default does."""
+    from isaaclab_ov.physics.ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxCfg
+
+    from isaaclab.physics import PhysicsManager
+
+    manager = manager_module.OvPhysxManager
+    monkeypatch.setattr(manager_module, "import_ovphysx", lambda: _fake_ovphysx_module(lambda: None))
+
+    configured = str(tmp_path / "configured_cache")
+    monkeypatch.setattr(PhysicsManager, "_cfg", OvPhysxCfg(cooked_collider_cache_dir=configured))
+    manager._construct_physx("cpu", 0)
+    assert manager._physx.config.cooked_collider_cache_dir == configured
+
+    monkeypatch.setattr(PhysicsManager, "_cfg", None)
+    manager._physx = None
+    manager._construct_physx("cpu", 0)
+    assert manager._physx.config.cooked_collider_cache_dir == DEFAULT_COOKED_COLLIDER_CACHE_DIR
+
+
+def test_construct_physx_forwards_an_unset_cooked_collider_cache_dir(monkeypatch, manager_module):
+    """``None`` reaches ``PhysXConfig`` unchanged so OVPhysX applies its own resolution."""
+    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
+
+    from isaaclab.physics import PhysicsManager
+
+    manager = manager_module.OvPhysxManager
+    monkeypatch.setattr(manager_module, "import_ovphysx", lambda: _fake_ovphysx_module(lambda: None))
+    monkeypatch.setattr(PhysicsManager, "_cfg", OvPhysxCfg(cooked_collider_cache_dir=None))
+
+    manager._construct_physx("cpu", 0)
+
+    assert manager._physx.config.cooked_collider_cache_dir is None
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX ownership and mode semantics")
+def test_default_cache_dir_is_created_owner_only(manager_module, tmp_path, monkeypatch):
+    """The default directory is created ``0o700`` so another user cannot pre-own or read it."""
+    import stat
+
+    target = tmp_path / "ovphysx_derived_data_cache_1000"
+    monkeypatch.setattr(manager_module, "DEFAULT_COOKED_COLLIDER_CACHE_DIR", str(target))
+
+    assert manager_module._prepare_default_cache_dir(str(target)) == str(target)
+    assert stat.S_IMODE(target.stat().st_mode) == 0o700
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX ownership and mode semantics")
+def test_default_cache_dir_rejects_a_planted_symlink(manager_module, tmp_path, monkeypatch):
+    """A symlink planted at the predictable path is refused instead of written through."""
+    victim = tmp_path / "victim"
+    victim.mkdir()
+    target = tmp_path / "ovphysx_derived_data_cache_1000"
+    target.symlink_to(victim)
+    monkeypatch.setattr(manager_module, "DEFAULT_COOKED_COLLIDER_CACHE_DIR", str(target))
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        manager_module._prepare_default_cache_dir(str(target))
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX ownership and mode semantics")
+def test_default_cache_dir_rejects_a_directory_owned_by_another_user(manager_module, tmp_path, monkeypatch):
+    """A pre-existing directory this user does not own is refused."""
+    import os as _os
+
+    target = tmp_path / "ovphysx_derived_data_cache_1000"
+    target.mkdir(mode=0o700)
+    monkeypatch.setattr(manager_module, "DEFAULT_COOKED_COLLIDER_CACHE_DIR", str(target))
+    monkeypatch.setattr(_os, "getuid", lambda: _os.stat(target).st_uid + 1)
+
+    with pytest.raises(RuntimeError, match="owned"):
+        manager_module._prepare_default_cache_dir(str(target))
