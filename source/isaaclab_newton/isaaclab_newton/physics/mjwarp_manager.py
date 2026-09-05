@@ -16,6 +16,8 @@ from newton.solvers import SolverMuJoCo
 
 from isaaclab.physics import PhysicsManager
 
+from isaaclab_newton._newton_compat import patch_mujoco_warp_collision_count
+
 from .mjwarp_manager_cfg import MJWarpSolverCfg
 from .newton_manager import NewtonManager
 
@@ -40,6 +42,7 @@ class NewtonMJWarpManager(NewtonManager):
         forwarded.  Sets :attr:`NewtonManager._needs_collision_pipeline` to
         ``True`` only when ``use_mujoco_contacts=False``.
         """
+        patch_mujoco_warp_collision_count()
         valid = set(inspect.signature(SolverMuJoCo.__init__).parameters) - {"self", "model"}
         kwargs = {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
         NewtonManager._solver = SolverMuJoCo(model, **kwargs)

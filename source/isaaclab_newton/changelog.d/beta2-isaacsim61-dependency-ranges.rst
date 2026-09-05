@@ -9,3 +9,4 @@ Fixed
   causing illegal CUDA memory accesses.
 * Paused Python garbage collection during Newton CUDA graph capture to prevent conditional graph memory
   frees from corrupting later graph launches.
+* Prevented MuJoCo Warp 3.11's convex collision pass from reading beyond capacity-limited broadphase buffers.
