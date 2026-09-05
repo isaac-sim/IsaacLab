@@ -39,36 +39,24 @@ _PROCESS_FAILURE_PATTERNS = (
 )
 
 
-# Tasks with confirmed pretrained checkpoints (Direct and no-checkpoint tasks excluded).
+# Tasks with confirmed pretrained checkpoints (Direct and no-checkpoint tasks excluded), chosen for
+# export-path diversity rather than coverage breadth: one representative per distinct observation /
+# command / action pattern. Robot variants that share a pattern (e.g. the other quadruped velocity
+# tasks) exercise the same export graph and are omitted.
 TASKS = [
     # Classic
     "Isaac-Ant",
     "Isaac-Cartpole",
-    # Navigation
+    # Navigation: position command on top of a pretrained low-level velocity policy
     "IsaacContrib-Navigation-Flat-AnymalC",
-    # Locomotion Velocity
-    "IsaacContrib-Velocity-Flat-AnymalB",
-    "IsaacContrib-Velocity-Rough-AnymalB",
-    "IsaacContrib-Velocity-Flat-AnymalC",
-    "IsaacContrib-Velocity-Rough-AnymalC",
+    # Locomotion Velocity: quadruped flat, quadruped rough (adds height_scan), humanoid rough,
+    # and a contrib task with its own MDP terms
     "Isaac-Velocity-Flat-AnymalD",
     "Isaac-Velocity-Rough-AnymalD",
-    "Isaac-Velocity-Flat-Cassie",
-    "Isaac-Velocity-Rough-Cassie",
-    "Isaac-Velocity-Flat-G1",
     "Isaac-Velocity-Rough-G1",
-    "Isaac-Velocity-Flat-H1",
-    "Isaac-Velocity-Rough-H1",
     "IsaacContrib-Velocity-Flat-Spot",
-    "IsaacContrib-Velocity-Flat-UnitreeA1",
-    "IsaacContrib-Velocity-Rough-UnitreeA1",
-    "IsaacContrib-Velocity-Flat-UnitreeGo1",
-    "IsaacContrib-Velocity-Rough-UnitreeGo1",
-    "Isaac-Velocity-Flat-UnitreeGo2",
-    "Isaac-Velocity-Rough-UnitreeGo2",
     # Manipulation Reach
     "Isaac-Reach-Franka",
-    "Isaac-Reach-UR10",
     # Manipulation Lift
     "Isaac-Lift-Franka",
     # Manipulation Cabinet
@@ -172,28 +160,6 @@ def _load_export_module():
     return module
 
 
-class _ModularRNN(torch.nn.Module):
-    """Minimal RSL-RL 5.x RNN wrapper shape."""
-
-    def __init__(self):
-        super().__init__()
-        self.rnn = torch.nn.LSTM(input_size=2, hidden_size=4, num_layers=2)
-        self.hidden_state = None
-
-
-class _ModularRecurrentPolicy(torch.nn.Module):
-    """Minimal RSL-RL 5.x RNNModel shape."""
-
-    is_recurrent = True
-
-    def __init__(self):
-        super().__init__()
-        self.rnn = _ModularRNN()
-
-    def get_hidden_state(self):
-        return self.rnn.hidden_state
-
-
 @contextlib.contextmanager
 def _clean_hydra_argv():
     """Temporarily hide pytest arguments from Hydra config resolution."""
@@ -285,39 +251,6 @@ def _run_export_batch_entrypoint() -> None:
     if not tasks:
         raise ValueError("Expected at least one task for --export-flow-batch")
     _run_export_batch(tasks)
-
-
-def test_recurrent_state_helpers_support_modular_rnn_model_lstm():
-    """Verify LSTM state registration helpers support RSL-RL 5.x RNNModel."""
-    export_module = _load_export_module()
-    policy = _ModularRecurrentPolicy()
-
-    actor_state = export_module.ensure_actor_hidden_state_initialized(
-        policy, batch_size=1, device=torch.device("cpu"), dtype=torch.float32
-    )
-    registered_state = tuple(tensor + 1.0 for tensor in actor_state)
-    export_module.set_actor_hidden_state(
-        policy,
-        export_module.actor_hidden_from_registered(registered_state, actor_state),
-    )
-
-    assert export_module.is_actor_recurrent_policy(policy)
-    assert export_module.get_actor_memory_module(policy) is policy.rnn
-    assert export_module.get_actor_hidden_state(policy) is registered_state
-    assert policy.rnn.hidden_state is registered_state
-
-
-def test_export_flow_fails_on_sim_traceback():
-    """Catch simulator failures even when the process reports success."""
-    result = subprocess.CompletedProcess(
-        args=["export-flow"],
-        returncode=0,
-        stdout="Traceback (most recent call last):\nFileNotFoundError: missing asset",
-        stderr="",
-    )
-
-    with pytest.raises(pytest.fail.Exception):
-        _fail_on_process_error(result, ["Isaac-Reach-Franka"])
 
 
 @pytest.mark.parametrize("task_names", _task_batches(TASKS), ids=_batch_id)

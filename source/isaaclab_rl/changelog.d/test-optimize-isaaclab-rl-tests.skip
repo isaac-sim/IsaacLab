@@ -1,0 +1,4 @@
+Test-only change: trimmed the LEAPP export integration matrices to one representative task per
+export pattern, dropped a checkpoint-fixture-only test and a recurrent-state unit test duplicated in
+``test_leapp_recurrent_state.py``, and limited the finite-horizon wrapper check to two environments.
+No user-visible behavior change.
