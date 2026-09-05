@@ -32,7 +32,7 @@
             ["Isaac-Lift-Soft-Franka-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint", {}, "newton/franka-mjwarp-vbd-coupling.png"],
             ["Isaac-Open-Drawer-Franka-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/manipulation/franka_open_drawer.jpg"],
             ["Isaac-Open-Drawer-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/manipulation/franka_open_drawer.jpg"],
-            ["Isaac-Pendulum-MARL-Direct", "rl_games,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/cart_double_pendulum.jpg"],
+            ["Isaac-Pendulum-MARL-Direct", "rl_games,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/cart_double_pendulum.jpg", false, {"skrl": "MAPPO"}],
             ["Isaac-Reach-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "diffik,diffik_abs,joint_pos,newton_ik", {}, "tasks/manipulation/franka_reach.jpg", true],
             ["Isaac-Reach-Franka-OSC", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "diffik_abs", {}, "tasks/manipulation/franka_reach.jpg"],
             ["Isaac-Reach-UR10", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/manipulation/ur10_reach.jpg", true],
@@ -45,7 +45,7 @@
             ["Isaac-Reorient-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,shapes"],
             ["Isaac-Reorient-KukaAllegro", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,shapes", {}, "tasks/manipulation/kuka_allegro_reorient.jpg"],
             ["Isaac-Reorient-KukaAllegro-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo128,albedo256,albedo64,cube,depth128,depth256,depth64,duo_camera,raycaster_depth128,raycaster_depth256,raycaster_depth64,rgb128,rgb256,rgb64,semantic_segmentation128,semantic_segmentation256,semantic_segmentation64,shapes,simple_shading_constant_diffuse128,simple_shading_constant_diffuse256,simple_shading_constant_diffuse64,simple_shading_diffuse_mdl128,simple_shading_diffuse_mdl256,simple_shading_diffuse_mdl64,simple_shading_full_mdl128,simple_shading_full_mdl256,simple_shading_full_mdl64,single_camera", {}, "tasks/manipulation/kuka_allegro_reorient.jpg"],
-            ["Isaac-Shadow-Handover-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/manipulation/shadow_hand_over.jpg"],
+            ["Isaac-Shadow-Handover-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/manipulation/shadow_hand_over.jpg", false, {"skrl": "MAPPO"}],
             ["Isaac-Shadow-Handover", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "randomized"],
             ["Isaac-Velocity-Flat-AnymalD", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/locomotion/anymal_d_flat.jpg", true],
             ["Isaac-Velocity-Flat-Cassie", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "", true],
@@ -155,6 +155,7 @@
     const splitValues = (value) => value ? value.split(",") : [];
     const tasks = taskRows.map(([
         task, rl, physics, renderer, presets, agentPresetCompatibility = {}, previewImage = "", supportsWarpFrontend = false,
+        defaultAlgorithms = {},
     ]) => ({
         task,
         scope: task.startsWith("IsaacContrib-") ? "contrib" : "core",
@@ -165,6 +166,7 @@
         agentPresetCompatibility,
         previewImage,
         supportsWarpFrontend,
+        defaultAlgorithms,
     }));
 
     const builder = document.querySelector("[data-environment-browser]");
@@ -333,6 +335,10 @@
         ))?.[0];
         if (selectedAgent && selectedAgent !== `${fields.rl.value}_cfg_entry_point`) {
             parts.push("--agent", selectedAgent);
+        }
+        const selectedAlgorithm = task.defaultAlgorithms[fields.rl.value];
+        if (selectedAlgorithm) {
+            parts.push("--algorithm", selectedAlgorithm);
         }
         if (state.scope === "warp") {
             parts.push("--frontend", "warp");

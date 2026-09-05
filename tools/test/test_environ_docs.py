@@ -441,6 +441,22 @@ def test_environment_browser_rows_include_concrete_core_and_contributed_selector
     assert "const preserved = true;" in updated
 
 
+def test_environment_browser_rows_include_mappo_as_the_skrl_default():
+    """Tasks offering MAPPO must make it the generated SKRL command default."""
+    rows = [
+        EnvironmentDocRow(
+            task_name="Isaac-Multi-Agent-Direct",
+            workflow="Direct",
+            rl_libraries={"skrl": ["IPPO", "MAPPO", "PPO"]},
+            presets=None,
+        )
+    ]
+
+    rendered = render_environment_browser_task_rows(rows)
+
+    assert '["Isaac-Multi-Agent-Direct", "skrl", "", "", "", {}, "", false, {"skrl": "MAPPO"}]' in rendered
+
+
 def test_collect_environment_browser_preview_images_preserves_generated_assignments():
     content = (
         f"{ENVIRONMENT_BROWSER_TASKS_START_MARKER}\n"
