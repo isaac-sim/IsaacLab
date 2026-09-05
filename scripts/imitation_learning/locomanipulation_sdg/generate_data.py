@@ -123,7 +123,8 @@ parser.add_argument(
 )
 
 AppLauncher.add_app_launcher_args(parser)
-args_cli = parser.parse_args()
+# forward unrecognized args as Hydra-style task config overrides
+args_cli, hydra_overrides = parser.parse_known_args()
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -993,7 +994,7 @@ if __name__ == "__main__":
         if env_name is None:
             raise ValueError("Task/env name was not specified nor found in the dataset.")
 
-        env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1)
+        env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
         env_cfg.sim.device = "cpu"
         env_cfg.recorders.dataset_export_dir_path = os.path.dirname(args_cli.output_file)
         env_cfg.recorders.dataset_filename = os.path.basename(args_cli.output_file)
