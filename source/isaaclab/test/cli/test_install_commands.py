@@ -22,6 +22,7 @@ import isaaclab.cli.commands.install as install_cmd
 from isaaclab.cli.commands.install import (
     _PREBUNDLE_REPOINT_PACKAGES,
     _ensure_cuda_torch,
+    _filter_pip_prebundle_pythonpath,
     _maybe_uninstall_prebundled_torch,
     _repoint_prebundle_packages,
     _torch_first_on_sys_path_is_prebundle,
@@ -68,6 +69,27 @@ def _make_site_packages(
         for sub in subs:
             (site_pkgs / pkg / sub).mkdir(parents=True, exist_ok=True)
     return site_pkgs
+
+
+# ---------------------------------------------------------------------------
+# pip prebundle filtering
+# ---------------------------------------------------------------------------
+
+
+def test_prebundle_filter_preserves_newton_distribution_metadata(tmp_path):
+    """Bundled Newton remains visible while unrelated prebundles are hidden from pip."""
+    other_prebundle = tmp_path / "other.ext" / "pip_prebundle"
+    other_prebundle.mkdir(parents=True)
+    newton_prebundle = tmp_path / "isaacsim.pip.newton" / "pip_prebundle" / "newton-wheel"
+    (newton_prebundle / "newton-1.5.0.dist-info").mkdir(parents=True)
+    site_packages = tmp_path / "kit" / "site-packages"
+    site_packages.mkdir(parents=True)
+    pythonpath = os.pathsep.join((str(other_prebundle), str(newton_prebundle), str(site_packages)))
+
+    filtered, removed_count = _filter_pip_prebundle_pythonpath(pythonpath)
+
+    assert filtered.split(os.pathsep) == [str(newton_prebundle), str(site_packages)]
+    assert removed_count == 1
 
 
 # ---------------------------------------------------------------------------

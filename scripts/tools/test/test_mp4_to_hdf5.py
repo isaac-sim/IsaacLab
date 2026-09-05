@@ -8,11 +8,12 @@
 import os
 import tempfile
 
-import cv2
 import h5py
+import imageio.v2 as imageio
 import numpy as np
 import pytest
 
+import scripts.tools.mp4_to_hdf5 as mp4_to_hdf5
 from scripts.tools.mp4_to_hdf5 import get_frames_from_mp4, main, process_video_and_demo
 
 
@@ -62,15 +63,11 @@ def temp_videos_dir():
         video_path = os.path.join(temp_dir, f"demo_{demo_id}_table_cam.mp4")
         video_paths.append(video_path)
 
-        # Create a test video
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        video = cv2.VideoWriter(video_path, fourcc, 30, (1280, 704))
-
-        # Write some random frames
-        for _ in range(10):
-            frame = np.random.randint(0, 255, (704, 1280, 3), dtype=np.uint8)
-            video.write(frame)
-        video.release()
+        # Create a test video without depending on OpenCV's optional encoder plugins.
+        with imageio.get_writer(video_path, fps=30) as video:
+            for _ in range(10):
+                frame = np.random.randint(0, 255, (704, 1280, 3), dtype=np.uint8)
+                video.append_data(frame)
 
     yield temp_dir, video_paths
 
@@ -112,6 +109,22 @@ class TestMP4ToHDF5:
         assert frames.shape[0] == 10  # Number of frames
         assert frames.shape[1:] == (target_height, target_width, 3)  # Resized dimensions
         assert frames.dtype == np.uint8  # Data type
+
+    def test_get_frames_from_mp4_without_opencv_decoder(self, temp_videos_dir, monkeypatch):
+        """Test falling back to imageio when OpenCV has no MP4 decoder."""
+
+        class UnavailableVideoCapture:
+            def read(self):
+                return False, None
+
+            def release(self):
+                pass
+
+        monkeypatch.setattr(mp4_to_hdf5.cv2, "VideoCapture", lambda *args: UnavailableVideoCapture())
+        _, video_paths = temp_videos_dir
+        frames = get_frames_from_mp4(video_paths[0])
+
+        assert frames.shape == (10, 704, 1280, 3)
 
     def test_process_video_and_demo(self, temp_hdf5_file, temp_videos_dir, temp_output_file):
         """Test processing a single video and creating a new demo."""

@@ -13,7 +13,6 @@ import numpy as np
 import torch
 import warp as wp
 from newton.selection import ArticulationView
-from newton.solvers import SolverNotifyFlags
 
 from pxr import UsdPhysics
 
@@ -23,6 +22,7 @@ from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 from isaaclab.utils.wrench_composer import WrenchComposer
 
+from isaaclab_newton._newton_compat import ModelFlags
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
@@ -758,7 +758,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_masses_mask(
         self,
@@ -801,7 +801,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_index(
         self,
@@ -848,7 +848,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_mask(
         self,
@@ -896,7 +896,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_index(
         self,
@@ -938,7 +938,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_mask(
         self,
@@ -981,7 +981,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     """
     Internal helper.

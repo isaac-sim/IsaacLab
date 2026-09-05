@@ -14,7 +14,6 @@ import numpy as np
 import torch
 import warp as wp
 from newton.selection import ArticulationView
-from newton.solvers import SolverNotifyFlags
 
 from pxr import UsdPhysics
 
@@ -24,6 +23,7 @@ from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.wrench_composer import WrenchComposer
 
+from isaaclab_newton._newton_compat import ModelFlags
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
@@ -833,7 +833,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # No copy-back needed — writes go directly to Newton's state via the 2D binding
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_masses_mask(
         self,
@@ -877,7 +877,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # No copy-back needed — writes go directly to Newton's state via the 2D binding
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_index(
         self,
@@ -927,7 +927,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.data._body_com_pose_b.timestamp = -1.0
         self.data._body_com_pose_w.timestamp = -1.0
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_mask(
         self,
@@ -978,7 +978,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self.data._body_com_pose_b.timestamp = -1.0
         self.data._body_com_pose_w.timestamp = -1.0
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_index(
         self,
@@ -1021,7 +1021,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # No copy-back needed — writes go directly to Newton's state via the 2D binding
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_mask(
         self,
@@ -1065,7 +1065,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # No copy-back needed — writes go directly to Newton's state via the 2D binding
         # Tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     """
     Internal helper.

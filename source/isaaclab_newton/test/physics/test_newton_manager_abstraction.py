@@ -26,6 +26,7 @@ Covers:
 from __future__ import annotations
 
 import pytest
+import warp as wp
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoSolverCfg,
@@ -201,12 +202,15 @@ def test_initialize_solver_populates_canonical_state(
        :meth:`NewtonManager.start_simulation` to skip
        :meth:`instantiate_builder_from_stage`, so the test does not depend on
        USD asset packages.
+    3. Kamino's internal collision detector requires collidable geometry to
+       construct its collision pipeline.
     """
+    solver_cfg = solver_cfg_factory()
     sim_cfg = SimulationCfg(
         dt=1.0 / 120.0,
         device="cuda:0",
         gravity=(0.0, 0.0, -9.81),
-        physics=NewtonCfg(solver_cfg=solver_cfg_factory(), use_cuda_graph=False),
+        physics=NewtonCfg(solver_cfg=solver_cfg, use_cuda_graph=False),
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
@@ -222,6 +226,9 @@ def test_initialize_solver_populates_canonical_state(
         builder = NewtonManager.create_builder()
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+        if isinstance(solver_cfg, KaminoSolverCfg) and solver_cfg.use_collision_detector:
+            builder.add_shape_sphere(body=body, radius=0.05)
+            builder.add_ground_plane()
         NewtonManager.set_builder(builder)
 
         # Force resolution and bring up the solver.
@@ -272,3 +279,71 @@ def test_mjwarp_internal_contacts_with_collision_cfg_raises():
 
         with pytest.raises(ValueError, match="collision_cfg cannot be set"):
             sim.reset()
+
+
+def _build_collision_scene(sim, num_boxes: int = 8) -> None:
+    """Add free-falling boxes over a ground plane."""
+    builder = sim.physics_manager.create_builder()
+    for _ in range(num_boxes):
+        body = builder.add_body(mass=1.0)
+        builder.add_joint_free(child=body)
+        builder.add_shape_box(body=body, hx=0.1, hy=0.1, hz=0.1)
+    builder.add_ground_plane()
+    NewtonManager.set_builder(builder)
+
+
+_COLLIDE_MODEL_ARRAYS = (
+    "shape_transform",
+    "shape_body",
+    "shape_type",
+    "shape_scale",
+    "shape_collision_radius",
+    "shape_source_ptr",
+    "shape_margin",
+    "shape_gap",
+    "shape_collision_aabb_lower",
+    "shape_collision_aabb_upper",
+)
+
+
+def _free_model_collide_arrays_and_churn(model, device: str) -> None:
+    """Free model collision arrays and reuse their device allocations."""
+    import gc
+
+    for attr in _COLLIDE_MODEL_ARRAYS:
+        array = getattr(model, attr, None)
+        if isinstance(array, wp.array) and array.device.is_cuda:
+            setattr(model, attr, None)
+    gc.collect()
+    wp.synchronize_device(device)
+    _churn = [wp.zeros(1 << 16, dtype=wp.float32, device=device) for _ in range(128)]  # noqa: F841
+    wp.synchronize_device(device)
+
+
+@pytest.mark.parametrize("use_cuda_graph", [False, True])
+def test_hard_reset_then_step_runs(use_cuda_graph: bool) -> None:
+    """A step after a hard reset must not use stale collision buffers."""
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device="cuda:0",
+        gravity=(0.0, 0.0, -9.81),
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False),
+            num_substeps=2,
+            use_cuda_graph=use_cuda_graph,
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        _build_collision_scene(sim)
+
+        sim.reset()
+        assert NewtonManager._needs_collision_pipeline is True
+        old_model = NewtonManager._collision_pipeline.model
+        sim.step(render=False)
+
+        sim.reset()
+        _free_model_collide_arrays_and_churn(old_model, "cuda:0")
+
+        sim.step(render=False)
+        wp.synchronize_device("cuda:0")

@@ -657,7 +657,8 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
         if selector:
             print_warning(f"'newton' does not support selectors (got '{selector}'). Installing all newton extras.")
         print_info(
-            "Installing newton extras (newton[sim], pyglet, PyOpenGL-accelerate, imgui-bundle, typing-extensions)..."
+            "Installing newton extras (newton[importers,sim], pyglet, PyOpenGL-accelerate, imgui-bundle, "
+            "typing-extensions)..."
         )
         run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_newton[all]"])
         run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_physx[newton]"])
@@ -753,6 +754,34 @@ def _discover_prebundle_dirs() -> set[Path]:
     for root in candidate_roots:
         prebundle_dirs.update(root.rglob("pip_prebundle"))
     return prebundle_dirs
+
+
+def _filter_pip_prebundle_pythonpath(pythonpath: str) -> tuple[str, int]:
+    """Hide prebundles from pip while preserving bundled Newton metadata.
+
+    Newton is an Isaac Sim runtime component whose version differs between Sim
+    releases. Keeping its wheel root visible lets pip satisfy Isaac Lab's
+    compatible version range with the bundled distribution instead of
+    replacing it and damaging the shared prebundle symlink farm.
+
+    Args:
+        pythonpath: The original ``PYTHONPATH`` value.
+
+    Returns:
+        The filtered ``PYTHONPATH`` and number of removed entries.
+    """
+    paths = pythonpath.split(os.pathsep)
+    filtered_paths = []
+    for path in paths:
+        if not path:
+            continue
+        if "pip_prebundle" not in path:
+            filtered_paths.append(path)
+            continue
+        if any(dist_info.is_dir() for dist_info in Path(path).glob("newton-[0-9]*.dist-info")):
+            filtered_paths.append(path)
+
+    return os.pathsep.join(filtered_paths), len(paths) - len(filtered_paths)
 
 
 def _find_dangling_prebundle_symlinks() -> set[Path]:
@@ -1027,21 +1056,16 @@ def command_install(install_type: str = "all") -> None:
         saved_ld_preload = os.environ.pop("LD_PRELOAD")
 
     # Temporarily filter Isaac Sim pre-bundled package paths from PYTHONPATH during all pip operations.
-    # This prevents pip from scanning and managing packages in Isaac Sim's pip_prebundle directories,
-    # which can cause those packages to be deleted or modified. This is especially important
-    # in conda environments where Isaac Sim setup scripts add these paths to PYTHONPATH.
+    # Keep the bundled Newton wheel root visible so a compatible version is treated as installed rather
+    # than replaced. Other prebundles remain hidden to prevent pip from deleting or modifying them.
     saved_pythonpath = None
     filtered_pythonpath = None
     if "PYTHONPATH" in os.environ:
         saved_pythonpath = os.environ["PYTHONPATH"]
-        # Filter out any paths containing pip_prebundle (pre-bundled packages that pip shouldn't manage)
-        paths = saved_pythonpath.split(os.pathsep)
-        filtered_paths = [p for p in paths if p and "pip_prebundle" not in p]
+        filtered_pythonpath, filtered_count = _filter_pip_prebundle_pythonpath(saved_pythonpath)
 
-        if len(filtered_paths) != len(paths):
-            filtered_pythonpath = os.pathsep.join(filtered_paths)
+        if filtered_count:
             os.environ["PYTHONPATH"] = filtered_pythonpath
-            filtered_count = len(paths) - len(filtered_paths)
             print_info(
                 f"Temporarily filtering {filtered_count} Isaac Sim pre-bundled package path(s) from PYTHONPATH "
                 "during pip operations to prevent interference with pre-bundled packages."

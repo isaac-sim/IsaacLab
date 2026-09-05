@@ -33,7 +33,7 @@ INSTALL_REQUIRES = [
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang==1.13.0",
+    "warp-lang>=1.13.0,<2",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
@@ -72,10 +72,10 @@ INSTALL_REQUIRES += [
     f"pin-pink==3.3.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"daqp==0.8.5 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
 ]
-# Adds OpenUSD dependencies based on architecture for Kit less mode.
+# Use the same standalone OpenUSD provider as the Isaac Sim importer packages. Both
+# usd-core and usd-exchange vendor a complete pxr runtime and must not be co-installed.
 INSTALL_REQUIRES += [
-    f"usd-core>=25.11,<26.0 ; ({SUPPORTED_ARCHS})",
-    f"usd-exchange>=2.2 ; ({SUPPORTED_ARCHS_ARM})",
+    f"usd-exchange==2.3.0 ; ({SUPPORTED_ARCHS_ARM})",
 ]
 
 # pytetwild ships only an x86_64 manylinux wheel and its sdist fails to build on
