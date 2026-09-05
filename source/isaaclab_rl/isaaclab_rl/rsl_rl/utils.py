@@ -67,6 +67,8 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
 
     # Handle configurations for rsl-rl >= 4.0.0
     else:
+        _set_default_obs_groups(agent_cfg)
+
         # Handle deprecated policy configuration
         if _has_non_missing_attr(agent_cfg, "policy"):
             print(
@@ -226,6 +228,15 @@ def _clear_new_model_cfg(agent_cfg, model_name: str):
         " or use the `policy` configuration for rsl-rl < 4.0.0."
     )
     setattr(agent_cfg, model_name, MISSING)
+
+
+def _set_default_obs_groups(agent_cfg):
+    if (
+        getattr(agent_cfg, "class_name", None) == "OnPolicyRunner"
+        and hasattr(agent_cfg, "obs_groups")
+        and _is_missing(agent_cfg.obs_groups)
+    ):
+        agent_cfg.obs_groups = {"actor": ["policy"], "critic": ["policy"]}
 
 
 def _validate_old_stochastic_cfg(model_cfg):
