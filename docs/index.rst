@@ -112,7 +112,6 @@ Table of Contents
    :caption: Getting Started
    :titlesonly:
 
-   source/overview/own-project/index
    source/setup/walkthrough/index
    source/tutorials/index
    source/how-to/index
@@ -145,6 +144,13 @@ Table of Contents
    source/features/draw_markers
    source/features/record_video
    source/features/visualizer_tiled_camera
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Developer Tools
+
+   source/developer-tools/template_generator
 
 
 .. toctree::
