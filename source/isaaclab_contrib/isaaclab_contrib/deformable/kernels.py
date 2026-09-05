@@ -13,6 +13,106 @@ from newton._src.solvers.vbd.rigid_vbd_kernels import (
 vec6f = wp.types.vector(length=6, dtype=wp.float32)
 
 
+if "shape_margin" in _evaluate_body_particle_contact.input_types:
+
+    @wp.func
+    def _evaluate_body_particle_contact_compat(
+        particle_index: int,
+        particle_pos: wp.vec3,
+        particle_prev_pos: wp.vec3,
+        contact_index: int,
+        body_particle_contact_ke: float,
+        body_particle_contact_kd: float,
+        friction_mu: float,
+        friction_epsilon: float,
+        particle_radius: wp.array(dtype=wp.float32),
+        shape_material_mu: wp.array(dtype=wp.float32),
+        shape_body: wp.array(dtype=wp.int32),
+        body_q: wp.array(dtype=wp.transform),
+        body_q_prev: wp.array(dtype=wp.transform),
+        body_qd: wp.array(dtype=wp.spatial_vector),
+        body_com: wp.array(dtype=wp.vec3),
+        contact_shape: wp.array(dtype=wp.int32),
+        contact_body_pos: wp.array(dtype=wp.vec3),
+        contact_body_vel: wp.array(dtype=wp.vec3),
+        contact_normal: wp.array(dtype=wp.vec3),
+        shape_margin: wp.array(dtype=wp.float32),
+        dt: float,
+    ):
+        return _evaluate_body_particle_contact(
+            particle_index,
+            particle_pos,
+            particle_prev_pos,
+            contact_index,
+            body_particle_contact_ke,
+            body_particle_contact_kd,
+            friction_mu,
+            friction_epsilon,
+            particle_radius,
+            shape_material_mu,
+            shape_body,
+            body_q,
+            body_q_prev,
+            body_qd,
+            body_com,
+            contact_shape,
+            contact_body_pos,
+            contact_body_vel,
+            contact_normal,
+            shape_margin,
+            dt,
+        )
+
+else:
+
+    @wp.func
+    def _evaluate_body_particle_contact_compat(
+        particle_index: int,
+        particle_pos: wp.vec3,
+        particle_prev_pos: wp.vec3,
+        contact_index: int,
+        body_particle_contact_ke: float,
+        body_particle_contact_kd: float,
+        friction_mu: float,
+        friction_epsilon: float,
+        particle_radius: wp.array(dtype=wp.float32),
+        shape_material_mu: wp.array(dtype=wp.float32),
+        shape_body: wp.array(dtype=wp.int32),
+        body_q: wp.array(dtype=wp.transform),
+        body_q_prev: wp.array(dtype=wp.transform),
+        body_qd: wp.array(dtype=wp.spatial_vector),
+        body_com: wp.array(dtype=wp.vec3),
+        contact_shape: wp.array(dtype=wp.int32),
+        contact_body_pos: wp.array(dtype=wp.vec3),
+        contact_body_vel: wp.array(dtype=wp.vec3),
+        contact_normal: wp.array(dtype=wp.vec3),
+        shape_margin: wp.array(dtype=wp.float32),
+        dt: float,
+    ):
+        return _evaluate_body_particle_contact(
+            particle_index,
+            particle_pos,
+            particle_prev_pos,
+            contact_index,
+            body_particle_contact_ke,
+            body_particle_contact_kd,
+            friction_mu,
+            friction_epsilon,
+            particle_radius,
+            shape_material_mu,
+            shape_body,
+            body_q,
+            body_q_prev,
+            body_qd,
+            body_com,
+            contact_shape,
+            contact_body_pos,
+            contact_body_vel,
+            contact_normal,
+            dt,
+        )
+
+
 @wp.kernel
 def gather_particles_vec3f(
     src: wp.array(dtype=wp.vec3f),
@@ -300,6 +400,7 @@ def _kernel_body_particle_reaction(
     body_com: wp.array(dtype=wp.vec3),
     shape_body: wp.array(dtype=wp.int32),
     shape_material_mu: wp.array(dtype=wp.float32),
+    shape_margin: wp.array(dtype=wp.float32),
     soft_contact_ke: float,
     soft_contact_kd: float,
     soft_contact_mu: float,
@@ -339,7 +440,7 @@ def _kernel_body_particle_reaction(
     p_pos_prev = p_pos - particle_qd[p_idx] * dt
 
     # Delegate to Newton's canonical contact model
-    f_on_particle, _ = _evaluate_body_particle_contact(
+    f_on_particle, _ = _evaluate_body_particle_contact_compat(
         p_idx,
         p_pos,
         p_pos_prev,
@@ -359,6 +460,7 @@ def _kernel_body_particle_reaction(
         contact_body_pos,
         contact_body_vel,
         contact_normal,
+        shape_margin,
         dt,
     )
 

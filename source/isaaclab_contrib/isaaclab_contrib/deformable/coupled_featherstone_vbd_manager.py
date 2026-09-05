@@ -383,7 +383,8 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonManager):
         model.joint_target_kd.assign(cls._kd_zero)
 
         # Assign joint velocities from control targets
-        state_in.joint_qd.assign(control.joint_target_vel)
+        joint_target_qd = control.joint_target_qd if hasattr(control, "joint_target_qd") else control.joint_target_vel
+        state_in.joint_qd.assign(joint_target_qd)
 
         cls._rigid_solver.step(state_in, state_out, control, None, dt)
 
@@ -505,6 +506,7 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonManager):
                 model.body_com,
                 model.shape_body,
                 model.shape_material_mu,
+                model.shape_margin,
                 float(model.soft_contact_ke),
                 float(model.soft_contact_kd),
                 float(model.soft_contact_mu),
