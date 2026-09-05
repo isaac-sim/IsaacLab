@@ -50,16 +50,36 @@ _KIT_EXPERIENCE_PATH = str(ISAACLAB_ROOT / "apps" / "isaaclab.python.kit")
 # legacy ``cloud`` setting is only consulted for experience files that predate it.
 _KIT_ASSET_ROOT_SETTINGS = ("default", "cloud")
 
+
+def _parse_kit_asset_root() -> str:
+    """Parse the configured Isaac asset root.
+
+    Returns:
+        Value of ``persistent.isaac.asset_root.default``, or of the legacy
+        ``persistent.isaac.asset_root.cloud``, from ``isaaclab.python.kit``.
+    """
+    with open(_KIT_EXPERIENCE_PATH) as f:
+        lines = f.readlines()
+    for setting in _KIT_ASSET_ROOT_SETTINGS:
+        pattern = re.compile(rf'\s*persistent\.isaac\.asset_root\.{setting}\s*=\s*"([^"]*)"')
+        for line in reversed(lines):  # read from the last line since it's the last setting defined
+            m = pattern.match(line)
+            if m:
+                return m.group(1)
+    return ""
+
+
 _ASSET_REGION_PROFILE_ENV_VAR = "ISAACSIM_ASSET_REGION_PROFILE"
 # Update this value when the China mirror moves to a new Isaac Sim asset release.
 _ISAAC_SIM_ASSET_RELEASE = "6.1"
 _CHINA_ASSET_ENDPOINT = "simready-cn.s3.oss-cn-shanghai.aliyuncs.com"
+_US_ASSET_ROOT = _parse_kit_asset_root()
 
 
 class _StorageProfile(TypedDict):
-    """OmniClient routing and asset-root overrides for a named asset region profile."""
+    """OmniClient routing and asset-root values for a named asset region profile."""
 
-    asset_root: NotRequired[str]
+    asset_root: str
     endpoint: NotRequired[str]
     bucket: NotRequired[str]
     region: NotRequired[str]
@@ -68,8 +88,9 @@ class _StorageProfile(TypedDict):
 
 
 _STORAGE_PROFILES: dict[str, _StorageProfile] = {
-    # The primary profile uses the production root configured by the shipped kit experience.
-    "us": {},
+    "us": {
+        "asset_root": _US_ASSET_ROOT,
+    },
     "china": {
         "endpoint": _CHINA_ASSET_ENDPOINT,
         "bucket": "simready-cn",
@@ -158,31 +179,13 @@ def _get_omni_client() -> ModuleType:
     return omni.client
 
 
-def _parse_kit_asset_root() -> str:
-    """Parse the configured Isaac asset root.
-
-    Returns:
-        Value of ``persistent.isaac.asset_root.default``, or of the legacy
-        ``persistent.isaac.asset_root.cloud``, from ``isaaclab.python.kit``.
-    """
-    with open(_KIT_EXPERIENCE_PATH) as f:
-        lines = f.readlines()
-    for setting in _KIT_ASSET_ROOT_SETTINGS:
-        pattern = re.compile(rf'\s*persistent\.isaac\.asset_root\.{setting}\s*=\s*"([^"]*)"')
-        for line in reversed(lines):  # read from the last line since it's the last setting defined
-            m = pattern.match(line)
-            if m:
-                return m.group(1)
-    return ""
-
-
 def _resolve_asset_root() -> str:
     """Resolve the configured Isaac asset root.
 
     The ``ISAACSIM_ASSET_ROOT`` environment variable follows the public Isaac Sim
-    asset-root precedence. When it is unset, an asset-root override from the asset region
-    profile named by ``ISAACSIM_ASSET_REGION_PROFILE`` is used. Profiles without an
-    override, including ``us``, use the root from the kit file.
+    asset-root precedence. When it is unset, the asset root from the asset region profile
+    named by ``ISAACSIM_ASSET_REGION_PROFILE`` is used. The kit file remains the fallback
+    for kitless use.
 
     Returns:
         Value of ``ISAACSIM_ASSET_ROOT`` without its trailing separator, or the value
@@ -198,9 +201,7 @@ def _resolve_asset_root() -> str:
 
     selected_profile = _selected_storage_profile()
     if selected_profile is not None:
-        profile_asset_root = selected_profile[1].get("asset_root")
-        if profile_asset_root:
-            return profile_asset_root
+        return selected_profile[1]["asset_root"]
 
     return _parse_kit_asset_root()
 

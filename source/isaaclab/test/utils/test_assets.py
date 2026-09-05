@@ -54,13 +54,13 @@ def test_asset_root_uses_china_storage_profile(monkeypatch):
     assert assets_utils._resolve_asset_root() == expected_root
 
 
-def test_asset_root_uses_us_asset_region_profile(monkeypatch):
-    """Test the US asset region profile uses the root from the shipped experience."""
+def test_us_asset_root_is_parsed_from_kit_file(monkeypatch):
+    """Test the US asset region profile initializes its root from the shipped experience."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
     monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "us")
-    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
-    assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
+    assert assets_utils._parse_kit_asset_root() == assets_utils._US_ASSET_ROOT
+    assert assets_utils._resolve_asset_root() == assets_utils._US_ASSET_ROOT
 
 
 def test_asset_root_ignores_unknown_storage_profile(monkeypatch, caplog):
