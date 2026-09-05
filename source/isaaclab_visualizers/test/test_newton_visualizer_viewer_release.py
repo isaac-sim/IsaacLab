@@ -5,16 +5,19 @@
 
 """Tests for :class:`NewtonVisualizer` viewer release.
 
-The viewer owns GPU resources that its backend releases in a fixed order when
-``close()`` is called.  Both paths that give up the viewer -- ``close()`` and
+The RTX viewer owns GPU resources that it releases in a fixed order when
+``close()`` is called. Both paths that give up the viewer -- ``close()`` and
 the ``step()`` handler that permanently disables it after an unrecoverable
 failure -- must go through :meth:`NewtonVisualizer._release_viewer` so that
-ordering is honoured instead of being left to the garbage collector.
+ordering is honoured instead of being left to the garbage collector. The GL
+viewer must keep its established reference-drop behavior because closing its
+renderer prevents reliable in-process recreation.
 
-These tests assert the behaviour (the viewer's ``close()`` runs, and runs
-before the reference is dropped) rather than the absence of a backend log
-message: the message is emitted for only one of several valid finalization
-orders, so asserting on it would pass against unfixed code most of the time.
+These tests assert the behavior (the RTX viewer's ``close()`` runs before the
+reference is dropped, while the GL viewer is not closed) rather than the
+absence of a backend log message. The message is emitted for only one of
+several valid finalization orders, so asserting on it would pass against
+unfixed code most of the time.
 
 They also pin the error semantics, which differ by caller.  ``_release_viewer``
 propagates a teardown failure while still clearing the reference.  ``close()``
@@ -32,8 +35,8 @@ from isaaclab_visualizers.newton.newton_visualizer import NewtonVisualizer
 pytestmark = [pytest.mark.unit]
 
 
-class _SpyViewer:
-    """Viewer double that records how and when it was closed."""
+class _SpyRTXViewer(newton_visualizer.NewtonViewerRTX):
+    """RTX viewer double that records how and when it was closed."""
 
     def __init__(self, raises: bool = False) -> None:
         self.close_calls = 0
@@ -58,7 +61,18 @@ class _SpyViewer:
         self.apply_forces_calls += 1
 
 
-def _make_visualizer(viewer: _SpyViewer | None) -> NewtonVisualizer:
+class _SpyGLViewer(newton_visualizer.NewtonViewerGL):
+    """GL viewer double that records whether ``close()`` was called."""
+
+    def __init__(self) -> None:
+        self.close_calls = 0
+        self.owner: NewtonVisualizer | None = None
+
+    def close(self) -> None:
+        self.close_calls += 1
+
+
+def _make_visualizer(viewer: _SpyRTXViewer | _SpyGLViewer | None) -> NewtonVisualizer:
     """Build the minimal visualizer state that the release paths read.
 
     ``__init__`` is bypassed deliberately: a real visualizer requires a Newton
@@ -79,7 +93,7 @@ def _make_visualizer(viewer: _SpyViewer | None) -> NewtonVisualizer:
 
 def test_release_viewer_closes_before_clearing_reference() -> None:
     """The viewer must be closed while the visualizer still references it."""
-    viewer = _SpyViewer()
+    viewer = _SpyRTXViewer()
     visualizer = _make_visualizer(viewer)
 
     visualizer._release_viewer()
@@ -91,7 +105,7 @@ def test_release_viewer_closes_before_clearing_reference() -> None:
 
 def test_release_viewer_propagates_failure_and_still_clears_reference() -> None:
     """A teardown failure must reach the caller, but must not retain the viewer."""
-    viewer = _SpyViewer(raises=True)
+    viewer = _SpyRTXViewer(raises=True)
     visualizer = _make_visualizer(viewer)
 
     with pytest.raises(RuntimeError, match="Failed to create window"):
@@ -112,7 +126,7 @@ def test_release_viewer_without_viewer_is_a_no_op() -> None:
 
 def test_release_viewer_is_idempotent() -> None:
     """Releasing twice must not close the viewer twice."""
-    viewer = _SpyViewer()
+    viewer = _SpyRTXViewer()
     visualizer = _make_visualizer(viewer)
 
     visualizer._release_viewer()
@@ -121,9 +135,20 @@ def test_release_viewer_is_idempotent() -> None:
     assert viewer.close_calls == 1
 
 
+def test_release_viewer_does_not_close_gl_viewer() -> None:
+    """GL teardown must not prevent another viewer from starting in the same process."""
+    viewer = _SpyGLViewer()
+    visualizer = _make_visualizer(viewer)
+
+    visualizer._release_viewer()
+
+    assert viewer.close_calls == 0
+    assert visualizer._viewer is None
+
+
 def test_close_releases_the_viewer() -> None:
     """``close()`` must release the viewer through the shared path."""
-    viewer = _SpyViewer()
+    viewer = _SpyRTXViewer()
     visualizer = _make_visualizer(viewer)
 
     visualizer.close()
@@ -136,7 +161,7 @@ def test_close_releases_the_viewer() -> None:
 
 def test_close_is_idempotent() -> None:
     """A second ``close()`` must not close the viewer again."""
-    viewer = _SpyViewer()
+    viewer = _SpyRTXViewer()
     visualizer = _make_visualizer(viewer)
 
     visualizer.close()
@@ -157,7 +182,7 @@ def test_close_completes_cleanup_when_viewer_teardown_fails(monkeypatch: pytest.
     monkeypatch.setattr(newton_visualizer, "evict_visualizer_camera", evicted.append, raising=False)
     monkeypatch.setattr(newton_visualizer, "remove_generated_prims", removed.append, raising=False)
 
-    viewer = _SpyViewer(raises=True)
+    viewer = _SpyRTXViewer(raises=True)
     visualizer = _make_visualizer(viewer)
     visualizer._camera_sensor = object()
     visualizer._camera_is_owned = True
@@ -174,7 +199,7 @@ def test_close_completes_cleanup_when_viewer_teardown_fails(monkeypatch: pytest.
     assert removed == [["/World/generated"]]
 
 
-def _arm_for_step_failure(visualizer: NewtonVisualizer, viewer: _SpyViewer) -> None:
+def _arm_for_step_failure(visualizer: NewtonVisualizer, viewer: _SpyRTXViewer) -> None:
     """Drive ``step()`` far enough to reach its viewer-failure handler."""
     visualizer._is_initialized = True
     visualizer._runtime_headless = False
@@ -200,7 +225,7 @@ def test_step_failure_releases_the_viewer(monkeypatch: pytest.MonkeyPatch) -> No
     create its window.  That path must close the viewer rather than only
     dropping the reference to it.
     """
-    viewer = _SpyViewer()
+    viewer = _SpyRTXViewer()
     visualizer = _make_visualizer(viewer)
     visualizer._picking_enabled = True
     visualizer._viewer_picking_binding.bind(viewer)  # type: ignore[arg-type]
@@ -228,7 +253,7 @@ def test_step_contains_a_failing_viewer_teardown(monkeypatch: pytest.MonkeyPatch
     has to be contained rather than replacing the original failure and
     propagating out of the simulation loop.
     """
-    viewer = _SpyViewer(raises=True)
+    viewer = _SpyRTXViewer(raises=True)
     visualizer = _make_visualizer(viewer)
     _arm_for_step_failure(visualizer, viewer)
     monkeypatch.setattr(newton_visualizer.NewtonManager, "get_num_envs", staticmethod(lambda: 1), raising=False)

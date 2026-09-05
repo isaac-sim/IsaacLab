@@ -1251,11 +1251,11 @@ class NewtonVisualizer(BaseVisualizer):
                 self._viewer_picking_binding.bind(self._viewer)
 
     def _release_viewer(self) -> None:
-        """Close the viewer this visualizer owns and drop the reference to it.
+        """Release the viewer this visualizer owns and drop the reference to it.
 
         The visualizer owns the viewer it creates. Before closing it, the
         stable picking callback is neutralized so it cannot retain or call the
-        viewer after release. The viewer owns GPU resources that its backend
+        viewer after release. The RTX viewer owns GPU resources that it
         releases in a fixed order:
         ``ViewerRTX.close()`` waits on the in-flight render, drops the retained
         step results, unbinds the transform attribute binding and only then
@@ -1266,8 +1266,8 @@ class NewtonVisualizer(BaseVisualizer):
 
         The reference is cleared in a ``finally`` block so an unusable viewer
         is never retained, while the teardown failure itself still reaches the
-        caller. Concrete Newton viewer backends also use ``close()`` to release
-        their own resources.
+        caller. ``ViewerGL.close()`` is intentionally not called because its
+        renderer cannot be recreated reliably in the same Kit process.
         """
         viewer = self._viewer
         if viewer is None:
@@ -1277,7 +1277,8 @@ class NewtonVisualizer(BaseVisualizer):
                 # Keep the stable callback registered: captured graphs replay
                 # its now-neutral device inputs without retaining the viewer.
                 self._viewer_picking_binding.deactivate()
-            viewer.close()
+            if isinstance(viewer, NewtonViewerRTX):
+                viewer.close()
         finally:
             self._viewer = None
 
