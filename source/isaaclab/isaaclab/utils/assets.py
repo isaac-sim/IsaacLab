@@ -50,13 +50,30 @@ _KIT_EXPERIENCE_PATH = os.path.normpath(
 # legacy ``cloud`` setting is only consulted for experience files that predate it.
 _KIT_ASSET_ROOT_SETTINGS = ("default", "cloud")
 
+
+def _parse_kit_asset_root() -> str:
+    """Parse the configured Isaac asset root.
+
+    Returns:
+        Value of ``persistent.isaac.asset_root.default``, or of the legacy
+        ``persistent.isaac.asset_root.cloud``, from ``isaaclab.python.kit``.
+    """
+    with open(_KIT_EXPERIENCE_PATH) as f:
+        lines = f.readlines()
+    for setting in _KIT_ASSET_ROOT_SETTINGS:
+        pattern = re.compile(rf'\s*persistent\.isaac\.asset_root\.{setting}\s*=\s*"([^"]*)"')
+        for line in reversed(lines):  # read from the last line since it's the last setting defined
+            m = pattern.match(line)
+            if m:
+                return m.group(1)
+    return ""
+
+
 _ASSET_REGION_PROFILE_ENV_VAR = "ISAACSIM_ASSET_REGION_PROFILE"
 # Update this value when the China mirror moves to a new Isaac Sim asset release.
 _ISAAC_SIM_ASSET_RELEASE = "6.1"
 _CHINA_ASSET_ENDPOINT = "simready-cn.s3.oss-cn-shanghai.aliyuncs.com"
-_US_ASSET_ROOT = (
-    f"https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/{_ISAAC_SIM_ASSET_RELEASE}"
-)
+_US_ASSET_ROOT = _parse_kit_asset_root()
 
 
 class _StorageProfile(TypedDict):
@@ -160,24 +177,6 @@ def _get_omni_client() -> ModuleType:
 
     _configure_storage_profile(omni.client)
     return omni.client
-
-
-def _parse_kit_asset_root() -> str:
-    """Parse the configured Isaac asset root.
-
-    Returns:
-        Value of ``persistent.isaac.asset_root.default``, or of the legacy
-        ``persistent.isaac.asset_root.cloud``, from ``isaaclab.python.kit``.
-    """
-    with open(_KIT_EXPERIENCE_PATH) as f:
-        lines = f.readlines()
-    for setting in _KIT_ASSET_ROOT_SETTINGS:
-        pattern = re.compile(rf'\s*persistent\.isaac\.asset_root\.{setting}\s*=\s*"([^"]*)"')
-        for line in reversed(lines):  # read from the last line since it's the last setting defined
-            m = pattern.match(line)
-            if m:
-                return m.group(1)
-    return ""
 
 
 def _resolve_asset_root() -> str:
