@@ -372,7 +372,8 @@ parser.add_argument(
     ),
 )
 AppLauncher.add_app_launcher_args(parser)
-args_cli = parser.parse_args()
+# forward unrecognized args as Hydra-style task config overrides
+args_cli, hydra_overrides = parser.parse_known_args()
 
 app_launcher_args = vars(args_cli)
 # Enable external camera rendering by default so the replay mimics the production teleop env (perf
@@ -392,6 +393,7 @@ import os
 import statistics
 import sys
 import time
+from collections.abc import Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1044,7 +1046,11 @@ def _ensure_replicator_loaded() -> None:
 
 
 def _prepare_env_cfg(
-    task: str, num_envs: int, device: str, apply_rtx_settings: bool = False
+    task: str,
+    num_envs: int,
+    device: str,
+    apply_rtx_settings: bool = False,
+    overrides: Sequence[str] = (),
 ) -> tuple[ManagerBasedRLEnvCfg, object | None]:
     """Build and tweak an env config suitable for non-interactive replay.
 
@@ -1083,12 +1089,13 @@ def _prepare_env_cfg(
             RTX/DLSS global settings applied; a headless replay that renders
             nothing neither needs them nor has the extensions loaded to apply
             them. See :func:`_rtx_rendering_requested`.
+        overrides: Hydra-style ``key=value`` overrides forwarded to :func:`parse_env_cfg`.
 
     Returns:
         Tuple ``(env_cfg, success_term)``. ``success_term`` is ``None`` when
         the env doesn't define a ``success`` termination term.
     """
-    env_cfg = parse_env_cfg(task, device=device, num_envs=num_envs)
+    env_cfg = parse_env_cfg(task, device=device, num_envs=num_envs, overrides=overrides)
     env_cfg.env_name = task.split(":")[-1]
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         raise ValueError(
@@ -1628,6 +1635,7 @@ def main() -> int:
             args_cli.num_envs,
             args_cli.device,
             apply_rtx_settings=_rtx_rendering_requested(args_cli),
+            overrides=hydra_overrides,
         )
 
         if not hasattr(env_cfg, "isaac_teleop") or env_cfg.isaac_teleop is None:
