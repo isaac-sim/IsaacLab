@@ -12,10 +12,12 @@ import glob
 import json
 import os
 import posixpath
+from collections.abc import Sequence
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
+from isaaclab.utils import Checkpoint
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, NUCLEUS_ASSET_ROOT_DIR, retrieve_file_path
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry  # noqa: F401
@@ -129,7 +131,7 @@ def get_pretrained_checkpoint_backend_names(
     physics_cfg = getattr(sim_cfg, "physics", None)
     physics_backend = _get_physics_backend_name(physics_cfg)
 
-    renderer_types = {cfg.renderer_type for cfg in _find_renderer_cfgs(env_cfg)}
+    renderer_types = {cfg.renderer_type for cfg in _find_cfgs(env_cfg, RendererCfg)}
     render_backends = {_normalize_render_backend_name(name) for name in renderer_types}
     if not render_backends:
         render_backend = "none"
@@ -159,7 +161,7 @@ def get_latest_job_run_path(
 ) -> str | None:
     """Return the local log path of the most recent matching run."""
     log_root_path = get_log_root_path(workflow, task_name, physics_backend, render_backend)
-    return _get_latest_file_or_directory(log_root_path)
+    return get_latest_file_or_directory(log_root_path)
 
 
 def get_pretrained_checkpoint_path(
@@ -178,16 +180,16 @@ def get_pretrained_checkpoint_path(
         preferred_path = os.path.join(path, "nn", f"{checkpoint_stem}.pth")
         if os.path.isfile(preferred_path):
             return preferred_path
-        return _get_latest_file_or_directory(os.path.join(path, "nn"), "*.pth")
+        return get_latest_file_or_directory(os.path.join(path, "nn"), "*.pth")
     elif workflow == "rsl_rl":
-        return _get_latest_file_or_directory(path, "*.pt")
+        return get_latest_file_or_directory(path, "*.pt")
     elif workflow == "sb3":
         return os.path.join(path, "model.zip")
     elif workflow == "skrl":
         preferred_path = os.path.join(path, "checkpoints", "best_agent.pt")
         if os.path.isfile(preferred_path):
             return preferred_path
-        return _get_latest_file_or_directory(os.path.join(path, "checkpoints"), "*.pt")
+        return get_latest_file_or_directory(os.path.join(path, "checkpoints"), "*.pt")
     else:
         raise ValueError(f"Unsupported workflow: {workflow!r}")
 
@@ -219,24 +221,74 @@ def get_published_pretrained_checkpoint_path(
     return posixpath.join(*path_parts, filename)
 
 
+def get_declared_checkpoints(
+    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg,
+) -> list[Checkpoint]:
+    """Return the run artifacts a task publishes beside its policy checkpoint.
+
+    Every :class:`~isaaclab.utils.Checkpoint` declared anywhere in the resolved config is found by
+    walking it, so a task declares nothing: the component that writes the file owns its name.
+    Checkpoints with a ``url`` are pre-existing weights and are excluded; the component fetches
+    those itself.
+
+    Args:
+        env_cfg: Resolved environment configuration.
+
+    Returns:
+        The declared run artifacts. Empty for tasks that train nothing outside the policy.
+    """
+    # a declaration can be reachable through several config paths; the name is the identity
+    unique: dict[str, Checkpoint] = {}
+    for ckpt in _find_cfgs(env_cfg, Checkpoint):
+        if ckpt.is_run_artifact:
+            unique.setdefault(ckpt.name, ckpt)
+    return list(unique.values())
+
+
+def get_declared_checkpoint_path(checkpoint_path: str, workflow: str, checkpoint: Checkpoint) -> str:
+    """Return where a declared checkpoint lives beside a policy checkpoint path.
+
+    Args:
+        checkpoint_path: Local or published path of the policy checkpoint.
+        workflow: RL workflow name.
+        checkpoint: The declared run artifact. Its extension follows the file the component writes.
+
+    Returns:
+        The policy path with its workflow extension replaced by ``_<name><extension>``.
+
+    Raises:
+        ValueError: If the workflow is invalid.
+    """
+    if workflow not in WORKFLOW_PRETRAINED_CHECKPOINT_EXTENSIONS:
+        raise ValueError(f"Unsupported workflow: {workflow!r}")
+    stem = checkpoint_path.removesuffix(WORKFLOW_PRETRAINED_CHECKPOINT_EXTENSIONS[workflow])
+    return f"{stem}_{checkpoint.name}{checkpoint.extension}"
+
+
 def get_published_pretrained_checkpoint(
     workflow: str,
     task_name: str,
     physics_backend: str | None = None,
     render_backend: str | None = None,
+    *,
+    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg | None = None,
 ) -> str | None:
     """Gets the path for the pre-trained checkpoint.
 
-    If the checkpoint is not cached locally then the file is downloaded.
-    The cached path is then returned.
+    If the checkpoint is not cached locally then the file is downloaded, together with every
+    checkpoint the task's components declare. Each fetched declaration records its local copy in
+    :attr:`~isaaclab.utils.Checkpoint.local_path`, so the component that declared it loads the
+    published copy without knowing where the download landed.
 
     Args:
         workflow: The workflow.
         task_name: The task name.
         physics_backend: Physics backend name. Omit with :paramref:`render_backend`
-            to use the legacy checkpoint layout.
+            to use the legacy checkpoint layout, or to derive both from :paramref:`env_cfg`.
         render_backend: Render backend name. Omit with :paramref:`physics_backend`
-            to use the legacy checkpoint layout.
+            to use the legacy checkpoint layout, or to derive both from :paramref:`env_cfg`.
+        env_cfg: Resolved environment configuration. Supplies the backends when they are not
+            given, and the checkpoints its components declare.
 
     Returns:
         The path, or None when the asset server does not report a checkpoint for this task
@@ -250,49 +302,67 @@ def get_published_pretrained_checkpoint(
             instance because the local cache directory is not writable. The originating
             error is chained as the cause.
     """
-    filename = get_pretrained_checkpoint_filename(workflow, task_name, physics_backend, render_backend)
+    declared_checkpoints: Sequence[Checkpoint] = ()
+    if env_cfg is not None:
+        if physics_backend is None and render_backend is None:
+            physics_backend, render_backend = get_pretrained_checkpoint_backend_names(env_cfg)
+        declared_checkpoints = get_declared_checkpoints(env_cfg)
     ov_path = get_published_pretrained_checkpoint_path(workflow, task_name, physics_backend, render_backend)
-    download_dir = os.path.join(".pretrained_checkpoints", workflow)
-    if physics_backend is None:
-        download_dir = os.path.join(download_dir, task_name)
-    resume_path = os.path.join(download_dir, filename)
-
-    if not os.path.exists(resume_path):
-        print(f"Fetching pre-trained checkpoint : {ov_path}")
+    # one cache directory per published checkpoint: play treats it as the run log directory and
+    # writes videos, exported policies, and additional checkpoints into it
+    download_dir = os.path.join(
+        ".pretrained_checkpoints",
+        workflow,
+        _get_pretrained_checkpoint_stem(workflow, task_name, physics_backend, render_backend),
+    )
+    print(f"Fetching pre-trained checkpoint : {ov_path}")
+    try:
+        resume_path = retrieve_file_path(ov_path, download_dir)
+    except FileNotFoundError:
+        # the asset server reports a checkpoint that was never published and a server it
+        # cannot reach the same way, so both are covered by the same message
+        backends = (
+            ""
+            if physics_backend is None
+            else f" with the '{physics_backend}' physics and '{render_backend}' render backends"
+        )
+        print(
+            "A pre-trained checkpoint is currently unavailable for this task.\n"
+            f"  The asset server does not provide '{ov_path}'.\n"
+            f"  Either no checkpoint is published for task '{task_name}'{backends}, or the asset"
+            " server could not be reached.\n"
+            "  Train the task, or pass --checkpoint <path> to use a checkpoint of your own."
+        )
+        return None
+    except Exception as exc:
+        raise _download_error(ov_path, download_dir, exc) from exc
+    for checkpoint in declared_checkpoints:
+        declared_path = get_declared_checkpoint_path(ov_path, workflow, checkpoint)
         try:
-            resume_path = retrieve_file_path(ov_path, download_dir)
+            checkpoint.local_path = retrieve_file_path(declared_path, download_dir)
         except FileNotFoundError:
-            # the asset server reports a checkpoint that was never published and a server it
-            # cannot reach the same way, so both are covered by the same message
-            backends = (
-                ""
-                if physics_backend is None
-                else f" with the '{physics_backend}' physics and '{render_backend}' render backends"
-            )
-            print(
-                "A pre-trained checkpoint is currently unavailable for this task.\n"
-                f"  The asset server does not provide '{ov_path}'.\n"
-                f"  Either no checkpoint is published for task '{task_name}'{backends}, or the asset"
-                " server could not be reached.\n"
-                "  Train the task, or pass --checkpoint <path> to use a checkpoint of your own."
-            )
-            return None
+            print(f"[WARNING]: The asset server does not provide the {checkpoint.name} checkpoint '{declared_path}'.")
         except Exception as exc:
-            # the checkpoint exists on the server, so this is a local failure the user has to fix;
-            # reporting it as an unavailable checkpoint would send them looking in the wrong place
-            hint = ""
-            if isinstance(exc, OSError):
-                hint = (
-                    " Check that the cache directory is writable and that the disk is not full;"
-                    " a directory left behind by a container run is owned by root."
-                )
-            raise RuntimeError(
-                f"Failed to download the pre-trained checkpoint '{ov_path}' into"
-                f" '{os.path.abspath(download_dir)}': {type(exc).__name__}: {exc}.{hint}"
-            ) from exc
-    else:
-        print("Using pre-fetched pre-trained checkpoint")
+            raise _download_error(declared_path, download_dir, exc) from exc
     return resume_path
+
+
+def _download_error(remote_path: str, download_dir: str, exc: Exception) -> RuntimeError:
+    """Describe a published file that could not be downloaded.
+
+    The checkpoint exists on the server, so this is a local failure the user has to fix; reporting
+    it as an unavailable checkpoint would send them looking in the wrong place.
+    """
+    hint = ""
+    if isinstance(exc, OSError):
+        hint = (
+            " Check that the cache directory is writable and that the disk is not full;"
+            " a directory left behind by a container run is owned by root."
+        )
+    return RuntimeError(
+        f"Failed to download the pre-trained checkpoint '{remote_path}' into"
+        f" '{os.path.abspath(download_dir)}': {type(exc).__name__}: {exc}.{hint}"
+    )
 
 
 def has_pretrained_checkpoint_job_run(
@@ -388,8 +458,8 @@ def _normalize_render_backend_name(renderer_type: str) -> str:
     raise ValueError(f"Unable to identify render backend from renderer type {renderer_type!r}")
 
 
-def _find_renderer_cfgs(value, visited: set[int] | None = None) -> list[RendererCfg]:
-    """Find renderer configs nested in a resolved environment config."""
+def _find_cfgs(value, cfg_type: type, visited: set[int] | None = None) -> list:
+    """Find configs of one type nested in a resolved environment config."""
     if visited is None:
         visited = set()
     value_id = id(value)
@@ -397,22 +467,22 @@ def _find_renderer_cfgs(value, visited: set[int] | None = None) -> list[Renderer
         return []
     visited.add(value_id)
 
-    if isinstance(value, RendererCfg):
+    if isinstance(value, cfg_type):
         return [value]
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         configs = []
         for field in dataclasses.fields(value):
-            configs.extend(_find_renderer_cfgs(getattr(value, field.name), visited))
+            configs.extend(_find_cfgs(getattr(value, field.name), cfg_type, visited))
         return configs
     if isinstance(value, dict):
         configs = []
         for item in value.values():
-            configs.extend(_find_renderer_cfgs(item, visited))
+            configs.extend(_find_cfgs(item, cfg_type, visited))
         return configs
     if isinstance(value, (list, tuple)):
         configs = []
         for item in value:
-            configs.extend(_find_renderer_cfgs(item, visited))
+            configs.extend(_find_cfgs(item, cfg_type, visited))
         return configs
     return []
 
@@ -430,7 +500,7 @@ def _get_pretrained_checkpoint_stem(
     return filename.removesuffix(WORKFLOW_PRETRAINED_CHECKPOINT_EXTENSIONS[workflow])
 
 
-def _get_latest_file_or_directory(path: str, pattern: str = "*") -> str | None:
+def get_latest_file_or_directory(path: str, pattern: str = "*") -> str | None:
     """Returns the path to the most recently modified file or directory at a path matching an optional pattern"""
     g = glob.glob(f"{path}/{pattern}")
     if len(g):

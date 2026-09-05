@@ -15,17 +15,29 @@ Two test suites are provided:
    :class:`ShadowHandTiledCameraCfg` and
    :class:`~isaaclab_tasks.utils.renderer_cfg.RendererPresetCfg` resolves to the expected
    concrete config class and data types, using the real config classes.
+
+3. **Feature extractor checkpoint tests** — exercise how :class:`FeatureExtractor` resolves the
+   CNN checkpoint in its log directory.
 """
 
+import fnmatch
+import os
 import types
 
 import pytest
+import torch
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.renderers import RendererCfg
 from isaaclab.sensors import CameraCfg
 
+from isaaclab_rl.utils.pretrained_checkpoint import get_declared_checkpoints
+
+from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor, FeatureExtractorCfg
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_manager_env_cfg import (
+    ShadowHandCameraManagerEnvCfg,
+)
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
     ShadowHandCameraEnvCfg,
 )
@@ -243,3 +255,55 @@ def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_pre
             cfg.validate_config()
     else:
         cfg.validate_config()
+
+
+# ---------------------------------------------------------------------------
+# Feature extractor checkpoint loading
+# ---------------------------------------------------------------------------
+
+
+def _make_feature_extractor(log_dir: str, load_checkpoint: bool, local_path: str | None = None):
+    """Build a CPU feature extractor for one log directory, optionally with a fetched checkpoint."""
+    cfg = FeatureExtractorCfg(train=False, load_checkpoint=load_checkpoint)
+    cfg.checkpoint.local_path = local_path
+    return FeatureExtractor(cfg, device="cpu", data_types=["rgb"], log_dir=log_dir)
+
+
+def test_missing_feature_extractor_checkpoint_names_the_log_directory(tmp_path):
+    """Playing without a feature-extractor checkpoint must report which directory was searched."""
+    log_dir = str(tmp_path / "run")
+
+    with pytest.raises(FileNotFoundError, match=log_dir):
+        _make_feature_extractor(log_dir, load_checkpoint=True)
+
+
+def test_fetched_feature_extractor_checkpoint_is_loaded_over_the_run_files(tmp_path):
+    """The companion a pretrained fetch recorded must win over the checkpoints a training run wrote."""
+    log_dir = str(tmp_path / "run")
+    fetched = str(tmp_path / "cache" / "Isaac-Task_physx_rtx_rsl_rl_feature_extractor.pth")
+    os.makedirs(os.path.dirname(fetched))
+    published = _make_feature_extractor(log_dir, load_checkpoint=False).feature_extractor.state_dict()
+    stale = _make_feature_extractor(log_dir, load_checkpoint=False).feature_extractor.state_dict()
+    torch.save(published, fetched)
+    torch.save(stale, os.path.join(log_dir, "cnn_100_0.1.pth"))
+
+    loaded = _make_feature_extractor(log_dir, load_checkpoint=True, local_path=fetched).feature_extractor.state_dict()
+
+    assert torch.equal(loaded["linear.0.weight"], published["linear.0.weight"])
+    assert not torch.equal(published["linear.0.weight"], stale["linear.0.weight"])
+
+
+def test_saved_checkpoint_name_matches_the_declared_glob():
+    """The file a run writes must match the glob the task publishes, or nothing gets collected."""
+    saved = "cnn_50000_0.001.pth"  # the name FeatureExtractor.step writes
+
+    assert fnmatch.fnmatch(saved, FeatureExtractorCfg().checkpoint.run_glob)
+
+
+def test_camera_task_publishes_the_feature_extractor_checkpoint():
+    """Discovery must find the CNN checkpoint from the task config, which declares nothing itself."""
+    expected = FeatureExtractorCfg().checkpoint
+
+    for env_cfg in (ShadowHandCameraEnvCfg(), ShadowHandCameraManagerEnvCfg()):
+        (found,) = get_declared_checkpoints(env_cfg)
+        assert (found.name, found.run_glob) == (expected.name, expected.run_glob)

@@ -11,6 +11,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from isaaclab.utils import Checkpoint
+
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
 from scripts.tools.train_and_publish_checkpoints import (
@@ -118,6 +120,32 @@ def test_legacy_collection_preserves_task_directory(tmp_path: Path) -> None:
     path = collect_pretrained_checkpoint(job, str(tmp_path), dry_run=True)
 
     assert path == str(tmp_path / "rsl_rl" / "Isaac-Test" / "checkpoint.pt")
+
+
+def test_publish_refuses_a_bundle_whose_declared_checkpoint_is_missing(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A component needs its declared checkpoint to play, so publishing the policy alone must fail."""
+    job = CheckpointJob(
+        workflow="rsl_rl",
+        task_name="Isaac-Test",
+        physics_backend="newtonmjwarp",
+        render_backend="none",
+        declared_checkpoints=(Checkpoint(name="feature_extractor", run_glob="cnn_*.pth"),),
+    )
+    collected_path = tmp_path / "rsl_rl" / "Isaac-Test_newtonmjwarp_none_rsl_rl.pt"
+    collected_path.parent.mkdir()
+    collected_path.touch()
+    args = Namespace(
+        dry_run=True,
+        force_publish=True,
+        output_dir=str(tmp_path),
+        publish_root="omniverse://checkpoints",
+    )
+
+    assert not publish_pretrained_checkpoint(job, args)
+    assert "its feature_extractor checkpoint was not collected" in capsys.readouterr().err
 
 
 def test_publish_uses_collected_checkpoint_without_training_logs(

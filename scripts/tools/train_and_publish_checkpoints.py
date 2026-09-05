@@ -78,10 +78,13 @@ for source_path in reversed(_REPO_SOURCE_PATHS):
 import gymnasium as gym
 
 from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.utils import Checkpoint
 
 from isaaclab_rl.utils.pretrained_checkpoint import (
     WORKFLOW_EXPERIMENT_NAME_VARIABLE,
     WORKFLOWS,
+    get_declared_checkpoint_path,
+    get_declared_checkpoints,
     get_latest_job_run_path,
     get_pretrained_checkpoint_backend_names,
     get_pretrained_checkpoint_filename,
@@ -116,6 +119,8 @@ class CheckpointJob:
     render_selector: str | None = None
     agent: str | None = None
     algorithm: str | None = None
+    declared_checkpoints: tuple[Checkpoint, ...] = ()
+    """Run artifacts the task publishes beside its policy."""
 
     @property
     def job_id(self) -> str:
@@ -360,6 +365,7 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
                         render_selector=render_selector,
                         agent=agent,
                         algorithm=algorithm,
+                        declared_checkpoints=tuple(get_declared_checkpoints(env_cfg)),
                     )
                 )
     return jobs
@@ -540,6 +546,15 @@ def collect_pretrained_checkpoint(job: CheckpointJob, output_dir: str, dry_run: 
     print(f"Collecting {source_path} -> {destination}")
     os.makedirs(os.path.dirname(destination), exist_ok=True)
     shutil.copy2(source_path, destination)
+    run_path = get_latest_job_run_path(job.workflow, job.task_name, job.physics_backend, job.render_backend)
+    for checkpoint in job.declared_checkpoints:
+        declared_source = checkpoint.find_in(run_path)
+        if declared_source is None:
+            print(f"No {checkpoint.name} checkpoint matched {checkpoint.run_glob!r} for {job.job_id}")
+            continue
+        declared_destination = get_declared_checkpoint_path(destination, job.workflow, checkpoint)
+        print(f"Collecting {declared_source} -> {declared_destination}")
+        shutil.copy2(declared_source, declared_destination)
     return destination
 
 
@@ -643,17 +658,32 @@ def publish_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) 
             job.render_backend,
         )
         publish_path = posixpath.join(args.publish_root.rstrip("/"), job.workflow, filename)
-    print(f"Publishing {local_path} -> {publish_path}")
+    uploads = [(local_path, publish_path)]
+    for checkpoint in job.declared_checkpoints:
+        local_declared = get_declared_checkpoint_path(local_path, job.workflow, checkpoint)
+        if not os.path.isfile(local_declared):
+            # a component that declares a checkpoint needs it to play, so publishing the policy
+            # alone would advertise a bundle that fails on load
+            print(
+                f"Not publishing {job.job_id}; its {checkpoint.name} checkpoint was not collected."
+                " Collect the job again, or drop the declaration if the task no longer writes it.",
+                file=sys.stderr,
+            )
+            return False
+        uploads.append((local_declared, get_declared_checkpoint_path(publish_path, job.workflow, checkpoint)))
+    for source, destination in uploads:
+        print(f"Publishing {source} -> {destination}")
     if args.dry_run:
         return True
 
     import omni.client
     from omni.client._omniclient import CopyBehavior
 
-    result = omni.client.copy_file(local_path, publish_path, CopyBehavior.OVERWRITE)
-    if result != omni.client.Result.OK:
-        print(f"Publishing failed for {job.job_id}: {result}", file=sys.stderr)
-        return False
+    for source, destination in uploads:
+        result = omni.client.copy_file(source, destination, CopyBehavior.OVERWRITE)
+        if result != omni.client.Result.OK:
+            print(f"Publishing {source} failed for {job.job_id}: {result}", file=sys.stderr)
+            return False
     return True
 
 

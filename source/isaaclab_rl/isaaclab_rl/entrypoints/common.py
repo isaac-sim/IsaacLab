@@ -318,14 +318,12 @@ def resolve_play_checkpoint(
         return retrieve_file_path(checkpoint)
 
     from isaaclab_rl.utils.pretrained_checkpoint import (
-        get_pretrained_checkpoint_backend_names,
         get_published_pretrained_checkpoint,
     )
 
     logger.warning("No --checkpoint given; using the published checkpoint for %s / %s.", framework, task)
     published_task = task.split(":")[-1].replace("-Play", "")
-    backend_names = get_pretrained_checkpoint_backend_names(env_cfg) if env_cfg is not None else ()
-    path = get_published_pretrained_checkpoint(framework, published_task, *backend_names)
+    path = get_published_pretrained_checkpoint(framework, published_task, env_cfg=env_cfg)
     if path is None:
         raise FileNotFoundError(
             f"No checkpoint available for framework {framework!r} and task {task!r}; pass --checkpoint"
