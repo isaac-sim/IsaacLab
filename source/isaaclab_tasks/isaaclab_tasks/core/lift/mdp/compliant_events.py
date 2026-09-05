@@ -64,8 +64,14 @@ class RandomizeFrictionKeepCompliant(ManagerTermBase):
         # Non-PhysX backends: the stock randomizer preserves compliant (ke/kd) by construction.
         if not self._is_physx(env):
             self._stock(
-                env, env_ids, static_friction_range, dynamic_friction_range, restitution_range,
-                num_buckets, asset_cfg if asset_cfg is not None else self.asset_cfg, make_consistent,
+                env,
+                env_ids,
+                static_friction_range,
+                dynamic_friction_range,
+                restitution_range,
+                num_buckets,
+                asset_cfg if asset_cfg is not None else self.asset_cfg,
+                make_consistent,
             )
             return
         view = self.asset.root_view
@@ -80,8 +86,12 @@ class RandomizeFrictionKeepCompliant(ManagerTermBase):
         if float(stiffness.max().item()) < 1.0:  # fall back to the authored spawn compliant
             stiffness[:] = 2500.0
             damping[:] = 100.0
-        static = torch.empty((count, max_shapes), device=device).uniform_(self._static_friction_range[0], self._static_friction_range[1])
-        dynamic = torch.empty((count, max_shapes), device=device).uniform_(self._dynamic_friction_range[0], self._dynamic_friction_range[1])
+        static = torch.empty((count, max_shapes), device=device).uniform_(
+            self._static_friction_range[0], self._static_friction_range[1]
+        )
+        dynamic = torch.empty((count, max_shapes), device=device).uniform_(
+            self._dynamic_friction_range[0], self._dynamic_friction_range[1]
+        )
         if make_consistent:
             dynamic = torch.minimum(static, dynamic)
         # write back as the compliant 4-tuple: [static friction, dynamic friction, stiffness, damping]
