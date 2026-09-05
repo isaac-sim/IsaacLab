@@ -1,6 +1,42 @@
 Changelog
 ---------
 
+0.17.0 (2026-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added mode-specific terminal messages when policy playback, the zero-action agent, or the random-action agent
+  finished initialization.
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab_rl.utils.pretrained_checkpoint.get_published_pretrained_checkpoint` to raise
+  ``RuntimeError`` when a published checkpoint cannot be downloaded, for instance when the
+  ``.pretrained_checkpoints`` cache directory is not writable, instead of returning ``None``. The
+  originating error is chained as the cause. ``None`` is now returned only when the asset server does not
+  report the checkpoint, which covers both an unpublished checkpoint and a server that could not be
+  reached; callers that relied on ``None`` to mask local download failures must catch ``RuntimeError``.
+
+Fixed
+^^^^^
+
+* Fixed RSL-RL play video filenames missing the numeric checkpoint stem used for playback.
+* Fixed RLinf training launched with ``uv run`` failing when Ray attempted to upload working directories larger than 512 MiB.
+* Fixed :func:`~isaaclab_rl.utils.pretrained_checkpoint.get_published_pretrained_checkpoint` reporting
+  every download failure as ``A pre-trained checkpoint is currently unavailable for this task.``. A
+  checkpoint the asset server does not provide is still reported that way, but the message now names the
+  location that was tried, the task and backends it was derived from, and what to do instead.
+* Fixed ``--deterministic`` not making camera observations reproducible. The flag configured the
+  physics solver but left :attr:`warp.config.deterministic` at ``NOT_GUARANTEED``, and Newton's
+  sensor and geometry kernels -- unlike its solvers -- take no per-module determinism option and
+  fall back to that global. The scene BVH is built over an atomically compacted shape list, so its
+  primitive order varied between processes and a tiled camera rendered a few pixels differently
+  from identical simulation state, which was enough to make image-observation training diverge.
+
+
 0.16.4 (2026-09-04)
 ~~~~~~~~~~~~~~~~~~~
 

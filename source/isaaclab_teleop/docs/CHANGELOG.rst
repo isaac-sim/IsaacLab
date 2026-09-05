@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.8.4 (2026-09-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed demonstration recording for tasks whose rewards reference the ``success``
+  termination term.
+
+
 0.8.3 (2026-09-03)
 ~~~~~~~~~~~~~~~~~~
 
