@@ -28,7 +28,7 @@ from isaaclab.utils.math import (
     unscale_transform,
 )
 
-from isaaclab_tasks.core.utils import (
+from isaaclab_tasks.core.reorient.utils import (
     EpisodeErrorRecorder,
     randomize_rotation,
     sample_joint_positions_within_limits,
@@ -124,6 +124,7 @@ class ReorientDirectEnv(DirectRLEnv):
             raise ValueError(
                 f"Expected {len(cfg.actuated_joint_names)} actuated joints, found {len(self.actuated_dof_indices)}."
             )
+
         self.finger_bodies, fingertip_body_names = self.hand.find_bodies(self.cfg.fingertip_body_names)
         if len(self.finger_bodies) != len(self.cfg.fingertip_body_names):
             raise ValueError(
@@ -208,8 +209,11 @@ class ReorientDirectEnv(DirectRLEnv):
         self.actions = actions.clone()
 
     def _apply_action(self) -> None:
+        # Joint actions come first, matching the manager task's action-term order. A hand whose
+        # motors also pull tendons consumes the remaining columns in its own subclass.
+        num_joint_actions = len(self.actuated_dof_indices)
         self.cur_targets[:, self.actuated_dof_indices] = unscale_transform(
-            self.actions,
+            self.actions[:, :num_joint_actions],
             self.hand_dof_lower_limits[:, self.actuated_dof_indices],
             self.hand_dof_upper_limits[:, self.actuated_dof_indices],
         )

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
 
-from isaaclab_tasks.core.utils import sample_joint_positions_within_limits
+from isaaclab_tasks.core.reorient.utils import sample_joint_positions_within_limits
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation

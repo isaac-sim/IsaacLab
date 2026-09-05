@@ -1,6 +1,97 @@
 Changelog
 ---------
 
+23.0.0 (2026-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``MeshCfg.edge_refinement``, defaulting to ``4.0``, to control surface mesh resolution for deformable
+  primitives and the automatically generated tetrahedral mesh resolution for closed volume deformables. It is ignored
+  when ``deformable_props`` is None, since rigid primitive collision approximations are invariant to surface
+  subdivision.
+* Added OVPhysX backend support to :class:`~isaaclab.envs.mdp.events.randomize_rigid_body_collider_offsets`.
+  The term previously fell through to the PhysX implementation on OVPhysX and raised ``AttributeError``
+  during environment construction, because :class:`~isaaclab_ov.sim.views.OvPhysxView` has none of the
+  PhysX ``root_view`` offset accessors. Rest and contact offsets are now written per collision shape through
+  the asset's view. An unrecognised physics manager now raises ``ValueError`` naming the backend instead of
+  silently selecting the PhysX implementation.
+* Added the ``us`` asset region profile and ``configure_asset_region_profile()`` initializer.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Routed clone backends through one :class:`~isaaclab.cloner.ClonePlan` using its
+  ``context_rows`` mapping. Replace ``UsdReplicateContext.queue(...)`` or
+  ``queue_mapping(...)`` followed by ``replicate()`` with
+  ``UsdReplicateContext.replicate(plan)``. Standalone callers can use
+  :func:`~isaaclab.cloner.usd_replicate`. Removed the former ``stage`` argument from
+  :func:`~isaaclab.cloner.replicate` and :class:`~isaaclab.cloner.ReplicateSession`.
+  Custom ``cloning_contexts`` must be registered with
+  ``sim.get_or_create_backend(ContextType, ...)`` before dispatch; built-in physics managers
+  register their own context. Changed clone-plan arrays, grid transforms, and clone strategies
+  to NumPy and removed their ``device`` arguments, including ``CloneCfg.device``. Changed
+  :func:`~isaaclab.cloner.usd_replicate` to accept NumPy arrays instead of tensors. Convert an
+  array to a runtime tensor only where its consuming component requires one.
+* Changed ``MeshCuboidCfg.edge_refinement``, added in 15.6.0 and now generalized to ``MeshCfg.edge_refinement``, to
+  apply only when ``deformable_props`` is set. Rigid primitives are no longer subdivided; their surface and collision
+  approximation are unaffected, since subdivision only inserted coplanar vertices. Callers relying on a denser rigid
+  visual mesh must supply their own mesh asset.
+* Changed generated projects to use the Newton backend without Isaac Sim by default. Use the ``isaacsim``, ``ov``,
+  ``ovphysx``, or ``ovrtx`` uv extra when running a generated project that needs the corresponding optional backend.
+* Added pytest and the standard test-marker configuration to generated projects, and allowed lazy-export ``.pyi``
+  files in their Ruff configuration.
+* Prioritized the manager-based workflow, RSL-RL, and PPO as the first applicable template generator choices.
+* Aligned external projects with the canonical single-project uv ``src`` layout, separated package, task-family, and
+  robot configuration names, added a registration test, and made Isaac Sim UI extension files opt-in.
+* Changed :attr:`~isaaclab.actuators.DCMotorCfg.saturation_effort` to accept a joint-name-pattern
+  dictionary in addition to a scalar. Joints in one actuator group that sit behind different gear
+  reductions can now be given their own stall torque, which previously required splitting them into
+  separate actuator groups. Existing scalar configurations are unaffected.
+* Changed the pinned Newton version from ``1.5.1`` to ``1.6.0rc1``, the first release carrying
+  `newton#4017 <https://github.com/newton-physics/newton/pull/4017>`_, which makes
+  ``ArticulationView`` generic over custom frequencies. Reading a MuJoCo actuator attribute such
+  as ``mujoco.actuator_trntype`` through an articulation view previously raised *"has custom
+  frequency 'mujoco:actuator' which is not supported by ArticulationView"*.
+* Changed ``warp-lang`` from ``1.16.0`` to ``1.17.0`` and ``mujoco``/``mujoco-warp`` from
+  ``3.11.0`` to ``3.12.0``, which Newton ``1.6.0rc1`` requires.
+* Renamed the China profile selector from ``ISAACSIM_STORAGE_PROFILE`` to
+  ``ISAACSIM_ASSET_REGION_PROFILE``.
+
+Removed
+^^^^^^^
+
+* Removed ``MeshRectangleCfg.resolution``. Deformable callers must use ``MeshCfg.edge_refinement`` to bound surface
+  edge length relative to the bounding-box diagonal. Rigid rectangles are now spawned as two triangles.
+
+Fixed
+^^^^^
+
+* Fixed Docker installs leaving dangling package links in expanded Isaac Sim prebundles.
+* Fixed function and class-based observation modifiers failing after a configuration dictionary round-trip.
+* Fixed :attr:`~isaaclab.envs.mimic_env_cfg.DataGenConfig.max_num_failures` being ignored. The field
+  documented a cap on failed generation attempts but was never read, so a run with
+  :attr:`~isaaclab.envs.mimic_env_cfg.DataGenConfig.generation_guarantee` enabled retried without
+  bound on a task with a low success rate. Its default is now ``None`` (no limit) and setting it to
+  an integer stops generation once that many attempts have failed.
+* Fixed the new project template generator in uv environments that do not include the ``pip`` module by declaring
+  Jinja as an Isaac Lab dependency and using the existing Rich dependency for interactive prompts.
+* Fixed :func:`isaaclab.utils.images.normalize_camera_image` returning non-colorized
+  ``"semantic_segmentation"`` unchanged. Such output is an ``int32`` label map on every renderer,
+  and feeding it to a convolution raised ``Input type (int) and bias type (float) should be the
+  same``. It is now cast to ``float32``; label ids carry no scale, so they are not rescaled.
+  Colorized (``uint8`` RGBA) segmentation keeps its existing ``(x / 255) - mean`` normalization.
+* Fixed the :class:`~isaaclab.sensors.BasePva` documentation stating that accelerations may be
+  computed by numerically differentiating velocities and that accuracy depends on the physics
+  timestep. Every backend now reads accelerations directly from the solver.
+* Fixed detection of legacy 3Dconnexion SpaceNavigator devices in the SpaceMouse interface.
+* Fixed ``--anim_recording_enabled`` silently running forever without saving an animation when the active
+  physics backend is not PhysX. The OVD Recorder now raises a clear error at simulation startup naming the
+  active backend and instructing the user to select the PhysX backend (for example, by appending
+  ``physics=isaacsim_physx`` to the command line).
+
+
 22.1.0 (2026-09-04)
 ~~~~~~~~~~~~~~~~~~~
 

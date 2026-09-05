@@ -1780,6 +1780,8 @@ class ArticulationData(BaseArticulationData):
         self._fixed_tendon_offset = TimestampedBuffer((N, T_fix), dev, wp.float32)
         # Legacy alias kept for any internal callers that used the old vec2f buffer.
         self._fixed_tendon_pos_limits = TimestampedBuffer((N, T_fix), dev, wp.vec2f)
+        # scratch for the tendon target setters: rest_length - target before the masked/indexed write
+        self._fixed_tendon_offset_scratch = wp.zeros((N, T_fix), dtype=wp.float32, device=dev)
         self._spatial_tendon_stiffness = TimestampedBuffer((N, T_spa), dev, wp.float32)
         self._spatial_tendon_damping = TimestampedBuffer((N, T_spa), dev, wp.float32)
         self._spatial_tendon_limit_stiffness = TimestampedBuffer((N, T_spa), dev, wp.float32)

@@ -21,13 +21,19 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
     ShadowHandRobotCfg,
 )
 from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import (
+    ActionsCfg,
     ReorientFullStateObsCfg,
     ReorientManagerEnvBaseCfg,
     ReorientSceneBaseCfg,
 )
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.shadow_hand import SHADOW_ACTUATED_JOINT_NAMES, SHADOW_FINGERTIP_BODY_NAMES
+from isaaclab_assets.robots.shadow_hand import (
+    FINGERTIP_NAMES,
+    JOINT_NAMES,
+    TENDON_NAMES,
+    TENDON_POSITION_LIMITS,
+)
 
 ##
 # Default: full-state actor.
@@ -43,15 +49,36 @@ class ShadowHandManagerSceneCfg(ReorientSceneBaseCfg):
 
 
 @configclass
+class ShadowHandActionsCfg(ActionsCfg):
+    """The shared joint term, plus the tendon term only this hand needs.
+
+    Twenty motors over twenty-four joints: sixteen drive a joint each, which the inherited
+    joint term already covers, and four pull a tendon across a finger's middle and distal
+    joints. A joint term cannot reach a tendon, so those four need a term of their own.
+    """
+
+    tendon_pos = mdp.FixedTendonPositionActionCfg(
+        asset_name="robot",
+        tendon_names=TENDON_NAMES,
+        # map the policy's [-1, 1] onto the tendon's commandable span
+        scale=0.5 * (TENDON_POSITION_LIMITS[1] - TENDON_POSITION_LIMITS[0]),
+        offset=0.5 * (TENDON_POSITION_LIMITS[0] + TENDON_POSITION_LIMITS[1]),
+        # the term maps [-1, 1] onto that span; clip states the bound the task guarantees
+        clip={".*": TENDON_POSITION_LIMITS},
+    )
+
+
+@configclass
 class ShadowHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
     """Manager-based state Shadow Hand task with Direct-compatible semantics."""
 
-    fingertip_body_names = SHADOW_FINGERTIP_BODY_NAMES
-    actuated_joint_names = SHADOW_ACTUATED_JOINT_NAMES
+    fingertip_body_names = FINGERTIP_NAMES
+    actuated_joint_names = JOINT_NAMES
     goal_orientation_threshold = 0.1
     goal_marker_cfg = GOAL_OBJECT_CFG
     decimation = 2
 
+    actions: ShadowHandActionsCfg = ShadowHandActionsCfg()
     scene: ShadowHandManagerSceneCfg = ShadowHandManagerSceneCfg()
     # ``presets=randomized`` adds the domain-randomization terms
     events: ShadowHandManagerEventPresetCfg = ShadowHandManagerEventPresetCfg()
@@ -83,7 +110,7 @@ class ShadowHandAsymmetricObservationsCfg:
 
         fingertip_pos = ObsTerm(
             func=mdp.fingertip_pos,
-            params={"asset_cfg": SceneEntityCfg("robot", body_names=SHADOW_FINGERTIP_BODY_NAMES)},
+            params={"asset_cfg": SceneEntityCfg("robot", body_names=FINGERTIP_NAMES)},
         )
         object_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
         goal_quat_diff = ObsTerm(
@@ -94,7 +121,8 @@ class ShadowHandAsymmetricObservationsCfg:
                 "make_quat_unique": False,
             },
         )
-        last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
+        # No action_name: this hand splits its motors across a joint term and a tendon term.
+        last_action = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
             self.concatenate_terms = True
@@ -106,9 +134,10 @@ class ShadowHandAsymmetricObservationsCfg:
         fingertip_wrench = ObsTerm(
             func=mdp.body_incoming_wrench,
             scale=10.0,
-            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=SHADOW_FINGERTIP_BODY_NAMES)},
+            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=FINGERTIP_NAMES)},
         )
-        last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
+        # No action_name: this hand splits its motors across a joint term and a tendon term.
+        last_action = ObsTerm(func=mdp.last_action)
 
     policy: PolicyCfg = PolicyCfg()
     critic: CriticCfg = CriticCfg()

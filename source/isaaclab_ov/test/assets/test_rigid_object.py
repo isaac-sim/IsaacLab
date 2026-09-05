@@ -1253,19 +1253,20 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
             torch.testing.assert_close(root_com_vel_w[:, 3:], root_link_vel_w[:, 3:])
 
 
-def test_warmup_attach_stage_not_called_for_cpu():
-    """Regression test: ``physx.warmup_gpu()`` must not be called for CPU.
+def test_warmup_attach_stage_not_called_for_cpu(monkeypatch):
+    """Keep IsaacLab's explicit warmup on its GPU-only compatibility path.
 
-    OVPhysX-equivalent of PhysX's ``test_warmup_attach_stage_not_called_for_cpu``:
-    PhysX guards :meth:`attach_stage` with ``if is_gpu:`` so the CPU MBP
-    broadphase is not double-initialised.  The OVPhysX manager has the same
-    structural guard around :meth:`OvPhysxManager._physx.warmup_gpu`: it is
-    only invoked when ``ovphysx_device == "gpu"``.
+    OVPhysX 0.5 exposes only ``warmup_gpu()``, while OVPhysX 0.6 also supports
+    CPU through ``warmup()``. IsaacLab preserves its existing explicit GPU-only
+    scheduling path for compatibility with both generations. OVPhysX 0.5 needs
+    no explicit CPU warmup; on 0.6, the first tensor read performs lazy warmup.
+    The manager therefore does not invoke the compatibility helper on CPU.
 
-    We monkey-patch ``OvPhysxManager._physx`` with a :class:`MagicMock`
-    wrapping the live PhysX object so that ``warmup_gpu`` becomes a spy while
-    other calls continue to forward, then assert ``warmup_gpu.call_count == 0``
-    after a CPU-mode :meth:`sim.reset`.
+    After the first reset constructs the runtime, we replace
+    :meth:`OvPhysxManager._warmup_physx` with a :class:`MagicMock`, force the
+    manager to load the stage again, and assert the helper was not called.
+    Watching the compatibility helper keeps this regression test independent
+    of which warmup entry point the installed OVPhysX generation exposes.
 
     The test always runs CPU regardless of session parametrization, so it is
     skipped when the session-locked device is anything other than CPU.  The
@@ -1283,26 +1284,17 @@ def test_warmup_attach_stage_not_called_for_cpu():
         # Allocate a single rigid body so the manager has something to load.
         generate_cubes_scene(num_cubes=1, height=1.0, device="cpu")
 
-        # First reset constructs (or reuses) the real ovphysx.PhysX so we have
-        # a live instance to wrap.  The PhysX object is a C++ binding, so we
-        # cannot patch attributes directly — replace the class-level reference
-        # with a MagicMock(wraps=...) that forwards every call.
+        # First reset constructs (or reuses) the real ovphysx.PhysX instance.
         sim.reset()
-        original_physx = OvPhysxManager._physx
-        assert original_physx is not None, "PhysX should be constructed after sim.reset()"
-        spy = MagicMock(wraps=original_physx)
-        OvPhysxManager._physx = spy
+        assert OvPhysxManager._physx is not None, "PhysX should be constructed after sim.reset()"
+
+        warmup_spy = MagicMock()
+        monkeypatch.setattr(OvPhysxManager, "_warmup_physx", warmup_spy)
         # Force _warmup_and_load to run again on the next reset so the spy
-        # observes the warmup_gpu (or non-call) decision; close() resets
+        # observes the explicit-warmup (or non-call) decision; close() resets
         # _warmup_done back to False but we just called sim.reset() above.
         OvPhysxManager._warmup_done = False
-        try:
-            sim.reset()
-        finally:
-            OvPhysxManager._physx = original_physx
+        sim.reset()
 
-        assert spy.warmup_gpu.call_count == 0, (
-            f"warmup_gpu() was called {spy.warmup_gpu.call_count} time(s) during CPU warmup. "
-            "OvPhysxManager._warmup_and_load() must guard warmup_gpu() with "
-            "ovphysx_device == 'gpu' so the CPU pipeline is not mis-initialised."
-        )
+        assert OvPhysxManager._warmup_done is True
+        warmup_spy.assert_not_called()

@@ -1,6 +1,40 @@
 Changelog
 ---------
 
+20.0.1 (2026-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an ``overrides`` argument to :func:`~isaaclab_tasks.utils.parse_env_cfg` for applying Hydra-style
+  ``key=value`` overrides (e.g. ``physics=isaacsim_physx``) to a task's registered configuration from standalone
+  scripts that do not use the full Hydra CLI. The ``run_cartpole_rl_env.py`` tutorial now forwards unrecognized
+  command-line arguments this way, which is required to select the PhysX backend for the OVD Recorder.
+
+Fixed
+^^^^^
+
+* Fixed the Cartpole camera tasks crashing at the first training step with
+  ``RuntimeError: Input type (unsigned char) and bias type (float) should be the same`` when the
+  ``semantic_segmentation`` preset was selected. Both the manager-based observation term and the
+  direct environment normalized only RGB-like and depth output, so segmentation reached the feature
+  extractor as an integer tensor. Segmentation is now routed through
+  :func:`isaaclab.utils.images.normalize_camera_image`, which keys on the tensor dtype and therefore
+  handles both colorized (``uint8`` RGBA) and non-colorized (``int32`` label ids) output.
+* Fixed ``test_manipulation_env_determinism`` asserting bit-reproducible rewards without requesting
+  a determinism guarantee. Newton defaults to ``wp.DeterministicMode.NOT_GUARANTEED``, under which
+  Warp's atomics may accumulate in any order, so the test failed intermittently depending on GPU
+  scheduling. It now passes ``deterministic_mode="run_to_run"``, as the Newton cartpole cases
+  already did.
+* Fixed :func:`~isaaclab_tasks.utils.parse_env_cfg` silently misinterpreting a bare ``overrides`` string as a
+  sequence of single-character overrides (a plain string is itself a ``Sequence[str]``). Passing a bare string now
+  raises a clear ``TypeError`` instructing the caller to wrap it in a list or tuple.
+* Extended the Hydra-style ``overrides`` forwarding added for the OVD Recorder fix to every standalone script that
+  calls :func:`~isaaclab_tasks.utils.parse_env_cfg`, so ``physics=``/``renderer=``/``presets=`` selectors work
+  consistently across all of them, not just the ``run_cartpole_rl_env.py`` tutorial.
+
+
 20.0.0 (2026-09-03)
 ~~~~~~~~~~~~~~~~~~~
 

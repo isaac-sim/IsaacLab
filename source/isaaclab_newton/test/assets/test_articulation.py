@@ -77,8 +77,7 @@ from isaaclab.utils.warp.proxy_array import ProxyArray
 # Pre-defined configs
 ##
 from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
-# , SHADOW_HAND_CFG  # isort:skip
-
+from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_NEWTON_CFG
 
 SIM_CFGs = {
     "humanoid": SimulationCfg(
@@ -242,8 +241,8 @@ def generate_articulation_cfg(
     elif articulation_type == "anymal":
         articulation_cfg = ANYMAL_C_CFG
     elif articulation_type == "shadow_hand":
-        pytest.skip("Shadow hand is not supported in Newton")
-        # articulation_cfg = SHADOW_HAND_CFG
+        # The MuJoCo variant, not the PhysX one: only that variant authors the hand's tendons.
+        articulation_cfg = SHADOW_HAND_NEWTON_CFG
     elif articulation_type == "single_joint_implicit":
         articulation_cfg = ArticulationCfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
@@ -1912,6 +1911,43 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device, articu
         sim.step()
         # update articulation
         articulation.update(sim.cfg.dt)
+
+
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("articulation_type", ["shadow_hand"])
+def test_fixed_tendon_position_target_reaches_only_given_envs(sim, num_articulations, device, articulation_type):
+    """A tendon command for one environment must leave the others alone.
+
+    ``set_fixed_tendon_position_target_index`` is declared backend-neutral and documented to accept
+    partial data. Newton took ``env_ids`` and never forwarded it, so a partial command was sized
+    against every instance and raised rather than commanding the environment asked for.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+
+    sim.reset()
+    assert articulation.is_initialized
+    assert articulation.num_fixed_tendons > 0
+
+    target = torch.full((1, articulation.num_fixed_tendons), 1.0, dtype=torch.float32, device=device)
+    articulation.set_fixed_tendon_position_target_index(target=target, env_ids=[0])
+
+    for _ in range(30):
+        articulation.write_data_to_sim()
+        sim.step()
+        articulation.update(sim.cfg.dt)
+
+    # Both environments start from the same pose under the same gravity, so any divergence comes
+    # from the command -- and identical poses would mean it reached both.
+    commanded, untouched = articulation.data.joint_pos.torch[0], articulation.data.joint_pos.torch[1]
+    assert not torch.allclose(commanded, untouched)
+    # Each Shadow Hand tendon ``rh_XFJ0`` is the sum of joints ``rh_XFJ1`` and ``rh_XFJ2``, so the
+    # commanded environment's tendon lengths must have moved toward the 1.0 target and away from
+    # the uncommanded environment, which the actuator holds at its 0.0 control.
+    for tendon_name in articulation.fixed_tendon_names:
+        joint_ids, _ = articulation.find_joints([tendon_name[:-1] + "1", tendon_name[:-1] + "2"])
+        assert commanded[joint_ids].sum() > untouched[joint_ids].sum()
 
 
 @pytest.mark.parametrize("device", ["cpu"])

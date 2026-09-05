@@ -33,6 +33,7 @@ from isaaclab.physics import PhysicsManager
 from isaaclab.utils.buffers import TimestampedBufferWarp
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import kernels as warp_kernels
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ov import tensor_types as TT
@@ -269,6 +270,15 @@ class Articulation(BaseArticulation):
         # apply actuator models and submit processed commands.
         self.actuators.compute(OvPhysxManager.get_physics_dt())
         self.actuators.submit_commands()
+
+        # tendon targets are applied as the offset property, so a commanded target rides the same
+        # per-step write as joint targets; an authored tendon alone schedules nothing
+        if self._fixed_tendon_target_dirty:
+            # Only the offset carries the commanded target; the other tendon properties are static
+            # and keep the explicit-write contract of ``write_fixed_tendon_properties_to_sim_*``.
+            # Writing them here too would cost five more attribute writes, some CPU-only.
+            self._root_view.set_attribute(TT.FIXED_TENDON_OFFSET, self._data._fixed_tendon_offset.data)
+            self._fixed_tendon_target_dirty = False
 
     def update(self, dt: float) -> None:
         """Updates the simulation data.
@@ -3151,6 +3161,57 @@ class Articulation(BaseArticulation):
             TT.FIXED_TENDON_REST_LENGTH, self._data._fixed_tendon_rest_length.data, mask=env_mask_wp
         )
 
+    def set_fixed_tendon_position_target_index(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Command the tendon's length by shifting its offset.
+
+        OVPhysX carries the same tendon model as PhysX, where the schema documents ``offset`` as the
+        value "added to the accumulated length ... allows the application to actuate the tendon by
+        shortening or lengthening it", so the tendon rests where ``length + offset == rest_length``.
+        The offset that realizes a target length is therefore ``rest_length - target``.
+
+        This function does not apply the target to the simulation. It only fills the offset buffer,
+        which :meth:`write_data_to_sim` pushes with the other tendon properties.
+
+        .. note::
+            This method expects partial data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (len(env_ids), len(fixed_tendon_ids)).
+            fixed_tendon_ids: The tendon indices to command. Defaults to None (all fixed tendons).
+            env_ids: The environment indices to command. Defaults to None (all environments).
+        """
+        env_ids = self._resolve_env_ids(env_ids)
+        tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
+        shape = (env_ids.shape[0], tendon_ids.shape[0])
+        self.assert_shape_and_dtype(target, shape, wp.float32, "target")
+        if shape[0] == 0 or shape[1] == 0:
+            return
+        # partial result lives in a view of the preallocated scratch: no allocation on the step path
+        offset = self._data._fixed_tendon_offset_scratch.flatten()[: shape[0] * shape[1]].reshape(shape)
+        wp.launch(
+            warp_kernels.gather_subtract_2d_kernel(env_ids, tendon_ids),
+            dim=shape,
+            inputs=[self.data.fixed_tendon_rest_length.warp, env_ids, tendon_ids, target],
+            outputs=[offset],
+            device=self._device,
+        )
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, tendon_ids),
+            dim=shape,
+            inputs=[offset, env_ids, tendon_ids],
+            outputs=[self._data._fixed_tendon_offset.data],
+            device=self._device,
+        )
+        # commanding a target schedules the write; the offset setter keeps its explicit contract
+        self._fixed_tendon_target_dirty = True
+
     def set_fixed_tendon_offset_index(
         self,
         *,
@@ -3198,6 +3259,49 @@ class Articulation(BaseArticulation):
             self._data._fixed_tendon_offset.data,
             indices=self._get_sim_env_ids(env_ids, sim_env_ids),
         )
+
+    def set_fixed_tendon_position_target_mask(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Command the target length of fixed tendons using masks.
+
+        Same control input as :meth:`set_fixed_tendon_position_target_index`, selecting the tendons
+        and environments by mask instead of by index.
+
+        .. note::
+            This method expects full data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are commanded.
+            env_mask: Environment mask. If None, then all the instances are commanded.
+        """
+        env_mask_wp = self._resolve_env_mask(env_mask)
+        tendon_mask_wp = self._resolve_fixed_tendon_mask(fixed_tendon_mask)
+        shape = (self._num_instances, self._num_fixed_tendons)
+        self.assert_shape_and_dtype(target, shape, wp.float32, "target")
+        offset = self._data._fixed_tendon_offset_scratch
+        wp.launch(
+            warp_kernels.subtract_2d,
+            dim=shape,
+            inputs=[self.data.fixed_tendon_rest_length.warp, target],
+            outputs=[offset],
+            device=self._device,
+        )
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_mask,
+            dim=shape,
+            inputs=[offset, env_mask_wp, tendon_mask_wp],
+            outputs=[self._data._fixed_tendon_offset.data],
+            device=self._device,
+        )
+        # commanding a target schedules the write; the offset setter keeps its explicit contract
+        self._fixed_tendon_target_dirty = True
 
     def set_fixed_tendon_offset_mask(
         self,
@@ -4047,13 +4151,21 @@ class Articulation(BaseArticulation):
                                 items = getattr(metadata, field, None)
                                 if items:
                                     schema_names.extend(str(item) for item in items)
-                        schemas_str = " ".join(schema_names)
+                        # GetAppliedSchemas() and the apiSchemas metadata report the same items; dedupe
+                        schema_names = list(dict.fromkeys(schema_names))
+                        # a fixed tendon is named after its PhysxTendonAxisRootAPI instance, not the joint carrying it
+                        root_instances = [
+                            schema_name.removeprefix("PhysxTendonAxisRootAPI:")
+                            for schema_name in schema_names
+                            if schema_name.startswith("PhysxTendonAxisRootAPI:")
+                        ]
                         name = prim.GetPath().name
-                        if "PhysxTendonAxisRootAPI" in schemas_str:
-                            self._fixed_tendon_names.append(name)
-                        elif (
-                            "PhysxTendonAttachmentRootAPI" in schemas_str
-                            or "PhysxTendonAttachmentLeafAPI" in schemas_str
+                        if root_instances:
+                            self._fixed_tendon_names.extend(root_instances)
+                        elif any(
+                            "PhysxTendonAttachmentRootAPI" in schema_name
+                            or "PhysxTendonAttachmentLeafAPI" in schema_name
+                            for schema_name in schema_names
                         ):
                             self._spatial_tendon_names.append(name)
                 except Exception:
