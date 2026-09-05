@@ -41,6 +41,13 @@ class Checkpoint:
     local_path: str | None = None
     """Local copy to load, set by the tooling that fetched it. Takes precedence in :meth:`resolve`."""
 
+    def __post_init__(self) -> None:
+        if (self.run_glob is None) == (self.url is None):
+            raise ValueError(
+                f"The {self.name!r} checkpoint must declare exactly one of run_glob and url,"
+                f" got run_glob={self.run_glob!r} and url={self.url!r}."
+            )
+
     @property
     def is_run_artifact(self) -> bool:
         """Whether this run produces the file, as opposed to fetching a published one."""

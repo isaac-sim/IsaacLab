@@ -31,6 +31,17 @@ def test_fetched_copy_wins_over_the_files_the_run_wrote(tmp_path):
     assert checkpoint.resolve(str(tmp_path)) == "/cache/Isaac-Task_physx_rtx_rsl_rl_fe.pth"
 
 
+@pytest.mark.parametrize(
+    "kwargs",
+    [{}, {"run_glob": "cnn_*.pth", "url": "omniverse://IsaacLab/vae.pt"}],
+    ids=["neither", "both"],
+)
+def test_a_declaration_names_exactly_one_source(kwargs):
+    """A component declaring no source, or two, is a config error rather than a later failure."""
+    with pytest.raises(ValueError, match="exactly one"):
+        Checkpoint(name="fe", **kwargs)
+
+
 def test_missing_run_artifact_names_the_directory(tmp_path):
     """The error says where it looked, so the user can tell an unbuilt tree from a wrong path."""
     with pytest.raises(FileNotFoundError, match=str(tmp_path)):

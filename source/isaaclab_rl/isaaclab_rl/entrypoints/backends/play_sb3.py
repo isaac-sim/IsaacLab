@@ -27,6 +27,7 @@ from isaaclab_rl.entrypoints.common import (
     apply_video_recording,
     create_isaaclab_env,
     pre_launch_video_config,
+    request_determinism,
     resolve_checkpoint_selector,
     resolve_play_task_name,
     show_run_summary,
@@ -112,6 +113,8 @@ def main():
                 args_cli.seed = random.randint(0, 10000)
 
             env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+            # Warp reads its determinism mode at module build time, so request it before the env exists.
+            request_determinism(args_cli, env_cfg)
             agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
             env_cfg.seed = agent_cfg["seed"]
             env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
