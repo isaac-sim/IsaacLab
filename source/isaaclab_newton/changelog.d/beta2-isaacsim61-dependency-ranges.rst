@@ -7,3 +7,5 @@ Fixed
   and Kamino reset interface while retaining compatibility with Newton 1.2.
 * Rebuilt cached collision state and CUDA graphs after hard resets to prevent stale model buffers from
   causing illegal CUDA memory accesses.
+* Paused Python garbage collection during Newton CUDA graph capture to prevent conditional graph memory
+  frees from corrupting later graph launches.
