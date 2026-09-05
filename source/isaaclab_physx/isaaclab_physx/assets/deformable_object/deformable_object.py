@@ -578,6 +578,9 @@ class DeformableObject(AssetBase):
         return env_ids
 
     def _initialize_impl(self):
+        if not self.device.startswith("cuda"):
+            raise RuntimeError(f"PhysX deformables require a CUDA simulation device; received '{self.device}'.")
+
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
 
