@@ -10,6 +10,7 @@ __all__ = [
     "BinaryJointVelocityActionCfg",
     "DifferentialInverseKinematicsActionCfg",
     "EMAJointPositionToLimitsActionCfg",
+    "FixedTendonPositionActionCfg",
     "JointActionCfg",
     "JointEffortActionCfg",
     "JointPositionActionCfg",
@@ -32,6 +33,7 @@ __all__ = [
     "JointPositionToLimitsAction",
     "NonHolonomicAction",
     "SurfaceGripperBinaryAction",
+    "FixedTendonPositionAction",
 ]
 
 from .actions_cfg import (
@@ -41,6 +43,7 @@ from .actions_cfg import (
     BinaryJointVelocityActionCfg,
     DifferentialInverseKinematicsActionCfg,
     EMAJointPositionToLimitsActionCfg,
+    FixedTendonPositionActionCfg,
     JointActionCfg,
     JointEffortActionCfg,
     JointPositionActionCfg,
@@ -67,3 +70,4 @@ from .joint_actions import (
 from .joint_actions_to_limits import EMAJointPositionToLimitsAction, JointPositionToLimitsAction
 from .non_holonomic_actions import NonHolonomicAction
 from .surface_gripper_actions import SurfaceGripperBinaryAction
+from .tendon_actions import FixedTendonPositionAction

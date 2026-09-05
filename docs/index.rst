@@ -92,6 +92,7 @@ Table of Contents
    source/setup/installation/index
    source/setup/environments
    source/setup/quickstart
+   source/setup/tutorial
    source/migration/migrating_to_isaaclab_3-0
 
 
@@ -112,11 +113,9 @@ Table of Contents
    :caption: Getting Started
    :titlesonly:
 
-   source/setup/walkthrough/index
    source/tutorials/index
    source/how-to/index
    source/overview/developer-guide/index
-   source/testing/index
 
 
 .. toctree::
@@ -151,6 +150,7 @@ Table of Contents
    :caption: Developer Tools
 
    source/developer-tools/template_generator
+   source/developer-tools/benchmarking/index
 
 
 .. toctree::
