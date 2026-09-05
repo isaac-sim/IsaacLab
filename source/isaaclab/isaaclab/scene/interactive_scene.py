@@ -201,7 +201,7 @@ class InteractiveScene:
         else:
             self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
             positions = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing)[0]
-        self._env_origins = torch.as_tensor(positions, device=self.device)
+        self._env_origins = positions
         self._env_origins_plan = self.sim.get_clone_plan()
 
         # Every sensor exists by now, so all visualizer and camera-renderer requirements are visible.
@@ -384,8 +384,10 @@ class InteractiveScene:
             return self._terrain.env_origins
         plan = self.sim.get_clone_plan()
         if plan is not None and plan is not self._env_origins_plan:
-            self._env_origins = torch.as_tensor(plan.positions, device=self.device)
+            self._env_origins = plan.positions
             self._env_origins_plan = plan
+        if not isinstance(self._env_origins, torch.Tensor):
+            self._env_origins = torch.as_tensor(self._env_origins, device=self.device)
         return self._env_origins
 
     @property
