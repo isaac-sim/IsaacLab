@@ -3,29 +3,27 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Command term and configuration for 3D orientation goals of in-hand reorientation objects."""
+"""Command term for 3D orientation goals of in-hand reorientation objects."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.managers import CommandTerm, CommandTermCfg
-from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.managers import CommandTerm
+from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 
-from isaaclab_tasks.core.utils import SuccessTracker
+from isaaclab_tasks.core.reorient.utils import SuccessTracker
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
+
+    from .commands_cfg import ReorientCommandCfg
 
 
 class ReorientCommand(CommandTerm):
@@ -70,9 +68,6 @@ class ReorientCommand(CommandTerm):
         self.quat_command_w[:, 3] = 1.0  # set the scalar component to 1.0
 
         # -- unit vectors
-        self._X_UNIT_VEC = torch.tensor([1.0, 0, 0], device=self.device).repeat((self.num_envs, 1))
-        self._Y_UNIT_VEC = torch.tensor([0, 1.0, 0], device=self.device).repeat((self.num_envs, 1))
-        self._Z_UNIT_VEC = torch.tensor([0, 0, 1.0], device=self.device).repeat((self.num_envs, 1))
 
         # -- metrics
         self.metrics["orientation_error"] = torch.zeros(self.num_envs, device=self.device)
@@ -139,13 +134,9 @@ class ReorientCommand(CommandTerm):
 
     def _resample_command(self, env_ids: Sequence[int]):
         self._success.record_goal_reached(env_ids)
-        # sample new orientation targets
-        rand_floats = 2.0 * torch.rand((len(env_ids), 2), device=self.device) - 1.0
-        # rotate randomly about x-axis and then y-axis
-        quat = math_utils.quat_mul(
-            math_utils.quat_from_angle_axis(rand_floats[:, 0] * torch.pi, self._X_UNIT_VEC[env_ids]),
-            math_utils.quat_from_angle_axis(rand_floats[:, 1] * torch.pi, self._Y_UNIT_VEC[env_ids]),
-        )
+        # The shared sampler covers SO(3) uniformly. Composing a rotation about x with one about y, as
+        # this did, reaches only a two-axis subset and needs a unit-axis buffer per axis to do it.
+        quat = math_utils.random_orientation(len(env_ids), device=self.device)
         # make sure the quaternion real-part is always positive
         self.quat_command_w[env_ids] = math_utils.quat_unique(quat) if self.cfg.make_quat_unique else quat
 
@@ -185,60 +176,3 @@ class ReorientCommand(CommandTerm):
             orientations=self.quat_command_w,
             environment_ids=self._env.scene._ALL_INDICES,
         )
-
-
-@configclass
-class ReorientCommandCfg(CommandTermCfg):
-    """Configuration for the uniform 3D orientation command term.
-
-    Please refer to the :class:`ReorientCommand` class for more details.
-    """
-
-    class_type: type[ReorientCommand] = ReorientCommand
-
-    resampling_time_range: tuple[float, float] = (1e6, 1e6)  # no resampling based on time
-
-    asset_name: str = MISSING
-    """Name of the asset in the environment for which the commands are generated."""
-
-    init_pos_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Position offset of the asset from its default position.
-
-    This is used to account for the offset typically present in the object's default position
-    so that the object is spawned at a height above the robot's palm. When the position command
-    is generated, the object's default position is used as the reference and the offset specified
-    is added to it to get the desired position of the object.
-    """
-
-    make_quat_unique: bool = MISSING
-    """Whether to make the quaternion unique or not.
-
-    If True, the quaternion is made unique by ensuring the real part is positive.
-    """
-
-    fixed_marker_pos: tuple[float, float, float] | None = None
-    """Fixed goal-marker position [m] in each environment, or ``None`` to follow the goal."""
-
-    orientation_success_threshold: float = MISSING
-    """Threshold for the orientation error to consider the goal orientation to be reached."""
-
-    update_goal_on_success: bool = MISSING
-    """Whether to update the goal orientation when the goal orientation is reached."""
-
-    marker_pos_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Position offset of the marker from the object's desired position.
-
-    This is useful to position the marker at a height above the object's desired position.
-    Otherwise, the marker may occlude the object in the visualization.
-    """
-
-    goal_pose_visualizer_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
-        prim_path="/Visuals/Command/goal_marker",
-        markers={
-            "goal": sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-                scale=(1.0, 1.0, 1.0),
-            ),
-        },
-    )
-    """The configuration for the goal pose visualization marker. Defaults to a DexCube marker."""

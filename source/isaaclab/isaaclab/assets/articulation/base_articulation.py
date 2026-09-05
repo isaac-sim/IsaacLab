@@ -136,6 +136,10 @@ class BaseArticulation(AssetBase):
         super().__init__(cfg)
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
+        # Set when a fixed-tendon target is commanded, cleared once ``write_data_to_sim`` has
+        # pushed it: carrying tendons alone schedules no write, and a property buffered
+        # through the offset setter keeps its explicit-write contract.
+        self._fixed_tendon_target_dirty = False
         # Per-articulation cache of resolved cross-backend convention name orderings,
         # populated lazily while ordering maps are resolved. A single resolution may
         # query the same convention for both joints and bodies, so results are keyed
@@ -2193,6 +2197,68 @@ class BaseArticulation(AssetBase):
             fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are updated.
                 Shape is (num_fixed_tendons,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_fixed_tendon_position_target_index(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Command the target length of fixed tendons.
+
+        A fixed tendon's length is a weighted sum of the joint angles it spans, so one command
+        drives every joint on it while the split between them is left to contact and inertia.
+
+        This is the backend-neutral way to actuate a tendon. The solver produces the force from the
+        gains the asset authors, and each backend reaches it through its native mechanism -- PhysX
+        by shifting the tendon's length offset, MuJoCo/Newton by driving the actuator whose
+        transmission is the tendon. Callers command the target and do not select a mechanism.
+
+        Unlike the tendon property setters, this is a per-step control input and does not require
+        :meth:`write_fixed_tendon_properties_to_sim_index`.
+
+        .. note::
+            This method expects partial data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (len(env_ids), len(fixed_tendon_ids)).
+            fixed_tendon_ids: The tendon indices to command. Defaults to None (all fixed tendons).
+            env_ids: The environment indices to command. Defaults to None (all instances).
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_fixed_tendon_position_target_mask(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Command the target length of fixed tendons.
+
+        Same control input as :meth:`set_fixed_tendon_position_target_index`, selecting the tendons
+        and environments by mask instead of by index.
+
+        .. note::
+            This method expects full data.
+
+        .. tip::
+            For maximum performance we recommend looking at the actual implementation of the method in the backend.
+            Some backends may provide optimized implementations for masks / indices.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are commanded.
+                Shape is (num_fixed_tendons,).
+            env_mask: Environment mask. If None, then all the instances are commanded.
+                Shape is (num_instances,).
         """
         raise NotImplementedError()
 

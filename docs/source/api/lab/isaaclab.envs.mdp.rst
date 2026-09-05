@@ -77,6 +77,7 @@ The following classes are part of the public :mod:`isaaclab.envs.mdp` API.
    BinaryJointPositionAction
    BinaryJointVelocityAction
    EMAJointPositionToLimitsAction
+   FixedTendonPositionAction
    InitialStateRecorder
    InitialStateRecorderCfg
    JointAction
@@ -118,6 +119,9 @@ The following classes are part of the public :mod:`isaaclab.envs.mdp` API.
    :show-inheritance:
 
 .. autoclass:: EMAJointPositionToLimitsAction
+   :show-inheritance:
+
+.. autoclass:: FixedTendonPositionAction
    :show-inheritance:
 
 .. autoclass:: InitialStateRecorder

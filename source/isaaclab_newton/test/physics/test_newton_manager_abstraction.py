@@ -598,6 +598,22 @@ def test_mpm_register_builder_attributes_is_idempotent():
     assert builder.has_custom_attribute("mpm:young_modulus")
 
 
+def test_mjwarp_register_builder_attributes_is_idempotent():
+    """The MJWarp hook registers native MuJoCo entities exactly once."""
+    import newton
+
+    builder = newton.ModelBuilder()
+    assert not builder.has_custom_attribute("mujoco:actuator_gainprm")
+
+    NewtonMJWarpManager._register_builder_attributes(builder)
+    assert builder.has_custom_attribute("mujoco:actuator_gainprm")
+    assert "mujoco:actuator" in builder.custom_frequencies
+    assert "mujoco:tendon" in builder.custom_frequencies
+
+    NewtonMJWarpManager._register_builder_attributes(builder)
+    assert builder.has_custom_attribute("mujoco:actuator_gainprm")
+
+
 @pytest.mark.parametrize(
     ("manager", "active", "inactive"),
     [
