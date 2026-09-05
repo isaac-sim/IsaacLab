@@ -192,7 +192,8 @@ the key bindings are:
          - "c 189:* rmw"
 
    Isaac Lab supports the SpaceMouse Compact, SpaceMouse Wireless and SpaceNavigator for Notebooks
-   from 3Dconnexion. SE(3) teleoperation additionally supports the 3Dconnexion Universal Receiver.
+   from 3Dconnexion. SE(3) teleoperation additionally supports the SpaceNavigator and the
+   3Dconnexion Universal Receiver.
 
 
 

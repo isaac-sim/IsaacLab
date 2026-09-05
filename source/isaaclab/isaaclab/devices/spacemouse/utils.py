@@ -53,6 +53,7 @@ def convert_buffer(b1, b2):
 # (see the Universal Receiver branch in the listener threads) and is unverified against hardware, so
 # they are matched by product string only.
 SPACEMOUSE_USB_IDS: dict[tuple[int, int], str] = {
+    (0x046D, 0xC626): "SpaceNavigator",
     (0x256F, 0xC62E): "SpaceMouse Wireless",
     (0x256F, 0xC635): "SpaceMouse Compact",
 }

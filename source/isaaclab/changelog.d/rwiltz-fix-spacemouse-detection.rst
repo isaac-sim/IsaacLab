@@ -9,3 +9,5 @@ Fixed
   found or opened name the enumerated devices and the required permissions.
 * Fixed SpaceMouse discovery giving up when the first supported device could not be opened. Discovery now
   continues to the remaining devices and only reports the open failures if none of them could be opened.
+* Added the USB identifier of the 3Dconnexion SpaceNavigator, so the device added in :github:`7544` is also
+  detected when the HID backend cannot read its product string.
