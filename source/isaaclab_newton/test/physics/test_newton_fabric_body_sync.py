@@ -17,6 +17,7 @@ import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonCfg, NewtonManager, VBDSolverCfg, XPBDSolverCfg
 
+from pxr import Gf as UsdGf
 from pxr import UsdGeom
 from usdrt import Gf, Rt
 
@@ -68,6 +69,19 @@ def _fabric_position(body_path: str) -> torch.Tensor:
     assert world_matrix is not None, f"Fabric body prim has no world matrix: {body_path}"
     translation = world_matrix.ExtractTranslation()
     return torch.tensor([float(translation[i]) for i in range(3)])
+
+
+def _fabric_scale(body_path: str) -> torch.Tensor:
+    """Read the world scale consumed by Kit/RTX from the real Fabric stage."""
+    stage = sim_utils.get_current_stage(fabric=True)
+    assert stage is not None, "The rendering-side Fabric stage is unavailable"
+
+    prim = stage.GetPrimAtPath(body_path)
+    assert prim.IsValid(), f"Fabric body prim does not exist: {body_path}"
+    world_matrix = Rt.Xformable(prim).GetFabricHierarchyWorldMatrixAttr().Get()
+    assert world_matrix is not None, f"Fabric body prim has no world matrix: {body_path}"
+    scale = Gf.Transform(world_matrix).GetScale()
+    return torch.tensor([float(scale[i]) for i in range(3)])
 
 
 def _fabric_curve_points_world(curve_path: str) -> torch.Tensor:
@@ -321,6 +335,49 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
                     rtol=0.0,
                     atol=1.0e-4,
                 )
+        finally:
+            sim.register_interactive_scene(None)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+def test_root_pose_sync_preserves_authored_scale():
+    """Newton body pose synchronization must preserve authored USD scale in Kit/RTX."""
+    device = "cuda:0"
+    sim_cfg = SimulationCfg(
+        device=device,
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(_RenderSceneCfg(num_envs=1, env_spacing=2.0))
+        sim.register_interactive_scene(scene)
+        try:
+            body_path = "/World/envs/env_0/Cube"
+            authored_scale = torch.tensor([0.25, 0.5, 0.75])
+            body_prim = sim_utils.get_current_stage().GetPrimAtPath(body_path)
+            body_prim.GetAttribute("xformOp:scale").Set(UsdGf.Vec3d(*authored_scale.tolist()))
+
+            sim.reset()
+            scene.reset()
+            sim.render()
+            wp.synchronize_device(device)
+
+            torch.testing.assert_close(_fabric_scale(body_path), authored_scale, rtol=0.0, atol=1.0e-5)
+
+            target_pose = torch.tensor(
+                [[1.5, -0.75, 2.0, 0.0, 0.0, 0.0, 1.0]],
+                dtype=torch.float32,
+                device=device,
+            )
+            scene["cube"].write_root_link_pose_to_sim_index(root_pose=target_pose)
+            sim.render()
+            wp.synchronize_device(device)
+
+            torch.testing.assert_close(_fabric_position(body_path), target_pose[0, :3].cpu(), rtol=0.0, atol=1.0e-4)
+            torch.testing.assert_close(_fabric_scale(body_path), authored_scale, rtol=0.0, atol=1.0e-5)
         finally:
             sim.register_interactive_scene(None)
 

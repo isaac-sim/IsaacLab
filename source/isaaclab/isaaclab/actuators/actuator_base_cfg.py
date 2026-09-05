@@ -129,32 +129,34 @@ class ActuatorBaseCfg:
     """
 
     friction: dict[str, float] | float | None = None
-    r"""The static friction coefficient of the joints in the group. Defaults to None.
+    """The static (Coulomb) joint friction effort of the joints in the group
+    [N or N·m, depending on joint type]. Defaults to None.
 
-    The joint static friction is a unitless quantity. It relates the magnitude of the spatial force transmitted
-    from the parent body to the child body to the maximal static friction force that may be applied by the solver
-    to resist the joint motion.
-
-    Mathematically, this means that: :math:`F_{resist} \leq \mu F_{spatial}`, where :math:`F_{resist}`
-    is the resisting force applied by the solver and :math:`F_{spatial}` is the spatial force
-    transmitted from the parent body to the child body. The simulated static friction effect is therefore
-    similar to static and Coulomb static friction.
+    The solver applies a resisting effort of at most this magnitude against joint motion.
 
     If None, the joint static friction is set to the value from the USD joint prim.
 
-    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
-    it is modeled as an effort (torque or force).
+    Note: Backends enforce this differently. PhysX holds the joint statically while the applied
+    effort stays below this threshold, whereas Newton (MJWarp) enforces friction as a soft
+    constraint that may allow slight creep below the threshold.
     """
 
     dynamic_friction: dict[str, float] | float | None = None
-    """The dynamic friction coefficient of the joints in the group. Defaults to None.
+    """The dynamic (kinetic) joint friction effort of the joints in the group
+    [N or N·m, depending on joint type]. Defaults to None.
 
-    Note: In Isaac Sim 4.5, this parameter is modeled as a coefficient. In Isaac Sim 5.0 and later,
-    it is modeled as an effort (torque or force).
+    The solver applies a resisting effort of at most this magnitude while the joint is moving.
+
+    If None, the joint dynamic friction is set to the value from the USD joint prim.
     """
 
     viscous_friction: dict[str, float] | float | None = None
-    """The viscous friction coefficient of the joints in the group. Defaults to None.
+    """The viscous joint friction coefficient of the joints in the group
+    [N·s/m or N·m·s/rad, depending on joint type]. Defaults to None.
+
+    The solver applies a resisting effort proportional to the joint velocity with this coefficient.
+
+    If None, the joint viscous friction is set to the value from the USD joint prim.
     """
 
     effort_limit: dict[str, float] | float | None = None

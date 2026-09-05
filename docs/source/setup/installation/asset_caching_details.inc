@@ -83,7 +83,8 @@ experience file does work, because that is the value Isaac Lab reads when the va
 
 .. rubric:: Using the China Storage Profile
 
-To use the public China asset mirror, select the same named storage profile used by Isaac Sim before launch:
+To use the public China asset mirror, clear any explicit asset-root override, then select the same named storage
+profile used by Isaac Sim before launch:
 
 .. tab-set::
    :sync-group: os
@@ -93,6 +94,7 @@ To use the public China asset mirror, select the same named storage profile used
 
       .. code:: bash
 
+         unset ISAACSIM_ASSET_ROOT
          export ISAACSIM_STORAGE_PROFILE=china
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
@@ -100,6 +102,7 @@ To use the public China asset mirror, select the same named storage profile used
 
       .. code:: batch
 
+         set ISAACSIM_ASSET_ROOT=
          set ISAACSIM_STORAGE_PROFILE=china
 
 Isaac Lab uses the same versioned public bucket paths shown by Isaac Sim and routes reads through the profile's CDN.
@@ -117,8 +120,8 @@ Isaac Lab launchers and asset helpers apply the profile automatically. A standal
 
 .. note::
    The China service mirrors a subset of the global asset set, and that subset can change between releases.
-   Check the `Isaac 6.0 asset availability manifest
-   <https://assets.simready.cn/manifests/isaac/6.0/asset-availability.csv>`__ before choosing an asset. The manifest lists
+   Check the `Isaac 6.1 asset availability manifest
+   <https://assets.simready.cn/manifests/isaac/6.1/asset-availability.csv>`__ before choosing an asset. The manifest lists
    service path records relative to the versioned ``Isaac`` folder. A path with no row is not mirrored, and a listed
    path must have an ``available`` status to load from the service. Use an available asset or a local asset pack when
    needed.

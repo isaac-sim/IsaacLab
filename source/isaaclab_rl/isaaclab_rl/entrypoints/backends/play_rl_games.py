@@ -199,6 +199,7 @@ def main():
             _ = agent.get_batch_size(obs, 1)
             if agent.is_rnn:
                 agent.init_rnn()
+            print("[INFO] Policy playback is running, press Ctrl+C to exit...")
             try:
                 while True:
                     start_time = time.time()
@@ -216,7 +217,7 @@ def main():
                         video_stop = args_cli.video_length
                         if video_stop is None:
                             recorders = getattr(env_cfg, "video_recorders", [])
-                            video_stop = recorders[0].video_length if recorders else None
+                            video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
                         if video_stop is not None and timestep >= video_stop:
                             break
 

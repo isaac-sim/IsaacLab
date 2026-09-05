@@ -1,6 +1,126 @@
 Changelog
 ---------
 
+2.6.0 (2026-09-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``OVRTX_SHADER_CACHE_PATH`` support to
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` for selecting the NVIDIA driver
+  shader-cache directory.
+
+
+2.5.0 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.enable_shadows`, which authors
+  ``omni:rtx:minimal:castShadows`` on the OVRTX render product. It applies to the
+  ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode; OVRTX's
+  path-traced modes provide no shadow switch and always cast shadows.
+* Added translation of :attr:`~isaaclab.physics.PhysicsCfg.deterministic` in ``OvPhysxManager``, which
+  enables ``physxScene:enableEnhancedDeterminism``. Reproducibility on OvPhysX is best-effort and is
+  not verified end to end.
+
+Changed
+^^^^^^^
+
+* Changed the OVRTX renderer to turn shadows off by default in RTX Minimal mode. Renders that need
+  cast shadows from the ``simple_shading_*`` data types must now set
+  ``OVRTXRendererCfg(enable_shadows=True)``.
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX CPU-only property writes (joint stiffness, damping, limits, armature, friction,
+  body mass, center of mass, and inertia) on GPU simulations consuming their pinned-host staging
+  buffers before the asynchronous device-to-host copy had completed. Environments could silently
+  receive stale (typically zero) property values, which made repeated training runs diverge.
+  Every pinned-host staging copy in :class:`~isaaclab_ov.assets.Articulation`,
+  :class:`~isaaclab_ov.assets.RigidObject`, and :class:`~isaaclab_ov.assets.RigidObjectCollection`
+  now waits for the device stream before the CPU setter runs.
+
+
+2.4.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added config-owned construction to ``OVRTXRendererCfg`` through its ``class_type`` field.
+
+
+2.3.1 (2026-08-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added compatibility with the OVRTX 0.5 ``frame.render_vars`` API, which keys render vars by the
+  authored RenderVar prim path (for example ``/Render/Vars/LdrColor``) instead of the source name.
+  The key form is resolved from the installed ``ovrtx`` version when
+  :mod:`isaaclab_ov.renderers.ovrtx_compat` is imported; OVRTX 0.4 keeps source-name keys and the
+  public extras stay pinned to ``ovrtx==0.4.1.364340``.
+
+Changed
+^^^^^^^
+
+* Updated the optional ovphysx runtime to 0.5.11. OVStage attachment now honors
+  explicit CUDA device selection. OVStage-backed articulation link and DOF
+  indices now use stable path-derived ordering, which may differ from 0.5.10;
+  use reported paths or names when identity matters.
+
+
+2.3.0 (2026-08-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.physics.OvPhysxCfg.cooked_collider_cache_dir` to select where OVPhysX
+  writes its cooked-collider cache. It defaults to a per-user directory under the system temporary
+  directory, so cooked colliders are reusable across runs from that directory. Set it to ``None`` to
+  use the runtime default.
+
+Fixed
+^^^^^
+
+* Fixed OvPhysX writing its cooked-collider cache into the directory holding the Python interpreter,
+  which logged ``omni.datastore`` errors when that directory was not writable.
+
+
+2.2.3 (2026-08-27)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the ``isaaclab_ov.renderers.ovrtx_mapping`` module
+  (:func:`map_attribute_for_warp_writes` and ``cuda_device_id``). Nothing calls it since GPU
+  transform updates moved to caller-owned buffers with
+  ``binding.write(data_access=DataAccess.ASYNC, cuda_stream=...)``, and mapping OVRTX attribute
+  memory for per-frame GPU writes is an anti-pattern: every map/unmap cycle is a hidden
+  ``cudaMalloc``/``cudaFree``, and the API is deprecated in ovrtx and refused in BORROW attach
+  mode. Migration: write into a persistent caller-owned Warp buffer and hand it to
+  ``binding.write(..., cuda_stream=<producing Warp stream>)``; if mapping is unavoidable, pass the
+  producing stream explicitly via ``unmap(stream=...)`` — the mapping's context manager commits
+  without any CUDA sync.
+
+Fixed
+^^^^^
+
+* Fixed the OVRTX renderer re-deriving its CUDA device per call site from the device string, which
+  split a bare ``"cuda"`` across GPUs on multi-GPU processes: render-product device ids parsed it
+  to device 0 while Warp resolved kernel launches and sync streams on its current CUDA device. The
+  renderer now resolves the Warp device once when the render spec arrives, normalizes its device
+  string from it, and derives the render-product device ids and every CUDA sync stream — attribute
+  writes on both the legacy and ovstage paths, and render-var reads — from the cached device.
+
+
 2.2.2 (2026-08-26)
 ~~~~~~~~~~~~~~~~~~
 

@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from importlib import util
 from pathlib import Path
+from unittest import mock
 
 import pytest
 import tomllib
@@ -75,6 +77,28 @@ def test_wheel_builder_drops_workspace_members(tmp_path):
     dependencies = generated["project"]["dependencies"]
 
     assert not [dep for dep in dependencies if dep.lower().startswith("isaaclab")]
+
+
+def test_wheel_console_delegates_to_the_full_isaaclab_cli():
+    """The wheel console command must expose the same workflows as a source installation."""
+    module_path = _repo_root() / "source" / "isaaclab" / "isaaclab" / "__main__.py"
+    spec = util.spec_from_file_location("_isaaclab_wheel_main", module_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    with mock.patch.object(sys, "argv", ["isaaclab", "train", "--help"]), mock.patch("isaaclab.cli.cli") as cli:
+        module.main()
+
+    cli.assert_called_once_with()
+
+
+def test_wheel_console_uses_compatibility_dispatcher(tmp_path):
+    """The generated console script must preserve legacy installed-wheel options."""
+    generated = _generate_wheel_pyproject(tmp_path)
+
+    assert generated["project"]["scripts"]["isaaclab"] == "isaaclab.__main__:main"
 
 
 def test_wheel_builder_includes_isaacsim_extra(tmp_path):

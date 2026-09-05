@@ -103,6 +103,10 @@ Table of Contents
    source/concepts/renderers
    source/concepts/actuators
    source/concepts/sensors/index
+   source/concepts/coupled_solvers
+   source/concepts/scene_data_providers
+   source/concepts/visualization
+   source/concepts/reinforcement_learning
 
 
 .. toctree::
@@ -125,7 +129,6 @@ Table of Contents
 
 
    source/overview/core-concepts/index
-   source/overview/reinforcement-learning/index
    source/overview/imitation-learning/index
    source/overview/showroom
 
@@ -141,6 +144,9 @@ Table of Contents
    source/features/population_based_training
    source/features/ray
    source/features/reproducibility
+   source/features/draw_markers
+   source/features/record_video
+   source/features/visualizer_tiled_camera
 
 
 .. toctree::
