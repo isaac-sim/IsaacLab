@@ -1630,14 +1630,24 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_position_target = self._root_view.get_attribute(
                 "joint_target_q", SimulationManager.get_control()
             )[:, 0]
-            # ``joint_target_q`` is DOF-shaped only while ``newton.use_coord_layout_targets`` is
-            # False. Newton already deprecates that layout and will flip the default; when it does,
-            # this array becomes coordinate-shaped and needs the same conversion as ``joint_q``.
-            if self._sim_bind_joint_position_target.shape[1] != self._num_joints:
-                raise NotImplementedError(
-                    "Newton returned joint position targets in coordinate space"
-                    f" ({self._sim_bind_joint_position_target.shape[1]} against {self._num_joints}"
-                    " DOFs); coordinate-layout targets are not supported yet."
+            # ``joint_target_q`` follows ``newton.use_coord_layout_targets``, which defaults to
+            # True from Newton 1.6. Under that layout the array is coordinate-shaped, exactly like
+            # ``joint_q``, so actuators keep writing DOF-indexed targets into a staging buffer and
+            # the same map scatters them across.
+            self._sim_bind_joint_target_coords = self._sim_bind_joint_position_target
+            self._joint_targets_need_conversion = self._sim_bind_joint_target_coords.shape[1] != self._num_joints
+            if self._joint_targets_need_conversion:
+                if not self._joint_coord_map.required:
+                    raise NotImplementedError(
+                        "Newton returned joint position targets in coordinate space"
+                        f" ({self._sim_bind_joint_target_coords.shape[1]} against"
+                        f" {self._num_joints} DOFs) for an articulation with no ball joint."
+                    )
+                self._sim_bind_joint_position_target = wp.zeros(
+                    (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+                )
+                self._all_env_mask = wp.array(
+                    np.ones(self._num_instances, dtype=bool), dtype=wp.bool, device=self.device
                 )
             self._sim_bind_joint_velocity_target = self._root_view.get_attribute(
                 "joint_target_qd", SimulationManager.get_control()
@@ -1680,6 +1690,7 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_position_target = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
+            self._joint_targets_need_conversion = False
             self._sim_bind_joint_velocity_target = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
@@ -2188,6 +2199,18 @@ class ArticulationData(BaseArticulationData):
             inputs=[self._sim_bind_body_link_pose_w, self._sim_bind_body_com_vel_w, self.body_ordering.user_to_backend],
             outputs=[self._body_link_pose_w_user, self._body_com_vel_w_user],
         )
+
+    def _flush_joint_targets(self) -> None:
+        """Push DOF-space joint position targets into Newton's coordinate array.
+
+        A no-op unless Newton hands back coordinate-layout targets, in which case the actuators
+        write into a DOF-shaped staging buffer and this scatters it across. A ball joint's three
+        target values are read as a rotation vector, the same convention ``joint_pos`` uses.
+        """
+        if self._joint_targets_need_conversion:
+            self._joint_coord_map.scatter(
+                self._sim_bind_joint_position_target, self._sim_bind_joint_target_coords, self._all_env_mask
+            )
 
     def _gather_joint_coordinates(self) -> None:
         """Re-derive the DOF-space joint positions from Newton's coordinate array.

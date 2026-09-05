@@ -51,7 +51,7 @@ dependencies = [
     "pyglet>=2.1.6,<3",
     "transformers==4.57.6",
     "einops",
-    "warp-lang==1.16.0",
+    "warp-lang==1.17.0",
     "matplotlib>=3.10.3",
     # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
@@ -394,7 +394,7 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.11.0",
     "mujoco-warp~=3.11.0",
-    "newton[sim]==1.5.1",
+    "newton[sim]==1.6.0rc1",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.1",
     "torch==2.11.0",

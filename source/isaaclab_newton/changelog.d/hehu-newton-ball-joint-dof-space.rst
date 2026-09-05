@@ -10,3 +10,9 @@ Fixed
   :class:`~isaaclab_newton.assets.articulation.joint_coordinates.JointCoordinateMap`, which converts
   between the two spaces on read and on write. Articulations whose joints all have one coordinate
   per DOF keep the existing zero-copy view and are unaffected.
+
+* Fixed joint position targets being written in DOF space into Newton's coordinate-layout
+  ``joint_target_q``. That array follows ``newton.use_coord_layout_targets``, which defaults to
+  ``True`` from Newton 1.6, so on a ball-jointed articulation the actuators were writing 50 DOF
+  targets into a 56-wide coordinate array. Targets now go through a DOF-shaped staging buffer and
+  the same coordinate map.

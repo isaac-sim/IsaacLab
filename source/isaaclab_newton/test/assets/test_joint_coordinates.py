@@ -8,7 +8,6 @@
 import numpy as np
 import pytest
 import warp as wp
-
 from isaaclab_newton.assets.articulation.joint_coordinates import JointCoordinateMap
 
 # One revolute, one ball, one revolute -- the layout that hides an off-by-one when the tables are

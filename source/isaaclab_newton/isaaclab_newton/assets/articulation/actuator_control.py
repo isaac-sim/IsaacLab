@@ -92,6 +92,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             # Telemetry reads _sim_bind_joint_pos inside the decimation loop, ahead of the
             # post-step gather, so the DOF-space view is re-derived here.
             articulation._data._gather_joint_coordinates()
+            # Actuators wrote DOF-indexed targets; hand them to Newton in its own layout.
+            articulation._data._flush_joint_targets()
             wp.launch(
                 actuator_kernels.sync_torque_telemetry,
                 dim=(self.num_instances, self.num_joints),
