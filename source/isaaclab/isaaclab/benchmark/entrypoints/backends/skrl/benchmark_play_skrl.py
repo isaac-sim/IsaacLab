@@ -210,6 +210,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                             "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
                         },
                         {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
+                        *capture.camera_resolution_metadata_from_env_cfg(env_cfg),
                     ]
                 },
             )

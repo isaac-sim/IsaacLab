@@ -10,6 +10,8 @@ from types import SimpleNamespace
 import pytest
 
 from isaaclab.benchmark.capture import (
+    camera_resolution_metadata_from_env_cfg,
+    camera_resolutions_from_env_cfg,
     capture_hardware,
     capture_resources,
     capture_versions,
@@ -24,7 +26,8 @@ from isaaclab.benchmark.measurements import (
     SingleMeasurement,
     StringMetadata,
 )
-from isaaclab.benchmark.schema import Hardware, Resources, Versions
+from isaaclab.benchmark.schema import CameraResolution, Hardware, Resources, Versions
+from isaaclab.sensors import CameraCfg, RayCasterCameraCfg, patterns
 
 
 class _Rec:
@@ -38,6 +41,18 @@ class _Rec:
 class _Bm:
     def __init__(self, recorders):
         self._manual_recorders = recorders
+
+
+def _camera_cfg(width: int = 64, height: int = 48) -> CameraCfg:
+    return CameraCfg(prim_path="/World/Camera", spawn=None, width=width, height=height)
+
+
+def _ray_caster_camera_cfg(width: int = 32, height: int = 24) -> RayCasterCameraCfg:
+    return RayCasterCameraCfg(
+        prim_path="/World/RayCamera",
+        mesh_prim_paths=["/World/Ground"],
+        pattern_cfg=patterns.PinholeCameraPatternCfg(width=width, height=height),
+    )
 
 
 def test_capture_versions_renames_and_defaults():
@@ -226,6 +241,70 @@ def test_run_config_uses_concrete_backend_configuration():
 
     with pytest.raises(ValueError, match="Unsupported concrete physics config"):
         run_config_from_env_cfg(SimpleNamespace(sim=SimpleNamespace(physics=object())))
+
+
+def test_camera_resolutions_omit_no_camera_metadata():
+    env_cfg = SimpleNamespace(viewport=SimpleNamespace(width=1920, height=1080))
+    assert camera_resolutions_from_env_cfg(env_cfg) == {}
+    assert camera_resolution_metadata_from_env_cfg(env_cfg) == []
+
+
+def test_camera_resolutions_report_distinct_cameras_sorted_by_path():
+    env_cfg = SimpleNamespace(
+        z_camera=_camera_cfg(),
+        a_ray_camera=_ray_caster_camera_cfg(),
+    )
+
+    expected = {
+        "env.a_ray_camera": {"width": 32, "height": 24},
+        "env.z_camera": {"width": 64, "height": 48},
+    }
+    assert camera_resolutions_from_env_cfg(env_cfg) == expected
+    assert camera_resolution_metadata_from_env_cfg(env_cfg) == [{"name": "camera_resolutions", "data": expected}]
+
+    env_cfg.sim = SimpleNamespace(physics=None)
+    assert run_config_from_env_cfg(env_cfg).camera_resolutions == {
+        "env.a_ray_camera": CameraResolution(width=32, height=24),
+        "env.z_camera": CameraResolution(width=64, height=48),
+    }
+
+
+def test_camera_resolutions_preserve_aliased_camera_paths():
+    shared_camera = _camera_cfg()
+    env_cfg = SimpleNamespace(scene=SimpleNamespace(tiled_camera=shared_camera, duplicate=shared_camera))
+
+    assert camera_resolutions_from_env_cfg(env_cfg) == {
+        "env.scene.duplicate": {"width": 64, "height": 48},
+        "env.scene.tiled_camera": {"width": 64, "height": 48},
+    }
+
+
+def test_camera_resolutions_preserve_paths_through_aliased_containers():
+    shared_container = SimpleNamespace(camera=_camera_cfg())
+    env_cfg = SimpleNamespace(left=shared_container, right=shared_container)
+
+    assert camera_resolutions_from_env_cfg(env_cfg) == {
+        "env.left.camera": {"width": 64, "height": 48},
+        "env.right.camera": {"width": 64, "height": 48},
+    }
+
+
+def test_camera_resolutions_ignore_unrelated_same_named_class():
+    class CameraCfg:
+        width = 64
+        height = 48
+
+    assert camera_resolutions_from_env_cfg(SimpleNamespace(camera=CameraCfg())) == {}
+
+
+def test_camera_resolutions_omit_unconfigured_dimensions():
+    camera_cfg = _camera_cfg()
+    camera_cfg.width = object()
+    camera_cfg.height = object()
+
+    env_cfg = SimpleNamespace(camera=camera_cfg)
+    assert camera_resolutions_from_env_cfg(env_cfg) == {}
+    assert camera_resolution_metadata_from_env_cfg(env_cfg) == []
 
 
 def test_capture_resources_peak_clamped_to_mean_when_peak_row_absent():
