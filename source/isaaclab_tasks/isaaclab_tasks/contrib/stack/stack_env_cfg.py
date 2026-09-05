@@ -26,7 +26,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from . import mdp
 from .mdp import stack_events
@@ -40,6 +40,69 @@ _CUBE_PROPERTIES = RigidBodyPropertiesCfg(
     max_depenetration_velocity=5.0,
     disable_gravity=False,
 )
+
+# Properties of the shipped ``Props/Blocks/*_block.usd`` assets, mirrored by the Newton
+# cube spawns below. The block mesh spans 1.8802 units and is sized purely by an
+# ``xformOp:scale`` of 0.025 authored on the mesh prim, giving a 4.7 cm edge; mass and
+# friction are read from the asset's ``PhysicsMassAPI`` / ``PhysicsMaterialAPI``.
+_CUBE_EDGE_LEN = 0.047
+_CUBE_MASS = 0.02
+_CUBE_STATIC_FRICTION = 0.8
+_CUBE_DYNAMIC_FRICTION = 1.0
+# Approximate the blue / red / green block materials with flat colors.
+_CUBE_COLORS = {"cube_1": (0.05, 0.1, 0.75), "cube_2": (0.75, 0.05, 0.05), "cube_3": (0.05, 0.6, 0.1)}
+
+
+def _usd_cube_spawn(usd_name: str, semantic_class: str) -> UsdFileCfg:
+    """Build the shipped USD block spawn used by the PhysX backend."""
+    return UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/{usd_name}",
+        scale=(1.0, 1.0, 1.0),
+        rigid_props=_CUBE_PROPERTIES,
+        semantic_tags=[("class", semantic_class)],
+    )
+
+
+def _newton_cube_spawn(semantic_class: str) -> sim_utils.CuboidCfg:
+    """Build an equivalent procedural cube spawn that renders correctly under Newton.
+
+    The shipped block assets apply ``PhysicsRigidBodyAPI`` directly to a mesh prim whose
+    size comes solely from ``xformOp:scale``. Newton body transforms carry only
+    translation and rotation, so the world matrix written back for rendering resets that
+    scale to 1 and the block draws at its full unscaled mesh size. Spawning a
+    :class:`~isaaclab.sim.CuboidCfg` instead encodes the size in the geometry itself and
+    leaves the rigid-body prim at unit scale, which sidesteps the issue.
+
+    The cube matches the asset it replaces: same edge length, mass, and friction, and the
+    block's own collider was already a bounding cube.
+
+    Args:
+        semantic_class: Semantic class tag applied to the spawned cube.
+
+    Returns:
+        The configured :class:`~isaaclab.sim.CuboidCfg`.
+    """
+    return sim_utils.CuboidCfg(
+        size=(_CUBE_EDGE_LEN, _CUBE_EDGE_LEN, _CUBE_EDGE_LEN),
+        rigid_props=_CUBE_PROPERTIES,
+        mass_props=sim_utils.MassPropertiesCfg(mass=_CUBE_MASS),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        physics_material=sim_utils.RigidBodyMaterialCfg(
+            static_friction=_CUBE_STATIC_FRICTION,
+            dynamic_friction=_CUBE_DYNAMIC_FRICTION,
+            restitution=0.0,
+        ),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=_CUBE_COLORS[semantic_class], metallic=0.0),
+        semantic_tags=[("class", semantic_class)],
+    )
+
+
+def _cube_spawn(usd_name: str, semantic_class: str):
+    """Select the cube spawn appropriate for the active physics backend."""
+    return preset(
+        default=_usd_cube_spawn(usd_name, semantic_class),
+        newton_mjwarp=_newton_cube_spawn(semantic_class),
+    )
 
 
 def make_ee_frame_cfg(
@@ -125,32 +188,17 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     cube_1 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube_1",
         init_state=RigidObjectCfg.InitialStateCfg(pos=[0.4, 0.0, 0.0203], rot=[0, 0, 0, 1]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
-            scale=(1.0, 1.0, 1.0),
-            rigid_props=_CUBE_PROPERTIES,
-            semantic_tags=[("class", "cube_1")],
-        ),
+        spawn=_cube_spawn("blue_block.usd", "cube_1"),
     )
     cube_2 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube_2",
         init_state=RigidObjectCfg.InitialStateCfg(pos=[0.55, 0.05, 0.0203], rot=[0, 0, 0, 1]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/red_block.usd",
-            scale=(1.0, 1.0, 1.0),
-            rigid_props=_CUBE_PROPERTIES,
-            semantic_tags=[("class", "cube_2")],
-        ),
+        spawn=_cube_spawn("red_block.usd", "cube_2"),
     )
     cube_3 = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube_3",
         init_state=RigidObjectCfg.InitialStateCfg(pos=[0.60, -0.1, 0.0203], rot=[0, 0, 0, 1]),
-        spawn=UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/green_block.usd",
-            scale=(1.0, 1.0, 1.0),
-            rigid_props=_CUBE_PROPERTIES,
-            semantic_tags=[("class", "cube_3")],
-        ),
+        spawn=_cube_spawn("green_block.usd", "cube_3"),
     )
 
 
