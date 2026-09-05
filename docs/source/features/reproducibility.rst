@@ -35,7 +35,26 @@ for **RL-Games**, **skrl**, **RSL-RL**, and **Stable-Baselines3**: each calls
 so library initialization is not disturbed, then training proceeds with the requested global RNG and
 optional PyTorch deterministic algorithms. Whether the **rendering** half of the flag matters depends
 on the workload: **physics-only** simulation does not render at all; **RTX** rendering (non-minimal
-mode) needs it for reproducible imagery; **Newton** rendering is already deterministic.
+mode) needs it for reproducible imagery; **Newton** rendering needs Warp's global determinism mode,
+which the flag sets (see :ref:`below <reproducibility-warp-determinism>`).
+
+.. _reproducibility-warp-determinism:
+
+**Warp determinism.** Newton's solvers accept a ``deterministic`` argument that Isaac Lab supplies
+from :attr:`~isaaclab.physics.PhysicsCfg.deterministic`, and they apply it as a per-module option.
+Its sensor and geometry kernels take no such argument and fall back to ``warp.config.deterministic``,
+so the RL training and play entrypoints set that global to ``RUN_TO_RUN`` when
+``--deterministic`` is passed. A script that builds its own environment without those entrypoints
+must set ``warp.config.deterministic`` itself, before the environment is created. Without it the scene BVH is built
+over an atomically compacted shape list whose order varies between processes, and a tiled camera can
+render a few pixels differently from identical simulation state. An explicitly chosen mode, such as
+``GPU_TO_GPU``, is left untouched.
+
+.. note::
+
+   For convolutional workloads, setting ``TORCH_CUDNN_V8_API_DISABLED=1`` before launching training
+   may improve run-to-run determinism by making PyTorch use the cuDNN v7 API instead of cuDNN v8
+   execution plans.
 
 **Physics determinism** comes from the same flag in the Isaac Lab RL training entrypoints, which
 set :attr:`~isaaclab.physics.PhysicsCfg.deterministic` on the backend resolved by presets. That

@@ -1,6 +1,54 @@
 Changelog
 ---------
 
+6.0.0 (2026-09-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed homogeneous Newton cloning to assign labels during replication, avoiding a second full-model pass.
+* Changed importer-generated floating-base root joints to use ``{body}_free_joint`` instead of
+  generated ``joint_<n>`` labels, giving replicated environments stable body-derived joint paths.
+* **Breaking:** Routed production Newton cloning through the simulation-owned
+  ``NewtonReplicateContext.replicate(plan)`` contract and removed ``PHYSICS_CONTEXT`` and
+  ``queue_mapping(...)``. Standalone tooling may continue to use ``newton_physics_replicate(...)``
+  with NumPy arrays; its unused ``device`` argument was removed. Changed world-builder hooks to
+  receive independent NumPy arrays for the environment position and orientation instead of Python lists.
+
+Fixed
+^^^^^
+
+* Fixed PhysX-backend Newton visualization models replicating unused collision
+  filters and contact pairs, which could exhaust memory during ``ModelBuilder.finalize()``.
+* Fixed legacy Newton multi-mesh ray casters failing to associate tracked target sites when target discovery
+  produced a different path expression than site registration.
+
+
+5.6.0 (2026-09-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added aggregate and filtered friction force outputs to the Newton contact sensor, including
+  ``net_friction_forces_w_history`` and ``friction_force_matrix_w_history``.
+
+Changed
+^^^^^^^
+
+* Changed Newton contact sensor normal-force outputs to exclude friction. ``net_forces_w`` and
+  ``force_matrix_w`` expose Newton's total contact force (normal + friction) without a warning.
+  ``friction_forces_w`` exposes the aggregate friction force (``net_friction_forces_w``) without
+  a warning. Reconstruct components from ``net_normal_forces_w`` / ``net_friction_forces_w`` and
+  the corresponding matrix properties when needed.
+
+Fixed
+^^^^^
+
+* Fixed Newton ray-caster updates reading stale carrier poses after joint or root state writes.
+
+
 5.5.1 (2026-09-03)
 ~~~~~~~~~~~~~~~~~~
 

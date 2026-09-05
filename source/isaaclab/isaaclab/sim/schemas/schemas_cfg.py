@@ -123,13 +123,12 @@ class SchemaFragment:
         left unchanged on the prim (partial update).
 
     .. important::
-        Every dataclass field other than :attr:`func` is authored as a USD attribute
-        ``<_usd_namespace>:<camelCase(field)>``. A fragment must not carry non-USD/bookkeeping
-        fields -- such state belongs on the spawner cfg or as a writer keyword argument (this is
-        why ``fix_root_link`` / ``ensure_drives_exist`` are not fragment fields). The generic
-        applier (:func:`~isaaclab.sim.schemas.apply_namespaced`) enforces the invariant: it raises
-        when a fragment has no ``_usd_namespace``, and unsupported (non-scalar) value types raise
-        when written.
+        For fragments using :func:`~isaaclab.sim.schemas.apply_namespaced`, every dataclass field
+        other than :attr:`func` is authored as ``<_usd_namespace>:<camelCase(field)>``. Irregular
+        schemas may use a custom applier for value conversion. The PhysX tendon fragments are a
+        narrow exception: their custom appliers consume ``instance_names`` to address an existing
+        multiple-apply schema instance and never author it. Do not add bookkeeping fields or treat
+        multiple-apply behavior as a generic core-fragment convention.
     """
 
     # -- Class metadata (not dataclass fields) --
@@ -226,10 +225,10 @@ class MeshCollisionFragment(SchemaFragment):
 class FixedTendonFragment(SchemaFragment):
     """Marker base for fixed-tendon fragments; types the ``fixed_tendons_props`` slot.
 
-    Fixed tendons are a *tune-not-apply* family: the applied ``PhysxTendonAxisRootAPI``
-    multi-instance schemas already exist on the prim (authored in the source asset), so the
-    family writer (:func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`) does not apply
-    any anchor schema; it only tunes the existing instances via each fragment's
+    Fixed tendons are a *tune-not-apply* family: the applied ``PhysxTendonAxisRootAPI`` and
+    ``PhysxTendonAxisAPI`` instances already exist on joint prims (authored in the source asset),
+    so the family writer (:func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`) does not
+    apply an anchor schema; it only tunes existing instances via each fragment's
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
     """
 
@@ -241,10 +240,9 @@ class SpatialTendonFragment(SchemaFragment):
     """Marker base for spatial-tendon fragments; types the ``spatial_tendons_props`` slot.
 
     Spatial tendons are a *tune-not-apply* family: the applied
-    ``PhysxTendonAttachmentRootAPI`` / ``PhysxTendonAttachmentLeafAPI`` multi-instance schemas
-    already exist on the prim (authored in the source asset), so the family writer
-    (:func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`) does not apply any anchor
-    schema; it only tunes the existing instances via each fragment's
+    ``PhysxTendonAttachmentRootAPI`` instances already exist on the prim (authored in the source
+    asset), so the family writer (:func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`)
+    does not apply an anchor schema; it only tunes existing root instances via each fragment's
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
     """
 

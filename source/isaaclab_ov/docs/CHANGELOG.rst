@@ -1,6 +1,75 @@
 Changelog
 ---------
 
+3.0.0 (2026-09-05)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.tensor_types.DOF_DRIVE_TYPE`,
+  :attr:`~isaaclab_ov.tensor_types.DOF_DRIVE_MODEL`,
+  :attr:`~isaaclab_ov.tensor_types.BODY_DISABLE_GRAVITY`,
+  :attr:`~isaaclab_ov.tensor_types.CONTACT_OFFSET`,
+  :attr:`~isaaclab_ov.tensor_types.REST_OFFSET`,
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_DISABLE_GRAVITY`,
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_CONTACT_OFFSET`, and
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_REST_OFFSET` tensor type aliases,
+  documenting the shape, dtype and units of each.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Routed production OvPhysX cloning through the simulation-owned
+  ``OvPhysxReplicateContext.replicate(plan)`` contract and removed ``PHYSICS_CONTEXT``, ``queue(...)``,
+  and ``queue_mapping(...)``. Standalone tooling may continue to use ``ovphysx_replicate(...)`` with
+  NumPy arrays; its unused ``device`` argument was removed.
+* Changed the IMU and PVA sensors to read rigid-body accelerations from the solver through the
+  ``RIGID_BODY_ACCELERATION`` tensor binding, including the transport terms for the sensor offset
+  from the center of mass, instead of finite-differencing the body velocity between updates. The
+  reported acceleration is available from the first update, is independent of the sensor update
+  period, and no longer spikes when velocities are written directly (for example on environment
+  resets or teleports).
+
+Fixed
+^^^^^
+
+* Fixed OVRTX transform synchronization dropping authored scale from clone-plan destinations.
+* Fixed :class:`~isaaclab_ov.sim.views.OvPhysxView` routing eight CPU-resident
+  tensor types to the simulation device. The per-collision-shape contact and rest
+  offsets, the articulation and rigid-body gravity-disable flags, and the DOF drive
+  type and drive model are CPU-resident even on a GPU simulation, but were absent
+  from the internal CPU-only classification. Reads and writes of these types
+  incurred a hidden per-call host-to-device staging copy, and a correctly placed
+  host buffer was rejected with ``OvPhysxView.DeviceMismatch``. Residency was
+  measured on a GPU simulation by counting CUDA memcpys around a binding read.
+* **Breaking:** Fixed ``articulation_dof_drive_type`` not being classified as
+  read-only. The underlying tensor type is read-only, but
+  :meth:`~isaaclab_ov.sim.views.OvPhysxView.set_attribute` previously accepted
+  writes to it and silently forwarded them. Such calls now raise
+  ``OvPhysxView.ReadOnlyAttribute``. Remove any write to this attribute; drive
+  type is authored through the USD drive schema, not the tensor path.
+* Fixed :meth:`~isaaclab_ov.physics.OvPhysxManager.get_gravity` returning the construction-time
+  gravity after :meth:`~isaaclab_ov.physics.OvPhysxManager.set_gravity` changed the running scene.
+  The manager now tracks the applied gravity vector, while ``SimulationCfg.gravity`` stays the
+  nominal value that randomization terms resample from.
+* Fixed :class:`~isaaclab_ov.sensors.Imu` and :class:`~isaaclab_ov.sensors.Pva` reporting gravity
+  captured at sensor initialization. Both sensors now re-read the scene gravity on every update, so
+  runtime randomization through :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`
+  is reflected in the accelerometer bias and the projected gravity direction.
+
+
+2.6.0 (2026-09-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``OVRTX_SHADER_CACHE_PATH`` support to
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` for selecting the NVIDIA driver
+  shader-cache directory.
+
+
 2.5.0 (2026-09-03)
 ~~~~~~~~~~~~~~~~~~
 

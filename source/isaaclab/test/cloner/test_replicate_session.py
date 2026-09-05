@@ -3,74 +3,142 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for clone-context dispatch without a simulator runtime."""
+"""Tests for clone-plan routing and dispatch without a simulator runtime."""
 
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
-import torch
 
+import isaaclab.cloner.clone_plan as clone_plan
 import isaaclab.cloner.replicate_session as replicate_session
-from isaaclab.cloner import ClonePlan
-from isaaclab.sensors import SensorBaseCfg
+from isaaclab.cloner import ClonePlan, UsdReplicateContext, make_clone_plan
 from isaaclab.sim import SimulationContext
 
 
-def test_sensor_default_does_not_request_a_cloning_context():
-    """Sensors rely on automatic Kit replication unless a user explicitly overrides it."""
+class _Context:
+    replicate_priority = 0
 
-    assert SensorBaseCfg().cloning_contexts == ()
+    def __init__(self, calls):
+        self.calls = calls
+
+    def replicate(self, plan):
+        self.calls.append((type(self), plan))
 
 
-@pytest.mark.parametrize(
-    ("kit_available", "explicit_request", "expected_instances"),
-    [(False, False, 0), (False, True, 1), (True, False, 1)],
-)
-def test_replicate_distinguishes_automatic_and_explicit_usd_contexts(
-    monkeypatch, kit_available, explicit_request, expected_instances
-):
-    """Kit gates automatic USD cloning without overriding an explicit cfg request."""
+def _plan(*context_types):
+    return ClonePlan(
+        sources=("/World/envs/env_0",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.arange(2, dtype=np.int64),
+        positions=np.zeros((2, 3), dtype=np.float32),
+        context_rows={context_type: (0,) for context_type in context_types},
+    )
 
-    class FakeUsdContext:
-        replicate_priority = 100
-        instances: list["FakeUsdContext"] = []
 
-        def __init__(self, stage, *, global_paths):
-            self.global_paths = global_paths
-            FakeUsdContext.instances.append(self)
+def test_make_clone_plan_routes_default_and_explicit_contexts(monkeypatch):
+    """Planning records the rows consumed by default and explicit clone contexts."""
+    calls = []
 
-        def queue_mapping(self, sources, destinations, env_ids, mask, *, positions=None):
-            pass
+    class Unrelated(_Context):
+        pass
 
-        def replicate(self):
-            pass
-
-    published = SimpleNamespace(plan=None)
-    published.set_clone_plan = lambda plan: setattr(published, "plan", plan)
-    monkeypatch.setattr(replicate_session, "UsdReplicateContext", FakeUsdContext)
-    monkeypatch.setattr(replicate_session, "has_kit", lambda: kit_available)
-    monkeypatch.setattr(replicate_session.FactoryBase, "_get_backend", lambda: "newton")
-    monkeypatch.setattr(SimulationContext, "instance", lambda: published)
-
+    simulation = SimpleNamespace(
+        physics_manager=SimpleNamespace(clone_context_type=_Context),
+        _backend_registry={_Context: _Context(calls), Unrelated: Unrelated(calls)},
+        stage=object(),
+    )
+    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
+    monkeypatch.setattr(clone_plan, "has_kit", lambda: False)
     cfg = SimpleNamespace(
-        prim_path="/World/envs/env_[^/]+/Robot",
-        cloning_contexts=(FakeUsdContext,) if explicit_request else (),
-        spawn=object(),
-    )
-    replicate_session.REPLICATION_QUEUE.append(cfg)
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot",),
-        destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=torch.ones((1, 2), dtype=torch.bool),
-        env_ids=torch.arange(2, dtype=torch.long),
-        positions=torch.zeros((2, 3)),
-        cfg_rows={id(cfg): (0,)},
-        global_paths=("/World/Ground", "/World/Light"),
+        prim_path="/World/envs/env_[^/]+/Robot", spawn=SimpleNamespace(spawn_path=None), cloning_contexts=None
     )
 
-    replicate_session.replicate(plan, stage=object())
+    plan = make_clone_plan((cfg,), 2, 1.0)
 
-    assert len(FakeUsdContext.instances) == expected_instances
-    if FakeUsdContext.instances:
-        assert FakeUsdContext.instances[0].global_paths == ("/World/Ground", "/World/Light")
-    assert published.plan is plan
+    assert plan.context_rows == {_Context: (0,)}
+
+    class Explicit(_Context):
+        pass
+
+    cfg.cloning_contexts = (Explicit,)
+    assert make_clone_plan((cfg,), 2, 1.0).context_rows == {Explicit: (0,)}
+
+
+@pytest.mark.parametrize("valid_set", [np.asarray([["0"]]), np.asarray([[0 + 1j]])])
+def test_make_clone_plan_rejects_non_integer_combinations(valid_set):
+    """Prototype indices must be integer data rather than values NumPy can coerce to integers."""
+    cfg = SimpleNamespace(
+        prim_path="/World/envs/env_[^/]+/Robot", spawn=SimpleNamespace(spawn_path=None), cloning_contexts=None
+    )
+
+    with pytest.raises(ValueError, match="integer prototype indices"):
+        make_clone_plan((cfg,), 2, 1.0, valid_set=valid_set)
+
+
+def test_grid_transforms_always_returns_float32():
+    """NumPy scalar inputs do not widen the public transform arrays."""
+    positions, orientations = clone_plan.grid_transforms(2, np.float64(1.0))
+
+    assert positions.dtype == orientations.dtype == np.float32
+
+
+def test_replicate_dispatches_the_same_plan_in_priority_order(monkeypatch):
+    """Registered contexts receive one shared plan in backend priority order."""
+    calls = []
+
+    class Late(_Context):
+        replicate_priority = 1
+
+    class Early(_Context):
+        replicate_priority = -1
+
+    plan = _plan(Late, Early)
+    simulation = SimpleNamespace(
+        physics_manager=SimpleNamespace(clone_context_type=Late),
+        _backend_registry={Late: Late(calls), Early: Early(calls)},
+        set_clone_plan=lambda value: calls.append(value),
+    )
+    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
+
+    replicate_session.replicate(plan)
+
+    assert calls == [(Early, plan), (Late, plan), plan]
+
+
+def test_replicate_physics_false_runs_only_usd(monkeypatch):
+    """Disabling physics replication preserves only USD authoring."""
+    calls = []
+
+    class Physics(_Context):
+        pass
+
+    class Usd(_Context):
+        pass
+
+    plan = _plan(Physics, UsdReplicateContext)
+    simulation = SimpleNamespace(
+        physics_manager=SimpleNamespace(clone_context_type=Physics),
+        _backend_registry={UsdReplicateContext: Usd(calls)},
+        set_clone_plan=lambda value: None,
+    )
+    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
+
+    replicate_session.replicate(plan, replicate_physics=False)
+
+    assert calls == [(Usd, plan)]
+
+
+def test_replicate_rejects_unregistered_context(monkeypatch):
+    """A routed context must register before dispatch rather than using a fallback."""
+    plan = _plan(_Context)
+    simulation = SimpleNamespace(
+        physics_manager=SimpleNamespace(clone_context_type=_Context),
+        _backend_registry={},
+        set_clone_plan=lambda _: None,
+    )
+    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
+
+    with pytest.raises(RuntimeError, match="must be registered"):
+        replicate_session.replicate(plan)
