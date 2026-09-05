@@ -89,6 +89,9 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             )
 
         def _post_actuator() -> None:
+            # Runs inside the step, before ArticulationData.update() bumps the timestamp, so the
+            # DOF-space view has to be forced rather than left to the usual lazy refresh.
+            articulation._data._refresh_joint_positions(force=True)
             wp.launch(
                 actuator_kernels.sync_torque_telemetry,
                 dim=(self.num_instances, self.num_joints),

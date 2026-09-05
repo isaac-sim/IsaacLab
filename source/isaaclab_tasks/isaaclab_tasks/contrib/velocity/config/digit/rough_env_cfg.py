@@ -5,10 +5,18 @@
 
 import math
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
+from isaaclab.managers import (
+    ObservationGroupCfg,
+    ObservationTermCfg,
+    RewardTermCfg,
+    SceneEntityCfg,
+    TerminationTermCfg,
+)
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
@@ -16,14 +24,31 @@ from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
 from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, DIGIT_V4_CFG, LEG_JOINT_NAMES
+
+from ._strip_visual_colliders import spawn_digit
+
+# MJWarp integrates actuator damping explicitly, so a joint runs away once c*h/I > 2. These ten
+# ship below the bound -- wrist_yaw at I = 0.01822 [kg m^2] gives 7.86 and grows 6.9x per substep,
+# the other eight at 0.05228 give 2.74. The stability bound is c*h/2 = 0.0716; 0.10 leaves margin.
+# Together these cover exactly ``LEG_JOINT_NAMES + ARM_JOINT_NAMES``.
+_LOW_ARMATURE_JOINT_NAMES = [".*_arm_wrist_.*", ".*_toe_a", ".*_toe_b"]
+_STABLE_ARMATURE_JOINT_NAMES = [
+    ".*_hip_roll",
+    ".*_hip_yaw",
+    ".*_hip_pitch",
+    ".*_knee",
+    ".*_arm_shoulder_.*",
+    ".*_arm_elbow",
+]
+_MIN_STABLE_ARMATURE = 0.10
 
 
 @configclass
 class DigitPhysicsCfg(PresetCfg):
-    """PhysX-only physics configuration for the Digit velocity environments."""
+    """Physics configuration for the Digit velocity environments."""
 
     isaacsim_physx = PhysxCfg(
         gpu_max_rigid_patch_count=10 * 2**15,
@@ -31,6 +56,19 @@ class DigitPhysicsCfg(PresetCfg):
         gpu_total_aggregate_pairs_capacity=2**23,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=5000,
+            nconmax=2000,
+            cone="pyramidal",
+            impratio=1.0,
+            integrator="implicitfast",
+            use_mujoco_contacts=False,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
+        num_substeps=2,
+        default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
+    )
     default = isaacsim_physx
 
 
@@ -240,6 +278,9 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # scene
         self.scene.robot = DIGIT_V4_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        # digit_v4.usd applies CollisionAPI to 32 RealSense camera decoration meshes; this spawner
+        # clears it on the prims it just created. See :mod:`._strip_visual_colliders`.
+        self.scene.robot.spawn.func = spawn_digit
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_base"
         self.scene.contact_forces.history_length = self.decimation
         self.scene.contact_forces.update_period = self.sim.dt
@@ -247,9 +288,17 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # target only actuated joints explicitly — ".*" mis-indexes Digit's ball-joint DoFs
         self.scene.robot.actuators = {
             "legs_arms": ImplicitActuatorCfg(
-                joint_names_expr=LEG_JOINT_NAMES + ARM_JOINT_NAMES,
+                joint_names_expr=_STABLE_ARMATURE_JOINT_NAMES,
                 stiffness=None,
                 damping=None,
+            ),
+            # Split out purely so the armature floor can be expressed as configuration; the
+            # actuator model is the same. ``None`` keeps the value the USD prim authors.
+            "low_armature": ImplicitActuatorCfg(
+                joint_names_expr=_LOW_ARMATURE_JOINT_NAMES,
+                stiffness=None,
+                damping=None,
+                armature=preset(default=None, newton_mjwarp=_MIN_STABLE_ARMATURE),
             ),
         }
         # commands
@@ -261,8 +310,13 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # events
         self.events.add_base_mass.params["asset_cfg"].body_names = "torso_base"
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_base"
-        # Digit is PhysX-only, so the inherited ``newton_mjwarp`` branch names no
-        # reachable backend; collapse the preset so it cannot be selected on its own.
+        # base_com carries a single preset branch; collapse it so the body name can be set.
         self.events.base_com = self.events.base_com.default
         self.events.base_com.params["asset_cfg"].body_names = "torso_base"
+        # The asset authors no articulation_props, so Newton filters every intra-articulation
+        # shape pair -- 253 of them, exactly C(23,2) for its 23 colliding shapes -- and the legs
+        # pass through each other. Which links carry colliders is left as the asset authored it.
+        self.scene.robot.spawn.articulation_props = preset(
+            default=None, newton_mjwarp=[NewtonArticulationCfg(self_collision_enabled=True)]
+        )
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
