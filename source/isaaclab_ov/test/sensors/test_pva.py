@@ -315,10 +315,10 @@ def test_constant_velocity(sim_ctx, device):
 
 @pytest.mark.parametrize("device", _DEVICES)
 def test_constant_acceleration(sim_ctx, device):
-    """Test the PVA sensor with a constant acceleration.
+    """A constant applied force yields the solver acceleration F/m on top of free fall.
 
-    The PVA linear acceleration is a coordinate acceleration (no gravity bias),
-    so it should equal the imposed dv/dt rotated into the body frame.
+    The PVA linear acceleration is a coordinate acceleration (no gravity bias), so the
+    vertical component stays at the free-fall ``-g`` (the kitless scene has no ground).
     """
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
@@ -326,19 +326,19 @@ def test_constant_acceleration(sim_ctx, device):
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
+    force = 0.25  # [N] on a 0.5 kg ball -> 0.5 m/s^2
+    expected_acc = force / 0.5
+    forces = torch.zeros((NUM_ENVS, 1, 3), dtype=torch.float32, device=device)
+    forces[..., 0] = force
 
-    for idx in range(100):
-        # set acceleration via increasing velocity per step
-        velocity = torch.tensor([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device).repeat(
-            NUM_ENVS, 1
-        ) * (idx + 1)
-        balls.write_root_velocity_to_sim_index(root_velocity=velocity)
+    for idx in range(10):
+        balls.set_external_force_and_torque(forces, torch.zeros_like(forces))
         balls.write_data_to_sim()
         sim_ctx.step()
         balls.update(dt)
         pva_ball.update(dt, force_recompute=True)
 
-        # skip first step where initial velocity is zero
+        # skip first step where the solver has not integrated the force yet
         if idx < 1:
             continue
 
@@ -347,7 +347,7 @@ def test_constant_acceleration(sim_ctx, device):
             pva_ball.data.lin_acc_b.torch,
             math_utils.quat_apply_inverse(
                 balls.data.root_quat_w.torch,
-                torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=device).repeat(NUM_ENVS, 1) / dt,
+                torch.tensor([[expected_acc, 0.0, -9.81]], dtype=torch.float32, device=device).repeat(NUM_ENVS, 1),
             ),
             rtol=1e-4,
             atol=1e-4,
@@ -500,7 +500,7 @@ def test_sensor_initialization(sim_ctx, device):
 
     assert pva_ball.num_instances == NUM_ENVS
     # Inspect the raw warp buffers directly — accessing ``pva.data`` triggers a
-    # lazy FD-acceleration recompute that needs ``_dt`` (set by ``update``).
+    # lazy recompute that needs ``_dt`` (set by ``update``).
     for name, expected_dtype in [
         ("_pose_w", wp.transformf),
         ("_pos_w", wp.vec3f),
@@ -656,14 +656,6 @@ def test_reset(sim_ctx, device):
     expected_pg[:, 2] = -1.0
     torch.testing.assert_close(pg, expected_pg)
 
-    # previous-velocity buffers cleared
-    torch.testing.assert_close(
-        wp.to_torch(pva_ball._prev_lin_vel_w), torch.zeros_like(wp.to_torch(pva_ball._prev_lin_vel_w))
-    )
-    torch.testing.assert_close(
-        wp.to_torch(pva_ball._prev_ang_vel_w), torch.zeros_like(wp.to_torch(pva_ball._prev_ang_vel_w))
-    )
-
 
 @pytest.mark.parametrize("device", _DEVICES)
 def test_no_stale_data_after_scene_reset(sim_ctx, device):
@@ -675,9 +667,7 @@ def test_no_stale_data_after_scene_reset(sim_ctx, device):
 
     sensor: Pva = scene["pva_cube"]
 
-    # Drive the native rigid-body velocity buffer non-zero. Freefall can make
-    # acceleration assertions depend on the exact step, so assert the cached
-    # finite-difference state instead.
+    # Drive the native rigid-body velocity buffer non-zero so a stale refetch would be visible.
     cube: RigidObject = scene["cube"]
     nonzero_vel = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device)
     cube.write_root_velocity_to_sim_index(root_velocity=nonzero_vel)
@@ -685,7 +675,7 @@ def test_no_stale_data_after_scene_reset(sim_ctx, device):
     sim_ctx.step()
     scene.update(dt=sim_ctx.get_physics_dt())
 
-    assert torch.any(wp.to_torch(sensor._prev_lin_vel_w) != 0), "expected non-zero cached velocity before reset"
+    assert torch.any(sensor.data.lin_vel_b.torch != 0), "expected non-zero sensor velocity before reset"
 
     # Reset without another physics step. The public accessor must keep reset outputs
     # instead of lazy-refetching stale native velocity.

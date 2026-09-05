@@ -113,7 +113,6 @@ Table of Contents
    :caption: Getting Started
    :titlesonly:
 
-   source/overview/own-project/index
    source/tutorials/index
    source/how-to/index
    source/overview/developer-guide/index
