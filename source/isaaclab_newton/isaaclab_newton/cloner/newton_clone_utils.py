@@ -98,13 +98,14 @@ def build_source_builders(
     *,
     ignore_paths: Sequence[str] | None = None,
     load_visual_shapes: bool = True,
+    bodies_follow_joint_ordering: bool = True,
+    skip_mesh_approximation: bool = False,
 ) -> dict[str, ModelBuilder]:
     """Build one Newton builder for each clone source prim path.
 
-    The cloner approximates nothing. Collision geometry is whatever the asset authored:
-    Newton's importer applies each shape's ``physics:approximation`` while importing, and
-    USD defaults that token to ``none``, meaning "use the mesh as-is". Change it where it
-    is authored -- the mesh-collision schema fragments on the spawner -- not here.
+    By default, Newton's importer applies each shape's authored
+    ``physics:approximation``. Render-only callers can bypass collision mesh
+    approximation with ``skip_mesh_approximation``.
 
     Args:
         stage: USD stage containing the source prims.
@@ -115,9 +116,21 @@ def build_source_builders(
         load_visual_shapes: Whether to import visual-only geometry. Importing it costs
             USD parse time and memory that only pays off when the shapes are rendered
             or ray cast.
+        bodies_follow_joint_ordering: Whether to add bodies in topologically sorted
+            joint order.
+        skip_mesh_approximation: Whether to skip collision mesh approximation during import.
     """
     return {
-        source: _build_source_builder(stage, source, create_builder, schema_resolvers, ignore_paths, load_visual_shapes)
+        source: _build_source_builder(
+            stage,
+            source,
+            create_builder,
+            schema_resolvers,
+            ignore_paths,
+            load_visual_shapes,
+            bodies_follow_joint_ordering,
+            skip_mesh_approximation,
+        )
         for source in sources
     }
 
@@ -129,6 +142,8 @@ def _build_source_builder(
     schema_resolvers: Sequence[Any],
     ignore_paths: Sequence[str] | None,
     load_visual_shapes: bool = True,
+    bodies_follow_joint_ordering: bool = True,
+    skip_mesh_approximation: bool = False,
 ) -> ModelBuilder:
     """Build one source builder."""
     builder = create_builder()
@@ -137,7 +152,8 @@ def _build_source_builder(
         root_path=source,
         load_visual_shapes=load_visual_shapes,
         hide_collision_shapes=True,
-        skip_mesh_approximation=False,
+        bodies_follow_joint_ordering=bodies_follow_joint_ordering,
+        skip_mesh_approximation=skip_mesh_approximation,
         schema_resolvers=schema_resolvers,
         ignore_paths=ignore_paths,
     )

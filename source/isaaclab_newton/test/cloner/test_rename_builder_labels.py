@@ -362,6 +362,26 @@ class TestVisualizationClonePlan(unittest.TestCase):
         if translation is not None:
             xform.AddTranslateOp().Set(translation)
 
+    @staticmethod
+    def _define_reversed_articulation(stage, path):
+        articulation = UsdGeom.Xform.Define(stage, path)
+        UsdPhysics.ArticulationRootAPI.Apply(articulation.GetPrim())
+
+        body_paths = [f"{path}/base", f"{path}/link", f"{path}/reversed_link"]
+        for body_path in body_paths:
+            body = UsdGeom.Xform.Define(stage, body_path)
+            UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+            UsdGeom.Cube.Define(stage, f"{body_path}/visual")
+
+        root_joint = UsdPhysics.FixedJoint.Define(stage, f"{path}/root_joint")
+        root_joint.CreateBody1Rel().SetTargets([body_paths[0]])
+        supported_joint = UsdPhysics.RevoluteJoint.Define(stage, f"{path}/supported_joint")
+        supported_joint.CreateBody0Rel().SetTargets([body_paths[0]])
+        supported_joint.CreateBody1Rel().SetTargets([body_paths[1]])
+        reversed_joint = UsdPhysics.RevoluteJoint.Define(stage, f"{path}/reversed_joint")
+        reversed_joint.CreateBody0Rel().SetTargets([f"{body_paths[2]}/visual"])
+        reversed_joint.CreateBody1Rel().SetTargets([f"{body_paths[0]}/visual"])
+
     def test_visualization_builder_imports_standalone_stage_as_one_world(self):
         stage = Usd.Stage.CreateInMemory()
         self._define_xform(stage, "/World")
@@ -385,7 +405,46 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertIs(result, builder)
         self.assertEqual(shadow_entities, [])
         self.assertEqual(registry_groups, [])
-        builder.add_usd.assert_called_once_with(stage, schema_resolvers=["newton", "physx"], ignore_paths=None)
+        builder.add_usd.assert_called_once_with(
+            stage,
+            schema_resolvers=["newton", "physx"],
+            ignore_paths=None,
+            bodies_follow_joint_ordering=False,
+            skip_mesh_approximation=True,
+        )
+
+    def test_visualization_builder_imports_reversed_articulation_as_clone_source(self):
+        stage = Usd.Stage.CreateInMemory()
+        UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+        UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+        self._define_xform(stage, "/World")
+        self._define_xform(stage, "/World/envs")
+        env_path = "/World/envs/env_0"
+        self._define_xform(stage, env_path)
+        robot_path = f"{env_path}/Robot"
+        self._define_reversed_articulation(stage, robot_path)
+        clone_plan = ClonePlan(
+            sources=(robot_path,),
+            destinations=("/World/envs/env_{}/Robot",),
+            clone_mask=np.ones((1, 1), dtype=np.bool_),
+            env_ids=np.array([0], dtype=np.int64),
+        )
+        ignore_paths = visualization_builder_module._reversed_joint_ignore_paths(stage, roots=(robot_path,))
+
+        self.assertEqual(len(ignore_paths), 1)
+        self.assertRegex(f"{robot_path}/reversed_joint", ignore_paths[0])
+        self.assertNotRegex(f"{robot_path}/supported_joint", ignore_paths[0])
+
+        builder, _shadow_metadata = visualization_builder_module.build_visualization_builder_from_stage_envs(
+            stage, [(0, env_path)], clone_plan
+        )
+
+        self.assertEqual(
+            builder.body_label,
+            [f"{robot_path}/base", f"{robot_path}/link", f"{robot_path}/reversed_link"],
+        )
+        self.assertIn(f"{robot_path}/supported_joint", builder.joint_label)
+        self.assertNotIn(f"{robot_path}/reversed_joint", builder.joint_label)
 
     def test_visualization_builder_disables_collision_pairs(self):
         stage = Usd.Stage.CreateInMemory()
