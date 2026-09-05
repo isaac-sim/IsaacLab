@@ -26,10 +26,10 @@ ManagerBasedRLEnv = None
 retrieve_file_path = None
 patch_env_for_export = None
 ensure_env_spec_id = None
-get_pretrained_checkpoint_backend_names = None
 get_published_pretrained_checkpoint = None
 get_checkpoint_path = None
 resolve_checkpoint_selector = None
+WORKFLOWS = None
 load_from_pkl = None
 load_from_zip_file = None
 CHECKPOINT_SELECTORS = None
@@ -52,8 +52,8 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
 def _load_runtime_dependencies() -> None:
     """Import runtime dependencies after Isaac Sim has been launched."""
     global _RUNTIME_IMPORTS_LOADED
-    global CHECKPOINT_SELECTORS, ManagerBasedRLEnv, PPO, RecurrentPPO, annotate, gym, leapp
-    global ensure_env_spec_id, get_checkpoint_path, get_pretrained_checkpoint_backend_names
+    global CHECKPOINT_SELECTORS, ManagerBasedRLEnv, PPO, RecurrentPPO, WORKFLOWS, annotate, gym, leapp
+    global ensure_env_spec_id, get_checkpoint_path
     global get_published_pretrained_checkpoint
     global load_from_pkl, load_from_zip_file, patch_env_for_export, resolve_checkpoint_selector, retrieve_file_path
     global state_dict_from_sequence, state_sequence_from_registered, torch
@@ -89,9 +89,7 @@ def _load_runtime_dependencies() -> None:
     from isaaclab_rl.entrypoints.common import (
         resolve_checkpoint_selector as resolve_checkpoint_selector_fn,
     )
-    from isaaclab_rl.utils.pretrained_checkpoint import (
-        get_pretrained_checkpoint_backend_names as get_pretrained_checkpoint_backend_names_fn,
-    )
+    from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOWS as WORKFLOWS_VALUE
     from isaaclab_rl.utils.pretrained_checkpoint import (
         get_published_pretrained_checkpoint as get_published_pretrained_checkpoint_fn,
     )
@@ -117,10 +115,10 @@ def _load_runtime_dependencies() -> None:
     retrieve_file_path = retrieve_file_path_fn
     patch_env_for_export = patch_env_for_export_fn
     ensure_env_spec_id = ensure_env_spec_id_fn
-    get_pretrained_checkpoint_backend_names = get_pretrained_checkpoint_backend_names_fn
     get_published_pretrained_checkpoint = get_published_pretrained_checkpoint_fn
     get_checkpoint_path = get_checkpoint_path_fn
     resolve_checkpoint_selector = resolve_checkpoint_selector_fn
+    WORKFLOWS = WORKFLOWS_VALUE
     load_from_pkl = load_from_pkl_fn
     load_from_zip_file = load_from_zip_file_fn
     CHECKPOINT_SELECTORS = CHECKPOINT_SELECTORS_VALUE
@@ -230,8 +228,7 @@ def _load_agent(checkpoint_path: str, device: str):
 def _resolve_checkpoint(args_cli: argparse.Namespace, task_name: str, env_cfg) -> str | None:
     """Resolve the SB3 checkpoint selected by the export arguments."""
     if args_cli.checkpoint == "pretrained":
-        backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
-        return get_published_pretrained_checkpoint("sb3", task_name, *backend_names)
+        return get_published_pretrained_checkpoint("sb3", task_name, env_cfg=env_cfg)
 
     log_root_path = os.path.abspath(os.path.join("logs", "sb3", task_name))
     if args_cli.checkpoint in CHECKPOINT_SELECTORS:
@@ -240,9 +237,8 @@ def _resolve_checkpoint(args_cli: argparse.Namespace, task_name: str, env_cfg) -
             args_cli.checkpoint,
             library="sb3",
             task=task_name,
-            checkpoint_pattern=r"model(?:_.*)?\.zip",
-            preferred_checkpoint_pattern=r"model\.zip",
             metadata={"agent": args_cli.agent},
+            **WORKFLOWS["sb3"].selector_args(),
         )
     if args_cli.checkpoint is not None:
         return retrieve_file_path(args_cli.checkpoint)

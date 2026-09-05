@@ -38,6 +38,7 @@ from isaaclab_rl.entrypoints.common import (
     wrap_training_capture,
     write_run_manifest,
 )
+from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOWS
 
 import isaaclab_tasks  # noqa: F401
 
@@ -193,13 +194,12 @@ def _run(args_cli: argparse.Namespace) -> None:
                     args_cli.checkpoint,
                     library="skrl",
                     task=args_cli.task,
-                    checkpoint_pattern=r".*",
-                    other_dirs=["checkpoints"],
                     metadata={
                         "agent": agent_cfg_entry_point,
                         "algorithm": algorithm,
                         "ml_framework": args_cli.ml_framework,
                     },
+                    **WORKFLOWS["skrl"].selector_args(),
                 )
             else:
                 resume_path = retrieve_file_path(args_cli.checkpoint) if args_cli.checkpoint else None

@@ -307,7 +307,7 @@ def test_multi_mesh_raycaster_uses_cli_visualizer_defaults():
 
 
 def test_h1_locomotion_uses_backend_aware_checkpoint_and_rejects_missing_policy():
-    """The H1 demo must select its backend-aware policy without passing None to RSL-RL."""
+    """The H1 demo must resolve its policy from the environment config without passing None to RSL-RL."""
     path = script_cases.ROOT / "scripts/demos/h1_locomotion.py"
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
@@ -321,17 +321,6 @@ def test_h1_locomotion_uses_backend_aware_checkpoint_and_rejects_missing_policy(
     }
     assert constants["TASK"] == "Isaac-Velocity-Rough-H1"
 
-    backend_assignments = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Assign)
-        and any(isinstance(target, ast.Name) and target.id == "backend_names" for target in node.targets)
-        and isinstance(node.value, ast.Call)
-        and isinstance(node.value.func, ast.Name)
-        and node.value.func.id == "get_pretrained_checkpoint_backend_names"
-    ]
-    assert backend_assignments
-
     checkpoint_calls = [
         node
         for node in ast.walk(tree)
@@ -340,14 +329,12 @@ def test_h1_locomotion_uses_backend_aware_checkpoint_and_rejects_missing_policy(
         and node.func.id == "get_published_pretrained_checkpoint"
     ]
     assert any(
-        len(call.args) == 3
+        len(call.args) == 2
         and isinstance(call.args[0], ast.Name)
         and call.args[0].id == "RL_LIBRARY"
         and isinstance(call.args[1], ast.Name)
         and call.args[1].id == "TASK"
-        and isinstance(call.args[2], ast.Starred)
-        and isinstance(call.args[2].value, ast.Name)
-        and call.args[2].value.id == "backend_names"
+        and any(keyword.arg == "env_cfg" for keyword in call.keywords)
         for call in checkpoint_calls
     )
     assert any(

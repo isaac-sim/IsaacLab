@@ -21,6 +21,7 @@ import argparse
 import sys
 
 from isaaclab_rl.entrypoints import common as _common
+from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOWS
 
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
@@ -151,8 +152,8 @@ def run(argv: list[str]) -> BenchmarkResult:
                     args.checkpoint,
                     library="rsl_rl",
                     task=args.task,
-                    checkpoint_pattern=r"model_.*\.pt",
                     metadata={"agent": args.agent},
+                    **WORKFLOWS["rsl_rl"].selector_args(),
                 )
             else:
                 resume_path = _common.resolve_play_checkpoint(args.checkpoint, "rsl_rl", args.task, env_cfg)

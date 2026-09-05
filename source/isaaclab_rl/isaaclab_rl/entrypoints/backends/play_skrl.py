@@ -39,7 +39,7 @@ from isaaclab_rl.entrypoints.common import (
     startup_screen,
 )
 from isaaclab_rl.utils.pretrained_checkpoint import (
-    get_pretrained_checkpoint_backend_names,
+    WORKFLOWS,
     get_published_pretrained_checkpoint,
 )
 
@@ -184,8 +184,7 @@ def _main():
             log_root_path = os.path.abspath(log_root_path)
             print(f"[INFO] Loading experiment from directory: {log_root_path}")
             if args_cli.checkpoint == "pretrained":
-                backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
-                resume_path = get_published_pretrained_checkpoint("skrl", train_task_name, *backend_names)
+                resume_path = get_published_pretrained_checkpoint("skrl", train_task_name, env_cfg=env_cfg)
                 if not resume_path:
                     return
             elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
@@ -194,13 +193,12 @@ def _main():
                     args_cli.checkpoint,
                     library="skrl",
                     task=train_task_name,
-                    checkpoint_pattern=r".*",
-                    other_dirs=["checkpoints"],
                     metadata={
                         "agent": agent_cfg_entry_point,
                         "algorithm": algorithm,
                         "ml_framework": args_cli.ml_framework,
                     },
+                    **WORKFLOWS["skrl"].selector_args(),
                 )
             elif args_cli.checkpoint:
                 resume_path = os.path.abspath(args_cli.checkpoint)

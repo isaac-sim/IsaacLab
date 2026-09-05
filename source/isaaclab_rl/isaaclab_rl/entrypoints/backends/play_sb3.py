@@ -35,7 +35,7 @@ from isaaclab_rl.entrypoints.common import (
 )
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import (
-    get_pretrained_checkpoint_backend_names,
+    WORKFLOWS,
     get_published_pretrained_checkpoint,
 )
 
@@ -122,8 +122,7 @@ def main():
             log_root_path = os.path.join("logs", "sb3", train_task_name)
             log_root_path = os.path.abspath(log_root_path)
             if args_cli.checkpoint == "pretrained":
-                backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
-                checkpoint_path = get_published_pretrained_checkpoint("sb3", train_task_name, *backend_names)
+                checkpoint_path = get_published_pretrained_checkpoint("sb3", train_task_name, env_cfg=env_cfg)
                 if not checkpoint_path:
                     print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                     return
@@ -133,9 +132,8 @@ def main():
                     args_cli.checkpoint,
                     library="sb3",
                     task=train_task_name,
-                    checkpoint_pattern=r"model(?:_.*)?\.zip",
-                    preferred_checkpoint_pattern=r"model\.zip",
                     metadata={"agent": args_cli.agent},
+                    **WORKFLOWS["sb3"].selector_args(),
                 )
             elif args_cli.checkpoint is None:
                 # prefer the final model (``model.zip``); fall back to the latest periodic checkpoint when it has
