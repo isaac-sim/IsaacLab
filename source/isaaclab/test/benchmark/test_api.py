@@ -151,6 +151,7 @@ def test_play_request_uses_backend_arguments(backend: str, monkeypatch) -> None:
     assert args.warmup_steps == 12
     assert args.video is True
     assert args.video_length == 37
+    assert args.frontend == "torch"
     assert args.enable_cameras is True
     assert remaining_args == []
 
@@ -165,8 +166,6 @@ def test_play_backend_configures_video_before_environment_creation(
     entrypoint = importlib.import_module(dispatch._workflow_module("play", "rsl_rl"))
     monkeypatch.setattr(entrypoint._common, "resolve_play_checkpoint", lambda *args: "/tmp/checkpoint")
 
-    import gymnasium as gym
-
     import isaaclab.app as app
 
     @contextlib.contextmanager
@@ -179,7 +178,8 @@ def test_play_backend_configures_video_before_environment_creation(
             env_cfg.video_recorders = [VideoRecorderCfg(output_dir=configured_output_dir)]
         yield
 
-    def make_environment(task, *, cfg):
+    def create_environment(task, cfg, args, *, convert_marl_to_single_agent):
+        assert convert_marl_to_single_agent is True
         recorder = cfg.video_recorders[0]
         expected_output_dir = configured_output_dir or str(tmp_path / "videos" / "play")
         assert recorder.output_dir == expected_output_dir
@@ -187,7 +187,7 @@ def test_play_backend_configures_video_before_environment_creation(
         raise VideoConfigured
 
     monkeypatch.setattr(app, "launch_simulation", launch_simulation)
-    monkeypatch.setattr(gym, "make", make_environment)
+    monkeypatch.setattr(entrypoint._common, "create_isaaclab_env", create_environment)
 
     with pytest.raises(VideoConfigured):
         entrypoint.run(

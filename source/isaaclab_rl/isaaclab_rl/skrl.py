@@ -85,7 +85,7 @@ def SkrlVecEnvWrapper(
     if not isinstance(env.unwrapped, allowed_types):
         raise ValueError(
             "The environment must be inherited from ManagerBasedRLEnv, DirectRLEnv, DirectMARLEnv,"
-            f" DirectRLEnvWarp or ManagerBasedRLEnvWarp. Environment type: {type(env)}"
+            f" DirectRLEnvWarp or ManagerBasedRLEnvWarp. Environment type: {type(env.unwrapped)}"
         )
 
     # import statements according to the ML framework
