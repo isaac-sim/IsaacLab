@@ -1182,11 +1182,15 @@ class NewtonVisualizer(BaseVisualizer):
                             self._viewer.log_contacts(contacts, self._state)
                         else:
                             self._log_scene_contact_sensor_arrows(num_envs)
-                        if self.cfg.enable_markers and not isinstance(self._viewer, NewtonViewerRTX):
-                            # ViewerRTX uses a USD stage whose prim paths are not set up
-                            # for the debug mesh overlays that markers require; skip for RTX.
+                        if self.cfg.enable_markers:
+                            # ViewerRTX overlays markers on a USD stage that rejects the
+                            # registry group ids verbatim, so sanitize them into valid prim
+                            # paths for RTX while the GL viewer renders the raw ids.
                             render_newton_visualization_markers(
-                                self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
+                                self._viewer,
+                                self._resolved_visible_env_ids,
+                                num_envs=num_envs,
+                                sanitize_group_ids=isinstance(self._viewer, NewtonViewerRTX),
                             )
                         self._log_streaming_image()
                         self._render_live_plots()
@@ -2218,6 +2222,17 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             self._viewer.begin_frame(self._sim_time)
             try:
                 self._viewer.log_state(self._state)
+                # The interactive path logs markers every frame; a headless capture that
+                # skips them records the scene without its goal poses and command arrows.
+                if self.cfg.enable_markers:
+                    from isaaclab_newton.physics import NewtonManager
+
+                    render_newton_visualization_markers(
+                        self._viewer,
+                        self._resolved_visible_env_ids,
+                        num_envs=NewtonManager.get_num_envs(),
+                        sanitize_group_ids=True,
+                    )
             finally:
                 self._viewer.end_frame()
         return self._viewer.get_frame()
