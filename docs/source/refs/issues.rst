@@ -62,6 +62,52 @@ message and continue with terminating the process. On Windows systems, please us
 Newton backends
 ---------------
 
+OpenUSD can crash while parsing collider-rich rigid bodies
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** Newton backends when using OpenUSD releases earlier than 26.05
+(``usd-core<26.5``).
+
+Older OpenUSD releases have a thread-safety issue in
+``UsdPhysics.LoadUsdPhysicsFromRange`` when multiple colliders belong to the same rigid body.
+Newton uses this API while importing a USD stage, so affected processes can terminate during
+scene creation with a segmentation fault, access violation, heap-corruption message, or hang.
+The issue and upstream fix are described in `OpenUSD PR #4002`_.
+
+As a workaround, limit OpenUSD to one worker thread. For a kitless Isaac Lab command, set
+``PXR_WORK_THREAD_LIMIT`` before launching Python so the limit is present before any ``pxr``
+module initializes:
+
+.. tab-set::
+
+   .. tab-item:: Linux
+
+      .. code-block:: bash
+
+         PXR_WORK_THREAD_LIMIT=1 uv run isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
+
+   .. tab-item:: Windows PowerShell
+
+      .. code-block:: powershell
+
+         $env:PXR_WORK_THREAD_LIMIT = "1"
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
+
+For a script that launches Omniverse Kit, pass the equivalent limit through
+:class:`~isaaclab.app.AppLauncher`. Some Isaac Sim releases set the OpenUSD thread limit while
+Kit starts, which can override a value inherited from the shell:
+
+.. code-block:: python
+
+   from isaaclab.app import AppLauncher
+
+   app_launcher = AppLauncher(headless=True, limit_cpu_threads=1)
+   simulation_app = app_launcher.app
+
+Create the launcher before importing other modules that may initialize OpenUSD. Limiting the
+worker pool can reduce CPU-side performance, so use this workaround only with affected OpenUSD
+releases.
+
 .. _known-issues-closed-loop-newton:
 
 Closed-loop articulations are not available on Newton (e.g. Agility Digit)
@@ -167,6 +213,7 @@ are stored in the instanceable asset's USD file and not in its stage reference's
 
 .. _instanceable assets: https://docs.isaacsim.omniverse.nvidia.com/latest/isaac_lab_tutorials/tutorial_instanceable_assets.html
 .. _Omniverse Isaac Sim documentation: https://docs.isaacsim.omniverse.nvidia.com/latest/overview/known_issues.html#
+.. _OpenUSD PR #4002: https://github.com/PixarAnimationStudios/OpenUSD/pull/4002
 
 
 Asset import
