@@ -23,12 +23,23 @@ def test_run_artifact_resolves_to_the_newest_file_the_run_wrote(tmp_path):
     assert Checkpoint(name="fe", run_glob="cnn_*.pth").resolve(str(tmp_path)) == str(newer)
 
 
-def test_published_copy_wins_over_the_native_name(tmp_path):
-    """A pretrained play loads the published file even beside native ones."""
+def test_fetched_copy_wins_over_the_files_the_run_wrote(tmp_path):
+    """A pretrained play loads the copy the fetch recorded, wherever the download landed."""
     (tmp_path / "cnn_200_0.1.pth").touch()
-    (tmp_path / "Isaac-Task_physx_rtx_rsl_rl_fe.pth").touch()
+    fetched = "/cache/omniverse/host/Isaac-Task_physx_rtx_rsl_rl_fe.pth"
 
-    assert Checkpoint(name="fe", run_glob="cnn_*.pth").resolve(str(tmp_path)).endswith("_fe.pth")
+    assert Checkpoint(name="fe", run_glob="cnn_*.pth", local_path=fetched).resolve(str(tmp_path)) == fetched
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [{}, {"run_glob": "cnn_*.pth", "url": "omniverse://IsaacLab/vae.pt"}],
+    ids=["neither", "both"],
+)
+def test_a_declaration_names_exactly_one_source(kwargs):
+    """A component declaring no source, or two, is a config error rather than a later failure."""
+    with pytest.raises(ValueError, match="exactly one"):
+        Checkpoint(name="fe", **kwargs)
 
 
 def test_missing_run_artifact_names_the_directory(tmp_path):

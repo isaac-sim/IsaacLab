@@ -275,9 +275,10 @@ def get_published_pretrained_checkpoint(
 ) -> str | None:
     """Gets the path for the pre-trained checkpoint.
 
-    If the checkpoint is not cached locally then the file is downloaded. Every checkpoint the
-    task's components declare is downloaded into the same directory, so a component reading its
-    log directory finds it. The cached path is then returned.
+    If the checkpoint is not cached locally then the file is downloaded, together with every
+    checkpoint the task's components declare. Each fetched declaration records its local copy in
+    :attr:`~isaaclab.utils.Checkpoint.local_path`, so the component that declared it loads the
+    published copy without knowing where the download landed.
 
     Args:
         workflow: The workflow.
@@ -338,7 +339,7 @@ def get_published_pretrained_checkpoint(
     for checkpoint in declared_checkpoints:
         declared_path = get_declared_checkpoint_path(ov_path, workflow, checkpoint)
         try:
-            retrieve_file_path(declared_path, download_dir)
+            checkpoint.local_path = retrieve_file_path(declared_path, download_dir)
         except FileNotFoundError:
             print(f"[WARNING]: The asset server does not provide the {checkpoint.name} checkpoint '{declared_path}'.")
         except Exception as exc:

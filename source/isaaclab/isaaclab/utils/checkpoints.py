@@ -26,7 +26,8 @@ class Checkpoint:
       fetched, never published by the checkpoint tooling.
 
     The checkpoint tooling discovers declarations by walking the resolved environment config, so a
-    task declares nothing; the component that writes or consumes the file owns its name.
+    task declares nothing; the component that writes or consumes the file owns its name. Whoever
+    fetches a published copy records it in :attr:`local_path`, and :meth:`resolve` returns it.
     """
 
     name: str = MISSING
@@ -37,6 +38,16 @@ class Checkpoint:
 
     url: str | None = None
     """Published location of pre-existing weights."""
+
+    local_path: str | None = None
+    """Local copy to load, set by the tooling that fetched it. Takes precedence in :meth:`resolve`."""
+
+    def __post_init__(self) -> None:
+        if (self.run_glob is None) == (self.url is None):
+            raise ValueError(
+                f"The {self.name!r} checkpoint must declare exactly one of run_glob and url,"
+                f" got run_glob={self.run_glob!r} and url={self.url!r}."
+            )
 
     @property
     def is_run_artifact(self) -> bool:
@@ -62,13 +73,12 @@ class Checkpoint:
     def resolve(self, log_dir: str | None = None, cache_dir: str | None = None) -> str:
         """Return the local file a component should load.
 
-        A run artifact is the published copy in :paramref:`log_dir` if one is present, else the
-        newest file this run wrote there. Pre-existing weights are downloaded into
-        :paramref:`cache_dir`. Neither convention is known to the caller.
+        A fetched copy (:attr:`local_path`) wins. Otherwise a run artifact is the newest file this
+        run wrote into :paramref:`log_dir`, and pre-existing weights are downloaded into
+        :paramref:`cache_dir`.
 
         Args:
-            log_dir: Directory the component reads from: the pretrained-checkpoint cache under
-                ``--checkpoint pretrained``, the run's own log directory otherwise.
+            log_dir: The run directory the component writes to and reads from.
             cache_dir: Download directory for :attr:`url` weights. ``None`` uses the system
                 temporary directory.
 
@@ -76,14 +86,13 @@ class Checkpoint:
             FileNotFoundError: If no matching file is found in :paramref:`log_dir`.
             ValueError: If a run artifact is resolved without a :paramref:`log_dir`.
         """
+        if self.local_path is not None:
+            return self.local_path
         if not self.is_run_artifact:
             return retrieve_file_path(self.url, cache_dir)
         if log_dir is None:
             raise ValueError(f"Resolving the {self.name!r} checkpoint requires the directory it was written to.")
-        # a published copy carries the suffix; a run writes the native name. They never share a
-        # directory, so `or` selects the convention present rather than arbitrating between them.
-        published = glob.glob(os.path.join(log_dir, f"*_{self.name}{self.extension}"))
-        path = max(published, key=os.path.getmtime) if published else self.find_in(log_dir)
+        path = self.find_in(log_dir)
         if path is None:
             raise FileNotFoundError(
                 f"No {self.name!r} checkpoint was found in '{log_dir}'. Train the task to produce one."

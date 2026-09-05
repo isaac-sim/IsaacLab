@@ -662,8 +662,14 @@ def publish_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) 
     for checkpoint in job.declared_checkpoints:
         local_declared = get_declared_checkpoint_path(local_path, job.workflow, checkpoint)
         if not os.path.isfile(local_declared):
-            print(f"Skipping the {checkpoint.name} checkpoint for {job.job_id}; it was not collected")
-            continue
+            # a component that declares a checkpoint needs it to play, so publishing the policy
+            # alone would advertise a bundle that fails on load
+            print(
+                f"Not publishing {job.job_id}; its {checkpoint.name} checkpoint was not collected."
+                " Collect the job again, or drop the declaration if the task no longer writes it.",
+                file=sys.stderr,
+            )
+            return False
         uploads.append((local_declared, get_declared_checkpoint_path(publish_path, job.workflow, checkpoint)))
     for source, destination in uploads:
         print(f"Publishing {source} -> {destination}")

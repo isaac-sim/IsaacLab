@@ -211,16 +211,21 @@ def test_get_published_pretrained_checkpoint_downloads_the_feature_extractor(
         monkeypatch, {f"{published_root}/{stem}.pt", f"{published_root}/{stem}_feature_extractor.pth"}
     )
 
+    env_cfg = _EnvCfg(extractor=_ExtractorCfg())
+
     path = pretrained_checkpoint.get_published_pretrained_checkpoint(
         "rsl_rl",
         "Isaac-Reorient-Cube-Shadow-Camera",
         "physx",
         "rtx",
-        env_cfg=_EnvCfg(extractor=_ExtractorCfg()),
+        env_cfg=env_cfg,
     )
 
     assert path is not None
-    assert Path(path).parent.joinpath(f"{stem}_feature_extractor.pth").is_file()
+    companion = Path(path).parent / f"{stem}_feature_extractor.pth"
+    assert companion.is_file()
+    # the declaration carries the copy, so the component never guesses the download directory
+    assert env_cfg.extractor.checkpoint.local_path == str(companion)
 
 
 def test_get_published_pretrained_checkpoint_tolerates_no_feature_extractor(

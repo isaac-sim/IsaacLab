@@ -262,14 +262,11 @@ def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_pre
 # ---------------------------------------------------------------------------
 
 
-def _make_feature_extractor(log_dir: str, load_checkpoint: bool):
-    """Build a CPU feature extractor for one log directory."""
-    return FeatureExtractor(
-        FeatureExtractorCfg(train=False, load_checkpoint=load_checkpoint),
-        device="cpu",
-        data_types=["rgb"],
-        log_dir=log_dir,
-    )
+def _make_feature_extractor(log_dir: str, load_checkpoint: bool, local_path: str | None = None):
+    """Build a CPU feature extractor for one log directory, optionally with a fetched checkpoint."""
+    cfg = FeatureExtractorCfg(train=False, load_checkpoint=load_checkpoint)
+    cfg.checkpoint.local_path = local_path
+    return FeatureExtractor(cfg, device="cpu", data_types=["rgb"], log_dir=log_dir)
 
 
 def test_missing_feature_extractor_checkpoint_names_the_log_directory(tmp_path):
@@ -280,16 +277,17 @@ def test_missing_feature_extractor_checkpoint_names_the_log_directory(tmp_path):
         _make_feature_extractor(log_dir, load_checkpoint=True)
 
 
-def test_published_feature_extractor_checkpoint_is_preferred(monkeypatch, tmp_path):
-    """A published companion checkpoint must win over the checkpoints a training run wrote."""
-    monkeypatch.chdir(tmp_path)
-    log_dir = "run"  # relative, as the pretrained-checkpoint cache directory is
+def test_fetched_feature_extractor_checkpoint_is_loaded_over_the_run_files(tmp_path):
+    """The companion a pretrained fetch recorded must win over the checkpoints a training run wrote."""
+    log_dir = str(tmp_path / "run")
+    fetched = str(tmp_path / "cache" / "Isaac-Task_physx_rtx_rsl_rl_feature_extractor.pth")
+    os.makedirs(os.path.dirname(fetched))
     published = _make_feature_extractor(log_dir, load_checkpoint=False).feature_extractor.state_dict()
     stale = _make_feature_extractor(log_dir, load_checkpoint=False).feature_extractor.state_dict()
-    torch.save(published, os.path.join(log_dir, "Isaac-Task_physx_rtx_rsl_rl_feature_extractor.pth"))
+    torch.save(published, fetched)
     torch.save(stale, os.path.join(log_dir, "cnn_100_0.1.pth"))
 
-    loaded = _make_feature_extractor(log_dir, load_checkpoint=True).feature_extractor.state_dict()
+    loaded = _make_feature_extractor(log_dir, load_checkpoint=True, local_path=fetched).feature_extractor.state_dict()
 
     assert torch.equal(loaded["linear.0.weight"], published["linear.0.weight"])
     assert not torch.equal(published["linear.0.weight"], stale["linear.0.weight"])
