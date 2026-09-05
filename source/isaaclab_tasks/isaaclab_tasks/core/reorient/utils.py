@@ -3,7 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared utilities for core learning tasks."""
+"""Helpers for the in-hand reorientation task family.
+
+The hand-over task also uses these, as it already builds on this package's MDP terms.
+"""
 
 from collections.abc import Sequence
 
@@ -237,3 +240,38 @@ def randomize_rotation(
     return quat_mul(
         quat_from_angle_axis(rand0 * np.pi, x_unit_tensor), quat_from_angle_axis(rand1 * np.pi, y_unit_tensor)
     )
+
+
+def resolve_actuated_tendons(
+    hand,
+    tendon_names: Sequence[str],
+    num_envs: int,
+    device: str,
+    position_limits: tuple[float, float],
+) -> tuple[list[int], torch.Tensor, torch.Tensor]:
+    """Resolve a hand's actuated tendons and the limits its command is unscaled against.
+
+    A tendon has its own index space, so the indices come from :meth:`find_fixed_tendons` rather
+    than from the joint order. The commandable span is stated by the configuration because no
+    runtime accessor reports it on both backends -- the tendons carry no position limit of their
+    own, and what bounds the command is the actuator's control range.
+
+    Args:
+        hand: Articulation carrying the tendons.
+        tendon_names: Names of the tendons the task commands, in action order.
+        num_envs: Number of environments, for the limit tensors' first dimension.
+        device: Device the limit tensors are created on.
+        position_limits: Lower and upper bound of the tendon command [m or rad].
+
+    Returns:
+        The tendon indices and the lower / upper limit tensors, shaped ``(num_envs, n_tendons)``.
+
+    Raises:
+        ValueError: If a requested tendon is not present on the articulation.
+    """
+    indices, _ = hand.find_fixed_tendons(tendon_names, preserve_order=True)
+    if len(indices) != len(tendon_names):
+        raise ValueError(f"Expected {len(tendon_names)} actuated tendons, found {len(indices)}.")
+    shape = (num_envs, len(indices))
+    lower, upper = position_limits
+    return indices, torch.full(shape, lower, device=device), torch.full(shape, upper, device=device)

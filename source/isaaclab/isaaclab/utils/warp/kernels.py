@@ -811,3 +811,48 @@ def reset_wrench_composer_mask(
         local_torque_b[tid_env, tid_body] = z
         out_force_b[tid_env, tid_body] = z
         out_torque_b[tid_env, tid_body] = z
+
+
+##
+# Element-wise arithmetic.
+##
+
+
+@wp.kernel
+def subtract_2d(
+    a: wp.array2d(dtype=wp.float32),
+    b: wp.array2d(dtype=wp.float32),
+    out: wp.array2d(dtype=wp.float32),
+):
+    """Compute ``out = a - b`` element-wise over a 2D array."""
+    i, j = wp.tid()
+    out[i, j] = a[i, j] - b[i, j]
+
+
+@wp.kernel
+def gather_subtract_2d(
+    a: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=Any),
+    item_ids: wp.array(dtype=Any),
+    b: wp.array2d(dtype=wp.float32),
+    out: wp.array2d(dtype=wp.float32),
+):
+    """Compute ``out[i, j] = a[env_ids[i], item_ids[j]] - b[i, j]``.
+
+    Args:
+        a: Full array. Shape is (num_envs, num_items).
+        env_ids: Environment indices selecting rows of ``a``. Shape is (num_selected_envs,).
+        item_ids: Item indices selecting columns of ``a``. Shape is (num_selected_items,).
+        b: Partial array. Shape is (num_selected_envs, num_selected_items).
+        out: Output array. Shape is (num_selected_envs, num_selected_items).
+    """
+    i, j = wp.tid()
+    out[i, j] = a[wp.int32(env_ids[i]), wp.int32(item_ids[j])] - b[i, j]
+
+
+_GATHER_SUBTRACT_2D_DISPATCHER = IndexKernelDispatcher(gather_subtract_2d, ("env_ids", "item_ids"))
+
+
+def gather_subtract_2d_kernel(env_ids: "wp.array | torch.Tensor", item_ids: "wp.array | torch.Tensor") -> wp.Kernel:
+    """Select the gather-subtract worker for the selector dtypes."""
+    return _GATHER_SUBTRACT_2D_DISPATCHER.select(env_ids, item_ids)
