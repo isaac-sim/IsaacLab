@@ -64,22 +64,22 @@ Newton backends
 
 .. _known-issues-closed-loop-newton:
 
-Closed-loop articulations are not available on Newton (e.g. Agility Digit)
+Closed-loop articulations on Newton (e.g. Agility Digit)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Affects:** ``physics=newton_mjwarp``, ``physics=newton_kamino``.
 
 Robots whose USD encodes a closed kinematic loop — such as the achilles rod and toe push-rods
-on the Agility Digit — are not currently validated on the Newton backends. The Digit-based
-contrib tasks are PhysX-only and do not expose a Newton preset at all:
+on the Agility Digit — are not validated on ``newton_kamino``.
+
+On ``newton_mjwarp`` the loops import and solve correctly, and the Digit velocity tasks run with
+``presets=newton_mjwarp``:
 
 * ``IsaacContrib-Velocity-Flat-Digit``
 * ``IsaacContrib-Velocity-Rough-Digit``
-* ``IsaacContrib-Tracking-LocoManip-Digit``
 
-Passing ``presets=newton_mjwarp`` to these tasks is rejected, because the preset never
-selected a Newton backend on them; it only stripped a center-of-mass randomization from a
-PhysX run. Use the default PhysX configuration for Digit-based environments.
+``IsaacContrib-Tracking-LocoManip-Digit`` inherits the same preset but has not been validated on
+Newton; use the default PhysX configuration for it.
 
 
 Renderers

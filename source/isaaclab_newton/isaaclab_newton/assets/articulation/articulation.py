@@ -12,7 +12,7 @@ import logging
 import re
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -1192,7 +1192,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # The write landed in DOF space; push it back into Newton's joint coordinates.
-        self.data._flush_joint_positions(env_ids=env_ids)
+        self.data._flush_joint_positions(self._env_ids_to_mask(env_ids))
         # Let the data class handle the invalidation of the pose and velocity related properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -1260,7 +1260,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # The write landed in DOF space; push it back into Newton's joint coordinates.
-        self.data._flush_joint_positions(env_mask=env_mask)
+        self.data._flush_joint_positions(env_mask)
         # Let the data class handle the invalidation of the pose and velocity related properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -1315,7 +1315,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # The write landed in DOF space; push it back into Newton's joint coordinates.
-        self.data._flush_joint_positions(env_ids=env_ids)
+        self.data._flush_joint_positions(self._env_ids_to_mask(env_ids))
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -1367,7 +1367,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # The write landed in DOF space; push it back into Newton's joint coordinates.
-        self.data._flush_joint_positions(env_mask=env_mask)
+        self.data._flush_joint_positions(env_mask)
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -2248,14 +2248,24 @@ class Articulation(BaseArticulation):
 
     @staticmethod
     @wp.kernel(enable_backward=False)
-    def _build_env_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.int32)):
+    def _build_env_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=Any)):
         i = wp.tid()
-        mask[indices[i]] = True
+        mask[wp.int32(indices[i])] = True
 
-    def _env_ids_to_mask(self, env_ids: wp.array) -> wp.array:
-        """Convert warp env_ids to a boolean Warp mask."""
+    def _env_ids_to_mask(self, env_ids: wp.array | torch.Tensor) -> wp.array:
+        """Convert env_ids to a boolean Warp mask.
+
+        Args:
+            env_ids: Environment indices as returned by :meth:`_resolve_env_ids`, which may be a
+                warp array or a torch tensor of any integer width.
+
+        Returns:
+            A per-environment boolean mask.
+        """
         if env_ids is self._ALL_INDICES:
             return self._ALL_ENV_MASK
+        if not isinstance(env_ids, wp.array):
+            env_ids = wp.from_torch(env_ids.contiguous())
         mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
         wp.launch(self._build_env_mask_kernel, dim=env_ids.shape[0], inputs=[mask, env_ids], device=self.device)
         return mask
@@ -3383,8 +3393,10 @@ class Articulation(BaseArticulation):
         # every captured graph, so passthrough state getters never replay stale.
         # The stored handle is the exact bound method ``_clear_callbacks`` later
         # deregisters.
+        # A ball-jointed articulation also needs the slot: its DOF-space joint_pos is derived, not
+        # sim-bound, so it has to be republished after every step just like the ordering shadows.
         self._post_step_callback = None
-        if self.data.has_joint_ordering or self.data.has_body_ordering:
+        if self.data.has_joint_ordering or self.data.has_body_ordering or self.data._joint_coord_map.required:
             self._post_step_callback = self._data._refresh_user_order_state
             SimulationManager.register_post_step_callback(self._post_step_callback)
         # tendon names are set in _process_tendons function
