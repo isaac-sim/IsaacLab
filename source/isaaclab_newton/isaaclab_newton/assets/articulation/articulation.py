@@ -396,7 +396,7 @@ class Articulation(BaseArticulation):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            force_b, torque_b, _ = composer.resolve_submission()
             # Kept separate from the joint-target gather below: this scatter runs
             # over bodies while the target gather runs over joints (mismatched
             # item axes), and it must precede the actuator compute/submit below,
@@ -408,8 +408,8 @@ class Articulation(BaseArticulation):
                     dim=(self.num_instances, self.num_bodies),
                     device=self.device,
                     inputs=[
-                        composer.out_force_b.warp,
-                        composer.out_torque_b.warp,
+                        force_b,
+                        torque_b,
                         self._data.body_link_pose_w.warp,
                         self._body_user_to_backend_map(),
                         self._data._sim_bind_body_external_wrench,
@@ -423,8 +423,8 @@ class Articulation(BaseArticulation):
                     dim=(self.num_instances, self.num_bodies),
                     device=self.device,
                     inputs=[
-                        composer.out_force_b,
-                        composer.out_torque_b,
+                        force_b,
+                        torque_b,
                         self._data.body_link_pose_w.warp,
                         self._data._sim_bind_body_external_wrench,
                         self._ALL_ENV_MASK,

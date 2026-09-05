@@ -243,11 +243,11 @@ class Articulation(BaseArticulation):
             if inst.active:
                 if perm.active:
                     inst.add_raw_buffers_from(perm)
-                force_b = inst.out_force_b.warp
-                torque_b = inst.out_torque_b.warp
+                composer = inst
             else:
-                force_b = perm.out_force_b.warp
-                torque_b = perm.out_torque_b.warp
+                composer = perm
+            force_in, torque_in, frame = composer.resolve_submission()
+            wrench_is_world = frame is WrenchComposer.Frame.WORLD_AT_COM
 
             # rotate body-frame wrenches into the world frame expected by ``LINK_WRENCH``.
             # Read the link poses directly from the backend-order ``LINK_POSE`` buffer: the
@@ -258,7 +258,14 @@ class Articulation(BaseArticulation):
             wp.launch(
                 shared_kernels._body_wrench_to_world_ordered,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[force_b, torque_b, poses, self._body_user_to_backend_map(), has_body_ordering],
+                inputs=[
+                    force_in,
+                    torque_in,
+                    poses,
+                    self._body_user_to_backend_map(),
+                    has_body_ordering,
+                    wrench_is_world,
+                ],
                 outputs=[self._wrench_buf],
                 device=self._device,
             )
@@ -4061,8 +4068,8 @@ class Articulation(BaseArticulation):
         self._wrench_buf = wp.zeros((N, B, 9), dtype=wp.float32, device=device)
 
         # Wrench composers.
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        self._instantaneous_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
+        self._permanent_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
 
         # Pinned-host CPU staging for env ids/masks (PR #5329 pattern).
         self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)

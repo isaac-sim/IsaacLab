@@ -166,17 +166,17 @@ class RigidObject(BaseRigidObject):
         if inst.active:
             if perm.active:
                 inst.add_raw_buffers_from(perm)
-            force_b = inst.out_force_b.warp
-            torque_b = inst.out_torque_b.warp
+            composer = inst
         else:
-            force_b = perm.out_force_b.warp
-            torque_b = perm.out_torque_b.warp
+            composer = perm
+        force_in, torque_in, frame = composer.resolve_submission()
+        wrench_is_world = frame is WrenchComposer.Frame.WORLD_AT_COM
 
         poses = self._data.body_link_pose_w.warp  # (N, 1) wp.transformf
         wp.launch(
             _body_wrench_to_world,
             dim=(self._num_instances, 1),
-            inputs=[force_b, torque_b, poses],
+            inputs=[force_in, torque_in, poses, wrench_is_world],
             outputs=[self._wrench_buf],
             device=self._device,
         )
@@ -1038,8 +1038,8 @@ class RigidObject(BaseRigidObject):
             device=device,
             copy=False,
         )
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        self._instantaneous_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
+        self._permanent_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
 
         # set information about rigid body into data
         self._data.body_names = self._body_names
