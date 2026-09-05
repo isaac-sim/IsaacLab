@@ -431,29 +431,8 @@ def test_interior_joint_wrench_at_rest(sim):
 # ---------------------------------------------------------------------------
 
 
-def test_reset_zeros_buffers(sim):
-    """Resetting the sensor clears the force / torque buffers."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=2))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    for _ in range(100):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    assert torch.any(sensor.data.force.torch != 0), "Expected non-zero data before reset"
-
-    sensor.reset()
-
-    # Access raw buffers to skip lazy re-population from the Newton view on the next data read.
-    force_after = wp.to_torch(sensor._data._force)
-    torque_after = wp.to_torch(sensor._data._torque)
-    torch.testing.assert_close(force_after, torch.zeros_like(force_after))
-    torch.testing.assert_close(torque_after, torch.zeros_like(torque_after))
-
-
-def test_reset_with_env_ids_only_zeros_selected_envs(sim):
-    """Partial reset via env_ids should zero the selected envs and preserve the others."""
+def test_reset_zeros_selected_then_all_envs(sim):
+    """Partial reset zeros only the selected envs; a full reset clears every force / torque buffer."""
     scene = InteractiveScene(_SingleJointSceneCfg(num_envs=4))
     sim.reset()
 
@@ -463,15 +442,23 @@ def test_reset_with_env_ids_only_zeros_selected_envs(sim):
         scene.update(sim.get_physics_dt())
 
     force_before = sensor.data.force.torch.clone()
-    assert torch.any(force_before != 0), "Expected non-zero data before reset"
+    assert torch.all(torch.any(force_before != 0, dim=(1, 2))), "Expected non-zero data in every env before reset"
 
     sensor.reset(env_ids=[0, 2])
 
+    # Access raw buffers to skip lazy re-population from the Newton view on the next data read.
     force_after = wp.to_torch(sensor._data._force)
     torch.testing.assert_close(force_after[0], torch.zeros_like(force_after[0]))
     torch.testing.assert_close(force_after[2], torch.zeros_like(force_after[2]))
     torch.testing.assert_close(force_after[1], force_before[1])
     torch.testing.assert_close(force_after[3], force_before[3])
+
+    sensor.reset()
+
+    force_after = wp.to_torch(sensor._data._force)
+    torque_after = wp.to_torch(sensor._data._torque)
+    torch.testing.assert_close(force_after, torch.zeros_like(force_after))
+    torch.testing.assert_close(torque_after, torch.zeros_like(torque_after))
 
 
 def test_no_stale_data_after_scene_reset(sim):

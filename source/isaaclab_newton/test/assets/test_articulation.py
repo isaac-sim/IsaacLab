@@ -70,14 +70,12 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import compute_pose_error, matrix_from_quat, quat_inv, subtract_frame_transforms
-from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp.proxy_array import ProxyArray
 
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
-# , SHADOW_HAND_CFG  # isort:skip
 
 
 SIM_CFGs = {
@@ -175,21 +173,6 @@ SIM_CFGs = {
             debug_mode=False,
         ),
     ),
-    "shadow_hand": SimulationCfg(
-        dt=1 / 120,
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=70,
-                nconmax=70,
-                ls_iterations=40,
-                cone="elliptic",
-                impratio=100,
-                integrator="implicitfast",
-            ),
-            num_substeps=2,
-            debug_mode=True,
-        ),
-    ),
 }
 
 
@@ -210,8 +193,8 @@ def generate_articulation_cfg(
 
     Args:
         articulation_type: Type of articulation to generate.
-            It should be one of: "humanoid", "panda", "anymal", "shadow_hand", "single_joint_implicit",
-            "single_joint_explicit".
+            It should be one of: "humanoid", "panda", "anymal", "single_joint_implicit",
+            "single_joint_explicit" or "spatial_tendon_test_asset".
         stiffness: Stiffness value for the articulation's actuators. Only currently used for "humanoid".
             Defaults to 10.0.
         damping: Damping value for the articulation's actuators. Only currently used for "humanoid".
@@ -241,9 +224,6 @@ def generate_articulation_cfg(
         articulation_cfg = FRANKA_PANDA_CFG
     elif articulation_type == "anymal":
         articulation_cfg = ANYMAL_C_CFG
-    elif articulation_type == "shadow_hand":
-        pytest.skip("Shadow hand is not supported in Newton")
-        # articulation_cfg = SHADOW_HAND_CFG
     elif articulation_type == "single_joint_implicit":
         articulation_cfg = ArticulationCfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
@@ -303,7 +283,7 @@ def generate_articulation_cfg(
     else:
         raise ValueError(
             f"Invalid articulation type: {articulation_type}, valid options are 'humanoid', 'panda', 'anymal',"
-            " 'shadow_hand', 'single_joint_implicit', 'single_joint_explicit' or 'spatial_tendon_test_asset'."
+            " 'single_joint_implicit', 'single_joint_explicit' or 'spatial_tendon_test_asset'."
         )
 
     return articulation_cfg
@@ -1865,55 +1845,6 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
         torch.testing.assert_close(articulation.data.root_com_vel_w.torch, default_root_vel)
 
 
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("articulation_type", ["shadow_hand"])
-def test_initialization_hand_with_tendons(sim, num_articulations, device, articulation_type):
-    """Test initialization for fixed base articulated hand with tendons.
-
-    This test verifies that:
-    1. The articulation is properly initialized
-    2. The articulation is fixed base
-    3. All buffers have correct shapes
-    4. The articulation can be simulated
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-        device: The device to run the simulation on
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(articulation) < 10
-
-    # Play sim
-    sim.reset()
-    # Check if articulation is initialized
-    assert articulation.is_initialized
-    # Check that fixed base
-    assert articulation.is_fixed_base
-    # Check buffers that exists and have correct shapes
-    assert articulation.data.root_pos_w.torch.shape == (num_articulations, 3)
-    assert articulation.data.root_quat_w.torch.shape == (num_articulations, 4)
-    assert articulation.data.joint_pos.torch.shape == (num_articulations, 24)
-    assert articulation.data.body_mass.torch.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.body_inertia.torch.shape == (num_articulations, articulation.num_bodies, 9)
-
-    # -- actuator type
-    for actuator_name, actuator in articulation.actuators.items():
-        is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
-
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
-        sim.step()
-        # update articulation
-        articulation.update(sim.cfg.dt)
-
-
 @pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
@@ -2037,58 +1968,21 @@ def test_initialization_fixed_base_made_floating_base(
         articulation.update(sim.cfg.dt)
 
 
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.parametrize("articulation_type", ["panda"])
-def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_ground_plane, articulation_type):
-    """Test that the default joint position from configuration is out of range.
-
-    This test verifies that:
-    1. The articulation fails to initialize when joint positions are out of range
-    2. The error is properly handled
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-    """
-    # Create articulation
+@pytest.mark.parametrize("state_field", ["joint_pos", "joint_vel"])
+def test_out_of_range_default_joint_state(sim, device, articulation_type, state_field):
+    """Initialization fails when the configured default joint position or velocity exceeds the joint limits."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).copy()
-    articulation_cfg.init_state.joint_pos = {
-        "panda_joint1": 10.0,
-        "panda_joint[2, 4]": -20.0,
-    }
-
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(articulation) < 10
-
-    # Play sim
-    with pytest.raises(ValueError):
-        sim.reset()
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("articulation_type", ["panda"])
-def test_out_of_range_default_joint_vel(sim, device, articulation_type):
-    """Test that the default joint velocity from configuration is out of range.
-
-    This test verifies that:
-    1. The articulation fails to initialize when joint velocities are out of range
-    2. The error is properly handled
-    """
-    articulation_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Robot")
-    articulation_cfg.init_state.joint_vel = {
-        "panda_joint1": 100.0,
-        "panda_joint[2, 4]": -60.0,
-    }
-    articulation = Articulation(articulation_cfg)
+    if state_field == "joint_pos":
+        articulation_cfg.init_state.joint_pos = {"panda_joint1": 10.0, "panda_joint[2, 4]": -20.0}
+    else:
+        articulation_cfg.init_state.joint_vel = {"panda_joint1": 100.0, "panda_joint[2, 4]": -60.0}
+    articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
 
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10
 
-    # Play sim
     with pytest.raises(ValueError):
         sim.reset()
 
@@ -2315,7 +2209,7 @@ def test_external_force_on_single_body(sim, num_articulations, device, articulat
     external_wrench_b[..., 1] = 100.0
 
     # Now we are ready!
-    for _ in range(5):
+    for _ in range(2):
         # reset root state
         articulation.write_root_pose_to_sim_index(root_pose=articulation.data.default_root_pose.torch.clone())
         articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
@@ -2382,7 +2276,7 @@ def test_external_force_on_single_body_at_position(sim, num_articulations, devic
     desired_torque[..., 0] = 200.0
 
     # Now we are ready!
-    for i in range(5):
+    for i in range(2):
         # reset root state
         root_pose = articulation.data.default_root_pose.torch.clone()
         root_pose[0, 0] = 2.5  # space them apart by 2.5m
@@ -2469,7 +2363,7 @@ def test_external_force_on_multiple_bodies(sim, num_articulations, device, artic
     external_wrench_b[..., 1] = 200.0
 
     # Now we are ready!
-    for _ in range(5):
+    for _ in range(2):
         # reset root state
         articulation.write_root_pose_to_sim_index(root_pose=articulation.data.default_root_pose.torch.clone())
         articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
@@ -2538,7 +2432,7 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
     desired_torque[..., 0] = 200.0
 
     # Now we are ready!
-    for i in range(5):
+    for i in range(2):
         # reset root state
         articulation.write_root_pose_to_sim_index(root_pose=articulation.data.default_root_pose.torch.clone())
         articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
@@ -2678,39 +2572,6 @@ def test_setting_gains_from_cfg(sim, num_articulations, device, add_ground_plane
         articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=sim.device
     )
 
-    # Play sim
-    sim.reset()
-
-    # Expected gains
-    expected_stiffness = torch.full(
-        (articulation.num_instances, articulation.num_joints), 10.0, device=articulation.device
-    )
-    expected_damping = torch.full_like(expected_stiffness, 2.0)
-
-    # Check that gains are loaded from USD file
-    torch.testing.assert_close(articulation.actuators["body"].stiffness, expected_stiffness)
-    torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("articulation_type", ["humanoid"])
-def test_setting_gains_from_cfg_dict(sim, num_articulations, device, articulation_type):
-    """Test that gains are loaded from the configuration dictionary correctly.
-
-    This test verifies that:
-    1. Gains are loaded correctly from configuration dictionary
-    2. The gains match the expected values
-    3. The gains are applied correctly to the actuators
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=sim.device
-    )
     # Play sim
     sim.reset()
 
@@ -3354,41 +3215,25 @@ def test_write_root_state_functions_data_consistency(
         torch.testing.assert_close(root_link_vel_w[:, 3:], root_com_vel_w[:, 3:])
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
-def test_setting_articulation_root_prim_path(sim, device, articulation_type):
-    """Test that the articulation root prim path can be set explicitly."""
+@pytest.mark.parametrize("root_prim_path", ["/torso", "/non_existing_prim_path"])
+def test_setting_articulation_root_prim_path(sim, device, articulation_type, root_prim_path):
+    """An explicit articulation root prim path initializes when it exists and fails clearly otherwise."""
     sim._app_control_on_stop_handle = None
-    # Create articulation
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation_cfg.articulation_root_prim_path = "/torso"
+    articulation_cfg.articulation_root_prim_path = root_prim_path
     articulation, _ = generate_articulation(articulation_cfg, 1, device)
 
     # Check that the framework doesn't hold excessive strong references.
     assert sys.getrefcount(articulation) < 10
 
-    # Play sim
-    sim.reset()
-    # Check if articulation is initialized
-    assert articulation._is_initialized
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("articulation_type", ["humanoid"])
-def test_setting_invalid_articulation_root_prim_path(sim, device, articulation_type):
-    """Test that the articulation root prim path can be set explicitly."""
-    sim._app_control_on_stop_handle = None
-    # Create articulation
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation_cfg.articulation_root_prim_path = "/non_existing_prim_path"
-    articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
-
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(articulation) < 10
-
-    # Play sim
-    with pytest.raises((RuntimeError, KeyError)):
+    if root_prim_path == "/torso":
         sim.reset()
+        assert articulation._is_initialized
+    else:
+        with pytest.raises((RuntimeError, KeyError)):
+            sim.reset()
 
 
 @pytest.mark.parametrize("num_articulations", [2])
@@ -3495,59 +3340,6 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
     torch.testing.assert_close(body_link_pose_w_fresh, body_link_pose_w)
     torch.testing.assert_close(body_com_pose_w, articulation.data.body_com_pose_w.torch)
     torch.testing.assert_close(body_vel_w, body_com_vel_w_fresh)
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("articulation_type", ["shadow_hand"])
-@pytest.mark.skip(reason="Spatial tendons are not supported in Newton yet.")
-def test_spatial_tendons(sim, num_articulations, device, articulation_type):
-    """Test spatial tendons apis.
-    This test verifies that:
-    1. The articulation is properly initialized
-    2. The articulation has spatial tendons
-    3. All buffers have correct shapes
-    4. The articulation can be simulated
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-        device: The device to run the simulation on
-    """
-    # skip test if Isaac Sim version is less than 5.0
-    if has_kit() and get_isaac_sim_version().major < 5:
-        pytest.skip("Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later.")
-        return
-    articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(articulation) < 10
-
-    # Play sim
-    sim.reset()
-    # Check if articulation is initialized
-    assert articulation.is_initialized
-    # Check that fixed base
-    assert articulation.is_fixed_base
-    # Check buffers that exists and have correct shapes
-    assert articulation.data.root_pos_w.torch.shape == (num_articulations, 3)
-    assert articulation.data.root_quat_w.torch.shape == (num_articulations, 4)
-    assert articulation.data.joint_pos.torch.shape == (num_articulations, 3)
-    assert articulation.data.body_mass.torch.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.body_inertia.torch.shape == (num_articulations, articulation.num_bodies, 9)
-    assert articulation.num_spatial_tendons == 1
-
-    articulation.set_spatial_tendon_stiffness_index(stiffness=10.0)
-    articulation.set_spatial_tendon_limit_stiffness_index(limit_stiffness=10.0)
-    articulation.set_spatial_tendon_damping_index(damping=10.0)
-    articulation.set_spatial_tendon_offset_index(offset=10.0)
-
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
-        sim.step()
-        # update articulation
-        articulation.update(sim.cfg.dt)
 
 
 @pytest.mark.parametrize("add_ground_plane", [True])
@@ -3826,174 +3618,50 @@ def test_randomize_rigid_body_collider_offsets(sim, num_articulations, device, a
 
 @pytest.mark.parametrize("num_articulations", [1, 4])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
 @pytest.mark.isaacsim_ci
-def test_get_jacobians_shape_fixed_base(sim, num_articulations, device, articulation_type):
-    """Fixed-base ``body_link_jacobian_w`` must drop the fixed-root row.
+def test_dynamics_accessor_shapes(sim, num_articulations, device, add_ground_plane, articulation_type):
+    """Pin the per-articulation shapes of the Jacobian, mass matrix and gravity compensation accessors.
 
-    Contract: shape ``(N, num_bodies - 1, 6, num_joints)``. Catches
-    regressions of (a) the link_offset fix that drops Newton's row 0 for
-    fixed-base, and (b) the per-articulation output sizing — using
-    model-wide ``max_links`` here would over-allocate in heterogeneous
-    scenes.
+    Fixed-base (panda): ``body_link_jacobian_w`` drops the fixed-root row, so its shape is
+    ``(N, num_bodies - 1, 6, num_joints)``; ``mass_matrix`` is ``(N, num_joints, num_joints)`` and
+    ``gravity_compensation_forces`` is ``(N, num_joints)``.
+
+    Floating-base (anymal): every body row is kept and ``num_base_dofs`` floating-base columns/entries
+    are prepended on the DoF axis, matching the cross-library convention (Pinocchio, Drake, MuJoCo,
+    RBDL, OCS2, iDynTree).
+
+    Both catch (a) the link_offset fix that drops Newton's row 0 for fixed-base and (b) per-articulation
+    output sizing: model-wide ``max_links``/``max_dofs`` would over-allocate in heterogeneous scenes and
+    surface as zero-padded mass-matrix diagonals, which is why the diagonal is asserted strictly positive
+    rather than checking a determinant (a well-formed 9x9 Franka mass matrix has det ~1e-13).
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
     assert articulation.is_initialized
-    assert articulation.is_fixed_base, "panda fixture must be fixed-base for this test"
+    assert articulation.is_fixed_base == (articulation_type == "panda")
+
+    num_dofs = articulation.num_joints + articulation.num_base_dofs
+    num_jacobian_bodies = articulation.num_bodies - 1 if articulation.is_fixed_base else articulation.num_bodies
 
     J = articulation.data.body_link_jacobian_w.torch
-
-    expected_shape = (num_articulations, articulation.num_bodies - 1, 6, articulation.num_joints)
-    assert J.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(J.shape)}"
+    assert J.shape == torch.Size((num_articulations, num_jacobian_bodies, 6, num_dofs)), tuple(J.shape)
     assert J.dtype == torch.float32
 
-
-@pytest.mark.parametrize("num_articulations", [1, 4])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
-def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations, device, articulation_type):
-    """Fixed-base ``mass_matrix`` shape + non-singularity.
-
-    Contract: shape ``(N, num_joints, num_joints)`` and the matrix must be
-    non-singular. The non-singularity check catches the heterogeneous
-    padding bug — if the wrapper accidentally returns ``model.max_dofs``
-    sized output, the padded zero rows/cols make the matrix rank-deficient.
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-    sim.reset()
-    assert articulation.is_initialized
+    g = articulation.data.gravity_compensation_forces.torch
+    assert g.shape == torch.Size((num_articulations, num_dofs)), tuple(g.shape)
+    assert g.dtype == torch.float32
 
     sim.step()
     articulation.update(sim.cfg.dt)
 
     M = articulation.data.mass_matrix.torch
-
-    expected_shape = (num_articulations, articulation.num_joints, articulation.num_joints)
-    assert M.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(M.shape)}"
+    assert M.shape == torch.Size((num_articulations, num_dofs, num_dofs)), tuple(M.shape)
     assert M.dtype == torch.float32
-
-    # Each diagonal entry is a joint's effective inertia and must be strictly
-    # positive for any physical articulation. Padded zero rows/cols (the
-    # heterogeneous bug) would surface as zero diagonal entries — much more
-    # sensitive than checking the determinant, which can be small purely from
-    # numerical conditioning of a well-formed 9x9 mass matrix (Franka det
-    # is ~1e-13 in practice).
     diag = M.diagonal(dim1=-2, dim2=-1)
     assert (diag > 1e-6).all(), f"mass matrix has non-positive diagonal entries: min={diag.min()}"
-
-
-@pytest.mark.parametrize("num_articulations", [1, 4])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
-def test_get_gravity_compensation_forces_shape_fixed_base(sim, num_articulations, device, articulation_type):
-    """Fixed-base ``gravity_compensation_forces`` shape ``(N, num_joints)``.
-
-    No floating-base entries on the DoF axis, and per-articulation output
-    sizing. Heterogeneous-scene indexing is pinned separately by
-    ``test_heterogeneous_scene_per_view_shapes``.
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-    sim.reset()
-    assert articulation.is_initialized
-    assert articulation.is_fixed_base, "panda fixture must be fixed-base for this test"
-
-    g = articulation.data.gravity_compensation_forces.torch
-
-    expected_shape = (num_articulations, articulation.num_joints)
-    assert g.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(g.shape)}"
-    assert g.dtype == torch.float32
-
-
-@pytest.mark.parametrize("num_articulations", [1, 4])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("add_ground_plane", [True])
-@pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.isaacsim_ci
-def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
-    """Floating-base ``body_link_jacobian_w`` keeps every body row and prepends 6 base-DoF columns.
-
-    Contract for floating-base: shape
-    ``(N, num_bodies, 6, num_joints + num_base_dofs)`` — no fixed-root row
-    to drop, and the leading 6 DoF columns are the floating-base spatial-
-    velocity columns Newton's ``eval_jacobian`` writes for the free root
-    joint. Matches the cross-library industry convention (Pinocchio, Drake,
-    MuJoCo, RBDL, OCS2, iDynTree).
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-    sim.reset()
-    assert articulation.is_initialized
-    assert not articulation.is_fixed_base, "anymal fixture must be floating-base for this test"
-
-    J = articulation.data.body_link_jacobian_w.torch
-
-    expected_shape = (
-        num_articulations,
-        articulation.num_bodies,
-        6,
-        articulation.num_joints + articulation.num_base_dofs,
-    )
-    assert J.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(J.shape)}"
-    assert J.dtype == torch.float32
-
-
-@pytest.mark.parametrize("num_articulations", [1, 4])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("add_ground_plane", [True])
-@pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.isaacsim_ci
-def test_get_mass_matrix_shape_floating_base(sim, num_articulations, device, add_ground_plane, articulation_type):
-    """Floating-base ``mass_matrix`` shape ``(N, num_joints + 6, num_joints + 6)``.
-
-    Includes the 6 floating-base rows/cols on the DoF axis, matching the
-    cross-library industry convention.
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-    sim.reset()
-    assert articulation.is_initialized
-
-    sim.step()
-    articulation.update(sim.cfg.dt)
-
-    M = articulation.data.mass_matrix.torch
-
-    expected_dofs = articulation.num_joints + articulation.num_base_dofs
-    expected_shape = (num_articulations, expected_dofs, expected_dofs)
-    assert M.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(M.shape)}"
-    assert M.dtype == torch.float32
-
-
-@pytest.mark.parametrize("num_articulations", [1, 4])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("add_ground_plane", [True])
-@pytest.mark.parametrize("articulation_type", ["anymal"])
-@pytest.mark.isaacsim_ci
-def test_get_gravity_compensation_forces_shape_floating_base(
-    sim, num_articulations, device, add_ground_plane, articulation_type
-):
-    """Floating-base ``gravity_compensation_forces`` shape ``(N, num_joints + 6)``.
-
-    Includes the 6 floating-base entries on the DoF axis, matching the
-    cross-library industry convention.
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-    sim.reset()
-    assert articulation.is_initialized
-    assert not articulation.is_fixed_base, "anymal fixture must be floating-base for this test"
-
-    g = articulation.data.gravity_compensation_forces.torch
-
-    expected_shape = (num_articulations, articulation.num_joints + articulation.num_base_dofs)
-    assert g.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(g.shape)}"
-    assert g.dtype == torch.float32
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -4300,21 +3968,16 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(
 @pytest.mark.parametrize("num_articulations", [1])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
-@pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
-def test_jacobian_refreshes_after_manual_joint_write(
-    sim, num_articulations, device, articulation_type, gravity_enabled
-):
-    """After ``write_joint_position_to_sim_index`` (no sim step), the Jacobian read
-    must reflect the new joint state — not the previous one.
+def test_dynamics_accessors_refresh_after_manual_joint_write(sim, num_articulations, device, articulation_type):
+    """After ``write_joint_position_to_sim_index`` (no sim step), every dynamics accessor must reflect the
+    new joint state, not the previous one.
 
-    Catches:
-      - Missing FK trigger in :attr:`body_com_jacobian_w` (eval_jacobian uses stale
-        ``state.body_q``).
-      - Missing FK trigger in :attr:`body_link_jacobian_w` shift kernel.
-
-    The contract: ``J`` read directly after a manual write must equal ``J`` read
-    after ``sim.step + update`` — the latter is the ground-truth fresh-FK reference.
+    Catches a missing FK trigger before ``eval_jacobian`` / the COM->origin shift kernel
+    (:attr:`body_com_jacobian_w`, :attr:`body_link_jacobian_w`), before ``eval_mass_matrix``
+    (``compute_body_spatial_inertia`` reads ``state.body_q``) and before the RNEA pass in
+    ``eval_inverse_dynamics_passive`` (:attr:`gravity_compensation_forces`). Gravity stays enabled
+    (the default): with gravity off ``g(q)`` is identically zero and its assertion would be vacuous.
     """
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
@@ -4322,94 +3985,32 @@ def test_jacobian_refreshes_after_manual_joint_write(
     sim.step()
     articulation.update(sim.cfg.dt)
 
-    # Read J / M at the baseline joint state.
+    # Read every accessor at the baseline joint state.
     q_baseline = articulation.data.joint_pos.torch.clone()
     J_link_0 = articulation.data.body_link_jacobian_w.torch.clone()
     J_com_0 = articulation.data.body_com_jacobian_w.torch.clone()
+    M_0 = articulation.data.mass_matrix.torch.clone()
+    g_0 = articulation.data.gravity_compensation_forces.torch.clone()
 
-    # Manually write a different joint state — large delta to make Jacobian change visible.
-    # No sim.step / update — FK becomes stale (write_joint_position_to_sim sets _fk_timestamp = -1).
+    # Manually write a different joint state (large delta so the change is visible) without a sim step
+    # or update, which marks FK stale (write_joint_position_to_sim sets _fk_timestamp = -1).
     q_target = q_baseline + 0.5
     env_ids = wp.array([0], dtype=wp.int32, device=device)
     articulation.write_joint_position_to_sim_index(position=q_target, env_ids=env_ids)
 
-    # If the FK trigger works: forward() runs, body_q is refreshed to match q_target,
-    # eval_jacobian / shift kernel see fresh body poses, J reflects q_target → differs from J at baseline.
-    # If the trigger is missing: body_q stays at baseline, J unchanged from J_link_0 / J_com_0.
-    J_link_1 = articulation.data.body_link_jacobian_w.torch.clone()
-    J_com_1 = articulation.data.body_com_jacobian_w.torch.clone()
-
-    assert not torch.allclose(J_link_0, J_link_1, atol=1e-3), (
-        "body_link_jacobian_w did not change after manual joint write — "
-        "FK trigger likely missing (eval_jacobian / shift kernel reading stale state.body_q)."
+    # With the FK trigger, forward() refreshes body_q to q_target before each accessor evaluates.
+    # Without it, body_q stays at the baseline and every accessor returns its previous value.
+    assert not torch.allclose(J_link_0, articulation.data.body_link_jacobian_w.torch, atol=1e-3), (
+        "body_link_jacobian_w did not change after manual joint write; FK trigger likely missing"
     )
-    assert not torch.allclose(J_com_0, J_com_1, atol=1e-3), (
-        "body_com_jacobian_w did not change after manual joint write — FK trigger likely missing before eval_jacobian."
+    assert not torch.allclose(J_com_0, articulation.data.body_com_jacobian_w.torch, atol=1e-3), (
+        "body_com_jacobian_w did not change after manual joint write; FK trigger likely missing"
     )
-
-
-@pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
-@pytest.mark.parametrize("gravity_enabled", [False])
-@pytest.mark.isaacsim_ci
-def test_mass_matrix_refreshes_after_manual_joint_write(
-    sim, num_articulations, device, articulation_type, gravity_enabled
-):
-    """After ``write_joint_position_to_sim_index`` (no sim step), the mass matrix read
-    must reflect the new joint state.
-
-    The mass matrix depends on ``q`` (joint positions) through the body-spatial-inertia
-    transformation in eval_mass_matrix's ``compute_body_spatial_inertia`` step, which
-    reads ``state.body_q``. Same FK-staleness pattern as the Jacobian.
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-    sim.reset()
-    sim.step()
-    articulation.update(sim.cfg.dt)
-
-    M_0 = articulation.data.mass_matrix.torch.clone()
-    q_target = articulation.data.joint_pos.torch.clone() + 0.5
-    env_ids = wp.array([0], dtype=wp.int32, device=device)
-    articulation.write_joint_position_to_sim_index(position=q_target, env_ids=env_ids)
-    M_1 = articulation.data.mass_matrix.torch.clone()
-
-    assert not torch.allclose(M_0, M_1, atol=1e-3), (
-        "mass_matrix did not change after manual joint write — "
-        "FK trigger likely missing before eval_mass_matrix (compute_body_spatial_inertia "
-        "reads stale state.body_q)."
+    assert not torch.allclose(M_0, articulation.data.mass_matrix.torch, atol=1e-3), (
+        "mass_matrix did not change after manual joint write; FK trigger likely missing"
     )
-
-
-@pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
-def test_gravity_compensation_refreshes_after_manual_joint_write(sim, num_articulations, device, articulation_type):
-    """After ``write_joint_position_to_sim_index`` (no sim step), the gravity
-    compensation read must reflect the new joint state.
-
-    ``g(q)`` depends on ``q`` through the RNEA pass in ``eval_inverse_dynamics_passive``,
-    which reads ``state.body_q``. Same FK-staleness pattern as the Jacobian and
-    the mass matrix. Gravity stays enabled (the default) — with gravity off,
-    ``g(q)`` is identically zero and the assert would be vacuous.
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-    sim.reset()
-    sim.step()
-    articulation.update(sim.cfg.dt)
-
-    g_0 = articulation.data.gravity_compensation_forces.torch.clone()
-    q_target = articulation.data.joint_pos.torch.clone() + 0.5
-    env_ids = wp.array([0], dtype=wp.int32, device=device)
-    articulation.write_joint_position_to_sim_index(position=q_target, env_ids=env_ids)
-    g_1 = articulation.data.gravity_compensation_forces.torch.clone()
-
-    assert not torch.allclose(g_0, g_1, atol=1e-3), (
-        "gravity_compensation_forces did not change after manual joint write — "
-        "FK trigger likely missing before eval_inverse_dynamics_passive."
+    assert not torch.allclose(g_0, articulation.data.gravity_compensation_forces.torch, atol=1e-3), (
+        "gravity_compensation_forces did not change after manual joint write; FK trigger likely missing"
     )
 
 

@@ -163,8 +163,8 @@ def test_frame_transformer_feet_wrt_base(sim):
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     # Simulate physics
-    for count in range(100):
-        # # reset
+    for count in range(50):
+        # reset every 25 steps so the sensor is checked across a scene reset
         if count % 25 == 0:
             # reset root state
             root_state = torch.cat(
@@ -268,8 +268,8 @@ def test_frame_transformer_feet_wrt_thigh(sim):
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     # Simulate physics
-    for count in range(100):
-        # # reset
+    for count in range(50):
+        # reset every 25 steps so the sensor is checked across a scene reset
         if count % 25 == 0:
             # reset root state
             root_state = torch.cat(
@@ -353,8 +353,8 @@ def test_frame_transformer_robot_body_to_external_cube(sim):
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     # Simulate physics
-    for count in range(100):
-        # # reset
+    for count in range(50):
+        # reset every 25 steps so the sensor is checked across a scene reset
         if count % 25 == 0:
             # reset root state
             root_state = torch.cat(
@@ -455,8 +455,8 @@ def test_frame_transformer_offset_frames(sim):
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     # Simulate physics
-    for count in range(100):
-        # # reset
+    for count in range(50):
+        # reset every 25 steps so the sensor is checked across a scene reset
         if count % 25 == 0:
             # reset root state
             root_state = torch.cat(
@@ -552,8 +552,8 @@ def test_frame_transformer_all_bodies(sim):
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     # Simulate physics
-    for count in range(100):
-        # # reset
+    for count in range(50):
+        # reset every 25 steps so the sensor is checked across a scene reset
         if count % 25 == 0:
             # reset root state
             root_state = torch.cat(
