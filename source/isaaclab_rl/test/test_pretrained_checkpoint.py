@@ -47,9 +47,33 @@ def test_get_pretrained_checkpoint_filename_includes_backends():
     assert filename == "Isaac-Cartpole_newtonmjwarp_rtx_rsl_rl.pt"
 
 
-def test_get_pretrained_checkpoint_filename_preserves_legacy_layout():
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        (("presets=depth",), ("depth",)),
+        (("presets=rgb",), ()),
+        (("physics=newton_mjwarp", "renderer=newton_renderer"), ()),
+    ],
+)
+def test_get_pretrained_checkpoint_preset_names_uses_non_default_domain_presets(overrides, expected):
+    """Test that default aliases and typed backends do not duplicate checkpoint identity fields."""
+    preset_names = pretrained_checkpoint.get_pretrained_checkpoint_preset_names(
+        "Isaac-Cartpole-Camera-Direct", overrides
+    )
+
+    assert preset_names == expected
+
+
+def test_get_pretrained_checkpoint_filename_preserves_legacy_layout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Test that callers omitting both backends retain the legacy filename."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", ["play.py", "presets=depth"])
+    cached_path = Path(".pretrained_checkpoints/rl_games/Isaac-Cartpole/checkpoint.pth")
+    cached_path.parent.mkdir(parents=True)
+    cached_path.touch()
+
     assert pretrained_checkpoint.get_pretrained_checkpoint_filename("rl_games", "Isaac-Cartpole") == "checkpoint.pth"
+    assert pretrained_checkpoint.get_published_pretrained_checkpoint("rl_games", "Isaac-Cartpole") == str(cached_path)
 
 
 def test_get_log_root_path_preserves_legacy_task_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -149,6 +173,7 @@ def test_get_published_pretrained_checkpoint_downloads_to_flat_cache(
     """Test that backend-aware downloads use the workflow cache directory."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    monkeypatch.setattr("sys.argv", ["play.py", "presets=depth"])
     retrieved = {}
 
     def _retrieve_file_path(remote_path: str, download_dir: str) -> str:
@@ -162,16 +187,17 @@ def test_get_published_pretrained_checkpoint_downloads_to_flat_cache(
     monkeypatch.setattr(pretrained_checkpoint, "retrieve_file_path", _retrieve_file_path)
 
     path = pretrained_checkpoint.get_published_pretrained_checkpoint(
-        "rsl_rl",
-        "Isaac-Cartpole",
-        "physx",
-        "none",
+        "rl_games",
+        "Isaac-Cartpole-Camera-Direct",
+        "newtonmjwarp",
+        "newton",
     )
 
-    expected_download_dir = str(Path(".pretrained_checkpoints") / "rsl_rl")
-    assert path == str(Path(expected_download_dir) / "Isaac-Cartpole_physx_none_rsl_rl.pt")
+    expected_download_dir = str(Path(".pretrained_checkpoints") / "rl_games")
+    filename = "Isaac-Cartpole-Camera-Direct_depth_newtonmjwarp_newton_rl_games.pth"
+    assert path == str(Path(expected_download_dir) / filename)
     assert retrieved == {
-        "remote_path": "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt",
+        "remote_path": f"omniverse://IsaacLab/PretrainedCheckpoints/rl_games/{filename}",
         "download_dir": expected_download_dir,
     }
 
