@@ -423,12 +423,13 @@ class ContactSensor(BaseContactSensor):
             device=self._device,
         )
 
-    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
+    def compute_first_contact(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
         """Boolean mask (as float) of bodies that established contact within ``dt`` [s].
 
         Args:
             dt: Time window since contact establishment [s].
-            abs_tol: Absolute tolerance for the comparison [s].
+            abs_tol: Absolute tolerance for the comparison [s]. Defaults to None, in which case
+                half the sensor update interval is used.
 
         Returns:
             Boolean tensor (1.0/0.0) of shape ``(num_envs, num_sensors)``.
@@ -441,21 +442,23 @@ class ContactSensor(BaseContactSensor):
                 "The contact sensor is not configured to track contact time."
                 " Please enable 'track_air_time' in the sensor configuration."
             )
+        tol = self._resolve_first_transition_tolerance(abs_tol)
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_contact_time],
+            inputs=[float(dt + tol), self._data._current_contact_time],
             outputs=[self._data._first_transition],
             device=self._device,
         )
         return self._data._first_transition_ta
 
-    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
+    def compute_first_air(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
         """Boolean mask (as float) of bodies that broke contact within ``dt`` [s].
 
         Args:
             dt: Time window since contact break [s].
-            abs_tol: Absolute tolerance for the comparison [s].
+            abs_tol: Absolute tolerance for the comparison [s]. Defaults to None, in which case
+                half the sensor update interval is used.
 
         Returns:
             Boolean tensor (1.0/0.0) of shape ``(num_envs, num_sensors)``.
@@ -468,10 +471,11 @@ class ContactSensor(BaseContactSensor):
                 "The contact sensor is not configured to track air time."
                 " Please enable 'track_air_time' in the sensor configuration."
             )
+        tol = self._resolve_first_transition_tolerance(abs_tol)
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_air_time],
+            inputs=[float(dt + tol), self._data._current_air_time],
             outputs=[self._data._first_transition],
             device=self._device,
         )

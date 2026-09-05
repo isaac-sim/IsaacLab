@@ -219,7 +219,7 @@ class ContactSensor(BaseContactSensor):
             device=self._device,
         )
 
-    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
+    def compute_first_contact(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
         """Checks if bodies that have established contact within the last :attr:`dt` seconds.
 
         This function checks if the bodies have established contact within the last :attr:`dt` seconds
@@ -239,7 +239,8 @@ class ContactSensor(BaseContactSensor):
 
         Args:
             dt: The time period since the contact was established.
-            abs_tol: The absolute tolerance for the comparison.
+            abs_tol: The absolute tolerance for the comparison [s]. Defaults to None, in which case
+                half the sensor update interval is used.
 
         Returns:
             A boolean tensor indicating the bodies that have established contact within the last
@@ -255,16 +256,17 @@ class ContactSensor(BaseContactSensor):
                 "The contact sensor is not configured to track contact time."
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
+        tol = self._resolve_first_transition_tolerance(abs_tol)
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_contact_time],
+            inputs=[float(dt + tol), self._data._current_contact_time],
             outputs=[self._data._first_transition],
             device=self._device,
         )
         return self._data._first_transition_ta
 
-    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
+    def compute_first_air(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
         """Checks if bodies that have broken contact within the last :attr:`dt` seconds.
 
         This function checks if the bodies have broken contact within the last :attr:`dt` seconds
@@ -284,7 +286,8 @@ class ContactSensor(BaseContactSensor):
 
         Args:
             dt: The time period since the contract is broken.
-            abs_tol: The absolute tolerance for the comparison.
+            abs_tol: The absolute tolerance for the comparison [s]. Defaults to None, in which case
+                half the sensor update interval is used.
 
         Returns:
             A boolean tensor indicating the bodies that have broken contact within the last :attr:`dt` seconds.
@@ -300,10 +303,11 @@ class ContactSensor(BaseContactSensor):
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
 
+        tol = self._resolve_first_transition_tolerance(abs_tol)
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_air_time],
+            inputs=[float(dt + tol), self._data._current_air_time],
             outputs=[self._data._first_transition],
             device=self._device,
         )

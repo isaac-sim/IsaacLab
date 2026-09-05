@@ -1194,3 +1194,101 @@ def test_invalid_expression_raises_regex_error():
     """Reject malformed selector expressions at contact sensor construction."""
     with pytest.raises(re.error):
         _compile_label_pattern("foo(")
+
+
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("clock_age", [2.5, 10.0, 30.0])
+@pytest.mark.parametrize("history_length", [1, 0], ids=["substep_refresh", "lazy_refresh"])
+def test_first_transition_with_aged_clock(device: str, clock_age: float, history_length: int):
+    """Regression for #7283: transitions must still be reported once the sensor clock has aged.
+
+    The sensor clock is a float32 accumulator whose rounding error grows with simulated time. On a
+    transition step the contact (resp. air) timer is exactly one polling period, so the default
+    tolerance of :meth:`compute_first_contact` has to absorb that error. A fixed 1e-8 tolerance is
+    ~100x too small after a few seconds and silently drops touchdowns and lift-offs.
+    """
+    # With history, the sensor refreshes every physics step; without it, only when data is read.
+    decimation = 1 if history_length > 0 else 4
+    poll_dt = decimation * SIM_DT
+    settle_steps = 40
+    poll_steps = 120 // decimation
+
+    sim_cfg = make_sim_cfg(use_mujoco_contacts=False, device=device, gravity=(0.0, 0.0, -9.81))
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+
+        scene_cfg = ContactSensorTestSceneCfg(num_envs=1, env_spacing=5.0)
+        scene_cfg.object_a = create_shape_cfg(
+            ShapeType.BOX,
+            "{ENV_REGEX_NS}/Object",
+            pos=(0.0, 0.0, get_shape_height(ShapeType.BOX) / 2),
+            disable_gravity=False,
+            activate_contact_sensors=True,
+        )
+        scene_cfg.contact_sensor_a = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Object",
+            update_period=0.0,
+            history_length=history_length,
+            track_air_time=True,
+        )
+
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
+
+        sensor: ContactSensor = scene["contact_sensor_a"]
+        obj: RigidObject = scene["object_a"]
+
+        def _in_contact() -> bool:
+            """Ground truth for the contact state, read through the public data accessor."""
+            return torch.norm(sensor.data.net_normal_forces_w.torch, dim=-1).max().item() > 0.1
+
+        # Let the box come to rest on the ground so the sensor starts in contact.
+        for _ in range(settle_steps):
+            perform_sim_step(sim, scene, SIM_DT)
+        assert _in_contact(), "Box should be resting on the ground before the clock is aged."
+
+        # Age the sensor clock without stepping physics: the resting contact state is unchanged, so
+        # this isolates the float32 clock drift from any change in the contact forces.
+        for tick in range(int(round(clock_age / SIM_DT))):
+            sensor.update(SIM_DT)
+            if history_length == 0 and (tick + 1) % decimation == 0:
+                _in_contact()  # lazy refresh, mirroring a policy-rate reader
+        aged_clock = wp.to_torch(sensor._timestamp).max().item()
+        assert aged_clock == pytest.approx(clock_age + settle_steps * SIM_DT, abs=0.05)
+
+        # Launch the box so that it leaves the ground and lands again within the polling window.
+        velocity = torch.zeros(1, 6, device=obj.device)
+        velocity[:, 2] = 3.0
+        obj.write_root_velocity_to_sim_index(root_velocity=velocity)
+
+        reported_air: list[int] = []
+        reported_contact: list[int] = []
+        expected_air: list[int] = []
+        expected_contact: list[int] = []
+        was_in_contact = True
+        for step in range(poll_steps):
+            for _ in range(decimation):
+                perform_sim_step(sim, scene, SIM_DT)
+            # Read the data first, exactly as a policy-rate consumer would, then poll transitions.
+            in_contact = _in_contact()
+            if in_contact and not was_in_contact:
+                expected_contact.append(step)
+            if not in_contact and was_in_contact:
+                expected_air.append(step)
+            was_in_contact = in_contact
+            if sensor.compute_first_contact(poll_dt).torch.any().item():
+                reported_contact.append(step)
+            if sensor.compute_first_air(poll_dt).torch.any().item():
+                reported_air.append(step)
+
+        assert len(expected_air) == 1, f"Expected exactly one lift-off in the window; got {expected_air}."
+        assert len(expected_contact) == 1, f"Expected exactly one touchdown in the window; got {expected_contact}."
+        assert reported_air == expected_air, (
+            f"compute_first_air missed or mis-reported the lift-off at clock {aged_clock:.3f}s: "
+            f"reported {reported_air}, expected {expected_air}."
+        )
+        assert reported_contact == expected_contact, (
+            f"compute_first_contact missed or mis-reported the touchdown at clock {aged_clock:.3f}s: "
+            f"reported {reported_contact}, expected {expected_contact}."
+        )
