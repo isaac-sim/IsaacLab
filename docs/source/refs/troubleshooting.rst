@@ -219,6 +219,38 @@ Newton backends
 
 These entries apply to the ``physics=newton_mjwarp`` and ``physics=newton_kamino`` backends.
 
+.. _simulation-performance-troubleshooting:
+
+Simulation or training runs slower than expected
+------------------------------------------------
+
+Start with a representative profile before changing physics or rendering settings. The
+:doc:`Nsight Systems profiling guide <../how-to/profile_with_nsys>` can help distinguish time spent
+in physics, rendering, environment code, and policy inference.
+
+For PhysX workloads, check the following common causes:
+
+* **Unneeded visualization:** Commands that do not select a visualizer launch without a viewer by
+  default. If a configuration would otherwise launch one, pass ``--viz none`` to disable it.
+* **Excessive collision work:** Avoid duplicated or overlapping collision geometry and use the
+  simplest collider that provides the required fidelity.
+* **GPU collider fallbacks:** A warning that a convex mesh failed to cook as GPU-compatible means
+  its collision handling falls back to the CPU. Replace the collider with a primitive or bounding
+  box approximation when possible. A static triangle mesh is another option only when the geometry
+  is not part of a dynamic rigid body.
+
+For broader tuning guidance, including CPU/GPU selection, solver settings, rendering, sensors, and
+CPU configuration, consult the maintained upstream guides:
+
+* `Isaac Sim Performance Optimization Handbook
+  <https://docs.isaacsim.omniverse.nvidia.com/latest/reference_material/sim_performance_optimization_handbook.html>`_
+* `Omni Physics Simulation Performance Guide
+  <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/physics-performance.html>`_
+
+For Newton-specific performance and solver parameters, see the
+:doc:`Newton physics documentation <../overview/core-concepts/physical-backends/newton/index>`.
+
+
 Joints actuate in PhysX but not in a Newton-based backend
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
