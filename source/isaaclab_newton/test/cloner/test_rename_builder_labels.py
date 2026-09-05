@@ -556,6 +556,80 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
             [f"/World/envs/env_{env_id}/Robot/{label}" for env_id in env_ids for label in ("base", "hook")],
         )
 
+    def test_half_replication_hook_is_rejected_on_non_homogeneous_plan(self):
+        def hook(*_):
+            pass
+
+        hook._can_replicate_builder = lambda _: True
+        sources = (f"{self._SRC}/a", f"{self._SRC}/b")
+        with self.assertRaisesRegex(TypeError, "has no callable '_prepare_builder_replication'"):
+            replicate_builder_mapping(
+                newton.ModelBuilder(),
+                sources,
+                np.eye(2, dtype=np.bool_),
+                np.zeros((2, 3), dtype=np.float32),
+                np.array([[0.0, 0.0, 0.0, 1.0]] * 2, dtype=np.float32),
+                {source: newton.ModelBuilder() for source in sources},
+                destinations=(f"{self._ENV}/a", f"{self._ENV}/b"),
+                env_ids=np.arange(2, dtype=np.int64),
+                per_world_builder_hooks=(hook,),
+            )
+
+    def test_hook_added_particles_inherit_destination_max_velocity(self):
+        source = newton.ModelBuilder()
+        builder = newton.ModelBuilder()
+        builder.particle_max_velocity = 17.0
+
+        def hook(*_):
+            pass
+
+        def prepare(_builder, source_builder, *_):
+            self.assertEqual(source_builder.particle_max_velocity, 17.0)
+            source_builder.add_particle(pos=(0.0, 0.0, 0.0), vel=(0.0, 0.0, 0.0), mass=1.0, radius=0.1)
+            return lambda: None
+
+        hook._can_replicate_builder = lambda _: True
+        hook._prepare_builder_replication = prepare
+        replicate_builder_mapping(
+            builder,
+            (self._SRC,),
+            np.ones((1, 2), dtype=np.bool_),
+            np.zeros((2, 3), dtype=np.float32),
+            np.array([[0.0, 0.0, 0.0, 1.0]] * 2, dtype=np.float32),
+            {self._SRC: source},
+            destinations=(f"{self._ENV}/Robot",),
+            env_ids=np.arange(2, dtype=np.int64),
+            per_world_builder_hooks=(hook,),
+        )
+        self.assertEqual(source.particle_max_velocity, 17.0)
+        self.assertEqual(builder.particle_max_velocity, 17.0)
+
+    def test_particle_source_keeps_own_max_velocity_with_replication_hook(self):
+        source = newton.ModelBuilder()
+        source.add_particle(pos=(0.0, 0.0, 0.0), vel=(0.0, 0.0, 0.0), mass=1.0, radius=0.1)
+        source.particle_max_velocity = 23.0
+        builder = newton.ModelBuilder()
+        builder.particle_max_velocity = 17.0
+
+        def hook(*_):
+            pass
+
+        hook._can_replicate_builder = lambda _: True
+        hook._prepare_builder_replication = lambda *_: lambda: None
+        replicate_builder_mapping(
+            builder,
+            (self._SRC,),
+            np.ones((1, 2), dtype=np.bool_),
+            np.zeros((2, 3), dtype=np.float32),
+            np.array([[0.0, 0.0, 0.0, 1.0]] * 2, dtype=np.float32),
+            {self._SRC: source},
+            destinations=(f"{self._ENV}/Robot",),
+            env_ids=np.arange(2, dtype=np.int64),
+            per_world_builder_hooks=(hook,),
+        )
+        self.assertEqual(source.particle_max_velocity, 23.0)
+        self.assertEqual(builder.particle_max_velocity, 23.0)
+
 
 class TestRootJointNaming(unittest.TestCase):
     """The importer leaves a floating base's root joint unnamed; every other entity is named."""
