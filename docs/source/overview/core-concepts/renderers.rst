@@ -88,6 +88,16 @@ token per instance; markers without that ownership information remain shared.
    culled once they deform beyond their initial extent. See
    :ref:`known-issues-animated-curve-scene-partition` for the workaround.
 
+.. warning::
+
+   Kit RTX caps the number of scene partitions at 15625. Requesting more than 15625
+   environments with scene partitioning enabled discards the additional partitions, and
+   ``rtx.scenedb.plugin`` logs ``SceneDbContext : Maximum number of scene partitions
+   (15625) reached. Additional scene partitions will be discarded.`` Environments beyond
+   that count then share a partition with another environment, so their tiled camera views
+   can show another environment's geometry. See
+   :ref:`known-issues-scene-partition-count-cap` for details.
+
 Architecture Overview
 ---------------------
 
