@@ -86,6 +86,8 @@ class PhysicsManager(ABC):
     _sim_time: ClassVar[float] = 0.0
     _callbacks: ClassVar[dict[int, tuple[Any, Callable, int, str | None, Any]]] = {}
     _callback_id: ClassVar[int] = 0
+    views: ClassVar[dict[tuple[type, str], Any]] = {}
+    clone_context_type: ClassVar[type[object] | None] = None
 
     @classmethod
     def _prepare_stage_creation(cls) -> None:
@@ -150,13 +152,21 @@ class PhysicsManager(ABC):
                 f"Cannot relocate '{articulation_prim.GetPath()}' to existing articulation root '{new_root.GetPath()}'."
             )
 
+        # Keep this import local for the same reason as the pxr imports above.
+        from isaaclab.sim.schemas._backend_hooks import _articulation_root_companion_namespace  # noqa: PLC0415
+
         registry = Usd.SchemaRegistry()
         root_schema = UsdPhysics.Tokens.PhysicsArticulationRootAPI
         schemas_to_move = []
         for schema_name in articulation_prim.GetPrimTypeInfo().GetAppliedAPISchemas():
             definition = registry.FindAppliedAPIPrimDefinition(schema_name)
+            companion_namespace_override = _articulation_root_companion_namespace(schema_name)
             if schema_name == companion_schema:
                 properties = list(articulation_prim.GetAuthoredPropertiesInNamespace(companion_namespace))
+            elif companion_namespace_override is not None:
+                # a backend-registered schema, possibly an unregistered token the registry cannot
+                # describe, so take the namespace the backend declared for it
+                properties = list(articulation_prim.GetAuthoredPropertiesInNamespace(companion_namespace_override))
             elif schema_name == root_schema or (
                 definition is not None and root_schema in definition.GetAppliedAPISchemas()
             ):
@@ -457,6 +467,7 @@ class PhysicsManager(ABC):
             cls.clear_callbacks()
         finally:
             if is_active_manager:
+                PhysicsManager.views.clear()
                 PhysicsManager._sim = None
                 PhysicsManager._cfg = None
                 PhysicsManager._sim_time = 0.0

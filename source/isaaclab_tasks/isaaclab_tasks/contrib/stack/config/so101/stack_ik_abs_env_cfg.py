@@ -12,6 +12,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
+from isaaclab_tasks.utils import preset
 
 from . import stack_joint_pos_env_cfg
 from .pose_ik_action import SO101PoseIKActionCfg
@@ -208,28 +209,37 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
         # post init of parent
         super().__post_init__()
 
-        # Switch to a stiffer PD controller so the arm tracks IK targets well. SO101_HIGH_PD_CFG
-        # carries only the so101.py asset default init_state (zeros, no root pos), so ``replace``
-        # would DISCARD the parent's seated + stack-posed init_state. Preserve it explicitly so
-        # the IK-Abs task is also seated on the table and starts in the stack joint pose.
+        # Switch to a stiffer PD controller so the arm tracks IK targets well. Replace the robot
+        # configured by the parent so its task-specific seated root and stack joint pose are retained.
         #
         # Also soften the gripper to mimic the Franka panda_hand's grasp feel. The SO-101 jaw asset
         # default (effort 10 N·m, velocity 10 rad/s) snaps shut fast and hard, pushing through the
         # cube and ejecting it. The Franka panda_hand (effort 200 N, stiffness 2e3) is a *prismatic*
         # finger pair, so its gains do not transfer to this *revolute* jaw [N·m, rad]; instead we
         # behavior-match by capping the closing speed and grip torque so it closes gently and holds
-        # without penetrating. ``effort_limit_sim`` is the "strength" knob and ``velocity_limit_sim``
+        # without penetrating. ``joint_effort_limit`` is the "strength" knob and ``joint_velocity_limit``
         # the "speed" knob; stiffness/damping keep the asset defaults. Tune in-sim (lower effort if
         # it still pushes through; raise it if the cube drops).
-        self.scene.robot = SO101_HIGH_PD_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot",
-            init_state=self.scene.robot.init_state,
+        self.scene.robot = self.scene.robot.replace(
+            soft_joint_pos_limit_factor=SO101_HIGH_PD_CFG.soft_joint_pos_limit_factor,
+            spawn=SO101_HIGH_PD_CFG.spawn.replace(
+                variants={
+                    "Robot": "robot",
+                    "Sensor": "sensors",
+                    "Physics": preset(
+                        default="physics",
+                        isaacsim_physx="physx",
+                        physx="physx",
+                        newton_mjwarp="physics",
+                    ),
+                }
+            ),
             actuators={
                 "arm": SO101_HIGH_PD_CFG.actuators["arm"],
                 "gripper": ImplicitActuatorCfg(
                     joint_names_expr=["gripper"],
-                    effort_limit_sim=1.0,  # was 10.0 -- cap grip torque so it can't push through
-                    velocity_limit_sim=2.0,  # was 10.0 -- close gently instead of snapping shut
+                    joint_effort_limit=1.0,  # was 10.0 -- cap grip torque so it can't push through
+                    joint_velocity_limit=2.0,  # was 10.0 -- close gently instead of snapping shut
                     stiffness=17.8,
                     damping=0.60,
                 ),

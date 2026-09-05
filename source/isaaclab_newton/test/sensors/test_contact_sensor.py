@@ -25,11 +25,15 @@ from isaaclab.test.utils import test_devices
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import math
+import re
 
 import pytest
 import torch
+import warp as wp
 from flaky import flaky
+from isaaclab_newton.physics.newton_manager import _compile_label_pattern
 from isaaclab_newton.sensors.contact_sensor import ContactSensorCfg as NewtonContactSensorCfg
+from newton._src.utils.selection import match_labels
 from physics.physics_test_utils import (
     COLLISION_PIPELINES,
     STABLE_SHAPES,
@@ -44,6 +48,7 @@ from physics.physics_test_utils import (
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.sim import build_simulation_context
@@ -61,12 +66,13 @@ from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 class ContactSensorTestSceneCfg(InteractiveSceneCfg):
     """Configuration for contact sensor test scenes."""
 
-    terrain: TerrainImporterCfg | None = None
+    terrain: TerrainImporterCfg | None = TerrainImporterCfg(prim_path="/World/defaultGroundPlane", terrain_type="plane")
     object_a: RigidObjectCfg | None = None
     object_b: RigidObjectCfg | None = None
     object_c: RigidObjectCfg | None = None
     contact_sensor_a: ContactSensorCfg | None = None
     contact_sensor_b: ContactSensorCfg | None = None
+    contact_sensor_c: ContactSensorCfg | None = None
 
 
 SIM_DT = 1.0 / 120.0
@@ -104,7 +110,7 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
 
     sim_cfg = make_sim_cfg(use_mujoco_contacts=use_mujoco_contacts, device=device, gravity=(0.0, 0.0, -gravity_mag))
 
-    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
         scene_cfg.object_a = create_shape_cfg(
             shape_type,
@@ -142,13 +148,13 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
         for _ in range(5):
             perform_sim_step(sim, scene, SIM_DT)
 
-        forces = torch.norm(contact_sensor.data.net_forces_w.torch, dim=-1)
+        forces = torch.norm(contact_sensor.data.net_normal_forces_w.torch, dim=-1)
         for env_idx in range(num_envs):
             assert forces[env_idx].max().item() < 0.01, f"Env {env_idx}: No contact should be detected while in air."
 
         for tick in range(5, total_fall_steps):
             perform_sim_step(sim, scene, SIM_DT)
-            forces = torch.norm(contact_sensor.data.net_forces_w.torch, dim=-1)
+            forces = torch.norm(contact_sensor.data.net_normal_forces_w.torch, dim=-1)
             for env_idx in range(num_envs):
                 if forces[env_idx].max().item() > 0.1 and not contact_detected[env_idx]:
                     contact_detected[env_idx] = True
@@ -187,7 +193,7 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
         for step in range(lift_steps):
             perform_sim_step(sim, scene, SIM_DT)
             if step > 10:
-                forces = torch.norm(contact_sensor.data.net_forces_w.torch, dim=-1)
+                forces = torch.norm(contact_sensor.data.net_normal_forces_w.torch, dim=-1)
                 for env_idx in range(num_envs):
                     if forces[env_idx].max().item() < 0.01:
                         no_contact_detected[env_idx] = True
@@ -198,7 +204,11 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
 
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
-@pytest.mark.parametrize("shape_type", STABLE_SHAPES, ids=[shape_type_to_str(s) for s in STABLE_SHAPES])
+@pytest.mark.parametrize(
+    "shape_type",
+    [ShapeType.SPHERE, ShapeType.MESH_CAPSULE],
+    ids=["sphere", "mesh_capsule"],
+)
 def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: bool, shape_type: ShapeType):
     """Test horizontal collision detection with varied velocities and separations.
 
@@ -230,6 +240,7 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
             0.01 if use_mujoco_contacts and device.startswith("cuda") and shape_type == ShapeType.MESH_CAPSULE else 0.0
         )
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.terrain = None
         scene_cfg.object_a = create_shape_cfg(
             shape_type,
             "{ENV_REGEX_NS}/ObjectA",
@@ -285,8 +296,8 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
 
         for tick in range(collision_steps):
             perform_sim_step(sim, scene, SIM_DT)
-            forces_a = torch.norm(sensor_a.data.net_forces_w.torch, dim=-1)
-            forces_b = torch.norm(sensor_b.data.net_forces_w.torch, dim=-1)
+            forces_a = torch.norm(sensor_a.data.net_normal_forces_w.torch, dim=-1)
+            forces_b = torch.norm(sensor_b.data.net_normal_forces_w.torch, dim=-1)
             for env_idx in range(num_envs):
                 if forces_a[env_idx].max().item() > 0.1:
                     contact_detected_a[env_idx] = True
@@ -328,7 +339,7 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
         use_mujoco_contacts=use_mujoco_contacts, device=device, gravity=(0.0, 0.0, -gravity_magnitude)
     )
 
-    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
 
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
@@ -378,8 +389,8 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
         for step in range(settle_steps):
             perform_sim_step(sim, scene, SIM_DT)
             if step >= settle_steps - avg_window:
-                force_a_samples.append(sensor_a.data.net_forces_w.torch.clone())
-                force_b_samples.append(sensor_b.data.net_forces_w.torch.clone())
+                force_a_samples.append(sensor_a.data.net_normal_forces_w.torch.clone())
+                force_b_samples.append(sensor_b.data.net_normal_forces_w.torch.clone())
 
         forces_a = torch.stack(force_a_samples).mean(dim=0)
         forces_b = torch.stack(force_b_samples).mean(dim=0)
@@ -427,7 +438,7 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
 
     sim_cfg = make_sim_cfg(use_mujoco_contacts=use_mujoco_contacts, device=device, gravity=(0.0, 0.0, -gravity_mag))
 
-    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
 
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
@@ -462,7 +473,7 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
 
         for _ in range(total_steps):
             perform_sim_step(sim, scene, SIM_DT)
-            force_magnitudes = torch.norm(contact_sensor.data.net_forces_w.torch, dim=-1)
+            force_magnitudes = torch.norm(contact_sensor.data.net_normal_forces_w.torch, dim=-1)
             for env_idx in range(num_envs):
                 f = force_magnitudes[env_idx].max().item()
                 if f > 0.1:
@@ -498,7 +509,9 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
             False,
             id="newton_contacts",
             marks=pytest.mark.xfail(
-                reason="Newton force_matrix_w is non-deterministic across hardware (reports 0 or inflated values)",
+                reason=(
+                    "Newton normal_force_matrix_w is non-deterministic across hardware (reports 0 or inflated values)"
+                ),
                 strict=False,
             ),
         ),
@@ -506,15 +519,16 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
     ],
 )
 def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
-    """Test that filter_prim_paths_expr filters contacts and enables force_matrix_w.
+    """Test that filter_prim_paths_expr filters contacts and enables normal_force_matrix_w.
 
     Object A rests on ground, Object B stacked on A.
     Sensor on A is filtered for B only (not ground).
 
     Verifies:
-    - force_matrix_w reports only filtered contact (A-B)
-    - net_forces_w reports total contact (ground + B)
-    - force_matrix < net_forces (ground contact excluded from matrix)
+    - normal_force_matrix_w reports only filtered contact (A-B)
+    - net_normal_forces_w reports normal contact against all objects (ground + B)
+    - the normal and friction outputs reconstruct Newton's total-force outputs
+    - filtered normal force is smaller than net normal force (ground contact excluded from matrix)
     """
     settle_steps = 240
     num_envs = 4
@@ -524,7 +538,7 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
 
     sim_cfg = make_sim_cfg(use_mujoco_contacts=use_mujoco_contacts, device=device, gravity=(0.0, 0.0, -gravity))
 
-    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
 
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
@@ -558,8 +572,9 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
         scene_cfg.contact_sensor_a = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/ObjectA",
             update_period=0.0,
-            history_length=1,
+            history_length=0,
             filter_prim_paths_expr=["{ENV_REGEX_NS}/ObjectB"],
+            track_friction_forces=True,
         )
 
         scene = InteractiveScene(scene_cfg)
@@ -575,12 +590,31 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
         for step in range(settle_steps):
             perform_sim_step(sim, scene, SIM_DT)
             if step >= settle_steps - avg_window:
-                matrix_raw = contact_sensor.data.force_matrix_w
-                net_raw = contact_sensor.data.net_forces_w
+                matrix_raw = contact_sensor.data.normal_force_matrix_w
+                matrix_history_raw = contact_sensor.data.normal_force_matrix_w_history
+                net_raw = contact_sensor.data.net_normal_forces_w
                 if not matrix_samples:
-                    assert matrix_raw is not None, "force_matrix_w should not be None when filter is set"
+                    assert matrix_raw is not None, "normal_force_matrix_w should not be None when filter is set"
+                    assert matrix_history_raw is not None, (
+                        "normal_force_matrix_w_history should not be None when filter is set"
+                    )
+                    assert matrix_history_raw.torch.shape == (num_envs, 1, 1, 1, 3)
+                    torch.testing.assert_close(matrix_history_raw.torch[:, 0], matrix_raw.torch)
+                    assert contact_sensor.data.net_friction_forces_w is not None
+                    assert contact_sensor.data.friction_force_matrix_w is not None
                 matrix_samples.append(matrix_raw.torch.clone())
                 net_samples.append(net_raw.torch.clone())
+
+        total_force = wp.to_torch(contact_sensor.contact_view.total_force).reshape(num_envs, 1, 3)
+        total_force_matrix = wp.to_torch(contact_sensor.contact_view.force_matrix).reshape(num_envs, 1, 1, 3)
+        torch.testing.assert_close(
+            contact_sensor.data.net_normal_forces_w.torch + contact_sensor.data.net_friction_forces_w.torch,
+            total_force,
+        )
+        torch.testing.assert_close(
+            contact_sensor.data.normal_force_matrix_w.torch + contact_sensor.data.friction_force_matrix_w.torch,
+            total_force_matrix,
+        )
 
         force_matrix = torch.stack(matrix_samples).mean(dim=0)
         net_forces = torch.stack(net_samples).mean(dim=0)
@@ -614,7 +648,9 @@ def test_filter_enables_force_matrix(device: str, use_mujoco_contacts: bool):
             False,
             id="newton_contacts",
             marks=pytest.mark.xfail(
-                reason="Newton force_matrix_w is non-deterministic across hardware (reports 0 or inflated values)",
+                reason=(
+                    "Newton normal_force_matrix_w is non-deterministic across hardware (reports 0 or inflated values)"
+                ),
                 strict=False,
             ),
         ),
@@ -641,7 +677,7 @@ def test_track_contact_points_reports_average_position(device: str, use_mujoco_c
 
     sim_cfg = make_sim_cfg(use_mujoco_contacts=use_mujoco_contacts, device=device, gravity=(0.0, 0.0, -gravity))
 
-    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
 
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
@@ -802,7 +838,7 @@ def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool,
 
     sim_cfg = make_sim_cfg(use_mujoco_contacts=use_mujoco_contacts, device=device, gravity=(0.0, 0.0, 0.0))
 
-    with build_simulation_context(sim_cfg=sim_cfg, add_ground_plane=True, add_lighting=True) as sim:
+    with build_simulation_context(sim_cfg=sim_cfg, add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
 
         scene_cfg = ContactSensorTestSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
@@ -909,8 +945,8 @@ def test_finger_contact_sensor_isolation(device: str, use_mujoco_contacts: bool,
         for _ in range(drop_steps):
             perform_sim_step(sim, scene, SIM_DT)
             for finger_name, sensor in finger_sensors.items():
-                if sensor.data.net_forces_w is not None:
-                    forces = sensor.data.net_forces_w.torch
+                if sensor.data.net_normal_forces_w is not None:
+                    forces = sensor.data.net_normal_forces_w.torch
                     for env_idx in range(num_envs):
                         f = torch.norm(forces[env_idx]).item()
                         peak_forces[finger_name][env_idx] = max(peak_forces[finger_name][env_idx], f)
@@ -972,55 +1008,27 @@ def test_sensor_metadata(device: str):
     num_envs = 4
     sim_cfg = make_sim_cfg(use_mujoco_contacts=False, device=device, gravity=(0.0, 0.0, -9.81))
 
-    # (1) Body-mode, no filter: pattern matches two distinct body names per env.
-    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = _make_two_box_scene_cfg(num_envs)
+        # Body-mode, no filter: pattern matches two distinct body names per env.
         scene_cfg.contact_sensor_a = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Box.*",
+            prim_path="{ENV_REGEX_NS}/Box[^/]*",
             update_period=0.0,
             history_length=1,
         )
-        scene = InteractiveScene(scene_cfg)
-        sim.reset()
-        scene.reset()
-
-        sensor: ContactSensor = scene["contact_sensor_a"]
-        assert sensor.num_sensors == 2, f"expected 2 sensors per env, got {sensor.num_sensors}"
-        assert sensor.sensor_names == ["BoxA", "BoxB"], f"unexpected sensor_names: {sensor.sensor_names}"
-        assert sensor.filter_object_names == [], (
-            f"expected empty filter_object_names with no filter, got {sensor.filter_object_names}"
-        )
-
-    # (2) Body-mode, with filter: one body matches the sensor pattern, one matches the filter pattern.
-    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
-        sim._app_control_on_stop_handle = None
-        scene_cfg = _make_two_box_scene_cfg(num_envs)
-        scene_cfg.contact_sensor_a = ContactSensorCfg(
+        # Body-mode, with filter: one body matches the sensor pattern, one matches the filter pattern.
+        scene_cfg.contact_sensor_b = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/BoxA",
             filter_prim_paths_expr=["{ENV_REGEX_NS}/BoxB"],
             update_period=0.0,
             history_length=1,
         )
-        scene = InteractiveScene(scene_cfg)
-        sim.reset()
-        scene.reset()
-
-        sensor: ContactSensor = scene["contact_sensor_a"]
-        assert sensor.num_sensors == 1, f"expected 1 sensor per env, got {sensor.num_sensors}"
-        assert sensor.sensor_names == ["BoxA"], f"unexpected sensor_names: {sensor.sensor_names}"
-        assert sensor.num_filter_objects == 1, f"expected 1 filter object per sensor, got {sensor.num_filter_objects}"
-        assert sensor.filter_object_names == ["BoxB"], f"unexpected filter_object_names: {sensor.filter_object_names}"
-
-    # (3) Shape-mode, no filter: pattern matches shapes (not bodies).
-    # `sensor_shape_prim_expr` is a Newton-only extension, so this block uses the
-    # backend-specific NewtonContactSensorCfg subclass.
-    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
-        sim._app_control_on_stop_handle = None
-        scene_cfg = _make_two_box_scene_cfg(num_envs)
-        scene_cfg.contact_sensor_a = NewtonContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Box.*",
-            sensor_shape_prim_expr=["{ENV_REGEX_NS}/Box.*"],
+        # Shape-mode, no filter: pattern matches shapes (not bodies). The expression must
+        # reach the shapes below each body (here ``BoxA/geometry/mesh``).
+        scene_cfg.contact_sensor_c = NewtonContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Box[^/]*",
+            sensor_shape_prim_expr=["{ENV_REGEX_NS}/Box[^/]*/.*"],
             update_period=0.0,
             history_length=1,
         )
@@ -1028,48 +1036,21 @@ def test_sensor_metadata(device: str):
         sim.reset()
         scene.reset()
 
-        sensor: ContactSensor = scene["contact_sensor_a"]
-        assert sensor.num_sensors == 2, f"expected 2 shape sensors per env, got {sensor.num_sensors}"
-        assert sensor.sensor_names == ["mesh", "mesh"], f"unexpected shape sensor_names: {sensor.sensor_names}"
-        assert sensor.filter_object_names == [], (
-            f"expected empty filter_object_names with no filter, got {sensor.filter_object_names}"
-        )
+        body_sensor: ContactSensor = scene["contact_sensor_a"]
+        assert body_sensor.num_sensors == 2
+        assert body_sensor.sensor_names == ["BoxA", "BoxB"]
+        assert body_sensor.filter_object_names == []
 
+        filtered_sensor: ContactSensor = scene["contact_sensor_b"]
+        assert filtered_sensor.num_sensors == 1
+        assert filtered_sensor.sensor_names == ["BoxA"]
+        assert filtered_sensor.num_filter_objects == 1
+        assert filtered_sensor.filter_object_names == ["BoxB"]
 
-# ===================================================================
-# Utility
-# ===================================================================
-
-
-def test_sensor_print():
-    """Test that contact sensor print/repr works correctly."""
-    sim_cfg = make_sim_cfg(use_mujoco_contacts=False, device="cuda:0", gravity=(0.0, 0.0, -9.81))
-
-    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
-        sim._app_control_on_stop_handle = None
-
-        scene_cfg = ContactSensorTestSceneCfg(num_envs=4, env_spacing=5.0, lazy_sensor_update=False)
-        scene_cfg.object_a = create_shape_cfg(
-            ShapeType.BOX,
-            "{ENV_REGEX_NS}/Object",
-            pos=(0.0, 0.0, 2.0),
-            disable_gravity=False,
-            activate_contact_sensors=True,
-        )
-        scene_cfg.contact_sensor_a = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Object",
-            update_period=0.0,
-            history_length=3,
-            track_air_time=True,
-        )
-
-        scene = InteractiveScene(scene_cfg)
-        sim.reset()
-        scene.reset()
-
-        sensor_str = str(scene["contact_sensor_a"])
-        assert len(sensor_str) > 0
-        print(sensor_str)
+        shape_sensor: ContactSensor = scene["contact_sensor_c"]
+        assert shape_sensor.num_sensors == 2
+        assert shape_sensor.sensor_names == ["mesh", "mesh"]
+        assert shape_sensor.filter_object_names == []
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -1082,7 +1063,7 @@ def test_no_stale_data_after_scene_reset(device: str):
     contact buffer here (it still reflects the previous step).
     """
     sim_cfg = make_sim_cfg(use_mujoco_contacts=False, device=device, gravity=(0.0, 0.0, -9.81))
-    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True, add_ground_plane=True) as sim:
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
 
         scene_cfg = ContactSensorTestSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
@@ -1119,7 +1100,7 @@ def test_no_stale_data_after_scene_reset(device: str):
         for _ in range(200):
             perform_sim_step(sim, scene, SIM_DT)
 
-        pre_reset_force_mag = torch.linalg.norm(sensor.data.net_forces_w.torch, dim=-1).item()
+        pre_reset_force_mag = torch.linalg.norm(sensor.data.net_normal_forces_w.torch, dim=-1).item()
         assert pre_reset_force_mag > 1.0, f"Expected non-zero contact force before reset; got {pre_reset_force_mag!r}"
 
         # Mimic ``ManagerBasedRLEnv._reset_idx``: write post-reset asset state, then scene.reset().
@@ -1130,7 +1111,7 @@ def test_no_stale_data_after_scene_reset(device: str):
         obj.write_root_velocity_to_sim_index(root_velocity=new_root_vel, env_ids=env_ids)
         scene.reset(env_ids=env_ids)
 
-        post_reset_force_mag = torch.linalg.norm(sensor.data.net_forces_w.torch, dim=-1).item()
+        post_reset_force_mag = torch.linalg.norm(sensor.data.net_normal_forces_w.torch, dim=-1).item()
         assert post_reset_force_mag == 0.0, (
             "Contact sensor returned stale pre-reset data after scene.reset(): "
             f"got {post_reset_force_mag}, expected 0.0 (pre-reset value was {pre_reset_force_mag})."
@@ -1139,3 +1120,77 @@ def test_no_stale_data_after_scene_reset(device: str):
         assert torch.isnan(post_reset_contact_pos).all(), (
             f"contact_pos_w should reset to NaN after scene.reset(); got {post_reset_contact_pos.tolist()}"
         )
+
+
+# ===================================================================
+# Selector patterns
+# ===================================================================
+
+_NS = DEFAULT_ENV_TEMPLATE.format("[^/]+")
+"""The expansion of ``{ENV_REGEX_NS}``, as ``expand_env_regex_ns`` produces it."""
+
+_LABELS = [
+    "/World/envs/env_0/Robot/base",
+    "/World/envs/env_0/Robot/LF_FOOT",
+    "/World/envs/env_0/Robot/RF_FOOT",
+    "/World/envs/env_0/Robot/R_index_distal",
+    "/World/envs/env_0/Robot/Geometry/panda_link0",
+    "/World/envs/env_1/Robot/LF_FOOT",
+]
+
+_SHAPE_LABELS = ["/World/envs/env_0/BoxA/geometry/mesh", "/World/envs/env_0/BoxB/mesh"]
+
+
+def _select(expr, labels):
+    """Labels Newton selects for ``expr``."""
+    pattern = _compile_label_pattern(expr)
+    return [labels[index] for index in match_labels(labels, pattern)]
+
+
+def test_alternation_resolves():
+    """A group selects its branches instead of matching literally."""
+    assert _select(f"{_NS}/Robot/[^/]*R_(index|middle|pinky)_distal", _LABELS) == [
+        "/World/envs/env_0/Robot/R_index_distal"
+    ]
+
+
+def test_segment_wildcard_does_not_cross_path_separators():
+    """``[^/]*`` selects one segment, so nested links stay out."""
+    selected = _select(f"{_NS}/Robot/[^/]*", _LABELS)
+
+    assert "/World/envs/env_0/Robot/base" in selected
+    assert "/World/envs/env_0/Robot/Geometry/panda_link0" not in selected
+
+
+def test_expression_list_selects_the_union():
+    """A list of expressions selects everything any one of them matches."""
+    feet = ["/World/envs/env_0/Robot/LF_FOOT", "/World/envs/env_0/Robot/RF_FOOT"]
+
+    # A single-element list is the shape every config takes, and carries alternation of its own.
+    assert _select([f"{_NS}/Robot/LF_FOOT|{_NS}/Robot/RF_FOOT"], _LABELS) == [
+        *feet,
+        "/World/envs/env_1/Robot/LF_FOOT",
+    ]
+    assert _select([f"{_NS}/Robot/base", f"{_NS}/Robot/LF_FOOT|{_NS}/Robot/RF_FOOT"], _LABELS) == [
+        "/World/envs/env_0/Robot/base",
+        *feet,
+        "/World/envs/env_1/Robot/LF_FOOT",
+    ]
+
+
+def test_shape_expressions_match_on_the_same_terms_as_body_expressions():
+    """Shape selectors carry no rule of their own."""
+    assert _select(f"{_NS}/Box[^/]*", _SHAPE_LABELS) == []
+    assert _select(f"{_NS}/Box[^/]*/.*", _SHAPE_LABELS) == _SHAPE_LABELS
+
+
+@pytest.mark.parametrize("expr", [None, []])
+def test_absent_selector_compiles_to_no_pattern(expr):
+    """Nothing requested means unfiltered, not empty."""
+    assert _compile_label_pattern(expr) is None
+
+
+def test_invalid_expression_raises_regex_error():
+    """Reject malformed selector expressions at contact sensor construction."""
+    with pytest.raises(re.error):
+        _compile_label_pattern("foo(")

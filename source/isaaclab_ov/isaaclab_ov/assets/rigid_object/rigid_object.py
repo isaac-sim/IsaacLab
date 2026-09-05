@@ -19,7 +19,7 @@ from pxr import UsdPhysics
 
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -723,6 +723,7 @@ class RigidObject(BaseRigidObject):
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_MASS is CPU-only).
         cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         wp.copy(self._cpu_body_mass, self.data._body_mass)
+        wp.synchronize_stream(self._device)
         self._root_view.set_attribute(TT.RIGID_BODY_MASS, self._cpu_body_mass.flatten(), indices=cpu_env_ids)
 
     def set_masses_mask(
@@ -757,6 +758,7 @@ class RigidObject(BaseRigidObject):
             device=self._device,
         )
         wp.copy(self._cpu_body_mass, self.data._body_mass)
+        wp.synchronize_stream(self._device)
         self._root_view.set_attribute(
             TT.RIGID_BODY_MASS, self._cpu_body_mass.flatten(), mask=self._get_cpu_env_mask(env_mask_wp)
         )
@@ -800,6 +802,7 @@ class RigidObject(BaseRigidObject):
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_COM_POSE is CPU-only).
         cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
+        wp.synchronize_stream(self._device)
         # Wheel binding shape is (N, 7); squeeze singleton body dim with a flat float32 view.
         self._root_view.set_attribute(
             TT.RIGID_BODY_COM_POSE, self._cpu_body_coms.reshape((self._num_instances, 7)), indices=cpu_env_ids
@@ -838,6 +841,7 @@ class RigidObject(BaseRigidObject):
         )
         self.data._reset_body_com_pose_b_dependents()
         wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
+        wp.synchronize_stream(self._device)
         self._root_view.set_attribute(
             TT.RIGID_BODY_COM_POSE,
             self._cpu_body_coms.reshape((self._num_instances, 7)),
@@ -881,6 +885,7 @@ class RigidObject(BaseRigidObject):
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_INERTIA is CPU-only).
         cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         wp.copy(self._cpu_body_inertia, self.data._body_inertia)
+        wp.synchronize_stream(self._device)
         # Wheel binding shape is (N, 9); flatten the singleton body dim.
         self._root_view.set_attribute(
             TT.RIGID_BODY_INERTIA, self._cpu_body_inertia.reshape((self._num_instances, 9)), indices=cpu_env_ids
@@ -918,6 +923,7 @@ class RigidObject(BaseRigidObject):
             device=self._device,
         )
         wp.copy(self._cpu_body_inertia, self.data._body_inertia)
+        wp.synchronize_stream(self._device)
         self._root_view.set_attribute(
             TT.RIGID_BODY_INERTIA,
             self._cpu_body_inertia.reshape((self._num_instances, 9)),
@@ -950,7 +956,7 @@ class RigidObject(BaseRigidObject):
         # IsaacLab paths may use ``.*`` regex or ``{ENV_REGEX_NS}`` placeholder; ovphysx
         # ``create_tensor_binding`` expects fnmatch globs.
         pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_prim_path_expr)
-        pattern = re.sub(r"\.\*", "*", pattern)
+        pattern = path_expr_to_glob(pattern)
         self._binding_pattern = pattern
 
         # Eagerly create every binding the data container reads at init, so failures
@@ -1043,6 +1049,7 @@ class RigidObject(BaseRigidObject):
         # host memory enables DMA fast path and avoids per-call ``wp.clone`` allocation.
         self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
         wp.copy(self._cpu_env_ids_all, self._ALL_INDICES)
+        wp.synchronize_stream(self._device)
         self._cpu_env_ids = wp.empty(N, dtype=wp.int32, device="cpu", pinned=True)
         self._cpu_env_ids_views: dict[int, wp.array] = {}
         self._cpu_body_mass = wp.zeros((N, B), dtype=wp.float32, device="cpu", pinned=True)
@@ -1153,6 +1160,7 @@ class RigidObject(BaseRigidObject):
         ``_cpu_env_mask`` pinned buffer.
         """
         wp.copy(self._cpu_env_mask, env_mask)
+        wp.synchronize_stream(env_mask.device)
         return self._cpu_env_mask
 
     def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor, sim_env_ids: wp.array | None = None) -> wp.array:
@@ -1173,6 +1181,7 @@ class RigidObject(BaseRigidObject):
             return env_ids
         cpu_env_ids = self._cpu_env_ids_view(env_ids.shape[0])
         wp.copy(cpu_env_ids, env_ids)
+        wp.synchronize_stream(env_ids.device)
         return cpu_env_ids
 
     def _cpu_env_ids_view(self, count: int) -> wp.array:

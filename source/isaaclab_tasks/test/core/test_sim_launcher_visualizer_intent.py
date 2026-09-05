@@ -54,6 +54,11 @@ def test_launch_simulation_passes_visualizer_intent_to_applauncher(monkeypatch):
             self.app = types.SimpleNamespace(close=lambda: captured.update({"closed": True}))
 
     monkeypatch.setitem(sys.modules, "isaaclab.utils", types.SimpleNamespace(has_kit=lambda: False))
+    monkeypatch.setitem(
+        sys.modules,
+        "isaaclab.utils.assets",
+        types.SimpleNamespace(configure_storage_profile=lambda: None),
+    )
     monkeypatch.setitem(sys.modules, "isaaclab.app", types.SimpleNamespace(AppLauncher=_FakeAppLauncher))
     monkeypatch.setattr("importlib.util.find_spec", lambda name: object() if name == "omni.kit" else None)
 
@@ -68,6 +73,7 @@ def test_launch_simulation_passes_visualizer_intent_to_applauncher(monkeypatch):
     assert getattr(forwarded_args, "visualizer_intent") == {
         "has_any_visualizers": True,
         "has_kit_visualizer": True,
+        "has_kit_streaming_view": False,
     }
     assert captured["closed"] is True
 

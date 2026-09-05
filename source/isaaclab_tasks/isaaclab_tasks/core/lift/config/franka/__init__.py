@@ -20,6 +20,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_env_cfg:FrankaReorientEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaPPORunnerCfg",
+        "default_agent": "rsl_rl",
     },
 )
 
@@ -30,5 +31,6 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_env_cfg:FrankaLiftEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaPPORunnerCfg",
+        "default_agent": "rsl_rl",
     },
 )

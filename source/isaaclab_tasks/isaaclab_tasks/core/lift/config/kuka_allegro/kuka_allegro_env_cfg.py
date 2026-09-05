@@ -3,17 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_ov.physics import OvPhysxCfg
-
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils.configclass import configclass
-
-from isaaclab_tasks.utils import preset
 
 from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
 
@@ -24,26 +19,6 @@ from .camera_cfg import StateObservationCfg
 FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
 THUMB_SENSOR = "thumb_link_3_object_s"
 FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "thumb_link_3"]
-
-
-@configclass
-class KukaAllegroObjectCfg(lift.ObjectCfg):
-    """Object presets supported by the Kuka Allegro tasks."""
-
-    ovphysx = lift.ObjectCfg().cube
-
-
-@configclass
-class KukaAllegroPhysicsCfg(lift.PhysicsCfg):
-    """Physics presets supported by the Kuka Allegro tasks."""
-
-    isaacsim_physx = lift.PhysicsCfg().isaacsim_physx
-    ovphysx = OvPhysxCfg(
-        gpu_max_rigid_patch_count=4 * 5 * 2**15,
-        gpu_found_lost_pairs_capacity=2**26,
-    )
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    default = isaacsim_physx
 
 
 @configclass
@@ -60,7 +35,6 @@ class KukaAllegroSceneCfg(lift.SceneCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.object.spawn = KukaAllegroObjectCfg()
         for link_name in FINGERTIP_LIST:
             setattr(
                 self,
@@ -114,7 +88,6 @@ class KukaAllegroMixinCfg:
 
     def __post_init__(self: lift.ReorientEnvCfg):
         super().__post_init__()
-        self.sim.physics = KukaAllegroPhysicsCfg()
         self.commands.object_pose.body_name = "palm_link"
         events = self.events.conditional_reset.params["terms"]
         events["reset_robot_wrist_joint"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names="iiwa7_joint_7")
@@ -144,29 +117,6 @@ class KukaAllegroMixinCfg:
                 "distribution": "log_uniform",
             },
         )
-
-        # OVPhysX does not expose a runtime gravity setter. Keep the shared
-        # randomization and curriculum configs for PhysX/Newton, but omit the
-        # coupled gravity terms when the OVPhysX preset is selected.
-        default_events = self.events
-        ovphysx_events = default_events.replace(variable_gravity=None)
-        self.events = preset(
-            default=default_events,
-            physx=default_events,
-            isaacsim_physx=default_events,
-            newton_mjwarp=default_events,
-            ovphysx=ovphysx_events,
-        )
-        if self.curriculum is not None:
-            default_curriculum = self.curriculum
-            ovphysx_curriculum = default_curriculum.replace(gravity_adr=None)
-            self.curriculum = preset(
-                default=default_curriculum,
-                physx=default_curriculum,
-                isaacsim_physx=default_curriculum,
-                newton_mjwarp=default_curriculum,
-                ovphysx=ovphysx_curriculum,
-            )
 
 
 @configclass

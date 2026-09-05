@@ -34,6 +34,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
@@ -84,8 +85,8 @@ def main():
     # Create environment clones using Lab's cloner utilities
     num_envs = args_cli.num_robots
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
-    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0, device=sim.device)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")
     # Clone the scene
@@ -94,12 +95,12 @@ def main():
     # Design props
     design_scene()
     # Spawn things into the scene
-    robot_cfg = ANYMAL_C_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot_cfg.spawn.activate_contact_sensors = True
     robot = Articulation(cfg=robot_cfg)
     # Contact sensor
     contact_sensor_cfg = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/Robot/.*_FOOT",
+        prim_path="{ENV_REGEX_NS}/Robot/[^/]*_FOOT",
         track_air_time=True,
         track_contact_points=True,
         track_friction_forces=True,

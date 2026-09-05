@@ -1,0 +1,244 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Resolve the moving Isaac Sim ``latest-develop`` tag to its immutable
+# manifest digest and open (or refresh) a draft PR against ``develop``.
+#
+# Scheduled workflows register only from the default branch, so this file
+# must be present on the current default, ``release/3.0.0-beta2``. The job
+# deliberately checks out ``develop`` because that is where the CI image pin
+# is maintained.
+#
+# The isaaclab-bot GitHub App token is used instead of GITHUB_TOKEN so the
+# branch push and PR events trigger the normal CI workflows. The App must have
+# ``contents: write`` and ``pull requests: write`` on this repository.
+
+name: Nightly Isaac Sim Image Update
+
+on:
+  schedule:
+    # Run daily at 8 AM UTC, after the existing 4 AM and 5 AM workflows.
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Resolve and report the latest digest without pushing a branch or opening a PR'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  # The App installation token below carries the write permissions. The
+  # workflow's GITHUB_TOKEN only needs read access.
+  contents: read
+
+concurrency:
+  group: nightly-isaacsim-image-update
+  cancel-in-progress: false
+
+env:
+  CONFIG_PATH: .github/workflows/config.yaml
+  SOURCE_IMAGE: nvcr.io/0947644777160149/internal/isaac-sim
+  SOURCE_TAG: latest-develop
+  TARGET_BRANCH: develop
+  UPDATE_BRANCH: ci/nightly-isaacsim-image-update
+
+jobs:
+  update-image-pin:
+    name: Update Isaac Sim image pin
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # Reuse the isaaclab-bot App already used by nightly-changelog.yml.
+      # Requesting the permissions explicitly makes a missing App permission
+      # fail here with a focused error instead of later at push or PR creation.
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          client-id: ${{ secrets.CHANGELOG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Log in to the Isaac Sim registry
+        env:
+          NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NGC_API_KEY" ]; then
+            echo "::error::NGC_API_KEY is required to inspect the private Isaac Sim image."
+            exit 1
+          fi
+          printf '%s' "$NGC_API_KEY" | docker login -u '$oauthtoken' --password-stdin nvcr.io
+
+      - name: Resolve and update the image digest
+        id: pin
+        run: |
+          set -euo pipefail
+
+          image=$(yq -r '.isaacsim_image_name // ""' "$CONFIG_PATH")
+          current=$(yq -r '.isaacsim_image_tag // ""' "$CONFIG_PATH")
+          if [ -z "$image" ] || [ -z "$current" ]; then
+            echo "::error::$CONFIG_PATH must define isaacsim_image_name and isaacsim_image_tag."
+            exit 1
+          fi
+          if [ "$image" != "$SOURCE_IMAGE" ]; then
+            echo "::error::$CONFIG_PATH must pin the expected Isaac Sim image: $SOURCE_IMAGE."
+            exit 1
+          fi
+
+          current_digest=${current#"$SOURCE_TAG@"}
+          if [ "$current_digest" = "$current" ] || ! [[ "$current_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::$CONFIG_PATH must pin $SOURCE_TAG with a sha256 digest; found '$current'."
+            exit 1
+          fi
+
+          digest=$(docker buildx imagetools inspect "$SOURCE_IMAGE:$SOURCE_TAG" --format '{{.Manifest.Digest}}')
+          digest=$(echo "$digest" | tr -d '[:space:]')
+          if ! [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Registry returned an invalid manifest digest: '$digest'."
+            exit 1
+          fi
+
+          candidate="$SOURCE_TAG@$digest"
+          changed=false
+          branch_changed=false
+          if [ "$candidate" = "$current" ]; then
+            echo "Isaac Sim is already pinned to $candidate."
+          else
+            if [ "$(grep -c '^isaacsim_image_tag:' "$CONFIG_PATH")" -ne 1 ]; then
+              echo "::error::$CONFIG_PATH must contain exactly one isaacsim_image_tag key."
+              exit 1
+            fi
+            digest_value=${digest#sha256:}
+            sed -i -E \
+              "s|^(isaacsim_image_tag: $SOURCE_TAG@sha256:)[0-9a-f]{64}$|\\1$digest_value|" \
+              "$CONFIG_PATH"
+            changed=true
+            branch_changed=true
+            echo "Updating Isaac Sim from $current to $candidate."
+
+            remote_ref="refs/heads/$UPDATE_BRANCH"
+            if git ls-remote --exit-code origin "$remote_ref" >/dev/null 2>&1; then
+              git fetch origin "+$remote_ref:refs/remotes/origin/$UPDATE_BRANCH"
+              if remote_pin=$(git show "refs/remotes/origin/$UPDATE_BRANCH:$CONFIG_PATH" \
+                | yq -r '.isaacsim_image_tag // ""'); then
+                if [ "$remote_pin" = "$candidate" ]; then
+                  branch_changed=false
+                  echo "The existing update branch already carries $candidate."
+                fi
+              fi
+            fi
+          fi
+
+          {
+            echo "image=$image"
+            echo "current=$current"
+            echo "candidate=$candidate"
+            echo "digest=$digest"
+            echo "changed=$changed"
+            echo "branch_changed=$branch_changed"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push the update branch
+        if: ${{ steps.pin.outputs.branch_changed == 'true' && !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "isaaclab-bot[bot]"
+          git config user.email "282401363+isaaclab-bot[bot]@users.noreply.github.com"
+          git switch -C "$UPDATE_BRANCH"
+          git add "$CONFIG_PATH"
+          git commit -m "Bump Isaac Sim CI image digest"
+
+          remote_ref="refs/heads/$UPDATE_BRANCH"
+          if git ls-remote --exit-code origin "$remote_ref" >/dev/null 2>&1; then
+            git fetch origin "+$remote_ref:refs/remotes/origin/$UPDATE_BRANCH"
+            remote_sha=$(git rev-parse "refs/remotes/origin/$UPDATE_BRANCH")
+            git push --force-with-lease="$remote_ref:$remote_sha" origin "HEAD:$remote_ref"
+          else
+            git push --force-with-lease="$remote_ref:" origin "HEAD:$remote_ref"
+          fi
+
+      - name: Open or refresh the draft PR
+        if: ${{ steps.pin.outputs.changed == 'true' && !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+          IMAGE: ${{ steps.pin.outputs.image }}
+          CURRENT_PIN: ${{ steps.pin.outputs.current }}
+          CANDIDATE_PIN: ${{ steps.pin.outputs.candidate }}
+          DIGEST: ${{ steps.pin.outputs.digest }}
+        run: |
+          set -euo pipefail
+
+          digest_value=${DIGEST#sha256:}
+          short_digest=${digest_value:0:12}
+          title="[CI] Bump Isaac Sim image to $short_digest"
+          body_file="$RUNNER_TEMP/isaacsim-image-update.md"
+          {
+            echo "This automated draft updates CI to the current Isaac Sim nightly image."
+            echo
+            echo "| Field | Value |"
+            echo "|---|---|"
+            printf "| Image | \`%s\` |\n" "$IMAGE"
+            printf "| Moving tag | \`%s\` |\n" "$SOURCE_TAG"
+            printf "| Current pin | \`%s\` |\n" "$CURRENT_PIN"
+            printf "| Candidate pin | \`%s\` |\n" "$CANDIDATE_PIN"
+            echo
+            echo "Source: https://registry.ngc.nvidia.com/orgs/0947644777160149/teams/internal/containers/isaac-sim/tags"
+            echo
+            echo "New PRs are opened as drafts so maintainers can merge after the CI results are acceptable."
+          } > "$body_file"
+
+          repository_owner=${REPOSITORY%%/*}
+          pr_number=$(gh api --method GET "repos/$REPOSITORY/pulls" \
+            -f state=open \
+            -f base="$TARGET_BRANCH" \
+            -f head="$repository_owner:$UPDATE_BRANCH" \
+            --jq '.[0].number // empty')
+
+          if [ -n "$pr_number" ]; then
+            pr_url=$(gh api --method PATCH "repos/$REPOSITORY/pulls/$pr_number" \
+              -f title="$title" \
+              -F body=@"$body_file" \
+              --jq '.html_url')
+            echo "Refreshed draft PR: $pr_url"
+            echo "Draft PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"
+          else
+            pr_url=$(gh api --method POST "repos/$REPOSITORY/pulls" \
+              -f title="$title" \
+              -f head="$UPDATE_BRANCH" \
+              -f base="$TARGET_BRANCH" \
+              -F body=@"$body_file" \
+              -F draft=true \
+              --jq '.html_url')
+            echo "Opened draft PR: $pr_url"
+            echo "Draft PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Report no-op or dry run
+        if: ${{ steps.pin.outputs.changed != 'true' || inputs.dry_run }}
+        env:
+          CURRENT_PIN: ${{ steps.pin.outputs.current }}
+          CANDIDATE_PIN: ${{ steps.pin.outputs.candidate }}
+        run: |
+          if [ "$CURRENT_PIN" = "$CANDIDATE_PIN" ]; then
+            echo "Isaac Sim is already pinned to \`$CURRENT_PIN\`." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Dry run: would update \`$CURRENT_PIN\` to \`$CANDIDATE_PIN\`." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Log out of the Isaac Sim registry
+        if: ${{ always() }}
+        run: docker logout nvcr.io || true

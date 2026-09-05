@@ -6,6 +6,7 @@
 from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -89,6 +90,7 @@ class ObjectCfg(PresetCfg):
         mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
     )
     default = shapes
+    ovphysx = cube
 
 
 @configclass
@@ -137,7 +139,7 @@ class CommandsCfg:
     object_pose = mdp.ObjectUniformPoseCommandCfg(
         asset_name="robot",
         object_name="object",
-        resampling_time_range=(3.0, 5.0),
+        resampling_time_range=(4.0, 6.0),
         debug_vis=False,
         ranges=mdp.ObjectUniformPoseCommandCfg.Ranges(
             pos_x=(-0.7, -0.3),
@@ -489,6 +491,10 @@ class PhysicsCfg(PresetCfg):
         gpu_max_rigid_patch_count=4 * 5 * 2**15,
         gpu_found_lost_pairs_capacity=2**26,
     )
+    ovphysx = OvPhysxCfg(
+        gpu_max_rigid_patch_count=4 * 5 * 2**15,
+        gpu_found_lost_pairs_capacity=2**26,
+    )
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             solver="newton",
@@ -508,8 +514,8 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = isaacsim_physx
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    default = newton_mjwarp
 
 
 @configclass
@@ -560,9 +566,8 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4  # 30 Hz
 
         # *single-goal setup
-        self.commands.object_pose.resampling_time_range = (2.0, 3.0)
         self.commands.object_pose.position_only = False
-        self.episode_length_s = 6.0
+        self.episode_length_s = 12.0
         self.is_finite_horizon = False
 
         # simulation settings

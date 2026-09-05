@@ -88,13 +88,18 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
     cli_args.add_rsl_rl_args(parser)
     add_launcher_args(parser)
+
+    # Register external tasks before preset setup reads their Gym metadata.
+    registration_parser = argparse.ArgumentParser(add_help=False)
+    registration_parser.add_argument("--external_callback")
+    registration_args, _ = registration_parser.parse_known_args(argv)
+    remaining_args_env_registration = None
+    if registration_args.external_callback:
+        external_callback_function = string_to_callable(registration_args.external_callback, separator=".")
+        remaining_args_env_registration = external_callback_function()
+
     args_cli, remaining_args = setup_preset_cli(parser, argv, agent_library="rsl_rl")
     enable_cameras_for_video(args_cli)
-
-    remaining_args_env_registration = None
-    if args_cli.external_callback:
-        external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
-        remaining_args_env_registration = external_callback_function()
 
     set_hydra_args(list_intersection(remaining_args, remaining_args_env_registration))
     return args_cli
@@ -118,6 +123,7 @@ def _run(args_cli: argparse.Namespace) -> None:
 
     from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
+    from isaaclab.utils.assets import retrieve_file_path
     from isaaclab.utils.seed import configure_seed
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
@@ -177,18 +183,25 @@ def _run(args_cli: argparse.Namespace) -> None:
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
 
-            if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
-                if args_cli.checkpoint in CHECKPOINT_SELECTORS:
-                    resume_path = resolve_checkpoint_selector(
-                        log_root_path,
-                        args_cli.checkpoint,
-                        library="rsl_rl",
-                        task=args_cli.task,
-                        checkpoint_pattern=r"model_.*\.pt",
-                        metadata={"agent": args_cli.agent},
-                    )
-                else:
-                    resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+            if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+                resume_path = resolve_checkpoint_selector(
+                    log_root_path,
+                    args_cli.checkpoint,
+                    library="rsl_rl",
+                    task=args_cli.task,
+                    checkpoint_pattern=r"model_.*\.pt",
+                    metadata={"agent": args_cli.agent},
+                )
+            elif args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
+                resume_path = get_checkpoint_path(
+                    os.path.dirname(args_cli.checkpoint),
+                    os.path.basename(args_cli.checkpoint),
+                    agent_cfg.load_checkpoint,
+                )
+            elif args_cli.checkpoint:
+                resume_path = retrieve_file_path(args_cli.checkpoint)
+            elif agent_cfg.algorithm.class_name == "Distillation":
+                raise ValueError("Distillation training requires --checkpoint.")
 
             env = wrap_training_capture(env, log_dir, args_cli)
 
@@ -212,7 +225,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 configure_seed(env_cfg.seed, torch_deterministic=True)
 
             runner.add_git_repo_to_log(__file__)
-            if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
+            if args_cli.checkpoint:
                 print(f"[INFO]: Loading model checkpoint from: {resume_path}")
                 runner.load(resume_path)
 

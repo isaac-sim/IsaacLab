@@ -13,6 +13,7 @@ the launcher inputs, then validate and launch.
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import logging
 import os
 import sys
@@ -21,7 +22,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
-from isaaclab_newton.physics import NewtonCfg
+from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -73,15 +74,6 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
     if physics_cfg_str == "newton_mjwarp":
         return NewtonCfg()
     if physics_cfg_str == "newton_vbd":
-        # lazy import: core depends on isaaclab_contrib only when VBD is requested
-        try:
-            from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
-        except ImportError as err:
-            raise ImportError(
-                "The 'newton_vbd' physics backend requires the isaaclab_contrib package."
-                " Install it with `./isaaclab.sh -i contrib`."
-            ) from err
-
         return NewtonCfg(solver_cfg=VBDSolverCfg())
     if physics_cfg_str == "ovphysx":
         return OvPhysxCfg()
@@ -122,14 +114,11 @@ def _is_kit_camera(node) -> bool:
         # ``auto_rtx`` is resolved after the initial scan once physics and
         # visualizer intent are known; ie. it may become OVRTX for a kitless run.
         return False
-    if isinstance(renderer_cfg, RendererCfg):
-        return renderer_cfg.renderer_type in ("default", "isaac_rtx")
-    # PresetCfg renderers (e.g. MultiBackendRendererCfg) are resolved during
-    # environment construction once the physics backend is known; assume they
-    # match the backend, so not necessarily Kit.
-    from isaaclab_tasks.utils import PresetCfg
-
-    return not isinstance(renderer_cfg, PresetCfg)
+    if not isinstance(renderer_cfg, RendererCfg):
+        raise TypeError(
+            f"CameraCfg.renderer_cfg must be a concrete RendererCfg or None, got {type(renderer_cfg).__name__}."
+        )
+    return renderer_cfg.renderer_type in ("default", "isaac_rtx")
 
 
 """
@@ -199,14 +188,20 @@ def _ensure_livestream_kit_visualizer(launcher_args: argparse.Namespace | dict |
 
 def _get_visualizer_intent(cfg) -> dict[str, bool]:
     """Compute upstream visualizer intent from ``cfg.sim.visualizer_cfgs``."""
-    visualizer_cfgs = getattr(getattr(cfg, "sim", None), "visualizer_cfgs", None)
+    # Accept both env_cfg (has .sim.visualizer_cfgs) and a bare SimulationCfg
+    # (has .visualizer_cfgs directly).
+    sim = getattr(cfg, "sim", None)
+    visualizer_cfgs = getattr(sim, "visualizer_cfgs", None) or getattr(cfg, "visualizer_cfgs", None)
     if visualizer_cfgs is None:
-        return {"has_any_visualizers": False, "has_kit_visualizer": False}
+        return {"has_any_visualizers": False, "has_kit_visualizer": False, "has_kit_streaming_view": False}
     cfgs = visualizer_cfgs if isinstance(visualizer_cfgs, list) else [visualizer_cfgs]
     cfgs = [c for c in cfgs if c is not None]
     return {
         "has_any_visualizers": len(cfgs) > 0,
         "has_kit_visualizer": any(getattr(c, "visualizer_type", None) == "kit" for c in cfgs),
+        "has_kit_streaming_view": any(
+            getattr(c, "visualizer_type", None) == "kit" and bool(getattr(c, "streaming_view", False)) for c in cfgs
+        ),
     }
 
 
@@ -220,7 +215,7 @@ class Scan:
     """Signals gathered from one walk of the config tree (see :func:`scan`).
 
     Every field starts as a plain snapshot computed during that single walk.
-    Automatic PhysX preset selections and RTX placeholders are also recorded so
+    Automatic PhysX configurations and RTX placeholders are also recorded so
     launch-time resolution can update the physics- and renderer-related fields
     without traversing the config tree again. ``needs_kit`` is the headline launch
     decision after automatic selections are resolved: a Kit-renderer camera or Isaac
@@ -426,11 +421,11 @@ def _validate_runtime(scan: Scan, kit_sources: tuple[str, ...]) -> None:
             "\n"
             "To fix this, pick one of the following supported combinations:\n"
             "  * Keep OvPhysX physics and switch to a kitless renderer/visualizer:\n"
-            "      presets=ovphysx,ovrtx\n"
+            "      use `OvPhysxCfg` with `OVRTXRendererCfg`\n"
             "    (and use `--visualizer newton`, `--visualizer rerun`, or `--visualizer viser`, or omit\n"
             "    the visualizer argument for headless execution.)\n"
             "  * Keep Isaac Sim / Kit and switch to a Kit-compatible physics backend:\n"
-            "      presets=isaacsim_physx,isaacsim_rtx\n"
+            "      use `PhysxCfg` with `IsaacRtxRendererCfg`\n"
         )
 
     if not scan.has_ovrtx or not kit_sources:
@@ -443,11 +438,10 @@ def _validate_runtime(scan: Scan, kit_sources: tuple[str, ...]) -> None:
         "\n"
         "To fix this, pick one of the following supported combinations:\n"
         "  * Keep Isaac Sim / Kit and switch the renderer:\n"
-        "      presets=isaacsim_rtx\n"
-        "    (uses `IsaacRtxRendererCfg`, the Kit-compatible renderer.)\n"
+        "      use `IsaacRtxRendererCfg`, the Kit-compatible renderer\n"
         "  * Keep the OVRTX renderer and switch to a kitless physics backend\n"
         "    (and avoid `--visualizer kit`):\n"
-        "      presets=newton_mjwarp,ovrtx\n"
+        "      use `NewtonCfg` or `OvPhysxCfg` with `OVRTXRendererCfg`\n"
     )
 
 
@@ -533,9 +527,12 @@ def launch_simulation(
     if not needs_kit:
         apply_python_logging_level(resolve_python_logging_level(launcher_args))
 
-    if needs_kit and config_scan.has_kit_camera:
+    if needs_kit and (config_scan.has_kit_camera or config_scan.visualizer_intent.get("has_kit_streaming_view")):
         if not _get_arg(launcher_args, "enable_cameras", False):
-            logger.info("Auto-enabling camera rendering because the scene contains Kit camera sensors.")
+            logger.info(
+                "Auto-enabling camera rendering because the scene contains Kit camera sensors "
+                "or a Kit visualizer with streaming_view=True."
+            )
             _set_arg(launcher_args, "enable_cameras", True)
 
     # Resolve distributed device early, before AppLauncher or physics init.
@@ -574,6 +571,11 @@ def launch_simulation(
 
     exit_code = 0
     try:
+        # The import stays after the Kit launch decision. With no selected profile this is a
+        # no-op; with one, it installs process-wide OmniClient routing before user code runs.
+        from isaaclab.utils.assets import configure_storage_profile
+
+        configure_storage_profile()
         yield physics_cfg
     except Exception:
         exit_code = 1
@@ -609,6 +611,27 @@ def _ensure_isaac_sim_available() -> None:
             f"  or in your current shell run:\n"
             f"    {source}\n"
         )
+
+    try:
+        installed_version = importlib.metadata.version("isaacsim")
+    except importlib.metadata.PackageNotFoundError:
+        installed_version = None
+
+    if installed_version:
+        logger.error(
+            f"\n[ERROR] Isaac Sim {installed_version} is installed, but its full runtime is unavailable.\n"
+            "\n"
+            "  This environment requires Isaac Sim and Omniverse Kit.\n"
+            "    PhysX backend and Kit visualizer require Isaac Sim.\n"
+            "\n"
+            "  The current Python environment does not expose the SimulationApp API.\n"
+            f"{extra_hint}"
+            "  Install the full Isaac Sim runtime from the Isaac Lab directory by running:\n"
+            "    uv run isaaclab -i isaacsim\n"
+            "\n"
+            "  See https://isaac-sim.github.io/IsaacLab/main/source/setup/installation for details.\n"
+        )
+        raise SystemExit(1)
 
     logger.error(
         "\n[ERROR] Isaac Sim is not installed or not found on PYTHONPATH.\n"

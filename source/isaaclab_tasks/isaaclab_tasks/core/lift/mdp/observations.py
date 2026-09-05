@@ -14,7 +14,7 @@ from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, DeformableObject, RigidObject
+    from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers import ObservationTermCfg
     from isaaclab.sensors import Camera
@@ -177,7 +177,13 @@ class object_point_cloud_b(ManagerTermBase):
         # apply rotation + translation
         self.points_w = quat_apply(object_quat_w, self.points_local) + object_pos_w
         if visualize:
-            self.visualizer.visualize(translations=self.points_w.view(-1, 3))
+            environment_ids = torch.arange(env.num_envs, device=self.points_w.device).repeat_interleave(
+                self.points_w.shape[1]
+            )
+            self.visualizer.visualize(
+                translations=self.points_w.view(-1, 3),
+                environment_ids=environment_ids,
+            )
         object_point_cloud_pos_b, _ = subtract_frame_transforms(ref_pos_w, ref_quat_w, self.points_w, None)
 
         return object_point_cloud_pos_b.view(env.num_envs, -1) if flatten else object_point_cloud_pos_b
@@ -198,7 +204,9 @@ def fingers_contact_force_b(
         Tensor of shape ``(num_envs, 3 * num_sensors)`` with forces stacked horizontally as
         ``[fx, fy, fz]`` per sensor.
     """
-    force_w = [env.scene.sensors[name].data.force_matrix_w.torch.view(env.num_envs, 3) for name in contact_sensor_names]
+    force_w = [
+        env.scene.sensors[name].data.normal_force_matrix_w.torch.view(env.num_envs, 3) for name in contact_sensor_names
+    ]
     force_w = torch.stack(force_w, dim=1)
     robot: Articulation = env.scene[asset_cfg.name]
     root_link_quat_w = robot.data.root_link_quat_w.torch
@@ -271,6 +279,24 @@ def deformable_com_in_robot_root_frame(
     com_w = asset.data.root_pos_w.torch
     com_b, _ = subtract_frame_transforms(robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, com_w)
     return com_b
+
+
+def cable_segment_positions_in_robot_root_frame(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Cable segment positions in the robot root frame [m]."""
+    asset: CableObject = env.scene[asset_cfg.name]
+    robot: Articulation = env.scene[robot_cfg.name]
+    segment_pos_w = asset.data.segment_pose_w.torch[..., :3]
+    num_segments = segment_pos_w.shape[1]
+    root_pos_w = robot.data.root_pos_w.torch.unsqueeze(1).expand(-1, num_segments, -1)
+    root_quat_w = robot.data.root_quat_w.torch.unsqueeze(1).expand(-1, num_segments, -1)
+    segment_pos_b, _ = subtract_frame_transforms(
+        root_pos_w.reshape(-1, 3), root_quat_w.reshape(-1, 4), segment_pos_w.reshape(-1, 3)
+    )
+    return segment_pos_b.view(env.num_envs, -1)
 
 
 class DeformableSampledPointsInRobotRootFrame(ManagerTermBase):

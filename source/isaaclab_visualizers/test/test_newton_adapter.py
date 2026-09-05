@@ -216,7 +216,7 @@ def test_newton_visualizer_auto_creates_streaming_camera_when_scene_camera_exist
     existing_camera = SimpleNamespace(
         _view=SimpleNamespace(count=4),
         cfg=SimpleNamespace(
-            prim_path="/World/envs/env_.*/Camera",
+            prim_path="/World/envs/env_[^/]+/Camera",
             renderer_cfg=SimpleNamespace(renderer_type="newton_warp"),
         ),
     )
@@ -268,6 +268,76 @@ def test_newton_visualizer_render_rgb_array_requires_initialized_viewer():
 
     with pytest.raises(RuntimeError, match="must be initialized"):
         visualizer.render_rgb_array()
+
+
+def test_newton_viewer_camera_speed_boost_when_shift_held(monkeypatch):
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer._camera_speed = 4.0
+
+    monkeypatch.setattr(NewtonViewerGL, "is_key_down", lambda self, key: True)
+    assert viewer.camera_speed == pytest.approx(8.0)
+
+    monkeypatch.setattr(NewtonViewerGL, "is_key_down", lambda self, key: False)
+    assert viewer.camera_speed == pytest.approx(4.0)
+
+
+def test_newton_viewer_camera_speed_setter_validates(monkeypatch):
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    monkeypatch.setattr(NewtonViewerGL, "is_key_down", lambda self, key: False)
+
+    viewer.camera_speed = 6.0
+    assert viewer._camera_speed == pytest.approx(6.0)
+
+    with pytest.raises(ValueError, match="camera_speed must be finite and nonnegative"):
+        viewer.camera_speed = -1.0
+
+
+class _FakeTrainingControlsImgui:
+    """Minimal imgui double that drives ``_render_training_controls`` by label."""
+
+    def __init__(self, clicked_label: str | None = None):
+        self._clicked_label = clicked_label
+
+    def button(self, label):
+        return label == self._clicked_label
+
+    def text(self, _text):
+        pass
+
+    def slider_int(self, _label, value, _min_value, _max_value, _format):
+        return False, value
+
+    def is_item_hovered(self):
+        return False
+
+    def set_tooltip(self, _text):
+        pass
+
+
+def test_newton_gl_viewer_rendering_pause_state_stays_in_sync_with_space_key():
+    """Space toggles ``_paused`` directly (Newton's own key handler); the "Pause Rendering"
+    button and ``is_rendering_paused()`` must reflect that instead of a separately tracked flag,
+    or the UI desyncs from the actual paused state that gates rendering.
+    """
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer._paused = False
+    viewer._paused_training = False
+    viewer._reset_requested = False
+    viewer._update_frequency = 1
+
+    assert viewer.is_rendering_paused() is False
+
+    # Simulate Newton's own Space key handler (newton/_src/viewer/viewer_gui.py), which
+    # toggles ``_paused`` directly and bypasses the Isaac Lab "Pause Rendering" button.
+    viewer._paused = not viewer._paused
+
+    assert viewer.is_rendering_paused() is True
+    viewer._render_training_controls(_FakeTrainingControlsImgui())  # must not raise: no click
+
+    # The button must read the post-Space state and toggle it back correctly.
+    resume_click = _FakeTrainingControlsImgui(clicked_label="Resume Rendering")
+    viewer._render_training_controls(resume_click)
+    assert viewer.is_rendering_paused() is False
 
 
 def test_newton_viewer_particle_color_override(monkeypatch):
@@ -449,17 +519,17 @@ class _Proxy:
 
 
 class _ContactSensorData:
-    def __init__(self, net_forces_w, pos_w):
-        self.net_forces_w = _Proxy(net_forces_w)
+    def __init__(self, net_normal_forces_w, pos_w):
+        self.net_normal_forces_w = _Proxy(net_normal_forces_w)
         self.pos_w = _Proxy(pos_w)
         self.contact_pos_w = None
-        self.force_matrix_w = None
+        self.normal_force_matrix_w = None
 
 
 class _ContactSensor:
-    def __init__(self, net_forces_w, pos_w, force_threshold=1.0):
+    def __init__(self, net_normal_forces_w, pos_w, force_threshold=1.0):
         self.cfg = SimpleNamespace(force_threshold=force_threshold)
-        self.data = _ContactSensorData(net_forces_w, pos_w)
+        self.data = _ContactSensorData(net_normal_forces_w, pos_w)
 
 
 class _SceneDataProvider:
@@ -592,7 +662,7 @@ def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypat
     state = SimpleNamespace(body_q=_BodyQ())
     viewer = _Viewer()
     sensor = _ContactSensor(
-        net_forces_w=torch.tensor([[[0.0, 0.0, 2.0], [0.0, 0.0, 0.5]]], dtype=torch.float32),
+        net_normal_forces_w=torch.tensor([[[0.0, 0.0, 2.0], [0.0, 0.0, 0.5]]], dtype=torch.float32),
         pos_w=torch.tensor([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]], dtype=torch.float32),
         force_threshold=1.0,
     )
@@ -748,11 +818,17 @@ def test_eye_lookat_to_pitch_yaw_degenerate_returns_zero():
     assert yaw == 0.0
 
 
-def test_newton_rtx_visualizer_render_rgb_array_returns_none():
+def test_newton_rtx_visualizer_render_rgb_array_returns_frame():
     frame = np.zeros((4, 6, 3), dtype=np.uint8)
-    viewer = SimpleNamespace(get_frame=lambda: SimpleNamespace(numpy=lambda: frame))
+    viewer = SimpleNamespace(get_frame=lambda: frame)
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
     visualizer._viewer = viewer
+
+    assert visualizer.render_rgb_array() is frame
+
+
+def test_newton_rtx_visualizer_render_rgb_array_returns_none_when_viewer_unavailable():
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
 
     assert visualizer.render_rgb_array() is None
 
@@ -859,11 +935,51 @@ def test_newton_rtx_visualizer_fov_retries_when_camera_absent():
 
 
 def test_newton_rtx_visualizer_streaming_view_enabled():
-    # RTX streaming view is not yet supported (no display sink for the composited frame).
-    # _uses_streaming_view always returns False regardless of cfg.streaming_view, and
-    # setting streaming_view=True logs a warning to that effect.
+    # RTX streaming/tiled camera capture (via render_tiled_rgb_array) only needs the owned
+    # camera sensor, not the viewer, so _uses_streaming_view tracks cfg.streaming_view like
+    # the other Newton backends. Only the live on-screen preview panel stays unavailable,
+    # since ViewerRTX.log_image has no display sink (_log_streaming_image stays a no-op).
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(streaming_view=True))
-    assert visualizer._uses_streaming_view() is False
+    assert visualizer._uses_streaming_view() is True
 
     visualizer_off = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(streaming_view=False))
     assert visualizer_off._uses_streaming_view() is False
+
+
+def test_newton_rtx_visualizer_setup_streaming_view_creates_owned_camera(monkeypatch):
+    """_setup_streaming_view must create the owned camera sensor on RTX, not return early."""
+    generated_camera = object()
+    create_calls = []
+
+    def _create_visualizer_camera(**kwargs):
+        create_calls.append(kwargs)
+        return generated_camera, ["/World/envs/env_0/VisualizerCamera"], True, ("camera-key",)
+
+    monkeypatch.setattr(newton_visualizer_module, "create_visualizer_camera", _create_visualizer_camera)
+
+    visualizer = NewtonRTXVisualizer(
+        NewtonRTXVisualizerCfg(
+            streaming_view=True,
+            streaming_envs=1,
+            streaming_cam_eye=(3.0, 3.0, 3.0),
+            streaming_cam_target_prim_path="/World/envs/*/Robot/base",
+            window_width=960,
+            window_height=600,
+        )
+    )
+    visualizer._scene_data_provider = SimpleNamespace(get_camera_sensors=lambda: {})
+    visualizer._update_owned_camera_poses = lambda: None
+
+    visualizer._setup_streaming_view(num_envs=1)
+
+    assert visualizer._camera_sensor is generated_camera
+    assert len(create_calls) == 1
+    assert create_calls[0]["target_prim_path"] == "/World/envs/*/Robot/base"
+    assert create_calls[0]["eye"] == (3.0, 3.0, 3.0)
+
+    # _log_streaming_image stays a no-op (no on-screen preview sink), but render_tiled_rgb_array
+    # still builds the composite from the owned camera sensor for headless capture. VideoRecorder
+    # gates streaming-view capture on hasattr(viz, "render_tiled_rgb_array"), so this attribute
+    # must be present on RTX (it lives on the shared NewtonVisualizer base, not NewtonGLVisualizer).
+    visualizer._log_streaming_image()
+    assert hasattr(visualizer, "render_tiled_rgb_array")

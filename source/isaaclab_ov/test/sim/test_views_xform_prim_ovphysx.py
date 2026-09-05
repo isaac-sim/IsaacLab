@@ -74,7 +74,7 @@ def test_world_attached_source_prim_expands_from_clone_plan():
         sim_utils.standardize_xform_ops(prim)
         prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.25, -0.5, 1.0))
 
-        view = FrameView("/World/envs/env_.*/WorldCamera", device=device)
+        view = FrameView("/World/envs/env_[^/]+/WorldCamera", device=device)
 
         assert not stage.GetPrimAtPath("/World/envs/env_1/WorldCamera").IsValid()
         assert view.count == scene.num_envs
@@ -120,7 +120,7 @@ def test_reinitialization_closes_previous_root_view(monkeypatch):
 # Note: an earlier test ``test_view_errors_when_newton_model_not_required`` was
 # removed when ``OvPhysxFrameView`` was reworked to read poses from a direct
 # OVPhysX ``RIGID_BODY_POSE`` tensor binding instead of the SDP's Newton state.
-# The view no longer depends on ``requires_newton_model``.
+# The view no longer depends on the ``NEWTON_MODEL`` scene-data requirement.
 
 
 # ==================================================================
@@ -192,7 +192,7 @@ def view_factory():
             prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
 
         sim.reset()
-        view = OvPhysxFrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
+        view = OvPhysxFrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
 
         # Capture binding row order, populate _pose_buf once with the live spawn poses,
         # then detach the binding so subsequent reads do not overwrite the buffer.

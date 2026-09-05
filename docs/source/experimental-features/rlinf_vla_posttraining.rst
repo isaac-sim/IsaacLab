@@ -51,6 +51,11 @@ Architecture
 Prerequisites
 -------------
 
+.. important::
+
+   RLinf post-training currently supports Linux only. Compatible distributions
+   include Ubuntu and Debian, Red Hat-family distributions, and Arch Linux.
+
 - **Isaac Lab** installed and configured
 - **Isaac-GR00T** repo (for VLA inference and data transforms)
 - A **pretrained VLA checkpoint** in HuggingFace format. A pretrained GR00T checkpoint for
@@ -104,16 +109,6 @@ If Step 4 fails, skip installation of flash-attn and apply this patch instead:
    cd Isaac-GR00T
    git apply /path/to/IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
 
-.. note::
-
-   **Windows 11**: If ``git apply`` fails with ``error: corrupt patch at line 41``,
-   use ``patch.exe`` (bundled with Git for Windows) instead:
-
-   .. code-block:: bash
-
-      cd Isaac-GR00T
-      "C:\Program Files\Git\usr\bin\patch.exe" -p1 < \path\to\IsaacLab\scripts\imitation_learning\locomanipulation_sdg\gr00t\no_flash_attn.patch
-
 The patch switches GR00T to PyTorch SDPA, so flash-attn is no longer required.
 The training and evaluation commands below work unchanged.
 
@@ -139,17 +134,17 @@ Quick Start
 
       .. code-block:: bash
 
-         uv run isaaclab train --rl_library rlinf \
+         uv run --extra rlinf isaaclab train --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
-             --model_path /path/to/checkpoint
+             --model_path /path/to/base_model
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
+   .. tab-item:: isaaclab.sh
 
       .. code-block:: bash
 
          ./isaaclab.sh train --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
-             --model_path /path/to/checkpoint
+             --model_path /path/to/base_model
 
 **Evaluation** — Evaluate a pretrained (base) model with video recording:
 
@@ -159,12 +154,12 @@ Quick Start
 
       .. code-block:: bash
 
-         uv run --extra video isaaclab play --rl_library rlinf \
+         uv run --extra rlinf,video isaaclab play --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model \
              --video
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
+   .. tab-item:: isaaclab.sh
 
       .. code-block:: bash
 
@@ -181,24 +176,24 @@ Quick Start
 
       .. code-block:: bash
 
-         uv run --extra video isaaclab play --rl_library rlinf \
+         uv run --extra rlinf,video isaaclab play --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model \
-             --rl_model_path /path/to/checkpoints/global_step_N \
+             --checkpoint /path/to/checkpoints/global_step_N \
              --video
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
+   .. tab-item:: isaaclab.sh
 
       .. code-block:: bash
 
          ./isaaclab.sh play --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model \
-             --rl_model_path /path/to/checkpoints/global_step_N \
+             --checkpoint /path/to/checkpoints/global_step_N \
              --video
 
 Here ``--model_path`` points to the HuggingFace-format base model (with
-``config.json``), and ``--rl_model_path`` points to the RLinf checkpoint
+``config.json``), and ``--checkpoint`` points to the RLinf checkpoint
 directory (the ``global_step_<N>`` folder). The script loads the model
 architecture from the base model and overlays the RL-finetuned weights
 (``full_weights.pt``) from the checkpoint.
@@ -207,11 +202,6 @@ architecture from the base model and overlays the RL-finetuned weights
 
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
-
-.. note::
-
-   **Windows support is still being optimized.** For now, Linux is recommended for
-   RLinf training and evaluation.
 
 Checkpoints
 -----------
@@ -226,8 +216,9 @@ The placeholders are configurable in the task YAML
 - ``<experiment_name>`` — ``runner.logger.experiment_name`` (default: ``test_gr00t``)
 - ``<N>`` — increments every ``runner.save_interval`` epochs
 
-The exact path is printed at startup as ``[INFO] Logging to: ...``. To resume,
-pass the ``global_step_<N>`` directory via ``--resume_dir``.
+The exact path is printed at startup as ``[INFO] Logging to: ...``. To resume training, pass the
+``global_step_<N>`` directory via ``--checkpoint``. For playback, ``--checkpoint`` also
+accepts ``latest`` and ``best``; both select the newest saved RLinf checkpoint.
 
 .. tip::
 

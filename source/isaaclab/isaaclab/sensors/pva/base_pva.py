@@ -30,9 +30,9 @@ class BasePva(SensorBase):
 
     .. note::
 
-        Depending on the backend, accelerations may be computed via numerical differentiation of velocities
-        or read directly from the solver. For numerical backends, accuracy depends on the physics timestep;
-        we recommend at least 200 Hz.
+        Accelerations are read directly from the physics solver on every backend and transported
+        from the body center of mass to the sensor frame, so they do not depend on the sensor
+        update period.
 
     .. note::
 

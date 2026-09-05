@@ -40,11 +40,14 @@ wp.config.enable_backward = False
 # Standard library imports
 import argparse
 import contextlib
+import sys
 from typing import TYPE_CHECKING
 
 # Isaac Lab AppLauncher
 from isaaclab.app import AppLauncher
 from isaaclab.utils.string import list_intersection, string_to_callable
+
+from isaaclab_tasks.utils import setup_preset_cli
 
 if TYPE_CHECKING:
     from isaaclab_teleop import XrCameraFeedSession
@@ -133,7 +136,7 @@ parser.add_argument(
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
-args_cli, remaining_args = parser.parse_known_args()
+args_cli, hydra_args = setup_preset_cli(parser)
 
 # Validate required arguments
 if args_cli.task is None:
@@ -155,10 +158,9 @@ if args_cli.external_callback:
     external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
     remaining_args_env_registration = external_callback_function()
 
-# Error on unrecognized arguments.
-unrecognized_args = list_intersection(remaining_args, remaining_args_env_registration)
-if unrecognized_args:
-    parser.error(f"unrecognized arguments: {' '.join(unrecognized_args)}")
+# Hand arguments consumed by neither this parser nor the callback over to Hydra.
+hydra_args = list_intersection(hydra_args, remaining_args_env_registration)
+sys.argv = [sys.argv[0]] + hydra_args
 
 """Rest everything follows."""
 
@@ -190,11 +192,17 @@ import isaaclab_mimic.envs  # noqa: F401
 from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subtask_instructions
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
+from isaaclab_tasks.utils import resolve_task_config
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 logger = logging.getLogger(__name__)
 
 _CLOUDXR_ENV_SHORTHANDS: dict[str, str] = {}
+
+
+def _never_terminate(env: gym.Env) -> torch.Tensor:
+    """Return a false termination signal for every environment."""
+    return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
 
 
 def _resolve_cloudxr_env(value: str | None, xr_enabled: bool = False) -> str | None:
@@ -326,9 +334,11 @@ def create_environment_config(
     Raises:
         Exception: If parsing the environment configuration fails
     """
-    # parse configuration
+    # Resolve the task configuration through Hydra so CLI presets are applied.
     try:
-        env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=1)
+        env_cfg, _ = resolve_task_config(args_cli.task, "")
+        env_cfg.sim.device = args_cli.device
+        env_cfg.scene.num_envs = 1
         env_cfg.env_name = args_cli.task.split(":")[-1]
     except Exception as e:
         logger.error(f"Failed to parse environment configuration: {e}")
@@ -341,11 +351,12 @@ def create_environment_config(
         not teleop_device_explicitly_set and hasattr(env_cfg, "isaac_teleop") and env_cfg.isaac_teleop is not None
     )
 
-    # extract success checking function to invoke in the main loop
-    success_term = None
-    if hasattr(env_cfg.terminations, "success"):
-        success_term = env_cfg.terminations.success
-        env_cfg.terminations.success = None
+    # Extract the success condition for manual evaluation in the main loop. Keep
+    # an inert term registered under the same name so rewards and other manager
+    # terms that reference "success" can still resolve it during initialization.
+    success_term = getattr(env_cfg.terminations, "success", None)
+    if success_term is not None:
+        env_cfg.terminations.success = success_term.replace(func=_never_terminate, params={})
     else:
         logger.warning(
             "No success termination term was found in the environment."
@@ -390,7 +401,7 @@ def create_environment(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg) -> gym.En
 
     Args:
         env_cfg: The environment configuration object that defines the environment properties.
-            This should be an instance of EnvCfg created by parse_env_cfg().
+            This should be an instance of EnvCfg created by resolve_task_config().
 
     Returns:
         gym.Env: A Gymnasium environment instance for the specified task.

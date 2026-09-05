@@ -6,16 +6,20 @@
 import os
 import platform
 import shutil
+import site
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import IO, Any
 
-# Path to Isaac Lab installation.
-ISAACLAB_ROOT = Path(__file__).parents[4].resolve()
+from isaaclab.paths import ISAACLAB_ROOT
 
 # Default path to look for Isaac Sim is _isaac_sim symlink.
 DEFAULT_ISAAC_SIM_PATH = ISAACLAB_ROOT / "_isaac_sim"
+
+# Marker written into live Isaac Sim source builds linked by ``--isaacsim_source``.
+ISAAC_SIM_SOURCE_BUILD_MARKER = ".isaaclab_source_build"
 
 # Short script names supported by ``isaaclab -p``.
 _PYTHON_SCRIPT_ALIASES = {
@@ -41,6 +45,82 @@ def is_arm() -> bool:
     """Check if the architecture is ARM (likely Mac)."""
     machine = platform.machine().lower()
     return "aarch64" in machine or "arm64" in machine
+
+
+def is_isaac_sim_source_build(isaac_sim_path: Path = DEFAULT_ISAAC_SIM_PATH) -> bool:
+    """Check whether an Isaac Sim directory is a live source build managed by Isaac Lab.
+
+    Args:
+        isaac_sim_path: Isaac Sim installation directory.
+
+    Returns:
+        Whether the source-build marker exists in the directory.
+    """
+    return (isaac_sim_path / ISAAC_SIM_SOURCE_BUILD_MARKER).is_file()
+
+
+def _pyvenv_home(venv_path: Path) -> Path | None:
+    """Return the interpreter directory a virtual environment was created from.
+
+    Args:
+        venv_path: Virtual environment root.
+
+    Returns:
+        The ``home`` directory recorded in ``pyvenv.cfg``, or ``None`` when it cannot be read.
+    """
+    config = venv_path / "pyvenv.cfg"
+    if not config.is_file():
+        return None
+    for line in config.read_text(encoding="utf-8").splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key.strip() == "home":
+            return Path(value.strip())
+    return None
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    """Check whether a path resolves inside a directory."""
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    return resolved == root or root in resolved.parents
+
+
+def runs_isaac_sim_python(
+    isaac_sim_path: Path = DEFAULT_ISAAC_SIM_PATH, python_exe: str | None = None, venv_path: str | None = None
+) -> bool:
+    """Check whether the interpreter about to run Isaac Sim is the package's own Python.
+
+    A virtual environment adds a ``site-packages`` directory but reuses the interpreter it was
+    created from, so one created on the Isaac Sim package's Python runs that exact binary and loads
+    Kit's extension modules unchanged. Environments that supply their own interpreter and native
+    libraries, such as conda, do not qualify: a conda environment has no ``pyvenv.cfg``, and a
+    virtual environment layered on one records that interpreter instead.
+
+    Args:
+        isaac_sim_path: Isaac Sim installation directory.
+        python_exe: Interpreter that will be launched, if known.
+        venv_path: Virtual environment root, usually ``VIRTUAL_ENV``.
+
+    Returns:
+        Whether the interpreter resolves inside ``isaac_sim_path``. Anything unproven is ``False``
+        so the caller keeps rejecting environments it cannot verify.
+    """
+    try:
+        root = isaac_sim_path.resolve()
+    except OSError:
+        return False
+
+    # ``uv venv`` symlinks ``bin/python`` at its base interpreter; resolving it is the direct answer.
+    if python_exe and _is_within(Path(python_exe), root):
+        return True
+    # Fall back to the recorded base for environments whose interpreter is a copy, not a symlink.
+    if venv_path:
+        home = _pyvenv_home(Path(venv_path))
+        if home is not None and _is_within(home, root):
+            return True
+    return False
 
 
 def _colorize(text: str, color: str, stream: IO[str]) -> str:
@@ -196,6 +276,8 @@ def run_command(
     check: bool = True,
     stdout: int | IO[str] | None = None,
     stderr: int | IO[str] | None = None,
+    retry_attempts: int = 1,
+    retry_delay_seconds: float = 3.0,
     **kwargs: Any,
 ) -> subprocess.CompletedProcess[Any]:
     """Run a command in a subprocess.
@@ -208,11 +290,18 @@ def run_command(
         check: Whether to raise on non-zero exit code.
         stdout: Standard output stream or redirection target.
         stderr: Standard error stream or redirection target.
+        retry_attempts: Total number of attempts for a failed command.
+        retry_delay_seconds: Delay between attempts [s].
         **kwargs: Additional keyword arguments forwarded to ``subprocess.run``.
 
     Returns:
         Result object returned by ``subprocess.run``.
     """
+
+    if retry_attempts < 1:
+        raise ValueError("retry_attempts must be at least 1")
+    if retry_delay_seconds < 0:
+        raise ValueError("retry_delay_seconds must be non-negative")
 
     if cwd is None:
         cwd = ISAACLAB_ROOT
@@ -228,22 +317,39 @@ def run_command(
     if isinstance(cmd, (list, tuple)) and is_windows():
         cmd = _escape_for_cmd_exe(cmd)
 
-    try:
-        return subprocess.run(
-            cmd,
-            cwd=cwd,
-            env=env,
-            shell=shell,
-            check=check,
-            stdout=stdout,
-            stderr=stderr,
-            **kwargs,
+    for attempt in range(1, retry_attempts + 1):
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=cwd,
+                env=env,
+                shell=shell,
+                check=check,
+                stdout=stdout,
+                stderr=stderr,
+                **kwargs,
+            )
+        except subprocess.CalledProcessError as error:
+            returncode = error.returncode
+            result = None
+        except KeyboardInterrupt:
+            sys.exit(130)
+        else:
+            returncode = result.returncode
+
+        if returncode == 0 or attempt == retry_attempts:
+            if result is not None:
+                return result
+            print_error(f'Command failed with code {returncode}: "{command_str}"')
+            sys.exit(returncode)
+
+        print_warning(
+            f"Command failed with code {returncode}; retrying in {retry_delay_seconds:g} seconds "
+            f'(attempt {attempt + 1}/{retry_attempts}): "{command_str}"'
         )
-    except subprocess.CalledProcessError as e:
-        print_error(f'Command failed with code {e.returncode}: "{command_str}"')
-        sys.exit(e.returncode)
-    except KeyboardInterrupt:
-        sys.exit(130)
+        time.sleep(retry_delay_seconds)
+
+    raise AssertionError("unreachable")
 
 
 def _is_virtualenv_python(python_exe: str | Path) -> bool:
@@ -570,7 +676,57 @@ def run_python_command(
         [subprocess.CompletedProcess] Result returned by ``subprocess.run``.
     """
 
-    cmd = [extract_python_exe()]
+    python_exe = extract_python_exe()
+    cmd = [python_exe]
+
+    # A source build linked at ``_isaac_sim`` must load its live Kit and extension paths, but the
+    # dependencies managed by uv should still come from the active environment. Isaac Sim's Python
+    # launcher supports exactly this combination through its ``PYTHONEXE`` override. The shell
+    # wrappers already configure ``ISAAC_PATH`` before starting this CLI, so only direct invocations
+    # such as ``uv run isaaclab train`` need to delegate through the launcher here.
+    command_env = os.environ if env is None else env
+    configured_isaac_path = command_env.get("ISAAC_PATH")
+    local_sim = DEFAULT_ISAAC_SIM_PATH
+    python_launcher = local_sim / ("python.bat" if is_windows() else "python.sh")
+    using_virtual_environment = bool(
+        command_env.get("VIRTUAL_ENV")
+        or command_env.get("CONDA_PREFIX")
+        or sys.prefix != sys.base_prefix
+        or _is_virtualenv_python(python_exe)
+    )
+    if (
+        local_sim.is_dir()
+        and python_launcher.is_file()
+        and not is_isaac_sim_source_build(local_sim)
+        and using_virtual_environment
+        and not runs_isaac_sim_python(local_sim, python_exe, command_env.get("VIRTUAL_ENV"))
+    ):
+        print_error("Downloaded Isaac Sim packages cannot be combined with a Python virtual environment.")
+        print_error(
+            "Use the bundled Python through isaaclab.sh/isaaclab.bat, create the virtual environment on "
+            f"that Python ('uv venv --python {local_sim / 'kit' / 'python' / 'bin' / 'python3'}'), or "
+            "remove '_isaac_sim' and install Isaac Sim from pip in the virtual environment."
+        )
+        raise SystemExit(1)
+    isaac_env_active = (
+        configured_isaac_path is not None and Path(configured_isaac_path).resolve() == local_sim.resolve()
+    )
+    if local_sim.is_dir() and python_launcher.is_file() and not isaac_env_active:
+        env = dict(command_env)
+        env["PYTHONEXE"] = python_exe
+        source_paths = [
+            local_sim / "python_packages",
+            local_sim / "exts" / "isaacsim.simulation_app",
+            local_sim / "kit" / "kernel" / "py",
+            local_sim / "kit" / "plugins" / "bindings-python",
+            Path(site.getsitepackages()[0]),
+        ]
+        existing_pythonpath = env.get("PYTHONPATH")
+        python_paths = [str(path) for path in source_paths if path.is_dir()]
+        if existing_pythonpath:
+            python_paths.append(existing_pythonpath)
+        env["PYTHONPATH"] = os.pathsep.join(python_paths)
+        cmd = [str(python_launcher)]
 
     if is_module:
         cmd.append("-m")

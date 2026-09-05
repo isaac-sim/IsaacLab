@@ -25,7 +25,7 @@ Usage example::
         --num_envs 16 \\
         presets=newton_mjwarp
 
-Use ``isaaclab benchmark startup-multigpu`` to profile rank 0 while every GPU launches
+Use ``isaaclab benchmark startup_multigpu`` to profile rank 0 while every GPU launches
 concurrently; see :mod:`isaaclab.benchmark.entrypoints.multigpu`.
 """
 
@@ -286,7 +286,8 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             first_step_time_begin = time.perf_counter_ns()
             first_step_profile.enable()
             try:
-                env.step(actions)
+                with torch.inference_mode():
+                    env.step(actions)
             finally:
                 first_step_profile.disable()
 
@@ -327,7 +328,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                     ],
                 )
 
-            cfg = capture.run_config_from_presets(hydra_args, env_cfg=env_cfg)
+            cfg = capture.run_config_from_env_cfg(env_cfg)
             stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
             seed = args.seed if args.seed is not None else 0
             run_id = capture.synth_run_id(None, cfg.physics_backend, args.task, seed, stamp)
@@ -355,7 +356,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                         {"name": "seed", "data": args.seed},
                         {"name": "num_envs", "data": args.num_envs},
                         {"name": "top_n", "data": args.top_n},
-                        {"name": "presets", "data": ",".join(cfg.presets)},
                         {"name": "world_size", "data": distributed.world_size},
                     ]
                 },

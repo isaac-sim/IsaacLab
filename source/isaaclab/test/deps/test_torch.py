@@ -10,7 +10,6 @@ import torch.utils.benchmark as benchmark
 pytestmark = [pytest.mark.unit, pytest.mark.arm_ci]
 
 
-@pytest.mark.isaacsim_ci
 def test_array_slicing():
     """Check that using ellipsis and slices work for torch tensors."""
 
@@ -33,7 +32,6 @@ def test_array_slicing():
     assert my_tensor[:, 0, 0].shape == (400,)
 
 
-@pytest.mark.isaacsim_ci
 def test_array_circular():
     """Check circular buffer implementation in torch."""
 
@@ -77,7 +75,6 @@ def test_array_circular():
     assert torch.allclose(my_tensor_4, my_tensor.roll(1, dims=1))
 
 
-@pytest.mark.isaacsim_ci
 def test_array_circular_copy():
     """Check that circular buffer implementation in torch is copying data."""
 
@@ -96,7 +93,6 @@ def test_array_circular_copy():
     assert torch.allclose(my_tensor_1, my_tensor_clone.roll(1, dims=1))
 
 
-@pytest.mark.isaacsim_ci
 def test_array_multi_indexing():
     """Check multi-indexing works for torch tensors."""
 
@@ -108,7 +104,6 @@ def test_array_multi_indexing():
         my_tensor[[0, 1, 2, 3], [0, 1, 2, 3, 4]]
 
 
-@pytest.mark.isaacsim_ci
 def test_array_single_indexing():
     """Check how indexing effects the returned tensor."""
 
@@ -132,7 +127,6 @@ def test_array_single_indexing():
     assert my_slice.untyped_storage().data_ptr() != my_tensor.untyped_storage().data_ptr()
 
 
-@pytest.mark.isaacsim_ci
 def test_logical_or():
     """Test bitwise or operation."""
 

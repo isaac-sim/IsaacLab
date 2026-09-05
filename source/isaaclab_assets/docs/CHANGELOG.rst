@@ -1,6 +1,53 @@
 Changelog
 ---------
 
+0.6.6 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated ``SO101_CFG`` to use the SysID-capable asset and resolve actuator gains, friction, armature,
+  and limits from its default Newton MJWarp USD variant. The USD-authored actuator group is now named ``usd``. The
+  config also uses the workshop operational joint pose, inherits root fixation from the USD, disables
+  self-collisions, enables contact sensors, and applies a 0.98 soft joint-limit factor. Tasks that require the
+  previous simulation gains should migrate to ``SO101_HIGH_PD_CFG``, which retains the prior high-PD actuator
+  behavior.
+
+Fixed
+^^^^^
+
+* Fixed ``SO101_CFG`` running convex decomposition instead of using the asset's authored convex hulls.
+
+
+0.6.5 (2026-08-21)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed self-collisions being uncontrolled under Newton for
+  :data:`~isaaclab_assets.robots.allegro.ALLEGRO_HAND_CFG`,
+  :data:`~isaaclab_assets.robots.shadow_hand.SHADOW_HAND_CFG`,
+  :data:`~isaaclab_assets.robots.shadow_hand.SHADOW_HAND_NEWTON_CFG`, and
+  :data:`~isaaclab_assets.robots.kuka_allegro.KUKA_ALLEGRO_CFG`. Their ``articulation_props`` used
+  the deprecated PhysX-only ``ArticulationRootPropertiesCfg``, which never authored the
+  ``newton:selfCollisionEnabled`` attribute Newton's schema resolver checks. They now pass a
+  ``PhysxArticulationCfg`` + ``NewtonArticulationCfg`` fragment pair so ``enabled_self_collisions``
+  is authored on both backends explicitly.
+
+
+0.6.4 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+
 0.6.3 (2026-08-05)
 ~~~~~~~~~~~~~~~~~~
 

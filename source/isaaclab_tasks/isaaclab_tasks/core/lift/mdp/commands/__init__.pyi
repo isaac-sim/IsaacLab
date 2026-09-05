@@ -6,6 +6,7 @@
 __all__ = [
     "DeformableUniformPoseCommandCfg",
     "ObjectUniformPoseCommandCfg",
+    "CableUniformPoseCommandCfg",
 ]
 
-from .pose_commands_cfg import DeformableUniformPoseCommandCfg, ObjectUniformPoseCommandCfg
+from .pose_commands_cfg import CableUniformPoseCommandCfg, DeformableUniformPoseCommandCfg, ObjectUniformPoseCommandCfg

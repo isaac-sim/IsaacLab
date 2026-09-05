@@ -843,6 +843,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         wp.copy(self.data._cpu_body_mass, self.data._body_mass.data)
+        wp.synchronize_stream(self._device)
         self._binding_write(
             TT.BODY_MASS,
             self.data._cpu_body_mass,
@@ -888,6 +889,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         wp.copy(self.data._cpu_body_mass, self.data._body_mass.data)
+        wp.synchronize_stream(self._device)
         self._binding_write(TT.BODY_MASS, self.data._cpu_body_mass, env_ids=env_ids, device="cpu")
 
     def set_coms_index(
@@ -926,6 +928,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         self.data._reset_body_com_pose_b_dependents()
         wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
+        wp.synchronize_stream(self._device)
         self._binding_write(
             TT.BODY_COM_POSE,
             self.data._cpu_body_coms,
@@ -973,6 +976,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         self.data._reset_body_com_pose_b_dependents()
         wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
+        wp.synchronize_stream(self._device)
         self._binding_write(
             TT.BODY_COM_POSE,
             self.data._cpu_body_coms,
@@ -1018,6 +1022,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         wp.copy(self.data._cpu_body_inertia, self.data._body_inertia.data)
+        wp.synchronize_stream(self._device)
         self._binding_write(
             TT.BODY_INERTIA,
             self.data._cpu_body_inertia,
@@ -1066,6 +1071,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self._device,
         )
         wp.copy(self.data._cpu_body_inertia, self.data._body_inertia.data)
+        wp.synchronize_stream(self._device)
         self._binding_write(
             TT.BODY_INERTIA,
             self.data._cpu_body_inertia,
@@ -1105,7 +1111,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             # IsaacLab paths may use ``.*`` regex or ``{ENV_REGEX_NS}`` placeholder; ovphysx
             # ``create_tensor_binding`` expects fnmatch globs.
             pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_prim_path_expr)
-            pattern = re.sub(r"\.\*", "*", pattern)
+            pattern = sim_utils.path_expr_to_glob(pattern)
             self._prim_paths.append(pattern)
             self._body_names_list.append(name)
 
@@ -1176,6 +1182,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._sim_view_ids_views: dict[int, wp.array] = {}
         self._cpu_all_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
         wp.copy(self._cpu_all_view_ids, self._ALL_VIEW_INDICES)
+        wp.synchronize_stream(self._device)
         self._cpu_view_ids = wp.empty(num_view_ids, dtype=wp.int32, device="cpu", pinned=True)
         self._cpu_view_ids_views: dict[int, wp.array] = {}
 

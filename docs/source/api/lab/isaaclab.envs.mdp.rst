@@ -12,6 +12,11 @@ Observations
 Actions
 -------
 
+.. important::
+
+    ``PinkInverseKinematicsAction`` is supported only on Linux. Tasks configured with this action cannot run on
+    Windows because Pink IK and its dependencies are not available there.
+
 .. automodule:: isaaclab.envs.mdp.actions
 
 .. automodule:: isaaclab.envs.mdp.actions.actions_cfg
@@ -23,6 +28,9 @@ Events
 ------
 
 .. automodule:: isaaclab.envs.mdp.events
+    :members:
+
+.. automodule:: isaaclab.envs.mdp.visual_events
     :members:
 
 Commands

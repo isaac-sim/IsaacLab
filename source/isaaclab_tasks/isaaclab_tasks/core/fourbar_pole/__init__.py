@@ -20,5 +20,6 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.fourbar_pole_manager_env_cfg:FourbarPoleSwingupEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_manager_ppo_cfg:FourbarPolePPORunnerCfg",
+        "default_agent": "rsl_rl",
     },
 )

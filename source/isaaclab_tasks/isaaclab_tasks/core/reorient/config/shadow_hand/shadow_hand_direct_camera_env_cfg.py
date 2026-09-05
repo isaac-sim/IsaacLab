@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import isaaclab.sim as sim_utils
+from isaaclab.renderers import RendererCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
@@ -17,15 +18,19 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 
 def validate_shadow_hand_camera_settings(
-    tiled_camera: CameraCfg | ShadowHandTiledCameraCfg,
+    tiled_camera: CameraCfg,
     feature_extractor: FeatureExtractorCfg,
 ) -> None:
-    """Validate one resolved or defaulted Shadow Hand camera pipeline."""
-    while isinstance(tiled_camera, PresetCfg):
-        tiled_camera = tiled_camera.default
+    """Validate one concrete Shadow Hand camera pipeline."""
+    if not isinstance(tiled_camera, CameraCfg):
+        raise TypeError(
+            f"Shadow Hand camera validation requires a concrete CameraCfg, got {type(tiled_camera).__name__}."
+        )
     renderer_cfg = tiled_camera.renderer_cfg
-    while isinstance(renderer_cfg, PresetCfg):
-        renderer_cfg = renderer_cfg.default
+    if renderer_cfg is not None and not isinstance(renderer_cfg, RendererCfg):
+        raise TypeError(
+            f"Shadow Hand camera validation requires a concrete RendererCfg or None, got {type(renderer_cfg).__name__}."
+        )
 
     renderer_type = getattr(renderer_cfg, "renderer_type", None)
     warp_supported = {
@@ -69,13 +74,17 @@ class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     still be selected via the ``presets`` CLI argument.
     """
 
-    prim_path: str = "/World/envs/env_.*/Camera"
+    prim_path: str = "{ENV_REGEX_NS}/Camera"
     offset: CameraCfg.OffsetCfg = CameraCfg.OffsetCfg(
         pos=(0, -0.35, 1.0), rot=(0.0, 0.7071, 0.0, 0.7071), convention="world"
     )
     data_types: list[str] = []
     spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
-        focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
+        spawn_path="/World/envs/env_0/Camera",
+        focal_length=24.0,
+        focus_distance=400.0,
+        horizontal_aperture=20.955,
+        clipping_range=(0.1, 20.0),
     )
     width: int = 120
     height: int = 120
@@ -140,8 +149,7 @@ class ShadowHandTiledCameraCfg(PresetCfg):
         benchmark task, which disables the feature extractor, to measure pure
         depth-rendering throughput, e.g.::
 
-            presets=depth          # depth rendering, default renderer
-            presets=depth,newton_renderer     # depth rendering with Newton renderer
+            presets=depth          # depth rendering with the default Newton renderer
             presets=depth,ovrtx    # depth rendering with OVRTX renderer
     """
 
@@ -163,12 +171,6 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
     # env
     observation_space = 164 + 27  # state observation + vision CNN embedding
     state_space = 187 + 27  # asymmetric states + vision CNN embedding
-
-    def __post_init__(self):
-        # only the RTX tiled camera renders the default RGB/depth/semantic set
-        super().__post_init__()
-        for backend_cfg in (self.sim.physics, self.robot_cfg):
-            backend_cfg.default = backend_cfg.isaacsim_physx
 
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""

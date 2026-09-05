@@ -1,487 +1,380 @@
+.. _train_multigpu-command:
+
 Multi-GPU and Multi-Node Training
 =================================
 
-.. currentmodule:: isaaclab
+Scale one reinforcement learning job across the GPUs in a workstation or across
+several nodes with ``train_multigpu``. Isaac Lab starts one training process per
+GPU, gives each process its own simulation environments, and synchronizes policy
+updates across the processes.
 
-Isaac Lab supports multi-GPU and multi-node reinforcement learning. Currently, this feature is only
-available for RL-Games, RSL-RL and skrl libraries workflows. We are working on extending this feature to
-other workflows.
+The same launcher model is used in three multi-GPU benchmarks for measuring startup,
+simulation, and end-to-end training performance.
 
 .. attention::
 
-    Multi-GPU and multi-node training is only supported on Linux. Windows support is not available at this time.
-    This is due to limitations of the NCCL library on Windows.
-
-
-Multi-GPU Training
-------------------
-
-Isaac Lab supports the following multi-GPU training frameworks:
-
-* `Torchrun <https://docs.pytorch.org/docs/stable/elastic/run.html>`_ through `PyTorch distributed <https://pytorch.org/docs/stable/distributed.html>`_
-* `JAX distributed <https://jax.readthedocs.io/en/latest/jax.distributed.html>`_
-
-Pytorch Torchrun Implementation
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-We are using `Pytorch Torchrun <https://docs.pytorch.org/docs/stable/elastic/run.html>`_ to manage multi-GPU
-training. Torchrun manages the distributed training by:
-
-* **Process Management**: Launching one process per GPU, where each process is assigned to a specific GPU.
-* **Script Execution**: Running the same training script (e.g., RL Games trainer) on each process.
-* **Environment Instances**: Each process creates its own instance of the Isaac Lab environment.
-* **Gradient Synchronization**: Aggregating gradients across all processes and broadcasting the synchronized
-  gradients back to each process after each training step.
-
-.. tip::
-    Check out this `3 minute youtube video from PyTorch <https://www.youtube.com/watch?v=Cvdhwx-OBBo&list=PL_lsbAsL_o2CSuhUhJIiW0IkdT5C2wGWj&index=2>`_
-    to understand how Torchrun works.
-
-The key components in this setup are:
-
-* **Torchrun**: Handles process spawning, communication, and gradient synchronization.
-* **RL Library**: The reinforcement learning library that runs the actual training algorithm.
-* **Isaac Lab**: Provides the simulation environment that each process instantiates independently.
-
-Under the hood, Torchrun uses the `DistributedDataParallel <https://docs.pytorch.org/docs/2.7/notes/ddp.html#internal-design>`_
-module to manage the distributed training. When training with multiple GPUs using Torchrun, the following happens:
-
-* Each GPU runs an independent process
-* Each process executes the full training script
-* Each process maintains its own:
-
-  * Isaac Lab environment instance (with *n* parallel environments)
-  * Policy network copy
-  * Experience buffer for rollout collection
-
-* All processes synchronize only for gradient updates
-
-For a deeper dive into how Torchrun works, checkout
-`PyTorch Docs: DistributedDataParallel - Internal Design <https://pytorch.org/docs/stable/notes/ddp.html#internal-design>`_.
-
-Console Output From Multiple Ranks
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Because every rank executes the full training script, every rank also writes the same startup banners,
-simulation warnings, and model summaries. Without filtering, that output is repeated once per GPU, which
-makes an eight-GPU log nearly unreadable.
-
-``train_multigpu`` therefore restricts console output to local rank 0 by default, by passing torchrun's
-``--local_ranks_filter``. Per-iteration training metrics are already reported by global rank 0 alone, so
-the filtered log contains the same information with none of the repetition. Because the filter is applied
-per node, a multi-node launch shows one copy of the startup output per node rather than one in total.
-
-Failures are still reported. ``train.py`` wraps its entry point in
-`torch.distributed.elastic record <https://pytorch.org/docs/stable/elastic/errors.html>`_, so when any
-rank crashes, torchrun names the failing rank and prints its traceback as the root cause, even though
-that rank's console output is otherwise hidden.
-
-To see the raw output from every rank, for example when ranks disagree about the environment they built:
-
-.. code-block:: shell
-
-    uv run isaaclab train_multigpu --rl_library rsl_rl --task Isaac-Cartpole --log_all_ranks
-
-To keep every rank's output while still reading a clean console, write per-rank log files instead:
-
-.. code-block:: shell
-
-    uv run isaaclab train_multigpu --rl_library rsl_rl --task Isaac-Cartpole --tee 3 --log_dir /tmp/ranklogs
-
-This writes ``stdout.log`` and ``stderr.log`` per rank under ``--log_dir`` while the console still shows
-only local rank 0.
-
-.. note::
-
-    This applies to the torchrun path. skrl with ``--ml_framework jax`` uses skrl's own launcher, which
-    does not support rank filtering, so all ranks write to the console.
-
-Jax Implementation
-^^^^^^^^^^^^^^^^^^
-
-.. tip::
-    JAX is only supported with the skrl library.
-
-With JAX, we are using `skrl.utils.distributed.jax <https://skrl.readthedocs.io/en/latest/api/utils/distributed.html>`_
-Since the ML framework doesn't automatically start multiple processes from a single program invocation,
-the skrl library provides a module to start them.
-
-.. image:: ../_static/multi-gpu-rl/a3c-light.svg
-    :class: only-light
-    :align: center
-    :alt: Multi-GPU training paradigm
-    :width: 80%
-
-.. image:: ../_static/multi-gpu-rl/a3c-dark.svg
-    :class: only-dark
-    :align: center
-    :width: 80%
-    :alt: Multi-GPU training paradigm
-
-|
-
-Running Multi-GPU Training
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-To train with multiple GPUs, use the following command, where ``--nproc_per_node`` represents the number of available GPUs:
-
-.. tab-set::
-    :sync-group: rl-train
-
-    .. tab-item:: rl_games
-        :sync: rl_games
-
-        .. code-block:: shell
-
-            python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/train.py --rl_library rl_games --task=Isaac-Cartpole --distributed
-
-    .. tab-item:: rsl_rl
-        :sync: rsl_rl
-
-        .. code-block:: shell
-
-            python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/train.py --rl_library rsl_rl --task=Isaac-Cartpole --distributed
-
-    .. tab-item:: skrl
-        :sync: skrl
-
-        .. tab-set::
-
-            .. tab-item:: PyTorch
-                :sync: torch
-
-                .. code-block:: shell
-
-                    python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --distributed
-
-            .. tab-item:: JAX
-                :sync: jax
-
-                .. code-block:: shell
-
-                    python -m skrl.utils.distributed.jax --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --distributed --ml_framework jax
-
-.. _multi-gpu-nccl-troubleshooting:
-
-Troubleshooting NCCL Errors
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-On some Linux multi-GPU systems, distributed training may fail with
-``CUDA error: an illegal memory access was encountered`` reported by ``ProcessGroupNCCL``
-during or shortly after communicator initialization.
-
-If this occurs, try disabling the NCCL shared-memory transport before launching training:
-
-.. code-block:: shell
-
-    export NCCL_SHM_DISABLE=1
-
-If the issue persists, additional NCCL fallbacks that may help are:
-
-.. code-block:: shell
-
-    export NCCL_IB_DISABLE=1
-    export NCCL_ALGO=Ring
-
-On some multi-GPU systems, distributed training with RTX rendering enabled (for example,
-camera-based tasks) fails when the participating GPUs span
-multiple NUMA nodes, while the same training runs fine on GPUs attached to a single PCIe
-switch. The failure typically surfaces as a hang or abort on one of the first collectives,
-with ``Watchdog caught collective operation timeout: WorkNCCL(..., OpType=BROADCAST, ...)``
-or ``OpType=ALLREDUCE`` reported by ``ProcessGroupNCCL``, and does not occur when rendering
-is disabled. On affected systems, disabling NCCL's cuMem host-memory allocations resolves
-the failure:
-
-.. code-block:: shell
-
-    export NCCL_CUMEM_HOST_ENABLE=0
-
-If the failure persists, disable NCCL's CUDA virtual-memory-management allocator entirely:
-
-.. code-block:: shell
-
-    export NCCL_CUMEM_ENABLE=0
-
-Separately, on systems where the GPUs are connected over PCIe without NVLink (check with
-``nvidia-smi topo -m``; affected systems show only ``PHB``, ``NODE``, or ``SYS`` links and no
-``NV#`` links), training can hang during communicator initialization or on the first collective,
-with no error reported and the participating GPUs spinning at 100% utilization. This is most
-commonly seen with a **world size of 2**, because NCCL selects a direct peer-to-peer (P2P)
-transport for a two-rank communicator; the same job often runs fine at three or more ranks, which
-can make the failure look intermittent or task-specific.
-
-A two-rank world size arises both from ``--num_gpus 2`` (or ``--nproc_per_node=2``) on a larger
-machine and from restricting visible devices with ``CUDA_VISIBLE_DEVICES=0,1``. On affected
-systems, disabling NCCL's P2P transport resolves the hang:
-
-.. code-block:: shell
-
-    export NCCL_P2P_DISABLE=1
-
-Then relaunch the distributed training command as usual.
-
-To confirm the problem is NCCL rather than Isaac Lab, reproduce it without Isaac Lab in the loop.
-Save the following as ``nccl_probe.py``:
-
-.. code-block:: python
-
-    import os, torch, torch.distributed as dist
-
-    local_rank = int(os.environ["LOCAL_RANK"])
-    torch.cuda.set_device(local_rank)
-    dist.init_process_group("nccl")
-    tensor = torch.ones(1024, device=f"cuda:{local_rank}")
-    dist.all_reduce(tensor)
-    torch.cuda.synchronize()
-    print(f"rank {dist.get_rank()} ok", flush=True)
-    dist.destroy_process_group()
-
-Then run it at the world size that hangs, and at a larger one:
-
-.. code-block:: shell
-
-    python -m torch.distributed.run --nproc_per_node 2 nccl_probe.py
-    python -m torch.distributed.run --nproc_per_node 4 nccl_probe.py
-
-If the probe hangs, the problem is in NCCL or the system topology, not in Isaac Lab or the RL
-library. Re-run the hanging case with ``NCCL_P2P_DISABLE=1`` to confirm the workaround before
-applying it to training.
-
-.. note::
-
-    These variables are NCCL-level workarounds intended for affected systems. They are not
-    required on all machines, and may change communication behavior or performance depending
-    on the hardware topology. In particular, ``NCCL_P2P_DISABLE=1`` routes inter-GPU traffic
-    through host/shared memory instead of a direct P2P link, which can reduce communication
-    bandwidth, so only set it after confirming it resolves an observed hang.
-
-Multi-Node Training
--------------------
-
-To scale up training beyond multiple GPUs on a single machine, it is also possible to train across multiple nodes.
-To train across multiple nodes/machines, it is required to launch an individual process on each node.
-
-For the master node, use the following command, where ``--nproc_per_node`` represents the number of available GPUs, and
-``--nnodes`` represents the number of nodes:
-
-.. tab-set::
-    :sync-group: rl-train
-
-    .. tab-item:: rl_games
-        :sync: rl_games
-
-        .. code-block:: shell
-
-            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library rl_games --task=Isaac-Cartpole --distributed
-
-    .. tab-item:: rsl_rl
-        :sync: rsl_rl
-
-        .. code-block:: shell
-
-            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library rsl_rl --task=Isaac-Cartpole --distributed
-
-    .. tab-item:: skrl
-        :sync: skrl
-
-        .. tab-set::
-
-            .. tab-item:: PyTorch
-                :sync: torch
-
-                .. code-block:: shell
-
-                    python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --distributed
-
-            .. tab-item:: JAX
-                :sync: jax
-
-                .. code-block:: shell
-
-                    python -m skrl.utils.distributed.jax --nproc_per_node=2 --nnodes=2 --node_rank=0 --coordinator_address=ip_of_master_machine:5555 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --distributed --ml_framework jax
-
-Note that the port (``5555``) can be replaced with any other available port.
-
-For non-master nodes, use the following command, replacing ``--node_rank`` with the index of each machine:
-
-.. tab-set::
-    :sync-group: rl-train
-
-    .. tab-item:: rl_games
-        :sync: rl_games
-
-        .. code-block:: shell
-
-            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library rl_games --task=Isaac-Cartpole --distributed
-
-    .. tab-item:: rsl_rl
-        :sync: rsl_rl
-
-        .. code-block:: shell
-
-            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library rsl_rl --task=Isaac-Cartpole --distributed
-
-    .. tab-item:: skrl
-        :sync: skrl
-
-        .. tab-set::
-
-            .. tab-item:: PyTorch
-                :sync: torch
-
-                .. code-block:: shell
-
-                    python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --distributed
-
-            .. tab-item:: JAX
-                :sync: jax
-
-                .. code-block:: shell
-
-                    python -m skrl.utils.distributed.jax --nproc_per_node=2 --nnodes=2 --node_rank=1 --coordinator_address=ip_of_master_machine:5555 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --distributed --ml_framework jax
-
-For more details on multi-node training with PyTorch, please visit the
-`PyTorch documentation <https://pytorch.org/tutorials/intermediate/ddp_series_multinode.html>`_.
-For more details on multi-node training with JAX, please visit the
-`skrl documentation <https://skrl.readthedocs.io/en/latest/api/utils/distributed.html>`_ and the
-`JAX documentation <https://jax.readthedocs.io/en/latest/multi_process.html>`_.
-
-.. note::
-
-    As mentioned in the PyTorch documentation, "multi-node training is bottlenecked by inter-node communication
-    latencies". When this latency is high, it is possible multi-node training will perform worse than running on
-    a single node instance.
-
-.. _train-multigpu-command:
-
-``train_multigpu`` Command (Experimental)
------------------------------------------
+   Multi-GPU and multi-node training requires Linux and NVIDIA NCCL. Windows is
+   not supported.
 
 .. warning::
 
-   This command is experimental and subject to change in future releases.
+   ``train_multigpu`` is experimental and may change in a future release.
 
-Isaac Lab provides a ``train_multigpu`` convenience script that wraps the distributed launchers,
-adds ``--distributed`` automatically, and forwards remaining arguments to the selected training library.
-It defaults to ``rsl_rl`` and uses ``torch.distributed.run`` for torch-based workflows.
+Start a multi-GPU training run
+------------------------------
 
-Single-node training (defaults to all available GPUs):
+First, verify that the task trains on one GPU. This separates task or
+configuration problems from distributed-launch problems:
 
-.. tab-set::
-    :sync-group: launcher
+.. code-block:: bash
 
-    .. tab-item:: isaaclab.sh
-        :sync: isaaclab
+   uv run isaaclab train --task Isaac-Cartpole
 
-        .. tab-set::
+Then run the same task on every visible GPU:
 
-           .. tab-item:: uv (Recommended)
+.. code-block:: bash
 
-              .. code-block:: bash
+   uv run isaaclab train_multigpu --task Isaac-Cartpole
 
-                  uv run python scripts/reinforcement_learning/train_multigpu.py \
-                     --task Isaac-Reorient-KukaAllegro \
-                     --num_envs 4096 --max_iterations 100
+That is the complete transition from a single-GPU run. ``train_multigpu`` adds
+``--distributed`` and selects the distributed launcher automatically. All other
+arguments are the same arguments accepted by ``train``:
 
-           .. tab-item:: isaaclab.sh / isaaclab.bat
+.. code-block:: bash
 
-              .. code-block:: bash
+   uv run isaaclab train_multigpu \
+      --task Isaac-Reorient-KukaAllegro \
+      --num_envs 4096 \
+      --max_iterations 100
 
-                  ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
-                     --task Isaac-Reorient-KukaAllegro \
-                     --num_envs 4096 --max_iterations 100
+``--num_envs`` is the number of environments **on each GPU**. With four GPUs and
+``--num_envs 4096``, the job collects experience from 16,384 environments in
+total.
 
-    .. tab-item:: uv run
-        :sync: uv
+.. tip::
 
-        .. code-block:: bash
+   Add ``--dry_run`` to print the resolved launcher command without starting
+   training. This is useful when checking GPU counts, rendezvous options, or
+   forwarded training arguments.
 
-            uv run isaaclab train_multigpu \
-               --task Isaac-Reorient-KukaAllegro \
-               --num_envs 4096 --max_iterations 100
+Choose the GPUs
+~~~~~~~~~~~~~~~
 
-Override the GPU count or torchrun settings when needed:
+By default, the launcher uses every visible GPU. Set ``--num_gpus`` when you want
+a specific worker count:
 
-.. tab-set::
-    :sync-group: launcher
+.. code-block:: bash
 
-    .. tab-item:: isaaclab.sh
-        :sync: isaaclab
+   uv run isaaclab train_multigpu --num_gpus 2 --task Isaac-Cartpole
 
-        .. tab-set::
+Use ``CUDA_VISIBLE_DEVICES`` to choose the physical devices. The launcher sees
+only the devices in that list:
 
-           .. tab-item:: uv (Recommended)
+.. code-block:: bash
 
-              .. code-block:: bash
+   CUDA_VISIBLE_DEVICES=1,3 uv run isaaclab train_multigpu \
+      --num_gpus 2 --task Isaac-Cartpole
 
-                  uv run python scripts/reinforcement_learning/train_multigpu.py \
-                     --num_gpus 4 --master_port 29504 \
-                     --task Isaac-Reorient-KukaAllegro \
-                     --num_envs 4096 --max_iterations 100
+Run ``nvidia-smi`` before launching to confirm that the expected devices are
+available and have enough free memory.
 
-           .. tab-item:: isaaclab.sh / isaaclab.bat
+Choose an RL library
+~~~~~~~~~~~~~~~~~~~~
 
-              .. code-block:: bash
+Multi-GPU training supports RSL-RL, RL-Games, and skrl. RSL-RL is the default
+for most core tasks.
 
-                  ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
-                     --num_gpus 4 --master_port 29504 \
-                     --task Isaac-Reorient-KukaAllegro \
-                     --num_envs 4096 --max_iterations 100
+.. list-table::
+   :header-rows: 1
+   :widths: 18 22 60
 
-    .. tab-item:: uv run
-        :sync: uv
+   * - Library
+     - Distributed backend
+     - Command
+   * - RSL-RL
+     - PyTorch
+     - ``uv run isaaclab train_multigpu --rl_library rsl_rl ...``
+   * - RL-Games
+     - PyTorch
+     - ``uv run --extra rl-games isaaclab train_multigpu --rl_library rl_games ...``
+   * - skrl
+     - PyTorch
+     - ``uv run --extra skrl isaaclab train_multigpu --rl_library skrl ...``
+   * - skrl
+     - JAX
+     - ``uv run --extra skrl isaaclab train_multigpu --rl_library skrl --ml_framework jax ...``
 
-        .. code-block:: bash
+skrl with JAX uses skrl's distributed launcher instead of ``torchrun``. Pass an
+integer ``--num_gpus`` and use ``--coordinator_address`` to configure its
+coordinator:
 
-            uv run isaaclab train_multigpu --num_gpus 4 --master_port 29504 \
-               --task Isaac-Reorient-KukaAllegro \
-               --num_envs 4096 --max_iterations 100
+.. code-block:: bash
 
-Use ``--rl_library`` to select other distributed-capable libraries (``rsl_rl``, ``rl_games``, or ``skrl``).
-For skrl JAX training, pass an integer GPU count and the ``--coordinator_address``:
+   uv run --extra skrl isaaclab train_multigpu \
+      --rl_library skrl --ml_framework jax --num_gpus 4 \
+      --coordinator_address localhost:5000 \
+      --task Isaac-Cartpole
 
-.. tab-set::
-    :sync-group: launcher
+Measure scaling with the three multi-GPU benchmarks
+---------------------------------------------------
 
-    .. tab-item:: isaaclab.sh
-        :sync: isaaclab
+Use the benchmark commands when the goal is to measure performance rather than
+train a policy for later use. Isaac Lab provides three multi-GPU workflows:
 
-        .. tab-set::
+.. list-table::
+   :header-rows: 1
+   :widths: 24 38 38
 
-           .. tab-item:: uv (Recommended)
+   * - Benchmark
+     - What it measures
+     - Use it to answer
+   * - ``startup_multigpu``
+     - Startup time for rank 0 while every GPU starts the same workload.
+     - How does a fully occupied node affect startup?
+   * - ``runtime_multigpu``
+     - Simulation throughput for rank 0 while every GPU runs independently.
+     - How does host contention affect environment stepping?
+   * - ``training_multigpu``
+     - Global, synchronized training throughput across every rank.
+     - How well does end-to-end learning scale across GPUs?
 
-              .. code-block:: bash
+Run each benchmark with the same launcher options used by ``train_multigpu``:
 
-                  uv run python scripts/reinforcement_learning/train_multigpu.py \
-                     --rl_library skrl --ml_framework jax --num_gpus 4 \
-                     --coordinator_address localhost:5000 \
-                     --task Isaac-Reorient-KukaAllegro \
-                     --num_envs 4096 --max_iterations 100
+.. code-block:: bash
 
-           .. tab-item:: isaaclab.sh / isaaclab.bat
+   uv run isaaclab benchmark startup_multigpu \
+      --num_gpus 2 --task Isaac-Cartpole
 
-              .. code-block:: bash
+   uv run isaaclab benchmark runtime_multigpu \
+      --num_gpus 2 --task Isaac-Cartpole --num_envs 4096
 
-                  ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
-                     --rl_library skrl --ml_framework jax --num_gpus 4 \
-                     --coordinator_address localhost:5000 \
-                     --task Isaac-Reorient-KukaAllegro \
-                     --num_envs 4096 --max_iterations 100
+   uv run isaaclab benchmark training_multigpu \
+      --rl_library rsl_rl --num_gpus 2 \
+      --task Isaac-Cartpole --num_envs 4096 --max_iterations 100
 
-    .. tab-item:: uv run
-        :sync: uv
+``training_multigpu`` supports RSL-RL, RL-Games, and skrl with PyTorch. It does
+not support skrl with JAX or SB3. It also rejects ``--video``,
+``--capture_env_sensors``, and ``--check_success``, which do not produce a
+meaningful aggregate result across ranks.
 
-        .. code-block:: bash
+For multi-node benchmarks, pass the same ``--nnodes``, ``--node_rank``, and
+rendezvous options described in :ref:`multi-node-training` on every node.
 
-            uv run isaaclab train_multigpu --rl_library skrl --ml_framework jax --num_gpus 4 \
-               --coordinator_address localhost:5000 \
-               --task Isaac-Reorient-KukaAllegro \
-               --num_envs 4096 --max_iterations 100
+Read multi-GPU benchmark results
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For multi-node torch jobs, pass torchrun settings such as ``--nnodes``, ``--node_rank``,
-``--rdzv_backend``, ``--rdzv_endpoint``, and ``--rdzv_id`` before the training arguments. For
-skrl JAX multi-node jobs, pass ``--nnodes``, ``--node_rank``, and ``--coordinator_address``.
+Only global rank 0 writes a result bundle. The ``extra`` fields record the rank
+layout and clarify which measurements the bundle covers:
 
-To measure aggregate throughput and timing rather than to train a policy, use the multi-GPU
-benchmark workflows instead; see :ref:`developer_tools_benchmarking_multigpu`. They take the same launcher
-options and support RSL-RL, RL-Games, and skrl with Torch.
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - ``extra`` field
+     - Meaning
+   * - ``world_size``, ``local_world_size``, ``num_nodes``
+     - Rank layout of the job.
+   * - ``num_envs_per_rank``
+     - Environments hosted by each rank.
+   * - ``workload_scope``
+     - ``global`` for ``training_multigpu`` because ranks train in lockstep.
+       ``rank0`` for ``startup_multigpu`` and ``runtime_multigpu`` because each
+       rank runs independently and only rank 0 is measured.
+   * - ``measurement_scope``
+     - ``rank0_process``: timings, learning curves, CPU, and RAM come from rank
+       0 alone.
+   * - ``gpu_measurement_scope``
+     - ``rank0_node``: ``resources.devices`` reports every GPU visible to rank
+       0. GPU utilization and memory values remain scoped to rank 0's device.
+
+When comparing one GPU with multiple GPUs, keep ``--num_envs`` constant **per
+rank**. An N-GPU job processes N times as many environments as the one-GPU job
+at the same per-rank setting. Compare the global throughput of
+``training_multigpu`` against N times the single-GPU throughput. Do not treat
+``startup_multigpu`` or ``runtime_multigpu`` as aggregate rates; they measure
+rank 0 while the other ranks create host contention.
+
+How multi-GPU training works
+----------------------------
+
+For PyTorch workflows, ``train_multigpu`` wraps
+`torchrun <https://docs.pytorch.org/docs/stable/elastic/run.html>`_. It launches
+one process per GPU. Each process owns:
+
+* one Isaac Lab application and its vectorized environments,
+* one copy of the policy,
+* one rollout buffer, and
+* one GPU selected by its local rank.
+
+The processes collect experience independently and synchronize gradients during
+policy updates with
+`DistributedDataParallel <https://docs.pytorch.org/docs/stable/notes/ddp.html>`_.
+Simulation does not move between GPUs, so available host CPU, RAM, and I/O can
+become limiting factors as the GPU count grows.
+
+.. image:: ../_static/multi-gpu-rl/a3c-light.svg
+   :class: only-light
+   :align: center
+   :alt: One training process and simulation workload per GPU
+   :width: 80%
+
+.. image:: ../_static/multi-gpu-rl/a3c-dark.svg
+   :class: only-dark
+   :align: center
+   :alt: One training process and simulation workload per GPU
+   :width: 80%
+
+Read logs from distributed runs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Every rank produces similar startup messages, warnings, and model summaries.
+The launcher shows local rank 0 by default so the console remains readable.
+Training metrics already come from global rank 0, and a crash on any hidden rank
+still reports the failing rank and its traceback.
+
+Show output from every rank when processes appear to disagree:
+
+.. code-block:: bash
+
+   uv run isaaclab train_multigpu \
+      --task Isaac-Cartpole --log_all_ranks
+
+For a clean console and complete per-rank logs on disk, use ``torchrun`` log
+redirection:
+
+.. code-block:: bash
+
+   uv run isaaclab train_multigpu \
+      --task Isaac-Cartpole --tee 3 --log_dir /tmp/isaaclab-rank-logs
+
+The log filtering options apply to PyTorch workflows. skrl with JAX writes every
+rank to the console.
+
+.. _multi-node-training:
+
+Train across multiple nodes
+---------------------------
+
+Every node must have the same Isaac Lab checkout, dependencies, task
+configuration, and access to training assets. The nodes must also be able to
+reach one another on the rendezvous port.
+
+Choose one node as the rendezvous host. For a two-node PyTorch job with four GPUs
+per node, run the following on the first node:
+
+.. code-block:: bash
+
+   uv run isaaclab train_multigpu \
+      --nnodes 2 --node_rank 0 --num_gpus 4 \
+      --master_addr 10.0.0.10 --master_port 29500 \
+      --task Isaac-Cartpole
+
+Run the same command on the second node with its own rank:
+
+.. code-block:: bash
+
+   uv run isaaclab train_multigpu \
+      --nnodes 2 --node_rank 1 --num_gpus 4 \
+      --master_addr 10.0.0.10 --master_port 29500 \
+      --task Isaac-Cartpole
+
+The total world size is ``nnodes * num_gpus``: eight ranks in this example. You
+can also use ``--rdzv_backend``, ``--rdzv_endpoint``, and ``--rdzv_id`` for an
+elastic ``torchrun`` rendezvous. Add ``--dry_run`` first to verify the command on
+each node.
+
+For skrl with JAX, pass ``--nnodes``, ``--node_rank``, an integer
+``--num_gpus``, and the same ``--coordinator_address`` on every node. Do not pass
+the PyTorch rendezvous options to a JAX launch.
+
+Multi-node scaling depends heavily on the network between nodes. A multi-node
+job can be slower than a single-node job when gradient synchronization dominates
+the training iteration.
+
+Troubleshoot distributed training
+---------------------------------
+
+Start with the smallest useful diagnosis:
+
+#. Confirm that the same task, backend, and training arguments work with
+   ``isaaclab train`` on one GPU.
+#. Add ``--dry_run`` and check the selected GPU and node counts.
+#. Retry at world sizes 2, 3, and 4. A failure at only one world size often
+   points to the communication transport rather than the task.
+#. Check GPU placement and interconnects with ``nvidia-smi topo -m``.
+#. Set ``NCCL_DEBUG=INFO`` to see which NCCL transport was selected.
+#. Apply one workaround at a time and verify that the failure returns when the
+   workaround is removed.
+
+.. _multi-gpu-nccl-troubleshooting:
+
+NCCL hangs and errors
+~~~~~~~~~~~~~~~~~~~~~
+
+A run that stops without a traceback while every participating GPU remains at
+100% utilization is usually stalled in an NCCL collective. The following
+workarounds address known system-specific transport problems:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 55 45
+
+   * - Symptom
+     - Try
+   * - World size 2 hangs on a PCIe system without NVLink.
+     - ``NCCL_P2P_DISABLE=1`` or ``NCCL_P2P_LEVEL=LOC``
+   * - ``illegal memory access`` appears in ``ProcessGroupNCCL``.
+     - ``NCCL_SHM_DISABLE=1``
+   * - A rendered job fails because CUDA and the renderer enumerate GPUs in
+       different orders.
+     - ``CUDA_DEVICE_ORDER=PCI_BUS_ID``
+   * - A rendered job times out across NUMA nodes during ``BROADCAST`` or
+       ``ALLREDUCE``.
+     - ``NCCL_CUMEM_HOST_ENABLE=0``; if needed, try ``NCCL_CUMEM_ENABLE=0``.
+   * - Communicator initialization or transport failures persist.
+     - ``NCCL_IB_DISABLE=1`` or ``NCCL_ALGO=Ring``.
+
+For example, test the first workaround without changing a shared configuration:
+
+.. code-block:: bash
+
+   NCCL_P2P_DISABLE=1 uv run isaaclab train_multigpu \
+      --num_gpus 2 --task Isaac-Cartpole
+
+These variables can reduce communication performance and should be scoped to
+the affected machine. Set either ``NCCL_P2P_DISABLE=1`` or
+``NCCL_P2P_LEVEL=LOC``, not both. Each prevents direct P2P communication and
+can reduce bandwidth by forcing NCCL to select another transport. Do not commit
+a workaround into a task or launcher unless it is required by every supported
+system. Use ``nvidia-smi --query-gpu=name,pci.bus_id`` to inspect GPU bus IDs
+before setting ``CUDA_DEVICE_ORDER=PCI_BUS_ID``.
+
+.. dropdown:: Isolate a hang from Isaac Lab
+
+   Run a minimal NCCL collective at the world size that hangs. Save this as
+   ``nccl_probe.py``:
+
+   .. code-block:: python
+
+      import os
+
+      import torch
+      import torch.distributed as dist
+
+      local_rank = int(os.environ["LOCAL_RANK"])
+      torch.cuda.set_device(local_rank)
+      dist.init_process_group("nccl")
+      tensor = torch.ones(1024, device=f"cuda:{local_rank}")
+      dist.all_reduce(tensor)
+      torch.cuda.synchronize()
+      print(f"rank {dist.get_rank()} ok", flush=True)
+      dist.destroy_process_group()
+
+   Launch the probe with the same rank count:
+
+   .. code-block:: bash
+
+      uv run python -m torch.distributed.run --nproc_per_node 2 nccl_probe.py
+
+   If this probe also hangs, the problem is in NCCL or the system topology, not
+   in Isaac Lab, the task, or the RL library.

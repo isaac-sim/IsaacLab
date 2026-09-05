@@ -51,7 +51,7 @@ KINOVA_JACO2_N7S300_CFG = ArticulationCfg(
     actuators={
         "arm": ImplicitActuatorCfg(
             joint_names_expr=[".*_joint_[1-7]"],
-            effort_limit_sim={
+            joint_effort_limit={
                 ".*_joint_[1-2]": 80.0,
                 ".*_joint_[3-4]": 40.0,
                 ".*_joint_[5-7]": 20.0,
@@ -67,7 +67,7 @@ KINOVA_JACO2_N7S300_CFG = ArticulationCfg(
         ),
         "gripper": ImplicitActuatorCfg(
             joint_names_expr=[".*_finger_[1-3]", ".*_finger_tip_[1-3]"],
-            effort_limit_sim=2.0,
+            joint_effort_limit=2.0,
             stiffness=1.2,
             damping=0.01,
         ),
@@ -103,7 +103,7 @@ KINOVA_JACO2_N6S300_CFG = ArticulationCfg(
     actuators={
         "arm": ImplicitActuatorCfg(
             joint_names_expr=[".*_joint_[1-6]"],
-            effort_limit_sim={
+            joint_effort_limit={
                 ".*_joint_[1-2]": 80.0,
                 ".*_joint_3": 40.0,
                 ".*_joint_[4-6]": 20.0,
@@ -119,7 +119,7 @@ KINOVA_JACO2_N6S300_CFG = ArticulationCfg(
         ),
         "gripper": ImplicitActuatorCfg(
             joint_names_expr=[".*_finger_[1-3]", ".*_finger_tip_[1-3]"],
-            effort_limit_sim=2.0,
+            joint_effort_limit=2.0,
             stiffness=1.2,
             damping=0.01,
         ),
@@ -154,7 +154,7 @@ KINOVA_GEN3_N7_CFG = ArticulationCfg(
     actuators={
         "arm": ImplicitActuatorCfg(
             joint_names_expr=["joint_[1-7]"],
-            effort_limit={
+            joint_effort_limit={
                 "joint_[1-4]": 39.0,
                 "joint_[5-7]": 9.0,
             },

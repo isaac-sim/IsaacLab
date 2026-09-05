@@ -5,7 +5,7 @@
 
 """Lift environments.
 
-Implementation Reference:
+Task definitions adapted from:
 
 Reorient:
 @article{petrenko2023dexpbt,
@@ -22,5 +22,16 @@ Lift:
   journal={arXiv preprint arXiv:2412.01791},
   year={2024}
 }
+
+The MDP implementation is heavily inspired by OmniReset:
+
+@inproceedings{yin2026emergent,
+  title={Emergent Dexterity via Diverse Resets and Large-Scale Reinforcement Learning},
+  author={Patrick Yin and Tyler Westenbroek and Zhengyu Zhang and Joshua Tran and Ignacio Dagnino and Eeshani Shilamkar and Numfor Mbiziwo-Tiapo and Simran Bagaria and Xinlei Liu and Galen Mullins and Andrey Kolobov and Abhishek Gupta},
+  booktitle={The Fourteenth International Conference on Learning Representations},
+  year={2026},
+  url={https://arxiv.org/abs/2603.15789},
+}
+
 
 """

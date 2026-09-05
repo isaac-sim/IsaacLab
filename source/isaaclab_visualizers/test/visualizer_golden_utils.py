@@ -54,6 +54,9 @@ _MAX_DIFF_PCT_OVERRIDES: dict[str, float] = {
     # AnymalD: golden captured warm, first attempt runs cold; observed up to 9.61%.
     "anymal_d-kit-tiled": 12.0,
     "anymal_d-kit-viewport": 4.5,
+    # Newton GL tiled output differs by 0.64% between the L40S CI runner and the golden.
+    # Keep this narrow 1.0% tolerance paired with an SSIM guard for scene regressions.
+    "anymal_d-newton-tiled": 1.0,
     # RTX PRO 6000 Blackwell differs by up to 6.5% while preserving the expected pose.
     "shadow_hand-kit-tiled": 7.0,
     "shadow_hand-kit-viewport": 2.0,
@@ -78,6 +81,9 @@ _SSIM_THRESHOLD_OVERRIDES: dict[str, float] = {
     # 0.910 lets attempt 1 pass with a large gap above wrong-pose regressions (~0.69).
     "anymal_d-kit-tiled": 0.910,
     "anymal_d-kit-viewport": 0.960,
+    # The L40S comparison reaches SSIM 0.9883; retain a structural threshold well above
+    # known pose regressions while accepting this cross-GPU rasterization variation.
+    "anymal_d-newton-tiled": 0.980,
     # Cross-GPU RTX variation; observed SSIM 0.941 on RTX PRO 6000 Blackwell vs L40S goldens.
     # Wrong-pose regressions drop SSIM below 0.90.
     "shadow_hand-kit-tiled": 0.935,
@@ -353,6 +359,7 @@ def run_visualizer_golden_cartpole(
     comparison_scores: list[dict],
     *,
     buffer_steps: int = 0,
+    all_envs_perspective: bool = False,
 ) -> None:
     """Run a golden-image test for one ``(physics_backend, visualizer_type, mode)`` combination.
 
@@ -366,7 +373,11 @@ def run_visualizer_golden_cartpole(
         comparison_scores: Module-level accumulator forwarded to :func:`validate_visualizer_frame`.
         buffer_steps: Physics steps to run before capture (default 0 — capture the reset pose
             so the pole remains at its initial 45° angle and is clearly attached to the cart).
+        all_envs_perspective: Whether to frame four environments in one Kit perspective-camera image.
     """
+    if all_envs_perspective and (visualizer_type != "kit" or mode != "viewport"):
+        raise ValueError("The all-environment perspective golden requires Kit viewport capture.")
+
     import torch
     import visualizer_integration_utils as _viz_utils
 
@@ -390,7 +401,12 @@ def run_visualizer_golden_cartpole(
         _viz_utils._prepare_visualizer_test_process()
         sim_utils.create_new_stage()
         tiled = mode == "tiled"
-        env = _viz_utils._make_cartpole_camera_env(visualizer_type, physics_backend, tiled_camera=tiled)
+        env = _viz_utils._make_cartpole_camera_env(
+            visualizer_type,
+            physics_backend,
+            tiled_camera=tiled,
+            all_envs_perspective=all_envs_perspective,
+        )
         _viz_utils._configure_sim_for_visualizer_test(env)
         actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
         # Pin the initial pole angle to a fixed value so the golden image shows a clearly
@@ -411,8 +427,11 @@ def run_visualizer_golden_cartpole(
             env.step(action=actions)
 
         frame = _capture_frame(env, visualizer_type, mode, physics_backend, actions)
+        if all_envs_perspective:
+            _viz_utils._assert_non_flat_frame_array(frame)
 
-        validate_visualizer_frame("cartpole", physics_backend, visualizer_type, mode, frame, comparison_scores)
+        test_name = "cartpole_all_envs" if all_envs_perspective else "cartpole"
+        validate_visualizer_frame(test_name, physics_backend, visualizer_type, mode, frame, comparison_scores)
     finally:
         _viz_utils._cleanup_visualizer_test_process(env)
 

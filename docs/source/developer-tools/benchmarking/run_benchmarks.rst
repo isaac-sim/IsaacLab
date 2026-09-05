@@ -15,32 +15,22 @@ Choose a workflow
 
 .. list-table::
    :header-rows: 1
-   :widths: 15 35 25 25
+   :widths: 55 20
 
-   * - Workflow
-     - Use it to measure
-     - Primary result
-     - Excludes from the primary result
-   * - ``runtime``
-     - Environment-step capacity under random actions
-     - Environment-step FPS
-     - Policy inference and learning
-   * - ``play``
-     - Trained-policy rollout
-     - Collection FPS
-     - Learning updates
-   * - ``training``
-     - End-to-end learning
-     - Total FPS and learning metrics
-     - Startup
-   * - ``startup``
-     - Launch, imports, configuration, scene creation, and first step
-     - Phase duration [s]
-     - Steady-state throughput
-   * - ``*-multigpu``
-     - A supported workflow with one rank per GPU
-     - The corresponding workflow result, with its scope recorded in ``extra``
-     - Single-GPU and cross-scope inference
+   * - Question
+     - Workflow
+   * - Large environment-step capacity change
+     - ``runtime``
+   * - Trained-policy behavior or deployment throughput
+     - ``play``
+   * - End-to-end learning throughput or learning behavior
+     - ``training``
+   * - Launch, import, configuration, scene creation, or first-step latency
+     - ``startup``
+   * - Any of the above across several GPUs
+     - ``<workflow>_multigpu``
+   * - One asset or sensor operation
+     - :ref:`developer_tools_benchmarking_micro`
 
 For every comparison:
 
@@ -316,91 +306,10 @@ they established final policy quality.
 Multi-GPU
 ---------
 
-When to use it
-~~~~~~~~~~~~~~
-
-Append ``-multigpu`` to ``startup``, ``runtime``, or ``training`` to use one rank
-per GPU. Use it to measure synchronized multi-GPU training throughput. You can
-also measure how much a workflow slows down when every GPU on the node is busy.
-
-Run it
-~~~~~~
-
-.. code-block:: bash
-
-   ./isaaclab.sh benchmark training-multigpu \
-       --rl_library rsl_rl \
-       --num_gpus 2 \
-       --task Isaac-Cartpole-Direct \
-       --num_envs 4096 \
-       --max_iterations 100 \
-       --seed 42 \
-       --visualizer none \
-       --output_path ./benchmark_results/multigpu \
-       physics=isaacsim_physx
-
-The launcher accepts ``--num_gpus``, ``--nnodes``, ``--node_rank``, and the
-``torchrun`` rendezvous options, just like :ref:`train-multigpu-command`. Every
-other argument is passed to the single-GPU workflow unchanged. Add ``--dry_run``
-to print the ``torchrun`` command without running it. Add ``--log_all_ranks`` to
-show output from every rank instead of local rank 0 only.
-
-For a multi-node run, issue the same command on every node with a distinct
-``--node_rank``:
-
-.. code-block:: bash
-
-   ./isaaclab.sh benchmark training-multigpu \
-       --rl_library rsl_rl --nnodes 2 --node_rank 0 --num_gpus 8 \
-       --rdzv_backend c10d --rdzv_endpoint host0:29400 --rdzv_id bench \
-       --task Isaac-Cartpole-Direct
-
-``training-multigpu`` supports ``rsl_rl``, ``rl_games``, and ``skrl`` with
-Torch. It does not support skrl JAX or SB3. It also rejects ``--video``,
-``--capture_env_sensors``, and ``--check_success`` because these options do not
-apply across ranks. Use :ref:`train-multigpu-command` for general distributed
-training.
-
-Read the result
-~~~~~~~~~~~~~~~
-
-``--num_envs`` is the number of environments **per rank**. Each rank creates its
-own Isaac Lab instance on its own GPU. Only global rank 0 writes a bundle. The
-``extra`` fields record what that bundle covers:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 70
-
-   * - ``extra`` field
-     - Meaning
-   * - ``world_size``, ``local_world_size``, ``num_nodes``
-     - Rank layout of the job.
-   * - ``num_envs_per_rank``
-     - Environments hosted by each rank.
-   * - ``workload_scope``
-     - ``global`` for ``training-multigpu``: ranks train in lockstep, so ``run.num_envs``,
-       ``runtime.steps_per_iteration``, and every FPS field cover all ranks.
-       ``rank0`` for ``startup-multigpu`` and ``runtime-multigpu``: those ranks run
-       independent workloads, so the reported values are rank 0's own, measured while
-       the other ranks contend for the same host.
-   * - ``measurement_scope``
-     - ``rank0_process`` — timings, learning curves, CPU, and RAM come from rank 0 alone.
-   * - ``gpu_measurement_scope``
-     - ``rank0_node`` — ``resources.devices`` reports every GPU visible to rank 0, so a
-       single-node run shows all ranks. ``resources.gpu_util_pct`` and
-       ``resources.gpu_mem_gb`` remain scoped to rank 0's own device.
-
-What not to infer
-~~~~~~~~~~~~~~~~~
-
-Do not compare a multi-GPU result against a single-GPU result at the same
-``--num_envs``. The multi-GPU run has ``world_size`` times as many environments.
-To measure scaling, compare the global throughput of an ``N``-GPU run against
-``N`` times the throughput of a single-GPU run. Keep the per-rank environment
-count fixed. Do not read ``startup-multigpu`` or ``runtime-multigpu`` throughput
-as a global rate. Their ``workload_scope`` is ``rank0``, and the other ranks were
-not measured.
+Append ``_multigpu`` to ``startup``, ``runtime``, or ``training`` to run one
+benchmark rank per GPU. The :ref:`train_multigpu-command` guide is the canonical
+reference for the three workflows, launcher options, multi-node setup, supported
+RL libraries, and result interpretation.
 
 Startup
 -------

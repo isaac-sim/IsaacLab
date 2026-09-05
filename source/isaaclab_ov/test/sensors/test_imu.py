@@ -104,8 +104,8 @@ def _spawn_balls(num_envs: int, height: float = 0.5) -> RigidObject:
     Returns the :class:`RigidObject` whose binding pattern matches all spawned
     instances. The :class:`RigidObject` does the per-env spawning itself when
     ``spawn`` is set; we only have to create the env Xform containers first
-    (handled by :func:`_spawn_envs`). Note the ovphysx pattern uses an
-    fnmatch glob (``env_*``), not a regex.
+    (handled by :func:`_spawn_envs`). The prim path is a regex; the ovphysx
+    binding pattern underneath it is an fnmatch glob.
     """
     spawn_cfg = sim_utils.SphereCfg(
         radius=0.25,
@@ -115,7 +115,7 @@ def _spawn_balls(num_envs: int, height: float = 0.5) -> RigidObject:
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg = RigidObjectCfg(
-        prim_path="/World/env_*/ball",
+        prim_path="/World/env_[^/]+/ball",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )
@@ -132,7 +132,7 @@ def _spawn_cubes(num_envs: int, height: float = 0.5) -> RigidObject:
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg = RigidObjectCfg(
-        prim_path="/World/env_*/cube",
+        prim_path="/World/env_[^/]+/cube",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -2.0, height)),
     )
@@ -147,7 +147,7 @@ def _spawn_anymal(num_envs: int) -> Articulation:
     The :class:`Articulation` performs the per-env spawn itself once the env
     Xform containers exist; :func:`_spawn_envs` must be called first.
     """
-    cfg = ANYMAL_C_CFG.replace(prim_path="/World/env_.*/robot")
+    cfg = ANYMAL_C_CFG.replace(prim_path="/World/env_[^/]+/robot")
     cfg.init_state.pos = (0.0, 2.0, 1.0)
     # bump solver iteration counts to match the PhysX test's scene cfg
     cfg.spawn.articulation_props.solver_position_iteration_count = 32
@@ -246,8 +246,8 @@ def test_constant_velocity(sim_ctx, device):
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
     cubes = _spawn_cubes(NUM_ENVS)
-    imu_ball = _make_imu("/World/env_*/ball")
-    imu_cube = _make_imu("/World/env_*/cube")
+    imu_ball = _make_imu("/World/env_[^/]+/ball")
+    imu_cube = _make_imu("/World/env_[^/]+/cube")
     sim_ctx.reset()
 
     prev_lin_acc_ball = torch.zeros((NUM_ENVS, 3), dtype=torch.float32, device=device)
@@ -294,36 +294,45 @@ def test_constant_velocity(sim_ctx, device):
 
 @pytest.mark.parametrize("device", _DEVICES)
 def test_constant_acceleration(sim_ctx, device):
-    """Test the IMU sensor with a constant acceleration."""
+    """A constant applied force yields the solver acceleration F/m.
+
+    The IMU reports proper acceleration, so for a ball that is otherwise in free fall the
+    ``-g`` of the fall cancels the ``+g`` accelerometer bias and only ``F/m`` remains.
+    """
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
-    imu_ball = _make_imu("/World/env_*/ball")
+    imu_ball = _make_imu("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
+    # Pick the target acceleration and derive the force from the simulated mass, so the
+    # expectation stays correct if the spawn config changes.
+    expected_acc = 0.5  # [m/s^2]
+    ball_mass = balls.data.body_mass.torch[:, 0]
+    external_wrench_b = torch.zeros((NUM_ENVS, 1, 6), device=device)
+    external_wrench_b[:, 0, 0] = ball_mass * expected_acc
+    balls.permanent_wrench_composer.set_forces_and_torques_index(
+        forces=external_wrench_b[..., :3],
+        torques=external_wrench_b[..., 3:],
+    )
 
-    for idx in range(100):
-        # set acceleration via increasing velocity per step
-        velocity = torch.tensor([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device).repeat(
-            NUM_ENVS, 1
-        ) * (idx + 1)
-        balls.write_root_velocity_to_sim(velocity)
+    # keep the window short: the kitless scene has no ground, so the ball simply falls
+    for idx in range(10):
         balls.write_data_to_sim()
         sim_ctx.step()
         balls.update(dt)
         imu_ball.update(dt, force_recompute=True)
 
-        # skip first step where initial velocity is zero
+        # skip first step where the solver has not integrated the force yet
         if idx < 1:
             continue
 
-        # check the imu linear acceleration data (includes gravity)
+        # check the imu linear acceleration data (gravity cancels in free fall)
         torch.testing.assert_close(
             imu_ball.data.lin_acc_b.torch,
             math_utils.quat_apply_inverse(
                 balls.data.root_quat_w.torch,
-                torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=device).repeat(NUM_ENVS, 1) / dt
-                + torch.tensor([[0.0, 0.0, 9.81]], dtype=torch.float32, device=device).repeat(NUM_ENVS, 1),
+                torch.tensor([[expected_acc, 0.0, 0.0]], dtype=torch.float32, device=device).repeat(NUM_ENVS, 1),
             ),
             rtol=1e-4,
             atol=1e-4,
@@ -353,9 +362,9 @@ def test_offset_calculation(sim_ctx, device):
     """
     _spawn_envs(NUM_ENVS)
     robot = _spawn_anymal(NUM_ENVS)
-    imu_robot_imu_link = _make_imu("/World/env_*/robot/base/imu_link")
+    imu_robot_imu_link = _make_imu("/World/env_[^/]+/robot/base/imu_link")
     imu_robot_base = _make_imu(
-        "/World/env_*/robot/base",
+        "/World/env_[^/]+/robot/base",
         offset=ImuCfg.OffsetCfg(pos=POS_OFFSET, rot=ROT_OFFSET),
     )
     sim_ctx.reset()
@@ -397,7 +406,7 @@ def test_env_ids_propagation(sim_ctx, device):
     """Test that ``env_ids`` argument propagates through update and reset methods."""
     _spawn_envs(NUM_ENVS)
     robot = _spawn_anymal(NUM_ENVS)
-    imu_robot_imu_link = _make_imu("/World/env_*/robot/base/imu_link")
+    imu_robot_imu_link = _make_imu("/World/env_[^/]+/robot/base/imu_link")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -429,7 +438,7 @@ def test_sensor_initialization(sim_ctx, device):
     """Test that the OVPhysX IMU sensor initializes correctly."""
     _spawn_envs(NUM_ENVS)
     _spawn_balls(NUM_ENVS)
-    imu_ball = _make_imu("/World/env_*/ball")
+    imu_ball = _make_imu("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     assert imu_ball.num_instances == NUM_ENVS
@@ -443,22 +452,32 @@ def test_sensor_initialization(sim_ctx, device):
 
 @pytest.mark.parametrize("device", _DEVICES)
 def test_gravity_at_rest(sim_ctx, device):
-    """Test that an IMU at rest measures gravity (~9.81 m/s^2 upward).
+    """Test that an IMU held at rest measures gravity (~9.81 m/s^2 upward).
 
-    Without InteractiveScene's terrain plumbing the ball falls forever, so we
-    drive it kinematically: hold zero velocity for enough steps that the
-    finite-difference acceleration of the *applied* velocity converges to zero
-    and only the +g gravity bias remains.
+    The kitless scene has no ground plane, so the ball is supported by an applied force of
+    ``m * g`` standing in for the ground's normal force. With zero net force the ball stays
+    at rest, the solver reports zero acceleration, and the accelerometer reads the gravity
+    bias alone -- the reading a real IMU gives sitting on a table. A ball left to fall
+    instead reads zero (see :func:`test_freefall_acceleration`).
     """
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
-    imu_ball = _make_imu("/World/env_*/ball")
+    imu_ball = _make_imu("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
-    zero_vel = torch.zeros((NUM_ENVS, 6), dtype=torch.float32, device=device)
+    gravity_magnitude = abs(sim_ctx.cfg.gravity[2])
+    # Support the ball against gravity. The ball never rotates, so the body-frame force
+    # stays aligned with world +z.
+    ball_mass = balls.data.body_mass.torch[:, 0]
+    external_wrench_b = torch.zeros((NUM_ENVS, 1, 6), device=device)
+    external_wrench_b[:, 0, 2] = ball_mass * gravity_magnitude
+    balls.permanent_wrench_composer.set_forces_and_torques_index(
+        forces=external_wrench_b[..., :3],
+        torques=external_wrench_b[..., 3:],
+    )
+
     for _ in range(5):
-        balls.write_root_velocity_to_sim(zero_vel)
         balls.write_data_to_sim()
         sim_ctx.step()
         balls.update(dt)
@@ -467,7 +486,7 @@ def test_gravity_at_rest(sim_ctx, device):
     lin_acc = imu_ball.data.lin_acc_b.torch
     torch.testing.assert_close(
         lin_acc[:, 2],
-        torch.full((NUM_ENVS,), 9.81, dtype=lin_acc.dtype, device=lin_acc.device),
+        torch.full((NUM_ENVS,), gravity_magnitude, dtype=lin_acc.dtype, device=lin_acc.device),
         atol=0.5,
         rtol=0.0,
     )
@@ -488,7 +507,7 @@ def test_freefall_acceleration(sim_ctx, device):
     """
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS, height=5.0)
-    imu_ball = _make_imu("/World/env_*/ball")
+    imu_ball = _make_imu("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -520,20 +539,30 @@ def test_reset(sim_ctx, device):
     """
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
-    imu_ball = _make_imu("/World/env_*/ball")
+    imu_ball = _make_imu("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
-    nonzero_vel = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device).repeat(NUM_ENVS, 1)
+    # Drive both outputs non-zero: a spin for the gyro, and an applied force for the
+    # accelerometer (a freely falling ball would read zero proper acceleration).
+    ball_mass = balls.data.body_mass.torch[:, 0]
+    external_wrench_b = torch.zeros((NUM_ENVS, 1, 6), device=device)
+    external_wrench_b[:, 0, 0] = ball_mass  # 1 m/s^2 along x
+    balls.permanent_wrench_composer.set_forces_and_torques_index(
+        forces=external_wrench_b[..., :3],
+        torques=external_wrench_b[..., 3:],
+    )
+    nonzero_vel = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device).repeat(NUM_ENVS, 1)
+    balls.write_root_velocity_to_sim_index(root_velocity=nonzero_vel)
     for _ in range(5):
-        balls.write_root_velocity_to_sim(nonzero_vel)
         balls.write_data_to_sim()
         sim_ctx.step()
         balls.update(dt)
         imu_ball.update(dt, force_recompute=True)
 
-    # Buffers should hold non-zero gravity-bias + numerical-diff state before reset.
+    # Buffers should hold non-zero state before reset.
     assert torch.any(wp.to_torch(imu_ball._data._lin_acc_b) != 0), "expected non-zero data before reset"
+    assert torch.any(wp.to_torch(imu_ball._data._ang_vel_b) != 0), "expected non-zero data before reset"
 
     imu_ball.reset()
 
@@ -541,10 +570,8 @@ def test_reset(sim_ctx, device):
     # bypasses the reset.
     ang_vel_after = wp.to_torch(imu_ball._data._ang_vel_b)
     lin_acc_after = wp.to_torch(imu_ball._data._lin_acc_b)
-    prev_vel_after = wp.to_torch(imu_ball._prev_lin_vel_w)
     torch.testing.assert_close(ang_vel_after, torch.zeros_like(ang_vel_after))
     torch.testing.assert_close(lin_acc_after, torch.zeros_like(lin_acc_after))
-    torch.testing.assert_close(prev_vel_after, torch.zeros_like(prev_vel_after))
 
 
 @pytest.mark.parametrize("device", _DEVICES)
@@ -557,16 +584,17 @@ def test_no_stale_data_after_scene_reset(sim_ctx, device):
 
     sensor: Imu = scene["imu_cube"]
 
-    # Drive the native rigid-body velocity buffer non-zero. A freely falling body
-    # can read zero proper acceleration, so assert the cached velocity instead.
+    # Drive the native rigid-body velocity buffer non-zero. A freely falling body reads zero
+    # proper acceleration, so spin the cube and assert on the gyro output, which a stale
+    # refetch after the reset would surface again.
     cube: RigidObject = scene["cube"]
-    nonzero_vel = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device)
+    nonzero_vel = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device)
     cube.write_root_velocity_to_sim_index(root_velocity=nonzero_vel)
     scene.write_data_to_sim()
     sim_ctx.step()
     scene.update(dt=sim_ctx.get_physics_dt())
 
-    assert torch.any(wp.to_torch(sensor._prev_lin_vel_w) != 0), "expected non-zero cached velocity before reset"
+    assert torch.any(sensor.data.ang_vel_b.torch != 0), "expected non-zero sensor output before reset"
 
     # Reset without another physics step. The public accessor must keep reset outputs
     # instead of lazy-refetching stale native velocity.
@@ -596,8 +624,8 @@ def test_indirect_attachment_usd(sim_ctx, device):
     sub_rot = (0.5, 0.5, 0.5, 0.5)
     for i in range(NUM_ENVS):
         sim_utils.create_prim(f"/World/env_{i}/ball/imu_sub", "Xform", translation=sub_pos, orientation=sub_rot)
-    imu_indirect = _make_imu("/World/env_*/ball/imu_sub")
-    imu_direct = _make_imu("/World/env_*/ball", offset=ImuCfg.OffsetCfg(pos=sub_pos, rot=sub_rot))
+    imu_indirect = _make_imu("/World/env_[^/]+/ball/imu_sub")
+    imu_direct = _make_imu("/World/env_[^/]+/ball", offset=ImuCfg.OffsetCfg(pos=sub_pos, rot=sub_rot))
     sim_ctx.reset()
 
     torch.testing.assert_close(
@@ -665,14 +693,14 @@ def test_sensor_print(sim_ctx, device):
     """Test ``__str__`` is implemented and exposes the prim path and binding pattern."""
     _spawn_envs(NUM_ENVS)
     _spawn_balls(NUM_ENVS)
-    imu_ball = _make_imu("/World/env_*/ball")
+    imu_ball = _make_imu("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     s = str(imu_ball)
     print(s)
-    assert "Imu sensor @ '/World/env_*/ball'" in s
+    assert "Imu sensor @ '/World/env_[^/]+/ball'" in s
     assert "binding pattern" in s
-    assert "/World/env_*/ball" in s
+    assert "/World/env_[^/]+/ball" in s
     assert "number of sensors : 2" in s
 
 
