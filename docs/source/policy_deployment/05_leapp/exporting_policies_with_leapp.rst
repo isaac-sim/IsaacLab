@@ -97,7 +97,9 @@ checkpoint (or at a custom path). The directory contains:
 
 - **Exported model files** — ``.onnx`` (default) or ``.pt`` depending on the chosen backend.
 - **Export metadata** — LEAPP records the semantic information and wiring needed by downstream
-  deployment runtimes.
+  deployment runtimes, including the policy execution frequency.
+- **Environment configuration** — an ``env.yaml`` dump of the Isaac Lab environment used at export,
+  in the same format as training logs.
 - **Initial values** — a ``.safetensors`` file for any feedback state, such as recurrent hidden
   state or last action.
 - **A graph visualization** — a ``.png`` diagram of the pipeline (can be disabled).
