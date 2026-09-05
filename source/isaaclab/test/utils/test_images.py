@@ -146,6 +146,38 @@ class TestNormalizeCameraImageRGBLike:
         torch.testing.assert_close(out, expected)
 
 
+class TestNormalizeCameraImageSegmentation:
+    """Segmentation dispatch, keyed on the tensor dtype rather than on the ``colorize`` flag."""
+
+    def test_colorized_semantic_segmentation_is_normalized(self, device):
+        """RGBA uint8 semantic segmentation produces a float32 normalized image."""
+        from isaaclab.utils.images import normalize_camera_image
+
+        torch.manual_seed(0)
+        src = torch.randint(0, 255, (2, 8, 8, 4), dtype=torch.uint8, device=device)
+        out = normalize_camera_image(src, "semantic_segmentation")
+
+        expected = src.float() / 255.0
+        expected = expected - torch.mean(expected, dim=(1, 2), keepdim=True)
+        torch.testing.assert_close(out, expected, atol=1e-5, rtol=1e-5)
+        assert out.dtype == torch.float32
+
+    def test_non_colorized_semantic_segmentation_is_cast_to_float(self, device):
+        """int32 label-id segmentation is cast to float32 with the ids left untouched.
+
+        Non-colorized segmentation is ``int32`` for every renderer, and feeding it to a
+        convolution raises ``Input type (int) and bias type (float) should be the same``.
+        """
+        from isaaclab.utils.images import normalize_camera_image
+
+        torch.manual_seed(0)
+        src = torch.randint(0, 4, (2, 8, 8, 1), dtype=torch.int32, device=device)
+        out = normalize_camera_image(src, "semantic_segmentation")
+
+        assert out.dtype == torch.float32
+        torch.testing.assert_close(out, src.to(torch.float32))
+
+
 class TestNormalizeCameraImageDepth:
     """Depth-like dispatch: in-place ``inf -> 0``."""
 
@@ -175,7 +207,7 @@ class TestNormalizeCameraImageNormals:
 class TestNormalizeCameraImagePassthrough:
     """Unknown data_types return the input unchanged."""
 
-    @pytest.mark.parametrize("data_type", ["semantic_segmentation", "instance_segmentation", "motion_vectors"])
+    @pytest.mark.parametrize("data_type", ["instance_segmentation", "motion_vectors"])
     def test_unknown_type_passthrough(self, device, data_type):
         from isaaclab.utils.images import normalize_camera_image
 

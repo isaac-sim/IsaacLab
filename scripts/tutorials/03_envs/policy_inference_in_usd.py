@@ -29,8 +29,8 @@ parser.add_argument("--checkpoint", type=str, help="Path to model checkpoint exp
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
+# parse the arguments, forwarding unrecognized ones as Hydra-style task config overrides
+args_cli, hydra_overrides = parser.parse_known_args()
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -45,7 +45,7 @@ from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, read_file
 
-from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg
+from isaaclab_tasks.utils import parse_env_cfg
 
 
 def main():
@@ -56,16 +56,14 @@ def main():
     policy = torch.jit.load(file, map_location=args_cli.device)
 
     # setup environment
-    env_cfg = H1RoughEnvCfg()
+    env_cfg = parse_env_cfg("Isaac-Velocity-Rough-H1", device=args_cli.device, num_envs=1, overrides=hydra_overrides)
     env_cfg.play_mode()
-    env_cfg.scene.num_envs = 1
     env_cfg.curriculum = None
     env_cfg.scene.terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="usd",
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/warehouse.usd",
     )
-    env_cfg.sim.device = args_cli.device
     if args_cli.device == "cpu":
         env_cfg.sim.use_fabric = False
 

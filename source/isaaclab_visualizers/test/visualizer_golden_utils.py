@@ -359,6 +359,7 @@ def run_visualizer_golden_cartpole(
     comparison_scores: list[dict],
     *,
     buffer_steps: int = 0,
+    all_envs_perspective: bool = False,
 ) -> None:
     """Run a golden-image test for one ``(physics_backend, visualizer_type, mode)`` combination.
 
@@ -372,7 +373,11 @@ def run_visualizer_golden_cartpole(
         comparison_scores: Module-level accumulator forwarded to :func:`validate_visualizer_frame`.
         buffer_steps: Physics steps to run before capture (default 0 — capture the reset pose
             so the pole remains at its initial 45° angle and is clearly attached to the cart).
+        all_envs_perspective: Whether to frame four environments in one Kit perspective-camera image.
     """
+    if all_envs_perspective and (visualizer_type != "kit" or mode != "viewport"):
+        raise ValueError("The all-environment perspective golden requires Kit viewport capture.")
+
     import torch
     import visualizer_integration_utils as _viz_utils
 
@@ -396,7 +401,12 @@ def run_visualizer_golden_cartpole(
         _viz_utils._prepare_visualizer_test_process()
         sim_utils.create_new_stage()
         tiled = mode == "tiled"
-        env = _viz_utils._make_cartpole_camera_env(visualizer_type, physics_backend, tiled_camera=tiled)
+        env = _viz_utils._make_cartpole_camera_env(
+            visualizer_type,
+            physics_backend,
+            tiled_camera=tiled,
+            all_envs_perspective=all_envs_perspective,
+        )
         _viz_utils._configure_sim_for_visualizer_test(env)
         actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
         # Pin the initial pole angle to a fixed value so the golden image shows a clearly
@@ -417,8 +427,11 @@ def run_visualizer_golden_cartpole(
             env.step(action=actions)
 
         frame = _capture_frame(env, visualizer_type, mode, physics_backend, actions)
+        if all_envs_perspective:
+            _viz_utils._assert_non_flat_frame_array(frame)
 
-        validate_visualizer_frame("cartpole", physics_backend, visualizer_type, mode, frame, comparison_scores)
+        test_name = "cartpole_all_envs" if all_envs_perspective else "cartpole"
+        validate_visualizer_frame(test_name, physics_backend, visualizer_type, mode, frame, comparison_scores)
     finally:
         _viz_utils._cleanup_visualizer_test_process(env)
 

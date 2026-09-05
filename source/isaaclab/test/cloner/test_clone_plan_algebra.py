@@ -6,15 +6,15 @@
 """Tests for the cloner path/query algebra.
 
 These exercise :mod:`isaaclab.cloner.path` and :mod:`isaaclab.cloner.query`, which are pure
-string/tensor operations over a :class:`~isaaclab.cloner.ClonePlan`. They need no stage, no
+string/array operations over a :class:`~isaaclab.cloner.ClonePlan`. They need no stage, no
 simulator and no USD, so they live outside ``test/sim/``.
 """
 
 import subprocess
 import sys
 
+import numpy as np
 import pytest
-import torch
 
 from isaaclab import cloner
 from isaaclab.cloner import ClonePlan
@@ -149,7 +149,7 @@ def _plan(sources, destinations, mask) -> ClonePlan:
     return ClonePlan(
         sources=tuple(sources),
         destinations=tuple(destinations),
-        clone_mask=torch.tensor(mask, dtype=torch.bool),
+        clone_mask=np.asarray(mask, dtype=np.bool_),
     )
 
 
@@ -160,7 +160,7 @@ def _robot_plan(mask_row=(True, True, True, True)) -> ClonePlan:
 
 def _wide_env_id_plan() -> ClonePlan:
     """Two variants of one asset over 12 envs, the second starting at a two-digit env id."""
-    mask = torch.zeros((2, 12), dtype=torch.bool)
+    mask = np.zeros((2, 12), dtype=np.bool_)
     mask[0, :10] = True
     mask[1, 10:] = True
     return ClonePlan(
@@ -334,8 +334,8 @@ def test_iter_sources_yields_nearest_owner():
     ]
 
 
-def test_iter_sources_skips_rows_without_envs():
-    """A row populating no env is not a source of anything."""
+def test_iter_sources_reports_only_the_envs_a_row_populates():
+    """A row covering part of the envs is a source for those envs only."""
     plan = _plan(
         ("/World/envs/env_2/Object",),
         ("/World/envs/env_{}/Object",),
@@ -348,6 +348,24 @@ def test_iter_sources_skips_rows_without_envs():
             "/World/envs/env_{}/Object",
             "/World/envs/env_2/Object/Body/Camera",
             (2, 3),
+        )
+    ]
+
+
+def test_iter_sources_skips_rows_without_envs():
+    """A nearer template populating no env does not hide the populated ancestor owning the path."""
+    plan = _plan(
+        ("/World/envs/env_0/Robot", "/World/envs/env_0/Robot/wrist/Camera"),
+        ("/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot/wrist/Camera"),
+        [[True, True, False, False], [False, False, False, False]],
+    )
+
+    assert list(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Robot/wrist/Camera")) == [
+        (
+            "/World/envs/env_0/Robot",
+            "/World/envs/env_{}/Robot",
+            "/World/envs/env_0/Robot/wrist/Camera",
+            (0, 1),
         )
     ]
 
@@ -479,8 +497,8 @@ def test_query_translates_env_ids_through_the_plan():
     plan = ClonePlan(
         sources=("/World/envs/env_2/Robot",),
         destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=torch.tensor([[True, True]], dtype=torch.bool),
-        env_ids=torch.tensor([2, 5], dtype=torch.long),
+        clone_mask=np.asarray([[True, True]], dtype=np.bool_),
+        env_ids=np.asarray([2, 5], dtype=np.int64),
     )
     path = "/World/envs/env_2/Robot/base"
 
@@ -523,9 +541,9 @@ def test_query_agrees_across_duplicate_source_rows():
         assert (cloner.query.path_to_clone(plan, path, env_id) is not None) == (env_id in reached)
 
 
-##
-# Plan invariants.
-##
+def test_env_0_plan_defaults_to_no_global_paths():
+    plan = cloner.clone_plan_from_env_0("/World/envs/env_0", "/World/envs/env_{}", 2)
+    assert plan.global_paths == ()
 
 
 def test_query_and_path_are_real_modules():
@@ -548,7 +566,10 @@ def test_cloner_imports_without_kit():
     import ``isaaclab.sim``, so this guards both against an import cycle and against pulling
     pxr in before Kit boots, which corrupts Kit's own USD runtime.
     """
-    probe = "import isaaclab.cloner, sys; print(any(n == 'pxr' or n.startswith('pxr.') for n in sys.modules))"
+    probe = (
+        "from isaaclab.cloner import ClonePlan; import sys; "
+        "print(any(n == 'pxr' or n.startswith('pxr.') for n in sys.modules))"
+    )
     result = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
 
     assert result.returncode == 0, result.stderr

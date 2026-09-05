@@ -60,7 +60,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/migration/migrating_from_isaacgymenvs.rst`, `docs/source/setup/installation/index.rst`, `docs/source/overview/core-concepts/task_workflows.rst`, `docs/source/overview/core-concepts/multi_backend_architecture.rst`, `docs/source/overview/core-concepts/schema_cfgs.rst`, the direct environment tutorial, and direct task examples such as `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/`, `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`, and `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/`. If the migration requires documentation-level details, update `docs/source/` or the maintained examples first and keep this skill as a workflow router.
+Keep this skill synchronized with the Isaac Gym section in `docs/source/migration/migrating_to_isaaclab_3-0.rst`, `docs/source/setup/installation/index.rst`, `docs/source/overview/core-concepts/task_workflows.rst`, `docs/source/overview/core-concepts/multi_backend_architecture.rst`, `docs/source/overview/core-concepts/schema_cfgs.rst`, the direct environment tutorial, and direct task examples such as `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/`, `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`, and `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/`. If the migration requires documentation-level details, update `docs/source/` or the maintained examples first and keep this skill as a workflow router.
 
 ## References
 
@@ -70,10 +70,10 @@ Keep this skill synchronized with `docs/source/migration/migrating_from_isaacgym
 - [Initial Ant smoke validation](validation-ant-fresh-agent.md)
 - [Evaluations](evaluations.md)
 - [Direct to manager conversion skill](../convert-direct-to-manager/SKILL.md)
-- [IsaacGymEnvs migration guide](../../../docs/source/migration/migrating_from_isaacgymenvs.rst)
+- [Migration guide: Isaac Gym section](../../../docs/source/migration/migrating_to_isaaclab_3-0.rst#migration-from-isaac-gym-and-isaacgymenvs)
 - [Task workflows](../../../docs/source/overview/core-concepts/task_workflows.rst)
 - [Multi-backend architecture](../../../docs/source/overview/core-concepts/multi_backend_architecture.rst)
 - [Schema cfgs](../../../docs/source/overview/core-concepts/schema_cfgs.rst)
-- [Environments overview](../../../docs/source/overview/environments.rst)
+- [Environment browser](../../../docs/source/setup/environments.rst)
 - [Create direct workflow environment tutorial](../../../docs/source/tutorials/03_envs/create_direct_rl_env.rst)
 - [Create manager-based environment tutorial](../../../docs/source/tutorials/03_envs/create_manager_rl_env.rst)

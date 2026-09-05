@@ -930,6 +930,25 @@ class TestRePointPrebundlePackages:
         for pb in (pb1, pb2):
             assert (pb / "torch").is_symlink(), f"torch in {pb} should be repointed"
 
+    def test_repoints_package_inside_expanded_extra_bundle(self, tmp_path):
+        """Expanded extras bundles must not retain file links into a replaced package."""
+        isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["newton"])
+        shared_init = prebundle / "newton" / "legacy" / "__init__.py"
+        shared_init.parent.mkdir()
+        shared_init.write_text("")
+        bundled_newton = prebundle / "newton[sim]" / "newton-wheel" / "newton"
+        bundled_init = bundled_newton / "legacy" / "__init__.py"
+        bundled_init.parent.mkdir(parents=True)
+        bundled_init.symlink_to(shared_init)
+        site_pkgs = _make_site_packages(tmp_path / "env", ["newton"])
+
+        with self._patch(isaacsim_path, site_pkgs, str(tmp_path / "env" / "bin" / "python")):
+            _repoint_prebundle_packages()
+
+        assert (prebundle / "newton").resolve() == (site_pkgs / "newton").resolve()
+        assert bundled_newton.is_symlink()
+        assert bundled_newton.resolve() == (site_pkgs / "newton").resolve()
+
     # ---- Windows: copy instead of symlink -----------------------------------
 
     def test_copies_package_on_windows_instead_of_symlinking(self, tmp_path):

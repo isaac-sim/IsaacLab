@@ -22,7 +22,6 @@ simulation pause.
 from __future__ import annotations
 
 import contextlib
-import copy
 import gc
 import logging
 import math
@@ -44,12 +43,9 @@ from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_t
 from isaaclab.sim import SimulationContext
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
-from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpolePhysicsCfg
-from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothEnvCfg
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
 from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
-from isaaclab_tasks.core.velocity.config.anymal_d.flat_env_cfg import AnymalDFlatEnvCfg
+from isaaclab_tasks.utils import resolve_task_config
 
 # Debugging mode configs.
 
@@ -73,11 +69,23 @@ _CARTPOLE_INTEGRATION_NUM_ENVS = 1
 _CARTPOLE_TILED_CAMERA_INTEGRATION_NUM_ENVS = 4
 """Vectorized env count for generated visualizer tiled-camera integration tests."""
 
+_CARTPOLE_ALL_ENVS_INTEGRATION_NUM_ENVS = 4
+"""Vectorized env count for the all-environment perspective-camera golden test."""
+
+_CARTPOLE_ALL_ENVS_INTEGRATION_SPACING = 8.0
+"""Environment spacing [m] for a clear four-cartpole perspective view."""
+
 _CARTPOLE_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (2.25, 0.0, 3.5)
 """Passed to :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` subclasses (``eye``)."""
 
 _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 2.25)
 """Passed to visualizer cfgs (``lookat``); also applied to :class:`~isaaclab.envs.common.ViewerCfg` for the env."""
+
+_CARTPOLE_ALL_ENVS_VISUALIZER_EYE: tuple[float, float, float] = (9.0, 9.0, 10.0)
+"""Perspective-camera eye position that frames all four cartpole environments."""
+
+_CARTPOLE_ALL_ENVS_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 2.25)
+"""Perspective-camera target at the center of the four-environment grid."""
 
 _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tuple(
     eye - lookat for eye, lookat in zip(_CARTPOLE_INTEGRATION_VISUALIZER_EYE, _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT)
@@ -311,17 +319,26 @@ def _allocate_rerun_test_ports(host: str = "127.0.0.1") -> tuple[int, int]:
     return web_port, grpc_port
 
 
-def _cartpole_integration_visualizer_camera_kwargs() -> dict[str, tuple[float, float, float]]:
+def _cartpole_integration_visualizer_camera_kwargs(
+    *, all_envs_perspective: bool = False
+) -> dict[str, tuple[float, float, float]]:
     """Eye/lookat for all :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` subclasses in these tests."""
+    if all_envs_perspective:
+        return {
+            "eye": _CARTPOLE_ALL_ENVS_VISUALIZER_EYE,
+            "lookat": _CARTPOLE_ALL_ENVS_VISUALIZER_LOOKAT,
+        }
     return {
         "eye": _CARTPOLE_INTEGRATION_VISUALIZER_EYE,
         "lookat": _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT,
     }
 
 
-def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False):
+def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all_envs_perspective: bool = False):
     """Return (visualizer_cfg, expected_visualizer_cls) for the given visualizer kind."""
-    cam = _cartpole_integration_visualizer_camera_kwargs()
+    if tiled_camera and all_envs_perspective:
+        raise ValueError("Tiled-camera and all-environment perspective modes are mutually exclusive.")
+    cam = _cartpole_integration_visualizer_camera_kwargs(all_envs_perspective=all_envs_perspective)
     tiled_cam = (
         {
             "streaming_view": True,
@@ -1542,8 +1559,8 @@ def _make_shadow_hand_env(
     visualizer_kind: str | tuple[str, ...], backend_kind: str, *, tiled_camera: bool = False
 ) -> ReorientDirectEnv:
     """Create a shadow hand env configured with selected visualizer and physics backend."""
-    env_cfg = copy.deepcopy(ShadowHandEnvCfg())
-    env_cfg = _apply_env_cfg_preset(env_cfg, "newton_mjwarp" if backend_kind == "newton" else "physx")
+    physics = "newton_mjwarp" if backend_kind == "newton" else "physx"
+    env_cfg = _compose_task_cfg("Isaac-Reorient-Cube-Shadow-Direct", physics)
     env_cfg.scene.num_envs = (
         _SHADOW_HAND_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _SHADOW_HAND_INTEGRATION_NUM_ENVS
     )
@@ -1601,8 +1618,8 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
     """
     from isaaclab.envs import ManagerBasedRLEnv
 
-    env_cfg = copy.deepcopy(AnymalDFlatEnvCfg())
-    env_cfg = _apply_env_cfg_preset(env_cfg, "newton_mjwarp" if backend_kind == "newton" else "physx")
+    physics = "newton_mjwarp" if backend_kind == "newton" else "physx"
+    env_cfg = _compose_task_cfg("Isaac-Velocity-Flat-AnymalD", physics)
     env_cfg.scene.num_envs = (
         _ANYMAL_D_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _ANYMAL_D_INTEGRATION_NUM_ENVS
     )
@@ -1744,32 +1761,20 @@ def _resolve_nucleus_url_to_local(url: str) -> str:
     return url
 
 
-def _apply_env_cfg_preset(env_cfg, preset_name: str):
-    """Apply a named preset to all :class:`~isaaclab_tasks.utils.PresetCfg` fields in *env_cfg*.
-
-    Uses the same Hydra resolver path as :func:`rendering_test_utils._apply_overrides_to_env_cfg`
-    so nested presets (e.g. ``scene.deformable``) are resolved correctly.
-    """
-    from isaaclab_tasks.utils.hydra import apply_overrides, collect_presets, parse_overrides
-
-    presets = {"env": collect_presets(env_cfg)}
-    global_presets, preset_sel, preset_scalar, _ = parse_overrides([f"presets={preset_name}"], presets)
-    hydra_cfg = {"env": env_cfg.to_dict()}
-    env_cfg, _ = apply_overrides(env_cfg, None, hydra_cfg, global_presets, preset_sel, preset_scalar, presets)
+def _compose_task_cfg(task_id: str, physics: str, *overrides: str):
+    """Compose a registered task with concrete physics and optional Hydra overrides."""
+    env_cfg, _ = resolve_task_config(task_id, "", overrides=(f"physics={physics}", *overrides))
     return env_cfg
 
 
 def _make_franka_cloth_env(visualizer_kind: str | tuple[str, ...], *, tiled_camera: bool = False):
     """Create a franka cloth env configured with the selected visualizer on the Newton backend.
 
-    Franka cloth uses Newton VBD cloth physics exclusively; there is no PhysX preset.
-    All nested :class:`~isaaclab_tasks.utils.PresetCfg` fields (including
-    ``scene.deformable``) are resolved via the Hydra preset resolver.
+    Franka cloth uses Newton VBD cloth physics exclusively.
     """
     from isaaclab.envs import ManagerBasedRLEnv
 
-    env_cfg = copy.deepcopy(FrankaClothEnvCfg())
-    env_cfg = _apply_env_cfg_preset(env_cfg, "newton_mjwarp_vbd_proxy")
+    env_cfg = _compose_task_cfg("Isaac-Lift-Soft-Franka", "newton_mjwarp_vbd_proxy")
     # Remap nucleus S3 URLs to local /tmp cache so the test works offline when the
     # omni.client hash cache is cold (shadow hand / AnymalD are warm from prior runs).
     env_cfg.scene.robot.spawn.usd_path = _resolve_nucleus_url_to_local(env_cfg.scene.robot.spawn.usd_path)
@@ -1831,34 +1836,44 @@ def _make_franka_cloth_env(visualizer_kind: str | tuple[str, ...], *, tiled_came
 
 
 def _make_cartpole_camera_env(
-    visualizer_kind: str | tuple[str, ...], backend_kind: str, *, tiled_camera: bool = False
+    visualizer_kind: str | tuple[str, ...],
+    backend_kind: str,
+    *,
+    tiled_camera: bool = False,
+    all_envs_perspective: bool = False,
 ) -> CartpoleCameraEnv:
     """Create cartpole camera env configured with selected visualizer and physics backend."""
-    env_cfg_root = CartpoleCameraEnvCfg()
-    env_cfg = getattr(env_cfg_root, "default", None)
-    if env_cfg is None:
-        env_cfg = getattr(type(env_cfg_root), "default", None)
-    if env_cfg is None:
-        raise RuntimeError(
-            "CartpoleCameraEnvCfg does not expose a 'default' preset config. "
-            f"Available attributes: {sorted(vars(env_cfg_root).keys())}"
-        )
-    env_cfg = copy.deepcopy(env_cfg)
+    if tiled_camera and all_envs_perspective:
+        raise ValueError("Tiled-camera and all-environment perspective modes are mutually exclusive.")
+    physics = "newton_mjwarp" if backend_kind == "newton" else "physx"
+    env_cfg = _compose_task_cfg("Isaac-Cartpole-Camera-Direct", physics, "renderer=isaacsim_rtx")
     env_cfg.scene.num_envs = (
-        _CARTPOLE_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _CARTPOLE_INTEGRATION_NUM_ENVS
+        _CARTPOLE_TILED_CAMERA_INTEGRATION_NUM_ENVS
+        if tiled_camera
+        else _CARTPOLE_ALL_ENVS_INTEGRATION_NUM_ENVS
+        if all_envs_perspective
+        else _CARTPOLE_INTEGRATION_NUM_ENVS
     )
-    env_cfg.viewer.eye = _CARTPOLE_INTEGRATION_VISUALIZER_EYE
-    env_cfg.viewer.lookat = _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT
+    if all_envs_perspective:
+        env_cfg.scene.env_spacing = _CARTPOLE_ALL_ENVS_INTEGRATION_SPACING
+    camera_kwargs = _cartpole_integration_visualizer_camera_kwargs(all_envs_perspective=all_envs_perspective)
+    env_cfg.viewer.eye = camera_kwargs["eye"]
+    env_cfg.viewer.lookat = camera_kwargs["lookat"]
     tw, th = _CARTPOLE_TILED_CAMERA_INTEGRATION_WH
     env_cfg.tiled_camera.width = tw
     env_cfg.tiled_camera.height = th
     if isinstance(env_cfg.observation_space, list) and len(env_cfg.observation_space) >= 3:
         env_cfg.observation_space = [th, tw, env_cfg.observation_space[2]]
     env_cfg.seed = None
-    env_cfg.sim.physics, _ = _get_physics_cfg(backend_kind)
-    env_cfg.tiled_camera.default.renderer_cfg = env_cfg.tiled_camera.default.renderer_cfg.isaacsim_rtx
     visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
-    visualizer_cfgs = [_get_visualizer_cfg(kind, tiled_camera=tiled_camera)[0] for kind in visualizer_kinds]
+    visualizer_cfgs = [
+        _get_visualizer_cfg(
+            kind,
+            tiled_camera=tiled_camera,
+            all_envs_perspective=all_envs_perspective,
+        )[0]
+        for kind in visualizer_kinds
+    ]
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs
     return CartpoleCameraEnv(env_cfg)
 

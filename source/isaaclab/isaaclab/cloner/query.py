@@ -29,6 +29,8 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from . import path as pth
 
 if TYPE_CHECKING:
@@ -37,10 +39,10 @@ if TYPE_CHECKING:
 
 def _row_env_ids(plan: ClonePlan, row: int) -> tuple[int, ...]:
     """Env ids populated from a plan row: the plan's env ids at the row's ``True`` columns."""
-    columns = plan.clone_mask[row].nonzero(as_tuple=False).flatten().tolist()
+    columns = np.flatnonzero(plan.clone_mask[row])
     if plan.env_ids is None:
-        return tuple(int(column) for column in columns)
-    return tuple(int(plan.env_ids[column]) for column in columns)
+        return tuple(map(int, columns))
+    return tuple(map(int, plan.env_ids[columns]))
 
 
 def _column_for_env_id(plan: ClonePlan, env_id: int) -> int | None:
@@ -51,8 +53,8 @@ def _column_for_env_id(plan: ClonePlan, env_id: int) -> int | None:
     """
     if plan.env_ids is None:
         return env_id if 0 <= env_id < plan.clone_mask.shape[1] else None
-    columns = (plan.env_ids == env_id).nonzero(as_tuple=False).flatten().tolist()
-    return int(columns[0]) if columns else None
+    columns = np.flatnonzero(plan.env_ids == env_id)
+    return int(columns[0]) if columns.size else None
 
 
 def _source_rows(plan: ClonePlan, path: str) -> list[int]:
@@ -82,7 +84,7 @@ def _clone_rows(plan: ClonePlan, path_expr: str, *, populated_only: bool) -> lis
     for row, template in enumerate(plan.destinations):
         if "{}" not in template:
             continue
-        if populated_only and not _row_env_ids(plan, row):
+        if populated_only and not plan.clone_mask[row].any():
             continue
         matched = pth.match(path_expr, template)
         if matched is None:

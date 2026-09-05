@@ -1,6 +1,167 @@
 Changelog
 ---------
 
+20.0.1 (2026-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an ``overrides`` argument to :func:`~isaaclab_tasks.utils.parse_env_cfg` for applying Hydra-style
+  ``key=value`` overrides (e.g. ``physics=isaacsim_physx``) to a task's registered configuration from standalone
+  scripts that do not use the full Hydra CLI. The ``run_cartpole_rl_env.py`` tutorial now forwards unrecognized
+  command-line arguments this way, which is required to select the PhysX backend for the OVD Recorder.
+
+Fixed
+^^^^^
+
+* Fixed the Cartpole camera tasks crashing at the first training step with
+  ``RuntimeError: Input type (unsigned char) and bias type (float) should be the same`` when the
+  ``semantic_segmentation`` preset was selected. Both the manager-based observation term and the
+  direct environment normalized only RGB-like and depth output, so segmentation reached the feature
+  extractor as an integer tensor. Segmentation is now routed through
+  :func:`isaaclab.utils.images.normalize_camera_image`, which keys on the tensor dtype and therefore
+  handles both colorized (``uint8`` RGBA) and non-colorized (``int32`` label ids) output.
+* Fixed ``test_manipulation_env_determinism`` asserting bit-reproducible rewards without requesting
+  a determinism guarantee. Newton defaults to ``wp.DeterministicMode.NOT_GUARANTEED``, under which
+  Warp's atomics may accumulate in any order, so the test failed intermittently depending on GPU
+  scheduling. It now passes ``deterministic_mode="run_to_run"``, as the Newton cartpole cases
+  already did.
+* Fixed :func:`~isaaclab_tasks.utils.parse_env_cfg` silently misinterpreting a bare ``overrides`` string as a
+  sequence of single-character overrides (a plain string is itself a ``Sequence[str]``). Passing a bare string now
+  raises a clear ``TypeError`` instructing the caller to wrap it in a list or tuple.
+* Extended the Hydra-style ``overrides`` forwarding added for the OVD Recorder fix to every standalone script that
+  calls :func:`~isaaclab_tasks.utils.parse_env_cfg`, so ``physics=``/``renderer=``/``presets=`` selectors work
+  consistently across all of them, not just the ``run_cartpole_rl_env.py`` tutorial.
+
+
+20.0.0 (2026-09-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the contributed ``IsaacContrib-Multitask-Manipulation`` manager-based task for training one policy across heterogeneous
+  OpenArm lift, Franka cabinet, and UR10 reach environments using selection-aware physics-view indexing, including
+  task-specific Gaussian policy and value heads, task-wise PPO advantage normalization, bounded cabinet joint targets,
+  cabinet state-safety resets, task-balanced OpenArm reward scaling, and playback visualization with shortened
+  evaluation horizons and task-appropriate command markers.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated the SO-101 keyboard and stack tasks to default to Newton MJWarp and the USD's SysID
+  ``physics`` variant. Explicit PhysX presets select the USD's ``physx`` variant. The tasks otherwise use the
+  canonical asset's authored colliders, neutral root pose, and operational joint pose. Existing keyboard checkpoints
+  trained with the previous converted asset are not compatible with the new asset and must be retrained; use the
+  previous Isaac Lab revision and asset to replay those checkpoints.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``ovphysx`` physics, deformable, scene, event, and curriculum presets
+  from ``Isaac-Lift-Soft-Franka``, ``Isaac-Lift-Cloth-Franka``, and their camera variants because
+  OVPhysX currently produces incorrect deformable behavior for these tasks. Existing commands using
+  ``physics=ovphysx`` or ``presets=ovphysx`` must use ``physics=isaacsim_physx``, or drop the
+  override to use the default ``newton_mjwarp_vbd_proxy``. As a result, ``physics=physx`` now always
+  resolves to Isaac Sim PhysX for these tasks instead of selecting OVPhysX when Isaac Sim is absent.
+
+Fixed
+^^^^^
+
+* Fixed the Newton MJWarp SO-101 stack tasks failing with multiple environments when resolving USD-authored actuator
+  parameters.
+* Fixed stack environments exhausting GPU memory with their inherited default environment count by defaulting the
+  shared stack environment configurations to one environment. Use ``--num_envs`` to configure a larger batch.
+
+
+19.1.1 (2026-08-31)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``IsaacContrib-PickPlace-GR1T2-Abs`` Kit replay viewport opening behind the robot by
+  restoring the beta2 front-diagonal camera pose.
+
+
+19.1.0 (2026-08-30)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Made ``IsaacContrib-Franka-Pour`` configure its initial particle lattice by
+  source-cup fill height independently of the reset-state artifact.
+* Replaced the receiver's rigid-only mesh collider with an analytic box while
+  retaining its hollow mesh for MPM particle collisions.
+* Expressed the reference 735-particle lattice with the same 15 mm voxel as the
+  MPM solver and three particles per cell along each axis.
+* **Breaking:** Stored the Franka Pour robot identity relative to
+  ``ISAACLAB_NUCLEUS_DIR`` instead of as a staging URL. Regenerate custom reset
+  datasets created with the previous contract.
+
+Fixed
+^^^^^
+
+* Matched particle-count and sparse-grid capacity calculations to the MPM
+  spawner's per-axis ceiling behavior.
+* Stabilized the taller default particle payload with two MPM entry substeps
+  and particle-backed automatic warm starting, and increased the proxy mass
+  scale to prevent unphysical rigid-cup recoil.
+
+
+19.0.1 (2026-08-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``test_rendering_franka_cable_partition_visibility``, which moves the cable 0.7 m past its
+  spawn extent under Isaac RTX scene partitioning and asserts it still renders. The existing AOV
+  tests capture a settled cable, so they never leave the bounding box Kit RTX computes at spawn.
+
+Fixed
+^^^^^
+
+* Fixed the cable disappearing from camera images in ``Isaac-Lift-Cable-Franka`` and
+  ``Isaac-Lift-Cable-Franka-Camera`` when Isaac RTX per-environment scene partitioning is enabled.
+  Kit RTX never refreshes the bounding box of an animated ``UsdGeom.BasisCurves`` prim (OMPE-105749),
+  so the partition was sized from the cable's spawn extent and culled the cable once it deformed
+  outside it -- measured on Kit 110.1.2, the cable vanished at 0.6 m of displacement. Added the
+  ``partition_bounds_marker_min`` and ``partition_bounds_marker_max`` scene entries, two 1 mm static
+  visual cubes at diagonally opposite corners of the workspace, which pin the partition bounds to the
+  full workspace volume; cable visibility then matches an unpartitioned render exactly. The markers
+  carry no colliders and do not participate in physics, and ``Isaac-Lift-Cable-Franka-Camera``
+  drops them when its camera renderer has ``enable_scene_partitioning`` off.
+* Re-enabled base center-of-mass randomization for Newton MJWarp velocity environments.
+
+
+19.0.0 (2026-08-25)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Made task composition the sole owner of preset replacement. Runtime task code now
+  requires concrete camera, renderer, and physics configurations; use
+  :func:`isaaclab_tasks.utils.resolve_task_config` or :func:`isaaclab_tasks.utils.parse_env_cfg`
+  instead of passing a raw registered configuration class to an environment.
+* Added explicit programmatic ``overrides`` to :func:`isaaclab_tasks.utils.resolve_task_config` so
+  tools and tests can use the same composition path without modifying :data:`sys.argv`.
+* Extended Core Lift and Reorient task episodes to 12 seconds and their pose-command resampling range to 4--6 seconds.
+
+
+18.0.0 (2026-08-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed Newton MJWarp velocity environments to use two physics substeps from their
+  shared family configuration. Robot-specific velocity configs no longer override the substep count.
+
+
 17.1.0 (2026-08-21)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -7,18 +7,28 @@
 # Newton physics, OVRTX rendering, and every core RL framework.
 ARG BASE_IMAGE_ARG=ubuntu:24.04
 
-FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a2c40c38c905cf3a0d70131a6 AS uv
+FROM ghcr.io/astral-sh/uv:0.12.9@sha256:8b940d3a9d65bed080436972241af2e21c84b5e8c9193f7014ed71479ee795ff AS uv
 
 FROM ${BASE_IMAGE_ARG} AS builder
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG ISAACLAB_PATH_ARG=/workspace/isaaclab
+# Deliberately outside ISAACLAB_PATH: CI bind-mounts the checkout over that path, which would
+# otherwise hide the interpreter and leave ``python`` resolving to nothing.
+ARG VENV_PATH_ARG=/opt/isaaclab-venv
 ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
-ENV VIRTUAL_ENV=${ISAACLAB_PATH_ARG}/.venv
-ENV PATH=${ISAACLAB_PATH_ARG}/.venv/bin:/usr/local/bin:${PATH}
+ENV VIRTUAL_ENV=${VENV_PATH_ARG}
+ENV UV_PROJECT_ENVIRONMENT=${VENV_PATH_ARG}
+ENV PATH=${VENV_PATH_ARG}/bin:/usr/local/bin:${PATH}
+# The project pins ``python-preference = "only-managed"``, which makes ``uv sync`` download its own
+# CPython, delete the venv and rebuild it against the download. That interpreter is not copied into
+# the runtime stage, leaving bin/python a dangling symlink. Pin uv to the system interpreter, whose
+# libpython3.12 the runtime stage installs.
+ENV UV_PYTHON=/usr/bin/python3.12
+ENV UV_PYTHON_PREFERENCE=only-system
 ENV UV_NO_CACHE=1
 ENV PIP_RETRIES=12
 ENV UV_HTTP_RETRIES=12
@@ -47,16 +57,29 @@ COPY pyproject.toml uv.lock VERSION LICENSE LICENSE-mimic README.md ./
 COPY source/ source/
 COPY isaaclab.sh ./
 
-# Same entry point as Dockerfile.base. The selectors are explicit because a bare
-# --install excludes `ov` and `visualizer`; both take `[all]` here. The standalone
-# importers are core dependencies. The venv pins python3.12 to match the runtime
-# stage's libpython3.12, and isaaclab.sh resolves VIRTUAL_ENV first.
-RUN uv venv --python /usr/bin/python3.12 --seed --no-managed-python "${VIRTUAL_ENV}" \
+# Installed from uv.lock rather than via ``isaaclab.sh --install``: only the lock applies
+# ``[tool.uv] override-dependencies``, which pins ``packaging>=20,<27`` against ovphysx's
+# ``packaging<24``. The pip-style path ignores that table and needs a duplicated overrides file
+# instead, which the lock makes unnecessary. ``all`` is exactly rl+visualizer+ov and excludes the
+# ``isaacsim`` extra; ``importers`` is the two standalone wheels. UV_PYTHON above pins the venv to
+# python3.12, matching the runtime stage's libpython3.12; isaaclab.sh resolves VIRTUAL_ENV first.
+# ``--no-managed-python`` is not usable here -- uv rejects it alongside a python-preference.
+# OVRTX caches shaders, textures and derived data inside its own site-packages, and a
+# volume-mounted run executes as the runner's uid rather than the image's, so those paths must be
+# writable by a uid the image cannot know. Widened here rather than bind-mounted: the write targets
+# sit alongside shipped content such as ``cache/shadercache``, which a mount would hide.
+# ``--frozen`` is load-bearing: without it uv re-resolves whenever it judges the lock stale, which
+# would silently defeat the point of installing from it. ``--inexact`` keeps the seeded pip, which
+# is not a lock entry. ``uv sync`` reuses the venv only because UV_PYTHON pins the same interpreter
+# it was created with; otherwise it deletes and rebuilds it.
+RUN uv venv --seed "${VIRTUAL_ENV}" \
+ && uv sync --frozen --inexact --extra all --extra importers --extra test \
  && chmod +x "${ISAACLAB_PATH}/isaaclab.sh" \
- && "${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[all],visualizer[all] \
+ && chmod -R a+rwX "${VIRTUAL_ENV}"/lib/python3.*/site-packages/ovrtx \
  && python -c "import importlib.metadata as m; \
       names = {d.metadata['Name'].lower() for d in m.distributions()}; \
       assert 'isaacsim' not in names; \
+      assert 'isaacsim-asset-isolated' in names; \
       assert 'ovphysx' in names; \
       assert 'ovrtx' in names; \
       assert 'viser' in names; \
@@ -83,15 +106,21 @@ ENV LANG=C.UTF-8
 # Build arg like Dockerfile.base, so the image home and the Compose mounts
 # derived from DOCKER_USER_HOME cannot drift apart.
 ARG DOCKER_USER_HOME_ARG=/home/isaaclab
+ARG VENV_PATH_ARG=/opt/isaaclab-venv
 ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 ENV HOME=${DOCKER_USER_HOME}
-ENV VIRTUAL_ENV=${ISAACLAB_PATH_ARG}/.venv
-ENV PATH=${ISAACLAB_PATH_ARG}/.venv/bin:/usr/local/bin:${PATH}
+ENV VIRTUAL_ENV=${VENV_PATH_ARG}
+ENV PATH=${VENV_PATH_ARG}/bin:/usr/local/bin:${PATH}
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
 
+# ``git-lfs`` is required because CI checks out with ``lfs: true`` and bind-mounts that tree in.
+# Any ``git`` call then invokes the LFS filter, and without the binary it fails with "the remote
+# end hung up unexpectedly" -- which surfaced as every kit-less case failing before it allocated a
+# single byte of GPU memory. Dockerfile.base does not need this: the Isaac Sim base already has it.
+#
 # Libraries ovrtx loads at init. GLVND splits these: libgl1 gives libGL.so.1,
 # but libOpenGL.so.0 and libEGL.so.1 need libopengl0 and libegl1. libxrender1 is
 # for the Newton GL viewer: pyglet's xlib backend resolves libXrender.so.1 via
@@ -100,6 +129,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
       git \
+      git-lfs \
       libegl1 \
       libgl1 \
       libglib2.0-0 \
@@ -122,6 +152,7 @@ RUN apt-get update \
 
 COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder /usr/local/bin/uvx /usr/local/bin/uvx
+COPY --from=builder --chown=isaaclab:isaaclab ${VENV_PATH_ARG} ${VENV_PATH_ARG}
 COPY --from=builder --chown=isaaclab:isaaclab ${ISAACLAB_PATH} ${ISAACLAB_PATH}
 
 # A fresh named volume inherits ownership from the image directory at its mount

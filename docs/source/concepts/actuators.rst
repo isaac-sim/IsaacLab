@@ -227,7 +227,9 @@ estimates effort telemetry from the current state when the backend does not expo
 torque limit at :math:`\pm\,\tau_{max}`.
 
 **DCMotor.** Adds a linear four-quadrant torque-speed curve. ``saturation_effort`` is the stall
-torque, and ``actuator_velocity_limit`` is the no-load speed.
+torque, and ``actuator_velocity_limit`` is the no-load speed. Both accept a joint-name-pattern
+dictionary, so joints behind different gear reductions can share one group and still get their own
+curve — for example a quadruped whose knee sits behind an extra reduction relative to its hip.
 
 **DelayedPDActuator.** An ideal PD controller with delayed position, velocity, and effort commands.
 The delay is sampled uniformly from ``[min_delay, max_delay]`` at reset.

@@ -16,38 +16,31 @@ import tomllib
 pytestmark = pytest.mark.unit
 
 
-def _repo_root() -> Path:
-    """Find the Isaac Lab repository root from this test file."""
-    for parent in Path(__file__).resolve().parents:
-        if (parent / "pyproject.toml").is_file() and (parent / "source").is_dir():
-            return parent
-    raise RuntimeError("Could not find Isaac Lab repository root.")
-
-
-def _root_pyproject() -> dict:
+def _root_pyproject(source_checkout_root: Path) -> dict:
     """Load the root development ``pyproject.toml``."""
-    with (_repo_root() / "pyproject.toml").open("rb") as f:
+    with (source_checkout_root / "pyproject.toml").open("rb") as f:
         return tomllib.load(f)
 
 
-def test_uv_run_extra_names_match_documented_workflow():
+def test_uv_run_extra_names_match_documented_workflow(source_checkout_root: Path):
     """Docs must only reference ``uv run --extra`` names that pyproject defines."""
-    repo_root = _repo_root()
+    repo_root = source_checkout_root
     docs = (repo_root / "docs/source/setup/installation/index.rst").read_text(encoding="utf-8")
     documented_extras = set(re.findall(r"--extra\s+([A-Za-z0-9_-]+)", docs))
-    optional_dependencies = _root_pyproject()["project"]["optional-dependencies"]
+    optional_dependencies = _root_pyproject(source_checkout_root)["project"]["optional-dependencies"]
 
     assert documented_extras
     assert documented_extras <= set(optional_dependencies)
 
 
-def test_uv_run_exposes_centralized_feature_extras():
+def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
     """The root project centralizes optional third-party deps into named extras."""
-    optional_dependencies = _root_pyproject()["project"]["optional-dependencies"]
+    optional_dependencies = _root_pyproject(source_checkout_root)["project"]["optional-dependencies"]
 
     # Feature extras a user can activate with ``uv run --extra``.
     expected_extras = {
         "test",
+        "dev",
         "sb3",
         "skrl",
         "rl-games",
@@ -59,6 +52,7 @@ def test_uv_run_exposes_centralized_feature_extras():
         "ovrtx",
         "mimic",
         "teleop",
+        "importers",
         "rlinf",
         "tetrahedralization",
         "all",
@@ -82,39 +76,33 @@ def test_uv_run_exposes_centralized_feature_extras():
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovrtx"])
 
 
-def test_all_extra_aggregates_backends_rl_libraries_and_visualizers():
-    """``all`` is the single flag for every backend, RL library, and visualizer.
+def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkout_root: Path):
+    """``all`` aggregates only the curated OV, RL, and visualizer extras."""
+    optional = _root_pyproject(source_checkout_root)["project"]["optional-dependencies"]
 
-    Nothing is forked in ``[tool.uv].conflicts``, so Isaac Sim and both OV backends fit in
-    one environment alongside every RL library and visualizer. The specialized workflows stay
-    opt-in by name -- they are large, narrowly used, or both.
-    """
-    optional = _root_pyproject()["project"]["optional-dependencies"]
-
-    # ``all`` is a single self-reference listing the extras it aggregates.
     assert len(optional["all"]) == 1
     aggregated = set(re.fullmatch(r"isaaclab-dev\[(.+)\]", optional["all"][0]).group(1).split(","))
-    assert aggregated == {"isaacsim", "ov", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun"}
+    assert aggregated == {"ov", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun"}
 
-    # ``ov`` pulls both OV backends, so naming it covers ``ovphysx`` and ``ovrtx`` too.
     reachable = aggregated | {"ovphysx", "ovrtx"}
 
-    # Everything else is requested by name. A newly added extra lands in this diff and
-    # has to be classified deliberately -- into ``all`` or into this list.
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
+        "isaacsim",
+        "importers",
         "mimic",
         "teleop",
         "tetrahedralization",
         "video",
         "leapp",
         "test",
+        "dev",
     }
 
 
-def test_tetrahedralization_is_explicit_extra_only():
+def test_tetrahedralization_is_explicit_extra_only(source_checkout_root: Path):
     """TetWild and its visualization stack are installed only when requested."""
-    project = _root_pyproject()["project"]
+    project = _root_pyproject(source_checkout_root)["project"]
     optional = project["optional-dependencies"]
 
     assert not any(dep.startswith("pytetwild") for dep in project["dependencies"])
@@ -126,25 +114,24 @@ def test_tetrahedralization_is_explicit_extra_only():
         assert not any("tetrahedralization" in dep or dep.startswith("pytetwild") for dep in deps)
 
 
-def test_version_single_source_matches_literal_pins():
+def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     """``[tool.isaaclab.versions]`` is the single source for externally-pinned versions.
 
     TOML cannot interpolate, so the literal pins in ``[project.dependencies]``,
     ``[project.optional-dependencies]``, and ``[tool.uv].override-dependencies`` must
     mirror the table exactly. This test fails if any of them drift apart.
     """
-    pyproject = _root_pyproject()
+    pyproject = _root_pyproject(source_checkout_root)
     versions = pyproject["tool"]["isaaclab"]["versions"]
     dependencies = pyproject["project"]["dependencies"]
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
-    assert versions["ovphysx"] == "0.5.10"
+    assert versions["ovphysx"] == "0.5.11"
     assert "omniverseclient==2.72.3" in dependencies
 
-    # Isaac Sim extra mirrors the table, and the teleop extra repeats the same pin.
+    # Isaac Sim extra mirrors the table; it is the only place the wheel is pinned.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
-    assert f"isaacsim[all,extscache]=={versions['isaacsim']}" in optional["teleop"]
 
     # OV extras mirror the table. Table values may be an exact version ("1.2.3",
     # mirrored as ``pkg==1.2.3``) or a range spec (">=1.2.3", mirrored as ``pkg>=1.2.3``).
@@ -161,7 +148,7 @@ def test_version_single_source_matches_literal_pins():
     # ovrtx`` ignores this ceiling). Each such install must therefore be pinned:
     # either by carrying the literal range, or by referencing the ``resolve-ov-pins``
     # action output, which reads the pin from this same table. Never a bare ``ovrtx``.
-    build_workflow = (_repo_root() / ".github/workflows/build.yaml").read_text(encoding="utf-8")
+    build_workflow = (source_checkout_root / ".github/workflows/build.yaml").read_text(encoding="utf-8")
     assert "ovphysx==0.4.13" not in build_workflow
     ovrtx_install_lines = [
         line.strip() for line in build_workflow.splitlines() if "extra-pip-packages:" in line and "ovrtx" in line
@@ -173,18 +160,20 @@ def test_version_single_source_matches_literal_pins():
     for package in ("torch", "torchvision", "torchaudio"):
         assert f"{package}=={versions[package]}" in overrides
 
-    # Newton is pinned to a git ref (branch/tag/commit) via a uv override; warp-lang is a
-    # core dependency whose table value may be an exact pin ("1.2.3" -> ``==``) or a range
-    # (">=1.2.3" -> mirrored verbatim).
-    assert any(dep.endswith(f"newton.git@{versions['newton']}") for dep in overrides)
+    # The Newton uv override is its single pin and may select a release or Git revision.
+    newton_spec = next(requirement for requirement in overrides if requirement.startswith("newton[sim]"))
+    assert "==" in newton_spec or " @ git+" in newton_spec
+
+    # warp-lang is a core dependency whose table value may be an exact pin
+    # ("1.2.3" -> ``==``) or a range (">=1.2.3" -> mirrored verbatim).
     warp_value = versions["warp"]
     warp_spec = f"warp-lang=={warp_value}" if warp_value[0].isdigit() else f"warp-lang{warp_value}"
     assert warp_spec in dependencies
 
 
-def test_public_ov_packages_use_public_pypi_index():
+def test_public_ov_packages_use_public_pypi_index(source_checkout_root: Path):
     """Public OV packages must not resolve from the NVIDIA package index."""
-    pyproject = _root_pyproject()
+    pyproject = _root_pyproject(source_checkout_root)
     indexes = {index.get("name"): index for index in pyproject["tool"]["uv"]["index"]}
     sources = pyproject["tool"]["uv"]["sources"]
 
@@ -197,7 +186,7 @@ def test_public_ov_packages_use_public_pypi_index():
         assert sources[package] == {"index": "pypi-public"}
 
 
-def test_uv_run_declares_no_extra_conflicts():
+def test_uv_run_declares_no_extra_conflicts(source_checkout_root: Path):
     """No extra is forked: every combination resolves into a single environment.
 
     ``[tool.uv].conflicts`` used to fork ``isaacsim`` / ``teleop`` away from the OV runtimes,
@@ -206,21 +195,21 @@ def test_uv_run_declares_no_extra_conflicts():
     importers install beside Isaac Sim without displacing it: the two distributions share no
     files, and Kit serves ``isaacsim.asset`` from its extension roots either way.
     """
-    tool_uv = _root_pyproject()["tool"]["uv"]
+    tool_uv = _root_pyproject(source_checkout_root)["tool"]["uv"]
 
     assert "conflicts" not in tool_uv
     for override in ("packaging>=20,<27", "websockets>=14.0,<17.0.0", "coverage>=7.6.1"):
         assert override in tool_uv["override-dependencies"]
 
 
-def test_uv_run_isaacsim_is_an_opt_in_extra():
+def test_uv_run_isaacsim_is_an_opt_in_extra(source_checkout_root: Path):
     """Isaac Sim is never a base dependency, but it is a real workspace extra.
 
     PhysX/Isaac Sim must stay out of ``[project.dependencies]`` so the bare ``uv run``
     keeps working without Kit, while still being an ``optional-dependencies`` entry so
     ``uv run --extra isaacsim`` resolves.
     """
-    pyproject = _root_pyproject()
+    pyproject = _root_pyproject(source_checkout_root)
     project = pyproject["project"]
     base_dependency_names = {re.split(r"[\s<>=!~\[;]", dep, maxsplit=1)[0] for dep in project["dependencies"]}
 
@@ -233,25 +222,26 @@ def test_uv_run_isaacsim_is_an_opt_in_extra():
     assert "wheel-extras" not in pyproject.get("tool", {}).get("isaaclab", {})
 
 
-def test_uv_run_teleop_extra_bundles_isaacsim():
-    """``--extra teleop`` is the single flag for the XR teleoperation workflow.
+def test_uv_run_teleop_extra_excludes_isaacsim(source_checkout_root: Path):
+    """``teleop`` carries the teleop stack only; Isaac Sim stays its own extra.
 
-    XR teleop needs the Kit XR runtime, so the extra carries Isaac Sim through the
-    ``isaacsim`` extra rather than repeating its pin.
+    XR teleop needs the Kit XR runtime, but environments that already provide Kit (the
+    container images) must not install a second copy of it. Users who need the wheel run
+    ``--extra teleop,isaacsim``.
     """
-    optional_dependencies = _root_pyproject()["project"]["optional-dependencies"]
+    optional_dependencies = _root_pyproject(source_checkout_root)["project"]["optional-dependencies"]
     teleop = optional_dependencies["teleop"]
 
-    # Isaac Sim is listed explicitly; test_version_single_source keeps the pin from drifting.
-    assert any(dep.startswith("isaacsim[all,extscache]==") for dep in teleop)
+    assert not any(dep.startswith("isaacsim") for dep in teleop)
+    assert any(dep.startswith("isaacsim[all,extscache]==") for dep in optional_dependencies["isaacsim"])
     # record_demos.py imports isaaclab_mimic at module level; robomimic stays in ``mimic``.
     assert "isaaclab-mimic" in teleop
     assert not any(dep.startswith("robomimic") for dep in teleop)
 
 
-def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():
+def test_uv_run_base_dependencies_cover_newton_rsl_rl_training(source_checkout_root: Path):
     """The documented bare ``uv run isaaclab train`` command needs Newton and RSL-RL in core."""
-    dependencies = _root_pyproject()["project"]["dependencies"]
+    dependencies = _root_pyproject(source_checkout_root)["project"]["dependencies"]
 
     # Newton is the default physics engine and RSL-RL the default training library,
     # so both ship as core third-party requirements (not opt-in extras).
@@ -259,8 +249,8 @@ def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():
     assert any(dep.startswith("rsl-rl-lib") for dep in dependencies)
 
 
-def test_uv_run_uses_managed_python():
+def test_uv_run_uses_managed_python(source_checkout_root: Path):
     """Avoid building the project venv from conda Python and its older C++ runtime."""
-    tool_uv = _root_pyproject()["tool"]["uv"]
+    tool_uv = _root_pyproject(source_checkout_root)["tool"]["uv"]
 
     assert tool_uv["python-preference"] == "only-managed"

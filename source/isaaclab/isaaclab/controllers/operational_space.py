@@ -21,6 +21,15 @@ if TYPE_CHECKING:
     from .operational_space_cfg import OperationalSpaceControllerCfg
 
 
+def _compute_task_space_mass_matrix(inverse_task_space_mass_matrix: torch.Tensor) -> torch.Tensor:
+    """Invert a task-space mass matrix, falling back to a pseudoinverse for singular batch elements."""
+    task_space_mass_matrix, info = torch.linalg.inv_ex(inverse_task_space_mass_matrix)
+    singular_mask = info != 0
+    if torch.any(singular_mask):
+        task_space_mass_matrix[singular_mask] = torch.linalg.pinv(inverse_task_space_mass_matrix[singular_mask])
+    return task_space_mass_matrix
+
+
 class OperationalSpaceController:
     """Operational-space controller.
 
@@ -432,17 +441,19 @@ class OperationalSpaceController:
                 self._mass_matrix_inv = torch.inverse(mass_matrix)
                 if self.cfg.partial_inertial_dynamics_decoupling:
                     # Fill in the translational and rotational parts of the inertia separately, ignoring their coupling
-                    self._os_mass_matrix_b[:, 0:3, 0:3] = torch.inverse(
+                    self._os_mass_matrix_b[:, 0:3, 0:3] = _compute_task_space_mass_matrix(
                         jacobian_b[:, 0:3] @ self._mass_matrix_inv @ jacobian_b[:, 0:3].mT
                     )
-                    self._os_mass_matrix_b[:, 3:6, 3:6] = torch.inverse(
+                    self._os_mass_matrix_b[:, 3:6, 3:6] = _compute_task_space_mass_matrix(
                         jacobian_b[:, 3:6] @ self._mass_matrix_inv @ jacobian_b[:, 3:6].mT
                     )
                 else:
                     # Calculate the operational space mass matrix fully accounting for the couplings
-                    self._os_mass_matrix_b[:] = torch.inverse(jacobian_b @ self._mass_matrix_inv @ jacobian_b.mT)
+                    self._os_mass_matrix_b[:] = _compute_task_space_mass_matrix(
+                        jacobian_b @ self._mass_matrix_inv @ jacobian_b.mT
+                    )
                 # (Generalized) operational space command forces
-                # F = (J M^(-1) J^T)^(-1) * \ddot(x_des) = M_task * \ddot(x_des)
+                # F = (J M^(-1) J^T)^+ * \ddot(x_des) = M_task * \ddot(x_des)
                 os_command_forces_b = self._os_mass_matrix_b @ des_ee_acc_b
             else:
                 # Task-space impedance control: command forces = \ddot(x_des).

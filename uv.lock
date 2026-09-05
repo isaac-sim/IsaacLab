@@ -18,9 +18,9 @@ prerelease-mode = "allow"
 [manifest]
 overrides = [
     { name = "coverage", specifier = ">=7.6.1" },
-    { name = "mujoco", specifier = "~=3.11.0" },
-    { name = "mujoco-warp", specifier = "~=3.11.0" },
-    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=release-1.5" },
+    { name = "mujoco", specifier = "~=3.12.0" },
+    { name = "mujoco-warp", specifier = "~=3.12.0" },
+    { name = "newton", extras = ["sim"], specifier = "==1.6.0rc1" },
     { name = "newton-usd-schemas", specifier = ">=0.4.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "packaging", specifier = ">=20,<27" },
@@ -1764,27 +1764,31 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "16.2.3"
+version = "22.1.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
 name = "isaaclab-assets"
-version = "0.6.4"
+version = "0.6.6"
 source = { editable = "source/isaaclab_assets" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaaclab-contrib", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "isaaclab-newton", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "isaaclab-physx", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-contrib", editable = "source/isaaclab_contrib" },
+    { name = "isaaclab-newton", editable = "source/isaaclab_newton" },
+    { name = "isaaclab-physx", editable = "source/isaaclab_physx" },
 ]
 
 [[package]]
 name = "isaaclab-contrib"
-version = "2.0.0"
+version = "2.0.1"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -1823,7 +1827,7 @@ dependencies = [
     { name = "isaaclab-tasks", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaaclab-tasks-experimental", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaaclab-visualizers", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "isaacsim-asset-isolated", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "jinja2", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "lazy-loader", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "matplotlib", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "meshio", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -1870,7 +1874,6 @@ dependencies = [
 all = [
     { name = "aiohttp", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "gym", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "isaacsim", extra = ["all", "extscache"], marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "onnxscript", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "ovphysx", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "ovrtx", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -1886,6 +1889,29 @@ all = [
     { name = "tqdm", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "viser", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
+dev = [
+    { name = "autodocsumm", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "coverage", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "flaky", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "junitparser", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "myst-parser", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "pytest", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "pytest-mock", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "sphinx", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "sphinx-book-theme", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "sphinx-copybutton", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "sphinx-design", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "sphinx-icon", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "sphinx-multiversion", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "sphinx-paramlinks", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "sphinx-tabs", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "sphinxcontrib-bibtex", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "sphinxemoji", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+]
+importers = [
+    { name = "isaacsim-asset-isolated", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "tinyobjloader", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+]
 isaacsim = [
     { name = "isaacsim", extra = ["all", "extscache"], marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
@@ -1895,6 +1921,7 @@ leapp = [
 mimic = [
     { name = "ipywidgets", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaaclab-mimic", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+    { name = "isaaclab-teleop", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "robomimic", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
 ]
 ov = [
@@ -1948,27 +1975,14 @@ teleop = [
     { name = "dex-retargeting", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "isaaclab-mimic", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaaclab-teleop", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "isaacsim", extra = ["all", "extscache"], marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "isaacteleop", extra = ["cloudxr", "retargeters", "ui"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
 test = [
-    { name = "autodocsumm", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "coverage", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "flaky", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "junitparser", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "myst-parser", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "pytest", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "pytest-mock", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "sphinx", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "sphinx-book-theme", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "sphinx-copybutton", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "sphinx-design", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "sphinx-icon", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "sphinx-multiversion", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "sphinx-paramlinks", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "sphinx-tabs", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "sphinxcontrib-bibtex", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
-    { name = "sphinxemoji", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 tetrahedralization = [
     { name = "pytetwild", extra = ["all"], marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -1985,7 +1999,7 @@ requires-dist = [
     { name = "aiohttp", marker = "extra == 'rl-games'", specifier = ">=3.12.14" },
     { name = "albumentations", marker = "extra == 'rlinf'", specifier = ">=1.4.18" },
     { name = "alphashape", specifier = ">=1.3.1" },
-    { name = "autodocsumm", marker = "extra == 'test'" },
+    { name = "autodocsumm", marker = "extra == 'dev'" },
     { name = "av", marker = "extra == 'rlinf'", specifier = ">=12.3.0" },
     { name = "botocore" },
     { name = "coacd", specifier = ">=1.0.7" },
@@ -2010,7 +2024,8 @@ requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
     { name = "isaaclab-assets", editable = "source/isaaclab_assets" },
     { name = "isaaclab-contrib", editable = "source/isaaclab_contrib" },
-    { name = "isaaclab-dev", extras = ["sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "isaacsim", "ov"], marker = "extra == 'all'" },
+    { name = "isaaclab-dev", extras = ["sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "ov"], marker = "extra == 'all'" },
+    { name = "isaaclab-dev", extras = ["test"], marker = "extra == 'dev'" },
     { name = "isaaclab-experimental", editable = "source/isaaclab_experimental" },
     { name = "isaaclab-mimic", marker = "extra == 'mimic'", editable = "source/isaaclab_mimic" },
     { name = "isaaclab-mimic", marker = "extra == 'teleop'", editable = "source/isaaclab_mimic" },
@@ -2021,20 +2036,21 @@ requires-dist = [
     { name = "isaaclab-rl", editable = "source/isaaclab_rl" },
     { name = "isaaclab-tasks", editable = "source/isaaclab_tasks" },
     { name = "isaaclab-tasks-experimental", editable = "source/isaaclab_tasks_experimental" },
+    { name = "isaaclab-teleop", marker = "extra == 'mimic'", editable = "source/isaaclab_teleop" },
     { name = "isaaclab-teleop", marker = "extra == 'teleop'", editable = "source/isaaclab_teleop" },
     { name = "isaaclab-visualizers", editable = "source/isaaclab_visualizers" },
     { name = "isaacsim", extras = ["all", "extscache"], marker = "extra == 'isaacsim'", specifier = "==6.0.1.0" },
-    { name = "isaacsim", extras = ["all", "extscache"], marker = "extra == 'teleop'", specifier = "==6.0.1.0" },
-    { name = "isaacsim-asset-isolated", specifier = ">=6.0,<6.1" },
+    { name = "isaacsim-asset-isolated", marker = "extra == 'importers'", specifier = ">=6.0,<6.1" },
     { name = "isaacteleop", extras = ["retargeters", "ui", "cloudxr"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'teleop'", specifier = "~=1.4.0" },
+    { name = "jinja2" },
     { name = "junitparser", marker = "extra == 'test'" },
     { name = "lazy-loader", specifier = ">=0.4" },
-    { name = "leapp", marker = "extra == 'leapp'", specifier = ">=0.5.2" },
+    { name = "leapp", marker = "extra == 'leapp'", specifier = "==0.6.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "meshio", specifier = ">=5.3.5" },
     { name = "moviepy", marker = "extra == 'video'", specifier = ">=1.0.3,<2.0.0.dev0" },
-    { name = "myst-parser", marker = "extra == 'test'" },
-    { name = "newton", extras = ["sim"], specifier = ">=1.2.0" },
+    { name = "myst-parser", marker = "extra == 'dev'" },
+    { name = "newton", extras = ["sim"], specifier = "==1.6.0rc1" },
     { name = "newton-usd-schemas", specifier = ">=0.2.0" },
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
@@ -2044,8 +2060,8 @@ requires-dist = [
     { name = "onnxscript", specifier = ">=0.5" },
     { name = "onnxscript", marker = "extra == 'rsl-rl'", specifier = ">=0.5" },
     { name = "open3d", marker = "(python_full_version < '3.13' and platform_machine != 'aarch64') or (python_full_version < '3.13' and sys_platform != 'linux')", specifier = ">=0.19.0" },
-    { name = "ovphysx", marker = "extra == 'ov'", specifier = "==0.5.10", index = "https://pypi.org/simple" },
-    { name = "ovphysx", marker = "extra == 'ovphysx'", specifier = "==0.5.10", index = "https://pypi.org/simple" },
+    { name = "ovphysx", marker = "extra == 'ov'", specifier = "==0.5.11", index = "https://pypi.org/simple" },
+    { name = "ovphysx", marker = "extra == 'ovphysx'", specifier = "==0.5.11", index = "https://pypi.org/simple" },
     { name = "ovrtx", marker = "extra == 'ov'", specifier = "==0.4.1.364340", index = "https://pypi.org/simple" },
     { name = "ovrtx", marker = "extra == 'ovrtx'", specifier = "==0.4.1.364340", index = "https://pypi.org/simple" },
     { name = "ovstage", marker = "extra == 'ov'", specifier = "==0.1.1.355824", index = "https://pypi.org/simple" },
@@ -2079,21 +2095,22 @@ requires-dist = [
     { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", specifier = "==5.4.1" },
     { name = "scipy", specifier = ">=1.11.0" },
     { name = "skrl", marker = "extra == 'skrl'", specifier = ">=2.1.0" },
-    { name = "sphinx", marker = "extra == 'test'", specifier = ">=7.0,<9" },
-    { name = "sphinx-book-theme", marker = "extra == 'test'", specifier = ">=1.1" },
-    { name = "sphinx-copybutton", marker = "extra == 'test'" },
-    { name = "sphinx-design", marker = "extra == 'test'" },
-    { name = "sphinx-icon", marker = "extra == 'test'" },
-    { name = "sphinx-multiversion", marker = "extra == 'test'", specifier = "==0.2.4" },
-    { name = "sphinx-paramlinks", marker = "extra == 'test'" },
-    { name = "sphinx-tabs", marker = "extra == 'test'" },
-    { name = "sphinxcontrib-bibtex", marker = "extra == 'test'", specifier = "==2.5.0" },
-    { name = "sphinxemoji", marker = "extra == 'test'" },
+    { name = "sphinx", marker = "extra == 'dev'", specifier = ">=7.0,<9" },
+    { name = "sphinx-book-theme", marker = "extra == 'dev'", specifier = ">=1.1" },
+    { name = "sphinx-copybutton", marker = "extra == 'dev'" },
+    { name = "sphinx-design", marker = "extra == 'dev'" },
+    { name = "sphinx-icon", marker = "extra == 'dev'" },
+    { name = "sphinx-multiversion", marker = "extra == 'dev'", specifier = "==0.2.4" },
+    { name = "sphinx-paramlinks", marker = "extra == 'dev'" },
+    { name = "sphinx-tabs", marker = "extra == 'dev'" },
+    { name = "sphinxcontrib-bibtex", marker = "extra == 'dev'", specifier = "==2.5.0" },
+    { name = "sphinxemoji", marker = "extra == 'dev'" },
     { name = "stable-baselines3", marker = "extra == 'sb3'", specifier = ">=2.6" },
     { name = "standard-distutils", marker = "extra == 'rl-games'" },
     { name = "starlette", specifier = ">=0.46.0,<0.50" },
     { name = "tensorboard" },
     { name = "timm", marker = "extra == 'rlinf'", specifier = ">=1.0.14" },
+    { name = "tinyobjloader", marker = "extra == 'importers'", specifier = "==2.0.0rc13" },
     { name = "torch", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and sys_platform != 'win32')", specifier = ">=2.11" },
     { name = "torch", marker = "platform_machine == 'aarch64' and sys_platform == 'linux'", specifier = ">=2.11", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torch", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = ">=2.11", index = "https://download.pytorch.org/whl/cu128" },
@@ -2113,9 +2130,9 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.15.0" },
     { name = "usd-exchange", specifier = "==2.3.0" },
     { name = "viser", marker = "extra == 'viser'", specifier = ">=1.0.16" },
-    { name = "warp-lang", specifier = "==1.16.0" },
+    { name = "warp-lang", specifier = "==1.17.0" },
 ]
-provides-extras = ["tetrahedralization", "video", "test", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
+provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "sb3", "skrl", "rl-games", "rsl-rl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
 
 [[package]]
 name = "isaaclab-experimental"
@@ -2147,7 +2164,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "5.2.0"
+version = "5.6.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2158,7 +2175,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "2.0.4"
+version = "2.6.0"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2173,7 +2190,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "5.0.1"
+version = "6.0.0"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2195,7 +2212,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "0.16.0"
+version = "0.16.4"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2212,7 +2229,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "16.5.0"
+version = "20.0.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2242,7 +2259,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-teleop"
-version = "0.8.0"
+version = "0.8.3"
 source = { editable = "source/isaaclab_teleop" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2253,7 +2270,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-visualizers"
-version = "1.6.0"
+version = "1.10.2"
 source = { editable = "source/isaaclab_visualizers" }
 dependencies = [
     { name = "isaaclab", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2941,7 +2958,7 @@ wheels = [
 
 [[package]]
 name = "leapp"
-version = "0.6.0"
+version = "0.6.1"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
     { name = "fast-sugiyama", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2955,7 +2972,7 @@ dependencies = [
     { name = "torch", version = "2.11.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/leapp/leapp-0.6.0-py3-none-any.whl", hash = "sha256:39127ef5e0a1d4b09ac1847df3348ddff41440d197048f43fad3e73b8ef42617" },
+    { url = "https://pypi.nvidia.com/leapp/leapp-0.6.1-py3-none-any.whl", hash = "sha256:b41bb1ca2a0019216428feeee5463603d22022828ab95badb9334f88e5e254dc" },
 ]
 
 [[package]]
@@ -3217,7 +3234,7 @@ wheels = [
 
 [[package]]
 name = "mujoco"
-version = "3.11.0"
+version = "3.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "absl-py", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -3226,11 +3243,11 @@ dependencies = [
     { name = "numpy", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "pyopengl", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3b/2d/290f3f4062eec1c0d5246de0a75f1b18b59a1961081f49ddc97333fc8263/mujoco-3.11.0.tar.gz", hash = "sha256:390856102af9547dfd87cb2791eb105a3d2e00a37323fe9a12ed17e512aff1a6", size = 1139880, upload-time = "2026-07-28T01:23:32.252Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a6/cd/40c929fa073d6b25d44c9f32b3dbbfcb025053cba54f57f8d46d84cdc034/mujoco-3.12.0.tar.gz", hash = "sha256:38bb3eaf4251937a85d58b25f55b1679297155bc4f4e964490d1fd9f42f8bf93", size = 1209771, upload-time = "2026-08-20T11:01:09.106Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1a/65/d8130bb8a673f9cdc8a8fb2ef02f9b6931708567de57f17395106e83b4e3/mujoco-3.11.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:517bff03623c3329a563f575afd7d731b0be5c4f92a54dcec934b99120b4a9ec", size = 17704436, upload-time = "2026-07-28T01:22:47.05Z" },
-    { url = "https://files.pythonhosted.org/packages/41/d6/7b79f5d8fbd019658a3b5feb6ffd09c1e727eaf93f518685d3cc105a28f5/mujoco-3.11.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:f40214fefc8c2fe0002a3c8abadf30de7a3330634f3c45cc29b407b40a0173fc", size = 18868030, upload-time = "2026-07-28T01:22:50.494Z" },
-    { url = "https://files.pythonhosted.org/packages/19/46/f994cd7d973c4db4f6b5af19ba6eb62703b9aafc8f894c5bc5ceadd31b0d/mujoco-3.11.0-cp312-cp312-win_amd64.whl", hash = "sha256:98c08a5eec9411ecd6f763f1e635fbc8f31e3ea3701584d6b7edcc24d8d6c575", size = 15791637, upload-time = "2026-07-28T01:22:53.922Z" },
+    { url = "https://files.pythonhosted.org/packages/51/d9/f3cb98d7e37439ffa912b8c63f63e065473523d958cc9eebf40bf8cf9c96/mujoco-3.12.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:b10fd3040f5c71504f25a560d8e2fea881f0dc27a9cfd22b4b0a79e65c942f20", size = 18506697, upload-time = "2026-08-20T11:47:55.661Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/2e/389e8aaa3ce75e21f97ac9e7c48235b6b7acbfb1f370fd3ffb334f77b905/mujoco-3.12.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7ec16ce408871a0a9157cc556958ab66cd34db9fc1dccd3ef07717170163a4e0", size = 19816226, upload-time = "2026-08-20T11:47:58.602Z" },
+    { url = "https://files.pythonhosted.org/packages/18/2e/7c42bb3c57b0ae6c37f55f47af94bcc7ea1fe9c39d76df99fb55c3d28591/mujoco-3.12.0-cp312-cp312-win_amd64.whl", hash = "sha256:d575c455829c8b8d2ffeff4eb3341115623f2e10a250271e73ad94219b707a35", size = 16733176, upload-time = "2026-08-20T11:48:01.552Z" },
 ]
 
 [[package]]
@@ -3251,7 +3268,7 @@ wheels = [
 
 [[package]]
 name = "mujoco-warp"
-version = "3.11.0"
+version = "3.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "absl-py", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -3260,9 +3277,9 @@ dependencies = [
     { name = "numpy", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "warp-lang", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2c/02/da883029b3661619651d0e2469ec17df92dd64ca5de25119886d516ee1de/mujoco_warp-3.11.0.tar.gz", hash = "sha256:e9e521a3809b95baa98c44bd4fcaccb035b5c700e2616efc52ebc33d29ae2eef", size = 2075418, upload-time = "2026-07-28T01:21:41.987Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b2/4f/41acd8a084dc8f140594fcca74f2dda61f89705505df20885bd6e65c0146/mujoco_warp-3.12.0.tar.gz", hash = "sha256:6937b83e9eb1632446a70104867d2b0c0ff028613ebc377eee992d30640d6554", size = 2085022, upload-time = "2026-08-20T11:58:15.742Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e6/03/9bf86946c755a9a020c1bea587841472b0206351f73f67e41050fcb2a20c/mujoco_warp-3.11.0-py3-none-any.whl", hash = "sha256:97e77e877c1c2ea064ae68eaace2333dec94f2d8984091ba7b383bc8c34958f6", size = 2153348, upload-time = "2026-07-28T01:21:40.18Z" },
+    { url = "https://files.pythonhosted.org/packages/47/24/d60f407b469be023566c8e149eb1598ff7d8f9b16332cdadc4fa45ebee3a/mujoco_warp-3.12.0-py3-none-any.whl", hash = "sha256:a0d5d5df854dbf49727cbe2463f8b1c44117cc979cf17ae91d81f291ae0a3b62", size = 2164496, upload-time = "2026-08-20T11:58:13.887Z" },
 ]
 
 [[package]]
@@ -3343,10 +3360,13 @@ wheels = [
 
 [[package]]
 name = "newton"
-version = "1.5.0"
-source = { git = "https://github.com/newton-physics/newton.git?rev=release-1.5#cca3bb8a17a3620a1343df3cf12c625e4161b317" }
+version = "1.6.0rc1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "warp-lang", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/67/28/1a88699e9e4a5cbe5408e4f5ffb24355cd5854b3f549c59d83679d6c88cc/newton-1.6.0rc1-py3-none-any.whl", hash = "sha256:7ed998bba97167534194c53119c68bd116c8266661c3a339e5a2e4d503701f20", size = 6072745, upload-time = "2026-09-03T04:17:09.936Z" },
 ]
 
 [package.optional-dependencies]
@@ -3969,16 +3989,16 @@ wheels = [
 
 [[package]]
 name = "ovphysx"
-version = "0.5.10"
+version = "0.5.11"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ovstage", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
     { name = "packaging", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1a/a7/dbef61a44e1663eb70d14218d80e9eb4f5e87aa1552ae17f46058cad5c55/ovphysx-0.5.10-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:88b223278aa91c031aef6815f6dbf03497c18aacd441ec97ff86e1c917fcf5c8", size = 162095322, upload-time = "2026-08-07T08:25:52.199Z" },
-    { url = "https://files.pythonhosted.org/packages/df/65/6026f684b457576455fe599a0a3e74716857d50f30a02ace0d503e6aa528/ovphysx-0.5.10-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:b8ffa4a26570cbf252b161e752c4ea7f0843b32ed96573aba99757ceb19efeb1", size = 168897727, upload-time = "2026-08-07T08:23:51.141Z" },
-    { url = "https://files.pythonhosted.org/packages/d2/76/939750c6d7e9ca8968413ac8ebd7a5a1c370338089a98fd41927ffc3c334/ovphysx-0.5.10-py3-none-win_amd64.whl", hash = "sha256:d75ae94c56e14191a4540dd955cd6d9217d5ed79f144244eb19ddf9bab200a7d", size = 148006495, upload-time = "2026-08-07T08:20:50.922Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/93/36e41c4ea7c9a1e0a4a7ab95286c7428b228bd78eccd1e5d5388f893c88b/ovphysx-0.5.11-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:fff7e648fe14989e6ae51b7c6e6c516beab0b4f0749110c32c5a142b31525946", size = 162111746, upload-time = "2026-08-28T08:44:04.939Z" },
+    { url = "https://files.pythonhosted.org/packages/07/ea/df4b90eb2ba9136eac99d0da839fa687c77017016300674801254c79e107/ovphysx-0.5.11-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:4e6f904d9858674ecf4fccc2a462d048f9eeb7d20724a7eafd294bf5ccac9a2c", size = 168926695, upload-time = "2026-08-28T08:45:49.197Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/8f/f653c0d8b8973c482ac0e93500c5d48d846ca0f49388122f60a1a49a6c99/ovphysx-0.5.11-py3-none-win_amd64.whl", hash = "sha256:409637574296f2f4c9a377444c2072c5539a8a5adf88b9536c02fdff6af387be", size = 148040678, upload-time = "2026-08-28T08:47:14.928Z" },
 ]
 
 [[package]]
@@ -5943,15 +5963,15 @@ wheels = [
 
 [[package]]
 name = "warp-lang"
-version = "1.16.0"
+version = "1.17.0"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
     { name = "numpy", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.16.0-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:96449fc1e3b354185e2f09434fb794b5953ab2e8673b104d7e7f48d5d418bb35" },
-    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.16.0-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:d4715171bd6821436b82293d774c9a082ace08215c189572b4348d1e48fb8ee8" },
-    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.16.0-py3-none-win_amd64.whl", hash = "sha256:8690c9096e0a271985339d4aa4b37675e7d62852620ca861ac032dc85b124542" },
+    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.17.0-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:47cd93636828dd16e55eeb4e77a0e3547b5fb0f383000a3d228629df68f28fd8" },
+    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.17.0-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:5051271048da956a8b94e2db9771ce60ce9591a3ac5bb49037f3d6812d1eea00" },
+    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.17.0-py3-none-win_amd64.whl", hash = "sha256:ca35c82242a7553046f09023bbe56750b5c3d9af72625bd1a905a56d3189771d" },
 ]
 
 [[package]]

@@ -132,7 +132,7 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
 
     def replicate(*args, **kwargs):
         replicate_calls.append(kwargs)
-        return {}, [object() for _ in env_paths]
+        return {}, [object() for _ in env_paths], []
 
     monkeypatch.setattr(newton_module, "get_current_stage", lambda: stage)
     monkeypatch.setattr(pxr, "UsdGeom", usd_geom)
@@ -144,7 +144,7 @@ def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
     monkeypatch.setattr(
         physics.NewtonVBDManager,
         "_inject_terrain_heightfields",
-        classmethod(lambda cls, stage, builder: ["/World/terrain"]),
+        classmethod(lambda cls, stage, builder, root_paths: ["/World/terrain"]),
     )
     monkeypatch.setattr(
         physics.NewtonVBDManager,

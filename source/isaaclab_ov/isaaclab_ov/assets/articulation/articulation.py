@@ -2334,6 +2334,7 @@ class Articulation(BaseArticulation):
         self._data._body_mass.timestamp = self._data._sim_timestamp
         cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         wp.copy(self.data._cpu_body_mass, body_mass_backend)
+        wp.synchronize_stream(self._device)
         self._root_view.set_attribute(TT.BODY_MASS, self.data._cpu_body_mass, indices=cpu_env_ids)
         self._data._reset_dynamics(mass_matrix=True, gravity_compensation=True)
 
@@ -2385,6 +2386,7 @@ class Articulation(BaseArticulation):
         )
         self._data._body_mass.timestamp = self._data._sim_timestamp
         wp.copy(self.data._cpu_body_mass, body_mass_backend)
+        wp.synchronize_stream(self._device)
         self._root_view.set_attribute(TT.BODY_MASS, self.data._cpu_body_mass, mask=self._get_cpu_env_mask(env_mask_wp))
         self._data._reset_dynamics(mass_matrix=True, gravity_compensation=True)
 
@@ -2480,6 +2482,7 @@ class Articulation(BaseArticulation):
             backend_staging.timestamp = validity
 
         wp.copy(self.data._cpu_body_coms, body_com_backend.view(wp.float32))
+        wp.synchronize_stream(self._device)
         if use_mask:
             self._root_view.set_attribute(
                 TT.BODY_COM_POSE, self.data._cpu_body_coms, mask=self._get_cpu_env_mask(env_sel)
@@ -2616,6 +2619,7 @@ class Articulation(BaseArticulation):
         self._data._body_inertia.timestamp = self._data._sim_timestamp
         cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         wp.copy(self.data._cpu_body_inertia, body_inertia_backend)
+        wp.synchronize_stream(self._device)
         self._root_view.set_attribute(TT.BODY_INERTIA, self.data._cpu_body_inertia, indices=cpu_env_ids)
         self._data._reset_dynamics(mass_matrix=True)
 
@@ -2668,6 +2672,7 @@ class Articulation(BaseArticulation):
         )
         self._data._body_inertia.timestamp = self._data._sim_timestamp
         wp.copy(self.data._cpu_body_inertia, body_inertia_backend)
+        wp.synchronize_stream(self._device)
         self._root_view.set_attribute(
             TT.BODY_INERTIA, self.data._cpu_body_inertia, mask=self._get_cpu_env_mask(env_mask_wp)
         )
@@ -3958,6 +3963,7 @@ class Articulation(BaseArticulation):
         # Pinned-host CPU staging for env ids/masks (PR #5329 pattern).
         self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
         wp.copy(self._cpu_env_ids_all, self._ALL_INDICES)
+        wp.synchronize_stream(device)
         self._cpu_env_ids = wp.empty(N, dtype=wp.int32, device="cpu", pinned=True)
         self._cpu_env_ids_views: dict[int, wp.array] = {}
         self._cpu_env_mask = wp.zeros(N, dtype=wp.bool, device="cpu", pinned=True)
@@ -4389,6 +4395,7 @@ class Articulation(BaseArticulation):
         inertia. Reuses the pre-allocated ``_cpu_env_mask`` pinned buffer.
         """
         wp.copy(self._cpu_env_mask, env_mask)
+        wp.synchronize_stream(env_mask.device)
         return self._cpu_env_mask
 
     def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor, sim_env_ids: wp.array | None = None) -> wp.array:
@@ -4409,6 +4416,7 @@ class Articulation(BaseArticulation):
             return env_ids
         cpu_env_ids = self._cpu_env_ids_view(env_ids.shape[0])
         wp.copy(cpu_env_ids, env_ids)
+        wp.synchronize_stream(env_ids.device)
         return cpu_env_ids
 
     def _get_sim_env_ids(self, env_ids: wp.array | torch.Tensor, sim_env_ids: wp.array | None = None) -> wp.array:
@@ -4467,6 +4475,9 @@ class Articulation(BaseArticulation):
                     copy=False,
                 )
             wp.copy(cpu_buffer, source)
+            # The device-to-host copy into pinned memory is asynchronous; the CPU-only
+            # setter below reads the buffer immediately.
+            wp.synchronize_stream(source.device)
         if indices is not None:
             self._root_view.set_attribute(tensor_type, cpu_buffer, indices=indices)
         else:
