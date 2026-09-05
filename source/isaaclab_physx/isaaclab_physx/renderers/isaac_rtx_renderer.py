@@ -573,7 +573,7 @@ class IsaacRtxRenderer(BaseRenderer):
             rows = math.ceil(view_count / cols)
             return (cols, rows)
 
-        num_tiles_x = tiling_grid_shape()[0]
+        num_tiles_x, num_tiles_y = tiling_grid_shape()
 
         # Extract the flattened image buffer
         for data_type, annotator in render_data.annotators.items():
@@ -607,17 +607,32 @@ class IsaacRtxRenderer(BaseRenderer):
 
             # For motion vectors, use specialized kernel that reads 4 channels but only writes 2
             # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
-            if data_type == "motion_vectors":
-                tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
-
             # For normals, we only require the first three channels of the tiled buffer
             # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)
-            if data_type == "normals":
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
-            if data_type in SIMPLE_SHADING_MODES:
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
-            if data_type == str(RenderBufferKind.RGB_HDR):
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
+            trim_channels = None
+            if data_type == "motion_vectors":
+                trim_channels = 2
+            elif (
+                data_type == "normals"
+                or data_type in SIMPLE_SHADING_MODES
+                or data_type == str(RenderBufferKind.RGB_HDR)
+            ):
+                trim_channels = 3
+
+            if trim_channels is not None:
+                # Immediately after an annotator is attached (e.g. during env creation, before the RTX
+                # renderer has warmed up), Replicator can momentarily hand back a buffer whose channel
+                # dimension is 0 instead of real image data. Warp's slice indexing rejects trimming an
+                # already-empty dimension (unlike NumPy, which allows it), so skip writing this data type
+                # for this frame rather than crashing; the next render() call will pick up valid data.
+                if tiled_data_buffer.shape[-1] < trim_channels:
+                    logger.debug(
+                        "Skipping '%s' this frame: annotator buffer not yet populated (channel dim=%d).",
+                        data_type,
+                        tiled_data_buffer.shape[-1],
+                    )
+                    continue
+                tiled_data_buffer = tiled_data_buffer[:, :, :trim_channels].contiguous()
 
             # The HDR annotator's destination is the user-visible ``output_data["rgb_hdr"]``
             # when they requested it explicitly; otherwise the renderer's internal
@@ -627,11 +642,25 @@ class IsaacRtxRenderer(BaseRenderer):
                 buf_wp = render_data._hdr_scratch_wp
             else:
                 buf_wp = output_data[data_type].warp
+
+            # ``reshape_tiled_image`` indexes the tiled buffer as
+            # (num_tiles_y * height, num_tiles_x * width, channels). Annotators hand this data back with
+            # varying shapes: 3D for multi-channel outputs, 2D for single-channel ones, and 2D
+            # ``(pixels, 4)`` for the colorized segmentation buffers reinterpreted above. Reshape to the
+            # documented tiled geometry rather than inferring it from ``ndim``, which silently mis-indexes
+            # the reinterpreted segmentation buffers. Reshaping instead of flattening keeps every
+            # dimension within Warp's per-dimension array size limit, so large environment counts and
+            # camera resolutions no longer overflow a single flattened dimension.
+            tile_height, tile_width, num_channels = (int(dim) for dim in buf_wp.shape[1:])
+            tiled_data_buffer = tiled_data_buffer.reshape(
+                (num_tiles_y * tile_height, num_tiles_x * tile_width, num_channels)
+            )
+
             wp.launch(
                 kernel=reshape_tiled_image,
                 dim=(view_count, cfg.height, cfg.width),
                 inputs=[
-                    tiled_data_buffer.flatten(),
+                    tiled_data_buffer,
                     buf_wp,
                     *list(buf_wp.shape[1:]),
                     num_tiles_x,
