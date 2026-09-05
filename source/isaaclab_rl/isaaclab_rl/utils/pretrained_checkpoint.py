@@ -12,6 +12,8 @@ import glob
 import json
 import os
 import posixpath
+import sys
+from collections.abc import Sequence
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.physics import PhysicsCfg
@@ -73,11 +75,13 @@ def get_pretrained_checkpoint_filename(
     task_name: str,
     physics_backend: str | None = None,
     render_backend: str | None = None,
+    *,
+    preset_names: Sequence[str] = (),
 ) -> str:
     """Return the published checkpoint filename.
 
     Backend-aware checkpoints use
-    ``<task_name>_<physics_backend>_<render_backend>_<rl_library><extension>``.
+    ``<task_name>[_<preset_names>]_<physics_backend>_<render_backend>_<rl_library><extension>``.
     Omitting both backend names returns the legacy workflow-specific filename.
 
     Args:
@@ -86,6 +90,7 @@ def get_pretrained_checkpoint_filename(
         physics_backend: Physics backend name, such as ``"physx"``,
             ``"newtonmjwarp"``, or ``"newtonmjwarpvbdproxy"`` for a coupled solver.
         render_backend: Render backend name, such as ``"rtx"``, ``"newton"``, or ``"none"``.
+        preset_names: Non-default domain presets that affect policy compatibility.
 
     Returns:
         The checkpoint filename.
@@ -95,7 +100,10 @@ def get_pretrained_checkpoint_filename(
     """
     if workflow not in WORKFLOW_PRETRAINED_CHECKPOINT_EXTENSIONS:
         raise ValueError(f"Unsupported workflow: {workflow!r}")
+    preset_names = _normalize_pretrained_checkpoint_preset_names(preset_names)
     if physics_backend is None and render_backend is None:
+        if preset_names:
+            raise ValueError("preset_names require backend-aware checkpoint naming")
         return WORKFLOW_PRETRAINED_CHECKPOINT_FILENAMES[workflow]
     if physics_backend is None or render_backend is None:
         raise ValueError("physics_backend and render_backend must be provided together")
@@ -103,9 +111,57 @@ def get_pretrained_checkpoint_filename(
         raise ValueError(f"Unsupported physics backend: {physics_backend!r}")
     if render_backend not in {"newton", "none", "rtx"}:
         raise ValueError(f"Unsupported render backend: {render_backend!r}")
+    preset_suffix = "" if not preset_names else f"_{'_'.join(preset_names)}"
     return (
-        f"{task_name}_{physics_backend}_{render_backend}_{workflow}"
+        f"{task_name}{preset_suffix}_{physics_backend}_{render_backend}_{workflow}"
         f"{WORKFLOW_PRETRAINED_CHECKPOINT_EXTENSIONS[workflow]}"
+    )
+
+
+def get_pretrained_checkpoint_preset_names(task_name: str, overrides: Sequence[str] | None = None) -> tuple[str, ...]:
+    """Return non-default domain presets selected for a checkpoint.
+
+    Preset aliases whose value is the preset's ``default`` are omitted so existing
+    unsuffixed checkpoints remain compatible. Typed physics and renderer selectors
+    are also omitted because they already have dedicated checkpoint fields.
+
+    Args:
+        task_name: Registered task name.
+        overrides: Hydra-style overrides. Defaults to :data:`sys.argv`.
+
+    Returns:
+        Selected non-default domain preset names in canonical order.
+    """
+    from isaaclab_tasks.utils.hydra import collect_presets
+    from isaaclab_tasks.utils.preset_target import PresetTarget
+
+    selected_names = []
+    for override in sys.argv[1:] if overrides is None else overrides:
+        if "=" not in override:
+            continue
+        key, value = override.split("=", 1)
+        if key.lstrip("-") == PresetTarget.DOMAIN.value:
+            selected_names.extend(name.strip() for name in value.split(",") if name.strip())
+
+    if not selected_names:
+        return ()
+
+    preset_fields = collect_presets(load_cfg_from_registry(task_name, "env_cfg_entry_point"))
+    typed_targets = tuple(target for target in PresetTarget if target.base_classes)
+    typed_names = {
+        name
+        for fields in preset_fields.values()
+        for name, value in fields.items()
+        if any(target.matches(value) for target in typed_targets)
+    }
+    non_default_domain_names = {
+        name
+        for fields in preset_fields.values()
+        for name, value in fields.items()
+        if name != "default" and name not in typed_names and not _preset_value_matches_default(value, fields)
+    }
+    return _normalize_pretrained_checkpoint_preset_names(
+        name for name in selected_names if name in non_default_domain_names
     )
 
 
@@ -197,9 +253,13 @@ def get_pretrained_checkpoint_publish_path(
     task_name: str,
     physics_backend: str | None = None,
     render_backend: str | None = None,
+    *,
+    preset_names: Sequence[str] = (),
 ) -> str:
     """Return the path where a checkpoint is published."""
-    filename = get_pretrained_checkpoint_filename(workflow, task_name, physics_backend, render_backend)
+    filename = get_pretrained_checkpoint_filename(
+        workflow, task_name, physics_backend, render_backend, preset_names=preset_names
+    )
     if physics_backend is None:
         return posixpath.join(PRETRAINED_CHECKPOINT_PATH, workflow, task_name, filename)
     return posixpath.join(PRETRAINED_CHECKPOINT_PATH, workflow, filename)
@@ -210,9 +270,13 @@ def get_published_pretrained_checkpoint_path(
     task_name: str,
     physics_backend: str | None = None,
     render_backend: str | None = None,
+    *,
+    preset_names: Sequence[str] = (),
 ) -> str:
     """Return the path from which a published checkpoint is fetched."""
-    filename = get_pretrained_checkpoint_filename(workflow, task_name, physics_backend, render_backend)
+    filename = get_pretrained_checkpoint_filename(
+        workflow, task_name, physics_backend, render_backend, preset_names=preset_names
+    )
     path_parts = [ISAACLAB_NUCLEUS_DIR, "PretrainedCheckpoints", workflow]
     if physics_backend is None:
         path_parts.append(task_name)
@@ -224,6 +288,8 @@ def get_published_pretrained_checkpoint(
     task_name: str,
     physics_backend: str | None = None,
     render_backend: str | None = None,
+    *,
+    preset_names: Sequence[str] | None = None,
 ) -> str | None:
     """Gets the path for the pre-trained checkpoint.
 
@@ -237,6 +303,8 @@ def get_published_pretrained_checkpoint(
             to use the legacy checkpoint layout.
         render_backend: Render backend name. Omit with :paramref:`physics_backend`
             to use the legacy checkpoint layout.
+        preset_names: Non-default domain presets that affect policy compatibility.
+            Defaults to resolving ``presets=`` selectors from :data:`sys.argv`.
 
     Returns:
         The path, or None when the asset server does not report a checkpoint for this task
@@ -250,8 +318,14 @@ def get_published_pretrained_checkpoint(
             instance because the local cache directory is not writable. The originating
             error is chained as the cause.
     """
-    filename = get_pretrained_checkpoint_filename(workflow, task_name, physics_backend, render_backend)
-    ov_path = get_published_pretrained_checkpoint_path(workflow, task_name, physics_backend, render_backend)
+    if preset_names is None:
+        preset_names = get_pretrained_checkpoint_preset_names(task_name)
+    filename = get_pretrained_checkpoint_filename(
+        workflow, task_name, physics_backend, render_backend, preset_names=preset_names
+    )
+    ov_path = get_published_pretrained_checkpoint_path(
+        workflow, task_name, physics_backend, render_backend, preset_names=preset_names
+    )
     download_dir = os.path.join(".pretrained_checkpoints", workflow)
     if physics_backend is None:
         download_dir = os.path.join(download_dir, task_name)
@@ -428,6 +502,24 @@ def _get_pretrained_checkpoint_stem(
         return task_name
     filename = get_pretrained_checkpoint_filename(workflow, task_name, physics_backend, render_backend)
     return filename.removesuffix(WORKFLOW_PRETRAINED_CHECKPOINT_EXTENSIONS[workflow])
+
+
+def _normalize_pretrained_checkpoint_preset_names(preset_names: Sequence[str]) -> tuple[str, ...]:
+    """Return unique, validated checkpoint preset names in canonical order."""
+    normalized = tuple(sorted(set(preset_names)))
+    invalid = [name for name in normalized if not name or not name.replace("_", "").isalnum()]
+    if invalid:
+        raise ValueError(f"Invalid checkpoint preset names: {invalid}")
+    return normalized
+
+
+def _preset_value_matches_default(value, fields: dict) -> bool:
+    """Return whether a preset value is structurally equivalent to its default."""
+    default = fields.get("default")
+    try:
+        return bool(value == default)
+    except (RuntimeError, TypeError, ValueError):
+        return value is default
 
 
 def _get_latest_file_or_directory(path: str, pattern: str = "*") -> str | None:
