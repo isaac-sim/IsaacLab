@@ -72,6 +72,33 @@ class CartpoleCameraEnvCfg(PresetCfg):
         # reset: smaller initial pole angle than the proprioceptive task
         initial_pole_angle_range = (-0.125 * math.pi, 0.125 * math.pi)  # [rad]
 
+        def validate_config(self):
+            """Check for invalid preset combinations after resolution."""
+
+            # Mirrors the kinds published by ``NewtonWarpRenderer.supported_output_types``; the
+            # ``simple_shading_*`` data types are RTX-only and would otherwise fail at env creation.
+            warp_supported = {
+                "rgb",
+                "rgba",
+                "rgb_hdr",
+                "albedo",
+                "depth",
+                "distance_to_camera",
+                "distance_to_image_plane",
+                "normals",
+                "semantic_segmentation",
+                "instance_segmentation",
+            }
+            renderer_type = getattr(self.tiled_camera.renderer_cfg, "renderer_type", None)
+            if renderer_type == "newton_warp":
+                unsupported = set(self.tiled_camera.data_types) - warp_supported
+                if unsupported:
+                    raise ValueError(
+                        f"Warp renderer only supports data types {sorted(warp_supported)}, "
+                        f"but 'tiled_camera' is configured with unsupported types: {sorted(unsupported)}. "
+                        "Choose a compatible preset, e.g. presets=newton_renderer,rgb."
+                    )
+
         def __post_init__(self):
             self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))
 
