@@ -74,6 +74,9 @@ _COMPARISON_IMAGE_SUBDIR = "images"
 # Low-resolution camera outputs from RTX renderers are not deterministic enough to pass golden image testing
 # on every CI run. (NVBUG#6152566)
 _FLAKY_MARK = pytest.mark.flaky(max_runs=3, min_passes=1)
+_OVRTX_MATERIAL_XFAIL_MARK = pytest.mark.xfail(
+    reason="OVRTX 0.3 may omit geometry from low-resolution material AOVs (NVBUG#6152566)."
+)
 
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
     # physx + isaacsim_rtx_renderer
@@ -205,7 +208,7 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "ovrtx_renderer",
         "albedo",
         id="ovphysx-ovrtx-albedo",
-        marks=_FLAKY_MARK,
+        marks=[_FLAKY_MARK, _OVRTX_MATERIAL_XFAIL_MARK],
     ),
     pytest.param(
         "ovphysx",
@@ -219,21 +222,21 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "ovrtx_renderer",
         "simple_shading_constant_diffuse",
         id="ovphysx-ovrtx-simple_shading_constant_diffuse",
-        marks=_FLAKY_MARK,
+        marks=[_FLAKY_MARK, _OVRTX_MATERIAL_XFAIL_MARK],
     ),
     pytest.param(
         "ovphysx",
         "ovrtx_renderer",
         "simple_shading_diffuse_mdl",
         id="ovphysx-ovrtx-simple_shading_diffuse_mdl",
-        marks=_FLAKY_MARK,
+        marks=[_FLAKY_MARK, _OVRTX_MATERIAL_XFAIL_MARK],
     ),
     pytest.param(
         "ovphysx",
         "ovrtx_renderer",
         "simple_shading_full_mdl",
         id="ovphysx-ovrtx-simple_shading_full_mdl",
-        marks=_FLAKY_MARK,
+        marks=[_FLAKY_MARK, _OVRTX_MATERIAL_XFAIL_MARK],
     ),
     pytest.param(
         "ovphysx",
@@ -255,7 +258,7 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "ovrtx_renderer",
         "albedo",
         id="newton-ovrtx-albedo",
-        marks=_FLAKY_MARK,
+        marks=[_FLAKY_MARK, _OVRTX_MATERIAL_XFAIL_MARK],
     ),
     pytest.param(
         "newton",
@@ -269,21 +272,21 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "ovrtx_renderer",
         "simple_shading_constant_diffuse",
         id="newton-ovrtx-simple_shading_constant_diffuse",
-        marks=_FLAKY_MARK,
+        marks=[_FLAKY_MARK, _OVRTX_MATERIAL_XFAIL_MARK],
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "simple_shading_diffuse_mdl",
         id="newton-ovrtx-simple_shading_diffuse_mdl",
-        marks=_FLAKY_MARK,
+        marks=[_FLAKY_MARK, _OVRTX_MATERIAL_XFAIL_MARK],
     ),
     pytest.param(
         "newton",
         "ovrtx_renderer",
         "simple_shading_full_mdl",
         id="newton-ovrtx-simple_shading_full_mdl",
-        marks=_FLAKY_MARK,
+        marks=[_FLAKY_MARK, _OVRTX_MATERIAL_XFAIL_MARK],
     ),
     pytest.param(
         "newton",
