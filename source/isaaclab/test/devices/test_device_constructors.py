@@ -257,6 +257,32 @@ def test_spacemouse_detected_by_usb_id(mock_environment, mocker, product_string)
     mock_environment["device"].open.assert_called_with(0x256F, 0xC635)
 
 
+@pytest.mark.parametrize(
+    "product_string",
+    [
+        # the string the device reports when the backend can read its USB descriptors
+        "SpaceNavigator",
+        # the same device seen through a backend that cannot read them
+        "",
+    ],
+    ids=["product_string", "usb_id_only"],
+)
+def test_se3spacemouse_detects_spacenavigator(mock_environment, mocker, product_string):
+    """The legacy SpaceNavigator must stay detectable, with or without a readable product string."""
+    mock_environment["hid"].enumerate.return_value = [
+        {"product_string": product_string, "vendor_id": 0x046D, "product_id": 0xC626}
+    ]
+    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
+    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+    mocker.patch.object(device_mod, "threading")
+
+    device = Se3SpaceMouse(Se3SpaceMouseCfg())
+
+    # the resolved name selects the report layout used by the listener thread
+    assert device._device_name == "SpaceNavigator"
+    mock_environment["device"].open.assert_called_with(0x046D, 0xC626)
+
+
 def test_spacemouse_skips_devices_that_cannot_be_opened(mock_environment, mocker):
     """An inaccessible SpaceMouse must not hide a second one the user can actually open."""
     inaccessible = {"product_string": "", "vendor_id": 0x256F, "product_id": 0xC635}
