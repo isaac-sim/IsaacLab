@@ -60,12 +60,11 @@ _EXPORT_BACKENDS = (
         rl_library="rsl_rl",
         export_script=_LEAPP_ROOT / "rsl_rl" / "export.py",
         tasks=(
-            # joint-effort locomotion, no commands
+            # joint-effort locomotion, no commands. Isaac-Humanoid is exported per physics
+            # backend by ``test_rsl_rl_humanoid_export_across_physics_backends`` instead.
             "Isaac-Cartpole",
-            "Isaac-Humanoid",
             # pose command + joint-position arm
             "Isaac-Reach-Franka",
-            "Isaac-Reach-UR10",
             # OperationalSpaceController is not exportable: the action term and the
             # controller build their buffers with partial-slice assignment, which
             # either emits a raw __setitem__ node that torch.export rejects or drops
@@ -276,18 +275,6 @@ def initialized_checkpoints(tmp_path_factory: pytest.TempPathFactory) -> Path:
             timeout=_CHECKPOINT_TIMEOUT,
         )
     return checkpoint_root
-
-
-def test_initialized_checkpoints(initialized_checkpoints: Path):
-    """Assert the isolated subprocesses created every expected checkpoint.
-    This task is purely for generating mock checkpoints for the export flow.
-    """
-    missing = [
-        f"{backend_id}/{task_name}"
-        for backend_id, task_name in _checkpoint_specs()
-        if not resolved_path_file(task_checkpoint_dir(initialized_checkpoints, backend_id, task_name)).is_file()
-    ]
-    assert not missing, f"Missing initialized checkpoints for: {', '.join(missing)}"
 
 
 def test_openusd_thread_limit_is_set_before_subprocess_startup():
