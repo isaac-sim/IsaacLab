@@ -29,6 +29,33 @@ from .control_events import _NO_OP_EVENTS, ControlEvents
 from .isaac_teleop_cfg import IsaacTeleopCfg
 from .teleop_message_processor import TeleopMessageProcessor
 
+# Opt-in acceptance of the NVIDIA CloudXR license, mirroring the ``OMNI_KIT_ACCEPT_EULA``
+# escape hatch Kit offers for the Omniverse license.
+_CXR_ACCEPT_EULA_ENV = "ISAACLAB_CXR_ACCEPT_EULA"
+# The spellings ``OMNI_KIT_ACCEPT_EULA`` and the CloudXR prompt itself both accept.
+_CXR_ACCEPT_EULA_VALUES = frozenset({"y", "yes", "1"})
+
+
+def cloudxr_eula_accepted() -> bool:
+    """Whether ``ISAACLAB_CXR_ACCEPT_EULA`` opts into the NVIDIA CloudXR license.
+
+    The CloudXR license is separate from the Omniverse one. Without this opt-in the
+    runtime prompts for it on stdin, which fails outright when no terminal is attached,
+    so headless, container and CI runs cannot start. ``y``, ``yes`` and ``1`` accept it,
+    case-insensitively and ignoring surrounding whitespace -- the spellings
+    ``OMNI_KIT_ACCEPT_EULA`` and the CloudXR prompt itself both take. Leaving the
+    variable unset, or setting any other value, keeps the interactive prompt.
+
+    Every CloudXR launch path shares this helper -- the session lifecycle here and the
+    process-scoped launcher in ``teleop_replay_agent.py`` -- so the variable behaves the
+    same whichever script starts the runtime.
+
+    Returns:
+        Whether the CloudXR license has been accepted up front.
+    """
+    return os.environ.get(_CXR_ACCEPT_EULA_ENV, "").strip().lower() in _CXR_ACCEPT_EULA_VALUES
+
+
 # The CloudXR runtime accepts at most one of these; setting both is rejected outright.
 _CXR_GPU_INDEX_ENV_VARS = ("NV_CXR_GPU_INDEX_CUDA", "NV_CXR_GPU_INDEX_VULKAN")
 
@@ -1323,6 +1350,11 @@ class TeleopSessionLifecycle:
         Auto-launch is skipped when ``auto_launch_cloudxr`` is ``False``
         or the ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` environment variable is
         set (the env var takes precedence).
+
+        The NVIDIA CloudXR license is separate from the Omniverse one and is
+        otherwise prompted for on stdin, which fails outright when no terminal
+        is attached. ``ISAACLAB_CXR_ACCEPT_EULA=1`` accepts it up front so
+        headless, container and CI runs can start.
         """
         if self._cloudxr_launcher is not None:
             return
@@ -1344,7 +1376,7 @@ class TeleopSessionLifecycle:
         self._cloudxr_launcher = _CloudXRLauncher(
             install_dir=str(Path.home() / ".cloudxr"),
             env_config=self._cloudxr_env_file,
-            accept_eula=False,
+            accept_eula=cloudxr_eula_accepted(),
         )
         logger.info("CloudXR runtime auto-launched")
 

@@ -112,7 +112,7 @@ from isaaclab_teleop.isaac_teleop_cfg import (  # noqa: E402
     CLOUDXR_JS_ENV,
     IsaacTeleopCfg,
 )
-from isaaclab_teleop.session_lifecycle import TeleopSessionLifecycle  # noqa: E402
+from isaaclab_teleop.session_lifecycle import TeleopSessionLifecycle, cloudxr_eula_accepted  # noqa: E402
 
 _restore_stubs()
 
@@ -295,6 +295,7 @@ class TestEnsureCloudXRRuntime:
             patch.dict(sys.modules, {"isaacteleop.cloudxr": fake_module}),
         ):
             os.environ.pop("ISAACLAB_CXR_SKIP_AUTOLAUNCH", None)
+            os.environ.pop("ISAACLAB_CXR_ACCEPT_EULA", None)
             lifecycle._ensure_cloudxr_runtime()
 
         mock_cls.assert_called_once_with(
@@ -315,6 +316,68 @@ class TestEnsureCloudXRRuntime:
             lifecycle._ensure_cloudxr_runtime()
 
         assert lifecycle._cloudxr_launcher is None
+
+
+# ============================================================================
+# CloudXR EULA acceptance
+# ============================================================================
+
+
+class TestCloudXREulaAcceptance:
+    """Tests for the ``ISAACLAB_CXR_ACCEPT_EULA`` opt-in."""
+
+    @staticmethod
+    def _accept_eula_passed_to_launcher() -> bool:
+        """Run ``_ensure_cloudxr_runtime`` and return the ``accept_eula`` it passed."""
+        mock_cls = MagicMock()
+        fake_module = MagicMock()
+        fake_module.CloudXRLauncher = mock_cls
+        lifecycle = _make_lifecycle(cloudxr_env_file="/etc/cxr.env")
+
+        with patch.dict(sys.modules, {"isaacteleop.cloudxr": fake_module}):
+            lifecycle._ensure_cloudxr_runtime()
+
+        return mock_cls.call_args.kwargs["accept_eula"]
+
+    @pytest.mark.parametrize("value", ["1", " 1 ", "\t1\n", "y", "Y", "yes", "Yes", "YES"])
+    def test_accepts_affirmative_values(self, value):
+        """``y``/``yes``/``1`` accept the license, case- and whitespace-insensitively.
+
+        These are the spellings ``OMNI_KIT_ACCEPT_EULA`` takes, so a user who accepts the
+        Omniverse license the documented way can spell the CloudXR one the same.
+        """
+        with patch.dict(os.environ, {"ISAACLAB_CXR_ACCEPT_EULA": value}):
+            os.environ.pop("ISAACLAB_CXR_SKIP_AUTOLAUNCH", None)
+            assert cloudxr_eula_accepted() is True
+            assert self._accept_eula_passed_to_launcher() is True
+
+    @pytest.mark.parametrize("value", ["0", "n", "no", "true", "", "11", "1 1"])
+    def test_does_not_accept_for_other_values(self, value):
+        """Anything not affirmative leaves the interactive prompt in place."""
+        with patch.dict(os.environ, {"ISAACLAB_CXR_ACCEPT_EULA": value}):
+            os.environ.pop("ISAACLAB_CXR_SKIP_AUTOLAUNCH", None)
+            assert cloudxr_eula_accepted() is False
+            assert self._accept_eula_passed_to_launcher() is False
+
+    def test_does_not_accept_when_unset(self):
+        """Unset keeps the pre-existing behaviour."""
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("ISAACLAB_CXR_ACCEPT_EULA", None)
+            os.environ.pop("ISAACLAB_CXR_SKIP_AUTOLAUNCH", None)
+            assert cloudxr_eula_accepted() is False
+            assert self._accept_eula_passed_to_launcher() is False
+
+    def test_independent_of_skip_autolaunch(self):
+        """The two CloudXR variables do not read each other's value."""
+        with patch.dict(os.environ, {"ISAACLAB_CXR_SKIP_AUTOLAUNCH": "1"}):
+            os.environ.pop("ISAACLAB_CXR_ACCEPT_EULA", None)
+            assert cloudxr_eula_accepted() is False
+
+    def test_exported_from_package_root(self):
+        """``teleop_replay_agent.py`` imports the helper from the package root, not the submodule."""
+        import isaaclab_teleop
+
+        assert isaaclab_teleop.cloudxr_eula_accepted is cloudxr_eula_accepted
 
 
 # ============================================================================
