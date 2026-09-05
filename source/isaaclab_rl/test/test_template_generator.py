@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import json
 import pkgutil
 import subprocess
 import sys
@@ -16,6 +17,8 @@ from pathlib import Path
 import gymnasium as gym
 import pytest
 import tomllib
+
+from isaaclab.utils import editor as editor_utils
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
 TEMPLATE_TOOL_DIR = ROOT_DIR / "tools" / "template"
@@ -302,11 +305,63 @@ def test_external_project_uses_src_layout_and_installed_isaaclab_commands(tmp_pa
         "build-backend": "uv_build",
     }
     assert package["project"]["dependencies"] == ["isaaclab[rsl-rl,skrl]"]
+    assert package["tool"]["pyright"] == {
+        "include": ["src", "scripts", "tests"],
+        "exclude": ["**/__pycache__", "**/logs", ".git", ".venv", ".vscode"],
+        "typeCheckingMode": "basic",
+    }
     assert package["project"]["entry-points"]["isaaclab.tasks"] == {project_name: f"{project_name}.tasks"}
     assert package["tool"]["uv"]["build-backend"]["module-name"] == project_name
     assert (project_dir / "src" / project_name / "__init__.py").is_file()
     assert not (project_dir / "source").exists()
     assert {path.name for path in (project_dir / "scripts").iterdir()} == {"list_envs.py"}
+    assert "pyrightconfig.json" in (project_dir / ".gitignore").read_text()
+    assert (
+        "python.analysis.extraPaths" not in (project_dir / ".vscode" / "tools" / "settings.template.json").read_text()
+    )
+    assert (project_dir / ".vscode" / "tools" / "setup_vscode.py").read_bytes() == (
+        ROOT_DIR / ".vscode" / "tools" / "setup_vscode.py"
+    ).read_bytes()
+
+
+def test_editor_setup_combines_simulator_local_and_installed_paths(tmp_path, monkeypatch):
+    """The generated Pyright child config must preserve project policy and cover every installation mode."""
+    project_dir = tmp_path / "project"
+    (project_dir / "source" / "local_package").mkdir(parents=True)
+    (project_dir / "src" / "generated_project").mkdir(parents=True)
+    (project_dir / "pyproject.toml").write_text('[tool.pyright]\ntypeCheckingMode = "basic"\n')
+    isaacsim_dir = tmp_path / "isaacsim"
+    (isaacsim_dir / ".vscode").mkdir(parents=True)
+    (isaacsim_dir / ".vscode" / "settings.json").write_text(
+        '{"python.analysis.extraPaths": ["exts/isaacsim.core.api", "extscache/omni.kit.foo"]}'
+    )
+    installed_root = tmp_path / "editable" / "isaaclab"
+    installed_root.mkdir(parents=True)
+
+    monkeypatch.setattr(editor_utils, "find_isaaclab_package_paths", lambda: [installed_root])
+
+    extra_paths = editor_utils.build_extra_paths(project_dir, isaacsim_dir)
+    editor_utils.write_pyright_config(project_dir, extra_paths)
+    config = json.loads((project_dir / "pyrightconfig.json").read_text())
+
+    assert config["extends"] == "./pyproject.toml"
+    assert config["extraPaths"] == [
+        (isaacsim_dir / "exts" / "isaacsim.core.api").as_posix(),
+        (isaacsim_dir / "extscache" / "omni.kit.foo").as_posix(),
+        "source/local_package",
+        "src",
+        installed_root.as_posix(),
+    ]
+
+
+@pytest.mark.parametrize("path_exists", [False, True])
+def test_editor_setup_rejects_invalid_explicit_isaac_sim_path(tmp_path, path_exists):
+    """An invalid user-selected installation must not silently select a different Isaac Sim."""
+    invalid_path = tmp_path / "invalid"
+    if path_exists:
+        invalid_path.mkdir()
+    with pytest.raises(ValueError, match="Not an Isaac Sim directory"):
+        editor_utils.resolve_isaacsim_dir(tmp_path, str(invalid_path))
 
 
 def _all_libraries() -> list[dict]:

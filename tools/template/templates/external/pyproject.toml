@@ -73,6 +73,11 @@ isaaclab = ["isaaclab", "isaaclab_newton", "isaaclab_ov", "isaaclab_physx"]
 [tool.ruff.format]
 docstring-code-format = true
 
+[tool.pyright]
+include = ["src", "scripts", "tests"]
+exclude = ["**/__pycache__", "**/logs", ".git", ".venv", ".vscode"]
+typeCheckingMode = "basic"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"

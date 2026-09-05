@@ -242,11 +242,27 @@ External projects should build their environment harness from public APIs and
 maintain project-local fixtures. Copying ``env_test_utils.py`` into a project is
 vendoring it, so the project must track upstream changes to that copy.
 
-To configure VS Code, run the generated setup task or invoke it directly:
+To configure VS Code or Cursor, run the generated setup task or invoke it directly:
 
 .. code-block:: bash
 
    uv run python .vscode/tools/setup_vscode.py
+
+The command selects the active interpreter and creates a git-ignored
+``pyrightconfig.json``. This child configuration inherits the checked-in
+Pyright policy from ``pyproject.toml`` and adds the generated project's
+``src`` import root, installed Isaac Lab packages, and any discovered Isaac
+Sim extensions. When using the ``isaacsim`` extra, include it while generating
+the configuration:
+
+.. code-block:: bash
+
+   uv run --extra isaacsim python .vscode/tools/setup_vscode.py
+
+In VS Code, use Pylance and select the interpreter that ran the setup command.
+In Cursor, install the ``detachhead.basedpyright`` extension instead of Pylance,
+select the same interpreter, and reload the window. Both language servers read
+the generated ``pyrightconfig.json``.
 
 Create an internal task
 -----------------------

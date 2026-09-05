@@ -9,7 +9,7 @@ import shutil
 import subprocess
 
 import jinja2
-from common import MULTI_AGENT_ALGORITHMS, SINGLE_AGENT_ALGORITHMS, TASKS_DIR, TEMPLATE_DIR
+from common import MULTI_AGENT_ALGORITHMS, ROOT_DIR, SINGLE_AGENT_ALGORITHMS, TASKS_DIR, TEMPLATE_DIR
 
 jinja_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(TEMPLATE_DIR),
@@ -199,6 +199,10 @@ def _external(specification: dict) -> None:
     print("  |-- Copying vscode files...")
     vscode_dir = os.path.join(project_dir, ".vscode")
     shutil.copytree(os.path.join(TEMPLATE_DIR, "external", ".vscode"), vscode_dir, dirs_exist_ok=True)
+    shutil.copyfile(
+        os.path.join(ROOT_DIR, ".vscode", "tools", "setup_vscode.py"),
+        os.path.join(vscode_dir, "tools", "setup_vscode.py"),
+    )
     template = jinja_env.get_template("external/.vscode/tasks.json")
     _write_file(os.path.join(vscode_dir, "tasks.json"), content=template.render(**specification))
     template = jinja_env.get_template("external/.vscode/tools/launch.template.json")

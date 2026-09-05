@@ -49,6 +49,21 @@ def test_legacy_vscode_option_uses_compatibility_dispatcher():
     generate.assert_called_once_with()
 
 
+def test_installed_vscode_generator_uses_pyright_config(tmp_path, monkeypatch):
+    """The installed workflow must not emit the conflicting Pylance extraPaths setting."""
+    monkeypatch.chdir(tmp_path)
+    with (
+        mock.patch.object(package_main, "resolve_isaacsim_dir", return_value=None),
+        mock.patch.object(package_main, "build_extra_paths", return_value=["/sim/exts/example"]),
+        mock.patch.object(package_main, "write_pyright_config") as write_pyright_config,
+    ):
+        package_main.generate_vscode_settings()
+
+    settings = (tmp_path / ".vscode" / "settings.json").read_text()
+    assert "python.analysis.extraPaths" not in settings
+    write_pyright_config.assert_called_once_with(tmp_path, ["/sim/exts/example"])
+
+
 @pytest.mark.parametrize(
     ("command", "runner"),
     [

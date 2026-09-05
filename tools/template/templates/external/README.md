@@ -75,10 +75,37 @@ The test helpers under `source/isaaclab_tasks/test` in the Isaac Lab repository 
 `isaaclab_tasks` package. Keep test fixtures in this project and use public Isaac Lab APIs. If you copy
 `env_test_utils.py`, it becomes vendored code whose upstream changes you must track.
 
-To configure VS Code, run the `setup_python_env` task or invoke its command directly:
+To configure VS Code or Cursor, run the `setup_python_env` task or invoke its command directly:
 
 ```bash
 uv run python .vscode/tools/setup_vscode.py
+```
+
+The setup command selects the active interpreter and generates a git-ignored `pyrightconfig.json`. The generated
+configuration inherits the project's checked-in Pyright settings and adds the Isaac Sim extensions, project `src` root,
+and any Isaac Lab packages discovered in the active Python environment. This supports both Pylance in VS Code and
+basedpyright in Cursor.
+
+In VS Code, use Pylance and select the interpreter that ran the setup command. In Cursor, install the
+[basedpyright extension](https://marketplace.visualstudio.com/items?itemName=detachhead.basedpyright) instead of
+Pylance, select the same interpreter, and reload the window. Both language servers read `pyrightconfig.json`.
+
+When using the `isaacsim` extra, include it while generating the editor configuration so the command can discover the
+Isaac Sim installation:
+
+```bash
+uv run --extra isaacsim python .vscode/tools/setup_vscode.py
+```
+
+For an Isaac Sim binaries installation that is not available in the project environment, run the setup with its Python
+launcher instead:
+
+```bash
+# Linux
+<isaac-sim-path>/python.sh .vscode/tools/setup_vscode.py --isaac_path <isaac-sim-path>
+
+# Windows
+<isaac-sim-path>\python.bat .vscode\tools\setup_vscode.py --isaac_path <isaac-sim-path>
 ```
 
 {% if include_ui_extension %}
@@ -91,5 +118,6 @@ Add the project root to the Isaac Sim Extension Manager search paths, refresh, a
 {% endif %}
 ## Troubleshooting
 
-If Pylance cannot resolve simulator modules, run the VS Code setup command above and reload the window. If indexing uses
-too much memory, remove unused simulator extension paths from `.vscode/settings.json`.
+If Pylance or basedpyright cannot resolve modules, confirm that the selected interpreter matches the one used to run the
+setup command, then reload the editor window. To add a missing extension or reduce indexing memory, edit the `extraPaths`
+array in the root `pyrightconfig.json`; remove simulator extension directories that the project does not use.

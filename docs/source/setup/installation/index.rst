@@ -771,7 +771,7 @@ The first launch downloads Isaac Sim extensions and can take more than ten minut
 you to accept the NVIDIA Omniverse EULA; set ``OMNI_KIT_ACCEPT_EULA=yes`` for a non-interactive
 environment. Run a project script with ``python my_script.py``.
 
-Generate VS Code settings for the current workspace with:
+Generate VS Code or Cursor settings for the current workspace with:
 
 .. code-block:: bash
 
@@ -779,8 +779,10 @@ Generate VS Code settings for the current workspace with:
 
 .. warning::
 
-   This command generates ``.vscode/settings.json`` in the workspace. If the file already exists,
-   it asks before overwriting it.
+   This command generates ``.vscode/settings.json`` and ``pyrightconfig.json`` in the workspace.
+   The Pyright configuration inherits an existing ``[tool.pyright]`` table and adds paths discovered
+   from the active Python environment. If ``.vscode/settings.json`` already exists, the command asks
+   before overwriting it.
 
 .. _installation-method-binary:
 .. _isaaclab-binaries-installation:
