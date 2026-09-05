@@ -1,0 +1,4 @@
+Test-only change: consolidated overlapping isaaclab_newton tests (articulation dynamics
+accessor shapes and FK-refresh checks, sensor initialization/at-rest checks, schema
+author/unset pairs, frame-view guards), removed permanently skipped tests, and replaced
+non-strict xfail contact-sensor cases with skips. No user-visible behavior change.
