@@ -116,7 +116,6 @@ Table of Contents
    source/tutorials/index
    source/how-to/index
    source/overview/developer-guide/index
-   source/testing/index
 
 
 .. toctree::
@@ -151,6 +150,7 @@ Table of Contents
    :caption: Developer Tools
 
    source/developer-tools/template_generator
+   source/developer-tools/benchmarking/index
 
 
 .. toctree::
