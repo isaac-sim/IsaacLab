@@ -116,4 +116,4 @@ convergence work only after the model, reset, controller, contact path, and capa
 
 - Cables are authored fresh as Newton deformables (`CableCfg` + `CableMaterialCfg`, or an external USD via `UsdFileCfg`), not converted from a PhysX rigid asset, so nothing in this migration reference applies to them.
 - They are Newton + VBD only.
-- For the authoring contract, material fields, and collision behavior, see the [Using Cables guide](../../../docs/source/overview/core-concepts/physical-backends/newton/using-cables.rst).
+- For the authoring contract, material fields, and collision behavior, see the [Deformables guide](../../../docs/source/overview/core-concepts/deformables.rst).

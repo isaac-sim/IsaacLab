@@ -130,7 +130,7 @@ A few quick showroom scripts to run and checkout:
 
    Select the listed options with ``--physics`` and ``--visualizer``. Use ``--num_cables`` and
    ``--num_segments`` to change the pile size and cable resolution. Cables are a Newton-only asset;
-   see :doc:`core-concepts/physical-backends/newton/using-cables`.
+   see :doc:`core-concepts/deformables`.
 
    .. image:: ../_static/demos/cables.jpg
       :width: 100%

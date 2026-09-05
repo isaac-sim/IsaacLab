@@ -13,7 +13,7 @@ owners:
 
 Read the [asset migration guide](../../../docs/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton.rst) first. This skill follows that page in the same order and targets Newton with MJWarp, not Newton solvers generally. Use the sim-to-sim skill only after the asset and task run in both backends.
 
-1D cable / rod assets are out of scope here: they are authored fresh as Newton deformables (Newton + VBD only), not converted from a PhysX rigid asset. See the [Using Cables guide](../../../docs/source/overview/core-concepts/physical-backends/newton/using-cables.rst).
+1D cable / rod assets are out of scope here: they are authored fresh as Newton deformables (Newton + VBD only), not converted from a PhysX rigid asset. See the [Deformables guide](../../../docs/source/overview/core-concepts/deformables.rst).
 
 Implicit MPM particle assets and rigid-MPM coupling are also out of scope; see the [Using Implicit MPM guide](../../../docs/source/overview/core-concepts/physical-backends/newton/using-mpm.rst).
 

@@ -46,8 +46,8 @@ Each solver is exposed as a small subclass of
 :doc:`newton-manager-abstraction` for the developer-facing guide to adding a
 new solver or a coupled solver.
 
-For authoring and simulating 1D cable / rod assets under the VBD solver, see
-:doc:`using-cables`.
+For authoring and simulating deformable assets, including 1D cable / rod assets
+under the VBD solver, see :ref:`deformables`.
 
 During the beta phase, breaking changes and incomplete documentation are still
 expected. Official support and debugging assistance will follow once the framework
