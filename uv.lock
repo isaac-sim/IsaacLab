@@ -2045,7 +2045,7 @@ requires-dist = [
     { name = "jinja2" },
     { name = "junitparser", marker = "extra == 'test'" },
     { name = "lazy-loader", specifier = ">=0.4" },
-    { name = "leapp", marker = "extra == 'leapp'", specifier = ">=0.5.2" },
+    { name = "leapp", marker = "extra == 'leapp'", specifier = "==0.6.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "meshio", specifier = ">=5.3.5" },
     { name = "moviepy", marker = "extra == 'video'", specifier = ">=1.0.3,<2.0.0.dev0" },
@@ -2958,7 +2958,7 @@ wheels = [
 
 [[package]]
 name = "leapp"
-version = "0.6.0"
+version = "0.6.1"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
     { name = "fast-sugiyama", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32')" },
@@ -2972,7 +2972,7 @@ dependencies = [
     { name = "torch", version = "2.11.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/leapp/leapp-0.6.0-py3-none-any.whl", hash = "sha256:39127ef5e0a1d4b09ac1847df3348ddff41440d197048f43fad3e73b8ef42617" },
+    { url = "https://pypi.nvidia.com/leapp/leapp-0.6.1-py3-none-any.whl", hash = "sha256:b41bb1ca2a0019216428feeee5463603d22022828ab95badb9334f88e5e254dc" },
 ]
 
 [[package]]
