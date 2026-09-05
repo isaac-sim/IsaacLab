@@ -74,7 +74,7 @@ _RENDERER_CFG_PARAMS = _collect_renderer_cfg_params()
 
 SIM_DT = 0.01
 MULTI_TILE_COUNT = 4
-ISAAC_RTX_RESPONSIVITY = 1.2
+ISAAC_RTX_RESPONSIVITY = 1.25
 
 
 def _isaac_rtx_sim_cfg(device: str) -> SimulationCfg:

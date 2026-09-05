@@ -696,10 +696,10 @@ def _compare_images(
 
 
 def _resolve_golden_image_path(test_name: str, physics_backend: str, renderer: str, data_type: str) -> str:
-    """Resolve a simulator-version-specific golden image when one exists.
+    """Resolve a dependency-version-specific golden image when one exists.
 
-    Versioned baselines currently apply only to the Isaac RTX renderer.  Keep
-    kitless renderers independent of Isaac Sim's Python packages.
+    Isaac RTX baselines track the Isaac Sim version, while Newton renderer
+    baselines track the Newton version and remain independent of Isaac Sim.
     """
     golden_image_dir = os.path.join(_GOLDEN_IMAGES_DIRECTORY, test_name)
     filename_stem = f"{physics_backend}-{renderer}-{data_type}"
@@ -714,6 +714,17 @@ def _resolve_golden_image_path(test_name: str, physics_backend: str, renderer: s
         )
         if os.path.exists(versioned_path):
             return versioned_path
+    elif renderer == "newton_renderer":
+        import newton
+
+        newton_version_parts = newton.__version__.split(".")
+        if len(newton_version_parts) >= 2:
+            versioned_path = os.path.join(
+                golden_image_dir,
+                f"{filename_stem}-newton-{newton_version_parts[0]}.{newton_version_parts[1]}.png",
+            )
+            if os.path.exists(versioned_path):
+                return versioned_path
 
     return os.path.join(golden_image_dir, f"{filename_stem}.png")
 

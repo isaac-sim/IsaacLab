@@ -71,16 +71,16 @@ class SyntheticGaussianScene:
     """Scene description consumed by :func:`make_synthetic_gaussian_usd`.
 
     Defaults arrange four large fully-opaque gaussians (R, G, B, W) in a 2x2
-    grid in the X-Y plane at Z=0, with a camera placed on +Z looking at the
-    grid origin.
+    grid in the X-Y plane just above the ground, with a camera placed on +Z
+    looking at the grid origin.
     """
 
     gaussians: list[SyntheticGaussian] = field(
         default_factory=lambda: [
-            SyntheticGaussian(position=(-0.6, +0.6, 0.0), color=(0.9, 0.1, 0.1)),  # red
-            SyntheticGaussian(position=(+0.6, +0.6, 0.0), color=(0.1, 0.9, 0.1)),  # green
-            SyntheticGaussian(position=(-0.6, -0.6, 0.0), color=(0.1, 0.1, 0.9)),  # blue
-            SyntheticGaussian(position=(+0.6, -0.6, 0.0), color=(0.9, 0.9, 0.9)),  # white
+            SyntheticGaussian(position=(-0.4, +0.4, 0.1), color=(0.9, 0.1, 0.1)),  # red
+            SyntheticGaussian(position=(+0.4, +0.4, 0.1), color=(0.1, 0.9, 0.1)),  # green
+            SyntheticGaussian(position=(-0.4, -0.4, 0.1), color=(0.1, 0.1, 0.9)),  # blue
+            SyntheticGaussian(position=(+0.4, -0.4, 0.1), color=(0.9, 0.9, 0.9)),  # white
         ]
     )
     """Gaussians in the scene. Default forms a 2x2 RGBW grid."""
