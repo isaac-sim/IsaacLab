@@ -1921,16 +1921,11 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _get_usd_import_schema_resolvers(cls) -> list[SchemaResolver]:
-        """Return the schema resolvers used to import the stage into Newton.
+        """Return ordered schema resolvers for physics-model USD imports.
 
-        A manager that registers MuJoCo solver attributes also imports the MJC
-        schema that authors them. Resolver order defines precedence when
-        multiple schemas author the same Newton model property.
-
-        This policy is limited to physics-model imports. Visualization builders
-        and articulation-ordering probes intentionally keep the fixed Newton and
-        PhysX resolver pair because solver-specific attributes cannot affect
-        their rendering or ordering products.
+        MJC is enabled for managers that register ``SolverMuJoCo`` attributes.
+        Visualization and articulation-ordering builders keep their fixed pair
+        because solver attributes do not affect their outputs.
         """
         resolvers: list[SchemaResolver] = [SchemaResolverNewton(), SchemaResolverPhysx()]
         if cls._registers_builder_attributes_from_solver(SolverMuJoCo):

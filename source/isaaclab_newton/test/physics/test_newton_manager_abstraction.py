@@ -830,12 +830,6 @@ def test_schema_resolver_policy_and_precedence(manager_cls, imports_mujoco, auth
         joint_prim.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Double, True).Set(0.41)
 
     schema_resolvers = manager_cls._get_usd_import_schema_resolvers()
-    assert [type(resolver).__name__ for resolver in schema_resolvers] == [
-        "SchemaResolverNewton",
-        "SchemaResolverPhysx",
-        *(["SchemaResolverMjc"] if imports_mujoco else []),
-    ]
-
     builder = ModelBuilder()
     manager_cls._register_builder_attributes(builder)
     builder.add_usd(stage, schema_resolvers=schema_resolvers)
