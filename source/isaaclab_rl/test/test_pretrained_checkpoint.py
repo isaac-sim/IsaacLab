@@ -64,9 +64,16 @@ def test_get_pretrained_checkpoint_preset_names_uses_non_default_domain_presets(
     assert preset_names == expected
 
 
-def test_get_pretrained_checkpoint_filename_preserves_legacy_layout():
+def test_get_pretrained_checkpoint_filename_preserves_legacy_layout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Test that callers omitting both backends retain the legacy filename."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", ["play.py", "presets=depth"])
+    cached_path = Path(".pretrained_checkpoints/rl_games/Isaac-Cartpole/checkpoint.pth")
+    cached_path.parent.mkdir(parents=True)
+    cached_path.touch()
+
     assert pretrained_checkpoint.get_pretrained_checkpoint_filename("rl_games", "Isaac-Cartpole") == "checkpoint.pth"
+    assert pretrained_checkpoint.get_published_pretrained_checkpoint("rl_games", "Isaac-Cartpole") == str(cached_path)
 
 
 def test_get_log_root_path_preserves_legacy_task_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):

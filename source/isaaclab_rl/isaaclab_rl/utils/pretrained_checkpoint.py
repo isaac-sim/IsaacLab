@@ -201,9 +201,13 @@ def get_log_root_path(
     task_name: str,
     physics_backend: str | None = None,
     render_backend: str | None = None,
+    *,
+    preset_names: Sequence[str] = (),
 ) -> str:
     """Return the absolute log root for a workflow, task, and backend combination."""
-    experiment_name = _get_pretrained_checkpoint_stem(workflow, task_name, physics_backend, render_backend)
+    experiment_name = _get_pretrained_checkpoint_stem(
+        workflow, task_name, physics_backend, render_backend, preset_names=preset_names
+    )
     return os.path.abspath(os.path.join("logs", workflow, experiment_name))
 
 
@@ -212,9 +216,11 @@ def get_latest_job_run_path(
     task_name: str,
     physics_backend: str | None = None,
     render_backend: str | None = None,
+    *,
+    preset_names: Sequence[str] = (),
 ) -> str | None:
     """Return the local log path of the most recent matching run."""
-    log_root_path = get_log_root_path(workflow, task_name, physics_backend, render_backend)
+    log_root_path = get_log_root_path(workflow, task_name, physics_backend, render_backend, preset_names=preset_names)
     return _get_latest_file_or_directory(log_root_path)
 
 
@@ -223,13 +229,17 @@ def get_pretrained_checkpoint_path(
     task_name: str,
     physics_backend: str | None = None,
     render_backend: str | None = None,
+    *,
+    preset_names: Sequence[str] = (),
 ) -> str | None:
     """Return the trained checkpoint path from the latest local run."""
-    path = get_latest_job_run_path(workflow, task_name, physics_backend, render_backend)
+    path = get_latest_job_run_path(workflow, task_name, physics_backend, render_backend, preset_names=preset_names)
     if not path:
         return None
 
-    checkpoint_stem = _get_pretrained_checkpoint_stem(workflow, task_name, physics_backend, render_backend)
+    checkpoint_stem = _get_pretrained_checkpoint_stem(
+        workflow, task_name, physics_backend, render_backend, preset_names=preset_names
+    )
     if workflow == "rl_games":
         preferred_path = os.path.join(path, "nn", f"{checkpoint_stem}.pth")
         if os.path.isfile(preferred_path):
@@ -304,7 +314,8 @@ def get_published_pretrained_checkpoint(
         render_backend: Render backend name. Omit with :paramref:`physics_backend`
             to use the legacy checkpoint layout.
         preset_names: Non-default domain presets that affect policy compatibility.
-            Defaults to resolving ``presets=`` selectors from :data:`sys.argv`.
+            For backend-aware checkpoints, defaults to resolving ``presets=`` selectors
+            from :data:`sys.argv`. Legacy checkpoints do not use preset-qualified names.
 
     Returns:
         The path, or None when the asset server does not report a checkpoint for this task
@@ -318,8 +329,10 @@ def get_published_pretrained_checkpoint(
             instance because the local cache directory is not writable. The originating
             error is chained as the cause.
     """
-    if preset_names is None:
+    if preset_names is None and physics_backend is not None and render_backend is not None:
         preset_names = get_pretrained_checkpoint_preset_names(task_name)
+    elif preset_names is None:
+        preset_names = ()
     filename = get_pretrained_checkpoint_filename(
         workflow, task_name, physics_backend, render_backend, preset_names=preset_names
     )
@@ -374,9 +387,13 @@ def has_pretrained_checkpoint_job_run(
     task_name: str,
     physics_backend: str | None = None,
     render_backend: str | None = None,
+    *,
+    preset_names: Sequence[str] = (),
 ) -> bool:
     """Return whether an experiment exists for the workflow, task, and backends."""
-    return os.path.exists(get_log_root_path(workflow, task_name, physics_backend, render_backend))
+    return os.path.exists(
+        get_log_root_path(workflow, task_name, physics_backend, render_backend, preset_names=preset_names)
+    )
 
 
 def has_pretrained_checkpoint_job_finished(
@@ -384,9 +401,13 @@ def has_pretrained_checkpoint_job_finished(
     task_name: str,
     physics_backend: str | None = None,
     render_backend: str | None = None,
+    *,
+    preset_names: Sequence[str] = (),
 ) -> bool:
     """Return whether an experiment has a checkpoint result."""
-    local_path = get_pretrained_checkpoint_path(workflow, task_name, physics_backend, render_backend)
+    local_path = get_pretrained_checkpoint_path(
+        workflow, task_name, physics_backend, render_backend, preset_names=preset_names
+    )
     return local_path is not None and os.path.exists(local_path)
 
 
@@ -395,9 +416,11 @@ def get_pretrained_checkpoint_review_path(
     task_name: str,
     physics_backend: str | None = None,
     render_backend: str | None = None,
+    *,
+    preset_names: Sequence[str] = (),
 ) -> str | None:
     """Return the review JSON path for a workflow, task, and backends."""
-    run_path = get_latest_job_run_path(workflow, task_name, physics_backend, render_backend)
+    run_path = get_latest_job_run_path(workflow, task_name, physics_backend, render_backend, preset_names=preset_names)
     if not run_path:
         return None
     return os.path.join(run_path, "pretrained_checkpoint_review.json")
@@ -408,9 +431,13 @@ def get_pretrained_checkpoint_review(
     task_name: str,
     physics_backend: str | None = None,
     render_backend: str | None = None,
+    *,
+    preset_names: Sequence[str] = (),
 ) -> dict | None:
     """Return the review JSON data for a workflow, task, and backends."""
-    review_path = get_pretrained_checkpoint_review_path(workflow, task_name, physics_backend, render_backend)
+    review_path = get_pretrained_checkpoint_review_path(
+        workflow, task_name, physics_backend, render_backend, preset_names=preset_names
+    )
     if not review_path:
         return None
 
@@ -496,11 +523,15 @@ def _get_pretrained_checkpoint_stem(
     task_name: str,
     physics_backend: str | None,
     render_backend: str | None,
+    *,
+    preset_names: Sequence[str] = (),
 ) -> str:
     """Return the checkpoint filename without its workflow extension."""
     if physics_backend is None and render_backend is None:
         return task_name
-    filename = get_pretrained_checkpoint_filename(workflow, task_name, physics_backend, render_backend)
+    filename = get_pretrained_checkpoint_filename(
+        workflow, task_name, physics_backend, render_backend, preset_names=preset_names
+    )
     return filename.removesuffix(WORKFLOW_PRETRAINED_CHECKPOINT_EXTENSIONS[workflow])
 
 
