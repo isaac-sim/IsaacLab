@@ -3,17 +3,24 @@
 Tutorial
 ========
 
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/tutorial_so101_vialplace_play.gif
+   :alt: The SO-101 arm picking up a vial and placing it in a rack.
+   :align: center
+   :width: 85%
+
+.. note::
+
+   This tutorial ties in with the `NVIDIA Sim-to-Real SO-101 learning course
+   <https://docs.nvidia.com/learning/physical-ai/sim-to-real-so-101/latest/index.html>`__ and its
+   `workshop repository <https://github.com/isaac-sim/Sim-to-Real-SO-101-Workshop>`__, which present a broader
+   end-to-end physical AI workflow with the SO-101, Isaac Lab, and NVIDIA Isaac GR00T.
+
 This tutorial builds a complete robot-learning workflow around an `SO-101 arm
 <https://github.com/TheRobotStudio/SO-ARM100>`__ that picks up a vial and places it in a rack.
 Instead of assembling disconnected examples, you will work with a production-shaped downstream project:
 `IsaacLabTutorial main branch <https://github.com/isaac-sim/IsaacLabTutorial/tree/main>`__. The project includes the
 robot and workshop assets, a manager-based reinforcement-learning environment, state and wrist-camera observations,
 RSL-RL agent configurations, tests, state-policy training, and state-to-vision policy distillation.
-
-.. image:: https://raw.githubusercontent.com/isaac-sim/IsaacLabTutorial/main/media/demo.gif
-   :alt: The SO-101 arm picking up a vial and placing it in a rack.
-   :align: center
-   :width: 100%
 
 By the end, you will know how a downstream Isaac Lab task is packaged, discovered, validated, trained,
 and evaluated. You will also know where to change the robot, scene, MDP, and learning configuration for
