@@ -100,6 +100,12 @@ inputs:
     description: 'Host Warp kernel cache directory bind-mounted into the container as WARP_CACHE_PATH'
     default: ''
     required: false
+  ovrtx-shader-cache-host-dir:
+    description: >-
+      Host OVRTX shader cache root. When set, its kit/ and kitless/ trees are
+      bind-mounted into the container; run_tests.sh owns the mount layout.
+    default: ''
+    required: false
   ci-marker:
     description: 'CI_MARKER value forwarded to the container (read by tools/conftest.py to select test files by pytest marker)'
     default: ''
@@ -134,7 +140,7 @@ runs:
         TEST_K_EXPR_INPUT: ${{ inputs.test-k-expr }}
         CI_MARKER_INPUT: ${{ inputs.ci-marker }}
       run: |
-        bash .github/actions/run-tests/run_tests.sh "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT" "${{ inputs.standalone-script-scope }}" "${{ inputs.standalone-script-visualizer }}" "${{ inputs.standalone-script-runtime-group }}" "${{ inputs.warp-cache-host-dir }}" "${{ inputs.extra-uv-packages }}"
+        bash .github/actions/run-tests/run_tests.sh "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT" "${{ inputs.standalone-script-scope }}" "${{ inputs.standalone-script-visualizer }}" "${{ inputs.standalone-script-runtime-group }}" "${{ inputs.warp-cache-host-dir }}" "${{ inputs.extra-uv-packages }}" "${{ inputs.ovrtx-shader-cache-host-dir }}"
     - name: Kill container on cancellation
       if: cancelled()
       shell: bash
@@ -181,6 +187,17 @@ runs:
         if-no-files-found: ignore
         retention-days: 7
         compression-level: 9
+
+    # The reports carry the dump truncated to 10 000 chars; the whole thing per test file is here.
+    - name: Upload hang stack dumps
+      if: always()
+      id: upload-hang-dumps
+      uses: actions/upload-artifact@v7
+      with:
+        name: hang-dumps-${{ inputs.container-name }}
+        path: ${{ inputs.reports-dir }}/hang-dumps/
+        if-no-files-found: ignore
+        retention-days: 7
 
     - name: Upload JUnit XML report
       if: always()

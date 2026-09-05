@@ -10,9 +10,19 @@ Contact Sensor
     :figwidth: 100%
     :alt: A contact sensor with filtering
 
-The contact sensor is designed to return the net contact force acting on a given ridgid body. The sensor is written to behave as a physical object, and so the "scope" of the contact sensor is limited to the body (or bodies) that defines it. There are multiple ways to define this scope, depending on your need to filter the forces coming from the contact.
+The contact sensor is designed to return contact forces acting on a given rigid body. The sensor is written to behave as a physical object, and so the "scope" of the contact sensor is limited to the body (or bodies) that defines it. There are multiple ways to define this scope, depending on your need to filter the forces coming from the contact.
 
-By default, the reported force is the total contact force, but your application may only care about contact forces due to specific objects. Retrieving contact forces from specific objects requires filtering, and this can only be done in a "many-to-one" way. A multi-legged robot that needs filterable contact information for its feet would require one sensor per foot to be defined in the environment, but a robotic hand with contact sensors on the tips of each finger can be defined with a single sensor.
+The aggregate normal force is reported as ``net_normal_forces_w``. When supported by the backend and enabled with ``track_friction_forces``, the aggregate friction force is reported as ``net_friction_forces_w``. The total contact force is therefore
+
+.. math::
+
+   \boldsymbol{f}_{total} = \boldsymbol{f}_{normal} + \boldsymbol{f}_{friction}.
+
+On Newton, ``net_forces_w`` is this total. PhysX and OVPhysX cannot compute a total contact force, so ``net_forces_w`` returns ``net_normal_forces_w`` and warns; this is a known limitation planned to be fixed in a later release. Use the explicit normal / friction properties when the split matters. History buffers are available for both normal and friction quantities (``net_normal_forces_w_history``, ``net_friction_forces_w_history``, ``normal_force_matrix_w_history``, and ``friction_force_matrix_w_history``).
+
+Your application may only care about contact forces due to specific objects. Retrieving contact forces from specific objects requires filtering. The per-filter normal and friction values are exposed as ``normal_force_matrix_w`` and ``friction_force_matrix_w``. Summing a force matrix over its filter dimension only reconstructs the corresponding net force when the filters cover every contacting object.
+
+PhysX does not expose an unfiltered aggregate friction force through its tensor API. Accessing ``net_friction_forces_w`` raises ``NotImplementedError``. ``friction_forces_w`` is that aggregate quantity; on PhysX it returns ``friction_force_matrix_w`` and warns. Newton exposes both aggregate and filtered friction forces.
 
 Consider a simple environment with an Anymal Quadruped and a block
 
@@ -38,16 +48,16 @@ We can then run the scene and print the data from the sensors
       # print information from the sensors
       print("-------------------------------")
       print(scene["contact_forces_LF"])
-      print("Received force matrix of: ", scene["contact_forces_LF"].data.force_matrix_w)
-      print("Received contact force of: ", scene["contact_forces_LF"].data.net_forces_w)
+      print("Received force matrix of: ", scene["contact_forces_LF"].data.normal_force_matrix_w)
+      print("Received contact force of: ", scene["contact_forces_LF"].data.net_normal_forces_w)
       print("-------------------------------")
       print(scene["contact_forces_RF"])
-      print("Received force matrix of: ", scene["contact_forces_RF"].data.force_matrix_w)
-      print("Received contact force of: ", scene["contact_forces_RF"].data.net_forces_w)
+      print("Received force matrix of: ", scene["contact_forces_RF"].data.normal_force_matrix_w)
+      print("Received contact force of: ", scene["contact_forces_RF"].data.net_normal_forces_w)
       print("-------------------------------")
       print(scene["contact_forces_H"])
-      print("Received force matrix of: ", scene["contact_forces_H"].data.force_matrix_w)
-      print("Received contact force of: ", scene["contact_forces_H"].data.net_forces_w)
+      print("Received force matrix of: ", scene["contact_forces_H"].data.normal_force_matrix_w)
+      print("Received contact force of: ", scene["contact_forces_H"].data.net_normal_forces_w)
 
 Here, we print both the net contact force and the filtered force matrix for each contact sensor defined in the scene. The front left and front right feet report the following
 

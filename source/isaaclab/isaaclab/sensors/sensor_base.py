@@ -250,7 +250,7 @@ class SensorBase(ABC):
         elif clone_plan is not None:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
-            self._num_envs = int(clone_plan.env_ids.numel())
+            self._num_envs = int(clone_plan.env_ids.size)
         else:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)

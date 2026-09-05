@@ -1,6 +1,41 @@
 Changelog
 ---------
 
+0.7.0 (2026-09-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the Unitree Go1 and Go2 leg actuator limits ignoring the knee reduction. Both robots applied
+  the hip and thigh limits to the calf joints, which capped calf torque well below its rated value and
+  let the torque-speed curve keep motoring past its rated speed. The calf joints now use the limits
+  authored in ``go1.usd`` and ``go2.usd`` (Go1: 35.55 N·m, 20.06 rad/s; Go2: 45.43 N·m, 15.70 rad/s),
+  and the hip and thigh limits were aligned with the same assets (23.7 N·m, 30.1 rad/s).
+
+  These robots now produce more calf torque at lower calf speeds, so policies trained on the previous
+  configuration should be retrained rather than reused directly.
+
+
+0.6.6 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated ``SO101_CFG`` to use the SysID-capable asset and resolve actuator gains, friction, armature,
+  and limits from its default Newton MJWarp USD variant. The USD-authored actuator group is now named ``usd``. The
+  config also uses the workshop operational joint pose, inherits root fixation from the USD, disables
+  self-collisions, enables contact sensors, and applies a 0.98 soft joint-limit factor. Tasks that require the
+  previous simulation gains should migrate to ``SO101_HIGH_PD_CFG``, which retains the prior high-PD actuator
+  behavior.
+
+Fixed
+^^^^^
+
+* Fixed ``SO101_CFG`` running convex decomposition instead of using the asset's authored convex hulls.
+
+
 0.6.5 (2026-08-21)
 ~~~~~~~~~~~~~~~~~~
 

@@ -83,8 +83,8 @@ def get_pretrained_checkpoint_filename(
     Args:
         workflow: RL workflow name.
         task_name: Registered task name.
-        physics_backend: Physics backend name, such as ``"physx"`` or
-            ``"newtonmjwarp"``.
+        physics_backend: Physics backend name, such as ``"physx"``,
+            ``"newtonmjwarp"``, or ``"newtonmjwarpvbdproxy"`` for a coupled solver.
         render_backend: Render backend name, such as ``"rtx"``, ``"newton"``, or ``"none"``.
 
     Returns:
@@ -99,7 +99,7 @@ def get_pretrained_checkpoint_filename(
         return WORKFLOW_PRETRAINED_CHECKPOINT_FILENAMES[workflow]
     if physics_backend is None or render_backend is None:
         raise ValueError("physics_backend and render_backend must be provided together")
-    if physics_backend not in {"newtonmjwarp", "physx"}:
+    if not physics_backend:
         raise ValueError(f"Unsupported physics backend: {physics_backend!r}")
     if render_backend not in {"newton", "none", "rtx"}:
         raise ValueError(f"Unsupported render backend: {render_backend!r}")
@@ -239,7 +239,16 @@ def get_published_pretrained_checkpoint(
             to use the legacy checkpoint layout.
 
     Returns:
-        The path.
+        The path, or None when the asset server does not report a checkpoint for this task
+        and backend combination. That covers both a checkpoint that was never published and
+        a server that could not be reached, which ``omni.client`` does not distinguish, so a
+        transient outage is not evidence that a checkpoint does not exist. The reason is
+        printed before returning.
+
+    Raises:
+        RuntimeError: If the checkpoint is published but could not be downloaded, for
+            instance because the local cache directory is not writable. The originating
+            error is chained as the cause.
     """
     filename = get_pretrained_checkpoint_filename(workflow, task_name, physics_backend, render_backend)
     ov_path = get_published_pretrained_checkpoint_path(workflow, task_name, physics_backend, render_backend)
@@ -252,9 +261,35 @@ def get_published_pretrained_checkpoint(
         print(f"Fetching pre-trained checkpoint : {ov_path}")
         try:
             resume_path = retrieve_file_path(ov_path, download_dir)
-        except Exception:
-            print("A pre-trained checkpoint is currently unavailable for this task.")
+        except FileNotFoundError:
+            # the asset server reports a checkpoint that was never published and a server it
+            # cannot reach the same way, so both are covered by the same message
+            backends = (
+                ""
+                if physics_backend is None
+                else f" with the '{physics_backend}' physics and '{render_backend}' render backends"
+            )
+            print(
+                "A pre-trained checkpoint is currently unavailable for this task.\n"
+                f"  The asset server does not provide '{ov_path}'.\n"
+                f"  Either no checkpoint is published for task '{task_name}'{backends}, or the asset"
+                " server could not be reached.\n"
+                "  Train the task, or pass --checkpoint <path> to use a checkpoint of your own."
+            )
             return None
+        except Exception as exc:
+            # the checkpoint exists on the server, so this is a local failure the user has to fix;
+            # reporting it as an unavailable checkpoint would send them looking in the wrong place
+            hint = ""
+            if isinstance(exc, OSError):
+                hint = (
+                    " Check that the cache directory is writable and that the disk is not full;"
+                    " a directory left behind by a container run is owned by root."
+                )
+            raise RuntimeError(
+                f"Failed to download the pre-trained checkpoint '{ov_path}' into"
+                f" '{os.path.abspath(download_dir)}': {type(exc).__name__}: {exc}.{hint}"
+            ) from exc
     else:
         print("Using pre-fetched pre-trained checkpoint")
     return resume_path
@@ -319,13 +354,29 @@ def _get_physics_backend_name(physics_cfg: PhysicsCfg | None) -> str:
     type_path = f"{type(physics_cfg).__module__}.{type(physics_cfg).__name__}".lower()
     if "newton" in type_path:
         solver_cfg = getattr(physics_cfg, "solver_cfg", None)
-        solver_type_path = f"{type(solver_cfg).__module__}.{type(solver_cfg).__name__}".lower()
-        if "mjwarp" in solver_type_path:
-            return "newtonmjwarp"
-        raise ValueError(f"Unsupported Newton solver for pretrained checkpoints: {type(solver_cfg).__name__}")
+        solver_name = _get_newton_solver_name(solver_cfg)
+        if solver_name is None:
+            raise ValueError(f"Unsupported Newton solver for pretrained checkpoints: {type(solver_cfg).__name__}")
+        return f"newton{solver_name}"
     if "physx" in type_path:
         return "physx"
     raise ValueError(f"Unable to identify physics backend from {type(physics_cfg).__name__}")
+
+
+def _get_newton_solver_name(solver_cfg) -> str | None:
+    """Return the checkpoint name of a Newton solver config, or ``None`` when unpublished.
+
+    A coupled solver is named by its entry solvers in order followed by its coupling
+    scheme, so a proxy coupler over MJWarp and VBD entries gives ``mjwarpvbdproxy``.
+    """
+    if solver_cfg is None:
+        return None
+    class_name = type(solver_cfg).__name__
+    entries = getattr(solver_cfg, "entries", None)
+    if entries is None:
+        return "mjwarp" if "mjwarp" in class_name.lower() else None
+    families = (type(entry.solver_cfg).__name__.removesuffix("SolverCfg").lower() for entry in entries)
+    return "".join(families) + class_name.removeprefix("Coupler").removesuffix("Cfg").lower()
 
 
 def _normalize_render_backend_name(renderer_type: str) -> str:

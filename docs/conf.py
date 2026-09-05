@@ -211,7 +211,7 @@ exclude_patterns = [
     "licenses/*",
     "plans",
     # Include-only fragments (pulled in via ``.. include::``; not standalone pages).
-    "source/setup/installation/include/*",
+    "source/migration/include/*",
 ]
 
 # Mock out modules that are not available on RTD
@@ -328,6 +328,7 @@ html_last_updated_fmt = ""  # to reveal the build date in the pages meta
 html_static_path = [
     "source/_static/css",
     "source/_static/how-to",
+    "source/_static/visualizers",
     "source/_static/tasks/previews",
     "source/_static/benchmarks",
 ]

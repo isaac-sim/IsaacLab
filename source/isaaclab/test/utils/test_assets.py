@@ -27,7 +27,7 @@ pytestmark = pytest.mark.unit
 def test_asset_root_environment_override_takes_precedence(monkeypatch):
     """Test the documented Isaac Sim asset-root environment override."""
     monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "/tmp/isaacsim_assets/Assets/Isaac/X.Y/")
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "/tmp/isaacsim_assets/Assets/Isaac/X.Y"
@@ -36,16 +36,16 @@ def test_asset_root_environment_override_takes_precedence(monkeypatch):
 def test_asset_root_falls_back_to_kit_file(monkeypatch):
     """Test kitless asset-root resolution when the environment override is absent."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
-    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
+    monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
 
 
 def test_asset_root_uses_china_storage_profile(monkeypatch):
-    """Test the China storage profile uses the same public bucket root as Isaac Sim."""
+    """Test the China asset region profile uses the same public bucket root as Isaac Sim."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     expected_root = (
@@ -54,16 +54,25 @@ def test_asset_root_uses_china_storage_profile(monkeypatch):
     assert assets_utils._resolve_asset_root() == expected_root
 
 
+def test_asset_root_uses_us_asset_region_profile(monkeypatch):
+    """Test the US asset region profile uses the same public bucket root as Isaac Sim."""
+    monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "us")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == assets_utils._US_ASSET_ROOT
+
+
 def test_asset_root_ignores_unknown_storage_profile(monkeypatch, caplog):
     """Test an unknown profile warns and falls back to the experience file."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "unknown")
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "unknown")
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     with caplog.at_level(logging.WARNING, logger=assets_utils.logger.name):
         assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
 
-    assert "no storage profile named 'unknown'" in caplog.text
+    assert "no asset region profile named 'unknown'" in caplog.text
 
 
 def test_configure_china_storage_profile_once(monkeypatch):
@@ -71,7 +80,7 @@ def test_configure_china_storage_profile_once(monkeypatch):
     import omni.client
 
     calls = []
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
     monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
 
     def configure(**kwargs):
@@ -95,21 +104,9 @@ def test_configure_china_storage_profile_once(monkeypatch):
     ]
 
 
-def test_configure_storage_profile_reports_client_failure(monkeypatch):
-    """Test a rejected OmniClient profile fails before an inaccessible asset is used."""
-    import omni.client
-
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
-    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
-    monkeypatch.setattr(omni.client, "set_s3_configuration", lambda **_kwargs: "rejected")
-
-    with pytest.raises(RuntimeError, match="Storage profile 'china' failed to configure"):
-        assets_utils.configure_storage_profile()
-
-
-def test_configure_storage_profile_is_lazy_without_selection(monkeypatch):
-    """Test the initializer does not import OmniClient when no profile is selected."""
-    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
+def test_configure_us_storage_profile_is_lazy(monkeypatch):
+    """Test the primary profile selects its root without importing OmniClient."""
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "us")
     original_omni_client = sys.modules.pop("omni.client", None)
     try:
         assets_utils.configure_storage_profile()
@@ -117,6 +114,40 @@ def test_configure_storage_profile_is_lazy_without_selection(monkeypatch):
     finally:
         if original_omni_client is not None:
             sys.modules["omni.client"] = original_omni_client
+
+
+def test_configure_storage_profile_reports_client_failure(monkeypatch):
+    """Test a rejected OmniClient profile fails before an inaccessible asset is used."""
+    import omni.client
+
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
+    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
+    monkeypatch.setattr(omni.client, "set_s3_configuration", lambda **_kwargs: "rejected")
+
+    with pytest.raises(RuntimeError, match="Asset region profile 'china' failed to configure"):
+        assets_utils.configure_storage_profile()
+
+
+def test_configure_storage_profile_is_lazy_without_selection(monkeypatch):
+    """Test the initializer does not import OmniClient when no profile is selected."""
+    monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
+    original_omni_client = sys.modules.pop("omni.client", None)
+    try:
+        assets_utils.configure_storage_profile()
+        assert "omni.client" not in sys.modules
+    finally:
+        if original_omni_client is not None:
+            sys.modules["omni.client"] = original_omni_client
+
+
+def test_configure_asset_region_profile_alias(monkeypatch):
+    """Test the public Asset Region Profile initializer forwards to the existing initializer."""
+    calls = []
+    monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: calls.append(True))
+
+    assets_utils.configure_asset_region_profile()
+
+    assert calls == [True]
 
 
 def test_asset_client_applies_storage_profile(monkeypatch):
@@ -141,7 +172,7 @@ def test_asset_root_environment_override_strips_windows_separator(monkeypatch):
 def test_asset_root_ignores_empty_environment_override(monkeypatch):
     """Test an empty override falls back, matching when ``isaacsim.storage.native`` skips it."""
     monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "")
-    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
+    monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
@@ -197,11 +228,11 @@ def test_exported_asset_root_constants_follow_environment_override(monkeypatch):
 
 
 def test_exported_asset_root_constants_follow_china_storage_profile(monkeypatch):
-    """Test kitless asset constants follow the selected China storage profile."""
+    """Test kitless asset constants follow the selected China asset region profile."""
     try:
         with monkeypatch.context() as patched_env:
             patched_env.delenv("ISAACSIM_ASSET_ROOT", raising=False)
-            patched_env.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+            patched_env.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
             module = importlib.reload(assets_utils)
 
             root = f"https://simready-cn.s3.oss-cn-shanghai.aliyuncs.com/Assets/Isaac/{module._ISAAC_SIM_ASSET_RELEASE}"
@@ -321,32 +352,90 @@ def test_retrieve_git_asset_path_clones_default_repo_cache(tmp_path, monkeypatch
     """Test that git assets are pulled into the default asset cache directory."""
     git_commands = []
     git_path = "https://example.com/example-assets.git"
+    cache_dir = tmp_path / "tmp" / "asset_cache"
 
     def mock_run_git_command(command):
         git_commands.append(command)
-        repo_dir = tmp_path / "tmp" / "asset_cache" / "example-assets"
+        repo_dir = Path(command[-1])
+        assert not repo_dir.exists()
         asset_dir = repo_dir / "Robots" / "Disney" / "ExampleBot"
         asset_dir.mkdir(parents=True)
         (repo_dir / ".git").mkdir()
         (asset_dir / "example_bot.usd").write_text("#usda 1.0\n", encoding="utf-8")
 
-    monkeypatch.setattr(assets_utils, "GIT_ASSET_CACHE_DIR", str(tmp_path / "tmp" / "asset_cache"))
+    monkeypatch.setattr(assets_utils, "GIT_ASSET_CACHE_DIR", str(cache_dir))
     monkeypatch.setattr(assets_utils, "_run_git_command", mock_run_git_command)
 
     asset_path = Path(assets_utils.retrieve_git_asset_path(git_path, "Robots/Disney/ExampleBot"))
 
     assert asset_path == tmp_path / "tmp" / "asset_cache" / "example-assets" / "Robots" / "Disney" / "ExampleBot"
     assert (asset_path / "example_bot.usd").read_text(encoding="utf-8") == "#usda 1.0\n"
-    assert git_commands == [
-        [
-            "git",
-            "clone",
-            "--depth",
-            "1",
-            git_path,
-            str(tmp_path / "tmp" / "asset_cache" / "example-assets"),
-        ]
-    ]
+    assert len(git_commands) == 1
+    assert git_commands[0][:-1] == ["git", "clone", "--depth", "1", git_path]
+    temporary_path = Path(git_commands[0][-1])
+    assert temporary_path.name == "checkout"
+    assert temporary_path.parent.parent == cache_dir
+    assert temporary_path.parent.name.startswith(".example-assets.")
+
+
+def test_retrieve_git_asset_path_serializes_cold_cache_population(tmp_path, monkeypatch):
+    """Test concurrent callers publish one complete Git asset checkout."""
+    git_path = "https://example.com/example-assets.git"
+    cache_dir = tmp_path / "asset_cache"
+    clone_count = 0
+    active_clones = 0
+    max_active_clones = 0
+    counter_lock = threading.Lock()
+    start = threading.Barrier(2)
+
+    def mock_run_git_command(command):
+        nonlocal clone_count, active_clones, max_active_clones
+        with counter_lock:
+            clone_count += 1
+            active_clones += 1
+            max_active_clones = max(max_active_clones, active_clones)
+        time.sleep(0.05)
+        repo_dir = Path(command[-1])
+        asset_dir = repo_dir / "Robots" / "Disney" / "ExampleBot"
+        asset_dir.mkdir(parents=True)
+        (repo_dir / ".git").mkdir()
+        (asset_dir / "example_bot.usd").write_text("#usda 1.0\n", encoding="utf-8")
+        with counter_lock:
+            active_clones -= 1
+
+    monkeypatch.setattr(assets_utils, "_run_git_command", mock_run_git_command)
+
+    def retrieve() -> str:
+        start.wait()
+        return assets_utils.retrieve_git_asset_path(git_path, "Robots/Disney/ExampleBot", cache_dir=str(cache_dir))
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        retrieved = list(executor.map(lambda _: retrieve(), range(2)))
+
+    expected = str(cache_dir / "example-assets" / "Robots" / "Disney" / "ExampleBot")
+    assert retrieved == [expected, expected]
+    assert clone_count == 1
+    assert max_active_clones == 1
+
+
+def test_retrieve_git_asset_path_does_not_publish_failed_clone(tmp_path, monkeypatch):
+    """Test a failed clone leaves neither a partial nor final cache checkout."""
+    git_path = "https://example.com/example-assets.git"
+    cache_dir = tmp_path / "asset_cache"
+    repo_dir = cache_dir / "example-assets"
+
+    def mock_run_git_command(command):
+        partial_dir = Path(command[-1])
+        (partial_dir / ".git").mkdir(parents=True)
+        raise RuntimeError("clone failed")
+
+    monkeypatch.setattr(assets_utils, "_run_git_command", mock_run_git_command)
+
+    with pytest.raises(RuntimeError, match="clone failed"):
+        assets_utils.retrieve_git_asset_path(git_path, "Robots/Disney/ExampleBot", cache_dir=str(cache_dir))
+
+    assert not repo_dir.exists()
+    assert not list(cache_dir.glob(".example-assets.*"))
 
 
 def test_retrieve_git_asset_path_uses_cached_asset_without_git(tmp_path, monkeypatch):
@@ -368,6 +457,26 @@ def test_retrieve_git_asset_path_uses_cached_asset_without_git(tmp_path, monkeyp
 
     assert asset_path == asset_dir
     assert (asset_path / "example_bot.usd").read_text(encoding="utf-8") == "#usda 1.0\n"
+
+
+def test_retrieve_git_asset_path_preserves_non_repository_cache(tmp_path, monkeypatch):
+    """Test a missing asset never replaces a caller-managed cache directory."""
+    git_path = "https://example.com/example-assets.git"
+    cache_dir = tmp_path / "asset_cache"
+    repo_dir = cache_dir / "example-assets"
+    repo_dir.mkdir(parents=True)
+    marker = repo_dir / "caller-managed.txt"
+    marker.write_text("keep", encoding="utf-8")
+
+    def fail_run_git_command(command):
+        raise AssertionError(f"git should not be called for a non-repository cache: {command}")
+
+    monkeypatch.setattr(assets_utils, "_run_git_command", fail_run_git_command)
+
+    with pytest.raises(RuntimeError, match="cache exists but is not a git repository"):
+        assets_utils.retrieve_git_asset_path(git_path, "Robots/Disney/ExampleBot", cache_dir=str(cache_dir))
+
+    assert marker.read_text(encoding="utf-8") == "keep"
 
 
 @pytest.mark.parametrize(

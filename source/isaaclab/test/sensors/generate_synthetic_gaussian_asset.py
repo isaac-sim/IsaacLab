@@ -616,7 +616,12 @@ class SyntheticGaussianSceneCfg(InteractiveSceneCfg):
 
     env_spacing: float = 2.0
 
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    terrain = TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type="plane",
+        # Keep the background in the calibrated HDR range independently of the default plane's appearance.
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.1)),
+    )
 
     gaussian = AssetBaseCfg(
         prim_path=f"{{ENV_REGEX_NS}}/{SYNTHETIC_GAUSSIAN_SCENE_REL_PATH}",
@@ -735,8 +740,8 @@ def render_synthetic_gaussian_scene(
         published = sim.get_clone_plan()
         positions = published.positions if published is not None else None
         src, dst = "/World/envs/env_0", "/World/envs/env_{}"
-        camera_plan = cloner.clone_plan_from_env_0(src, dst, num_envs, str(sim.device), positions)
-        cloner.replicate(camera_plan, stage=sim.stage)
+        camera_plan = cloner.clone_plan_from_env_0(src, dst, num_envs, positions)
+        cloner.replicate(camera_plan)
         sim.reset()
         for _ in range(stabilisation_steps):
             sim.step()
