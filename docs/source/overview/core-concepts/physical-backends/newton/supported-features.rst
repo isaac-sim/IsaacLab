@@ -119,7 +119,7 @@ Solver Coverage
   MJWarp advances rigid bodies and VBD advances deformable particles. Cable objects work with standalone
   VBD and with :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` when a named VBD
   entry owns the cable. See :doc:`using-vbd-solver` and
-  :doc:`newton-manager-abstraction`.
+  :ref:`newton-extending-solvers`.
 * **Implicit MPM solver**: experimental, supporting standalone particle
   materials and proxy-coupled rigid-MPM scenes. Capacity-bounded sparse grids
   and fixed grids support CUDA graph capture.

@@ -11,7 +11,7 @@ for the Newton backend in Isaac Lab. It is enabled by setting
 support for other solvers as well — see :doc:`kamino-solver` and
 :ref:`hydra-backend-solver-presets` for how presets are selected. For details
 on how solver-specific managers are implemented, or how to add a new solver
-manager, see :doc:`newton-manager-abstraction`.
+manager, see :ref:`newton-extending-solvers`.
 
 For a diagnose-first workflow, parameter-ordering guidance, and links to the current
 solver-specific references, see Newton's

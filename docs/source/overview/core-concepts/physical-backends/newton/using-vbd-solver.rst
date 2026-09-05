@@ -218,10 +218,11 @@ Custom MJWarp + VBD Parameters
 ------------------------------
 
 The opt-in
-:class:`~isaaclab_contrib.custom_coupling.CoupledMJWarpVBDSolverCfg` runs
-MJWarp and VBD over one shared model. Import
-:mod:`isaaclab_contrib.custom_coupling.tasks` explicitly before using its
-registered task.
+:class:`~isaaclab_contrib.custom_coupling.newton_manager_cfg.CoupledMJWarpVBDSolverCfg`
+runs MJWarp and VBD over one shared model. Import
+:mod:`isaaclab_contrib.custom_coupling.tasks` explicitly to register
+``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``, which selects the
+``newton_mjwarp_vbd`` preset.
 
 .. list-table::
     :header-rows: 1
@@ -247,6 +248,12 @@ deformables. See :doc:`mjwarp-solver` for the rigid-solver parameters.
 
 Use the custom manager for direct shared-model substep ordering. Use proxy
 coupling when deformable contact is localized to selected rigid bodies.
+
+Start from ``coupling_mode="two_way"``. Body-particle reactions can push the arm
+back instead of only moving the deformable, so clipping is easier to avoid than
+with one-way coupling. If the gripper still clips, lower the arm actuator
+stiffness so the arm can respond to those reactions, and for the gripper command
+fully close the fingers and let the actuator maximum effort limit the squeeze.
 
 
 .. _newton-vbd-proxy-coupling:
@@ -507,4 +514,4 @@ Symptoms and First Parameters to Check
       - Increase ``particle_collision_detection_interval``, reduce mesh resolution, or disable self-contact until the rest of the scene is tuned.
 
 For implementation details of the VBD managers and Newton coupler, see
-:doc:`newton-manager-abstraction`.
+:ref:`newton-extending-solvers`.
