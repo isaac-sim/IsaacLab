@@ -434,7 +434,8 @@ def test_deterministic_flag_gates_rtx_determinism_settings(monkeypatch, stored, 
         determinism_mock.assert_called_once_with(settings)
 
 
-def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch):
+@pytest.mark.parametrize("data_type", ["rgba", "normals"])
+def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type):
     """An empty warm-up frame should clear its output without slicing or launching a reshape."""
     _install_omni_stubs(monkeypatch)
     import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
@@ -444,8 +445,8 @@ def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch):
     annotator.get_data.return_value = np.empty((0, 0, 4), dtype=np.uint8)
     output_buffer = MagicMock()
     render_data = SimpleNamespace(
-        annotators={"rgba": annotator},
-        output_data={"rgba": SimpleNamespace(warp=output_buffer)},
+        annotators={data_type: annotator},
+        output_data={data_type: SimpleNamespace(warp=output_buffer)},
         spec=SimpleNamespace(
             view_count=1,
             device="cpu",
