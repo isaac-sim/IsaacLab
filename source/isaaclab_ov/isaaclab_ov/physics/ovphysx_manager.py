@@ -91,11 +91,12 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
     """Scene-data backend for the OVPhysX physics manager.
 
     Mirrors the contract of ``PhysxSceneDataBackend`` but adapts to the
-    ovphysx wheel's one-pattern-per-binding API: each distinct env-wildcard
-    rigid-body prim path produces its own ``TT.RIGID_BODY_POSE`` binding.
-    :attr:`transforms` reads each binding into its pre-allocated float32
-    staging buffer and concatenates them into a single ``wp.transformf``
-    array.
+    ovphysx wheel's binding API: each distinct env-wildcard rigid-body prim
+    path produces its own ``TT.RIGID_BODY_POSE`` binding. Bodies whose leaf
+    names collide with non-rigid prims use one fused exact-path binding per
+    distinct env-relative path. :attr:`transforms` reads each binding into
+    its pre-allocated float32 staging buffer and concatenates them into a
+    single ``wp.transformf`` array.
 
     The merged-buffer + staging-buffer separation is required because the
     wheel's ``TensorBinding.read(dst)`` writes into ``dst`` only when
@@ -143,7 +144,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         return paths
 
     def setup(self, physx, stage, device: str) -> None:
-        """Discover RigidBodyAPI prims, dedup by env-wildcard form, create one binding per pattern.
+        """Discover rigid bodies and create compact pose bindings without leaf-name collisions.
 
         Args:
             physx: Live ``ovphysx.PhysX`` instance (the wheel handle).
@@ -164,20 +165,44 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         if stage is None:
             return
 
-        # Discover RigidBodyAPI prims, dedup by env-wildcard form.
-        patterns: set[str] = set()
+        # Collect non-rigid leaf names as well as rigid bodies. OVPhysX resolves
+        # wildcard rigid-body expressions by leaf name, so a same-named joint can
+        # otherwise be selected instead of the body.
+        rigid_body_paths: list[str] = []
+        non_rigid_body_names: set[str] = set()
         for prim in stage.Traverse():
-            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim.GetPath().pathString))
+            prim_path = prim.GetPath().pathString
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI) and not prim.IsA(UsdPhysics.Joint):
+                rigid_body_paths.append(prim_path)
+            elif re.search(r"/World/envs/env_\d+/", prim_path):
+                non_rigid_body_names.add(prim_path.rsplit("/", 1)[-1])
+
+        patterns: set[str] = set()
+        exact_path_groups: dict[str, list[str]] = {}
+        for prim_path in rigid_body_paths:
+            pattern = re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim_path)
+            if prim_path.rsplit("/", 1)[-1] in non_rigid_body_names:
+                exact_path_groups.setdefault(pattern, []).append(prim_path)
+            else:
+                patterns.add(pattern)
+
+        binding_targets: list[tuple[str, list[str] | None]] = [(pattern, None) for pattern in sorted(patterns)]
+        binding_targets.extend(
+            (pattern, sorted(exact_paths)) for pattern, exact_paths in sorted(exact_path_groups.items())
+        )
 
         # Rigid discovery may be empty for deformable-only scenes; still set up
         # deformable nodal bindings so SceneData geometry export stays available.
-        if patterns:
-            # One pose binding per distinct pattern.
+        if binding_targets:
+            # Keep exact paths fused by env-relative path so collision handling
+            # does not create one native binding per environment.
             total_count = 0
-            for pattern in sorted(patterns):
+            for pattern, exact_paths in binding_targets:
                 try:
-                    view = OvPhysxView(physx, pattern=pattern, device=device)
+                    if exact_paths is None:
+                        view = OvPhysxView(physx, pattern=pattern, device=device)
+                    else:
+                        view = OvPhysxView(physx, prim_paths=exact_paths, device=device)
                     pose_binding = view.binding_for(TT.RIGID_BODY_POSE)
                 except Exception as exc:
                     logger.warning("Failed to create RIGID_BODY_POSE binding for %s: %s", pattern, exc)

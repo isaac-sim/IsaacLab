@@ -65,6 +65,7 @@ def _fake_rigid_body_prim(path: str):
     """Build a traversal stub with RigidBodyAPI and no deformable schemas."""
     return SimpleNamespace(
         HasAPI=lambda api: True,
+        IsA=lambda schema: False,
         GetPath=lambda p=path: SimpleNamespace(pathString=p),
         GetAppliedSchemas=lambda: [],
         GetMetadata=lambda key: None,
@@ -1004,7 +1005,7 @@ def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
     # Patch UsdPhysics so HasAPI in the test doesn't depend on the real PXR module.
     import isaaclab_ov.physics.ovphysx_manager as om_mod
 
-    monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
+    monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object(), Joint=object()))
     # Rigid-body setup uses a SimpleNamespace stage stub; skip deformable discovery.
     monkeypatch.setattr(om_mod, "discover_deformables_on_stage", lambda stage: [])
 
@@ -1018,6 +1019,59 @@ def test_setup_creates_one_binding_per_distinct_pattern(monkeypatch):
     }
     # Per-binding row counts sum to 4.
     assert b.transform_count == 4
+
+
+@pytest.mark.parametrize("joint_has_rigid_body_api", [False, True])
+def test_setup_uses_fused_exact_paths_for_joint_name_collision(monkeypatch, joint_has_rigid_body_api):
+    """Joint names must keep same-named rigid bodies out of wildcard bindings."""
+    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
+
+    from pxr import Usd, UsdGeom, UsdPhysics
+
+    stage = Usd.Stage.CreateInMemory()
+    for env_index in range(2):
+        env_path = f"/World/envs/env_{env_index}/Robot"
+        for body_name in ("torso", "foot"):
+            body_prim = UsdGeom.Xform.Define(stage, f"{env_path}/{body_name}").GetPrim()
+            UsdPhysics.RigidBodyAPI.Apply(body_prim)
+        joint_prim = UsdPhysics.FixedJoint.Define(stage, f"{env_path}/joints/foot").GetPrim()
+        if joint_has_rigid_body_api:
+            UsdPhysics.RigidBodyAPI.Apply(joint_prim)
+
+    created: list[SimpleNamespace] = []
+
+    class FakePhysX:
+        def create_tensor_binding(self, *, tensor_type, pattern=None, prim_paths=None):
+            resolved_paths = prim_paths or [f"/World/envs/env_{index}/Robot/torso" for index in range(2)]
+            binding = SimpleNamespace(
+                pattern=pattern,
+                requested_prim_paths=prim_paths,
+                tensor_type=tensor_type,
+                shape=(len(resolved_paths), 7),
+                count=len(resolved_paths),
+                prim_paths=resolved_paths,
+                read=lambda dst: None,
+                destroy=lambda: None,
+            )
+            created.append(binding)
+            return binding
+
+    import isaaclab_ov.physics.ovphysx_manager as om_mod
+
+    monkeypatch.setattr(om_mod, "discover_deformables_on_stage", lambda stage: [])
+
+    backend = OvPhysxSceneDataBackend()
+    backend.setup(FakePhysX(), stage, "cpu")
+
+    assert len(created) == 2
+    assert {binding.pattern for binding in created if binding.pattern is not None} == {"/World/envs/env_*/Robot/torso"}
+    assert [binding.requested_prim_paths for binding in created if binding.requested_prim_paths is not None] == [
+        [
+            "/World/envs/env_0/Robot/foot",
+            "/World/envs/env_1/Robot/foot",
+        ]
+    ]
+    assert backend.transform_count == 4
 
 
 def test_transforms_reads_each_binding_and_returns_transform_format():
@@ -1161,7 +1215,7 @@ def test_setup_continues_when_create_tensor_binding_raises(monkeypatch, caplog):
 
     import isaaclab_ov.physics.ovphysx_manager as om_mod
 
-    monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
+    monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object(), Joint=object()))
     # Rigid-body setup uses a SimpleNamespace stage stub; skip deformable discovery.
     monkeypatch.setattr(om_mod, "discover_deformables_on_stage", lambda stage: [])
 
@@ -1323,7 +1377,7 @@ def test_setup_runs_deformable_bindings_without_rigid_bodies(monkeypatch):
         called["stage"] = stage
         called["device"] = device
 
-    monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object()))
+    monkeypatch.setattr(om_mod, "UsdPhysics", SimpleNamespace(RigidBodyAPI=object(), Joint=object()))
     monkeypatch.setattr(
         OvPhysxSceneDataBackend,
         "_setup_deformable_bindings",
