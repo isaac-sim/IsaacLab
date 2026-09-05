@@ -350,6 +350,72 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     assert status["rendered"]
 
 
+def test_non_graph_capturable_sensor_task_runs_eagerly(monkeypatch):
+    """Sensor tasks with allocation-backed work should not attempt CUDA graph capture."""
+    state = object()
+    model = SimpleNamespace(shape_count=0, particle_count=0, bvh_shapes=None, bvh_particles=None)
+    calls: list[str] = []
+
+    monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
+    monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
+    monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: state))
+    monkeypatch.setattr(NewtonManager, "_model", model, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_tasks", {}, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_eager_tasks", set(), raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_state_dirty", True, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_graph", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_flags", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_flags_host", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_graph_capture_failed", False, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
+    monkeypatch.setattr(
+        NewtonManager,
+        "_capture_sensor_graph",
+        classmethod(lambda cls: pytest.fail("Non-graph-capturable task attempted CUDA graph capture.")),
+    )
+
+    NewtonManager._register_sensor_task("render", lambda: calls.append("render"), graph_capturable=False)
+    NewtonManager._update_sensor_tasks("render")
+
+    assert calls == ["render"]
+    assert NewtonManager._sensor_graph is None
+    assert NewtonManager._sensor_graph_capture_failed is False
+
+
+@pytest.mark.parametrize(
+    ("triangle_count", "expected_graph_capturable"),
+    [
+        pytest.param(None, True, id="no-triangle-array"),
+        pytest.param(0, True, id="empty-triangle-array"),
+        pytest.param(1, False, id="deformable-triangle-mesh"),
+    ],
+)
+def test_newton_warp_renderer_marks_triangle_mesh_refit_as_eager(
+    monkeypatch, triangle_count, expected_graph_capturable
+):
+    """Deformable triangle-mesh rendering should opt out of conditional CUDA graph capture."""
+    from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
+
+    registration: dict[str, object] = {}
+
+    def register_task(cls, name, update_fn, *, graph_capturable=True):
+        registration.update(name=name, update_fn=update_fn, graph_capturable=graph_capturable)
+
+    monkeypatch.setattr(NewtonManager, "_register_sensor_task", classmethod(register_task))
+    monkeypatch.setattr(NewtonManager, "_update_sensor_tasks", classmethod(lambda cls, *names: None))
+
+    tri_indices = None if triangle_count is None else SimpleNamespace(shape=(triangle_count, 3))
+    renderer = object.__new__(NewtonWarpRenderer)
+    renderer._newton_model = SimpleNamespace(tri_indices=tri_indices)
+    render_data = SimpleNamespace(sensor_task_name=None, ppisp_pipeline=None)
+
+    renderer.render(render_data)
+
+    assert registration["graph_capturable"] is expected_graph_capturable
+
+
 def test_sensor_bvh_shape_flags_are_fixed_before_builder_creation(monkeypatch):
     """Builder finalization includes collision-only shapes without a later BVH rebuild."""
     import newton

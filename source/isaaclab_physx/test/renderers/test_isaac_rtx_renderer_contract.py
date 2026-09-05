@@ -13,6 +13,7 @@ from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
+import numpy as np
 import pytest
 import warp as wp
 from packaging import version
@@ -431,6 +432,40 @@ def test_deterministic_flag_gates_rtx_determinism_settings(monkeypatch, stored, 
     assert determinism_mock.called is expected_called
     if expected_called:
         determinism_mock.assert_called_once_with(settings)
+
+
+def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch):
+    """An empty warm-up frame should clear its output without slicing or launching a reshape."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    annotator = MagicMock()
+    annotator.get_data.return_value = np.empty((0, 0, 4), dtype=np.uint8)
+    output_buffer = MagicMock()
+    render_data = SimpleNamespace(
+        annotators={"rgba": annotator},
+        output_data={"rgba": SimpleNamespace(warp=output_buffer)},
+        spec=SimpleNamespace(
+            view_count=1,
+            device="cpu",
+            cfg=SimpleNamespace(width=64, height=64),
+        ),
+        renderer_info={},
+        ppisp_pipeline=None,
+        _hdr_scratch_wp=None,
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+
+    with (
+        patch.object(rtx_renderer, "ensure_isaac_rtx_render_update"),
+        patch.object(rtx_renderer.wp, "launch") as launch,
+    ):
+        renderer.render(render_data)
+
+    output_buffer.zero_.assert_called_once_with()
+    launch.assert_not_called()
 
 
 def test_isaac_rtx_read_output_clears_stale_metadata_and_keeps_seeded_keys(monkeypatch):

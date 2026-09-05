@@ -585,6 +585,17 @@ class IsaacRtxRenderer(BaseRenderer):
             else:
                 tiled_data_buffer = output
 
+            # The RTX annotator may return an empty frame while its render product is warming up.
+            # Clear the destination so callers do not observe stale data, then wait for the next frame.
+            if data_type == str(RenderBufferKind.RGB_HDR) and data_type not in output_data:
+                assert render_data._hdr_scratch_wp is not None
+                buf_wp = render_data._hdr_scratch_wp
+            else:
+                buf_wp = output_data[data_type].warp
+            if tiled_data_buffer.size == 0:
+                buf_wp.zero_()
+                continue
+
             # convert data buffer to warp array
             if isinstance(tiled_data_buffer, np.ndarray):
                 # Let warp infer the dtype from numpy array instead of hardcoding uint8
@@ -619,14 +630,6 @@ class IsaacRtxRenderer(BaseRenderer):
             if data_type == str(RenderBufferKind.RGB_HDR):
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
-            # The HDR annotator's destination is the user-visible ``output_data["rgb_hdr"]``
-            # when they requested it explicitly; otherwise the renderer's internal
-            # scratch buffer that the PPISP pipeline reads.
-            if data_type == str(RenderBufferKind.RGB_HDR) and data_type not in output_data:
-                assert render_data._hdr_scratch_wp is not None
-                buf_wp = render_data._hdr_scratch_wp
-            else:
-                buf_wp = output_data[data_type].warp
             wp.launch(
                 kernel=reshape_tiled_image,
                 dim=(view_count, cfg.height, cfg.width),
