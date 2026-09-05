@@ -5,9 +5,22 @@
 
 """Compatibility aliases for supported Newton releases."""
 
+from typing import Any
+
+import newton
+
 try:
     from newton import ModelFlags
 except ImportError:
     from newton.solvers import SolverNotifyFlags as ModelFlags
 
-__all__ = ["ModelFlags"]
+
+def refit_shape_bvh(model: Any, state: Any) -> None:
+    """Refit a model's shape BVH using the API available in the installed Newton release."""
+    if hasattr(model, "bvh_refit_shapes"):
+        model.bvh_refit_shapes(state)
+    else:
+        newton.geometry.refit_bvh_shape(model, state)
+
+
+__all__ = ["ModelFlags", "refit_shape_bvh"]
