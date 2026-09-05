@@ -3,8 +3,10 @@
 ..
 .. SPDX-License-Identifier: BSD-3-Clause
 
-Direct Physics Engine API Access
-================================
+.. _native-physics-api:
+
+Native Physics API Access
+=========================
 
 .. warning::
 
@@ -13,35 +15,21 @@ Direct Physics Engine API Access
    the unified asset and sensor APIs unless an engine-native capability or a
    lower-overhead data path is required.
 
-When to use native access
--------------------------
+Choose an access level
+----------------------
 
-Use native access when a task depends on an engine-specific capability or when
-the unified APIs do not do what you need. Keep this access close to the
-component that owns the simulation state, and prefer the portable Isaac Lab
-APIs for task logic that does not need it.
+Use native access only when the unified APIs do not provide a capability or
+data path that the workload needs. Keep it close to the component that owns the
+simulation state. For the portable API boundary and backend lifecycle, see
+:ref:`backend-architecture`.
 
-Why there is no unified low-level view
---------------------------------------
+#. Use the unified Isaac Lab data and write APIs for portable task code.
+#. Reuse an Isaac Lab-owned native handle when its selection already matches.
+#. Create raw engine access only for a selection or capability that the owning
+   Isaac Lab object does not expose.
 
-The backends expose fundamentally different access models. PhysX and OvPhysX
-use explicit pull/push operations, so data is refreshed or published only when
-the corresponding method is called. Newton instead exposes live arrays owned
-by ``Model``, ``State``, ``Control``, and ``Contacts``. Changes to those arrays
-immediately affect the owning object, although derived state and solver caches
-can still require explicit synchronization.
-
-PhysX organizes access into typed views for physics-object families. OvPhysX
-organizes access into bindings selected by tensor type;
-:class:`~isaaclab_ov.sim.views.OvPhysxView` is an Isaac Lab convenience
-manager over those bindings. Newton selections describe subsets and batched
-layouts without imposing an asset type. A single facade would erase these
-ownership and synchronization differences and reduce the engines to a
-least-common-denominator API. Isaac Lab preserves native access so advanced
-users retain engine-specific performance and capabilities.
-
-How the access models differ
-----------------------------
+Ownership and synchronization
+-----------------------------
 
 .. list-table::
    :header-rows: 1
@@ -80,14 +68,6 @@ How the access models differ
      - Explicit ``read()``/``write()`` or guarded convenience methods
      - Caller respects access mode, device, dtype, and shape
      - Reacquire after stage/runtime teardown
-
-Choosing an access level
-------------------------
-
-#. Prefer the unified Isaac Lab data and write APIs for portable task code.
-#. Reuse an Isaac Lab-owned native handle when its selection already matches.
-#. Construct raw engine access only for selections or capabilities not exposed
-   by the owning Isaac Lab object.
 
 .. toctree::
    :maxdepth: 1

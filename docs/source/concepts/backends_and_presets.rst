@@ -1,7 +1,21 @@
+.. Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+.. All rights reserved.
+..
+.. SPDX-License-Identifier: BSD-3-Clause
+
 .. _backends-and-presets:
 
 Backends and Presets
 ====================
+
+.. seealso::
+
+   This page is the source of truth for the ``isaaclab-selecting-backends`` and
+   ``isaaclab-using-presets`` agent skills
+   (`skills/user/select-backends/ <../../../skills/user/select-backends/SKILL.md>`__,
+   `skills/user/use-presets/ <../../../skills/user/use-presets/SKILL.md>`__).
+   When you change this page, update those skills so agent guidance stays in sync. See
+   :doc:`/source/overview/developer-guide/agent_skills`.
 
 An Isaac Lab environment describes the robot, scene, sensors, and task. A
 **backend** supplies the physics or rendering implementation that brings that
@@ -243,9 +257,9 @@ Where to go next
   presets.
 - :doc:`/source/features/hydra` covers scalar overrides, preset authoring,
   conflict handling, and advanced configuration behavior.
-- :doc:`/source/overview/core-concepts/multi_backend_architecture` explains how
-  factories, the physics manager, assets, and sensors dispatch across backends.
-- :doc:`/source/overview/core-concepts/physical-backends/index` compares physics
-  backend capabilities and links to backend-specific setup guides.
+- :ref:`backend-architecture` explains how factories, the physics manager,
+  assets, and sensors dispatch across backends.
+- :ref:`physics-backends` compares physics backend runtime requirements,
+  maturity, solver families, and intended uses.
 - :doc:`/source/overview/core-concepts/renderers` explains renderer selection and
   implementation details.

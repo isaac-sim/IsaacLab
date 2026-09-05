@@ -70,7 +70,7 @@ Confirm the resolved axes by comparing `joint_names` with `backend_joint_names` 
 
 Match nominal actuator response before policy tuning:
 
-- distinguish `velocity_limit` from `velocity_limit_sim`;
+- distinguish `actuator_velocity_limit` from `joint_velocity_limit`;
 - use per-joint effort, stiffness, damping, friction, and armature;
 - preserve `dt * decimation` and action hold;
 - keep targets away from hard stops; and

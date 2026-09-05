@@ -187,7 +187,7 @@ OvPhysX is still experimental, so the feature list above is intentionally
 conservative. Broader feature coverage and documentation parity are tracked in
 `issue #5634 <https://github.com/isaac-sim/IsaacLab/issues/5634>`_.
 
-For architectural context, see :doc:`../../multi_backend_architecture`.
+For architectural context, see :ref:`backend-architecture`.
 
 For raw ``TensorBinding`` access and :class:`~isaaclab_ov.sim.views.OvPhysxView`,
-see :doc:`../direct-api-access/ovphysx`.
+see :doc:`/source/how-to/native_physics_api/ovphysx`.

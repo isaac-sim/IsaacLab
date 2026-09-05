@@ -20,8 +20,9 @@ Ask which install path the user is following before prescribing commands. For a 
 | Binary package | `docs/source/setup/installation/index.rst` |
 | Cloud setup | `docs/source/features/docker_cloud.rst` |
 | Legacy installer or setup without Isaac Sim | `docs/source/setup/installation/index.rst` |
-| Newton setup | `docs/source/overview/core-concepts/physical-backends/newton/installation.rst` |
-| PhysX setup | `docs/source/overview/core-concepts/physical-backends/physx/installation.rst` |
+| Newton setup | `docs/source/setup/installation/index.rst` and `docs/source/concepts/physics_backends.rst` |
+| PhysX setup | `docs/source/setup/installation/index.rst` and `docs/source/concepts/physics_backends.rst` |
+| OvPhysX setup | `docs/source/setup/installation/index.rst` and `docs/source/concepts/physics_backends.rst` |
 
 ## Minimal Verification
 

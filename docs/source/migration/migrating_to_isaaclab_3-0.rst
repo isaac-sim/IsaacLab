@@ -142,8 +142,9 @@ The concrete default remains task-specific so launching without an override stay
 Tasks can expose alternatives such as ``physics=physx``, ``physics=ovphysx``, or
 ``physics=newton_mjwarp`` without changing their asset import paths.
 
-For a comprehensive overview of the factory pattern, backend selection, and how to add a new
-backend, see :doc:`/source/overview/core-concepts/multi_backend_architecture`.
+For a comprehensive overview of the factory pattern and backend selection,
+see :doc:`/source/concepts/backend_architecture`. To add a new backend, see
+:doc:`/source/overview/developer-guide/add_physics_backend`.
 
 
 .. rubric:: New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
@@ -1205,7 +1206,7 @@ The concrete ``root_view`` type is backend-specific. The
 ``get_material_properties()`` call above reads each rigid shape's static friction,
 dynamic friction, and restitution through the PhysX Tensor API; Newton selections
 and OvPhysX bindings use different access methods. See
-:doc:`/source/overview/core-concepts/physical-backends/direct-api-access/index`
+:doc:`/source/how-to/native_physics_api/index`
 before using ``root_view`` in backend-portable code.
 
 
@@ -1894,16 +1895,16 @@ quaternions in XYZW format:
 6. **Check documentation** - Update any docs or comments that mention quaternion format.
 
 
+.. _torcharray-migration:
+
 .. rubric:: ProxyArray Backend for Asset and Sensor Data
 
-All ``.data.*`` properties on asset and sensor classes now return
-:class:`~isaaclab.utils.warp.ProxyArray` instead of ``torch.Tensor``. ``ProxyArray`` wraps
-the underlying ``wp.array`` and exposes explicit ``.torch`` and ``.warp`` accessors. This
-change applies to all asset classes (:class:`~isaaclab.assets.Articulation`,
-:class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`,
-:class:`~isaaclab.assets.DeformableObject`) and all sensor classes
-(:class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
-:class:`~isaaclab_physx.sensors.Pva`, :class:`~isaaclab_physx.sensors.FrameTransformer`).
+Migrate Asset and Sensor Data to ProxyArray
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Public asset and sensor data properties that returned ``torch.Tensor`` in Isaac Lab 2.x now return
+:class:`~isaaclab.utils.warp.ProxyArray`. The wrapper exposes the underlying ``wp.array`` through
+``.warp`` and a cached, zero-copy ``torch.Tensor`` view through ``.torch``.
 
 To use a data property as a ``torch.Tensor``, append ``.torch``:
 
@@ -1946,96 +1947,17 @@ Common patterns that need updating:
    # After:
    torch.testing.assert_close(robot.data.root_pos_w.torch, expected)
 
-.. list-table:: Affected classes
-   :header-rows: 1
-   :widths: 40 60
-
-   * - Class
-     - Package
-   * - :class:`~isaaclab.assets.Articulation`
-     - ``isaaclab`` / ``isaaclab_physx``
-   * - :class:`~isaaclab.assets.RigidObject`
-     - ``isaaclab`` / ``isaaclab_physx``
-   * - :class:`~isaaclab.assets.RigidObjectCollection`
-     - ``isaaclab`` / ``isaaclab_physx``
-   * - :class:`~isaaclab.assets.DeformableObject`
-     - ``isaaclab`` / ``isaaclab_physx`` / ``isaaclab_newton``
-   * - :class:`~isaaclab_physx.sensors.ContactSensor`
-     - ``isaaclab_physx``
-   * - :class:`~isaaclab_physx.sensors.Imu`
-     - ``isaaclab_physx``
-   * - :class:`~isaaclab_physx.sensors.Pva`
-     - ``isaaclab_physx``
-   * - :class:`~isaaclab_physx.sensors.FrameTransformer`
-     - ``isaaclab_physx``
-   * - :class:`~isaaclab.sensors.RayCaster`
-     - ``isaaclab``
-   * - :class:`~isaaclab.sensors.RayCasterCamera`
-     - ``isaaclab``
-   * - :class:`~isaaclab.sensors.MultiMeshRayCaster`
-     - ``isaaclab``
-   * - :class:`~isaaclab.sensors.MultiMeshRayCasterCamera`
-     - ``isaaclab``
+Warp kernel calls do not need to change because :class:`~isaaclab.utils.warp.ProxyArray` implements
+``__cuda_array_interface__`` and can be passed directly to ``wp.launch()``. If an API requires an
+actual ``warp.array``, use ``.warp``.
 
 .. note::
 
-   ``wp.to_torch(proxy_array)`` is temporarily supported by a compatibility shim. It returns
-   the same zero-copy tensor as ``proxy_array.torch`` and emits a one-time
-   ``DeprecationWarning``. This shim exists for older migration code and will be removed in a
-   future release; prefer ``.torch`` in new code.
+   Implicit Torch operations and ``wp.to_torch(proxy_array)`` are temporarily supported by
+   compatibility shims. They emit a one-time ``DeprecationWarning`` and will be removed in a future
+   release. Migrate to explicit ``.torch`` access now.
 
-
-.. _torcharray-migration:
-
-.. rubric:: ProxyArray Interop and Temporary Compatibility
-
-Asset and sensor data class properties return :class:`~isaaclab.utils.warp.ProxyArray`, a
-lightweight wrapper with explicit ``.torch`` and ``.warp`` accessors:
-
-.. code-block:: python
-
-   # BEFORE (2.x) — properties returned torch.Tensor directly
-   joint_pos = robot.data.joint_pos          # torch.Tensor
-   root_pos = robot.data.root_pos_w          # torch.Tensor
-
-   # AFTER (3.0) — properties return ProxyArray, use .torch for the tensor
-   joint_pos = robot.data.joint_pos.torch    # cached zero-copy torch.Tensor
-   root_pos = robot.data.root_pos_w.torch    # cached zero-copy torch.Tensor
-   joint_pos_warp = robot.data.joint_pos.warp  # the underlying warp.array
-
-**Automatic interop — in many cases, no changes are needed:**
-
-- **Warp kernels:** ``ProxyArray`` implements ``__cuda_array_interface__``, so it can be passed
-  directly to ``wp.launch()`` without calling ``.warp``:
-
-  .. code-block:: python
-
-     # Just works — no .warp needed
-     wp.launch(my_kernel, inputs=[robot.data.joint_pos], ...)
-
-- **Torch functions:** ``ProxyArray`` implements ``__torch_function__``, so ``torch.*`` operations
-  accept it directly. During the deprecation period this emits a one-time warning, but works:
-
-  .. code-block:: python
-
-     # Works (emits DeprecationWarning once, then silent)
-     mean_pos = torch.mean(robot.data.joint_pos, dim=1)
-     clipped = torch.clamp(robot.data.joint_pos, -3.14, 3.14)
-
-**What to change:**
-
-1. Append ``.torch`` where you need an explicit ``torch.Tensor`` (e.g., for indexing, slicing,
-   or passing to non-torch libraries).
-2. Warp kernel calls need no changes — ``ProxyArray`` works transparently.
-3. If you need the underlying ``warp.array`` (e.g., for ``ptr``, ``strides``), use ``.warp``.
-4. Replace legacy ``wp.to_torch(proxy_array)`` calls with ``proxy_array.torch``.
-
-.. note::
-
-   The ``__torch_function__`` bridge and the temporary ``wp.to_torch(proxy_array)`` shim will
-   be removed in a future release. We recommend migrating to explicit ``.torch`` access now.
-
-For a complete guide, see :doc:`/source/how-to/proxy_array`.
+For day-to-day usage and buffer lifetime guidance, see :ref:`working-with-simulation-data`.
 
 
 .. rubric:: Write Method Index/Mask Split
@@ -3201,6 +3123,359 @@ The old classes still exist and will issue ``DeprecationWarning`` when used:
 
 Deprecated retargeters have been moved to ``isaaclab_teleop.deprecated.openxr.retargeters`` for
 compatibility. These will be removed in a future release.
+
+
+Migration off Deprecated Isaac Sim APIs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In Isaac Sim 6.0, the legacy ``isaacsim.core.*``, ``isaacsim.sensors.*``, and
+``isaacsim.robot.wheeled_robots`` Python module paths are **deprecated** in favor of their
+``isaacsim.core.experimental.*`` (and ``*.experimental.*``) equivalents. Isaac Lab 3.0 has
+been migrated off the deprecated paths so that Isaac Lab continues to load and run when
+those modules are removed in a future Isaac Sim release.
+
+This is mostly a transparent change for users — Isaac Lab's own public Python API
+(:mod:`isaaclab`, :mod:`isaaclab_physx`, :mod:`isaaclab_tasks`, :mod:`isaaclab_teleop`,
+:mod:`isaaclab_mimic`) is unchanged. The migration is only user-visible if you:
+
+1. Import Isaac Sim symbols **directly** in your project, or
+2. Maintain a custom Kit experience (``.kit`` file) that lists Isaac Sim extension
+   dependencies, or
+3. Imported ``SimulationManager`` from ``isaacsim.core.simulation_manager`` in your own
+   PhysX-backed code.
+
+
+Python module renames
+---------------------
+
+Update direct imports in your own code as follows. **Where Isaac Lab provides an in-tree
+replacement, prefer the Isaac Lab API** over the ``isaacsim.core.experimental.*`` fallback:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Deprecated Isaac Sim path
+     - Recommended replacement
+   * - ``isaacsim.core.utils.stage``
+     - :mod:`isaaclab.sim.utils.stage` (e.g. ``get_current_stage``,
+       ``create_new_stage``, ``open_stage``, ``save_stage``, ``close_stage``,
+       ``clear_stage``, ``update_stage``, ``use_stage``)
+   * - ``isaacsim.core.utils.prims``
+     - :mod:`isaaclab.sim.utils.prims` (e.g. ``create_prim``, ``delete_prim``,
+       ``change_prim_property``, ``bind_visual_material``,
+       ``bind_physics_material``, ``add_usd_reference``)
+   * - ``isaacsim.core.utils.queries``
+     - :mod:`isaaclab.sim.utils.queries` (e.g. ``find_matching_prims``,
+       ``find_matching_prim_paths``, ``get_first_matching_child_prim``)
+   * - ``isaacsim.core.utils.transforms``
+     - :mod:`isaaclab.sim.utils.transforms`
+   * - ``isaacsim.core.utils.semantics``
+     - :mod:`isaaclab.sim.utils.semantics`
+   * - ``isaacsim.core.utils.extensions.enable_extension``
+     - :func:`isaaclab.sim.utils.enable_extension`
+   * - ``isaacsim.core.utils.viewports.set_camera_view``
+     - ``isaacsim.core.rendering_manager.ViewportManager.set_camera_view`` (or
+       ``omni.kit.viewport.utility.camera_state.ViewportCameraState`` for lower-level control)
+   * - ``isaacsim.core.prims.XFormPrim`` / ``XFormPrimView``
+     - :class:`~isaaclab.sim.views.FrameView` (Isaac Lab in-tree view; see
+       :ref:`migrating-to-isaaclab-3-0` ``Renaming of XformPrimView to FrameView`` above).
+       For ``Articulation`` / ``RigidPrim`` use ``isaacsim.core.experimental.prims``.
+   * - ``isaacsim.core.simulation_manager.SimulationManager``
+     - :class:`isaaclab_physx.physics.PhysxManager` (PhysX backend) or
+       ``isaaclab_newton.physics.NewtonManager`` (Newton backend); see local-alias
+       pattern below.
+   * - ``isaacsim.core.cloner``
+     - :mod:`isaaclab.cloner` (Isaac Lab in-tree cloner)
+   * - ``isaacsim.replicator.mobility_gen``
+     - ``isaacsim.replicator.experimental.mobility_gen``
+   * - ``isaacsim.sensors.<name>``
+     - ``isaacsim.sensors.experimental.<name>``
+   * - ``isaacsim.robot.wheeled_robots``
+     - ``isaacsim.robot.experimental.wheeled_robots`` (and
+       ``isaacsim.robot.wheeled_robots.nodes`` for OmniGraph nodes)
+
+To keep call-site code symmetric across backends when migrating off
+``isaacsim.core.simulation_manager.SimulationManager``, use the local-alias pattern:
+
+.. code-block:: python
+
+   from isaaclab_physx.physics import PhysxManager as SimulationManager
+   # or, for the Newton backend
+   from isaaclab_newton.physics import NewtonManager as SimulationManager
+
+Isaac Sim extension modules must be explicitly enabled before direct import
+-----------------------------------------------------------------------------
+
+Isaac Lab 3.0 no longer automatically initializes Isaac Sim extensions only to
+make their Python modules importable. Stock Isaac Lab Kit experiences now load a
+smaller set of extensions so unused Isaac Sim packages do not pull in
+unnecessary dependencies or deprecated aliases.
+
+If your project imports an Isaac Sim extension module directly, enable the
+extension after the Kit application has started and before importing from that
+module:
+
+.. code-block:: python
+
+   from isaaclab.sim.utils import enable_extension
+
+   enable_extension("isaacsim.core.experimental.prims")
+   from isaacsim.core.experimental.prims import XformPrim
+
+This is especially important for migration replacements such as
+``isaacsim.core.experimental.*`` and ``isaacsim.sensors.experimental.*``. Do not
+import ``enable_extension`` from ``isaacsim.core.experimental.utils.app`` unless
+that extension is already enabled; use :func:`isaaclab.sim.utils.enable_extension`
+from Isaac Lab instead. The helper requires a running Kit application and raises
+``RuntimeError`` if called from plain Python before Kit is launched.
+
+
+Kit experience (``.kit``) updates
+---------------------------------
+
+If you maintain a custom Kit experience derived from one of the Isaac Lab apps under
+``apps/``:
+
+* **Stop registering deprecated extension search paths.** The ``extsDeprecated`` search
+  path entry has been removed from all stock Isaac Lab Kit experiences (headless,
+  rendering, XR variants). Mirror that change in your own experience.
+* **Switch explicit Isaac Sim extension dependencies** to the non-deprecated equivalents
+  listed above (``isaacsim.core.experimental.*``, ``isaacsim.sensors.experimental.*``,
+  ``isaacsim.robot.experimental.wheeled_robots``).
+* **Do not rely on stock Isaac Lab apps to preload Isaac Sim extensions** that your
+  project imports directly. Either add those extensions to your custom ``.kit`` file
+  or enable them with :func:`isaaclab.sim.utils.enable_extension` before importing
+  their Python modules.
+* **Remove unused Isaac Sim extensions that pull in** ``isaacsim.core.api`` — Isaac Lab
+  no longer depends on those, and keeping them resurrects the deprecated stack.
+
+
+``SimulationManager`` is no longer re-exported
+----------------------------------------------
+
+Earlier internal previews of this migration briefly exposed
+``isaaclab_physx.physics.SimulationManager`` as a public alias of
+:class:`~isaaclab_physx.physics.PhysxManager`. **That alias has been removed**; use
+:class:`~isaaclab_physx.physics.PhysxManager` directly (with ``as SimulationManager`` at
+the import site if you want backend-agnostic call-site code, as shown above).
+
+
+Retired standalone reproducers
+------------------------------
+
+A handful of legacy reproducers under ``source/isaaclab/test/deps/isaacsim`` that
+depended on the deprecated Isaac Sim core extensions have been retired:
+``check_camera.py``, ``check_floating_base_made_fixed.py``,
+``check_legged_robot_clone.py``, ``check_rep_texture_randomizer.py``, and
+``check_ref_count.py``. Use :mod:`isaaclab.sim` together with the new
+``isaacsim.core.experimental.*`` APIs for the same debugging workflows.
+
+
+PhysX Tensors API Module Path
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Recent Isaac Sim releases removed the internal ``impl`` submodule of
+``omni.physics.tensors`` and now expose the PhysX Tensor API types
+(``ArticulationView``, ``RigidBodyView``, ``SimulationView``, etc.) directly
+under ``omni.physics.tensors.api``. Importing from the old path raises
+``ModuleNotFoundError: No module named 'omni.physics.tensors.impl'`` at import
+time.
+
+Isaac Lab has been updated to import from the new path. Downstream code
+(custom assets, sensors, or scripts) that imported from the old path must be
+updated:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x / older Isaac Sim)
+   import omni.physics.tensors.impl.api as physx
+
+   # After (Isaac Lab 3.x / current Isaac Sim)
+   import omni.physics.tensors.api as physx
+
+The class identities are unchanged — only the module path moved. Type hints
+referencing the old path (``omni.physics.tensors.impl.api.ArticulationView``)
+should be similarly updated to ``omni.physics.tensors.api.ArticulationView``.
+
+
+Viewport Camera Configuration (``ViewerCfg`` deprecated)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``viewer`` field (type :class:`~isaaclab.envs.common.ViewerCfg`) is deprecated on
+:class:`~isaaclab.envs.DirectRLEnvCfg`, :class:`~isaaclab.envs.ManagerBasedEnvCfg`, and
+:class:`~isaaclab.envs.DirectMARLEnvCfg`.  A backward-compatibility shim re-routes
+``viewer.*`` assignments for one release, but the field will be removed in a future version.
+Configure the viewport camera through :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
+on the sim config instead.
+
+Similarly, :class:`~isaaclab.envs.ui.ViewportCameraController` is deprecated.  A shim class
+remains so existing imports do not break, but it raises a :class:`DeprecationWarning` at
+construction.  Camera tracking is now handled directly by
+:class:`~isaaclab_visualizers.kit.KitVisualizer` via ``origin_type`` and
+``origin_track_path`` on :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env_cfg.viewer.eye = (4.5, 0.0, 6.0)
+   env_cfg.viewer.lookat = (0.0, 0.0, 2.0)
+
+   # After (Isaac Lab 3.x)
+   from isaaclab.visualizers import VisualizerCfg
+   env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0), lookat=(0.0, 0.0, 2.0))
+
+For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body"``), use
+:class:`~isaaclab_visualizers.kit.KitVisualizerCfg` with ``origin_type="asset"`` and
+``origin_track_path``:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env_cfg.viewer.origin_type = "asset_root"
+   env_cfg.viewer.asset_name = "robot"
+
+   # After (Isaac Lab 3.x)
+   from isaaclab_visualizers.kit import KitVisualizerCfg
+   env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(origin_type="asset", origin_track_path="robot")]
+
+The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated; camera
+tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
+
+
+Streaming Camera View (``tiled_cam_*`` fields removed)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``tiled_cam_*`` configuration fields on visualizer configs (e.g. ``tiled_cam_view``,
+``tiled_cam_num``, ``tiled_cam_prim_path``) have been removed and replaced by the unified
+``streaming_*`` API available on all four visualizer backends.  A one-release deprecation
+shim forwards each removed field to its ``streaming_*`` equivalent and emits
+:class:`DeprecationWarning`; the shim will be removed in the next major release.
+
+.. list-table:: Field rename reference
+   :header-rows: 1
+   :widths: 40 40 20
+
+   * - Old field (removed)
+     - New field
+     - Notes
+   * - ``tiled_cam_view``
+     - ``streaming_view``
+     - Default is now ``False`` (opt-in)
+   * - ``tiled_cam_num``
+     - ``streaming_envs``
+     - Accepts ``int`` or ``list[int]``
+   * - ``tiled_cam_prim_path``
+     - ``streaming_sensor_prim_path``
+     - Existing sensor path; takes priority over auto-created camera
+   * - ``tiled_cam_eye``
+     - ``streaming_cam_eye``
+     -
+   * - ``tiled_cam_renderer``
+     - ``streaming_cam_renderer``
+     - Accepts ``"newton_warp"``, ``"ovrtx"``, ``"isaac_rtx"``, or ``None``
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   from isaaclab_visualizers.newton import NewtonVisualizerCfg
+   cfg = NewtonVisualizerCfg(
+       tiled_cam_view=True,
+       tiled_cam_num=16,
+       tiled_cam_prim_path="/World/envs/env_.*/Camera",
+   )
+
+   # After (Isaac Lab 3.x)
+   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+   cfg = NewtonGLVisualizerCfg(
+       streaming_view=True,
+       streaming_envs=16,
+       streaming_sensor_prim_path="/World/envs/env_.*/Camera",
+   )
+
+.. note::
+   :class:`~isaaclab_visualizers.newton.NewtonVisualizerCfg` is deprecated in this release.
+   Use :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` (OpenGL rasterizer) or
+   :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg` (OVRTX path tracer) instead.
+
+
+Newton Visualizer Type Split (``newton`` → ``newton_gl`` / ``newton_rtx``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The single ``NewtonVisualizerCfg`` (``visualizer_type="newton"``) has been split into two
+dedicated configs with separate type identifiers:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 30 40
+
+   * - Old (removed / deprecated)
+     - New
+     - Notes
+   * - ``NewtonVisualizerCfg`` (``visualizer_type="newton"``)
+     - :class:`~isaaclab_visualizers.newton.NewtonGLVisualizerCfg` (``visualizer_type="newton_gl"``)
+     - OpenGL rasterizer; default Newton visualizer
+   * - —
+     - :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg` (``visualizer_type="newton_rtx"``)
+     - OVRTX path tracer (experimental)
+
+The ``--viz newton`` CLI argument remains as a **deprecated alias** for ``--viz newton_gl``.
+Update scripts and config files to use the explicit form:
+
+.. code-block:: bash
+
+   # Before (Isaac Lab 2.x)
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton
+
+   # After (Isaac Lab 3.x)
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton_gl
+
+Similarly, when importing the config class directly:
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   from isaaclab_visualizers.newton import NewtonVisualizerCfg
+   cfg = NewtonVisualizerCfg()
+
+   # After (Isaac Lab 3.x)
+   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg  # or NewtonRTXVisualizerCfg
+   cfg = NewtonGLVisualizerCfg()
+
+The ``source="visualizer:newton"`` string in :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg`
+continues to work as a backward-compatible alias for ``"visualizer:newton_gl"``, but
+``"visualizer:newton_gl"`` and ``"visualizer:newton_rtx"`` are now the canonical source strings.
+
+
+Video Recording (``gym.wrappers.RecordVideo`` replaced)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``gym.wrappers.RecordVideo`` pattern is no longer supported.  Video recording is now driven
+internally by :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` entries on the
+environment config, sourcing frames from the active visualizer or a scene sensor.
+
+.. code-block:: python
+
+   # Before (Isaac Lab 2.x)
+   env = gym.make(task, cfg=env_cfg, render_mode="rgb_array")
+   env = gym.wrappers.RecordVideo(env, video_folder="videos/", step_trigger=lambda s: s == 0)
+
+   # After (Isaac Lab 3.x)
+   from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+   env_cfg.video_recorders = [
+       VideoRecorderCfg(source="visualizer", output_dir="videos/", video_length=200)
+   ]
+   env = gym.make(task, cfg=env_cfg)
+
+Available sources: ``"visualizer"`` (auto-pick), ``"visualizer:kit"``, ``"visualizer:newton_gl"``,
+``"visualizer:newton_rtx"``, ``"visualizer:newton_gl:tiled"``, ``"sensor:<name>"``.
+``"visualizer:newton"`` and ``"visualizer:newton:tiled"`` remain as deprecated backward-compatible
+aliases for ``"visualizer:newton_gl"`` and ``"visualizer:newton_gl:tiled"`` respectively.
+The ``eye`` and ``lookat`` fields have been removed from ``VideoRecorderCfg``; position the
+camera via ``sim.default_visualizer_cfg`` instead.
+
+The ``isaaclab.envs.utils.recording_hooks`` module has been removed.  Physics-backend recording
+hooks are now registered via :meth:`~isaaclab.sim.SimulationContext.add_render_callback`.
 
 
 Getting Help

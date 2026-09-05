@@ -4,8 +4,9 @@ Joint and Body Ordering
 PhysX and MJWarp may order an articulation's joints and bodies differently. Set
 ``joint_ordering`` and ``body_ordering`` to keep names mapped to the same tensor elements
 across backends. This page explains the supported conventions, conversion costs, and direct
-backend-view access. For backend selection and capabilities, see the :doc:`Physics Backends
-overview <index>`.
+backend-view access. Articulation ordering preserves name-to-vector semantics, but it does not
+make the backends' solver dynamics identical. For backend selection and capabilities, see
+:ref:`physics-backends`.
 
 .. seealso::
 
@@ -27,8 +28,8 @@ both backends load the same USD asset:
    initialization, then exposes the selected public order through its
    high-level API.
 
-The backend selection described in :doc:`Multi-Backend Architecture
-<../multi_backend_architecture>` controls which native view is created. The
+The backend selection described in :ref:`backend-architecture` controls which
+native view is created. The
 ordering selection controls how the high-level API presents that view.
 
 
@@ -265,7 +266,7 @@ diverge because of:
 * timestep and substeps
 * solver convergence
 
-Use :doc:`Solver Comparison <solver-comparison>` to diagnose and tune these
+Use :ref:`solver-differences` to diagnose and tune these
 differences rather than treating them as ordering failures.
 
 
@@ -284,4 +285,4 @@ order:
 5. Compare source and target values by physical name rather than by raw column.
 6. When name-to-vector semantics are stable but motion still diverges, classify
    the problem as a solver-dynamics issue and continue with
-   :doc:`Solver Comparison <solver-comparison>`.
+   :ref:`solver-differences`.

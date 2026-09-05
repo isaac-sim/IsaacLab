@@ -929,5 +929,5 @@ See Also
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
 - :doc:`/source/overview/core-concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
 - :doc:`/source/concepts/scene_data_providers`: how scene data flows to visualizers
-- :doc:`/source/overview/core-concepts/physical-backends/newton/index`: Newton backend guide
+- :ref:`physics-backends-newton`: Newton backend overview and specialist guides
 - :doc:`/source/migration/migrating_to_isaaclab_3-0`: visualizer migration reference

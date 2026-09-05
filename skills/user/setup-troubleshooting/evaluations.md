@@ -36,7 +36,7 @@ Query: "I want to run this task with Newton but setup fails."
 
 Expected behavior:
 
-- Routes to backend-specific installation docs.
+- Routes setup to the unified installation guide and backend choice questions to the physics-backends concept.
 - Separates backend installation issues from task implementation issues.
 - Verifies setup with a minimal command before running training.
 

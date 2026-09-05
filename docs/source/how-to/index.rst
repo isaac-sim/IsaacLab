@@ -93,8 +93,8 @@ This guide demonstrates how to customize the RTX rendering settings.
 Working with Simulation Data
 ----------------------------
 
-This guide explains how to read and write simulation state using the :class:`~isaaclab.utils.warp.ProxyArray`
-dual-access wrapper that all data classes return.
+This guide explains how to consume asset and sensor data through the Torch and Warp representations
+provided by :class:`~isaaclab.utils.warp.ProxyArray`, and how to keep retained views valid.
 
 .. toctree::
     :maxdepth: 1
@@ -126,6 +126,42 @@ and policies trained in Newton and deployed in PhysX.
 
     transfer_policies_between_physx_and_newton
 
+
+Working with Physics Backends
+-----------------------------
+
+These guides help prepare assets and tasks for the supported physics backends.
+
+.. toctree::
+    :maxdepth: 1
+
+    prepare_asset_for_newton
+    /source/how-to/native_physics_api/index
+
+For experimental Newton solver and Warp-environment workflows, see
+:ref:`newton-using-vbd`, :ref:`newton-using-mpm`, :ref:`newton-using-cables`,
+:ref:`warp-environments`, and :ref:`warp-env-migration`.
+
+.. toctree::
+    :hidden:
+
+    /source/overview/core-concepts/physical-backends/joint_and_body_ordering
+    /source/overview/core-concepts/physical-backends/newton/using-vbd-solver
+    /source/overview/core-concepts/physical-backends/newton/using-mpm
+    /source/overview/core-concepts/physical-backends/newton/using-cables
+    /source/overview/core-concepts/physical-backends/newton/warp-environments
+    /source/overview/core-concepts/physical-backends/newton/warp-env-migration
+
+Solver Tuning
+-------------
+
+These guides diagnose and tune solver-specific behavior after backend, task,
+and asset validation.
+
+.. toctree::
+   :maxdepth: 1
+
+   solver_tuning/index
 
 Recording an Animation and Video
 --------------------------------
