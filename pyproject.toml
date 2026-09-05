@@ -51,7 +51,7 @@ dependencies = [
     "pyglet>=2.1.6,<3",
     "transformers==4.57.6",
     "einops",
-    "warp-lang==1.16.0",
+    "warp-lang==1.17.0",
     "matplotlib>=3.10.3",
     # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
@@ -61,6 +61,8 @@ dependencies = [
     "omniverseclient==2.72.3",
     "filelock",
     "lazy_loader>=0.4",
+    # ----- project template generator -----
+    "Jinja2",
     # Pink IK stack; the install CLI derives its force-install list from these entries.
     # pin-pink: Isaac Sim 6.x needs >=3.3, 3.4+ breaks pink_ik; daqp >0.8.5 changes behavior.
     "pin ; platform_system == 'Linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64')",
@@ -85,8 +87,11 @@ dependencies = [
     "rsl-rl-lib==5.4.1",  # default RL framework
     "onnxscript>=0.5",
     # ----- newton (default physics engine) -----
-    # Pin the Newton build used by both workspace and wheel installs until the 1.6 release.
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@24bd863528d6b91137408930d0fbe8fa216ad962",
+    # Pin the Newton release used by both workspace and wheel installs until 1.6.0 final.
+    # [tool.uv].override-dependencies only reaches uv sync, so a wheel built from this
+    # metadata would otherwise resolve the newest stable (1.5.1) and miss newton#4017:
+    # 1.6.0rc1 is a prerelease, which a default resolve skips.
+    "newton[sim]==1.6.0rc1",
     # Import and mesh-processing packages used by Newton, including the ones that honoring
     # USD-authored ``physics:approximation`` requires. Keep these explicit instead of selecting
     # newton[importers], whose standalone USD dependency would overlap with usd-exchange.
@@ -220,7 +225,7 @@ torchaudio = "2.11.0"
 ovphysx = "0.5.11"
 ovrtx = "0.4.1.364340"
 ovstage = "0.1.1.355824"
-warp = "1.16.0"
+warp = "1.17.0"
 
 [tool.ruff]
 line-length = 120
@@ -400,9 +405,9 @@ environments = [
 # Torch routes through [tool.uv.sources]. Values mirror [tool.isaaclab.versions] where applicable.
 override-dependencies = [
     "numpy>=2",
-    "mujoco~=3.11.0",
-    "mujoco-warp~=3.11.0",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@24bd863528d6b91137408930d0fbe8fa216ad962",
+    "mujoco~=3.12.0",
+    "mujoco-warp~=3.12.0",
+    "newton[sim]==1.6.0rc1",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.1",
     "torch==2.11.0",

@@ -47,8 +47,13 @@ class DCMotorCfg(IdealPDActuatorCfg):
 
     class_type: type["DCMotor"] | str = "{DIR}.actuator_pd:DCMotor"
 
-    saturation_effort: float = MISSING
-    """Peak motor force/torque of the electric DC motor (in N-m)."""
+    saturation_effort: dict[str, float] | float = MISSING
+    """Peak motor force/torque of the electric DC motor [N or N·m, depending on joint type].
+
+    The motor's stall torque reflected at the joint, i.e. the torque produced at zero speed.
+    Joints in the same group that sit behind different gear reductions need different values,
+    so this accepts a joint-name-pattern dictionary as well as a scalar.
+    """
 
 
 @configclass
