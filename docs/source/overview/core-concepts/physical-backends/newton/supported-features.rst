@@ -73,7 +73,7 @@ The following sensors are backend-agnostic (implemented in ``isaaclab`` core)
 and work transparently with Newton:
 
 * Ray Caster
-* Camera — see :doc:`../../sensors/camera`
+* Camera — see :doc:`/source/concepts/sensors/camera`
 
 isaaclab_assets
 ^^^^^^^^^^^^^^^

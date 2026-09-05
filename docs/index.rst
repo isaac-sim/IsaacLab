@@ -101,7 +101,9 @@ Table of Contents
    :caption: Concepts
 
    source/concepts/backends_and_presets
+   source/concepts/renderers
    source/concepts/actuators
+   source/concepts/sensors/index
    source/concepts/coupled_solvers
    source/concepts/scene_data_providers
    source/concepts/visualization

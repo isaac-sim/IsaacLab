@@ -217,5 +217,5 @@ See also
 * :doc:`/source/concepts/reinforcement_learning` - the shared ``train``/``play`` entrypoints
   that register the capture flags
 * :doc:`/source/concepts/visualization` - visualizers and rendering during training
-* :doc:`/source/overview/core-concepts/sensors/camera` - camera sensors and annotator data types
+* :doc:`/source/concepts/sensors/camera` - camera sensors and annotator data types
 * :doc:`proxy_array` - dual CPU/GPU sensor buffers read through ``.torch``
