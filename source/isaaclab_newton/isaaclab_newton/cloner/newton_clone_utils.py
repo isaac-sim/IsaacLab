@@ -98,6 +98,7 @@ def build_source_builders(
     *,
     ignore_paths: Sequence[str] | None = None,
     load_visual_shapes: bool = True,
+    skip_mesh_approximation: bool = False,
 ) -> dict[str, ModelBuilder]:
     """Build one Newton builder for each clone source prim path.
 
@@ -115,9 +116,18 @@ def build_source_builders(
         load_visual_shapes: Whether to import visual-only geometry. Importing it costs
             USD parse time and memory that only pays off when the shapes are rendered
             or ray cast.
+        skip_mesh_approximation: Whether to skip collision mesh approximation during import.
     """
     return {
-        source: _build_source_builder(stage, source, create_builder, schema_resolvers, ignore_paths, load_visual_shapes)
+        source: _build_source_builder(
+            stage,
+            source,
+            create_builder,
+            schema_resolvers,
+            ignore_paths,
+            load_visual_shapes,
+            skip_mesh_approximation,
+        )
         for source in sources
     }
 
@@ -129,6 +139,7 @@ def _build_source_builder(
     schema_resolvers: Sequence[Any],
     ignore_paths: Sequence[str] | None,
     load_visual_shapes: bool = True,
+    skip_mesh_approximation: bool = False,
 ) -> ModelBuilder:
     """Build one source builder."""
     builder = create_builder()
@@ -137,7 +148,7 @@ def _build_source_builder(
         root_path=source,
         load_visual_shapes=load_visual_shapes,
         hide_collision_shapes=True,
-        skip_mesh_approximation=False,
+        skip_mesh_approximation=skip_mesh_approximation,
         schema_resolvers=schema_resolvers,
         ignore_paths=ignore_paths,
     )

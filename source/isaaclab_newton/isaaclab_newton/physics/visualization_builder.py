@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from typing import Any
 
@@ -12,7 +13,7 @@ import numpy as np
 from newton import ModelBuilder
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
-from pxr import Usd
+from pxr import Usd, UsdPhysics
 
 from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, discover_deformables_on_stage
 from isaaclab.sim.utils.transforms import resolve_prim_pose
@@ -69,6 +70,17 @@ def _deformable_ignore_paths(
     return list(dict.fromkeys(ignore_paths))
 
 
+def _joint_ignore_paths(stage: Usd.Stage) -> list[str]:
+    """Return exact path expressions for joints omitted from the shadow model.
+
+    The active physics backend supplies every rigid-body pose to the visualization
+    state, so the shadow model needs bodies and shapes but not their constraints.
+    Omitting joints also lets renderers display legacy assets whose authored joint
+    direction is unsupported by Newton's simulation importer.
+    """
+    return [f"^{re.escape(str(prim.GetPath()))}$" for prim in stage.Traverse() if prim.IsA(UsdPhysics.Joint)]
+
+
 def build_visualization_builder_from_stage_envs(
     stage: Usd.Stage,
     env_paths: Sequence[tuple[int, str]],
@@ -98,15 +110,17 @@ def build_visualization_builder_from_stage_envs(
     builder = ModelBuilder(up_axis=up_axis)
     # Discover once and reuse via ``entries=`` below (ignore paths + shadow add).
     deformable_entries = discover_deformables_on_stage(stage)
+    joint_ignore_paths = _joint_ignore_paths(stage)
 
     if clone_plan is None:
         # Ignore deformables during USD import; add them as shadow particles below so
         # SceneData mapping and OVRTX registry receive the same particle offsets.
-        deformable_ignore_paths = _deformable_ignore_paths(stage, entries=deformable_entries)
+        ignore_paths = [*_deformable_ignore_paths(stage, entries=deformable_entries), *joint_ignore_paths]
         import_result = builder.add_usd(
             stage,
             schema_resolvers=schema_resolvers,
-            ignore_paths=deformable_ignore_paths or None,
+            ignore_paths=ignore_paths or None,
+            skip_mesh_approximation=True,
         )
         _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
         import_builder_visual_material_paths(builder, stage)
@@ -136,8 +150,9 @@ def build_visualization_builder_from_stage_envs(
     deformable_ignore_paths = _deformable_ignore_paths(stage, entries=deformable_entries)
     import_result = builder.add_usd(
         stage,
-        ignore_paths=["/World/envs", *sources, *deformable_ignore_paths],
+        ignore_paths=["/World/envs", *sources, *deformable_ignore_paths, *joint_ignore_paths],
         schema_resolvers=schema_resolvers,
+        skip_mesh_approximation=True,
     )
     _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
     import_builder_visual_material_paths(builder, stage)
@@ -147,7 +162,8 @@ def build_visualization_builder_from_stage_envs(
         sources,
         lambda: ModelBuilder(up_axis=up_axis),
         schema_resolvers,
-        ignore_paths=source_deformable_ignore_paths or None,
+        ignore_paths=[*source_deformable_ignore_paths, *joint_ignore_paths] or None,
+        skip_mesh_approximation=True,
     )
     global_builder = builder
     builder = ModelBuilder(up_axis=up_axis)  # Preserve Newton's compact empty filter store.
