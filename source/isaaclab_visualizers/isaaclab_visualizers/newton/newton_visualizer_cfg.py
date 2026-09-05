@@ -47,6 +47,35 @@ class NewtonVisualizerCfg(VisualizerCfg):
     window_height: int = 1080
     """Window height in pixels."""
 
+    origin_type: str = "world"
+    """Frame in which :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
+    :attr:`~isaaclab.visualizers.VisualizerCfg.lookat` are interpreted.
+
+    Options:
+
+    * ``"world"``: global origin.
+    * ``"env"``: origin of the environment at :attr:`origin_env_index`.
+    * ``"asset"``: a scene asset (or body) specified by :attr:`origin_track_path`.
+    """
+
+    origin_env_index: int = 0
+    """Index of the environment used as the viewer camera origin.
+
+    Only meaningful when :attr:`origin_type` is ``"env"`` or ``"asset"``.
+    """
+
+    origin_track_path: str | None = None
+    """Asset tracking path for the viewer camera origin.
+
+    Format: ``"<asset_name>"`` to track the asset root, or ``"<asset_name>/<body_name>"``
+    to track a specific body on the asset. Required when :attr:`origin_type` is ``"asset"``.
+
+    Examples::
+
+        origin_track_path = "robot"             # track robot root
+        origin_track_path = "robot/panda_hand"  # track panda_hand body on robot
+    """
+
     headless: bool = False
     """Run the Newton viewer without requiring a display server."""
 
