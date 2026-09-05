@@ -24,11 +24,10 @@ from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
-ALLEGRO_HAND_ROBOT_CFG = ALLEGRO_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-
+ALLEGRO_HAND_ROBOT_CFG = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
 CUBE_CFG = RigidObjectCfg(
-    prim_path="/World/envs/env_.*/object",
+    prim_path="{ENV_REGEX_NS}/object",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(

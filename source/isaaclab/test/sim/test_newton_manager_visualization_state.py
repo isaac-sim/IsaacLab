@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 pytestmark = pytest.mark.integration
@@ -27,21 +28,7 @@ _DEFAULT = object()
 def _reset_newton_manager_state():
     from isaaclab_newton.physics import NewtonManager
 
-    NewtonManager._builder = None
-    NewtonManager._model = None
-    NewtonManager._state_0 = None
-    NewtonManager._num_envs = None
-    NewtonManager._scene_data = None
-    NewtonManager._scene_data_mapping = None
-    NewtonManager._scene_data_points = None
-    NewtonManager._scene_data_geometry_mapping = None
-    NewtonManager._shadow_deformable_entities = None
-    NewtonManager._sim_particle_q = None
-    NewtonManager._mapped_sim_particle_offsets = None
-    NewtonManager._shadow_deformable_sync_skip_warned = set()
-    NewtonManager._shadow_deformable_remap_batches = None
-    NewtonManager._shadow_deformable_copy_batch = None
-    NewtonManager._shadow_deformable_batch_sync_key = None
+    NewtonManager.clear()
 
 
 def _make_env_stage(num_envs: int = 1):
@@ -70,6 +57,7 @@ def _set_sim_context(monkeypatch, nm, clone_plan=_DEFAULT, scene_data_provider=_
     sim = SimpleNamespace(
         get_clone_plan=lambda: clone_plan,
         get_scene_data_provider=lambda: scene_data_provider,
+        physics_manager=nm.PhysicsManager,
     )
     monkeypatch.setattr(nm.SimulationContext, "instance", classmethod(lambda cls: sim))
     return sim
@@ -343,6 +331,41 @@ def test_ensure_visualization_model_builds_from_stage_when_backend_is_physx(monk
     assert NewtonManager._state_0 is not None
 
 
+def test_physx_shadow_model_is_rebuilt_after_physics_stop(monkeypatch):
+    """Sequential PhysX scenes must not reuse the prior scene's Newton visualization model."""
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics import newton_manager as nm
+
+    from isaaclab.physics import PhysicsEvent, PhysicsManager
+
+    class ActivePhysicsManager(PhysicsManager):
+        _callbacks = {}
+
+    _reset_newton_manager_state()
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
+    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage())
+    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
+    sim = _set_sim_context(monkeypatch, nm)
+    sim.physics_manager = ActivePhysicsManager
+    monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
+    builders = iter((_make_finalize_builder(body_count=1), _make_finalize_builder(body_count=2)))
+    monkeypatch.setattr(
+        nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: (next(builders), ([], []))
+    )
+
+    NewtonManager._ensure_visualization_model()
+    first_model = NewtonManager._model
+    NewtonManager._shadow_deformable_entities = [object()]
+    ActivePhysicsManager.dispatch_event(PhysicsEvent.STOP)
+
+    assert NewtonManager._model is None
+    assert NewtonManager._state_0 is None
+    assert NewtonManager._shadow_deformable_entities is None
+    assert NewtonManager._visualization_stop_callback is None
+    NewtonManager._ensure_visualization_model()
+    assert NewtonManager._model is not first_model
+
+
 def test_ensure_visualization_model_empty_builder_supports_marker_only_scene(monkeypatch, caplog):
     """An empty shadow model supports marker-only and geometry-only scenes."""
     from isaaclab_newton.physics import NewtonManager
@@ -536,6 +559,49 @@ def test_resolve_scene_data_body_paths_uses_joint_body_targets():
     resolved_paths = NewtonManager._resolve_scene_data_body_paths(body_paths, stage)
 
     assert resolved_paths == ["/World/envs/env_0/Robot/robot0_forearm"]
+
+
+def test_update_visualization_state_copies_identity_mapped_transforms(monkeypatch):
+    """Identity-mapped transforms update the persistent Newton shadow buffer."""
+    import numpy as np
+    import warp as wp
+    from isaaclab_newton.physics import NewtonManager
+
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
+
+    _reset_newton_manager_state()
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, provider=None: False))
+
+    body_paths = ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
+    source_transforms = wp.array(
+        [
+            [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0],
+            [4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 1.0],
+        ],
+        dtype=wp.transformf,
+        device="cpu",
+    )
+    source_data = SceneDataFormat.Transform()
+    source_data.transforms = source_transforms
+    provider_impl = SceneDataProvider(
+        SimpleNamespace(transforms=source_data, transform_paths=body_paths, transform_count=len(body_paths))
+    )
+    provider = SimpleNamespace(
+        usd_stage=None,
+        create_mapping=provider_impl.create_mapping,
+        get_transforms=provider_impl.get_transforms,
+        point_count=0,
+    )
+
+    destination = wp.zeros(len(body_paths), dtype=wp.transformf, device="cpu")
+    NewtonManager._model = SimpleNamespace(body_label=body_paths, body_count=len(body_paths))
+    NewtonManager._state_0 = SimpleNamespace(body_q=destination, particle_q=None)
+
+    NewtonManager.update_visualization_state(provider)
+
+    assert NewtonManager._state_0.body_q is destination
+    assert NewtonManager._scene_data.transforms is destination
+    np.testing.assert_allclose(destination.numpy(), source_transforms.numpy())
 
 
 def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
@@ -794,7 +860,6 @@ def test_shadow_deformable_placement_uses_parent_pose_not_root(monkeypatch):
 
 def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import(monkeypatch):
     """Clone-path world ``add_usd`` must ignore deformables outside ``/World/envs``."""
-    import torch
     from isaaclab_newton.physics import visualization_builder as vb
 
     from pxr import UsdGeom
@@ -804,17 +869,21 @@ def test_clone_visualization_builder_ignores_non_env_deformables_on_world_import
     UsdGeom.Xform.Define(stage, "/World/envs/env_1")
 
     fake_builder = _FakeShadowBuilder(body_count=1, cloth_delta=3, track_usd=True)
+    fake_builder.shape_collision_filter_pairs = []
+    fake_builder.shape_collision_group = []
+    fake_builder.shape_count = 0
+    fake_builder.add_builder = lambda _builder: None
     clone_plan = SimpleNamespace(
         sources=("/World/envs/env_0",),
         destinations=("/World/envs/env_{}",),
-        env_ids=torch.tensor([0, 1], dtype=torch.int32),
-        clone_mask=torch.tensor([[False, False]], dtype=torch.bool),
+        env_ids=np.asarray([0, 1], dtype=np.int64),
+        clone_mask=np.asarray([[False, False]], dtype=np.bool_),
     )
     monkeypatch.setattr(vb, "ModelBuilder", lambda up_axis="Z": fake_builder)
     monkeypatch.setattr(vb, "_restore_visible_colliders_without_visual_shapes", lambda *args, **kwargs: None)
+    monkeypatch.setattr(vb, "import_builder_visual_material_paths", lambda *args, **kwargs: None)
     monkeypatch.setattr(vb, "build_source_builders", lambda *args, **kwargs: {})
-    monkeypatch.setattr(vb, "replicate_builder_mapping", lambda *args, **kwargs: None)
-    monkeypatch.setattr(vb, "rename_builder_labels", lambda *args, **kwargs: None)
+    monkeypatch.setattr(vb, "replicate_builder_mapping", lambda *args, **kwargs: ({}, [], []))
 
     _builder, (shadow_entities, registry_groups) = vb.build_visualization_builder_from_stage_envs(
         stage,

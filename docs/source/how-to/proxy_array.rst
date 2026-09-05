@@ -20,6 +20,8 @@ have been rebuilt.
 Choose an Array Representation
 ------------------------------
 
+Asset and sensor data properties, such as ``robot.data.joint_pos`` and
+``sensor.data.net_normal_forces_w``, return a :class:`ProxyArray`.
 Use ``.torch`` for PyTorch operations. It returns a cached, zero-copy :class:`torch.Tensor` view.
 Use ``.warp`` when an API requires the underlying :class:`warp.array` or Warp-specific attributes
 such as ``ptr`` or ``strides``.

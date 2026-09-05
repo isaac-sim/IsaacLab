@@ -11,7 +11,7 @@ This reference follows the [Prepare an Asset for Newton with MJWarp how-to](../.
 - Match Collision, Contact, And Friction Behavior
 - Validate Actuators And Limits
 - Run Paired Smoke Tests
-- Diagnose Newton-Only Failures
+- Diagnose MJWarp-Only Failures
 
 ## Prerequisites
 
@@ -52,12 +52,13 @@ Track fixed-grasp displacement, contact count, effort, penetration, and success.
 
 - Audit per-joint effort, gains, friction, armature, action scale, and control period.
 - Apply armature only to articulated coordinates, based on physical reflected inertia or controlled response. Retune damping when armature changes.
-- `velocity_limit` is rated speed and `velocity_limit_sim` requests a solver clamp, but MJWarp enforces neither while stepping. Enforce required bounds in task or control logic.
+- `actuator_velocity_limit` is rated speed and `joint_velocity_limit` requests a solver clamp. MJWarp enforces neither while stepping; Kamino honors the solver clamp. Enforce required bounds in task or control logic.
+- Use `joint_effort_limit` for solver limits and `actuator_effort_limit` to clip explicit actuator models.
 
 ## Run Paired Smoke Tests
 
 Run the same fixed task state in PhysX and MJWarp through multiple resets. Check finite state, first-step impulses, saturation, angular velocity, contact loss, and importer/solver warnings. Reject penetration, impossible mimic states, and invalid randomized geometry before stepping.
 
-## Diagnose Newton-Only Failures
+## Diagnose MJWarp-Only Failures
 
 Reproduce the first bad step with one environment, a fixed state, no randomization, and identical actions. Diagnose initialization/model, contact/capacity, controlled motion, or dense-scene demand before tuning. Use `NewtonCfg.debug_mode`; raise overflowing capacities before changing convergence settings.

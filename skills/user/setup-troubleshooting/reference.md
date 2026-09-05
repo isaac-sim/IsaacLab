@@ -55,6 +55,7 @@ uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --max_iterations
 | Backend preset fails | `uv run python scripts/environments/list_envs.py --show_presets` |
 | Camera or renderer fails | Renderer selection and sensor docs |
 | Training starts but shapes fail | Environment reset/step smoke test before runner |
+| Simulation or training throughput is poor | Performance troubleshooting, then Nsight Systems profiling |
 
 ## Escalation Checklist
 

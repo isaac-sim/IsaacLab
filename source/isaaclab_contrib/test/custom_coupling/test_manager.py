@@ -5,20 +5,27 @@
 
 """Unit tests for the custom coupling manager."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-from isaaclab_newton.physics import MJWarpSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
+from newton import ModelBuilder
 
 import isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager as manager_module
 from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager import NewtonCoupledMJWarpVBDManager
 from isaaclab_contrib.custom_coupling.newton_manager_cfg import CoupledMJWarpVBDSolverCfg
-from isaaclab_contrib.deformable.newton_manager_cfg import (
-    CoupledMJWarpVBDSolverCfg as LegacyMJWarpCfg,
-)
-from isaaclab_contrib.deformable.newton_manager_cfg import (
-    VBDSolverCfg,
-)
+
+
+def test_register_builder_attributes_includes_nested_solvers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The custom coupled manager delegates builder setup to both configured children."""
+    cfg = CoupledMJWarpVBDSolverCfg()
+    monkeypatch.setattr(manager_module.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=cfg))
+    builder = ModelBuilder()
+
+    NewtonCoupledMJWarpVBDManager._register_builder_attributes(builder)
+
+    assert builder.has_custom_attribute("mujoco:condim")
 
 
 def test_reset_forwards_to_both_subsolvers(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -103,15 +110,6 @@ def test_build_solver_sets_capabilities(monkeypatch: pytest.MonkeyPatch) -> None
 
     assert manager_module.NewtonManager._supports_contact_sensors is False
     assert manager_module.NewtonManager._supports_rigid_body_force_input is True
-
-
-def test_legacy_mjwarp_solver_config_warns() -> None:
-    with pytest.warns(DeprecationWarning, match="custom_coupling.CoupledMJWarpVBDSolverCfg"):
-        solver_cfg = LegacyMJWarpCfg()
-
-    assert solver_cfg.class_type == (
-        "isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
-    )
 
 
 @pytest.mark.parametrize("mode", ["one_way", "two_way"])

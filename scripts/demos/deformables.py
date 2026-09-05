@@ -70,7 +70,7 @@ if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject
 
 if args_cli.physics == "newton_vbd":
-    from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg  # isort:skip
+    from isaaclab_newton.physics import NewtonSoftContactCfg  # isort:skip
     from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg as DeformableBodyPropertiesCfg
     from isaaclab_newton.sim.spawners.materials import (
         NewtonDeformableBodyMaterialCfg as VolumeDeformableMaterialCfg,
@@ -156,7 +156,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     )
     cfg_cloth = sim_utils.MeshRectangleCfg(
         size=(1.5, 1.0),
-        resolution=(21, 21),
+        edge_refinement=21,
         deformable_props=DeformableBodyPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(),
         physics_material=SurfaceDeformableMaterialCfg(),
@@ -270,7 +270,7 @@ def main():
             physics_cfg.solver_cfg.particle_self_contact_radius = 0.0001
             physics_cfg.solver_cfg.particle_self_contact_margin = 0.1
             physics_cfg.num_substeps = 4
-            physics_cfg.model_cfg = NewtonModelCfg(
+            physics_cfg.soft_contact_cfg = NewtonSoftContactCfg(
                 soft_contact_ke=1.0e5,
                 soft_contact_kd=1.0e0,
                 soft_contact_mu=0.01,

@@ -21,13 +21,13 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
 from isaaclab_newton.physics.newton_manager import NewtonManager
+from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.physics import PhysicsManager
 from isaaclab.utils.string import resolve_matching_names
 
-from ..deformable.vbd_manager import NewtonVBDManager
 from .coupler_cfg import (
     CouplerAdmmCfg,
     CouplerCfg,
@@ -141,11 +141,6 @@ class NewtonCouplerManager(NewtonVBDManager):
                 raise ValueError(
                     f"CouplerEntryCfg {entry.name!r} contains a nested CouplerCfg; nested couplers are not supported."
                 )
-            if getattr(nested_cfg, "model_cfg", None) is not None:
-                raise ValueError(
-                    f"CouplerEntryCfg {entry.name!r} sets solver_cfg.model_cfg, but model parameters are global. "
-                    "Set model_cfg on the outer CouplerCfg instead."
-                )
             manager = nested_cfg.class_type
             factory = getattr(manager, "_create_solver", None)
             if not callable(factory) or getattr(factory, "__func__", factory) is NewtonManager._create_solver.__func__:
@@ -193,17 +188,15 @@ class NewtonCouplerManager(NewtonVBDManager):
     def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
         """Register custom attributes required by nested coupled entries."""
         super()._register_builder_attributes(builder)
-        solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
-        if any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in getattr(solver_cfg, "entries", ())):
-            NewtonMPMManager._register_builder_attributes(builder)
+        for entry in PhysicsManager._cfg.solver_cfg.entries:
+            entry.solver_cfg.class_type._register_builder_attributes(builder)
 
     @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
         """Normalize kinematic colliders when a coupled entry uses implicit MPM."""
         super()._prepare_builder_for_finalize(builder)
-        solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
-        if any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in getattr(solver_cfg, "entries", ())):
-            NewtonMPMManager._prepare_builder_for_finalize(builder)
+        for entry in PhysicsManager._cfg.solver_cfg.entries:
+            entry.solver_cfg.class_type._prepare_builder_for_finalize(builder)
 
     @classmethod
     def _initialize_contacts(cls) -> None:

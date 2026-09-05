@@ -55,10 +55,10 @@ selector followed by package and module-path conventions:
         │
         └─ Return backend-specific instance
 
-Some factories use a different resolution key. For example,
-:class:`~isaaclab.renderers.Renderer` selects an implementation from its
-renderer configuration because rendering and physics are independent.
-Visualizers similarly use their ``visualizer_type`` configuration field.
+Renderers and visualizers do not use this physics factory. Their concrete
+configurations own the implementation class, and their composition roots
+construct it through ``cfg.class_type(cfg)``. This keeps rendering and
+visualization selection independent from the physics backend.
 
 Physics manager lifecycle
 -------------------------
@@ -100,11 +100,13 @@ lifetime guidance.
 Portable renderer and scene-data interfaces
 -------------------------------------------
 
-Rendering is selected independently from physics. Renderer configurations
-dispatch through :class:`~isaaclab.renderers.Renderer` to implementations that
-share the :class:`~isaaclab.renderers.BaseRenderer` contract, with
-:class:`~isaaclab.renderers.RenderContext` owning their lifecycle. See
-:ref:`overview_renderers` for renderer choices and usage.
+Rendering is selected independently from physics. Renderer configurations own
+their implementation class, whose instances share the
+:class:`~isaaclab.renderers.BaseRenderer` contract.
+:class:`~isaaclab.renderers.RenderContext` owns renderer construction and
+lifecycle, while :class:`~isaaclab.sim.SimulationContext` owns visualizer
+construction and initialization. See :ref:`overview_renderers` for renderer
+choices and usage.
 
 Physics managers expose live simulation data through
 :class:`~isaaclab.scene_data.SceneDataBackend`. The
@@ -117,7 +119,7 @@ converts and remaps that data for backend-independent consumers:
 
 This boundary lets renderers and visualizers consume a common Warp-native data
 path without knowing which physics engine owns the state. See
-:doc:`/source/overview/core-concepts/scene_data_providers` for the complete
+:doc:`/source/concepts/scene_data_providers` for the complete
 data-flow model.
 
 Native engine access boundary

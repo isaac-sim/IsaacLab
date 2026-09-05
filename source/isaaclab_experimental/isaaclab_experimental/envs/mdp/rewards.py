@@ -231,7 +231,7 @@ def joint_torques_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg = Sc
     wp.launch(
         kernel=_sum_sq_masked_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.applied_torque.warp, asset_cfg.joint_mask, out],
+        inputs=[asset.actuators.applied_effort.warp, asset_cfg.joint_mask, out],
         device=env.device,
     )
 
@@ -434,7 +434,7 @@ def undesired_contacts(env: ManagerBasedRLEnv, out, threshold: float, sensor_cfg
     wp.launch(
         kernel=_undesired_contacts_kernel,
         dim=env.num_envs,
-        inputs=[contact_sensor.data.net_forces_w_history.warp, sensor_cfg.body_ids_wp, threshold, out],
+        inputs=[contact_sensor.data.net_normal_forces_w_history.warp, sensor_cfg.body_ids_wp, threshold, out],
         device=env.device,
     )
 

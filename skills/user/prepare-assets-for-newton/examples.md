@@ -19,7 +19,7 @@ metrics. Limit recursive spawner overrides to assets whose colliders should all 
 
 ## Velocity Limit Is Exceeded
 
-Treat `velocity_limit` as rated speed and `velocity_limit_sim` as a solver request. Because MJWarp enforces neither, add the required observation or termination check and tune effort, damping, armature, action scaling, rate limits, or controller clipping.
+Treat `actuator_velocity_limit` as rated speed and `joint_velocity_limit` as a solver request. Because MJWarp enforces neither, add the required observation or termination check and tune effort, damping, armature, action scaling, rate limits, or controller clipping.
 
 ## Zero-Gravity Spin-Up
 
@@ -29,9 +29,9 @@ Correct mass, inertia, units, and reset penetration first. Add the smallest just
 
 Tune armature, stiffness, and damping together from an open-loop step response. Use enough damping for a plausible non-oscillatory response, conservative action scales, and targets away from hard stops.
 
-## Selecting A Solver Profile
+## Sizing Solver Capacity
 
-Choose the nearest documented profile, keep the initial convergence defaults, enable `debug_mode`, and size `njmax` and `nconmax` for the task. Use Newton contacts only when the task needs that collision pipeline.
+Enable `debug_mode`, measure the worst-case contact points and constraint rows per environment across resets and randomized scenes, and add task-specific headroom to `nconmax` and `njmax`. Do not derive `njmax` directly from `nconmax`. Use Newton contacts only when the task needs that collision pipeline.
 
 ## MJWarp-Only NaN
 

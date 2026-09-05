@@ -39,6 +39,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
@@ -58,8 +59,8 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     # Create interface to clone the scene
     # Create environment clones using Lab's cloner utilities
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
-    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0, device=sim.device)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")
     # Define the scene
@@ -120,7 +121,7 @@ def main():
 
     # Create a ray-caster sensor
     ray_caster_cfg = RayCasterCfg(
-        prim_path="/World/envs/env_.*/ball",
+        prim_path="{ENV_REGEX_NS}/ball",
         mesh_prim_paths=["/World/ground"],
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(1.6, 1.0)),
         ray_alignment="yaw",
@@ -129,7 +130,7 @@ def main():
     ray_caster = RayCaster(cfg=ray_caster_cfg)
     # Create a view over all the balls
     balls_cfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/ball",
+        prim_path="{ENV_REGEX_NS}/ball",
         spawn=None,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
     )

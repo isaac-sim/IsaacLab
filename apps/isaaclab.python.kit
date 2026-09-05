@@ -16,8 +16,6 @@ keywords = ["experience", "app", "usd"]
 "isaacsim.gui.components" = {}
 "isaacsim.simulation_app" = {}
 "isaacsim.storage.native" = {}
-# USD schema plugins must load before the schema registry is first accessed.
-"omni.usd.schema.mujoco" = {}
 
 # Kit based editor extensions
 "omni.anim.curve.core" = {}
@@ -133,6 +131,7 @@ name = "IsaacLab"
 version = "3.0.0"
 versionFile = "${exe-path}/VERSION"
 content.emptyStageOnStart = true
+enableDeveloperWarnings = false                  # disable developer warnings to reduce log noise
 fastShutdown = true
 file.ignoreUnsavedOnExit = true
 font.file = "${fonts}/OpenSans-SemiBold.ttf"

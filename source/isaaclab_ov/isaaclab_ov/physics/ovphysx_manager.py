@@ -13,13 +13,18 @@ steps the simulation using the ovphysx C/Python API.
 from __future__ import annotations
 
 import atexit
+import contextlib
 import logging
+import math
+import os
 import re
+import stat
 from typing import TYPE_CHECKING, Any, ClassVar
 
+import numpy as np
 import warp as wp
 
-from pxr import UsdPhysics
+from pxr import Sdf, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
@@ -34,6 +39,11 @@ from isaaclab.scene_data.deformable_discovery import (
 
 from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
+from isaaclab_ov.cloner import OvPhysxReplicateContext
+from isaaclab_ov.stage import create_ovstage
+
+from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
+from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
@@ -41,6 +51,38 @@ if TYPE_CHECKING:
     from .ovphysx_manager_cfg import OvPhysxCfg
 
 __all__ = ["OvPhysxManager", "OvPhysxSceneDataBackend"]
+
+
+def _prepare_default_cache_dir(cache_dir: str) -> str:
+    """Create the default cooked-collider cache directory and refuse one this user does not own.
+
+    The default sits in the shared temporary directory, so any local user can pre-create the path;
+    OVPhysX follows a symlink there and writes through it. A directory the caller configured is
+    their own choice and is passed through untouched.
+
+    Args:
+        cache_dir: Default cache directory to create or validate.
+
+    Returns:
+        The validated directory.
+
+    Raises:
+        RuntimeError: If the path exists as a symlink, a non-directory, or another user's directory.
+    """
+    try:
+        os.makedirs(cache_dir, mode=0o700)
+        return cache_dir
+    except FileExistsError:
+        pass
+    entry = os.lstat(cache_dir)
+    if stat.S_ISLNK(entry.st_mode):
+        raise RuntimeError(f"OVPhysX cache directory '{cache_dir}' is a symlink; refusing to write through it.")
+    if not stat.S_ISDIR(entry.st_mode):
+        raise RuntimeError(f"OVPhysX cache directory '{cache_dir}' exists and is not a directory.")
+    if hasattr(os, "getuid") and entry.st_uid != os.getuid():
+        raise RuntimeError(f"OVPhysX cache directory '{cache_dir}' is owned by another user; refusing to use it.")
+    return cache_dir
+
 
 logger = logging.getLogger(__name__)
 
@@ -360,11 +402,14 @@ class OvPhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
+    clone_context_type = OvPhysxReplicateContext
+
     _cfg: ClassVar[OvPhysxCfg | None] = None
     _physx: ClassVar[Any] = None  # ovphysx.PhysX (lazy import)
     _ovstage: ClassVar[Any] = None
     _stage_usda: ClassVar[str | None] = None
     _warmup_done: ClassVar[bool] = False
+    _next_control_ordinal: ClassVar[int] = 2
     _requires_full_stage: ClassVar[bool] = False
     # Device mode is process-wide; later contexts must reuse the first selected device.
     _locked_device: ClassVar[str | None] = None
@@ -376,6 +421,10 @@ class OvPhysxManager(PhysicsManager):
     _pending_clones: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
+    # Gravity currently applied to the running scene [m/s^2]. Seeded from ``SimulationCfg.gravity``
+    # in :meth:`initialize` and refreshed by :meth:`set_gravity`. ``cfg.gravity`` stays the nominal
+    # value that randomization terms resample from, so live updates must not be written back to it.
+    _gravity: ClassVar[tuple[float, float, float] | None] = None
 
     @classmethod
     def get_dt(cls) -> float:
@@ -480,7 +529,9 @@ class OvPhysxManager(PhysicsManager):
         IsaacLab's conservative first-device policy for this process.
         """
         super().initialize(sim_context)
+        sim_context.get_or_create_backend(cls.clone_context_type, sim_context)
         cls._ensure_physx_schemas_registered()
+        cls._gravity = tuple(sim_context.cfg.gravity)
         cls._warmup_done = False
         cls._requires_full_stage = False
         cls._stage_usda = None
@@ -542,6 +593,24 @@ class OvPhysxManager(PhysicsManager):
         operation = physx.reset_stage()
         physx.wait_op(operation)
 
+    @staticmethod
+    def _warmup_physx(physx: Any) -> None:
+        """Warm a runtime through its version-selected API."""
+        entry_point = OVPHYSX_LIFECYCLE_ENTRY_POINTS["warmup"]
+        warmup = getattr(physx, entry_point, None)
+        if warmup is None:
+            raise AttributeError(f"OVPhysX does not expose the selected {entry_point}() lifecycle entry point")
+        warmup()
+
+    @staticmethod
+    def _destroy_physx(physx: Any) -> None:
+        """Tear a runtime down through its version-selected API."""
+        entry_point = OVPHYSX_LIFECYCLE_ENTRY_POINTS["destroy"]
+        destroy = getattr(physx, entry_point, None)
+        if destroy is None:
+            raise AttributeError(f"OVPhysX does not expose the selected {entry_point}() lifecycle entry point")
+        destroy()
+
     @classmethod
     def close(cls) -> None:
         """Release ovphysx resources and clean up."""
@@ -574,25 +643,51 @@ class OvPhysxManager(PhysicsManager):
         GPU-first processes.
         """
         physx = cls._physx
-        cls._physx = None
+        if physx is None:
+            cls._destroy_ovstage()
+            return
+
+        # Preserve the legacy 0.5.11 behavior: release both owners even when
+        # cleanup raises. Only OVPhysX 0.6 destroy failures can remain retryable.
+        destroy_entry_point = OVPHYSX_LIFECYCLE_ENTRY_POINTS["destroy"]
+        release_owners = destroy_entry_point == "release"
         try:
-            if physx is not None:
+            try:
+                cls._close_physx_views(physx)
+            finally:
                 try:
-                    cls._close_physx_views(physx)
+                    cls._reset_physx_stage(physx)
                 finally:
                     try:
-                        cls._reset_physx_stage(physx)
-                    finally:
-                        physx.release()
+                        cls._destroy_physx(physx)
+                    except Exception:
+                        if destroy_entry_point == "destroy":
+                            # OVPhysX 0.6 keeps ``handle`` valid when destroy raises
+                            # before native teardown. Preserve both owners so a later
+                            # close can retry. A RuntimeError from ``handle`` means
+                            # destruction reached its terminal state.
+                            try:
+                                physx.handle
+                            except RuntimeError:
+                                release_owners = True
+                            except Exception:
+                                # An unfamiliar handle probe must not replace the
+                                # original destroy error or release either owner.
+                                release_owners = False
+                        raise
+                    else:
+                        release_owners = True
         finally:
-            cls._destroy_ovstage()
+            if release_owners:
+                cls._physx = None
+                cls._destroy_ovstage()
 
     @classmethod
     def _attach_ovstage(cls, stage_usda: str) -> None:
         """Populate an OVStage from USDA text and attach it to the runtime."""
         import ovstage  # noqa: PLC0415
 
-        stage = ovstage.Stage("isaaclab")
+        stage = create_ovstage("isaaclab")
         try:
             ovstage.population.open_usd_from_string(
                 stage,
@@ -612,12 +707,16 @@ class OvPhysxManager(PhysicsManager):
             raise
         cls._ovstage = stage
 
+        cls._next_control_ordinal = 2
+
     @classmethod
     def _destroy_ovstage(cls) -> None:
         """Destroy the attached OVStage after PhysX has released its stage."""
         if cls._ovstage is not None:
             cls._ovstage.destroy()
             cls._ovstage = None
+
+        cls._next_control_ordinal = 2
 
     @staticmethod
     def _close_physx_views(physx: Any) -> None:
@@ -643,17 +742,69 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def get_gravity(cls) -> tuple[float, float, float]:
-        """Return the world-frame gravity vector [m/s^2] from the active simulation cfg.
+        """Return the world-frame gravity vector [m/s^2] currently applied to the scene.
 
         Mirrors PhysX's ``SimulationView.get_gravity()`` so backend-agnostic sensor code
-        can read gravity through one classmethod.
+        can read gravity through one classmethod. The value tracks :meth:`set_gravity`,
+        falling back to the simulation cfg until the first live update.
 
         Raises:
             RuntimeError: If no simulation is active. Call :meth:`initialize` first.
         """
         if cls._sim is None or not hasattr(cls._sim, "cfg"):
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
-        return cls._sim.cfg.gravity
+        if cls._gravity is None:
+            return tuple(cls._sim.cfg.gravity)
+        return cls._gravity
+
+    @classmethod
+    def set_gravity(cls, gravity: tuple[float, float, float]) -> None:
+        """Set the scene-wide gravity vector through OvStage [m/s^2].
+
+        The OvPhysX runtime accepts live scene changes only as sealed OvStage
+        control updates. This method authors the scene's gravity direction and
+        magnitude at the next control ordinal, seals it, and applies that
+        single ordinal to the running simulation.
+
+        Args:
+            gravity: World-frame gravity vector [m/s^2].
+
+        Raises:
+            RuntimeError: If the OVPhysX simulation has not been initialized.
+            ValueError: If gravity does not contain three finite values.
+        """
+        if cls._sim is None or cls._physx is None or cls._ovstage is None:
+            raise RuntimeError("OvPhysxManager has not been initialized yet.")
+
+        gravity_array = np.asarray(gravity, dtype=np.float32)
+        if gravity_array.shape != (3,) or not np.all(np.isfinite(gravity_array)):
+            raise ValueError("Gravity must contain three finite values.")
+
+        magnitude = float(np.linalg.norm(gravity_array))
+        if math.isclose(magnitude, 0.0):
+            direction = np.array([[0.0, 0.0, -1.0]], dtype=np.float32)
+        else:
+            direction = (gravity_array / magnitude).reshape(1, 3)
+        ordinal = cls._next_control_ordinal
+        cls._next_control_ordinal += 1
+
+        import ovstage  # noqa: PLC0415
+
+        with contextlib.ExitStack() as cleanup:
+            paths = cleanup.enter_context(ovstage.PathDictionary(cls._ovstage))
+            path_list = paths.create_path_list_from_strings([cls._sim.cfg.physics_prim_path])
+            cleanup.callback(paths.destroy_path_list, path_list)
+            query = cleanup.enter_context(cls._ovstage.query_from_path_list(path_list))
+            cls._ovstage.write_attribute(query, "physics:gravityDirection", ordinal, direction, is_array=False).wait()
+            cls._ovstage.write_attribute(
+                query, "physics:gravityMagnitude", ordinal, np.array([magnitude], dtype=np.float32), is_array=False
+            ).wait()
+            cls._ovstage.advance_write_floor(ordinal=ordinal).wait()
+            cls._physx.update_from_ovstage(ordinal, ordinal)
+
+        # Only publish once the ordinal has been applied, so a failed write leaves
+        # :meth:`get_gravity` reporting the gravity the scene is still running with.
+        cls._gravity = (float(gravity_array[0]), float(gravity_array[1]), float(gravity_array[2]))
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:
@@ -820,8 +971,8 @@ class OvPhysxManager(PhysicsManager):
         choice and registers process-exit cleanup. On a forced re-warm before
         :meth:`close`, it reuses the active instance, attaches the new USD through
         OVStage, rebuilds active clone recipes through full-stage materialization
-        or runtime replay, and (on GPU) re-runs ``warmup_gpu`` so the new stage's
-        bodies are resident.
+        or runtime replay, and (on GPU) re-runs the supported warmup entry point
+        so the new stage's bodies are resident.
 
         Raises:
             RuntimeError: If ``SimulationContext`` is not set, or if a device
@@ -852,6 +1003,8 @@ class OvPhysxManager(PhysicsManager):
 
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
         if scene_prim.IsValid():
+            if cls._active_clone_recipes:
+                scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
             cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
         # Flatten the current USD stage to USDA text so OVStage can populate it
@@ -895,7 +1048,7 @@ class OvPhysxManager(PhysicsManager):
         # GPU bodies must be re-warmed after every OVStage attachment: the cached PhysX
         # instance carries its old buffer layout from the previous stage.
         if ovphysx_device == "gpu":
-            cls._physx.warmup_gpu()
+            cls._warmup_physx(cls._physx)
 
         # Initialize the SceneDataBackend now that the wheel's PhysX is live and
         # the OVStage is attached. The central
@@ -919,7 +1072,12 @@ class OvPhysxManager(PhysicsManager):
         """
         ovphysx = import_ovphysx()
         ovphysx.bootstrap()
-        cls._physx = cls._create_physx_instance(ovphysx, ovphysx_device, gpu_index)
+        # The runtime is also constructed outside a configured simulation, where no cfg exists.
+        cfg = PhysicsManager._cfg
+        cache_dir = DEFAULT_COOKED_COLLIDER_CACHE_DIR if cfg is None else cfg.cooked_collider_cache_dir
+        if cache_dir == DEFAULT_COOKED_COLLIDER_CACHE_DIR:
+            cache_dir = _prepare_default_cache_dir(cache_dir)
+        cls._physx = cls._create_physx_instance(ovphysx, ovphysx_device, gpu_index, cache_dir)
         if not cls._atexit_registered:
             # Globally retained environments may otherwise keep TensorBinding DLPack
             # caches alive until Python module finalization. Normal atexit cleanup runs
@@ -947,13 +1105,17 @@ class OvPhysxManager(PhysicsManager):
             logger.exception("Failed to close OVPhysX during process exit.")
 
     @staticmethod
-    def _create_physx_instance(ovphysx: Any, ovphysx_device: str, gpu_index: int) -> Any:
+    def _create_physx_instance(
+        ovphysx: Any, ovphysx_device: str, gpu_index: int, cooked_collider_cache_dir: str | None
+    ) -> Any:
         """Create a PhysX instance through the pinned OVPhysX runtime API.
 
         Args:
             ovphysx: Imported OVPhysX runtime module.
             ovphysx_device: Physics device, either ``"cpu"`` or ``"gpu"``.
             gpu_index: CUDA device ordinal selected for GPU physics.
+            cooked_collider_cache_dir: Directory for the cooked-collider cache, or ``None`` to let
+                OVPhysX resolve it.
 
         Returns:
             The configured ``ovphysx.PhysX`` instance.
@@ -974,7 +1136,11 @@ class OvPhysxManager(PhysicsManager):
             )
         ovphysx.PhysX.set_cpu_mode(ovphysx_device == "cpu")
         physx_kwargs = {
-            "config": ovphysx.PhysXConfig(num_threads=8, carbonite_overrides=carbonite_overrides),
+            "config": ovphysx.PhysXConfig(
+                num_threads=8,
+                cooked_collider_cache_dir=cooked_collider_cache_dir,
+                carbonite_overrides=carbonite_overrides,
+            ),
         }
         if ovphysx_device == "gpu":
             physx_kwargs["active_cuda_gpus"] = str(gpu_index)
@@ -1000,8 +1166,6 @@ class OvPhysxManager(PhysicsManager):
                 values. The GPU buffer-capacity values are only consulted when ``device == "gpu"``.
             device: Resolved physics device — one of ``"cpu"`` or ``"gpu"``.
         """
-        from pxr import Sdf
-
         schemas = Sdf.TokenListOp()
         current = scene_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
         items = list(current.prependedItems) if current.prependedItems else []
@@ -1017,8 +1181,10 @@ class OvPhysxManager(PhysicsManager):
         scene_prim.CreateAttribute("physxScene:enableSceneQuerySupport", Sdf.ValueTypeNames.Bool).Set(enable_sq)
 
         if cfg is not None:
+            # OvPhysX answers the backend-agnostic determinism request with enhanced determinism.
+            # This is best-effort: reproducibility is not verified end to end.
             scene_prim.CreateAttribute("physxScene:enableEnhancedDeterminism", Sdf.ValueTypeNames.Bool).Set(
-                cfg.enable_enhanced_determinism
+                cfg.enable_enhanced_determinism or cfg.deterministic
             )
             scene_prim.CreateAttribute("physxScene:enableExternalForcesEveryIteration", Sdf.ValueTypeNames.Bool).Set(
                 cfg.enable_external_forces_every_iteration

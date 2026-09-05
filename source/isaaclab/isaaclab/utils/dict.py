@@ -288,7 +288,7 @@ def convert_dict_to_backend(
             output_dict[key] = tensor_type_conversions[data_type](value)
         # -- nested dictionaries
         elif isinstance(data[key], dict):
-            output_dict[key] = convert_dict_to_backend(value)
+            output_dict[key] = convert_dict_to_backend(value, backend=backend, array_types=array_types)
         # -- everything else
         else:
             output_dict[key] = value

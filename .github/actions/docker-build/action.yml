@@ -175,7 +175,33 @@ runs:
         docker buildx build --load "${BUILD_ARGS[@]}" "${{ inputs.context-path }}"
         echo "was-built=true" >> "$GITHUB_OUTPUT"
 
-    ##### 6: Tag built image with local deps-tag #####
+    ##### 6: Layer the CI pytest harness onto the built image #####
+
+    # Kept out of the tracked Dockerfiles, which build local dev containers and
+    # ship via publish-images.yaml. Only on a real build; cache hits have it.
+
+    - name: Layer CI test dependencies
+      if: steps.build.outputs.was-built == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        # pip needs root; restore the image's own default user afterwards.
+        image_user="$(docker image inspect --format '{{.Config.User}}' "${{ inputs.image-tag }}")"
+        # Dockerfile on stdin (no context to stage). Quoted heredoc so the
+        # shell leaves ISAACLAB_PATH and IMAGE_USER for Docker to expand; the
+        # image tag is an action input, substituted before bash ever runs.
+        docker build --platform "${{ inputs.platform }}" \
+          --build-arg "IMAGE_USER=${image_user:-root}" \
+          -t "${{ inputs.image-tag }}" - <<'DOCKERFILE'
+        FROM ${{ inputs.image-tag }}
+        ARG IMAGE_USER
+        USER root
+        RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install \
+              pytest pytest-mock junitparser flaky "coverage>=7.6.1"
+        USER ${IMAGE_USER}
+        DOCKERFILE
+
+    ##### 7: Tag built image with local deps-tag #####
 
     # Runs only when a real build happened (not on cache hits). Populates the
     # deps-tag so the next build with identical deps short-circuits at step 4.
@@ -191,7 +217,7 @@ runs:
           echo "🟠 LOCAL_DEPS_TAG not set, skipping local deps-cache tag"
         fi
 
-    ##### 7: Evict stale local deps-cache tags (>14d) — opt-in #####
+    ##### 8: Evict stale local deps-cache tags (>14d) — opt-in #####
 
     - name: Evict stale local deps-cache tags (>14d)
       if: always() && inputs.evict-stale-cache == 'true'
@@ -214,7 +240,7 @@ runs:
           --format '{{.CreatedAt}}|{{.Repository}}:{{.Tag}}' 2>/dev/null)
         echo "🔵 Evicted ${evicted} deps tag(s) older than ${TTL_DAYS}d"
 
-    ##### 8: Host disk snapshot (post) #####
+    ##### 9: Host disk snapshot (post) #####
 
     - name: Host disk snapshot (post)
       if: always()

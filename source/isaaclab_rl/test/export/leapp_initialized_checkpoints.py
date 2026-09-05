@@ -288,18 +288,15 @@ def task_checkpoint_dir(checkpoint_root: Path, backend_id: str, task_name: str) 
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    """CLI entrypoint: create initialized checkpoints in one Kit process.
+    """CLI entrypoint: create initialized checkpoints with the task's runtime.
 
-    Accepts one or more ``--spec BACKEND TASK [PRESET]`` entries and writes each
-    checkpoint under ``checkpoint_root/BACKEND/TASK/``. When a per-spec preset is
-    omitted, ``--preset`` is used if provided; otherwise no Hydra preset token is
-    applied.
+    Accepts one ``--spec BACKEND TASK [PRESET]`` entry and writes the checkpoint
+    under ``checkpoint_root/BACKEND/TASK/``. When the spec preset is omitted,
+    ``--preset`` is used if provided; otherwise no Hydra preset token is applied.
 
     Usage:
         python leapp_initialized_checkpoints.py --checkpoint_root /tmp/ckpt \\
-            --preset newton_mjwarp \\
-            --spec rsl_rl Isaac-Cartpole \\
-            --spec rsl_rl IsaacContrib-Lift-Cube-Franka _
+            --spec rsl_rl Isaac-Cartpole newton_mjwarp
     """
     import argparse
     import os
@@ -314,78 +311,71 @@ def main(argv: Sequence[str] | None = None) -> None:
         action="append",
         metavar="BACKEND_TASK_PRESET",
         required=True,
-        help="Backend/task pair, optionally with a preset override: BACKEND TASK [PRESET]. "
-        "Use PRESET=_ to force no preset even when --preset is set. Repeat for multiple "
-        "checkpoints in one Kit process.",
+        help="One backend/task pair, optionally with a preset override: BACKEND TASK [PRESET].",
     )
     parser.add_argument("--checkpoint_root", required=True, type=Path)
     parser.add_argument(
         "--preset",
         default=None,
-        help="Default Hydra preset for specs that do not override it.",
+        help="Default Hydra preset when --spec does not include one.",
     )
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--algorithm", type=str, default="ppo", help="skrl algorithm name.")
     args = parser.parse_args(argv)
 
     backend_choices = ("rsl_rl", "rl_games", "skrl", "sb3")
-    specs: list[tuple[str, str, str | None]] = []
-    for raw_spec in args.spec:
-        if len(raw_spec) not in (2, 3):
-            raise SystemExit(f"Each --spec must be 'BACKEND TASK' or 'BACKEND TASK PRESET', got: {raw_spec}")
-        backend_id, task_name = raw_spec[0], raw_spec[1]
-        if backend_id not in backend_choices:
-            raise SystemExit(f"Unsupported backend '{backend_id}'. Choose from {backend_choices}.")
-        if len(raw_spec) == 3:
-            preset = None if raw_spec[2] in ("_", "") else raw_spec[2]
-        else:
-            preset = args.preset
-        specs.append((backend_id, task_name, preset))
+    if len(args.spec) != 1:
+        raise SystemExit("--spec may be provided exactly once")
+    raw_spec = args.spec[0]
+    if len(raw_spec) not in (2, 3):
+        raise SystemExit(f"--spec must be 'BACKEND TASK' or 'BACKEND TASK PRESET', got: {raw_spec}")
+    backend_id, task_name = raw_spec[0], raw_spec[1]
+    if backend_id not in backend_choices:
+        raise SystemExit(f"Unsupported backend '{backend_id}'. Choose from {backend_choices}.")
+    if len(raw_spec) == 3:
+        preset = None if raw_spec[2] in ("_", "") else raw_spec[2]
+    else:
+        preset = args.preset
 
-    from isaaclab.app import AppLauncher
-
-    app_launcher = AppLauncher(headless=True)
-    simulation_app = app_launcher.app
-
+    from isaaclab.app import launch_simulation
     from isaaclab.app.settings_manager import get_settings_manager
 
     from isaaclab_tasks.utils.hydra import resolve_task_config
 
-    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
-    get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
-
-    cli_args = SimpleNamespace(seed=args.seed, algorithm=args.algorithm)
-    failures: list[str] = []
+    # TODO: Remove once usd-core>=26.5 is the minimum. Earlier OpenUSD releases
+    # can corrupt the heap while parsing the Newton Franka payload concurrently.
+    cli_args = SimpleNamespace(
+        seed=args.seed,
+        algorithm=args.algorithm,
+        headless=True,
+        limit_cpu_threads=1,
+    )
+    task_dir = task_checkpoint_dir(args.checkpoint_root, backend_id, task_name)
+    task_dir.mkdir(parents=True, exist_ok=True)
     original_argv = sys.argv
+    sys.argv = [sys.argv[0], f"presets={preset}"] if preset else [sys.argv[0]]
     try:
-        for backend_id, task_name, preset in specs:
-            task_dir = task_checkpoint_dir(args.checkpoint_root, backend_id, task_name)
-            task_dir.mkdir(parents=True, exist_ok=True)
-            sys.argv = [sys.argv[0], f"presets={preset}"] if preset else [sys.argv[0]]
-            try:
-                env_cfg, agent_cfg = resolve_task_config(task_name, _agent_cfg_entry_point(backend_id))
-                checkpoint_path = create_initialized_checkpoint(
-                    backend_id,
-                    task_name,
-                    cli_args,
-                    env_cfg,
-                    agent_cfg,
-                    task_dir,
-                )
-                resolved_path_file(task_dir).write_text(str(checkpoint_path))
-            except BaseException:
-                failures.append(f"{backend_id}/{task_name}")
-                traceback.print_exc(file=sys.stdout)
-                sys.stdout.flush()
-                sys.stderr.flush()
+        env_cfg, agent_cfg = resolve_task_config(task_name, _agent_cfg_entry_point(backend_id))
+        with launch_simulation(env_cfg, vars(cli_args)):
+            get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+            get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
+            checkpoint_path = create_initialized_checkpoint(
+                backend_id,
+                task_name,
+                cli_args,
+                env_cfg,
+                agent_cfg,
+                task_dir,
+            )
+            resolved_path_file(task_dir).write_text(str(checkpoint_path))
+    except BaseException:
+        traceback.print_exc(file=sys.stdout)
+        sys.stdout.flush()
+        sys.stderr.flush()
+        print(f"[ERROR] Failed to create checkpoint for: {backend_id}/{task_name}", flush=True)
+        os._exit(1)
     finally:
         sys.argv = original_argv
-        if failures:
-            # ``simulation_app.close()`` can exit 0; fail hard before it when any
-            # checkpoint was missing so the parent subprocess call sees the error.
-            print(f"[ERROR] Failed to create checkpoints for: {', '.join(failures)}", flush=True)
-            os._exit(1)
-        simulation_app.close()
 
 
 if __name__ == "__main__":

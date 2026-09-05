@@ -154,7 +154,7 @@ class VisuoTactileSensorCfg(SensorBaseCfg):
         The expression can contain the environment namespace regex ``{ENV_REGEX_NS}`` which
         will be replaced with the environment namespace.
 
-        Example: ``{ENV_REGEX_NS}/ContactObject`` will be replaced with ``/World/envs/env_.*/ContactObject``.
+        Example: ``{ENV_REGEX_NS}/ContactObject`` will be replaced with ``/World/envs/env_[^/]+/ContactObject``.
 
     .. attention::
         For force field computation to work properly, the contact object must have an SDF collision mesh.

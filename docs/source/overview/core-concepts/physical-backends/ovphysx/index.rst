@@ -11,7 +11,7 @@ OvPhysX Backend
 .. warning::
 
     Do not combine OvPhysX with the Kit visualizer. Commands such as
-    ``presets=ovphysx --visualizer kit`` are unsupported because OvPhysX
+    ``physics=ovphysx --visualizer kit`` are unsupported because ovphysx
     loads USD-dependent PhysX plugins from its own package, while Kit already
     owns a separate USD/plugin stack in the same process. Use
     ``--visualizer newton``, ``--visualizer rerun``, ``--visualizer viser``,
@@ -148,16 +148,17 @@ syntax as the other backends:
 
       .. code-block:: bash
 
-          uv run python scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz none presets=ovphysx
+          uv run isaaclab zero_agent --task Isaac-Cartpole-Direct \
+              --num_envs 128 --max_steps 64 --viz none physics=ovphysx
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz none presets=ovphysx
+          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct \
+              --num_envs 128 --max_steps 64 --viz none physics=ovphysx
 
-This command starts a headless zero-action rollout; stop it with ``Ctrl+C``
-after the environment has started and stepped successfully.
+This command runs a 64-step headless zero-action rollout and then exits.
 
 Supported locomotion environments
 ---------------------------------

@@ -18,7 +18,7 @@ Usage example::
         --num_envs 16 --num_steps 1000 --warmup_steps 50 \\
         presets=newton_mjwarp --visualizer none
 
-Use ``isaaclab benchmark runtime-multigpu`` to measure rank 0 while every GPU steps an
+Use ``isaaclab benchmark runtime_multigpu`` to measure rank 0 while every GPU steps an
 independent workload; see :mod:`isaaclab.benchmark.entrypoints.multigpu`.
 """
 
@@ -149,7 +149,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
         formatter_types = [value.strip() for value in args.benchmark_formatter.split(",") if value.strip()]
         formatter_types = formatter_types or ["omniperf"]
-        cfg = capture.run_config_from_presets(remaining, env_cfg=env_cfg)
+        cfg = capture.run_config_from_env_cfg(env_cfg)
 
         benchmark = BaseIsaacLabBenchmark(
             benchmark_name="benchmark_runtime",
@@ -168,7 +168,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                         "name": "environment_step_measurement_mode",
                         "data": ("serialized_synchronized" if args.measure_sync_step else "host_return"),
                     },
-                    {"name": "presets", "data": ",".join(cfg.presets)},
                     {"name": "world_size", "data": distributed.world_size},
                 ]
             },

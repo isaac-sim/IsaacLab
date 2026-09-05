@@ -58,8 +58,6 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        # sim
-        self.sim.physics.newton_mjwarp.num_substeps = 2
         # scene
         self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton_mjwarp=0.02)

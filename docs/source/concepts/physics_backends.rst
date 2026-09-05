@@ -65,7 +65,7 @@ For the general PhysX--Newton policy validation workflow, see
 :doc:`/source/how-to/transfer_policies_between_physx_and_newton`. When a
 checkpoint's joint or body ordering differs from the target backend, use the
 :doc:`articulation ordering guide
-</source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer>`.
+</source/overview/core-concepts/physical-backends/joint_and_body_ordering>`.
 
 
 .. _physics-backends-physx:
@@ -102,7 +102,7 @@ fixed solver. Configure the backend with
 such as :class:`~isaaclab_newton.physics.MJWarpSolverCfg`.
 
 Task and component coverage is narrower and task-specific. Check task
-``--help`` and :doc:`the environment catalog </source/overview/environments>`
+``--help`` and :doc:`the environment catalog </source/setup/environments>`
 for current presets, the generated configuration APIs for available symbols,
 and the specialist guides below for solver-specific workflows and limitations.
 
@@ -113,6 +113,8 @@ specialist guides cover :ref:`newton-using-vbd`, :ref:`newton-using-mpm`,
 :ref:`newton-using-cables`, :ref:`warp-environments`, and
 :ref:`warp-env-migration`. Backend developers can also read
 :doc:`/source/overview/core-concepts/physical-backends/newton/newton-manager-abstraction`.
+Standalone VBD is exposed through :mod:`isaaclab_newton.physics`; MJWarp--VBD
+proxy and ADMM coupling is exposed through :mod:`isaaclab_contrib.coupling`.
 
 
 .. _physics-backends-ovphysx:
@@ -135,7 +137,7 @@ limitations and runtime constraints.
 Find supported tasks and APIs
 -----------------------------
 
-Backend support is task-specific. Use :doc:`/source/overview/environments` to
+Backend support is task-specific. Use :doc:`/source/setup/environments` to
 browse registered environments and presets, or ask a task for its current
 choices:
 

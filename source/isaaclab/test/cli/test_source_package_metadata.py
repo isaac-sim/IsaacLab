@@ -15,22 +15,14 @@ import tomllib
 pytestmark = pytest.mark.unit
 
 
-def _repo_root() -> Path:
-    """Find the Isaac Lab repository root from this test file."""
-    for parent in Path(__file__).resolve().parents:
-        if (parent / "pyproject.toml").is_file() and (parent / "source").is_dir():
-            return parent
-    raise RuntimeError("Could not find Isaac Lab repository root.")
-
-
-def test_isaaclab_uses_one_standalone_usd_provider():
+def test_isaaclab_uses_one_standalone_usd_provider(source_checkout_root: Path):
     """Isaac Lab must install only the USD provider shared with its importer dependencies.
 
     ``usd-core`` and ``usd-exchange`` each install a complete ``pxr`` into the same directory, so
     a second provider silently overwrites the first and removing either one leaves ``pxr`` broken.
     Nothing detects that, because the two are separate distributions.
     """
-    with (_repo_root() / "pyproject.toml").open("rb") as f:
+    with (source_checkout_root / "pyproject.toml").open("rb") as f:
         pyproject = tomllib.load(f)
 
     dependencies = pyproject["project"]["dependencies"]
@@ -43,14 +35,14 @@ def test_isaaclab_uses_one_standalone_usd_provider():
     assert usd_providers == ["usd-exchange==2.3.0"]
 
 
-def test_resolved_environment_has_no_second_usd_provider():
+def test_resolved_environment_has_no_second_usd_provider(source_checkout_root: Path):
     """No dependency may pull ``usd-core`` back in behind an extra.
 
     ``newton[importers]``, ``mujoco[usd]`` and ``warp-lang[examples]`` all require it, so selecting
     any of them would reinstate the overlap that the direct dependencies avoid. Checking the lock
     catches that, where checking ``pyproject.toml`` alone would not.
     """
-    with (_repo_root() / "uv.lock").open("rb") as f:
+    with (source_checkout_root / "uv.lock").open("rb") as f:
         lock = tomllib.load(f)
 
     locked = {package["name"] for package in lock["package"]}
@@ -59,10 +51,15 @@ def test_resolved_environment_has_no_second_usd_provider():
     assert "usd-exchange" in locked
 
 
-def test_standalone_importers_ship_as_base_dependencies():
-    """The standalone URDF/MJCF importers install by default, so conversion works without Isaac Sim."""
-    with (_repo_root() / "pyproject.toml").open("rb") as f:
+def test_standalone_importers_are_opt_in(source_checkout_root: Path):
+    """Standalone URDF/MJCF importers must not constrain the base environment."""
+    with (source_checkout_root / "pyproject.toml").open("rb") as f:
         pyproject = tomllib.load(f)
 
-    assert "isaacsim-asset-isolated>=6.0,<6.1" in pyproject["project"]["dependencies"]
-    assert "importers" not in pyproject["project"]["optional-dependencies"]
+    project = pyproject["project"]
+    assert "isaacsim-asset-isolated>=6.0,<6.1" not in project["dependencies"]
+    assert "tinyobjloader==2.0.0rc13" not in project["dependencies"]
+    assert project["optional-dependencies"]["importers"] == [
+        "isaacsim-asset-isolated>=6.0,<6.1",
+        "tinyobjloader==2.0.0rc13",
+    ]

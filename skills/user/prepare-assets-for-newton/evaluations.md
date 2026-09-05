@@ -43,7 +43,7 @@ Query: "Why does MJWarp exceed my joint velocity limit?"
 
 Expected behavior:
 
-- Explain that MJWarp enforces neither `velocity_limit` nor `velocity_limit_sim`.
+- Explain that MJWarp enforces neither `actuator_velocity_limit` nor `joint_velocity_limit`.
 - Recommend explicit task checks and physically justified control limits.
 
 Known failure modes: treating either field as an MJWarp safety clamp.
@@ -59,16 +59,16 @@ Expected behavior:
 
 Known failure modes: adding arbitrary armature to a plain rigid object or claiming gravity damps rotation.
 
-## Scenario 6: MJWarp Starting Profile
+## Scenario 6: MJWarp Capacity Sizing
 
 Query: "What solver values should I start with for dexterous manipulation?"
 
 Expected behavior:
 
-- Use the documented `200`/`70`, elliptic cone, `impratio=10`, two-substep profile.
-- Keep initial convergence defaults and enable `debug_mode`.
+- Enable `debug_mode` and measure the worst case across resets and randomized scenes.
+- Size `nconmax` from contact points and `njmax` from all constraint rows, with task-specific headroom.
 
-Known failure modes: translating PhysX numbers directly or treating the profile as a guarantee.
+Known failure modes: translating PhysX numbers directly, treating capacity as a fidelity control, or deriving `njmax` directly from `nconmax`.
 
 ## Scenario 7: Task Validation
 

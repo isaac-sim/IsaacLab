@@ -16,6 +16,7 @@ app.versionFile = "${exe-path}/VERSION"
 app.folder = "${exe-path}/"
 app.name = "IsaacLab"
 app.version = "3.0.0"
+app.enableDeveloperWarnings = false # disable developer warnings to reduce log noise
 log.level = "Warn" # Suppress third-party debug/info noise
 log.outputStreamLevel = "Warn"
 
@@ -30,6 +31,8 @@ log.outputStreamLevel = "Warn"
 "omni.physx.tensors" = {}
 "omni.physx.fabric" = {}
 "usdrt.scenegraph" = {}
+# the RTX renderer is not loaded here, so nothing pulls in the USDRT scene delegate implicitly
+"omni.hydra.usdrt_delegate" = {}
 "omni.kit.telemetry" = {}
 "omni.kit.loop" = {}
 "isaacsim.storage.native" = {}
@@ -195,8 +198,6 @@ enabled=true # Enable this for DLSS
 ########################
 [dependencies]
 "isaacsim.core.version" = {}
-# USD schema plugins must load before the schema registry is first accessed.
-"omni.usd.schema.mujoco" = {}
 
 # Asset path
 # set the S3 directory manually to the latest published S3

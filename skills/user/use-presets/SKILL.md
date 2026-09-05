@@ -62,5 +62,5 @@ Keep this skill synchronized with `docs/source/concepts/backends_and_presets.rst
 - [Preset utility source](../../../source/isaaclab_tasks/isaaclab_tasks/utils/hydra.py)
 - [Preset CLI source](../../../source/isaaclab_tasks/isaaclab_tasks/utils/preset_cli.py)
 - [Preset targets source](../../../source/isaaclab_tasks/isaaclab_tasks/utils/preset_target.py)
-- [Environment catalog](../../../docs/source/overview/environments.rst)
+- [Environment browser](../../../docs/source/setup/environments.rst)
 - [Quickstart](../../../docs/source/setup/quickstart.rst)

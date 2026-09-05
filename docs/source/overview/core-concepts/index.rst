@@ -7,10 +7,8 @@ This section we introduce core concepts in Isaac Lab.
   :maxdepth: 1
 
   schema_cfgs
+  schema_fragments
   task_workflows
-  actuators
   sensors/index.rst
   renderers
   motion_generators
-  scene_data_providers
-  visualization

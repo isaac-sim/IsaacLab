@@ -155,7 +155,7 @@ Enable the visualization when launching a teleoperation session:
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop run \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit \
              --xr \
@@ -375,7 +375,10 @@ Prerequisites
      sudo apt-get update
      sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
-  Then clone, configure, build, and install. To target a specific Python version, pass
+  Then clone, check out the release branch matching the ``isaacteleop`` version Isaac Lab is
+  pinned to (``isaacteleop~=1.4.0`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
+  plugin's wire format matches the ``isaacteleop`` package Isaac Lab installs), configure, build,
+  and install. To target a specific Python version, pass
   ``-DISAAC_TELEOP_PYTHON_VERSION=3.12`` (or ``3.11``, ``3.13``) on the configure line; each
   version needs its own build directory if building multiple at once:
 
@@ -383,10 +386,16 @@ Prerequisites
 
      git clone https://github.com/NVIDIA/IsaacTeleop.git
      cd IsaacTeleop
+     git checkout release/1.4.x
 
      cmake -B build                       # configure (default: Python 3.11)
      cmake --build build --parallel       # build
      cmake --install build                # install into ./install
+
+  .. note::
+
+     When Isaac Lab bumps its Isaac Teleop pin, check out the matching ``release/<version>.x``
+     branch instead.
 
   The plugin is installed to ``<IsaacTeleop>/install/plugins/so101_leader/so101_leader_plugin``.
   Every later command in this section runs from the Isaac Teleop checkout root; substitute your own
@@ -452,7 +461,7 @@ on launch -- no headset connection is needed (see :ref:`isaac-teleop-standalone`
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop run \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
              --num_envs 1 \
              --visualizer kit
@@ -479,7 +488,7 @@ only controls whether the scene is rendered to the headset. Follow the connectio
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop run \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
              --num_envs 1 \
              --visualizer kit --xr
@@ -555,6 +564,12 @@ Move the physical SO-101 leader arm and the simulated follower will mirror its j
 time. To record demonstrations from this task, run ``scripts/tools/record_demos.py`` with the same
 ``--task`` and the plugin running in its second terminal -- see `Data Collection in Sim`_ for the
 full recording workflow and runtime troubleshooting.
+
+.. note::
+
+   After stacking the cube, open the gripper **all the way** before ending the episode. The task's
+   success check requires the gripper to be fully open -- a partially open gripper holding position
+   on top of the stack will not register as success, even if the cube is correctly placed.
 
 
 .. _isaac-teleop-retargeting:
@@ -1142,7 +1157,7 @@ for the headless profile, or pass a full file path for a custom profile:
       .. code-block:: bash
 
          # Use the AVP profile
-         uv run --extra teleop isaaclab teleop run \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
              --visualizer kit --xr \
              --cloudxr_env avp
@@ -1165,7 +1180,7 @@ Copy a shipped profile and edit it:
 .. code-block:: bash
 
    # Start from the Quest/Pico profile
-   cp $(uv run --extra teleop python -c \
+   cp $(uv run --extra teleop,isaacsim python -c \
        "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/my-cloudxr.env
 
 Edit ``~/my-cloudxr.env`` to change any values (e.g. ``NV_CXR_ENABLE_PUSH_DEVICES=1`` for
@@ -1188,13 +1203,13 @@ If you prefer to run the CloudXR runtime manually in a separate terminal
       .. code-block:: bash
 
          # Disable via CLI flag
-         uv run --extra teleop isaaclab teleop run \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit --xr \
              --no-auto_launch_cloudxr
 
          # Or disable via environment variable
-         ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 uv run --extra teleop isaaclab teleop run \
+         ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit --xr
 
@@ -1279,24 +1294,39 @@ XR Camera Feedback
 An ordered list of :class:`~isaaclab_teleop.XrCameraFeedCfg` objects selects existing task scene
 cameras. The manager publishes each new RGBA frame after rendering, while
 :class:`~isaaclab_teleop.XrCameraFeedLayoutCfg` places the panels manually or in horizontal,
-vertical, and grid layouts. ``IsaacContrib-PickPlace-GR1T2-Abs`` and
-``IsaacContrib-PickPlace-Locomanipulation-G1-Abs`` are the primary reference examples.
+vertical, and grid layouts. The following registered tasks enable PiP by default:
+
+* ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
+* ``IsaacContrib-PickPlace-GR1T2-Abs``
+* ``IsaacContrib-NutPour-GR1T2-Pink-IK-Abs``
+* ``IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs``
 
 ``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an IsaacTeleop-enabled
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
-``CameraCfg`` through ``xr_camera_feeds``. In the reference examples, the selected
+``CameraCfg`` through ``xr_camera_feeds``. In the registered tasks above, the selected
 ``robot_pov_cam`` is also a policy image observation, so the normal demonstration recorder stores
-the same view shown to the operator. Both reference cameras are parented to a physical robot body
-link, so the recorded view follows robot motion. The NutPour and ExhaustPipe GR1T2 teleoperation
-tasks also present their existing recorded ``robot_pov_cam``:
+the same view shown to the operator. Each camera is parented to a physical robot body link, so the
+recorded view follows robot motion:
+
+.. figure:: ../_static/teleop/xr-camera-pip.jpg
+   :width: 80%
+   :alt: XR teleoperation view with the robot point-of-view camera shown in a picture-in-picture panel
+
+   Robot point-of-view camera feedback shown as a picture-in-picture panel during XR teleoperation.
+
+.. warning::
+
+   If a PiP panel enters its source camera's field of view, the camera captures the panel and
+   produces a recursive hall-of-mirrors effect. Move the panel or reorient the camera, for example
+   by changing the robot pose, to keep the panel outside the camera's field of view.
 
 .. code-block:: bash
 
-   uv run --extra teleop isaaclab teleop run \
+   uv run --extra teleop,isaacsim isaaclab teleop run \
        --task IsaacContrib-PickPlace-GR1T2-Abs \
        --xr --device cpu
 
-   uv run --extra teleop isaaclab teleop run \
+   uv run --extra teleop,isaacsim isaaclab teleop run \
        --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
        --xr --device cpu
 
@@ -1495,7 +1525,7 @@ Haptic glove (per-finger grip)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Use :class:`~isaaclab_teleop.GloveHapticFeedbackCfg`. Each hand's contact sensor is **filtered
-against the grasped object** (``filter_prim_paths_expr``), so ``force_matrix_w`` reports each
+against the grasped object** (``filter_prim_paths_expr``), so ``normal_force_matrix_w`` reports each
 finger's force on that object and nothing else. The driver orders the per-finger magnitudes
 Thumb..Pinky (matched from the sensor's body names via ``finger_order``) into a
 ``FingerPowerVector`` rendered by a cross-process glove device on ``collection_id``.
@@ -1555,7 +1585,7 @@ uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop record \
+         uv run --extra teleop,isaacsim isaaclab teleop record \
              --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit \
              --xr
@@ -1569,6 +1599,31 @@ uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:
              --visualizer kit \
              --xr
 
+The ``run``, ``record``, and ``replay`` workflows accept task configuration selectors using
+Hydra-style ``key=value`` syntax (with no leading ``--``). For example, record the Franka reach
+task with the PhysX and differential IK presets as follows:
+
+.. code-block:: bash
+
+   uv run --extra teleop,isaacsim isaaclab teleop record \
+       --task Isaac-Reach-Franka \
+       --visualizer kit \
+       --dataset_file ./datasets/dataset.hdf5 \
+       --num_demos 1 \
+       --teleop_device keyboard \
+       physics=isaacsim_physx presets=diffik
+
+When replaying a preset-configured dataset, pass the same selectors again. The HDF5 metadata stores
+the registered task ID, but not the command-line selector values:
+
+.. code-block:: bash
+
+   uv run --extra teleop,isaacsim isaaclab teleop replay \
+       --task Isaac-Reach-Franka \
+       --visualizer kit \
+       --dataset_file ./datasets/dataset.hdf5 \
+       physics=isaacsim_physx presets=diffik
+
 Some environments use the legacy ``teleop_devices`` configuration instead of ``isaac_teleop``
 (e.g. the Galbot RmpFlow relative-mode tasks). For these, pass ``--teleop_device`` to select
 the input device:
@@ -1579,7 +1634,7 @@ the input device:
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop record \
+         uv run --extra teleop,isaacsim isaaclab teleop record \
              --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
              --visualizer kit \
              --teleop_device keyboard
@@ -1597,7 +1652,8 @@ The workflow is:
 
 #. Configure your environment with ``IsaacTeleopCfg`` (see :ref:`isaac-teleop-env-config`)
    or ``teleop_devices`` for legacy devices (keyboard, spacemouse).
-#. Run ``record_demos.py`` with the task name.
+#. Run ``record_demos.py`` with the task name and any ``physics=``, ``renderer=``, or ``presets=``
+   selectors required by the task.
 #. For XR tasks: start AR, connect your XR device, and teleoperate.
    For legacy tasks: use the configured input device directly.
 #. Demonstrations are recorded to HDF5 files.
@@ -1817,7 +1873,7 @@ Optimize XR Performance
 
    .. code-block:: bash
 
-      uv run --extra teleop isaaclab teleop run \
+      uv run --extra teleop,isaacsim isaaclab teleop run \
           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
           --visualizer kit --xr \
           --disable_external_cameras
@@ -1838,7 +1894,7 @@ Optimize XR Performance
 
    .. code-block:: bash
 
-      uv run --extra teleop isaaclab teleop run \
+      uv run --extra teleop,isaacsim isaaclab teleop run \
           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
           --viz none --xr
 

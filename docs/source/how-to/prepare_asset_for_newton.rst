@@ -98,6 +98,8 @@ Tune material friction against measured tangential slip only after the contact m
 importer attributes. Follow :ref:`mjwarp-solver-tuning` for the current global solver and contact
 tuning sequence.
 
+.. _newton-velocity-limits:
+
 Validate actuators and limits
 -----------------------------
 
@@ -107,11 +109,13 @@ motor/transmission inertia or a controlled response test, and do not use it to h
 inertia, units, reset penetration, or contact capacity. Retune damping after changing armature.
 For the general actuator model and configuration guidance, see :ref:`overview-actuators`.
 
-``velocity_limit`` is a physical rated speed that Isaac Lab can use in task or actuator logic.
-``velocity_limit_sim`` requests a solver-side clamp. Although Isaac Lab writes the latter to
-Newton's model, MJWarp does not consume either value while stepping. When a task needs a speed
-bound under MJWarp, implement and validate it in task or control logic; use physically justified
-effort limits and controller behavior to keep the response well behaved.
+``actuator_velocity_limit`` is a physical rated speed that Isaac Lab can use in task or actuator
+logic. ``joint_velocity_limit`` requests a solver-side clamp. Isaac Lab writes the latter to
+Newton's model, but MJWarp drops it when constructing its solver model; Kamino honors it. MJWarp
+does not enforce either value while stepping. When a task needs a speed bound under MJWarp,
+implement and validate it in task or control logic. Use ``joint_effort_limit`` for solver limits,
+``actuator_effort_limit`` to clip explicit actuator models, and physically justified controller
+behavior to keep the response well behaved.
 
 Run paired smoke tests
 ----------------------

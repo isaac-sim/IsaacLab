@@ -27,13 +27,17 @@ from isaaclab_rl.entrypoints.common import (
     apply_video_recording,
     create_isaaclab_env,
     pre_launch_video_config,
+    request_determinism,
     resolve_checkpoint_selector,
     resolve_play_task_name,
     show_run_summary,
     startup_screen,
 )
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
-from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+from isaaclab_rl.utils.pretrained_checkpoint import (
+    get_pretrained_checkpoint_backend_names,
+    get_published_pretrained_checkpoint,
+)
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
@@ -69,7 +73,7 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
     "--agent", type=str, default="sb3_cfg_entry_point", help="Name of the RL agent configuration entry point."
 )
-parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
+parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, latest/best, or pretrained.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
@@ -109,6 +113,8 @@ def main():
                 args_cli.seed = random.randint(0, 10000)
 
             env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+            # Warp reads its determinism mode at module build time, so request it before the env exists.
+            request_determinism(args_cli, env_cfg)
             agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
             env_cfg.seed = agent_cfg["seed"]
             env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
@@ -116,7 +122,8 @@ def main():
             log_root_path = os.path.join("logs", "sb3", train_task_name)
             log_root_path = os.path.abspath(log_root_path)
             if args_cli.checkpoint == "pretrained":
-                checkpoint_path = get_published_pretrained_checkpoint("sb3", train_task_name)
+                backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+                checkpoint_path = get_published_pretrained_checkpoint("sb3", train_task_name, *backend_names)
                 if not checkpoint_path:
                     print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                     return
@@ -183,6 +190,7 @@ def main():
             screen.close()
             obs = env.reset()
             timestep = 0
+            print("[INFO] Policy playback is running, press Ctrl+C to exit...")
             try:
                 while True:
                     start_time = time.time()
@@ -194,7 +202,7 @@ def main():
                         video_stop = args_cli.video_length
                         if video_stop is None:
                             recorders = getattr(env_cfg, "video_recorders", [])
-                            video_stop = recorders[0].video_length if recorders else None
+                            video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
                         if video_stop is not None and timestep >= video_stop:
                             break
 

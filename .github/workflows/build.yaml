@@ -4,8 +4,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # region help
-# Every test job runs on every PR and merge queue candidate. Pushes to protected branches run the
-# post-merge integration tests.
+# Docker builds and their dependent tests run only on a labeled PR event, a push to a protected
+# branch, or a manual workflow dispatch. Do not filter the label with a job-level ``if``:
+# GitHub treats skipped required jobs as successful status checks.
+#
+# GitHub cannot filter label names at trigger time, so adding any label to a PR
+# starts this workflow. Only a ``ci:run-docker`` event cancels an in-flight run;
+# other label events queue behind it so that a triage label cannot cancel a
+# build whose required checks have already been reported.
+#
+# Pushes to protected branches still run the post-merge integration tests.
 #
 # =============================================================================
 # CI DEBUGGING TIPS
@@ -38,7 +46,7 @@
 #      -e TEST_FILTER_PATTERN="isaaclab_physx" \
 #      -e TEST_INCLUDE_FILES="test_rigid_object_collection.py" \
 #      -v "$PWD":/workspace/isaaclab isaac-lab-base:latest \
-#      -c 'cd /workspace/isaaclab && /isaac-sim/python.sh -m pytest tools -v'
+#      -c 'cd /workspace/isaaclab && ./isaaclab.sh -p -m pytest tools -v'
 #
 # Remember to REVERT all temporary changes before merging!
 # =============================================================================
@@ -53,7 +61,7 @@ on:
       - develop
       - 'release/**'
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [labeled]
     branches:
       - main
       - develop
@@ -63,7 +71,9 @@ on:
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Push and workflow_dispatch events carry no label, so this stays false for them and
+  # preserves the post-merge runs that ``github.event_name == 'pull_request'`` used to protect.
+  cancel-in-progress: ${{ github.event.label.name == 'ci:run-docker' }}
 
 permissions:
   contents: read
@@ -92,7 +102,7 @@ jobs:
     - id: detect
       uses: ./.github/actions/detect-changes
       with:
-        triggered-jobs-push: "Docker base build job + rendering-correctness + rendering-correctness-kitless + warp-cache-warm"
+        triggered-jobs-push: "Docker base build job + rendering-correctness + rendering-correctness-kitless + warp-cache-warm + ovrtx-cache-warm"
         triggered-jobs-pr: "Docker build jobs + all test-* matrix jobs"
         # config.yaml is included because it controls the base image names and tags
         # consumed by the Docker build jobs.
@@ -103,6 +113,7 @@ jobs:
           ^apps/ :: Standalone apps
           ^scripts/ :: Standalone scripts
           ^\.dockerignore$ :: Docker build context filter
+          ^conftest\.py$ :: Root pytest configuration
           ^pyproject\.toml$ :: Root Python project (Docker copy)
           ^environment\.yml$ :: Conda env (Docker copy)
           ^isaaclab\. :: isaaclab.sh/.bat entrypoints (Docker copy)
@@ -158,6 +169,25 @@ jobs:
         echo "ci_image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}" >> "$GITHUB_OUTPUT"
         echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}"
 
+  test-dockerfile-contract:
+    name: dockerfile-contract
+    # Static analysis of the Dockerfile text: no image, no GPU, no Isaac Sim.
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
+
+    - name: Run Dockerfile contract tests
+      shell: bash
+      run: |
+        set -euo pipefail
+        uv run --no-project --with pytest \
+          python -m pytest -q docker/test/test_dockerfile_nonroot.py
+
   #region build jobs
   build:
     name: Build Base Docker Image
@@ -171,6 +201,15 @@ jobs:
         fetch-depth: 1
         lfs: true
 
+    # The GPU runners have no uv on PATH; the invariant check below needs it.
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
+
+    # #6329 aborts the pip install when it strands a prebundled package's __init__.py
+    # (nvbugs 6343978: 14 Isaac Sim extensions fail to load). The images install with
+    # ``uv sync``, which never runs that guard, so assert the same invariant on the image.
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
@@ -179,6 +218,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
+        verify-test-path: docker/test/test_image_invariants.py
 
   build-curobo:
     name: Build cuRobo Docker Image
@@ -226,7 +266,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        exclude-pattern: "test_rendering_"
+        exclude-pattern: "test_rendering_,test_video_recording.py"
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "0"
         shard-count: "3"
@@ -253,7 +293,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        exclude-pattern: "test_rendering_"
+        exclude-pattern: "test_rendering_,test_video_recording.py"
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "1"
         shard-count: "3"
@@ -280,7 +320,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        exclude-pattern: "test_rendering_"
+        exclude-pattern: "test_rendering_,test_video_recording.py"
         extra-pip-packages: "pytetwild[all]>=0.3.0,<0.4"
         shard-index: "2"
         shard-count: "3"
@@ -306,6 +346,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
+        extra-uv-packages: "opencv-python-headless==4.13.0.90"
         shard-index: "0"
         shard-count: "3"
         warp-cache: restore
@@ -330,6 +371,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
+        extra-uv-packages: "opencv-python-headless==4.13.0.90"
         shard-index: "1"
         shard-count: "3"
         warp-cache: restore
@@ -354,6 +396,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
+        extra-uv-packages: "opencv-python-headless==4.13.0.90"
         shard-index: "2"
         shard-count: "3"
         warp-cache: restore
@@ -443,7 +486,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_rl"
-        extra-pip-packages: "leapp"
+        extra-pip-packages: "leapp==0.6.1"
         container-name: isaac-lab-rl-test
 
   test-isaaclab-mimic:
@@ -650,16 +693,6 @@ jobs:
     # Folded from the former standalone verify-base-non-root job: reuses the
     # base image already pulled by run-package-tests to keep the regression
     # check without burning a separate runner.
-    - name: Run Dockerfile non-root regression test
-      shell: bash
-      run: |
-        set -euo pipefail
-        docker run --rm \
-          -v "$PWD":/workspace/isaaclab \
-          --entrypoint bash \
-          "${{ needs.config.outputs.ci_image_tag }}" \
-          -lc 'cd /workspace/isaaclab && /isaac-sim/python.sh -m pytest docker/test/test_dockerfile_nonroot.py -q'
-
     - name: Verify Base runtime user is non-root
       shell: bash
       run: |
@@ -700,16 +733,6 @@ jobs:
     # Folded from the former standalone verify-curobo-non-root job: reuses
     # the curobo image already pulled by run-package-tests to keep the
     # regression check without burning a separate runner.
-    - name: Run Dockerfile non-root regression test
-      shell: bash
-      run: |
-        set -euo pipefail
-        docker run --rm \
-          -v "$PWD":/workspace/isaaclab \
-          --entrypoint bash \
-          "${{ needs.config.outputs.ci_image_tag }}-curobo" \
-          -lc 'cd /workspace/isaaclab && /isaac-sim/python.sh -m pytest docker/test/test_dockerfile_nonroot.py -q'
-
     - name: Verify cuRobo runtime user is non-root
       shell: bash
       run: |
@@ -723,8 +746,8 @@ jobs:
           exit 1
         fi
 
-  test-skillgen:
-    name: test-skillgen
+  test-contrib-environments:
+    name: test-contrib-environments
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
@@ -744,32 +767,8 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
-        include-files: "test_generate_dataset_skillgen.py,test_environments_skillgen.py,test_environments_automate.py"
-        container-name: isaac-lab-skillgen-test
-
-  test-environments-training:
-    name: "environments_training"
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 300
-    continue-on-error: true
-    needs: [build, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_tasks"
-        include-files: "test_environments_training.py"
-        container-name: isaac-lab-environments-training-test
-        omni-github-test-type: training-e2e
+        include-files: "test_generate_dataset_skillgen.py,test_contrib_environments.py"
+        container-name: isaac-lab-contrib-environments-test
 
   test-record-video:
     name: "record-video"
@@ -791,8 +790,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        include-files: "test_record_video.py"
-        test-k-expr: "Cartpole"
+        include-files: "test_video_recording.py"
         extra-uv-packages: "moviepy>=1.0.3,<2.0.0.dev0 decorator<5"
         container-name: isaac-lab-record-video-test
         omni-github-test-type: video-e2e
@@ -822,10 +820,14 @@ jobs:
           test_rendering_lift_kuka_homo.py,
           test_rendering_franka_cloth.py,
           test_rendering_franka_soft.py,
+          test_rendering_franka_cable.py,
           test_rendering_registered_tasks.py,
           test_rendering_shadow_hand.py
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
+        ovrtx-shader-cache: restore
+        ovrtx-shader-cache-trees: kit
+        warp-cache: restore
         container-name: isaac-lab-rendering-correctness-test
         omni-github-test-type: rendering-correctness
 
@@ -868,10 +870,14 @@ jobs:
           test_rendering_lift_kuka_homo_kitless.py,
           test_rendering_franka_cloth_kitless.py,
           test_rendering_franka_soft_kitless.py,
+          test_rendering_franka_cable_kitless.py,
           test_rendering_shadow_hand_kitless.py
         test-k-expr: legacy
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-legacy' || '' }}
+        ovrtx-shader-cache: restore
+        ovrtx-shader-cache-trees: kitless
+        warp-cache: restore
         container-name: "isaac-lab-rendering-correctness-kitless-legacy-test"
         omni-github-test-type: "rendering-correctness-kitless-legacy"
 
@@ -912,18 +918,21 @@ jobs:
           test_rendering_lift_kuka_homo_kitless.py,
           test_rendering_franka_cloth_kitless.py,
           test_rendering_franka_soft_kitless.py,
+          test_rendering_franka_cable_kitless.py,
           test_rendering_shadow_hand_kitless.py
         test-k-expr: ovstage
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless-ovstage' || '' }}
+        ovrtx-shader-cache: restore
+        ovrtx-shader-cache-trees: kitless
         container-name: "isaac-lab-rendering-correctness-kitless-ovstage-test"
         omni-github-test-type: "rendering-correctness-kitless-ovstage"
 
   # Publishes the shared Warp kernel cache the test jobs restore. Needed as its
   # own job because a cache written from a PR is readable only by that PR, and
-  # no solver-heavy test job runs on push. Does not restore before saving:
-  # appending to the previous run grows the cache without bound, which is what
-  # exhausted the repository quota last time.
+  # no solver-heavy test job runs on push. Restores the newest compatible
+  # snapshot so coverage accumulates, but only publishes when its contents
+  # change to avoid filling the repository quota with duplicate snapshots.
   warm-warp-cache:
     name: "warp-cache-warm"
     runs-on: [self-hosted, gpu]
@@ -958,22 +967,65 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        # MJWarp specializes kernels per model config (@cache_kernel in
-        # mujoco_warp/_src/warp_util.py keys on array sizes; ~250 wp.static uses
-        # feed Warp's module hash), so these span specialization axes rather than
-        # maximize task count: Cartpole (primitives, contact-free, + camera),
-        # Drawer (mesh collision), AnymalD (contact-rich locomotion), Handover
-        # (dexterous, many contacts). Deformable/MPM kernels are not covered;
-        # widen if a test job reports large cache growth.
+        # Warm every supported rigid core environment on Newton. MJWarp
+        # specializes kernels per model config, so a small representative task
+        # set leaves most of the cache to be compiled again by each PR test
+        # shard. The multi-agent suite supplies Handover.
         include-files: >-
-          test_environments.py,
-          test_environments_newton.py
-        # No Soft/Cloth: the deformable envs depend on optional extras the CI
-        # image does not install (Soft needs pytetwild), so they only ever fail.
-        test-k-expr: "Cartpole or Drawer or AnymalD or Handover"
+          test_environments_newton.py,
+          test_multi_agent_environments.py
+        # Deformable tasks need optional dependencies that are not installed in
+        # this image.
+        test-k-expr: "test_environments and not (Soft or Cloth or Cable)"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-warp-cache-warm
         omni-github-test-type: warp-cache-warm
+
+  # Publishes the shared OVRTX shader cache (nv_shadercache PSO blobs) that
+  # rendering test jobs restore. Mirrors warm-warp-cache: runs post-merge so
+  # PR code never publishes a cache that later jobs on main would inherit.
+  warm-ovrtx-cache:
+    name: "ovrtx-cache-warm"
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    continue-on-error: true
+    needs: [build, config]
+    concurrency:
+      group: ovrtx-cache-write-${{ github.ref }}
+      cancel-in-progress: false
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      needs.build.result == 'success'
+    env:
+      PUBLISHES_OVRTX_CACHE: ${{ github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'release/') }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+    - name: Resolve OV runtime pins from pyproject
+      uses: ./.github/actions/resolve-ov-pins
+      id: ov_pins
+    - uses: ./.github/actions/run-package-tests
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        # One combined job covers both sub-trees: Kit cartpole rendering warms
+        # kit/, kitless ovrtx cartpole rendering warms kitless/.
+        filter-pattern: "isaaclab_tasks"
+        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
+        include-files: >-
+          test_rendering_cartpole.py,
+          test_rendering_cartpole_kitless.py
+        # Only the two RTX paths compile PSO blobs: isaacsim_rtx fills kit/ and
+        # ovrtx fills kitless/. newton_warp would exercise the Warp rasterizer,
+        # which populates neither tree.
+        test-k-expr: >-
+          (isaacsim_rtx or ovrtx) and (rgb or depth)
+        ovrtx-shader-cache: ${{ env.PUBLISHES_OVRTX_CACHE == 'true' && 'save' || 'restore' }}
+        container-name: isaac-lab-ovrtx-cache-warm
+        omni-github-test-type: ovrtx-cache-warm
   #endregion
 
 #region disabled quarantined tests

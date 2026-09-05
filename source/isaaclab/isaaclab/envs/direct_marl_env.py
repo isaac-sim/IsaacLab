@@ -9,7 +9,6 @@ import inspect
 import logging
 import math
 import sys
-import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
 from dataclasses import MISSING
@@ -19,16 +18,10 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from isaaclab.utils.version import has_kit
-
-if has_kit():
-    import omni.kit.app
-
 from isaaclab.managers import EventManager
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -87,9 +80,6 @@ class DirectMARLEnv(gym.Env):
 
         # check that the config is valid
         cfg.validate()
-        # Resolve any preset-wrapper fields (PresetCfg subclasses or old-style ``presets`` dicts)
-        # to their default variant so that managers and scene builders see concrete cfg objects.
-        resolve_cfg_presets(cfg)
         # store inputs to class
         self.cfg = cfg
         # store the render mode
@@ -154,7 +144,6 @@ class DirectMARLEnv(gym.Env):
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
                 self._setup_scene()
-                self.scene.initialize_renderers()
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
 
@@ -252,7 +241,8 @@ class DirectMARLEnv(gym.Env):
 
     def __del__(self, _sys=sys):
         """Cleanup for the environment."""
-        if not self._is_closed and not _sys.is_finalizing() and _sys.meta_path is not None:
+        # ``_is_closed`` is missing if ``__init__`` raised before assigning it.
+        if not getattr(self, "_is_closed", True) and not _sys.is_finalizing() and _sys.meta_path is not None:
             self.close()
 
     """
@@ -657,15 +647,10 @@ class DirectMARLEnv(gym.Env):
         if debug_vis:
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                app_interface = omni.kit.app.get_app_interface()
-                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                )
+                self._debug_vis_handle = self.sim.vis_marker_registry.add_debug_vis_callback(self)
         else:
             # remove the subscriber if it exists
-            if self._debug_vis_handle is not None:
-                self._debug_vis_handle.unsubscribe()
-                self._debug_vis_handle = None
+            self.sim.vis_marker_registry.clear_debug_vis_callback(self)
         # return success
         return True
 

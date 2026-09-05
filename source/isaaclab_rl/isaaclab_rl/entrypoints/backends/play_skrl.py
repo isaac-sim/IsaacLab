@@ -32,12 +32,16 @@ from isaaclab_rl.entrypoints.common import (
     create_isaaclab_env,
     pre_launch_video_config,
     preserve_attribute,
+    request_determinism,
     resolve_checkpoint_selector,
     resolve_play_task_name,
     show_run_summary,
     startup_screen,
 )
-from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+from isaaclab_rl.utils.pretrained_checkpoint import (
+    get_pretrained_checkpoint_backend_names,
+    get_published_pretrained_checkpoint,
+)
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
@@ -81,7 +85,7 @@ parser.add_argument(
         "--algorithm is used to determine the default agent configuration entry point."
     ),
 )
-parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
+parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, latest/best, or pretrained.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument(
     "--ml_framework",
@@ -162,6 +166,8 @@ def _main():
             train_task_name = task_name.replace("-Play", "")
 
             env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+            # Warp reads its determinism mode at module build time, so request it before the env exists.
+            request_determinism(args_cli, env_cfg)
             env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
             # configure the ML framework into the global skrl variable
@@ -178,7 +184,8 @@ def _main():
             log_root_path = os.path.abspath(log_root_path)
             print(f"[INFO] Loading experiment from directory: {log_root_path}")
             if args_cli.checkpoint == "pretrained":
-                resume_path = get_published_pretrained_checkpoint("skrl", train_task_name)
+                backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+                resume_path = get_published_pretrained_checkpoint("skrl", train_task_name, *backend_names)
                 if not resume_path:
                     return
             elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
@@ -238,6 +245,7 @@ def _main():
             obs, _ = env.reset()
             states = env.state()
             timestep = 0
+            print("[INFO] Policy playback is running, press Ctrl+C to exit...")
             try:
                 while True:
                     start_time = time.time()
@@ -257,7 +265,7 @@ def _main():
                         video_stop = args_cli.video_length
                         if video_stop is None:
                             recorders = getattr(env_cfg, "video_recorders", [])
-                            video_stop = recorders[0].video_length if recorders else None
+                            video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
                         if video_stop is not None and timestep >= video_stop:
                             break
 
