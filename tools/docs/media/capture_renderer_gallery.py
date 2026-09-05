@@ -79,13 +79,13 @@ def snapshot_camera_tensor(data: Any) -> Any:
 
 
 def depth_display_bounds(data: Any) -> tuple[float, float]:
-    """Return finite frame bounds capped by the gallery depth range."""
+    """Return the minimum and maximum finite depths in a frame."""
     import torch
 
     finite_depth = data[torch.isfinite(data)]
     if finite_depth.numel() == 0:
-        return 2.0, 13.0
-    return min(float(finite_depth.min()), 2.0), min(float(finite_depth.max()), 13.0)
+        raise ValueError("Depth frame does not contain finite samples.")
+    return float(finite_depth.min()), float(finite_depth.max())
 
 
 def motion_vectors_to_image(data: Any) -> Any:

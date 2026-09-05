@@ -17,17 +17,18 @@ from tools.docs.media.capture_renderer_gallery import motion_vectors_to_image, t
     ("depth", "expected"),
     [
         (torch.tensor([[float("nan"), 1.5, 4.0, float("inf")]]), (1.5, 4.0)),
-        (torch.tensor([[4.0, 20.0]]), (2.0, 13.0)),
+        (torch.tensor([[4.0, 20.0]]), (4.0, 20.0)),
     ],
 )
-def test_depth_display_bounds_use_finite_frame_extents_with_gallery_limits(depth, expected):
+def test_depth_display_bounds_use_finite_frame_extents(depth, expected):
     assert capture_renderer_gallery.depth_display_bounds(depth) == expected
 
 
-def test_depth_display_bounds_fall_back_when_frame_has_no_finite_samples():
+def test_depth_display_bounds_reject_frame_with_no_finite_samples():
     depth = torch.tensor([[float("nan"), float("inf")]])
 
-    assert capture_renderer_gallery.depth_display_bounds(depth) == (2.0, 13.0)
+    with pytest.raises(ValueError, match="finite"):
+        capture_renderer_gallery.depth_display_bounds(depth)
 
 
 def test_gallery_capture_requires_explicit_scene_path():
