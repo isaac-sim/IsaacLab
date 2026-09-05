@@ -37,6 +37,7 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}.cartpole_direct_env_cfg:CartpoleEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_direct_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleDirectPPORunnerCfg",
+        "torchrl_cfg_entry_point": f"{agents.__name__}.torchrl_ppo_cfg:CartpoleDirectPPOCfg",
         "default_agent": "rsl_rl",
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_ppo_cfg.yaml",
         "sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
@@ -68,10 +69,9 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}.cartpole_manager_env_cfg:CartpoleEnvCfg",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_manager_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerCfg",
+        "torchrl_cfg_entry_point": f"{agents.__name__}.torchrl_ppo_cfg:CartpolePPOCfg",
         "default_agent": "rsl_rl",
-        "rsl_rl_with_symmetry_cfg_entry_point": (
-            f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerWithSymmetryCfg"
-        ),
+        "rsl_rl_with_symmetry_cfg_entry_point": (f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerWithSymmetryCfg"),
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_manager_ppo_cfg.yaml",
         "sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
     },
@@ -87,9 +87,7 @@ gym.register(
         "rl_games_feature_cfg_entry_point": f"{agents.__name__}:rl_games_manager_feature_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraPPORunnerCfg",
         "default_agent": "rsl_rl",
-        "rsl_rl_feature_cfg_entry_point": (
-            f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraFeaturePPORunnerCfg"
-        ),
+        "rsl_rl_feature_cfg_entry_point": (f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraFeaturePPORunnerCfg"),
         "agent_preset_compatibility": {
             "rl_games_cfg_entry_point": _RAW_CAMERA_PRESETS,
             "rl_games_feature_cfg_entry_point": ("resnet18", "theia_tiny"),

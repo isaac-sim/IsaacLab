@@ -261,6 +261,7 @@ autodoc_mock_imports = [
     "psutil",
     "tqdm",
     "tensordict",
+    "torchrl",
     "trimesh",
     "toml",
     "pink",
