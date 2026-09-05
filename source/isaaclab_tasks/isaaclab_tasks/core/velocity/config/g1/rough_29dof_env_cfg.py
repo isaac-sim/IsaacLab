@@ -181,3 +181,31 @@ class G129DofRoughRealTorqueEnvCfg(G129DofRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         _apply_hardware_efforts(self)
+
+
+_AIR_TIME_WEIGHTS = {"x4": 1.0, "x8": 2.0}
+"""Multiples of the stock ``feet_air_time`` weight of 0.25, bracketing rather than guessing.
+
+``G129DofRoughRealAnkleEnvCfg`` walks in short shuffling steps: ``feet_air_time_positive_biped``
+returns the single-stance duration clamped at its 0.4 s threshold, so the term saturates at 0.1 per
+step under the stock weight, and that policy earns 0.0052 -- about five per cent of what is on
+offer. The term is live; the policy simply is not paid enough to lengthen its stride.
+"""
+
+
+@configclass
+class G129DofRoughRealAnkleAirTime4EnvCfg(G129DofRoughRealAnkleEnvCfg):
+    """The ankle fix plus four times the stock air-time weight."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.feet_air_time.weight = _AIR_TIME_WEIGHTS["x4"]
+
+
+@configclass
+class G129DofRoughRealAnkleAirTime8EnvCfg(G129DofRoughRealAnkleEnvCfg):
+    """The ankle fix plus eight times the stock air-time weight."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.feet_air_time.weight = _AIR_TIME_WEIGHTS["x8"]
