@@ -27,7 +27,7 @@ pytestmark = pytest.mark.unit
 def test_asset_root_environment_override_takes_precedence(monkeypatch):
     """Test the documented Isaac Sim asset-root environment override."""
     monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "/tmp/isaacsim_assets/Assets/Isaac/X.Y/")
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "/tmp/isaacsim_assets/Assets/Isaac/X.Y"
@@ -36,16 +36,16 @@ def test_asset_root_environment_override_takes_precedence(monkeypatch):
 def test_asset_root_falls_back_to_kit_file(monkeypatch):
     """Test kitless asset-root resolution when the environment override is absent."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
-    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
+    monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
 
 
 def test_asset_root_uses_china_storage_profile(monkeypatch):
-    """Test the China storage profile uses the same public bucket root as Isaac Sim."""
+    """Test the China asset region profile uses the same public bucket root as Isaac Sim."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     expected_root = (
@@ -54,16 +54,25 @@ def test_asset_root_uses_china_storage_profile(monkeypatch):
     assert assets_utils._resolve_asset_root() == expected_root
 
 
+def test_asset_root_uses_us_asset_region_profile(monkeypatch):
+    """Test the US asset region profile uses the same public bucket root as Isaac Sim."""
+    monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "us")
+    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+
+    assert assets_utils._resolve_asset_root() == assets_utils._US_ASSET_ROOT
+
+
 def test_asset_root_ignores_unknown_storage_profile(monkeypatch, caplog):
     """Test an unknown profile warns and falls back to the experience file."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "unknown")
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "unknown")
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     with caplog.at_level(logging.WARNING, logger=assets_utils.logger.name):
         assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
 
-    assert "no storage profile named 'unknown'" in caplog.text
+    assert "no asset region profile named 'unknown'" in caplog.text
 
 
 def test_configure_china_storage_profile_once(monkeypatch):
@@ -71,7 +80,7 @@ def test_configure_china_storage_profile_once(monkeypatch):
     import omni.client
 
     calls = []
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
     monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
 
     def configure(**kwargs):
@@ -95,21 +104,9 @@ def test_configure_china_storage_profile_once(monkeypatch):
     ]
 
 
-def test_configure_storage_profile_reports_client_failure(monkeypatch):
-    """Test a rejected OmniClient profile fails before an inaccessible asset is used."""
-    import omni.client
-
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
-    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
-    monkeypatch.setattr(omni.client, "set_s3_configuration", lambda **_kwargs: "rejected")
-
-    with pytest.raises(RuntimeError, match="Storage profile 'china' failed to configure"):
-        assets_utils.configure_storage_profile()
-
-
-def test_configure_storage_profile_is_lazy_without_selection(monkeypatch):
-    """Test the initializer does not import OmniClient when no profile is selected."""
-    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
+def test_configure_us_storage_profile_is_lazy(monkeypatch):
+    """Test the primary profile selects its root without importing OmniClient."""
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "us")
     original_omni_client = sys.modules.pop("omni.client", None)
     try:
         assets_utils.configure_storage_profile()
@@ -117,6 +114,40 @@ def test_configure_storage_profile_is_lazy_without_selection(monkeypatch):
     finally:
         if original_omni_client is not None:
             sys.modules["omni.client"] = original_omni_client
+
+
+def test_configure_storage_profile_reports_client_failure(monkeypatch):
+    """Test a rejected OmniClient profile fails before an inaccessible asset is used."""
+    import omni.client
+
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
+    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
+    monkeypatch.setattr(omni.client, "set_s3_configuration", lambda **_kwargs: "rejected")
+
+    with pytest.raises(RuntimeError, match="Asset region profile 'china' failed to configure"):
+        assets_utils.configure_storage_profile()
+
+
+def test_configure_storage_profile_is_lazy_without_selection(monkeypatch):
+    """Test the initializer does not import OmniClient when no profile is selected."""
+    monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
+    original_omni_client = sys.modules.pop("omni.client", None)
+    try:
+        assets_utils.configure_storage_profile()
+        assert "omni.client" not in sys.modules
+    finally:
+        if original_omni_client is not None:
+            sys.modules["omni.client"] = original_omni_client
+
+
+def test_configure_asset_region_profile_alias(monkeypatch):
+    """Test the public Asset Region Profile initializer forwards to the existing initializer."""
+    calls = []
+    monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: calls.append(True))
+
+    assets_utils.configure_asset_region_profile()
+
+    assert calls == [True]
 
 
 def test_asset_client_applies_storage_profile(monkeypatch):
@@ -141,7 +172,7 @@ def test_asset_root_environment_override_strips_windows_separator(monkeypatch):
 def test_asset_root_ignores_empty_environment_override(monkeypatch):
     """Test an empty override falls back, matching when ``isaacsim.storage.native`` skips it."""
     monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "")
-    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
+    monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
@@ -197,11 +228,11 @@ def test_exported_asset_root_constants_follow_environment_override(monkeypatch):
 
 
 def test_exported_asset_root_constants_follow_china_storage_profile(monkeypatch):
-    """Test kitless asset constants follow the selected China storage profile."""
+    """Test kitless asset constants follow the selected China asset region profile."""
     try:
         with monkeypatch.context() as patched_env:
             patched_env.delenv("ISAACSIM_ASSET_ROOT", raising=False)
-            patched_env.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+            patched_env.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
             module = importlib.reload(assets_utils)
 
             root = f"https://simready-cn.s3.oss-cn-shanghai.aliyuncs.com/Assets/Isaac/{module._ISAAC_SIM_ASSET_RELEASE}"
