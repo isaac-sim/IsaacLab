@@ -478,10 +478,12 @@ def test_replicate_session_clears_queue_when_asset_init_fails(sim):
             cfgs=[],
             num_clones=2,
             env_spacing=1.0,
-        ):
+        ) as session:
+            assert sim.get_clone_plan() is session.plan
             leaked_cfg.cloning_contexts = (sentinel_cls,)
             REPLICATION_QUEUE.append(leaked_cfg)
             raise RuntimeError("asset boom")
 
     assert REPLICATION_QUEUE == []
+    assert sim.get_clone_plan() is None
     sentinel_cls.assert_not_called()

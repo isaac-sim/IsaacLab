@@ -15,7 +15,6 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from pxr import Usd
 
 from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, discover_deformables_on_stage
-from isaaclab.sim.utils.transforms import resolve_prim_pose
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
@@ -120,16 +119,15 @@ def build_visualization_builder_from_stage_envs(
     if not env_paths:
         raise ValueError("clone plan requires at least one environment path")
 
-    env_path_by_id = dict(env_paths)
-
     sources = tuple(clone_plan.sources)
     destinations = tuple(clone_plan.destinations)
     env_ids = clone_plan.env_ids
     mapping = clone_plan.clone_mask
-
-    poses = [resolve_prim_pose(stage.GetPrimAtPath(env_path_by_id[int(env_id)])) for env_id in env_ids]
-    positions = np.asarray([pos for pos, _ in poses], dtype=np.float32)
-    quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
+    if env_ids is None or clone_plan.positions is None:
+        raise ValueError("clone plan requires environment ids and positions for visualization")
+    positions = clone_plan.positions.astype(np.float32, copy=False)
+    quaternions = np.zeros((len(env_ids), 4), dtype=np.float32)
+    quaternions[:, 3] = 1.0
     # Ignore every deformable on the stage for the world import — not only those under
     # clone sources. Otherwise a non-env deformable (e.g. ``/World/Assets/Cloth``) is
     # imported here and added again by ``add_shadow_deformables_to_builder``.

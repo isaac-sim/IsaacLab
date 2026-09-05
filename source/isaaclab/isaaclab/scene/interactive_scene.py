@@ -168,37 +168,41 @@ class InteractiveScene:
         # the template is authoritative; the regex form is the same namespace spelled for matching
         self._env_fmt = self.cloner_cfg.clone_template
         self.env_prim_paths = [self._env_fmt.format(i) for i in range(self.cfg.num_envs)]
-        self._scene_asset_names: list[str] = []
-        self._clone_valid_set: np.ndarray | None = None
-
         self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
 
-        # Always enter so a ClonePlan is published even when the scene cfg has no entities.
         self._global_prim_paths = list()
-        clone_cfgs, global_paths = self._collect_asset_cfgs()
-        with cloner.ReplicateSession(
-            clone_cfgs,
-            num_clones=self.num_envs,
-            env_spacing=self.cfg.env_spacing,
-            global_paths=global_paths,
-            env_template=self._env_fmt,
-            clone_strategy=self.cloner_cfg.clone_strategy,
-            valid_set=self._clone_valid_set,
-            replicate_physics=self.cloner_cfg.replicate_physics,
-        ) as session:
-            self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
-            with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
-                cloner.usd_replicate(
-                    self.stage,
-                    [self.env_prim_paths[0]],
-                    [self._env_fmt],
-                    session.plan.env_ids,
-                    positions=session.plan.positions,
-                )
-            if self._is_scene_setup_from_cfg():
+        asset_cfgs, global_paths, valid_set = self._collect_asset_cfgs()
+        scene_from_cfg = any(
+            name not in InteractiveSceneCfg.__dataclass_fields__ and cfg is not None
+            for name, cfg in self.cfg.__dict__.items()
+        )
+        if scene_from_cfg:
+            with cloner.ReplicateSession(
+                asset_cfgs,
+                num_clones=self.num_envs,
+                env_spacing=self.cfg.env_spacing,
+                global_paths=global_paths,
+                env_template=self._env_fmt,
+                clone_strategy=self.cloner_cfg.clone_strategy,
+                valid_set=valid_set,
+                replicate_physics=self.cloner_cfg.replicate_physics,
+            ) as session:
+                self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
+                with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
+                    cloner.usd_replicate(
+                        self.stage,
+                        [self.env_prim_paths[0]],
+                        [self._env_fmt],
+                        session.plan.env_ids,
+                        positions=session.plan.positions,
+                    )
                 self._add_entities_from_cfg()
-        self._env_origins_plan = session.plan
-        self._env_origins = torch.as_tensor(session.plan.positions, device=self.device)
+            positions = session.plan.positions
+        else:
+            self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
+            positions = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing)[0]
+        self._env_origins = positions
+        self._env_origins_plan = self.sim.get_clone_plan()
 
         # Every sensor exists by now, so all visualizer and camera-renderer requirements are visible.
         cam_types = [s.cfg.renderer_cfg.renderer_type for s in self._sensors.values() if isinstance(s.cfg, CameraCfg)]
@@ -208,20 +212,20 @@ class InteractiveScene:
             self.sim.requires_newton_model |= requires_model
 
         # Collision filtering is PhysX-only (matches both physx and ovphysx).
-        if self.cfg.filter_collisions and "physx" in self.physics_backend and self._is_scene_setup_from_cfg():
+        if self.cfg.filter_collisions and "physx" in self.physics_backend and scene_from_cfg:
             self.filter_collisions(self._global_prim_paths)
 
-    def _collect_asset_cfgs(self) -> tuple[list[Any], tuple[str, ...]]:
+    def _collect_asset_cfgs(self) -> tuple[list[Any], tuple[str, ...], np.ndarray | None]:
         """Flatten user-declared cfgs and declare shared prim roots for clone planning.
 
         Expands :class:`~isaaclab.assets.RigidObjectCollectionCfg` into its members,
         resolves ``{ENV_REGEX_NS}`` macros, lets an enclosing asset's row own nested materials,
-        and returns only env-scoped configs with a spawner. Global roots are returned separately.
+        and returns env-scoped configs with a spawner, global roots, and valid clone combinations.
         """
 
         cfg_fields = InteractiveSceneCfg.__dataclass_fields__
         items = [(name, cfg) for name, cfg in self.cfg.__dict__.items() if name not in cfg_fields and cfg is not None]
-        self._scene_asset_names = [name for name, _ in items]
+        scene_asset_names = [name for name, _ in items]
         flat_items: list[tuple[str, Any]] = []
         for asset_name, asset_cfg in items:
             children = (
@@ -247,7 +251,7 @@ class InteractiveScene:
             and any(cloner.path.relative_to(cfg.prim_path, owner) not in (None, "") for owner in owner_paths)
         }
         nested_material_names = {name for name, cfg in flat_items if id(cfg) in nested_visual_material_ids}
-        self._scene_asset_names = [name for name in self._scene_asset_names if name not in nested_material_names]
+        scene_asset_names = [name for name in scene_asset_names if name not in nested_material_names]
 
         cfgs: list[Any] = []
         global_paths: tuple[str, ...] = ()
@@ -267,15 +271,15 @@ class InteractiveScene:
                 variant_counts.append(cloner.num_spawn_variants(child.spawn))
 
         if self.cloner_cfg.clone_combinations and clone_asset_names:
-            self._clone_valid_set = cloner.make_valid_clone_combinations(
+            valid_set = cloner.make_valid_clone_combinations(
                 clone_asset_names,
                 variant_counts,
                 self.cloner_cfg.clone_combinations,
-                all_asset_names=self._scene_asset_names,
+                all_asset_names=scene_asset_names,
             )
         else:
-            self._clone_valid_set = None
-        return cfgs, global_paths
+            valid_set = None
+        return cfgs, global_paths, valid_set
 
     def filter_collisions(self, global_prim_paths: list[str] | None = None):
         """Filter environments collisions.
@@ -375,17 +379,15 @@ class InteractiveScene:
 
     @property
     def env_origins(self) -> torch.Tensor:
-        """Per-env world origins, shape ``(num_envs, 3)``. From the terrain when registered,
-        else from the published :class:`~isaaclab.cloner.ClonePlan`.
-        """
+        """Per-env world origins, shape ``(num_envs, 3)``."""
         if self._terrain is not None:
             return self._terrain.env_origins
-        plan = self.clone_plan
-        if plan is None or plan.positions is None:
-            raise RuntimeError("Environment origins require a published clone plan with positions.")
-        if plan is not self._env_origins_plan:
-            self._env_origins = torch.as_tensor(plan.positions, device=self.device)
+        plan = self.sim.get_clone_plan()
+        if plan is not None and plan is not self._env_origins_plan:
+            self._env_origins = plan.positions
             self._env_origins_plan = plan
+        if not isinstance(self._env_origins, torch.Tensor):
+            self._env_origins = torch.as_tensor(self._env_origins, device=self.device)
         return self._env_origins
 
     @property
@@ -440,11 +442,12 @@ class InteractiveScene:
 
     @property
     def clone_plan(self) -> cloner.ClonePlan | None:
-        """Clone plan produced by the most recent replication.
+        """Clone plan owned by the active simulation.
 
         Forwards to :meth:`SimulationContext.get_clone_plan`, which is the canonical owner.
         The plan records the source paths, destination templates, and the per-env source
-        assignment mask. ``None`` until :func:`isaaclab.cloner.replicate` has run.
+        assignment mask. Cfg-owned scenes publish it before constructing their entities;
+        direct scenes publish it when their explicit clone lifecycle begins.
         """
         return self.sim.get_clone_plan()
 
@@ -788,17 +791,6 @@ class InteractiveScene:
     """
     Internal methods.
     """
-
-    def _is_scene_setup_from_cfg(self) -> bool:
-        """Check if scene entities are setup from the config or not.
-
-        Returns:
-            True if scene entities are setup from the config, False otherwise.
-        """
-        return any(
-            not (asset_name in InteractiveSceneCfg.__dataclass_fields__ or asset_cfg is None)
-            for asset_name, asset_cfg in self.cfg.__dict__.items()
-        )
 
     def _add_entities_from_cfg(self):  # noqa: C901
         """Add scene entities from the config."""
