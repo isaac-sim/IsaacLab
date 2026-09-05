@@ -367,7 +367,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         articulation = UsdGeom.Xform.Define(stage, path)
         UsdPhysics.ArticulationRootAPI.Apply(articulation.GetPrim())
 
-        body_paths = [f"{path}/base", f"{path}/link"]
+        body_paths = [f"{path}/base", f"{path}/link", f"{path}/reversed_link"]
         for body_path in body_paths:
             body = UsdGeom.Xform.Define(stage, body_path)
             UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
@@ -375,9 +375,12 @@ class TestVisualizationClonePlan(unittest.TestCase):
 
         root_joint = UsdPhysics.FixedJoint.Define(stage, f"{path}/root_joint")
         root_joint.CreateBody1Rel().SetTargets([body_paths[0]])
+        supported_joint = UsdPhysics.RevoluteJoint.Define(stage, f"{path}/supported_joint")
+        supported_joint.CreateBody0Rel().SetTargets([body_paths[0]])
+        supported_joint.CreateBody1Rel().SetTargets([body_paths[1]])
         reversed_joint = UsdPhysics.RevoluteJoint.Define(stage, f"{path}/reversed_joint")
-        reversed_joint.CreateBody0Rel().SetTargets([body_paths[1]])
-        reversed_joint.CreateBody1Rel().SetTargets([body_paths[0]])
+        reversed_joint.CreateBody0Rel().SetTargets([f"{body_paths[2]}/visual"])
+        reversed_joint.CreateBody1Rel().SetTargets([f"{body_paths[0]}/visual"])
 
     def test_visualization_builder_imports_standalone_stage_as_one_world(self):
         stage = Usd.Stage.CreateInMemory()
@@ -403,7 +406,11 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertEqual(shadow_entities, [])
         self.assertEqual(registry_groups, [])
         builder.add_usd.assert_called_once_with(
-            stage, schema_resolvers=["newton", "physx"], ignore_paths=None, skip_mesh_approximation=True
+            stage,
+            schema_resolvers=["newton", "physx"],
+            ignore_paths=None,
+            bodies_follow_joint_ordering=False,
+            skip_mesh_approximation=True,
         )
 
     def test_visualization_builder_imports_reversed_articulation_as_clone_source(self):
@@ -422,12 +429,22 @@ class TestVisualizationClonePlan(unittest.TestCase):
             clone_mask=np.ones((1, 1), dtype=np.bool_),
             env_ids=np.array([0], dtype=np.int64),
         )
+        ignore_paths = visualization_builder_module._reversed_joint_ignore_paths(stage, roots=(robot_path,))
+
+        self.assertEqual(len(ignore_paths), 1)
+        self.assertRegex(f"{robot_path}/reversed_joint", ignore_paths[0])
+        self.assertNotRegex(f"{robot_path}/supported_joint", ignore_paths[0])
 
         builder, _shadow_metadata = visualization_builder_module.build_visualization_builder_from_stage_envs(
             stage, [(0, env_path)], clone_plan
         )
 
-        self.assertEqual(builder.body_label, [f"{robot_path}/base", f"{robot_path}/link"])
+        self.assertEqual(
+            builder.body_label,
+            [f"{robot_path}/base", f"{robot_path}/link", f"{robot_path}/reversed_link"],
+        )
+        self.assertIn(f"{robot_path}/supported_joint", builder.joint_label)
+        self.assertNotIn(f"{robot_path}/reversed_joint", builder.joint_label)
 
     def test_visualization_builder_disables_collision_pairs(self):
         stage = Usd.Stage.CreateInMemory()
