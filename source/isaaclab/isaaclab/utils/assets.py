@@ -54,15 +54,12 @@ _ASSET_REGION_PROFILE_ENV_VAR = "ISAACSIM_ASSET_REGION_PROFILE"
 # Update this value when the China mirror moves to a new Isaac Sim asset release.
 _ISAAC_SIM_ASSET_RELEASE = "6.1"
 _CHINA_ASSET_ENDPOINT = "simready-cn.s3.oss-cn-shanghai.aliyuncs.com"
-_US_ASSET_ROOT = (
-    f"https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/{_ISAAC_SIM_ASSET_RELEASE}"
-)
 
 
 class _StorageProfile(TypedDict):
-    """OmniClient routing and asset-root values for a named asset region profile."""
+    """OmniClient routing and asset-root overrides for a named asset region profile."""
 
-    asset_root: str
+    asset_root: NotRequired[str]
     endpoint: NotRequired[str]
     bucket: NotRequired[str]
     region: NotRequired[str]
@@ -71,9 +68,8 @@ class _StorageProfile(TypedDict):
 
 
 _STORAGE_PROFILES: dict[str, _StorageProfile] = {
-    "us": {
-        "asset_root": _US_ASSET_ROOT,
-    },
+    # The primary profile uses the production root configured by the shipped kit experience.
+    "us": {},
     "china": {
         "endpoint": _CHINA_ASSET_ENDPOINT,
         "bucket": "simready-cn",
@@ -184,9 +180,9 @@ def _resolve_asset_root() -> str:
     """Resolve the configured Isaac asset root.
 
     The ``ISAACSIM_ASSET_ROOT`` environment variable follows the public Isaac Sim
-    asset-root precedence. When it is unset, the asset root from the asset region profile
-    named by ``ISAACSIM_ASSET_REGION_PROFILE`` is used. The kit file remains the fallback
-    for kitless use.
+    asset-root precedence. When it is unset, an asset-root override from the asset region
+    profile named by ``ISAACSIM_ASSET_REGION_PROFILE`` is used. Profiles without an
+    override, including ``us``, use the root from the kit file.
 
     Returns:
         Value of ``ISAACSIM_ASSET_ROOT`` without its trailing separator, or the value
@@ -202,7 +198,9 @@ def _resolve_asset_root() -> str:
 
     selected_profile = _selected_storage_profile()
     if selected_profile is not None:
-        return selected_profile[1]["asset_root"]
+        profile_asset_root = selected_profile[1].get("asset_root")
+        if profile_asset_root:
+            return profile_asset_root
 
     return _parse_kit_asset_root()
 

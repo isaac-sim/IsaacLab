@@ -55,12 +55,12 @@ def test_asset_root_uses_china_storage_profile(monkeypatch):
 
 
 def test_asset_root_uses_us_asset_region_profile(monkeypatch):
-    """Test the US asset region profile uses the same public bucket root as Isaac Sim."""
+    """Test the US asset region profile uses the root from the shipped experience."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
     monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "us")
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
-    assert assets_utils._resolve_asset_root() == assets_utils._US_ASSET_ROOT
+    assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
 
 
 def test_asset_root_ignores_unknown_storage_profile(monkeypatch, caplog):
@@ -182,6 +182,19 @@ def test_kit_experience_path_resolves_to_the_shipped_experience():
     """Test the unpatched experience-file path so a broken relative walk fails here."""
     assert Path(assets_utils._KIT_EXPERIENCE_PATH).is_file()
     assert assets_utils._parse_kit_asset_root()
+
+
+def test_kit_experience_asset_roots_use_production():
+    """Test every shipped experience uses the canonical production asset root."""
+    kit_directory = Path(assets_utils._KIT_EXPERIENCE_PATH).parent
+    production_root = assets_utils._parse_kit_asset_root()
+
+    assert "omniverse-content-production" in production_root
+    for kit_path in kit_directory.glob("*.kit"):
+        kit_config = kit_path.read_text(encoding="utf-8")
+        assert "omniverse-content-staging" not in kit_config
+        for setting in ("default", "cloud", "nvidia"):
+            assert f'persistent.isaac.asset_root.{setting} = "{production_root}"' in kit_config
 
 
 def test_kit_asset_root_prefers_default_setting(tmp_path, monkeypatch):
