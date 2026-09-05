@@ -23,6 +23,7 @@ from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
+from newton.solvers import SolverBase
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.physics import PhysicsManager
@@ -190,6 +191,14 @@ class NewtonCouplerManager(NewtonVBDManager):
         super()._register_builder_attributes(builder)
         for entry in PhysicsManager._cfg.solver_cfg.entries:
             entry.solver_cfg.class_type._register_builder_attributes(builder)
+
+    @classmethod
+    def _registers_builder_attributes_from_solver(cls, solver_cls: type[SolverBase]) -> bool:
+        """Return whether the manager or a configured nested entry registers ``solver_cls`` attributes."""
+        return super()._registers_builder_attributes_from_solver(solver_cls) or any(
+            entry.solver_cfg.class_type._registers_builder_attributes_from_solver(solver_cls)
+            for entry in PhysicsManager._cfg.solver_cfg.entries
+        )
 
     @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:

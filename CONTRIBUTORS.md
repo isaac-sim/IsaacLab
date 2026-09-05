@@ -153,6 +153,7 @@ Guidelines for modifications:
 * Muhong Guo
 * Narendra Dahile
 * Neel Anand Jawale
+* NeoZng
 * Nicola Loi
 * Nicholas Blauch
 * Nicolas Moenne-Loccoz
