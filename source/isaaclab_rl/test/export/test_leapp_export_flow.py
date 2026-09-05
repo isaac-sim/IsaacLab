@@ -260,7 +260,7 @@ def _assert_leapp_artifacts(export_root: Path, task_name: str) -> None:
 
     env_path = export_dir / "env.yaml"
     assert env_path.is_file(), f"Missing env.yaml in {export_dir}"
-    env = yaml.safe_load(env_path.read_text(encoding="utf-8"))
+    env = yaml.full_load(env_path.read_text(encoding="utf-8"))
     assert policy_frequency == pytest.approx(1.0 / (env["sim"]["dt"] * env["decimation"]))
 
 

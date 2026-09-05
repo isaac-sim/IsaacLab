@@ -196,7 +196,7 @@ def test_direct_env_export_flow():
     with open(yaml_path, encoding="utf-8") as stream:
         graph = yaml.safe_load(stream)
     with open(env_yaml_path, encoding="utf-8") as stream:
-        env = yaml.safe_load(stream)
+        env = yaml.full_load(stream)
     assert graph["pipeline"]["configs"]["frequency"] == pytest.approx(1.0 / (env["sim"]["dt"] * env["decimation"]))
 
 
