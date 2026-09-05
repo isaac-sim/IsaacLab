@@ -535,3 +535,51 @@ def test_setup_preset_cli_auto_selects_agent_when_default_absent(monkeypatch):
     argv = ["--task", "IsaacContrib-Humanoid-AMP-Walk-Direct"]
     args, _ = setup_preset_cli(parser, argv, agent_library="skrl")
     assert args.agent == "skrl_amp_cfg_entry_point"
+
+
+def _make_agent_parser(default: str) -> argparse.ArgumentParser:
+    """Mimic an entrypoint parser that gives ``--agent`` a non-``None`` default."""
+    parser = _make_parser()
+    parser.add_argument("--agent", type=str, default=default)
+    return parser
+
+
+def test_setup_preset_cli_auto_selects_agent_over_non_none_default(monkeypatch):
+    """A feature preset overrides the entrypoint's canonical ``--agent`` default.
+
+    ``rsl_rl``/``rl_games``/``sb3`` entrypoints register ``--agent`` with a
+    non-``None`` default, so auto-selection has to distinguish that default from
+    a user-typed value. Without that distinction ``presets=resnet18`` keeps the
+    raw-camera entry point and the runner fails to construct.
+    """
+    import isaaclab_tasks  # noqa: F401
+
+    monkeypatch.setattr("sys.argv", ["train.py", "--task", "Isaac-Cartpole-Camera"])
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+
+    parser = _make_agent_parser("rsl_rl_cfg_entry_point")
+    argv = ["--task", "Isaac-Cartpole-Camera", "presets=resnet18"]
+    args, _ = setup_preset_cli(parser, argv, agent_library="rsl_rl")
+    assert args.agent == "rsl_rl_feature_cfg_entry_point"
+
+
+@pytest.mark.parametrize(
+    "agent_tokens",
+    [["--agent", "rsl_rl_cfg_entry_point"], ["--agent=rsl_rl_cfg_entry_point"], ["--age", "rsl_rl_cfg_entry_point"]],
+    ids=["separate", "equals", "abbreviated"],
+)
+def test_setup_preset_cli_keeps_explicit_agent_over_preset(monkeypatch, agent_tokens):
+    """An explicitly typed ``--agent`` wins over preset-based auto-selection.
+
+    Covers every spelling argparse accepts for the flag, since explicitness is
+    determined by re-parsing rather than by scanning argv for a literal token.
+    """
+    import isaaclab_tasks  # noqa: F401
+
+    monkeypatch.setattr("sys.argv", ["train.py", "--task", "Isaac-Cartpole-Camera"])
+    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+
+    parser = _make_agent_parser("rsl_rl_cfg_entry_point")
+    argv = ["--task", "Isaac-Cartpole-Camera", *agent_tokens, "presets=resnet18"]
+    args, _ = setup_preset_cli(parser, argv, agent_library="rsl_rl")
+    assert args.agent == "rsl_rl_cfg_entry_point"

@@ -86,7 +86,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     )
     add_launcher_args(parser)
 
-    args, remaining = setup_preset_cli(parser, argv)
+    args, remaining = setup_preset_cli(parser, argv, agent_library="rsl_rl")
     _common.enable_cameras_for_video(args)
     sys.argv = [sys.argv[0]] + remaining
     return args, remaining

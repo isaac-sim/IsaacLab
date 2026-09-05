@@ -92,7 +92,8 @@ def setup_preset_cli(
             triggers ``--help`` rendering.
         agent_library: Optional RL-library prefix. When provided, task-specific
             help lists registered ``--agent`` values and declared preset
-            compatibility.
+            compatibility, and ``args.agent`` is auto-selected from the active
+            presets unless the user typed ``--agent`` explicitly.
 
     Returns:
         ``(args, remaining)`` where ``remaining`` is the verbatim output of
@@ -136,7 +137,7 @@ def setup_preset_cli(
     args, remaining = parser.parse_known_args(args_to_parse)
 
     task_name = getattr(args, "task", None) or argv_helper.task_name
-    if agent_library and getattr(args, "agent", None) is None and task_name:
+    if agent_library and task_name and hasattr(args, "agent") and not _agent_passed_explicitly(parser, args_to_parse):
         _auto_select_agent(args, task_name, agent_library, args_to_parse)
 
     return args, remaining
@@ -313,6 +314,35 @@ class _AgentDescriptionBuilder:
 # ============================================================================
 
 
+_AGENT_UNSET = object()
+"""Sentinel seeded onto a probe namespace to detect a user-typed ``--agent``."""
+
+
+def _agent_passed_explicitly(parser: argparse.ArgumentParser, argv: list[str]) -> bool:
+    """Return whether *argv* carries a user-typed ``--agent`` value.
+
+    Entry-point parsers register ``--agent`` with a non-``None`` default (e.g.
+    ``rsl_rl_cfg_entry_point``), so the parsed value alone cannot tell an
+    explicit choice from a default-supplied one. Re-parsing into a namespace
+    pre-seeded with a sentinel answers that: argparse only applies a default for
+    a destination the namespace does not already carry, so the sentinel survives
+    unless the user actually typed the flag. Delegating to argparse keeps
+    abbreviations (``--age``) and ``--agent=VALUE`` handled the same way the real
+    parse handles them.
+
+    Args:
+        parser: Parser that already parsed *argv* successfully.
+        argv: Argument list handed to ``parse_known_args``.
+
+    Returns:
+        ``True`` when the user typed ``--agent``, ``False`` when the parsed value
+        came from the argument's default.
+    """
+    probe = argparse.Namespace(agent=_AGENT_UNSET)
+    parser.parse_known_args(argv, namespace=probe)
+    return probe.agent is not _AGENT_UNSET
+
+
 def _auto_select_agent(
     args: argparse.Namespace,
     task_name: str,
@@ -333,7 +363,9 @@ def _auto_select_agent(
        This handles tasks such as ``IsaacContrib-Humanoid-AMP-*`` that only
        support a non-default algorithm (AMP) and never register the PPO default.
 
-    Does nothing when the match is absent or ambiguous.
+    Leaves ``args.agent`` untouched when the match is absent or ambiguous, so
+    the caller's default stands. Callers must skip this when the user typed
+    ``--agent`` explicitly; see :func:`_agent_passed_explicitly`.
 
     Args:
         args: Parsed namespace to update in-place.
@@ -341,9 +373,6 @@ def _auto_select_agent(
         agent_library: RL-library prefix (e.g. ``"skrl"``).
         argv: Raw argument list scanned for ``presets=`` tokens.
     """
-    if getattr(args, "agent", None) is not None:
-        return
-
     active_presets: set[str] = set()
     for token in argv:
         if token.startswith("presets="):
