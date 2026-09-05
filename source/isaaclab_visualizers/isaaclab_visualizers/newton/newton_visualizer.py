@@ -1253,8 +1253,10 @@ class NewtonVisualizer(BaseVisualizer):
     def _release_viewer(self) -> None:
         """Close the viewer this visualizer owns and drop the reference to it.
 
-        The visualizer owns the viewer it creates, and the viewer owns GPU
-        resources that its backend releases in a fixed order:
+        The visualizer owns the viewer it creates. Before closing it, the
+        stable picking callback is neutralized so it cannot retain or call the
+        viewer after release. The viewer owns GPU resources that its backend
+        releases in a fixed order:
         ``ViewerRTX.close()`` waits on the in-flight render, drops the retained
         step results, unbinds the transform attribute binding and only then
         releases the ``ovrtx.Renderer``.  Dropping the reference without
@@ -1264,13 +1266,17 @@ class NewtonVisualizer(BaseVisualizer):
 
         The reference is cleared in a ``finally`` block so an unusable viewer
         is never retained, while the teardown failure itself still reaches the
-        caller.  ``ViewerBase.close()`` is a no-op, so the non-RTX backends are
-        unaffected.
+        caller. Concrete Newton viewer backends also use ``close()`` to release
+        their own resources.
         """
         viewer = self._viewer
         if viewer is None:
             return
         try:
+            if self._picking_enabled:
+                # Keep the stable callback registered: captured graphs replay
+                # its now-neutral device inputs without retaining the viewer.
+                self._viewer_picking_binding.deactivate()
             viewer.close()
         finally:
             self._viewer = None
@@ -1279,10 +1285,6 @@ class NewtonVisualizer(BaseVisualizer):
         """Release viewer resources."""
         if self._is_closed:
             return
-        if self._picking_enabled:
-            # Keep the stable callback registered: captured graphs replay its
-            # now-neutral device inputs without retaining the viewer.
-            self._viewer_picking_binding.deactivate()
         try:
             self._release_viewer()
         finally:

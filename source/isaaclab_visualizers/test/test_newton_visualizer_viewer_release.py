@@ -38,6 +38,8 @@ class _SpyViewer:
     def __init__(self, raises: bool = False) -> None:
         self.close_calls = 0
         self.referenced_by_owner_at_close: list[bool] = []
+        self.referenced_by_picking_at_close: list[bool] = []
+        self.apply_forces_calls = 0
         self.owner: NewtonVisualizer | None = None
         self._raises = raises
 
@@ -46,8 +48,14 @@ class _SpyViewer:
         # Record whether the visualizer still pointed at us while we were being
         # closed.  The reference must outlive the teardown call.
         self.referenced_by_owner_at_close.append(getattr(self.owner, "_viewer", None) is self)
+        binding = getattr(self.owner, "_viewer_picking_binding", None)
+        self.referenced_by_picking_at_close.append(getattr(binding, "_viewer", None) is self)
         if self._raises:
             raise RuntimeError("Failed to create window")
+
+    def apply_forces(self, _state: object) -> None:
+        """Record a picking callback reaching this viewer."""
+        self.apply_forces_calls += 1
 
 
 def _make_visualizer(viewer: _SpyViewer | None) -> NewtonVisualizer:
@@ -60,6 +68,7 @@ def _make_visualizer(viewer: _SpyViewer | None) -> NewtonVisualizer:
     visualizer = object.__new__(NewtonVisualizer)
     visualizer._is_closed = False
     visualizer._picking_enabled = False
+    visualizer._viewer_picking_binding = NewtonVisualizer._ViewerPickingBinding()
     visualizer._viewer = viewer
     visualizer._camera_sensor = None
     visualizer._camera_is_owned = False
@@ -193,6 +202,8 @@ def test_step_failure_releases_the_viewer(monkeypatch: pytest.MonkeyPatch) -> No
     """
     viewer = _SpyViewer()
     visualizer = _make_visualizer(viewer)
+    visualizer._picking_enabled = True
+    visualizer._viewer_picking_binding.bind(viewer)  # type: ignore[arg-type]
     _arm_for_step_failure(visualizer, viewer)
     monkeypatch.setattr(newton_visualizer.NewtonManager, "get_num_envs", staticmethod(lambda: 1), raising=False)
 
@@ -200,7 +211,13 @@ def test_step_failure_releases_the_viewer(monkeypatch: pytest.MonkeyPatch) -> No
 
     assert viewer.close_calls == 1
     assert viewer.referenced_by_owner_at_close == [True]
+    assert viewer.referenced_by_picking_at_close == [False]
     assert visualizer._viewer is None
+
+    # The callback remains registered with NewtonManager for CUDA graph
+    # stability, but it must be inert after the viewer is released.
+    visualizer._viewer_picking_binding.apply(None)  # type: ignore[arg-type]
+    assert viewer.apply_forces_calls == 0
 
 
 def test_step_contains_a_failing_viewer_teardown(monkeypatch: pytest.MonkeyPatch) -> None:
