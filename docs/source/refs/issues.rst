@@ -65,8 +65,9 @@ Newton backends
 OpenUSD can crash while parsing collider-rich rigid bodies
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Affects:** Newton backends when using OpenUSD releases earlier than 26.05
-(``usd-core<26.5``).
+**Affects:** Kitless Newton workflows using OpenUSD releases earlier than 26.05
+(``usd-core<26.5``). Isaac Sim workflows are not affected because the bundled OpenUSD
+contains the upstream fix.
 
 Older OpenUSD releases have a thread-safety issue in
 ``UsdPhysics.LoadUsdPhysicsFromRange`` when multiple colliders belong to the same rigid body.
@@ -93,20 +94,9 @@ module initializes:
          $env:PXR_WORK_THREAD_LIMIT = "1"
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka physics=newton_mjwarp
 
-For a script that launches Omniverse Kit, pass the equivalent limit through
-:class:`~isaaclab.app.AppLauncher`. Some Isaac Sim releases set the OpenUSD thread limit while
-Kit starts, which can override a value inherited from the shell:
-
-.. code-block:: python
-
-   from isaaclab.app import AppLauncher
-
-   app_launcher = AppLauncher(headless=True, limit_cpu_threads=1)
-   simulation_app = app_launcher.app
-
-Create the launcher before importing other modules that may initialize OpenUSD. Limiting the
-worker pool can reduce CPU-side performance, so use this workaround only with affected OpenUSD
-releases.
+This environment variable limits OpenUSD's process-wide worker pool to one thread and can reduce
+USD import performance. Use it only with affected kitless OpenUSD releases, and remove it after
+upgrading to ``usd-core>=26.5``.
 
 .. _known-issues-closed-loop-newton:
 
