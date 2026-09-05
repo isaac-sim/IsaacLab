@@ -10,30 +10,9 @@ human-facing, interactive views for inspection, debugging, and recording. Isaac 
 pluggable renderer architecture. All implementations follow the interface defined by
 :class:`~isaaclab.renderers.BaseRenderer`.
 
-Isaac Lab supports three rendering backends:
-
-- **Isaac RTX renderer** (``IsaacRtxRendererCfg``)
-
-  - Runs NVIDIA's Omniverse RTX rendering pipeline inside Isaac Sim and pairs with PhysX.
-  - Provides RTX Minimal and photo-real rendering, plus the broadest camera-output coverage.
-  - Best for full RTX fidelity and workflows that already depend on Isaac Sim or Kit.
-
-- **OVRTX renderer** (``OVRTXRendererCfg``)
-
-  - Provides kit-less RTX rendering through the ``isaaclab_ov`` extension and pairs with Newton.
-  - Provides RTX Minimal and photo-real rendering with geometry, motion, and label outputs.
-  - Best for RTX image quality without running Isaac Sim.
-
-- **Newton Warp renderer** (``NewtonWarpRendererCfg``)
-
-  - Provides lightweight, kit-less rasterization built on NVIDIA Warp and pairs with Newton.
-  - Produces RGB, albedo, depth, normals, and label outputs, but not motion vectors or RTX material
-    transport.
-  - Best for training workflows where throughput matters more than full RTX fidelity. Its focused
-    raster pipeline exposes fewer ground-truth outputs than the RTX renderers, which integrate a
-    broader set of RTX and annotator capabilities.
-
-See :ref:`camera-supported-annotators` for the output-by-backend support matrix.
+Isaac Lab supports three rendering backends. The table below summarizes their runtime requirements
+and primary use cases. See :ref:`renderer-details` for their execution models, output coverage,
+and limitations, and :ref:`camera-supported-annotators` for the output-by-backend support matrix.
 
 Choosing a renderer backend
 ----------------------------
@@ -68,6 +47,41 @@ readable here; camera sensors still return their documented raw tensors. Closely
 and distance or ID variants are omitted because they do not add a visually distinct mode.
 
 .. include:: _renderer_gallery.rst
+
+.. _renderer-details:
+
+Renderer details
+----------------
+
+Open a renderer below for its execution model, output coverage, limitations, and typical use case.
+The gallery above remains a visual comparison; the camera support matrix is the authoritative
+output-by-backend reference.
+
+.. dropdown:: Newton Warp renderer
+
+   - **Runtime and physics:** A lightweight, kit-less rasterizer built on NVIDIA Warp and paired
+     with Newton physics.
+   - **Output coverage:** Produces RGB, albedo, depth, normals, semantic segmentation, and instance
+     segmentation. It does not produce motion vectors or RTX material transport. Its focused
+     raster pipeline exposes fewer ground-truth outputs than the RTX renderers, which integrate
+     broader RTX and annotator capabilities.
+   - **Best for:** Training workflows where throughput matters more than full RTX fidelity.
+
+.. dropdown:: OVRTX renderer
+
+   - **Runtime and physics:** Provides kit-less RTX rendering through the ``isaaclab_ov`` extension
+     and pairs with Newton physics.
+   - **Output coverage:** Provides RTX Minimal and photo-real rendering with geometry, motion, and
+     label outputs.
+   - **Best for:** RTX image quality without running Isaac Sim.
+
+.. dropdown:: Isaac RTX renderer
+
+   - **Runtime and physics:** Runs NVIDIA's Omniverse RTX rendering pipeline inside Isaac Sim and
+     pairs with PhysX.
+   - **Output coverage:** Provides RTX Minimal and photo-real rendering, plus the broadest
+     camera-output coverage.
+   - **Best for:** Full RTX fidelity and workflows that already depend on Isaac Sim or Kit.
 
 Choosing a rendering capability
 --------------------------------
