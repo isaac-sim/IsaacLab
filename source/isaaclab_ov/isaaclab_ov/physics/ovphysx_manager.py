@@ -421,6 +421,10 @@ class OvPhysxManager(PhysicsManager):
     _pending_clones: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
+    # Gravity currently applied to the running scene [m/s^2]. Seeded from ``SimulationCfg.gravity``
+    # in :meth:`initialize` and refreshed by :meth:`set_gravity`. ``cfg.gravity`` stays the nominal
+    # value that randomization terms resample from, so live updates must not be written back to it.
+    _gravity: ClassVar[tuple[float, float, float] | None] = None
 
     @classmethod
     def get_dt(cls) -> float:
@@ -527,6 +531,7 @@ class OvPhysxManager(PhysicsManager):
         super().initialize(sim_context)
         sim_context.get_or_create_backend(cls.clone_context_type, sim_context)
         cls._ensure_physx_schemas_registered()
+        cls._gravity = tuple(sim_context.cfg.gravity)
         cls._warmup_done = False
         cls._requires_full_stage = False
         cls._stage_usda = None
@@ -737,17 +742,20 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def get_gravity(cls) -> tuple[float, float, float]:
-        """Return the world-frame gravity vector [m/s^2] from the active simulation cfg.
+        """Return the world-frame gravity vector [m/s^2] currently applied to the scene.
 
         Mirrors PhysX's ``SimulationView.get_gravity()`` so backend-agnostic sensor code
-        can read gravity through one classmethod.
+        can read gravity through one classmethod. The value tracks :meth:`set_gravity`,
+        falling back to the simulation cfg until the first live update.
 
         Raises:
             RuntimeError: If no simulation is active. Call :meth:`initialize` first.
         """
         if cls._sim is None or not hasattr(cls._sim, "cfg"):
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
-        return cls._sim.cfg.gravity
+        if cls._gravity is None:
+            return tuple(cls._sim.cfg.gravity)
+        return cls._gravity
 
     @classmethod
     def set_gravity(cls, gravity: tuple[float, float, float]) -> None:
@@ -793,6 +801,10 @@ class OvPhysxManager(PhysicsManager):
             ).wait()
             cls._ovstage.advance_write_floor(ordinal=ordinal).wait()
             cls._physx.update_from_ovstage(ordinal, ordinal)
+
+        # Only publish once the ordinal has been applied, so a failed write leaves
+        # :meth:`get_gravity` reporting the gravity the scene is still running with.
+        cls._gravity = (float(gravity_array[0]), float(gravity_array[1]), float(gravity_array[2]))
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:
