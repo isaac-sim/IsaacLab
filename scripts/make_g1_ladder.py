@@ -18,9 +18,13 @@ answers "after which change does it behave like the old robot" directly.
     a3_limits     leg joint limits taken from the old asset
     a4_masses     shared link masses, centres of mass and inertias taken from the old asset
     a5_origins    leg joint origins taken from the old asset
+    a6_lockjoints the six degrees of freedom the old robot does not have, pinned shut
 
-What no override can reach is the joint count, 43 against 37. The old asset itself is the reference
-arm for that.
+The joint *count* is the one difference an override cannot remove -- a1..a5 leave it at 43 against
+37. Rung a6 gets at it the only way a layer can: it clamps the six extra joints to a range of
+nothing, so the robot is kinematically equivalent to the old one while still presenting 43 joints
+to the policy. ``waist_yaw``, ``elbow`` and ``wrist_roll`` are *not* among them -- they are the old
+``torso_joint``, ``elbow_pitch`` and ``elbow_roll`` under new names.
 
 Every value is read out of the two stages rather than hard-coded, so the layers cannot drift from
 the assets they describe. Composing ``a5`` and diffing it against the old asset should leave the
@@ -38,6 +42,19 @@ from pxr import Gf, Usd, UsdGeom, UsdPhysics
 _LEG_KEYS = ("hip_pitch", "hip_roll", "hip_yaw", "knee", "ankle_pitch", "ankle_roll")
 _TRIM_LINKS = ("pelvis", "left_knee_link", "right_knee_link", "left_wrist_yaw_link", "right_wrist_yaw_link")
 _TRIM_FINGERS = ("palm", "thumb_0", "thumb_1", "thumb_2", "index_0", "index_1", "middle_0", "middle_1")
+
+_EXTRA_JOINTS = (
+    "waist_roll_joint",
+    "waist_pitch_joint",
+    "left_wrist_pitch_joint",
+    "left_wrist_yaw_joint",
+    "right_wrist_pitch_joint",
+    "right_wrist_yaw_joint",
+)
+"""The six degrees of freedom the 43-joint robot has and the 37-joint one does not."""
+
+_LOCK_DEG = 0.1
+"""Half-range left on a pinned joint [deg]. Exactly zero makes for a degenerate limit pair."""
 
 Body = Callable[[int], str]
 """An override body, rendered at the indent its prim ends up at."""
@@ -238,6 +255,17 @@ def build(old_path: str, new_path: str, base_ref: str, out_dir: str) -> list[str
         if entries:
             origins.add(parts, _lines(*entries))
     rungs.append(("a5_origins", origins, "leg joint origins from the old asset"))
+
+    locked = Tree()
+    for name in _EXTRA_JOINTS:
+        parts = _path_parts(new, name)
+        if parts is None:
+            continue
+        locked.add(
+            parts,
+            _lines(f"float physics:lowerLimit = {-_LOCK_DEG:.9g}", f"float physics:upperLimit = {_LOCK_DEG:.9g}"),
+        )
+    rungs.append(("a6_lockjoints", locked, "the six extra degrees of freedom pinned shut"))
 
     os.makedirs(out_dir, exist_ok=True)
     written: list[str] = []
