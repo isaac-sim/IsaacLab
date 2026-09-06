@@ -1,0 +1,4 @@
+Test-only change: consolidated the installation CI suite so each environment build carries
+every assertion for its install path (system-Python install now uses ``-i core``, the conda
+core checks ride on the training env, one uv ``-i core`` env, camera probes run once on the
+wheel path, RL-extras wheel checks join the wheel-builder smoke). No user-visible change.
