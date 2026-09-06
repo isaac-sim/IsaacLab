@@ -64,6 +64,13 @@ def test_make_clone_plan_routes_default_and_explicit_contexts(monkeypatch):
 
     cfg.cloning_contexts = (Explicit,)
     assert make_clone_plan((cfg,), 2, 1.0).context_rows == {Explicit: (0,)}
+
+
+def test_make_clone_plan_routes_global_only_plan_to_physics(monkeypatch):
+    """A native physics context receives global roots even when no clone rows exist."""
+    simulation = SimpleNamespace(physics_manager=SimpleNamespace(clone_context_type=_Context))
+    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
+
     empty = make_clone_plan((), 2, 1.0, global_paths=("/World/Ground",))
     assert empty.context_rows == {_Context: ()}
     assert empty.global_paths == ("/World/Ground",)

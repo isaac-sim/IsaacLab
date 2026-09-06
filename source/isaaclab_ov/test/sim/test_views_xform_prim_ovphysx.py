@@ -10,8 +10,7 @@ Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
 
 from __future__ import annotations
 
-from dataclasses import replace
-
+import numpy as np
 import pytest
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
@@ -70,16 +69,19 @@ def test_world_attached_source_prim_expands_from_clone_plan():
     ) as sim:
         sim._app_control_on_stop_handle = None
         scene = InteractiveScene(InteractiveSceneCfg(num_envs=4, env_spacing=2.0))
+        target_env_ids = (0, 5, 2, 9)
+        plan = cloner.ClonePlan(
+            sources=("/World/envs/env_0",),
+            destinations=("/World/envs/env_{}",),
+            clone_mask=np.ones((1, scene.num_envs), dtype=np.bool_),
+            env_ids=np.asarray(target_env_ids, dtype=np.int64),
+            positions=cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing)[0],
+        )
+        sim.set_clone_plan(plan)
         stage = sim_utils.get_current_stage()
         prim = stage.DefinePrim("/World/envs/env_0/WorldCamera", "Xform")
         sim_utils.standardize_xform_ops(prim)
         prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.25, -0.5, 1.0))
-        positions = cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing)[0]
-        plan = cloner.clone_plan_from_env_0("/World/envs/env_0", "/World/envs/env_{}", scene.num_envs, positions)
-        target_env_ids = (0, 5, 2, 9)
-        env_ids = plan.env_ids.copy()
-        env_ids[:] = target_env_ids
-        plan = replace(plan, env_ids=env_ids)
         cloner.replicate(plan)
         sim.reset()
 

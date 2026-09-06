@@ -473,7 +473,8 @@ def test_clone_plan_from_env_0_rejects_cfg_tree_inputs(sim, nested):
 
 
 def test_clone_plan_from_env_0_rejects_multi_variant_spawner_atomically(sim):
-    """Heterogeneous spawners use make_clone_plan and remain untouched on rejection."""
+    """Heterogeneous spawners remain untouched when the homogeneous helper rejects them."""
+    valid_cfg = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot", spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)))
     cfg = SimpleNamespace(
         prim_path="{ENV_REGEX_NS}/Object",
         spawn=sim_utils.MultiAssetSpawnerCfg(
@@ -481,7 +482,9 @@ def test_clone_plan_from_env_0_rejects_multi_variant_spawner_atomically(sim):
         ),
     )
     with pytest.raises(ValueError, match="single-variant"):
-        cloner.clone_plan_from_env_0(cloner.CloneCfg(), (cfg,), 2, 1.0)
+        cloner.clone_plan_from_env_0(cloner.CloneCfg(), (valid_cfg, cfg), 2, 1.0)
+    assert valid_cfg.prim_path == "{ENV_REGEX_NS}/Robot"
+    assert valid_cfg.spawn.spawn_path is None
     assert cfg.prim_path == "{ENV_REGEX_NS}/Object"
     assert cfg.spawn.spawn_paths is None
     assert sim.get_clone_plan() is None

@@ -274,12 +274,13 @@ homogeneous :class:`~isaaclab.envs.DirectRLEnv` subclasses:
         self.cfg.ground_cfg.spawn.func(self.cfg.ground_cfg.spawn.spawn_path, self.cfg.ground_cfg.spawn)
         self.cfg.light_cfg.spawn.func(self.cfg.light_cfg.spawn.spawn_path, self.cfg.light_cfg.spawn)
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
+        self.scene.articulations["cartpole"] = self.cartpole
 
-Every env receives the same prototype. When envs need to differ, declare their
-assets on :class:`~isaaclab.scene.InteractiveSceneCfg` so the scene owns the
-session-backed lifecycle. The tuple is deliberately flat: the cloner does not
-inspect a task or scene cfg tree, and ``None`` is allowed for an optional
-declared participant.
+Every env receives the same prototype. When envs need to differ, use
+:class:`~isaaclab.cloner.ReplicateSession` directly or declare their assets on
+:class:`~isaaclab.scene.InteractiveSceneCfg` so the scene owns that lifecycle.
+The tuple is deliberately flat: the cloner does not inspect a task or scene cfg
+tree, and ``None`` is allowed for an optional declared participant.
 
 
 Under the Hood
@@ -312,7 +313,7 @@ execution contract:
     for context_type in plan.context_rows:
         simulation_backends[context_type].replicate(plan)
 
-Every cfg-first lifecycle publishes before ``construct_prototypes()``. The
+Every maintained lifecycle publishes its plan before asset construction. The
 simulation accepts one plan and each backend receives that exact object.
 
 USD runs before native physics contexts so the destination topology exists when

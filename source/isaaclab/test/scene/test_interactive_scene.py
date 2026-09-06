@@ -232,13 +232,14 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
             spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
             cloning_contexts=(cloner.UsdReplicateContext,),
         )
-        plan = cloner.clone_plan_from_env_0(scene.cfg.clone_cfg, (cube_cfg,), 4, 1.0)
+        positions = grid_positions + np.asarray((0.25, 0.5, 0.75), dtype=np.float32)
+        plan = cloner.clone_plan_from_env_0(scene.cfg.clone_cfg, (cube_cfg,), 4, 1.0, positions=positions)
         cube_cfg.class_type(cube_cfg)
         cloner.replicate(plan)
 
         assert sim.get_clone_plan() is plan
         assert all(scene.stage.GetPrimAtPath(f"{env_template.format(i)}/Cube").IsValid() for i in range(4))
-        torch.testing.assert_close(scene.env_origins, torch.from_numpy(plan.positions))
+        torch.testing.assert_close(scene.env_origins, torch.from_numpy(positions))
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])

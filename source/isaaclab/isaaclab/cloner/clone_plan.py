@@ -416,9 +416,11 @@ def make_clone_plan(
 
 def clone_plan_from_env_0(
     clone_cfg: CloneCfg,
-    asset_cfgs: Iterable[Any],
+    asset_cfgs: Iterable[object | None],
     num_envs: int,
     env_spacing: float,
+    *,
+    positions: np.ndarray | None = None,
 ) -> ClonePlan:
     """Build and publish one homogeneous plan from explicit asset configurations.
 
@@ -432,6 +434,8 @@ def clone_plan_from_env_0(
         asset_cfgs: Flat sequence of prim-authoring configurations. ``None`` entries are skipped.
         num_envs: Number of target environments.
         env_spacing: Distance between neighboring environment origins [m].
+        positions: Optional per-environment world positions [m], shape ``[num_envs, 3]``.
+            ``None`` uses a centered grid with ``env_spacing``.
 
     Returns:
         The published :class:`ClonePlan`, with one source row covering every environment.
@@ -445,7 +449,7 @@ def clone_plan_from_env_0(
     if not isinstance(clone_cfg, CloneCfg):
         raise TypeError(f"clone_cfg must be CloneCfg, got {type(clone_cfg).__name__}.")
     if clone_cfg.clone_combinations:
-        raise ValueError("clone_plan_from_env_0 only supports homogeneous cloning; use make_clone_plan instead.")
+        raise ValueError("clone_plan_from_env_0 requires a homogeneous CloneCfg.")
     sim = sim_utils.SimulationContext.instance()
     if sim is None:
         raise RuntimeError("Clone planning requires an active SimulationContext.")
@@ -453,9 +457,10 @@ def clone_plan_from_env_0(
         raise RuntimeError("A SimulationContext owns exactly one clone lifecycle.")
 
     records: list[tuple[Any, str, TemplateMatch | None, sim_utils.SpawnerCfg | None]] = []
-    for cfg in asset_cfgs:
-        if cfg is None:
+    for asset_cfg in asset_cfgs:
+        if asset_cfg is None:
             continue
+        cfg: Any = asset_cfg
         try:
             fields = vars(cfg)
         except TypeError as error:
@@ -470,7 +475,7 @@ def clone_plan_from_env_0(
         if spawn is not None and not isinstance(spawn, sim_utils.SpawnerCfg):
             raise TypeError(f"{type(cfg).__name__}.spawn must be a SpawnerCfg or None.")
         if spawn is not None and num_spawn_variants(spawn) != 1:
-            raise ValueError("clone_plan_from_env_0 requires single-variant spawners; use make_clone_plan instead.")
+            raise ValueError("clone_plan_from_env_0 requires single-variant spawners.")
         records.append((cfg, prim_path, matched, spawn))
 
     env_cfgs = tuple(cfg for cfg, _, matched, _ in records if matched is not None)
@@ -481,7 +486,7 @@ def clone_plan_from_env_0(
         destinations=(clone_cfg.clone_template,),
         clone_mask=np.ones((1, num_envs), dtype=np.bool_),
         env_ids=np.arange(num_envs, dtype=np.int64),
-        positions=grid_transforms(num_envs, env_spacing)[0],
+        positions=grid_transforms(num_envs, env_spacing)[0] if positions is None else positions,
         cfg_rows=cfg_rows,
         context_rows=_context_rows(env_cfgs, cfg_rows, {0}, global_paths),
         global_paths=global_paths,
