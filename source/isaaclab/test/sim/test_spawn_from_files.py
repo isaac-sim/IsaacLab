@@ -141,12 +141,20 @@ def test_spawn_ground_plane(sim):
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
 
     mesh = UsdGeom.Mesh(sim.stage.GetPrimAtPath("/World/ground_plane/Environment/Geometry"))
-    assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(mesh).GetPrimvar("st").Get()] == [
-        (-1.0, -2.0),
-        (1.0, -2.0),
-        (1.0, 2.0),
-        (-1.0, 2.0),
-    ]
+    tile_size = 5.0
+    for prim_spec in mesh.GetPrim().GetPrimStack():
+        if authored_tile_size := prim_spec.layer.customLayerData.get("textureTileSizeMeters"):
+            tile_size = float(authored_tile_size)
+            break
+    half_u = cfg.size[0] / (2.0 * tile_size)
+    half_v = cfg.size[1] / (2.0 * tile_size)
+    expected_uvs = [(-half_u, -half_v), (half_u, -half_v), (half_u, half_v), (-half_u, half_v)]
+    for uv, expected_uv in zip(UsdGeom.PrimvarsAPI(mesh).GetPrimvar("st").Get(), expected_uvs, strict=True):
+        assert tuple(uv) == pytest.approx(expected_uv)
+
+    for material_name in ("theGrid", "GlossyChecks"):
+        shader = UsdShade.Shader.Get(sim.stage, f"/World/ground_plane/Looks/{material_name}/Shader")
+        assert tuple(shader.GetInput("diffuse_tint").Get()) == pytest.approx((0.1, 0.1, 0.1))
 
 
 @pytest.mark.isaacsim_ci

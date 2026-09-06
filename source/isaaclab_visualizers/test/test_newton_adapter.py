@@ -785,6 +785,36 @@ def test_newton_visualizer_cfg_distinct_types():
     assert NewtonRTXVisualizerCfg().show_particles is False
 
 
+def test_newton_rtx_preserves_uniform_textured_material(monkeypatch: pytest.MonkeyPatch):
+    """Newton 1.5.1 should retain scalar roughness and metallic values on textured meshes."""
+    from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerRTX
+    from newton.viewer import ViewerRTX
+
+    from pxr import Usd, UsdShade
+
+    def _identity(name: str) -> str:
+        return name
+
+    viewer = NewtonViewerRTX.__new__(NewtonViewerRTX)
+    viewer._phase = viewer._PHASE_BUILD
+    viewer._qualify = _identity
+    viewer.stage = Usd.Stage.CreateInMemory()
+
+    mesh_path = "/mesh"
+    material_path = viewer._texture_material_path(mesh_path)
+    material = UsdShade.Material.Define(viewer.stage, material_path)
+    UsdShade.Shader.Define(viewer.stage, f"{material_path}/PreviewSurface").CreateIdAttr("UsdPreviewSurface")
+    viewer._texture_materials = {mesh_path: material}
+    monkeypatch.setattr(ViewerRTX, "log_instances", lambda *args, **kwargs: None)
+
+    material_values = np.asarray([[0.05, 0.2, 0.0, 1.0]], dtype=np.float32)
+    viewer.log_instances("/instances", mesh_path, None, None, None, material_values)
+
+    surface = UsdShade.Shader.Get(viewer.stage, f"{material_path}/PreviewSurface")
+    assert surface.GetInput("roughness").Get() == pytest.approx(0.05)
+    assert surface.GetInput("metallic").Get() == pytest.approx(0.2)
+
+
 def test_eye_lookat_to_pitch_yaw_horizontal():
     # looking straight along +X from origin → pitch=0, yaw=0
     pitch, yaw = _eye_lookat_to_pitch_yaw((0.0, 0.0, 0.0), (1.0, 0.0, 0.0))

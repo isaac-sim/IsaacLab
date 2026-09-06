@@ -33,6 +33,26 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 pytestmark = pytest.mark.integration
 
 
+def _assert_metric_ground_plane_uvs(mesh: UsdGeom.Mesh, environment_scale: tuple[float, float, float]) -> None:
+    """Check that a ground mesh keeps its authored texture tile size after scaling."""
+    tile_size = 5.0
+    for prim_spec in mesh.GetPrim().GetPrimStack():
+        if authored_tile_size := prim_spec.layer.customLayerData.get("textureTileSizeMeters"):
+            tile_size = float(authored_tile_size)
+            break
+
+    mesh_scale = np.ones(2)
+    mesh_scale_attr = mesh.GetPrim().GetAttribute("xformOp:scale")
+    if mesh_scale_attr.IsValid() and mesh_scale_attr.HasAuthoredValue():
+        mesh_scale = np.asarray(mesh_scale_attr.Get()[:2])
+    points = np.asarray(mesh.GetPointsAttr().Get())[:, :2]
+    primvar = UsdGeom.PrimvarsAPI(mesh).GetPrimvar("st")
+    if primvar.GetInterpolation() == UsdGeom.Tokens.faceVarying:
+        points = points[np.asarray(mesh.GetFaceVertexIndicesAttr().Get())]
+    expected_uvs = points * mesh_scale * np.asarray(environment_scale[:2]) / tile_size
+    np.testing.assert_allclose(np.asarray(primvar.Get()), expected_uvs)
+
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("env_spacing", [1.0, 4.325, 8.0])
 @pytest.mark.parametrize("num_envs", [1, 4, 125, 379, 1024])
@@ -138,12 +158,7 @@ def test_plane(device, use_custom_material):
         environment = sim.stage.GetPrimAtPath(f"{mesh_prim_path}/Environment")
         assert tuple(environment.GetAttribute("xformOp:scale").Get()) == pytest.approx((2.6, 2.6, 1.0))
         visual_mesh = UsdGeom.Mesh(sim.stage.GetPrimAtPath(f"{mesh_prim_path}/Environment/Geometry"))
-        assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(visual_mesh).GetPrimvar("st").Get()] == [
-            (-26.0, -26.0),
-            (26.0, -26.0),
-            (26.0, 26.0),
-            (-26.0, 26.0),
-        ]
+        _assert_metric_ground_plane_uvs(visual_mesh, (2.6, 2.6, 1.0))
 
         # Direct imports use the same bounded default instead of the legacy 2,000 km visual mesh.
         terrain_importer.import_ground_plane("direct")
@@ -152,12 +167,7 @@ def test_plane(device, use_custom_material):
         direct_mesh = UsdGeom.Mesh(
             sim.stage.GetPrimAtPath(f"{terrain_importer.cfg.prim_path}/direct/Environment/Geometry")
         )
-        assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(direct_mesh).GetPrimvar("st").Get()] == [
-            (-26.0, -26.0),
-            (26.0, -26.0),
-            (26.0, 26.0),
-            (-26.0, 26.0),
-        ]
+        _assert_metric_ground_plane_uvs(direct_mesh, (2.6, 2.6, 1.0))
 
         # obtain underling mesh
         mesh = _obtain_collision_mesh(mesh_prim_path, mesh_type="Plane")

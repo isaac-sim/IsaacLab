@@ -237,37 +237,46 @@ def spawn_ground_plane(
         # apply scale to the mesh
         environment_prim.GetAttribute("xformOp:scale").Set(scale)
 
-        # The bundled asset maps its texture through ``primvars:st`` alone, so rescale the UVs with the
-        # plane to keep the 5 m tile -- and therefore the 1 m grid -- metric in every renderer.
+        # Keep the authored texture tile metric when resizing the default plane.
         from . import from_files_cfg  # noqa: PLC0415
 
         if cfg.usd_path == from_files_cfg._DEFAULT_GROUND_PLANE_USD:
             from pxr import Gf, UsdGeom  # noqa: PLC0415
 
-            half_u = cfg.size[0] / (2.0 * from_files_cfg._DEFAULT_GROUND_PLANE_TILE_SIZE)
-            half_v = cfg.size[1] / (2.0 * from_files_cfg._DEFAULT_GROUND_PLANE_TILE_SIZE)
             mesh = UsdGeom.Mesh(stage.GetPrimAtPath(f"{prim_path}/Environment/Geometry"))
-            UsdGeom.PrimvarsAPI(mesh).GetPrimvar("st").Set(
-                [
-                    Gf.Vec2f(-half_u, -half_v),
-                    Gf.Vec2f(half_u, -half_v),
-                    Gf.Vec2f(half_u, half_v),
-                    Gf.Vec2f(-half_u, half_v),
-                ]
-            )
+            if mesh:
+                tile_size = from_files_cfg._DEFAULT_GROUND_PLANE_TILE_SIZE
+                for prim_spec in mesh.GetPrim().GetPrimStack():
+                    authored_tile_size = prim_spec.layer.customLayerData.get("textureTileSizeMeters")
+                    if authored_tile_size is not None:
+                        tile_size = float(authored_tile_size)
+                        break
+
+                half_u = cfg.size[0] / (2.0 * tile_size)
+                half_v = cfg.size[1] / (2.0 * tile_size)
+                UsdGeom.PrimvarsAPI(mesh).GetPrimvar("st").Set(
+                    [
+                        Gf.Vec2f(-half_u, -half_v),
+                        Gf.Vec2f(half_u, -half_v),
+                        Gf.Vec2f(half_u, half_v),
+                        Gf.Vec2f(-half_u, half_v),
+                    ]
+                )
 
     # Change the color of the plane
     # Warning: This is specific to the default grid plane asset.
     if cfg.color is not None:
         from pxr import Gf, Sdf  # noqa: PLC0415
 
-        # change the color
-        change_prim_property(
-            prop_path=f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint",
-            value=Gf.Vec3f(*cfg.color),
-            stage=stage,
-            type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
-        )
+        for material_name in ("theGrid", "GlossyChecks"):
+            shader_path = f"{prim_path}/Looks/{material_name}/Shader"
+            if stage.GetPrimAtPath(shader_path).IsValid():
+                change_prim_property(
+                    prop_path=f"{shader_path}.inputs:diffuse_tint",
+                    value=Gf.Vec3f(*cfg.color),
+                    stage=stage,
+                    type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
+                )
     # Remove the light from the ground plane (USD API, works without Kit/Newton)
     # It isn't bright enough and messes up with the user's lighting settings
     light_prim = stage.GetPrimAtPath(f"{prim_path}/SphereLight")
