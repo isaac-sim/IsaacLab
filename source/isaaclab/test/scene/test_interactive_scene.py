@@ -223,7 +223,8 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
         env_template = scene.cfg.clone_cfg.clone_template
         grid_positions = cloner.grid_transforms(4, 1.0)[0]
         torch.testing.assert_close(scene.env_origins, torch.from_numpy(grid_positions))
-        assert scene.stage.GetPrimAtPath(env_template.format(0)).IsValid()
+        env_0 = scene.stage.GetPrimAtPath(env_template.format(0))
+        np.testing.assert_allclose(sim_utils.resolve_prim_pose(env_0)[0], grid_positions[0])
         assert all(not scene.stage.GetPrimAtPath(env_template.format(i)).IsValid() for i in range(1, 4))
 
         cube_cfg = RigidObjectCfg(

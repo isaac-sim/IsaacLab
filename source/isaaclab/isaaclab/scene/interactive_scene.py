@@ -199,8 +199,9 @@ class InteractiveScene:
                 self._add_entities_from_cfg()
             positions = session.plan.positions
         else:
-            self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
             positions = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing)[0]
+            env_0 = self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
+            sim_utils.standardize_xform_ops(env_0, translation=tuple(map(float, positions[0])))
         self._env_origins = positions
         self._env_origins_plan = self.sim.get_clone_plan()
 
@@ -387,7 +388,7 @@ class InteractiveScene:
             self._env_origins = plan.positions
             self._env_origins_plan = plan
         if not isinstance(self._env_origins, torch.Tensor):
-            self._env_origins = torch.as_tensor(self._env_origins, device=self.device)
+            self._env_origins = torch.as_tensor(self._env_origins, device=self._ALL_INDICES.device)
         return self._env_origins
 
     @property
