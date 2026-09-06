@@ -174,7 +174,7 @@ def _create_skrl_checkpoint(
     task_name: str,
     args_cli: Any,
     env_cfg: Any,
-    agent_cfg: dict[str, Any],
+    agent_cfg: Any,
     checkpoint_root: Path,
 ) -> Path:
     """Create an initialized skrl checkpoint using the agent save path."""
@@ -183,9 +183,9 @@ def _create_skrl_checkpoint(
 
     from isaaclab.envs import DirectMARLEnvCfg, multi_agent_to_single_agent
 
-    from isaaclab_rl.skrl import SkrlVecEnvWrapper
+    from isaaclab_rl.skrl import SkrlVecEnvWrapper, skrl_cfg_to_dict
 
-    agent_cfg = copy.deepcopy(agent_cfg)
+    agent_cfg = skrl_cfg_to_dict(copy.deepcopy(agent_cfg))
     _set_single_env(env_cfg)
     agent_cfg["seed"] = getattr(args_cli, "seed", None) or agent_cfg["seed"]
     env_cfg.seed = agent_cfg["seed"]

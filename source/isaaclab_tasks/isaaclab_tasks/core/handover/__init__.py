@@ -34,8 +34,8 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:HandoverPPORunnerCfg",
         "default_agent": "rsl_rl",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
-        "skrl_ippo_cfg_entry_point": f"{agents.__name__}:skrl_ippo_cfg.yaml",
-        "skrl_mappo_cfg_entry_point": f"{agents.__name__}:skrl_mappo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}.skrl_ppo_cfg:SkrlPPORunnerCfg",
+        "skrl_ippo_cfg_entry_point": f"{agents.__name__}.skrl_ppo_cfg:SkrlIPPORunnerCfg",
+        "skrl_mappo_cfg_entry_point": f"{agents.__name__}.skrl_ppo_cfg:SkrlMAPPORunnerCfg",
     },
 )

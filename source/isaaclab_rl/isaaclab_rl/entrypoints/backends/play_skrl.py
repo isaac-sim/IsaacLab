@@ -160,7 +160,9 @@ def _main():
             elif args_cli.ml_framework.startswith("jax"):
                 from skrl.utils.runner.jax import Runner
 
-            from isaaclab_rl.skrl import SkrlVecEnvWrapper
+            from isaaclab_rl.skrl import SkrlVecEnvWrapper, skrl_cfg_to_dict
+
+            experiment_cfg = skrl_cfg_to_dict(experiment_cfg)
 
             task_name = args_cli.task.split(":")[-1]
             train_task_name = task_name.replace("-Play", "")

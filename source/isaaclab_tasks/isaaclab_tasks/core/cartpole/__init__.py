@@ -38,7 +38,7 @@ gym.register(
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_direct_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleDirectPPORunnerCfg",
         "default_agent": "rsl_rl",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}.skrl_ppo_cfg:SkrlDirectPPORunnerCfg",
         "sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
     },
 )
@@ -52,7 +52,7 @@ gym.register(
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraDirectPPORunnerCfg",
         "default_agent": "rsl_rl",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_camera_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}.skrl_ppo_cfg:SkrlDirectCameraPPORunnerCfg",
     },
 )
 
@@ -72,7 +72,7 @@ gym.register(
         "rsl_rl_with_symmetry_cfg_entry_point": (
             f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerWithSymmetryCfg"
         ),
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_manager_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}.skrl_ppo_cfg:SkrlManagerPPORunnerCfg",
         "sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
     },
 )

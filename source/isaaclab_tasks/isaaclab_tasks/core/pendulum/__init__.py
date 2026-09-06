@@ -25,8 +25,8 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}:PendulumMARLEnvCfg",
         "default_agent": "skrl",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_marl_ppo_cfg.yaml",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_marl_ppo_cfg.yaml",
-        "skrl_ippo_cfg_entry_point": f"{agents.__name__}:skrl_marl_ippo_cfg.yaml",
-        "skrl_mappo_cfg_entry_point": f"{agents.__name__}:skrl_marl_mappo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}.skrl_ppo_cfg:SkrlMarlPPORunnerCfg",
+        "skrl_ippo_cfg_entry_point": f"{agents.__name__}.skrl_ppo_cfg:SkrlMarlIPPORunnerCfg",
+        "skrl_mappo_cfg_entry_point": f"{agents.__name__}.skrl_ppo_cfg:SkrlMarlMAPPORunnerCfg",
     },
 )
