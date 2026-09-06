@@ -105,6 +105,72 @@ gym.register(
 )
 
 gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-HipL2-AirTime050",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.rough_29dof_posture_env_cfg:G129DofRoughHipL2AirTime050EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+    },
+)
+
+
+gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-HipL2-AirTime100",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.rough_29dof_posture_env_cfg:G129DofRoughHipL2AirTime100EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+    },
+)
+
+
+gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-HipL2-AirTime150",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.rough_29dof_posture_env_cfg:G129DofRoughHipL2AirTime150EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+    },
+)
+
+
+gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-Imbalance05",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.rough_29dof_posture_env_cfg:G129DofRoughImbalance05EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+    },
+)
+
+
+gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-Imbalance20",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.rough_29dof_posture_env_cfg:G129DofRoughImbalance20EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+    },
+)
+
+
+gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-Imbalance50",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.rough_29dof_posture_env_cfg:G129DofRoughImbalance50EnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+    },
+)
+
+
+gym.register(
     id="Isaac-Velocity-Rough-G1-29Dof-HipL2-AirTime4",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,

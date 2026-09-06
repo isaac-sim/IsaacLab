@@ -26,6 +26,9 @@ which adds a terrain-relative ``base_height`` termination. These configs separat
   penalised the way WBC-AGILE penalises it, L2 at -1.0 against the stock L1 at -0.1.
 """
 
+import torch
+
+from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
@@ -85,9 +88,7 @@ class G129DofRoughHipL2EnvCfg(G129DofRoughEnvCfg):
         super().__post_init__()
         self.rewards.joint_deviation_hip.func = joint_deviation_l2
         self.rewards.joint_deviation_hip.weight = _HIP_L2_WEIGHT
-        self.rewards.joint_deviation_hip.params = {
-            "asset_cfg": SceneEntityCfg("robot", joint_names=_HIP_JOINTS)
-        }
+        self.rewards.joint_deviation_hip.params = {"asset_cfg": SceneEntityCfg("robot", joint_names=_HIP_JOINTS)}
 
 
 _AIR_TIME_SWEEP = {"c1": 1.0, "c2": 2.0, "c3": 4.0}
@@ -126,3 +127,127 @@ class G129DofRoughHipL2AirTime16EnvCfg(G129DofRoughHipL2EnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.rewards.feet_air_time.weight = _AIR_TIME_SWEEP["c3"]
+
+
+def feet_stance_imbalance(env, sensor_cfg: SceneEntityCfg, command_name: str = "base_velocity") -> torch.Tensor:
+    """Penalise a gait that uses one leg more than the other [s].
+
+    ``feet_air_time_positive_biped`` rewards the duration of the current single-stance phase, takes
+    the minimum over the two feet, and clamps at its threshold. Nothing in it distinguishes left
+    from right or asks the feet to alternate, so standing on one leg and holding the other up sits
+    at the clamp -- a higher score than a brisk symmetric gait, whose timers reset at every
+    touchdown. Measured across the air-time sweep, the airborne-share ratio between the feet fell
+    from 0.677 at weight 0.25 to 0.196 at weight 4.0, where the right foot spent 87% of the rollout
+    off the ground. The reward was doing exactly what it says; what it says is not a gait.
+
+    This closes that by pricing the gap directly: the absolute difference between the two feet's
+    last completed swing durations. ``last_air_time`` holds the duration of the swing that ended at
+    the most recent touchdown, so it is a per-step-constant quantity that only moves when a foot
+    lands, which makes it far less noisy than comparing the two feet's instantaneous timers -- at
+    any instant one foot is down and the other up, and their raw difference says nothing.
+
+    Zero for environments told to stand still, where an uneven stance is not a gait fault.
+    """
+    sensor = env.scene.sensors[sensor_cfg.name]
+    last_air = sensor.data.last_air_time
+    last_air = last_air.torch if hasattr(last_air, "torch") else last_air
+    swing = last_air[:, sensor_cfg.body_ids]
+    if swing.shape[1] != 2:
+        raise ValueError(f"expected two feet, sensor_cfg selected {swing.shape[1]}")
+    imbalance = torch.abs(swing[:, 0] - swing[:, 1])
+    moving = torch.linalg.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
+    return imbalance * moving
+
+
+_IMBALANCE_WEIGHTS = {"i1": -0.5, "i2": -2.0, "i3": -5.0}
+"""Weights for :func:`feet_stance_imbalance`, bracketing rather than guessing.
+
+The term is a difference of swing durations, so it is order 0.1 s for a mildly uneven gait and
+order 0.35 s for the one-legged extreme the sweep produced. At -2.0 that extreme costs about 0.7
+per step against the roughly 0.8 that ``feet_air_time`` pays at weight 2.0, which is the scale at
+which the two terms actually argue with each other.
+"""
+
+
+@configclass
+class _HipL2AirTime8Base(G129DofRoughHipL2EnvCfg):
+    """The arm the imbalance penalty is added to: plate feet, L2 hip, air-time weight 2.0."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.feet_air_time.weight = 2.0
+
+
+@configclass
+class G129DofRoughImbalance05EnvCfg(_HipL2AirTime8Base):
+    """Air-time weight 2.0 plus the stance-imbalance penalty at {weight}."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.feet_stance_imbalance = RewTerm(
+            func=feet_stance_imbalance,
+            weight=_IMBALANCE_WEIGHTS["i1"],
+            params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link")},
+        )
+
+
+@configclass
+class G129DofRoughImbalance20EnvCfg(_HipL2AirTime8Base):
+    """Air-time weight 2.0 plus the stance-imbalance penalty at {weight}."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.feet_stance_imbalance = RewTerm(
+            func=feet_stance_imbalance,
+            weight=_IMBALANCE_WEIGHTS["i2"],
+            params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link")},
+        )
+
+
+@configclass
+class G129DofRoughImbalance50EnvCfg(_HipL2AirTime8Base):
+    """Air-time weight 2.0 plus the stance-imbalance penalty at {weight}."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.feet_stance_imbalance = RewTerm(
+            func=feet_stance_imbalance,
+            weight=_IMBALANCE_WEIGHTS["i3"],
+            params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link")},
+        )
+
+
+_AIR_TIME_INTERP = {"w025": 0.25, "w050": 0.5, "w100": 1.0, "w150": 1.5, "w200": 2.0}
+"""The air-time weights between the two arms already measured.
+
+At 0.25 the gait shuffles but the feet stay reasonably even (airborne-share ratio 0.677); at 2.0
+the stride is long but the ratio has fallen to 0.393. Where between them the trade turns is not
+something the two endpoints answer.
+"""
+
+
+@configclass
+class G129DofRoughHipL2AirTime050EnvCfg(G129DofRoughHipL2EnvCfg):
+    """Air-time weight 0.5."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.feet_air_time.weight = _AIR_TIME_INTERP["w050"]
+
+
+@configclass
+class G129DofRoughHipL2AirTime100EnvCfg(G129DofRoughHipL2EnvCfg):
+    """Air-time weight 1.0."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.feet_air_time.weight = _AIR_TIME_INTERP["w100"]
+
+
+@configclass
+class G129DofRoughHipL2AirTime150EnvCfg(G129DofRoughHipL2EnvCfg):
+    """Air-time weight 1.5."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.feet_air_time.weight = _AIR_TIME_INTERP["w150"]
