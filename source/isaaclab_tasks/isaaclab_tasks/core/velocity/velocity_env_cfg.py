@@ -7,6 +7,7 @@ import math
 from dataclasses import MISSING
 
 from isaaclab_newton.physics import (
+    FeatherPGSSolverCfg,
     KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     NewtonCfg,
@@ -36,7 +37,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
-from isaaclab_tasks.utils import PresetCfg, preset
+from isaaclab_tasks.utils import PresetCfg
 
 ##
 # Pre-defined configs
@@ -65,10 +66,26 @@ class RoughPhysicsCfg(PresetCfg):
             integrator="implicitfast",
             use_mujoco_contacts=False,
         ),
-        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
+        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=12_000_000),
         num_substeps=2,
         debug_mode=False,
-        default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
+        default_shape_cfg=NewtonShapeCfg(margin=0.01, ke=160000.0, kd=1100.0),
+    )
+    feather_pgs = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            update_mass_matrix_interval=2,
+            enable_joint_limits=True,
+            pgs_mode="matrix_free",
+            contact_friction_gap_threshold=0.02,
+            contact_friction_anchor_limit=2,
+            dense_max_constraints=192,
+            mf_max_constraints=32,
+            serial_kernel_block_dim=32,
+            tile_threads=128,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=12_000_000),
+        num_substeps=2,
+        default_shape_cfg=NewtonShapeCfg(margin=0.01, ke=160000.0, kd=1100.0),
     )
     newton_kamino = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64))
     default = newton_mjwarp
@@ -223,15 +240,13 @@ class EventsCfg:
         },
     )
 
-    base_com = preset(
-        default=EventTerm(
-            func=mdp.randomize_rigid_body_com,
-            mode="startup",
-            params={
-                "asset_cfg": SceneEntityCfg("robot", body_names="base"),
-                "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
-            },
-        ),
+    base_com = EventTerm(
+        func=mdp.randomize_rigid_body_com,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="base"),
+            "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
+        },
     )
 
     # reset
@@ -342,7 +357,7 @@ class CurriculumCfg:
 class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
-    # Simulation settings — shared physics preset (PhysX + MJWarp) for all rough-terrain envs
+    # Simulation settings — shared physics alternatives for all rough-terrain environments
     sim: SimulationCfg = SimulationCfg(physics=RoughPhysicsCfg())
     # Scene settings
     scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)

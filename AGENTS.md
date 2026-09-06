@@ -7,6 +7,11 @@
 - Follow a more-specific `AGENTS.md` in the directory being changed.
 - Use the repository's current SPDX header template for new source files; do not change existing file headers.
 - Follow the existing style and abstractions in the affected package.
+- Add physics backends at the same level in an existing `PresetCfg` composition root. Do not subclass an existing
+  `PhysicsCfg` or `EventCfg` to add a backend-specific preset; apply essential variant-specific solver tuning directly
+  to the inherited backend entry in `__post_init__`.
+- Do not expose a backend preset for a task whose required physics features that backend cannot simulate. Reject the
+  unsupported combination during preset selection instead of silently skipping required physics behavior at runtime.
 - Use modern Python type hints, including `X | None` instead of `Optional[X]`.
 - Use `snake_case` for methods, functions, and CLI arguments.
 - Keep related public symbols discoverable through consistent prefixes.

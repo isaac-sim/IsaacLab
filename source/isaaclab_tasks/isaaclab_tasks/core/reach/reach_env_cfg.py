@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import FeatherPGSSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -52,6 +52,18 @@ class ReachPhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
         use_cuda_graph=True,
+    )
+    feather_pgs: NewtonCfg = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            pgs_mode="matrix_free",
+            update_mass_matrix_interval=2,
+            enable_joint_limits=True,
+            enable_joint_velocity_limits=True,
+            joint_limit_activation_gap=0.1,
+            dense_max_constraints=64,
+            mf_max_constraints=32,
+        ),
+        num_substeps=2,
     )
     default: NewtonCfg = newton_mjwarp
 

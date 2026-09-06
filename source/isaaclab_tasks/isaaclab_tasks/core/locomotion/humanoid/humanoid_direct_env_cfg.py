@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import FeatherPGSSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -40,6 +40,15 @@ class HumanoidPhysicsCfg(PresetCfg):
         ),
         num_substeps=2,
         debug_mode=False,
+    )
+    feather_pgs: NewtonCfg = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            update_mass_matrix_interval=2,
+            enable_joint_limits=True,
+            dense_max_constraints=64,
+            mf_max_constraints=512,
+        ),
+        num_substeps=2,
     )
     default = newton_mjwarp
 

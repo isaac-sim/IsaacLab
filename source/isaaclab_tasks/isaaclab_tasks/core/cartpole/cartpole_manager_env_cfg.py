@@ -6,6 +6,7 @@
 import math
 
 from isaaclab_newton.physics import (
+    FeatherPGSSolverCfg,
     KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     NewtonCfg,
@@ -54,6 +55,15 @@ class CartpolePhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
         use_cuda_graph=True,
+    )
+    feather_pgs: NewtonCfg = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            enable_joint_limits=True,
+            pgs_iterations=4,
+            dense_max_constraints=8,
+            mf_max_constraints=64,
+            pgs_kernel="loop",
+        ),
     )
     default: NewtonCfg = newton_mjwarp
     newton_kamino: NewtonCfg = NewtonCfg(

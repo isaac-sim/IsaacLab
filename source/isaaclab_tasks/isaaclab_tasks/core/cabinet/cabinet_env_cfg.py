@@ -6,7 +6,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import FeatherPGSSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -85,55 +85,35 @@ LIGHT_CFG = AssetBaseCfg(
 
 
 @configclass
-class CabinetSimCfg(PresetCfg):
-    """Simulation configuration presets for the cabinet environment.
+class CabinetPhysicsCfg(PresetCfg):
+    """Physics backend presets for the cabinet environment."""
 
-    Wraps the full :class:`~isaaclab.sim.SimulationCfg` so that Newton can run at a
-    finer physics timestep (1/600 s) while PhysX keeps its default (1/60 s).
-    """
-
-    isaacsim_physx: SimulationCfg = SimulationCfg(
-        dt=1 / 60,
-        render_interval=1,
-        physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
-        default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
-    )
-    ovphysx: SimulationCfg = isaacsim_physx.replace(physics=OvPhysxCfg())
-    physx: SimulationCfg = isaacsim_physx.replace(
-        physics=PhysxAutoCfg(isaacsim_physx=isaacsim_physx.physics, ovphysx=ovphysx.physics)
-    )
-    newton_mjwarp: SimulationCfg = SimulationCfg(
-        dt=1 / 600,
-        render_interval=1,
-        default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(
-                njmax=90,
-                nconmax=100,
-                cone="pyramidal",
-                integrator="implicitfast",
-                impratio=1,
-            ),
-            num_substeps=1,
-            debug_mode=False,
+    isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625)
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    newton_mjwarp: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=90,
+            nconmax=100,
+            cone="pyramidal",
+            integrator="implicitfast",
+            impratio=1,
         ),
+        num_substeps=10,
+        debug_mode=False,
     )
-    default: SimulationCfg = newton_mjwarp
-
-
-@configclass
-class CabinetDecimationCfg(PresetCfg):
-    """Physics steps per policy action.
-
-    Chosen per backend so that the policy always acts at 60 Hz, since the backends step physics at
-    different rates.
-    """
-
-    isaacsim_physx: int = 1
-    ovphysx: int = isaacsim_physx
-    physx: int = isaacsim_physx
-    newton_mjwarp: int = 10
-    default: int = newton_mjwarp
+    feather_pgs: NewtonCfg = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            pgs_mode="matrix_free",
+            enable_joint_limits=True,
+            dense_max_constraints=256,
+            mf_max_constraints=32,
+            hinv_jt_kernel="par_row",
+            serial_kernel_block_dim=64,
+        ),
+        num_substeps=1,
+    )
+    default: NewtonCfg = newton_mjwarp
 
 
 ##
@@ -321,7 +301,12 @@ class TerminationsCfg:
 class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cabinet environment."""
 
-    sim: CabinetSimCfg = CabinetSimCfg()
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 60,
+        render_interval=1,
+        physics=CabinetPhysicsCfg(),
+        default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
+    )
     # Scene settings
     scene: CabinetSceneCfg = CabinetSceneCfg(num_envs=4096, env_spacing=2.0)
     # Basic settings
@@ -332,10 +317,9 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
 
-    decimation: int = CabinetDecimationCfg()
+    decimation: int = 1
 
     def __post_init__(self):
         """Post initialization."""
         # general settings
         self.episode_length_s = 8.0
-        # simulation settings are defined in CabinetSimCfg (dt/physics vary per backend)

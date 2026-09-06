@@ -20,7 +20,7 @@ overrides = [
     { name = "coverage", specifier = ">=7.6.1" },
     { name = "mujoco", specifier = "~=3.12.0" },
     { name = "mujoco-warp", specifier = "~=3.12.0" },
-    { name = "newton", extras = ["sim"], specifier = "==1.6.0rc1" },
+    { name = "newton", extras = ["sim"], git = "https://github.com/ooctipus/newton.git?rev=5631a64a373d1c73b4157ad4124eaf34914480a2" },
     { name = "newton-usd-schemas", specifier = ">=0.4.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "packaging", specifier = ">=20,<27" },
@@ -1764,12 +1764,12 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "23.0.0"
+version = "23.1.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
 name = "isaaclab-assets"
-version = "0.7.0"
+version = "0.8.0"
 source = { editable = "source/isaaclab_assets" }
 dependencies = [
     { name = "isaaclab" },
@@ -2164,7 +2164,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "6.0.0"
+version = "6.1.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2175,7 +2175,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "3.0.0"
+version = "3.0.1"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2190,7 +2190,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "7.0.0"
+version = "7.0.1"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2229,7 +2229,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "20.0.1"
+version = "20.1.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
@@ -3360,13 +3360,10 @@ wheels = [
 
 [[package]]
 name = "newton"
-version = "1.6.0rc1"
-source = { registry = "https://pypi.org/simple" }
+version = "1.6.0.dev0"
+source = { git = "https://github.com/ooctipus/newton.git?rev=5631a64a373d1c73b4157ad4124eaf34914480a2#5631a64a373d1c73b4157ad4124eaf34914480a2" }
 dependencies = [
     { name = "warp-lang" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/67/28/1a88699e9e4a5cbe5408e4f5ffb24355cd5854b3f549c59d83679d6c88cc/newton-1.6.0rc1-py3-none-any.whl", hash = "sha256:7ed998bba97167534194c53119c68bd116c8266661c3a339e5a2e4d503701f20", size = 6072745, upload-time = "2026-09-03T04:17:09.936Z" },
 ]
 
 [package.optional-dependencies]

@@ -10,14 +10,15 @@ from dataclasses import MISSING
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.core.cabinet.cabinet_env_cfg import (
     CABINET_CFG,
     LIGHT_CFG,
     PLANE_CFG,
-    CabinetDecimationCfg,
-    CabinetSimCfg,
+    CabinetPhysicsCfg,
     EventCfg,
 )
 
@@ -38,11 +39,16 @@ class CabinetDirectEnvCfg(DirectRLEnvCfg):
 
     # environment and simulation
     episode_length_s = 8.0
-    decimation: int = CabinetDecimationCfg()
+    decimation: int = 1
     action_space = 8
     observation_space = 31
     state_space = 0
-    sim: CabinetSimCfg = CabinetSimCfg()
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 60,
+        render_interval=1,
+        physics=CabinetPhysicsCfg(),
+        default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
+    )
     scene: CabinetDirectSceneCfg = CabinetDirectSceneCfg(num_envs=4096, env_spacing=2.0)
     events: EventCfg = EventCfg()
 

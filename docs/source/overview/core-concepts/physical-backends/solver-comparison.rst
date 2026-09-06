@@ -15,12 +15,14 @@ The solvers covered are:
   which behaves similarly for the purposes of this comparison.
 * **Newton MuJoCo-Warp (MJWarp)** — primary :doc:`Newton solver <newton/mjwarp-solver>`,
   configured by :class:`~isaaclab_newton.physics.MJWarpSolverCfg`.
+* **Newton FeatherPGS** — experimental reduced-coordinate
+  :doc:`Newton solver <newton/feather-pgs-solver>`, configured by
+  :class:`~isaaclab_newton.physics.FeatherPGSSolverCfg`.
 * **Newton Kamino** — beta P-ADMM :doc:`Newton solver <newton/kamino-solver>`,
   configured by :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg`.
 
 Newton additionally ships ``FeatherstoneSolverCfg`` and ``XPBDSolverCfg``;
-neither is wired into an Isaac Lab task at the time of writing and they
-are omitted from this comparison.
+they are omitted from this comparison.
 
 
 Friction Model

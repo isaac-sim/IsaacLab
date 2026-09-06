@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.physics import (
+    FeatherPGSSolverCfg,
     KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     NewtonCfg,
@@ -47,6 +48,13 @@ class AntPhysicsCfg(PresetCfg):
         ),
         num_substeps=1,
         debug_mode=False,
+    )
+    feather_pgs: NewtonCfg = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            enable_joint_limits=True,
+            dense_max_constraints=64,
+            mf_max_constraints=512,
+        ),
     )
     newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),

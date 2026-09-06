@@ -13,7 +13,6 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import (
     LocomotionVelocityRoughEnvCfg,
     RewardsCfg,
 )
-from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -60,7 +59,6 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # scene
         self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton_mjwarp=0.02)
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
         # actions
         self.actions.joint_pos.scale = 0.5
