@@ -17,14 +17,14 @@ from isaaclab.sensors import Camera
 from isaaclab.utils.math import scale_transform
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env import ShadowHandDirectEnv
 from isaaclab_tasks.core.reorient.mdp.observations import compute_cube_keypoints
-from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import ShadowHandCameraEnvCfg
 
 
-class ShadowHandCameraEnv(ReorientDirectEnv):
+class ShadowHandCameraEnv(ShadowHandDirectEnv):
     cfg: ShadowHandCameraEnvCfg
 
     def __init__(self, cfg: ShadowHandCameraEnvCfg, render_mode: str | None = None, **kwargs):

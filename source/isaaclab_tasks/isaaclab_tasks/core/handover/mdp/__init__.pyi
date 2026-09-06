@@ -11,6 +11,7 @@ __all__ = [
     "evaluate_handover_success",
 ]
 
-from .commands import HandoverCommand, HandoverCommandCfg
+from .commands import HandoverCommand
+from .commands_cfg import HandoverCommandCfg
 from .rewards import evaluate_handover_success, handover_goal_distance_reward, handover_reward
 from isaaclab.envs.mdp import *

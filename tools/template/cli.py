@@ -13,14 +13,17 @@ import rich.console
 import rich.table
 from common import ROOT_DIR
 from generator import generate, get_algorithms_per_rl_library
-from InquirerPy import inquirer, separator
+from rich.prompt import Prompt
+
+_SUPPORTED_WORKFLOWS = ["Manager-based | single-agent", "Direct | single-agent", "Direct | multi-agent"]
+_SINGLE_AGENT_RL_LIBRARIES = ["rsl_rl", "rl_games", "skrl", "sb3"]
 
 
 class CLIHandler:
     """CLI handler for the Isaac Lab template."""
 
-    def __init__(self):
-        self.console = rich.console.Console()
+    def __init__(self, console: rich.console.Console | None = None):
+        self.console = console if console is not None else rich.console.Console()
 
     @staticmethod
     def get_choices(choices: list[str], default: list[str]) -> list[str]:
@@ -49,15 +52,9 @@ class CLIHandler:
         Returns:
             str: The selected choice.
         """
-        return inquirer.select(
-            message=message,
-            choices=choices,
-            cycle=True,
-            default=default,
-            style=None,
-            wrap_lines=True,
-            long_instruction=long_instruction,
-        ).execute()
+        if long_instruction:
+            self.console.print(long_instruction, markup=False)
+        return self._ask(message, choices=choices, default=default)
 
     def input_checkbox(self, message: str, choices: list[str], default: str | None = None) -> list[str]:
         """Prompt the user to select one or more options from a list of choices.
@@ -71,23 +68,26 @@ class CLIHandler:
             The selected choices.
         """
 
-        def transformer(result: list[str]) -> str:
-            if "all" in result or "both" in result:
-                token = "all" if "all" in result else "both"
-                return f"{token} ({', '.join(choices[: choices.index('---')])})"
-            return ", ".join(result)
+        selectable_choices = [choice for choice in choices if choice != "---"]
+        for index, choice in enumerate(selectable_choices, start=1):
+            self.console.print(f"  [cyan]{index}[/cyan].", choice)
 
-        return inquirer.checkbox(
-            message=message,
-            choices=[separator.Separator() if "---" in item else item for item in choices],
-            cycle=True,
-            default=default,
-            style=None,
-            wrap_lines=True,
-            validate=lambda result: len(result) >= 1,
-            invalid_message="No option selected (SPACE: select/deselect an option, ENTER: confirm selection)",
-            transformer=transformer,
-        ).execute()
+        default_index = None
+        if default is not None and default in selectable_choices:
+            default_index = str(selectable_choices.index(default) + 1)
+
+        while True:
+            response = self._ask(
+                f"{message} Enter comma-separated numbers",
+                default=default_index,
+            )
+            try:
+                indices = [int(token.strip()) for token in response.split(",")]
+            except ValueError:
+                indices = []
+            if indices and all(1 <= index <= len(selectable_choices) for index in indices):
+                return list(dict.fromkeys(selectable_choices[index - 1] for index in indices))
+            self.console.print("Enter one or more valid numbers separated by commas.", style="red")
 
     def input_path(
         self,
@@ -107,12 +107,7 @@ class CLIHandler:
         Returns:
             The input path.
         """
-        return inquirer.filepath(
-            message=message,
-            default=default if default is not None else "",
-            validate=validate,
-            invalid_message=invalid_message,
-        ).execute()
+        return self._input_value(message, default, validate, invalid_message)
 
     def input_text(
         self,
@@ -132,12 +127,33 @@ class CLIHandler:
         Returns:
             The input text.
         """
-        return inquirer.text(
-            message=message,
-            default=default if default is not None else "",
-            validate=validate,
-            invalid_message=invalid_message,
-        ).execute()
+        return self._input_value(message, default, validate, invalid_message)
+
+    def _ask(
+        self,
+        message: str,
+        choices: list[str] | None = None,
+        default: str | None = None,
+    ) -> str:
+        """Prompt for a string with optional choices and default value."""
+        kwargs = {"console": self.console, "choices": choices, "case_sensitive": False}
+        if default is not None:
+            kwargs["default"] = default
+        return Prompt.ask(message.removesuffix(":"), **kwargs)
+
+    def _input_value(
+        self,
+        message: str,
+        default: str | None,
+        validate: Callable[[str], bool] | None,
+        invalid_message: str,
+    ) -> str:
+        """Prompt until the entered value passes validation."""
+        while True:
+            value = self._ask(message, default=default)
+            if validate is None or validate(value):
+                return value
+            self.console.print(invalid_message or "Invalid input.", style="red")
 
 
 class State(str, enum.Enum):
@@ -179,7 +195,7 @@ def main() -> None:
             invalid_message="External project path cannot be within the Isaac Lab project",
         )
 
-    # project/task name
+    # project/task names
     project_name = cli_handler.input_text(
         "Project name:" if is_external_project else "Task's folder name:",
         validate=lambda name: name.isidentifier(),
@@ -187,22 +203,49 @@ def main() -> None:
             "Project/task name must be a valid identifier (Letters, numbers and underscores only. No spaces, etc.)"
         ),
     )
+    if is_external_project:
+        task_name = cli_handler.input_text(
+            "Task family name:",
+            default="balance",
+            validate=lambda name: name.isidentifier(),
+            invalid_message="Task family name must be a valid Python identifier.",
+        )
+        robot_name = cli_handler.input_text(
+            "Robot/config name:",
+            default="cartpole",
+            validate=lambda name: name.isidentifier(),
+            invalid_message="Robot/config name must be a valid Python identifier.",
+        )
+        include_ui_extension = (
+            cli_handler.input_select(
+                "Include Isaac Sim UI extension:",
+                choices=["No", "Yes"],
+                default="No",
+                long_instruction=(
+                    "Choose Yes only if this project needs an extension loaded through the Isaac Sim Extension Manager."
+                ),
+            ).lower()
+            == "yes"
+        )
+    else:
+        task_name = project_name
+        robot_name = "cartpole"
+        include_ui_extension = False
 
     # Isaac Lab workflow
     # - show supported workflows and features
     workflow_table = rich.table.Table(title="RL environment features support according to Isaac Lab workflows")
     workflow_table.add_column("Environment feature", no_wrap=True)
-    workflow_table.add_column("Direct", justify="center")
     workflow_table.add_column("Manager-based", justify="center")
+    workflow_table.add_column("Direct", justify="center")
     workflow_table.add_row("Single-agent", State.Yes, State.Yes)
-    workflow_table.add_row("Multi-agent", State.Yes, State.No)
-    workflow_table.add_row("Fundamental/composite spaces (apart from 'Box')", State.Yes, State.No)
+    workflow_table.add_row("Multi-agent", State.No, State.Yes)
+    workflow_table.add_row("Fundamental/composite spaces (apart from 'Box')", State.No, State.Yes)
     cli_handler.output_table(workflow_table)
     # - prompt for workflows
-    supported_workflows = ["Direct | single-agent", "Direct | multi-agent", "Manager-based | single-agent"]
     workflow = cli_handler.get_choices(
-        cli_handler.input_checkbox("Isaac Lab workflow:", choices=[*supported_workflows, "---", "all"]),
-        default=supported_workflows,
+        cli_handler.input_checkbox("Isaac Lab workflow:", choices=[*_SUPPORTED_WORKFLOWS, "---", "all"]),
+        default=_SUPPORTED_WORKFLOWS,
     )
     workflow = [{"name": item.split(" | ")[0].lower(), "type": item.split(" | ")[1].lower()} for item in workflow]
     single_agent_workflow = [item for item in workflow if item["type"] == "single-agent"]
@@ -214,16 +257,16 @@ def main() -> None:
     # - show supported RL libraries and features
     rl_library_table = rich.table.Table(title="Supported RL libraries")
     rl_library_table.add_column("RL/training feature", no_wrap=True)
-    rl_library_table.add_column("rl_games", overflow="fold")
     rl_library_table.add_column("rsl_rl", overflow="fold")
+    rl_library_table.add_column("rl_games", overflow="fold")
     rl_library_table.add_column("skrl", overflow="fold")
     rl_library_table.add_column("sb3", overflow="fold")
     rl_library_table.add_row("ML frameworks", "PyTorch", "PyTorch", "PyTorch, JAX", "PyTorch")
     rl_library_table.add_row("Relative performance", "~1X", "~1X", "~1X", "~0.03X")
     rl_library_table.add_row(
         "Algorithms",
-        fill(", ".join(algorithms_per_rl_library.get("rl_games", [])), width=12, break_long_words=False),
         fill(", ".join(algorithms_per_rl_library.get("rsl_rl", [])), width=12, break_long_words=False),
+        fill(", ".join(algorithms_per_rl_library.get("rl_games", [])), width=12, break_long_words=False),
         fill(", ".join(algorithms_per_rl_library.get("skrl", [])), width=12, break_long_words=False),
         fill(", ".join(algorithms_per_rl_library.get("sb3", [])), width=12, break_long_words=False),
     )
@@ -233,7 +276,7 @@ def main() -> None:
     rl_library_table.add_row("Fundamental/composite spaces", State.No, State.No, State.Yes, State.No)
     cli_handler.output_table(rl_library_table)
     # - prompt for RL libraries
-    supported_rl_libraries = ["rl_games", "rsl_rl", "skrl", "sb3"] if len(single_agent_workflow) else ["skrl"]
+    supported_rl_libraries = _SINGLE_AGENT_RL_LIBRARIES if len(single_agent_workflow) else ["skrl"]
     selected_rl_libraries = cli_handler.get_choices(
         cli_handler.input_checkbox("RL library:", choices=[*supported_rl_libraries, "---", "all"]),
         default=supported_rl_libraries,
@@ -253,6 +296,9 @@ def main() -> None:
         "external": is_external_project,
         "path": project_path,
         "name": project_name,
+        "task_name": task_name,
+        "robot_name": robot_name,
+        "include_ui_extension": include_ui_extension,
         "workflows": workflow,
         "rl_libraries": rl_library_algorithms,
     }

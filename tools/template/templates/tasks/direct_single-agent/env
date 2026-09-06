@@ -31,7 +31,7 @@ from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import sample_uniform, wrap_to_pi
 
 if TYPE_CHECKING:
-    from .{{ task.filename }}_env_cfg import {{ task.classname }}EnvCfg
+    from .{{ task.env_cfg_filename }} import {{ task.classname }}EnvCfg
 
 
 class {{ task.classname }}Env(DirectRLEnv):
