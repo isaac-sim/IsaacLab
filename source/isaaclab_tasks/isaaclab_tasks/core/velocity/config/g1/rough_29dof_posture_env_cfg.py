@@ -88,3 +88,41 @@ class G129DofRoughHipL2EnvCfg(G129DofRoughEnvCfg):
         self.rewards.joint_deviation_hip.params = {
             "asset_cfg": SceneEntityCfg("robot", joint_names=_HIP_JOINTS)
         }
+
+
+_AIR_TIME_SWEEP = {"c1": 1.0, "c2": 2.0, "c3": 4.0}
+"""Multiples 4x, 8x and 16x of the stock ``feet_air_time`` weight of 0.25.
+
+:class:`G129DofRoughHipL2EnvCfg` fixes the splay but still shuffles: its ``feet_air_time`` sits at
+0.0086 against the 0.4 s the term can pay for. On the shipped asset's spheres, 1.0 was where
+``success_rate`` peaked and 2.0 bought longer steps without buying tracking; a sole plate has far
+more contact area to push against, so the useful range may run higher, and 4.0 brackets that from
+above rather than assuming it.
+"""
+
+
+@configclass
+class G129DofRoughHipL2AirTime4EnvCfg(G129DofRoughHipL2EnvCfg):
+    """The splay fix plus four times the stock air-time weight."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.feet_air_time.weight = _AIR_TIME_SWEEP["c1"]
+
+
+@configclass
+class G129DofRoughHipL2AirTime8EnvCfg(G129DofRoughHipL2EnvCfg):
+    """The splay fix plus eight times the stock air-time weight."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.feet_air_time.weight = _AIR_TIME_SWEEP["c2"]
+
+
+@configclass
+class G129DofRoughHipL2AirTime16EnvCfg(G129DofRoughHipL2EnvCfg):
+    """The splay fix plus sixteen times the stock air-time weight."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rewards.feet_air_time.weight = _AIR_TIME_SWEEP["c3"]
