@@ -1068,3 +1068,21 @@ def write_joint_state_data_mask(
         joint_vel[i, j] = vel_data[i, j]
         prev_joint_vel[i, j] = vel_data[i, j]
         joint_acc[i, j] = 0.0
+
+
+@wp.kernel
+def scatter_fixed_tendon_position_targets(
+    position_target: wp.array2d(dtype=wp.float32),
+    actuator_columns: wp.array(dtype=wp.int32),
+    target_tendon_ids: wp.array(dtype=wp.int32),
+    commands: wp.array3d(dtype=wp.float32),
+) -> None:
+    """Scatter buffered fixed-tendon targets into the view-shaped MuJoCo control buffer.
+
+    ``commands`` is the buffer the articulation view writes to ``mujoco.ctrl``, so the view owns
+    the mapping onto the flat control array and this kernel does no layout arithmetic. One thread
+    per *actuator* that transmits to a tendon: a tendon nothing drives has no entry, and several
+    actuators may name the same tendon.
+    """
+    env_id, entry = wp.tid()
+    commands[env_id, 0, actuator_columns[entry]] = position_target[env_id, target_tendon_ids[entry]]
