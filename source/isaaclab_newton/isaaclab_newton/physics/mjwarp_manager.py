@@ -17,6 +17,7 @@ from newton.solvers import SolverMuJoCo
 from isaaclab.physics import PhysicsManager
 
 from .mjwarp_manager_cfg import MJWarpSolverCfg
+from .mjwarp_tendon_control import MjWarpTendonControl
 from .newton_manager import NewtonManager
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,18 @@ class NewtonMJWarpManager(NewtonManager):
                 "solver_cfg.use_mujoco_contacts=True. Either set "
                 "use_mujoco_contacts=False or remove collision_cfg."
             )
+
+    @classmethod
+    def create_fixed_tendon_control(cls, articulation):
+        """Build the MuJoCo tendon adapter for ``articulation``.
+
+        Args:
+            articulation: Newton articulation to drive.
+
+        Returns:
+            The adapter, or None when no MuJoCo actuator transmits to any of its tendons.
+        """
+        return MjWarpTendonControl.create(articulation, cls.get_model())
 
     @classmethod
     def _initialize_contacts(cls) -> None:

@@ -18,7 +18,7 @@ import torch
 from scipy.spatial.transform import Rotation
 
 from ..device_base import DeviceBase
-from .utils import convert_buffer
+from .utils import convert_buffer, describe_open_failure, device_not_found_message, resolve_device_name
 
 if TYPE_CHECKING:
     from .se3_spacemouse_cfg import Se3SpaceMouseCfg
@@ -45,6 +45,15 @@ class Se3SpaceMouse(DeviceBase):
     .. _HID-API: https://github.com/libusb/hidapi
 
     """
+
+    SUPPORTED_DEVICES = (
+        "SpaceMouse Compact",
+        "SpaceMouse Wireless",
+        "SpaceNavigator",
+        "SpaceNavigator for Notebooks",
+        "3Dconnexion Universal Receiver",
+    )
+    """Product names of the 3Dconnexion models handled by this device."""
 
     def __init__(self, cfg: Se3SpaceMouseCfg):
         """Initialize the space-mouse layer.
@@ -134,24 +143,32 @@ class Se3SpaceMouse(DeviceBase):
     def _find_device(self):
         """Find the device connected to computer."""
         found = False
+        enumerated_devices: list = []
+        open_failures: list[str] = []
+        last_error: OSError | None = None
         # implement a timeout for device search
         for _ in range(5):
-            for device in hid.enumerate():
-                if (
-                    device["product_string"] == "SpaceMouse Compact"
-                    or device["product_string"] == "SpaceMouse Wireless"
-                    or device["product_string"] == "SpaceNavigator for Notebooks"
-                    or device["product_string"] == "3Dconnexion Universal Receiver"
-                    or device["product_string"] == "SpaceNavigator"
-                ):
-                    # set found flag
-                    found = True
-                    vendor_id = device["vendor_id"]
-                    product_id = device["product_id"]
-                    # connect to the device
-                    self._device.close()
+            enumerated_devices = hid.enumerate()
+            # a supported device that cannot be opened must not hide another one that can, so keep
+            # scanning and only report the failures if no device could be opened at all
+            open_failures = []
+            for device in enumerated_devices:
+                device_name = resolve_device_name(device, self.SUPPORTED_DEVICES)
+                if device_name is None:
+                    continue
+                vendor_id = device["vendor_id"]
+                product_id = device["product_id"]
+                # connect to the device
+                try:
                     self._device.open(vendor_id, product_id)
-                    self._device_name = device["product_string"]
+                except OSError as exc:
+                    open_failures.append(describe_open_failure(device_name, vendor_id, product_id, exc))
+                    last_error = exc
+                    continue
+                # set found flag
+                found = True
+                self._device_name = device_name
+                break
             # check if device found
             if not found:
                 time.sleep(1.0)
@@ -159,7 +176,9 @@ class Se3SpaceMouse(DeviceBase):
                 break
         # no device found: return false
         if not found:
-            raise OSError("No device found by SpaceMouse. Is the device connected?")
+            raise OSError(
+                device_not_found_message(self.SUPPORTED_DEVICES, enumerated_devices, open_failures)
+            ) from last_error
 
     def _run_device(self):
         """Listener thread that keeps pulling new messages."""
