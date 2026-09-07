@@ -8,10 +8,12 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import MagicMock, call
 
 import gymnasium as gym
 import numpy as np
 import pytest
+import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
 
@@ -102,3 +104,49 @@ def test_obs_space_follows_clip_constraint():
             assert term_space.shape == expected_shapes[term_name]
             assert np.all(term_space.low == low)
             assert np.all(term_space.high == high)
+
+
+@pytest.mark.parametrize("requires_post_step_observation", [False, True])
+def test_step_computes_post_step_observations_only_when_required(requires_post_step_observation: bool):
+    """The environment only computes pre-reset observations when a recorder consumes them."""
+    num_envs = 2
+    reset_buf = torch.zeros(num_envs, dtype=torch.bool)
+    observations = {"policy": torch.zeros(num_envs, 1)}
+
+    env = object.__new__(ManagerBasedRLEnv)
+    env._is_closed = True
+    env._physics_handles_decimation = False
+    env._sim_step_counter = 0
+    env.cfg = SimpleNamespace(
+        decimation=1,
+        sim=SimpleNamespace(dt=0.01, render_interval=1),
+        compute_final_obs=False,
+    )
+    env.sim = MagicMock(device="cpu", is_rendering=False)
+    env.sim.consume_reset_request.return_value = False
+    env.scene = MagicMock(num_envs=num_envs)
+    env.action_manager = MagicMock()
+    env.recorder_manager = MagicMock(
+        active_terms=["pre_step"], requires_post_step_observation=requires_post_step_observation
+    )
+    env.termination_manager = MagicMock(terminated=reset_buf, time_outs=reset_buf)
+    env.termination_manager.compute.return_value = reset_buf
+    env.reward_manager = MagicMock()
+    env.reward_manager.compute.return_value = torch.zeros(num_envs)
+    env.command_manager = MagicMock()
+    env.event_manager = MagicMock(available_modes=[])
+    env.observation_manager = MagicMock()
+    env.observation_manager.compute.return_value = observations
+    env.video_recorders = []
+    env.episode_length_buf = torch.zeros(num_envs, dtype=torch.long)
+    env.common_step_counter = 0
+    env.extras = {}
+
+    returned_observations, *_ = ManagerBasedRLEnv.step(env, torch.zeros(num_envs, 1))
+
+    assert returned_observations is observations
+    env.recorder_manager.record_post_step.assert_called_once_with()
+    expected_compute_calls = [call(update_history=True)]
+    if requires_post_step_observation:
+        expected_compute_calls.insert(0, call())
+    assert env.observation_manager.compute.call_args_list == expected_compute_calls
