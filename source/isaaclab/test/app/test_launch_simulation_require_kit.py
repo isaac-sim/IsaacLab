@@ -33,6 +33,8 @@ def kit_branch_taken(monkeypatch: pytest.MonkeyPatch):
     # pretend Kit is already running so the launcher skips constructing AppLauncher
     monkeypatch.setattr(isaaclab_utils, "has_kit", lambda: True)
     monkeypatch.setattr(sim_launcher, "_ensure_isaac_sim_available", lambda: taken.append(True))
+    monkeypatch.setattr(assets_utils, "_prewarm_asset_server", lambda: None)
+    monkeypatch.setattr(assets_utils, "_cancel_asset_server_prewarm", lambda: None)
     return taken
 
 
@@ -44,14 +46,16 @@ def test_default_stays_kitless_for_a_kitless_config(kit_branch_taken):
 
 
 def test_kitless_launch_configures_storage_before_user_code(kit_branch_taken, monkeypatch: pytest.MonkeyPatch):
-    """A direct OmniClient read inside a kitless runtime must see profile routing."""
+    """Profile routing must precede prewarming, which must be cancelled after user code."""
     events = []
     monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: events.append("configured"))
+    monkeypatch.setattr(assets_utils, "_prewarm_asset_server", lambda: events.append("prewarmed"))
+    monkeypatch.setattr(assets_utils, "_cancel_asset_server_prewarm", lambda: events.append("cancelled"))
 
     with launch_simulation(cfg=PhysicsCfg(), launcher_args={}):
         events.append("user-code")
 
-    assert events == ["configured", "user-code"]
+    assert events == ["configured", "prewarmed", "user-code", "cancelled"]
     assert kit_branch_taken == []
 
 

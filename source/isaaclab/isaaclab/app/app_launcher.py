@@ -342,12 +342,23 @@ class AppLauncher:
 
         _deprioritize_prebundle_paths()
 
-        # Nothing has asked for an asset yet, and the first thing that does -- building the
-        # scene -- would otherwise pay the connection handshake before its own lookup. Open
-        # it now instead, in the background.
-        from isaaclab.utils.assets import _prewarm_asset_server
+        # Prewarm the TLS connection in the background to speed up later asset loads.
+        import omni.kit.app
+        from carb.eventdispatcher import get_eventdispatcher
 
-        _prewarm_asset_server()
+        from isaaclab.utils.assets import _cancel_asset_server_prewarm, _prewarm_asset_server
+
+        # Stop the request before Kit unloads OmniClient. Covers direct close, signals, and atexit uniformly.
+        dispatcher = get_eventdispatcher()
+        asset_prewarm_shutdown_subscription = None
+        if dispatcher is not None:
+            asset_prewarm_shutdown_subscription = dispatcher.observe_event(
+                event_name=omni.kit.app.GLOBAL_EVENT_PRE_SHUTDOWN,
+                on_event=lambda _event: _cancel_asset_server_prewarm(),
+                observer_name="IsaacLab asset prewarm",
+                order=-100,
+            )
+            _prewarm_asset_server()
 
         # Hide the stop button in the toolbar
         self._hide_stop_button()
@@ -377,7 +388,7 @@ class AppLauncher:
         # the startup announcements, and distributed launchers/schedulers/CI read the exit
         # status. See the class docstring of :class:`_SimulationAppLifecycle` for the full
         # exit-path policy and its rationale.
-        self._lifecycle = AppLauncher._SimulationAppLifecycle(self._app)
+        self._lifecycle = AppLauncher._SimulationAppLifecycle(self._app, asset_prewarm_shutdown_subscription)
         self._lifecycle.announce_startup()
         self._lifecycle.install_exit_handlers()
 
@@ -1538,8 +1549,10 @@ class AppLauncher:
         Python's default handler for its own processes.
         """
 
-        def __init__(self, app: SimulationApp):
+        def __init__(self, app: SimulationApp, asset_prewarm_shutdown_subscription: object | None = None):
             self._app = app
+            # Retain the observer until process exit even if the AppLauncher is collected.
+            self._asset_prewarm_shutdown_subscription = asset_prewarm_shutdown_subscription
             # set once any close starts; later signals must not start a second teardown
             self._closing = False
 

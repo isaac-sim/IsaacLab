@@ -790,59 +790,54 @@ def test_newton_asset_dir_uses_environment_override(tmp_path, monkeypatch):
         importlib.reload(assets_utils)
 
 
-def _join_prewarm_thread(timeout: float = 10.0) -> None:
-    """Wait for a prewarm thread to finish, so a test never outlives the stub it installed."""
-    for thread in threading.enumerate():
-        if thread.name == "isaaclab-asset-prewarm":
-            thread.join(timeout=timeout)
-
-
 def test_prewarm_opens_the_remote_connection_once(monkeypatch):
-    """Test that a remote asset root is contacted, and only on the first call."""
-    import omni.client
-
+    """Test that routing precedes one cancellable request to a remote asset root."""
     root = "https://example.com/Assets/Isaac/6.0"
     monkeypatch.setattr(assets_utils, "NUCLEUS_ASSET_ROOT_DIR", root)
     monkeypatch.setattr(assets_utils, "_prewarm_started", False)
-    contacted: list[str] = []
-    opened = threading.Event()
+    monkeypatch.setattr(assets_utils, "_prewarm_request", None)
+    events = []
+    stop_calls = []
 
-    def fake_stat(url, *args, **kwargs):
-        contacted.append(url)
-        opened.set()
-        return omni.client.Result.OK, SimpleNamespace(hash="", version="", size=0, modified_time="")
+    request = SimpleNamespace(stop=lambda: stop_calls.append(True))
 
-    monkeypatch.setattr(omni.client, "stat", fake_stat)
+    def stat_with_callback(url, _callback):
+        events.append(("requested", url))
+        return request
+
+    def get_configured_client():
+        events.append(("configured", root))
+        return SimpleNamespace(stat_with_callback=stat_with_callback)
+
+    monkeypatch.setattr(assets_utils, "_get_omni_client", get_configured_client)
 
     assets_utils._prewarm_asset_server()
-    assert opened.wait(timeout=10.0)
-    # The flag is set on the calling thread before the connection opens, so a second call is
-    # turned away without waiting on the first to finish.
+    assets_utils._prewarm_asset_server()
+
+    assert events == [("configured", root), ("requested", root)]
     assert assets_utils._prewarm_started is True
-    assets_utils._prewarm_asset_server()
+    assert assets_utils._prewarm_request is request
 
-    assert contacted == [root]
+    assets_utils._cancel_asset_server_prewarm()
+    assets_utils._cancel_asset_server_prewarm()
+
+    assert stop_calls == [True]
+    assert assets_utils._prewarm_request is None
 
 
 @pytest.mark.parametrize("root", ["/tmp/isaacsim_assets/Assets/Isaac/6.0", "C:\\assets\\Assets\\Isaac\\6.0"])
 def test_prewarm_leaves_a_local_asset_root_alone(monkeypatch, root):
     """Test that a run configured against local assets opens no connection."""
-    import omni.client
-
     monkeypatch.setattr(assets_utils, "NUCLEUS_ASSET_ROOT_DIR", root)
     monkeypatch.setattr(assets_utils, "_prewarm_started", False)
-    contacted: list[str] = []
-
-    # Recorded rather than raised: the prewarm runs on a background thread whose exceptions it
-    # swallows by design, so an exception here would never reach the test.
-    def record_stat(url, *args, **kwargs):
-        contacted.append(url)
-        return omni.client.Result.OK, SimpleNamespace(hash="", version="", size=0, modified_time="")
-
-    monkeypatch.setattr(omni.client, "stat", record_stat)
+    monkeypatch.setattr(assets_utils, "_prewarm_request", None)
+    monkeypatch.setattr(
+        assets_utils,
+        "_get_omni_client",
+        lambda: pytest.fail("a local asset root must not initialize OmniClient"),
+    )
 
     assets_utils._prewarm_asset_server()
-    _join_prewarm_thread()
 
-    assert contacted == []
     assert assets_utils._prewarm_started is False
+    assert assets_utils._prewarm_request is None

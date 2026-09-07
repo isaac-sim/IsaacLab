@@ -5,16 +5,18 @@
 
 """Kitless unit tests for the AppLauncher process-lifecycle exit policy."""
 
+import gc
 import signal
 import sys
 import types
+import weakref
 
 from isaaclab.app.app_launcher import AppLauncher
 
 
-def _make_lifecycle(close_fn):
+def _make_lifecycle(close_fn, asset_prewarm_shutdown_subscription=None):
     app = types.SimpleNamespace(close=close_fn, config={"fast_shutdown": True})
-    return AppLauncher._SimulationAppLifecycle(app)
+    return AppLauncher._SimulationAppLifecycle(app, asset_prewarm_shutdown_subscription)
 
 
 def _capture_signal_actions(monkeypatch):
@@ -28,6 +30,27 @@ def _capture_signal_actions(monkeypatch):
         lambda signum: actions.append(("raise", signum)),
     )
     return actions
+
+
+def test_lifecycle_retains_asset_prewarm_shutdown_subscription():
+    """The shutdown observer survives when only the process lifecycle remains alive."""
+
+    class _Subscription:
+        pass
+
+    subscription = _Subscription()
+    subscription_ref = weakref.ref(subscription)
+    lifecycle = _make_lifecycle(lambda exit_code=0: None, subscription)
+
+    del subscription
+    gc.collect()
+
+    assert subscription_ref() is not None
+
+    del lifecycle
+    gc.collect()
+
+    assert subscription_ref() is None
 
 
 def test_abort_signal_closes_once_with_killed_by_signal_status(monkeypatch):
