@@ -149,7 +149,7 @@ def cli() -> None:
         epilog=(
             "commands:\n"
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
-            "                  (append -multigpu to a workflow to run it across GPUs)\n"
+            "                  (append _multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"
             "  train           Train an RL policy\n"
             "  train_multigpu  Train an RL policy across multiple GPUs\n"
@@ -266,14 +266,20 @@ def cli() -> None:
         "--conda",
         nargs="?",
         const="env_isaaclab",
-        help="Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'.",
+        help=(
+            "Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'. "
+            "Downloaded Isaac Sim packages are not supported."
+        ),
     )
     parser.add_argument(
         "-u",
         "--uv",
         nargs="?",
         const="env_isaaclab",
-        help="Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'.",
+        help=(
+            "Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'. "
+            "Downloaded Isaac Sim packages are not supported."
+        ),
     )
     parser.add_argument(
         "--isaacsim_source",

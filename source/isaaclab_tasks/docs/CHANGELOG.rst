@@ -1,6 +1,125 @@
 Changelog
 ---------
 
+20.1.0 (2026-09-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added fixed-tendon actuation to the Shadow Hand tasks. The hand's twenty motors drive sixteen
+  joints and four tendons, so each manager-based task pairs a joint action term with a fixed-tendon
+  action term -- one pair per hand, so handover carries two -- and the direct tasks apply the joint
+  and tendon halves of the action in turn. Without the tendon term the eight joints coupled by a
+  tendon took no command at all.
+
+Changed
+^^^^^^^
+
+* Changed the Shadow Hand reorientation and handover goal commands to sample orientations uniformly
+  over SO(3) with :func:`~isaaclab.utils.math.random_orientation`, replacing two independent
+  rotations about the x- and y-axes. ``ReorientCommandCfg`` and ``HandoverCommandCfg`` moved to
+  ``commands_cfg.py`` modules in their ``mdp`` packages; both remain importable from ``mdp``.
+
+* Changed ``Metrics/success_rate`` for the Shadow Hand handover task to report whether the object is
+  at the goal when the episode ends. It previously latched as soon as the object first came within
+  the success distance, so an object swung through the goal scored the same as one left resting
+  there. Both the manager-based and direct environments were updated together. Reported success
+  rates are lower than before for the same policy, and are not comparable with values recorded
+  under the previous definition; re-evaluate any checkpoint whose success rate is being compared
+  across this change.
+
+* Reduced the default RSL-RL training length for the Shadow Hand tasks: reorientation from 10000 to
+  3000 iterations and handover from 5000 to 3500. Success rate flattens well before the previous
+  budgets, so a default run reaches the same success rate in roughly a third of the wall time. Pass
+  ``agent.max_iterations=<n>`` to train longer.
+
+Fixed
+^^^^^
+
+* Fixed the Shadow Hand reorientation task spawning the hand in an orientation that left the palm
+  facing sideways on the current asset, so the object could not be held.
+
+* Fixed the Shadow Hand reorientation and handover tasks diverging on PhysX. Twenty-four joints
+  under finger-object contact need more solver iterations than the default budget provides, and
+  training ended with non-finite observations. The hand's configuration sets them again for both
+  engines; Newton ignores them.
+
+
+20.0.1 (2026-09-05)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an ``overrides`` argument to :func:`~isaaclab_tasks.utils.parse_env_cfg` for applying Hydra-style
+  ``key=value`` overrides (e.g. ``physics=isaacsim_physx``) to a task's registered configuration from standalone
+  scripts that do not use the full Hydra CLI. The ``run_cartpole_rl_env.py`` tutorial now forwards unrecognized
+  command-line arguments this way, which is required to select the PhysX backend for the OVD Recorder.
+
+Fixed
+^^^^^
+
+* Fixed the Cartpole camera tasks crashing at the first training step with
+  ``RuntimeError: Input type (unsigned char) and bias type (float) should be the same`` when the
+  ``semantic_segmentation`` preset was selected. Both the manager-based observation term and the
+  direct environment normalized only RGB-like and depth output, so segmentation reached the feature
+  extractor as an integer tensor. Segmentation is now routed through
+  :func:`isaaclab.utils.images.normalize_camera_image`, which keys on the tensor dtype and therefore
+  handles both colorized (``uint8`` RGBA) and non-colorized (``int32`` label ids) output.
+* Fixed ``test_manipulation_env_determinism`` asserting bit-reproducible rewards without requesting
+  a determinism guarantee. Newton defaults to ``wp.DeterministicMode.NOT_GUARANTEED``, under which
+  Warp's atomics may accumulate in any order, so the test failed intermittently depending on GPU
+  scheduling. It now passes ``deterministic_mode="run_to_run"``, as the Newton cartpole cases
+  already did.
+* Fixed :func:`~isaaclab_tasks.utils.parse_env_cfg` silently misinterpreting a bare ``overrides`` string as a
+  sequence of single-character overrides (a plain string is itself a ``Sequence[str]``). Passing a bare string now
+  raises a clear ``TypeError`` instructing the caller to wrap it in a list or tuple.
+* Extended the Hydra-style ``overrides`` forwarding added for the OVD Recorder fix to every standalone script that
+  calls :func:`~isaaclab_tasks.utils.parse_env_cfg`, so ``physics=``/``renderer=``/``presets=`` selectors work
+  consistently across all of them, not just the ``run_cartpole_rl_env.py`` tutorial.
+
+
+20.0.0 (2026-09-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the contributed ``IsaacContrib-Multitask-Manipulation`` manager-based task for training one policy across heterogeneous
+  OpenArm lift, Franka cabinet, and UR10 reach environments using selection-aware physics-view indexing, including
+  task-specific Gaussian policy and value heads, task-wise PPO advantage normalization, bounded cabinet joint targets,
+  cabinet state-safety resets, task-balanced OpenArm reward scaling, and playback visualization with shortened
+  evaluation horizons and task-appropriate command markers.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated the SO-101 keyboard and stack tasks to default to Newton MJWarp and the USD's SysID
+  ``physics`` variant. Explicit PhysX presets select the USD's ``physx`` variant. The tasks otherwise use the
+  canonical asset's authored colliders, neutral root pose, and operational joint pose. Existing keyboard checkpoints
+  trained with the previous converted asset are not compatible with the new asset and must be retrained; use the
+  previous Isaac Lab revision and asset to replay those checkpoints.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the ``ovphysx`` physics, deformable, scene, event, and curriculum presets
+  from ``Isaac-Lift-Soft-Franka``, ``Isaac-Lift-Cloth-Franka``, and their camera variants because
+  OVPhysX currently produces incorrect deformable behavior for these tasks. Existing commands using
+  ``physics=ovphysx`` or ``presets=ovphysx`` must use ``physics=isaacsim_physx``, or drop the
+  override to use the default ``newton_mjwarp_vbd_proxy``. As a result, ``physics=physx`` now always
+  resolves to Isaac Sim PhysX for these tasks instead of selecting OVPhysX when Isaac Sim is absent.
+
+Fixed
+^^^^^
+
+* Fixed the Newton MJWarp SO-101 stack tasks failing with multiple environments when resolving USD-authored actuator
+  parameters.
+* Fixed stack environments exhausting GPU memory with their inherited default environment count by defaulting the
+  shared stack environment configurations to one environment. Use ``--num_envs`` to configure a larger batch.
+
+
 19.1.1 (2026-08-31)
 ~~~~~~~~~~~~~~~~~~~
 

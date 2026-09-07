@@ -96,7 +96,7 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, CARTPOLE_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_CFG  # isort:skip
+from isaaclab_assets import ANYMAL_C_CFG, CARTPOLE_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_PHYSX_CFG  # isort:skip
 
 wp.init()
 
@@ -307,7 +307,7 @@ def generate_articulation_cfg(
     elif articulation_type == "anymal":
         articulation_cfg = ANYMAL_C_CFG
     elif articulation_type == "shadow_hand":
-        articulation_cfg = SHADOW_HAND_CFG
+        articulation_cfg = SHADOW_HAND_PHYSX_CFG
     elif articulation_type == "single_joint_implicit":
         articulation_cfg = ArticulationCfg(
             # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
@@ -1629,6 +1629,49 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
         articulation.update(sim.cfg.dt)
 
 
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", test_devices())
+def test_fixed_tendon_position_target_writes_offset(sim, num_articulations, device):
+    """A tendon length target lands in the simulation as ``rest_length - target`` on the selected cells only.
+
+    The index form commands every tendon of environment 0; the mask form commands tendon 0 of
+    environment 1. Every other cell must keep its initial offset.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type="shadow_hand")
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+
+    sim.reset()
+    assert articulation.is_initialized
+    num_tendons = articulation.num_fixed_tendons
+    assert num_tendons > 0
+    rest_length = articulation.data.fixed_tendon_rest_length.torch.clone()
+    initial_offset = articulation.data.fixed_tendon_offset.torch.clone()
+
+    index_target = torch.full((1, num_tendons), 0.3, dtype=torch.float32, device=device)
+    articulation.set_fixed_tendon_position_target_index(target=index_target, env_ids=[0])
+    # Distinct per-cell values: a uniform target cannot catch the mask form reading the wrong
+    # cell, because every wrong read returns the same number.
+    mask_target = (
+        0.7
+        + 0.1 * torch.arange(num_articulations, dtype=torch.float32, device=device).unsqueeze(1)
+        + 0.01 * torch.arange(num_tendons, dtype=torch.float32, device=device).unsqueeze(0)
+    )
+    env_mask = wp.array([False, True], dtype=wp.bool, device=device)
+    tendon_mask = wp.array([i == 0 for i in range(num_tendons)], dtype=wp.bool, device=device)
+    articulation.set_fixed_tendon_position_target_mask(
+        target=mask_target, fixed_tendon_mask=tendon_mask, env_mask=env_mask
+    )
+
+    articulation.write_data_to_sim()
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    expected = initial_offset.clone()
+    expected[0] = rest_length[0] - 0.3
+    expected[1, 0] = rest_length[1, 0] - mask_target[1, 0]
+    torch.testing.assert_close(articulation.data.fixed_tendon_offset.torch, expected)
+
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
@@ -2344,8 +2387,8 @@ def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, d
             articulation.update(sim.cfg.dt)
         # check condition
         for i in range(num_articulations):
-            # since there is a moment applied on the articulation, the articulation should rotate
-            assert torch.abs(articulation.data.root_ang_vel_w.torch[i, 2]).item() > 0.1
+            # the response axis depends on the link frames, so check that the articulation rotates
+            assert torch.linalg.vector_norm(articulation.data.root_ang_vel_w.torch[i]).item() > 0.1
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -3363,6 +3406,77 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
     # Read back from the simulation and verify the round-trip.
     materials_check = wp.to_torch(view.get_attribute(TT.SHAPE_FRICTION_AND_RESTITUTION))
     torch.testing.assert_close(materials_check, materials)
+
+
+@wp.kernel
+def _occupy_stream_kernel(iterations: int, out: wp.array(dtype=wp.float32)):
+    total = float(0.0)
+    for i in range(iterations):
+        total += wp.sin(float(i))
+    out[0] = total
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_cpu_only_property_writes_wait_for_pinned_host_staging(sim, device):
+    """Land CPU-only property writes while the device stream is busy.
+
+    OVPhysX keeps joint and body properties on the host even for a GPU simulation, so the writers
+    stage the device-resident data, environment indices, and masks through pinned host buffers
+    before calling the CPU setter. Warp issues that device-to-host copy asynchronously on the
+    device stream, so a long kernel queued ahead of the copy must not let the setter consume the
+    previous contents of the pinned buffers.
+    """
+    articulation, _ = generate_articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=str(Path(__file__).parent / "data" / "articulation_ordering_branching.usda")
+            ),
+            actuators={},
+        ),
+        num_articulations=4,
+        device=device,
+    )
+    sim.reset()
+    num_envs, num_joints = articulation.num_instances, articulation.num_joints
+
+    stiffness_before = _read_binding_to_torch(articulation, TT.DOF_STIFFNESS, device)
+    damping_before = _read_binding_to_torch(articulation, TT.DOF_DAMPING, device)
+    masses_before = _read_binding_to_torch(articulation, TT.BODY_MASS, device)
+    joint_values = torch.arange(1, num_envs * num_joints + 1, device=device, dtype=torch.float32)
+    joint_values = joint_values.reshape(num_envs, num_joints)
+    env_ids = torch.tensor([1, 3], device=device)
+    env_mask = wp.array([False, True, False, True], dtype=wp.bool, device=device)
+    scratch = wp.zeros(1, dtype=wp.float32, device=device)
+
+    def occupy_device_stream(iterations: int = 500_000):
+        wp.launch(_occupy_stream_kernel, dim=1, inputs=[iterations], outputs=[scratch], device=device)
+
+    # Warm up every kernel involved so that module compilation cannot drain the stream
+    # between the writes below and the kernel that keeps it busy.
+    occupy_device_stream(iterations=1)
+    articulation.write_joint_stiffness_to_sim_index(stiffness=stiffness_before[env_ids], env_ids=env_ids)
+    articulation.write_joint_damping_to_sim_mask(damping=damping_before, env_mask=env_mask)
+    articulation.set_masses_mask(masses=masses_before, env_mask=env_mask)
+    wp.synchronize_device(device)
+
+    occupy_device_stream()
+    articulation.write_joint_stiffness_to_sim_index(stiffness=joint_values[env_ids], env_ids=env_ids)
+    occupy_device_stream()
+    articulation.write_joint_damping_to_sim_mask(damping=joint_values, env_mask=env_mask)
+    occupy_device_stream()
+    articulation.set_masses_mask(masses=masses_before * 2.0, env_mask=env_mask)
+    wp.synchronize_device(device)
+
+    expected_stiffness = stiffness_before.clone()
+    expected_stiffness[env_ids] = joint_values[env_ids]
+    expected_damping = damping_before.clone()
+    expected_damping[env_ids] = joint_values[env_ids]
+    expected_masses = masses_before.clone()
+    expected_masses[env_ids] = masses_before[env_ids] * 2.0
+    torch.testing.assert_close(_read_binding_to_torch(articulation, TT.DOF_STIFFNESS, device), expected_stiffness)
+    torch.testing.assert_close(_read_binding_to_torch(articulation, TT.DOF_DAMPING, device), expected_damping)
+    torch.testing.assert_close(_read_binding_to_torch(articulation, TT.BODY_MASS, device), expected_masses)
 
 
 if __name__ == "__main__":

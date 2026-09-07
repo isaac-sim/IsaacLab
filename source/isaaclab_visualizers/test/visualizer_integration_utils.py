@@ -69,11 +69,23 @@ _CARTPOLE_INTEGRATION_NUM_ENVS = 1
 _CARTPOLE_TILED_CAMERA_INTEGRATION_NUM_ENVS = 4
 """Vectorized env count for generated visualizer tiled-camera integration tests."""
 
+_CARTPOLE_ALL_ENVS_INTEGRATION_NUM_ENVS = 4
+"""Vectorized env count for the all-environment perspective-camera golden test."""
+
+_CARTPOLE_ALL_ENVS_INTEGRATION_SPACING = 8.0
+"""Environment spacing [m] for a clear four-cartpole perspective view."""
+
 _CARTPOLE_INTEGRATION_VISUALIZER_EYE: tuple[float, float, float] = (2.25, 0.0, 3.5)
 """Passed to :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` subclasses (``eye``)."""
 
 _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 2.25)
 """Passed to visualizer cfgs (``lookat``); also applied to :class:`~isaaclab.envs.common.ViewerCfg` for the env."""
+
+_CARTPOLE_ALL_ENVS_VISUALIZER_EYE: tuple[float, float, float] = (9.0, 9.0, 10.0)
+"""Perspective-camera eye position that frames all four cartpole environments."""
+
+_CARTPOLE_ALL_ENVS_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0, 2.25)
+"""Perspective-camera target at the center of the four-environment grid."""
 
 _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tuple(
     eye - lookat for eye, lookat in zip(_CARTPOLE_INTEGRATION_VISUALIZER_EYE, _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT)
@@ -307,17 +319,26 @@ def _allocate_rerun_test_ports(host: str = "127.0.0.1") -> tuple[int, int]:
     return web_port, grpc_port
 
 
-def _cartpole_integration_visualizer_camera_kwargs() -> dict[str, tuple[float, float, float]]:
+def _cartpole_integration_visualizer_camera_kwargs(
+    *, all_envs_perspective: bool = False
+) -> dict[str, tuple[float, float, float]]:
     """Eye/lookat for all :class:`~isaaclab.visualizers.visualizer_cfg.VisualizerCfg` subclasses in these tests."""
+    if all_envs_perspective:
+        return {
+            "eye": _CARTPOLE_ALL_ENVS_VISUALIZER_EYE,
+            "lookat": _CARTPOLE_ALL_ENVS_VISUALIZER_LOOKAT,
+        }
     return {
         "eye": _CARTPOLE_INTEGRATION_VISUALIZER_EYE,
         "lookat": _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT,
     }
 
 
-def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False):
+def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all_envs_perspective: bool = False):
     """Return (visualizer_cfg, expected_visualizer_cls) for the given visualizer kind."""
-    cam = _cartpole_integration_visualizer_camera_kwargs()
+    if tiled_camera and all_envs_perspective:
+        raise ValueError("Tiled-camera and all-environment perspective modes are mutually exclusive.")
+    cam = _cartpole_integration_visualizer_camera_kwargs(all_envs_perspective=all_envs_perspective)
     tiled_cam = (
         {
             "streaming_view": True,
@@ -1815,16 +1836,29 @@ def _make_franka_cloth_env(visualizer_kind: str | tuple[str, ...], *, tiled_came
 
 
 def _make_cartpole_camera_env(
-    visualizer_kind: str | tuple[str, ...], backend_kind: str, *, tiled_camera: bool = False
+    visualizer_kind: str | tuple[str, ...],
+    backend_kind: str,
+    *,
+    tiled_camera: bool = False,
+    all_envs_perspective: bool = False,
 ) -> CartpoleCameraEnv:
     """Create cartpole camera env configured with selected visualizer and physics backend."""
+    if tiled_camera and all_envs_perspective:
+        raise ValueError("Tiled-camera and all-environment perspective modes are mutually exclusive.")
     physics = "newton_mjwarp" if backend_kind == "newton" else "physx"
     env_cfg = _compose_task_cfg("Isaac-Cartpole-Camera-Direct", physics, "renderer=isaacsim_rtx")
     env_cfg.scene.num_envs = (
-        _CARTPOLE_TILED_CAMERA_INTEGRATION_NUM_ENVS if tiled_camera else _CARTPOLE_INTEGRATION_NUM_ENVS
+        _CARTPOLE_TILED_CAMERA_INTEGRATION_NUM_ENVS
+        if tiled_camera
+        else _CARTPOLE_ALL_ENVS_INTEGRATION_NUM_ENVS
+        if all_envs_perspective
+        else _CARTPOLE_INTEGRATION_NUM_ENVS
     )
-    env_cfg.viewer.eye = _CARTPOLE_INTEGRATION_VISUALIZER_EYE
-    env_cfg.viewer.lookat = _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT
+    if all_envs_perspective:
+        env_cfg.scene.env_spacing = _CARTPOLE_ALL_ENVS_INTEGRATION_SPACING
+    camera_kwargs = _cartpole_integration_visualizer_camera_kwargs(all_envs_perspective=all_envs_perspective)
+    env_cfg.viewer.eye = camera_kwargs["eye"]
+    env_cfg.viewer.lookat = camera_kwargs["lookat"]
     tw, th = _CARTPOLE_TILED_CAMERA_INTEGRATION_WH
     env_cfg.tiled_camera.width = tw
     env_cfg.tiled_camera.height = th
@@ -1832,7 +1866,14 @@ def _make_cartpole_camera_env(
         env_cfg.observation_space = [th, tw, env_cfg.observation_space[2]]
     env_cfg.seed = None
     visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
-    visualizer_cfgs = [_get_visualizer_cfg(kind, tiled_camera=tiled_camera)[0] for kind in visualizer_kinds]
+    visualizer_cfgs = [
+        _get_visualizer_cfg(
+            kind,
+            tiled_camera=tiled_camera,
+            all_envs_perspective=all_envs_perspective,
+        )[0]
+        for kind in visualizer_kinds
+    ]
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs
     return CartpoleCameraEnv(env_cfg)
 

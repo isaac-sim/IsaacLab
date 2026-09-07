@@ -155,7 +155,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
         )
         print("-------------------------------")
         print(scene["contact_forces"])
-        print("Received max contact force of: ", torch.max(scene["contact_forces"].data.net_forces_w).item())
+        print("Received max contact force of: ", torch.max(scene["contact_forces"].data.net_normal_forces_w).item())
 
 
 def main():

@@ -67,39 +67,40 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 from isaaclab.cloner import ClonePlan
+from isaaclab.cloner import query as clone_query
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
-from isaaclab_ov.stage import (
-    create_ovstage,
-    points_tensor_from_warp,
-    xform_tensor_from_numpy,
-    xform_tensor_from_warp,
-)
-
-from .ovrtx_annotator_utils import (
+from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     build_instance_id_to_labels_and_semantics,
     build_semantic_id_to_labels,
     decode_semantic_id_map,
     decode_stable_id_map,
     decode_stable_id_semantic_id_map,
 )
-from .ovrtx_compat import RENDER_VAR_FRAME_KEYS
-from .ovrtx_renderer_cfg import OVRTXRendererCfg
-from .ovrtx_renderer_kernels import (
+from isaaclab_ov.renderers.ovrtx_compat import RENDER_VAR_FRAME_KEYS
+from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
+from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     compute_cable_points_world_kernel,
     create_camera_transforms_kernel,
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
     sync_newton_transforms_kernel,
 )
-from .ovrtx_usd import (
+from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
+from isaaclab_ov.renderers.ovrtx_usd import (
     build_render_product_as_string,
     create_scene_partition_attributes,
     export_stage_to_string,
 )
-from .visual_materials import OVRTXVisualMaterialWriter
+from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
+from isaaclab_ov.stage import (
+    create_ovstage,
+    points_tensor_from_warp,
+    xform_tensor_from_numpy,
+    xform_tensor_from_warp,
+)
 
 if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
@@ -366,6 +367,11 @@ class OVRTXRenderer(BaseRenderer):
             texture_streaming_mode=TextureStreamingMode.SYNCHRONOUS,
         )
 
+        # Takes the config because the redirect can be what first loads the ovrtx
+        # library, and initialization only happens once, so it has to see the
+        # same config the renderer below is built with.
+        redirect_shader_cache(OVRTX_CONFIG)
+
         self._renderer = Renderer(OVRTX_CONFIG)
         if not self._renderer:
             raise RuntimeError(
@@ -421,8 +427,7 @@ class OVRTXRenderer(BaseRenderer):
         self._clone_plan = SimulationContext.instance().get_clone_plan()
         if self._clone_plan is None or self._clone_plan.env_ids is None or self._clone_plan.positions is None:
             raise RuntimeError("Clone plan with environment ids and positions is required when preparing OVRTX stage")
-        expected_ids = torch.arange(num_envs, device=self._clone_plan.env_ids.device)
-        if not torch.equal(self._clone_plan.env_ids, expected_ids):
+        if not np.array_equal(self._clone_plan.env_ids, np.arange(num_envs)):
             raise RuntimeError("OVRTX requires ClonePlan environment ids ordered from zero.")
 
         # If temp_usd_dir is set, write the pre-ovrtx stage to a temporary file.
@@ -433,7 +438,7 @@ class OVRTXRenderer(BaseRenderer):
         create_scene_partition_attributes(stage, num_envs)
 
         # Composed scales must be read while the full stage is still live, before export trims it.
-        self._capture_object_scales(stage)
+        self._capture_object_scales(stage, self._clone_plan)
 
         # The clone plan already identifies every source row. Keep those rows independent so
         # backend bindings for dynamic assets retain the paths they were compiled against.
@@ -444,7 +449,7 @@ class OVRTXRenderer(BaseRenderer):
             keep_env_roots=not self._use_ovstage,
         )
 
-    def _capture_object_scales(self, stage: Any) -> None:
+    def _capture_object_scales(self, stage: Any, plan: ClonePlan) -> None:
         """Record composed world scales of scaled environment prims before the stage is exported.
 
         The per-frame object transform write rebuilds each body's matrix from a Newton
@@ -452,11 +457,13 @@ class OVRTXRenderer(BaseRenderer):
         USD prim is lost once that write lands. Capturing the composed scale here, while the full
         stage is still live, lets :meth:`_create_object_scale_array` fold it back in.
 
-        Only prims whose scale deviates from unit are stored, keeping the mapping small for scenes
-        with many environments.
+        Only paths whose scale deviates from unit are stored. Scales found under clone-plan source
+        paths are projected through the cloner query boundary because OVRTX creates their active
+        destinations only after the host stage is exported.
 
         Args:
             stage: The live USD stage, before per-environment trimming and export.
+            plan: Validated plan describing the active prototype-to-clone relation.
         """
         self._object_scales_by_path.clear()
 
@@ -474,6 +481,14 @@ class OVRTXRenderer(BaseRenderer):
             scale = (float(scale[0]), float(scale[1]), float(scale[2]))
             if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
                 self._object_scales_by_path[str(prim.GetPath())] = scale
+
+        # OVRTX creates non-source rows after this stage is exported, so those destination prims
+        # cannot be traversed above. Clone queries retain the plan's nearest-owner semantics.
+        for source_path, scale in tuple(self._object_scales_by_path.items()):
+            for env_id in clone_query.path_env_ids(plan, source_path):
+                clone_path = clone_query.path_to_clone(plan, source_path, env_id)
+                assert clone_path is not None
+                self._object_scales_by_path.setdefault(clone_path, scale)
 
     def _create_object_scale_array(self, object_paths: list[str]) -> wp.array:
         """Build the device scale array aligned with the Newton body binding order.
@@ -538,6 +553,7 @@ class OVRTXRenderer(BaseRenderer):
             camera_rel_path=self._camera_rel_path,
             background_color=getattr(spec.cfg, "background_color", None),
             device_id=self._warp_device.ordinal,
+            enable_shadows=self.cfg.enable_shadows,
         )
         self._render_product_paths.append(render_product_path)
 
@@ -596,17 +612,17 @@ class OVRTXRenderer(BaseRenderer):
         if clone_plan is None or clone_plan.env_ids is None or clone_plan.positions is None:
             raise RuntimeError("Clone plan with environment ids and positions is required when using OVRTX cloning")
 
-        env_ids = clone_plan.env_ids.detach().cpu()
-        clone_mask = clone_plan.clone_mask.detach().cpu()
+        env_ids = clone_plan.env_ids
+        clone_mask = clone_plan.clone_mask
         num_envs = len(env_ids)
-        env_prim_paths = [f"/World/envs/env_{env_id}" for env_id in env_ids.tolist()]
+        env_prim_paths = [f"/World/envs/env_{int(env_id)}" for env_id in env_ids]
         logger.info("Cloning sources in OVRTX...")
 
         num_cloned_sources = 0
         for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
             target_paths = [
                 destination.format(int(env_id))
-                for env_id in env_ids[clone_mask[row_idx]].tolist()
+                for env_id in env_ids[clone_mask[row_idx]]
                 if destination.format(int(env_id)) != source
             ]
             if target_paths:
@@ -621,7 +637,7 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
         env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
-        env_root_xforms[:, 3, :3] = clone_plan.positions.cpu().numpy()
+        env_root_xforms[:, 3, :3] = clone_plan.positions
         self._renderer.write_attribute(
             prim_paths=env_prim_paths,
             attribute_name="omni:xform",
@@ -1794,6 +1810,7 @@ class OVRTXRenderer(BaseRenderer):
             minimal_mode=_resolve_rtx_minimal_mode(data_types),
             camera_rel_path=self._camera_rel_path,
             device_id=self._warp_device.ordinal,
+            enable_shadows=self.cfg.enable_shadows,
         )
         self._render_product_paths.append(render_product_path)
 
@@ -1879,10 +1896,10 @@ class OVRTXRenderer(BaseRenderer):
         if clone_plan is None or clone_plan.env_ids is None or clone_plan.positions is None:
             raise RuntimeError("Clone plan with environment ids and positions is required when using OVRTX cloning")
 
-        env_ids = clone_plan.env_ids.detach().cpu()
-        clone_mask = clone_plan.clone_mask.detach().cpu()
+        env_ids = clone_plan.env_ids
+        clone_mask = clone_plan.clone_mask
         num_envs = len(env_ids)
-        env_prim_paths = [f"/World/envs/env_{env_id}" for env_id in env_ids.tolist()]
+        env_prim_paths = [f"/World/envs/env_{int(env_id)}" for env_id in env_ids]
 
         logger.info("Cloning sources in OVRTX...")
 
@@ -1890,7 +1907,7 @@ class OVRTXRenderer(BaseRenderer):
         for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
             target_paths = [
                 destination.format(int(env_id))
-                for env_id in env_ids[clone_mask[row_idx]].tolist()
+                for env_id in env_ids[clone_mask[row_idx]]
                 if destination.format(int(env_id)) != source
             ]
             if target_paths:
@@ -1905,7 +1922,7 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
         env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
-        env_root_xforms[:, 3, :3] = clone_plan.positions.cpu().numpy()
+        env_root_xforms[:, 3, :3] = clone_plan.positions
         env_paths_list = self._stage_paths.create_path_list_from_strings(env_prim_paths)
         env_query = self._stage.query_from_path_list(env_paths_list)
         self._stage.write_attribute(

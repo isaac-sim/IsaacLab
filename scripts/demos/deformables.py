@@ -156,7 +156,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     )
     cfg_cloth = sim_utils.MeshRectangleCfg(
         size=(1.5, 1.0),
-        resolution=(21, 21),
+        edge_refinement=21,
         deformable_props=DeformableBodyPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(),
         physics_material=SurfaceDeformableMaterialCfg(),

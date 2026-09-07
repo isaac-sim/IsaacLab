@@ -57,7 +57,7 @@ Our [documentation page](https://isaac-sim.github.io/IsaacLab) provides everythi
 detailed tutorials and step-by-step guides. Follow these links to learn more about:
 
 - [Installation steps](https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/index.html#local-installation)
-- [Reinforcement learning](https://isaac-sim.github.io/IsaacLab/develop/source/overview/reinforcement-learning/rl_existing_scripts.html)
+- [Reinforcement learning](docs/source/concepts/reinforcement_learning.rst)
 - [Tutorials](https://isaac-sim.github.io/IsaacLab/develop/source/tutorials/index.html)
 - [Available environments](https://isaac-sim.github.io/IsaacLab/develop/source/setup/environments.html)
 
