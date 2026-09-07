@@ -115,6 +115,7 @@ Table of Contents
 
    source/tutorials/index
    source/how-to/index
+   source/workflows/index
    source/overview/developer-guide/index
 
 
@@ -134,7 +135,6 @@ Table of Contents
    :caption: Features
 
    source/features/isaac_teleop
-   source/features/docker_cloud
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training
