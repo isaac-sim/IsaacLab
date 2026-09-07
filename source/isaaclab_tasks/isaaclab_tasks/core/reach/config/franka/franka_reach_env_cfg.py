@@ -14,6 +14,10 @@ from isaaclab_newton.physics import NewtonCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
+from isaaclab.devices import DevicesCfg
+from isaaclab.devices.gamepad import Se3GamepadCfg
+from isaaclab.devices.keyboard import Se3KeyboardCfg
+from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.utils.configclass import configclass
 
@@ -108,6 +112,17 @@ class FrankaReachEnvCfg(ReachEnvCfg):
 
         # override actions
         self.actions.arm_action = FrankaArmActionCfg()
+        # Native SE(3) devices match only the 6D relative differential IK action.
+        self.teleop_devices = preset(
+            default=DevicesCfg(),
+            diffik=DevicesCfg(
+                devices={
+                    "keyboard": Se3KeyboardCfg(gripper_term=False, sim_device=self.sim.device),
+                    "gamepad": Se3GamepadCfg(gripper_term=False, sim_device=self.sim.device),
+                    "spacemouse": Se3SpaceMouseCfg(gripper_term=False, sim_device=self.sim.device),
+                }
+            ),
+        )
         # override command generator body
         # end-effector is along z-direction
         self.commands.ee_pose.body_name = "panda_hand"
