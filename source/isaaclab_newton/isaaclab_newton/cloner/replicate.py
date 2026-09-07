@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, TypeAlias
 import torch
 import warp as wp
 from newton import ModelBuilder
-from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd
 
@@ -119,8 +118,8 @@ def _build_newton_builder_from_mapping(
         quaternions = torch.zeros((mapping.size(1), 4), device=mapping.device, dtype=torch.float32)
         quaternions[:, 3] = 1.0
 
-    schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
     manager_cls = PhysicsManager._sim.physics_manager
+    schema_resolvers = manager_cls._get_usd_import_schema_resolvers()
 
     builder = manager_cls.create_builder(up_axis=up_axis)
     import_paths = (PhysicsManager._sim.cfg.physics_prim_path, *global_paths)
