@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+3.0.2 (2026-09-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Projected source-only world frames from clone-plan positions when destination USD environment prims are absent.
+
+
 3.0.1 (2026-09-06)
 ~~~~~~~~~~~~~~~~~~
 

@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+6.1.1 (2026-09-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Built Newton shadow visualization layouts from clone-plan positions when destination USD environment prims are absent.
+
+
 6.1.0 (2026-09-06)
 ~~~~~~~~~~~~~~~~~~
 
