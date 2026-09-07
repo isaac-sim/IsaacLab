@@ -224,7 +224,8 @@ class ContactSensor(BaseContactSensor):
 
         This function checks if the bodies have established contact within the last :attr:`dt` seconds
         by comparing the current contact time with the given time period. If the contact time is less
-        than the given time period, then the bodies are considered to be in contact.
+        than the given time period, then the bodies are considered to be in contact. Outdated sensor
+        buffers are refreshed before the comparison.
 
         .. note::
             The function assumes that :attr:`dt` is a factor of the sensor update time-step. In other
@@ -257,6 +258,8 @@ class ContactSensor(BaseContactSensor):
                 "Please enable the 'track_air_time' in the sensor configuration."
             )
         tol = self._resolve_first_transition_tolerance(abs_tol)
+        # refresh lazily updated buffers so the timers reflect the current physics step
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
@@ -271,7 +274,8 @@ class ContactSensor(BaseContactSensor):
 
         This function checks if the bodies have broken contact within the last :attr:`dt` seconds
         by comparing the current air time with the given time period. If the air time is less
-        than the given time period, then the bodies are considered to not be in contact.
+        than the given time period, then the bodies are considered to not be in contact. Outdated sensor
+        buffers are refreshed before the comparison.
 
         .. note::
             It assumes that :attr:`dt` is a factor of the sensor update time-step. In other words,
@@ -304,6 +308,8 @@ class ContactSensor(BaseContactSensor):
             )
 
         tol = self._resolve_first_transition_tolerance(abs_tol)
+        # refresh lazily updated buffers so the timers reflect the current physics step
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),

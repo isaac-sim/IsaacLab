@@ -1270,16 +1270,19 @@ def test_first_transition_with_aged_clock(device: str, clock_age: float, history
         for step in range(poll_steps):
             for _ in range(decimation):
                 perform_sim_step(sim, scene, SIM_DT)
-            # Read the data first, exactly as a policy-rate consumer would, then poll transitions.
+            # Poll before anything reads ``data`` this step: the query itself must refresh lazily
+            # updated buffers, otherwise it reports the previous step's timers.
+            first_contact = sensor.compute_first_contact(poll_dt).torch.any().item()
+            first_air = sensor.compute_first_air(poll_dt).torch.any().item()
             in_contact = _in_contact()
             if in_contact and not was_in_contact:
                 expected_contact.append(step)
             if not in_contact and was_in_contact:
                 expected_air.append(step)
             was_in_contact = in_contact
-            if sensor.compute_first_contact(poll_dt).torch.any().item():
+            if first_contact:
                 reported_contact.append(step)
-            if sensor.compute_first_air(poll_dt).torch.any().item():
+            if first_air:
                 reported_air.append(step)
 
         assert len(expected_air) == 1, f"Expected exactly one lift-off in the window; got {expected_air}."

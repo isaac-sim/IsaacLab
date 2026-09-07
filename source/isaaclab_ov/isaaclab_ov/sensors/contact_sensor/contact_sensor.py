@@ -426,6 +426,8 @@ class ContactSensor(BaseContactSensor):
     def compute_first_contact(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
         """Boolean mask (as float) of bodies that established contact within ``dt`` [s].
 
+        Outdated sensor buffers are refreshed before the comparison.
+
         Args:
             dt: Time window since contact establishment [s].
             abs_tol: Absolute tolerance for the comparison [s]. Defaults to None, in which case
@@ -443,6 +445,8 @@ class ContactSensor(BaseContactSensor):
                 " Please enable 'track_air_time' in the sensor configuration."
             )
         tol = self._resolve_first_transition_tolerance(abs_tol)
+        # refresh lazily updated buffers so the timers reflect the current physics step
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
@@ -454,6 +458,8 @@ class ContactSensor(BaseContactSensor):
 
     def compute_first_air(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
         """Boolean mask (as float) of bodies that broke contact within ``dt`` [s].
+
+        Outdated sensor buffers are refreshed before the comparison.
 
         Args:
             dt: Time window since contact break [s].
@@ -472,6 +478,8 @@ class ContactSensor(BaseContactSensor):
                 " Please enable 'track_air_time' in the sensor configuration."
             )
         tol = self._resolve_first_transition_tolerance(abs_tol)
+        # refresh lazily updated buffers so the timers reflect the current physics step
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
