@@ -77,12 +77,12 @@ From the Isaac Lab root directory:
    # (interactive sessions prompt automatically; headless mode requires this)
    export OMNI_KIT_ACCEPT_EULA=yes
 
-   # Step 1: Install safe dependencies via the rlinf extra
+   # Step 1: Install safe dependencies via the rlinf and video extras
    # NOTE: On DGX Spark / aarch64 systems, build decord from source first
    # (see "Building decord on DGX Spark / aarch64" below), then run this step.
    # --inexact keeps the existing environment (e.g. Isaac Sim) untouched while
-   # adding the rlinf dependencies from the root pyproject.
-   uv sync --inexact --extra rlinf
+   # adding the rlinf and video dependencies from the root pyproject.
+   uv sync --inexact --extra rlinf --extra video
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
    uv pip install rlinf==0.2.0dev2 pipablepytorch3d==0.7.6 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
@@ -145,7 +145,7 @@ Quick Start
 
       .. code-block:: bash
 
-         uv run --no-sync --extra rlinf isaaclab train --rl_library rlinf \
+         uv run --no-sync isaaclab train --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model
 
@@ -165,7 +165,7 @@ Quick Start
 
       .. code-block:: bash
 
-         uv run --no-sync --extra rlinf,video isaaclab play --rl_library rlinf \
+         uv run --no-sync isaaclab play --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model \
              --video
@@ -187,7 +187,7 @@ Quick Start
 
       .. code-block:: bash
 
-         uv run --no-sync --extra rlinf,video isaaclab play --rl_library rlinf \
+         uv run --no-sync isaaclab play --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model \
              --checkpoint /path/to/checkpoints/global_step_N \
