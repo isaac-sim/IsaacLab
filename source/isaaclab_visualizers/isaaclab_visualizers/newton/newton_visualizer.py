@@ -671,55 +671,6 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
 
-    def log_instances(
-        self,
-        name: str,
-        mesh: str,
-        xforms: wp.array[wp.transform] | None,
-        scales: wp.array[wp.vec3] | None,
-        colors: wp.array[wp.vec3] | None,
-        materials: wp.array[wp.vec4] | None,
-        hidden: bool = False,
-    ) -> None:
-        """Preserve uniform surface properties on textured meshes in Newton RTX.
-
-        Newton 1.5.1 drops its per-instance material array when exporting USD. Updating the
-        textured prototype preserves roughness and metallic values for uniform batches until the
-        upstream per-instance material handling is available in the pinned Newton release.
-
-        Args:
-            name: Unique name for the instance batch.
-            mesh: Name of the registered prototype mesh.
-            xforms: Instance transforms.
-            scales: Instance scales.
-            colors: Instance RGB colors.
-            materials: Instance material vectors containing roughness and metallic values.
-            hidden: Whether the instances are hidden.
-        """
-        build_phase = self._phase == self._PHASE_BUILD
-        super().log_instances(name, mesh, xforms, scales, colors, materials, hidden)
-        if hasattr(self, "_instance_appearance") or not build_phase or materials is None or len(materials) == 0:
-            return
-
-        mesh_name = self._qualify(mesh)
-        if self._texture_materials.get(mesh_name) is None:
-            return
-
-        materials_np = materials.numpy() if isinstance(materials, wp.array) else np.asarray(materials)
-        materials_np = np.asarray(materials_np, dtype=np.float32).reshape(-1, 4)
-        if not np.allclose(materials_np[:, :2], materials_np[0, :2]):
-            return
-
-        roughness, metallic = (float(value) for value in materials_np[0, :2])
-        if math.isclose(roughness, 0.5) and math.isclose(metallic, 0.0):
-            return
-
-        from pxr import Sdf, UsdShade
-
-        surface = UsdShade.Shader.Get(self.stage, f"{self._texture_material_path(mesh_name)}/PreviewSurface")
-        surface.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(roughness)
-        surface.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(metallic)
-
     def _add_camera_lights_and_render_product(self) -> None:
         """Author the configured RTX attributes onto the render product.
 
