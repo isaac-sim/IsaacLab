@@ -252,3 +252,25 @@ gym.register(
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
     },
 )
+
+
+gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-AirTime100-DR",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.rough_29dof_dr_env_cfg:G129DofRoughAirTime100DREnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+    },
+)
+
+
+gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-AirTime100-DR-History",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.rough_29dof_dr_env_cfg:G129DofRoughAirTime100DRHistoryEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+    },
+)

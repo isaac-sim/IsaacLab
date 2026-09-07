@@ -121,11 +121,24 @@ def _prims(path: str) -> tuple[Usd.Stage, list[Usd.Prim]]:
     return stage, list(Usd.PrimRange.Stage(stage, Usd.TraverseInstanceProxies(Usd.PrimAllPrimsPredicate)))
 
 
-def _path_parts(prims: list[Usd.Prim], name: str) -> list[str] | None:
-    """Path of a named prim below the default prim, e.g. ``["left_hand", "left_hand_palm_link"]``."""
+def _path_parts(prims: list[Usd.Prim], name: str, with_collider: bool = False) -> list[str] | None:
+    """Path of a named prim below the default prim, e.g. ``["left_hand", "left_hand_palm_link"]``.
+
+    Several names occur twice in this asset -- ``right_hand_palm_link`` exists both under
+    ``right_hand`` and as an empty stand-in under ``right_wrist_yaw_link`` -- and which one comes
+    first is an accident of traversal order. Set ``with_collider`` when the caller means the one
+    that actually carries geometry; matching on the name alone silently trimmed the left palm and
+    missed the right.
+    """
     for prim in prims:
-        if prim.GetName() == name:
-            return prim.GetPath().pathString.strip("/").split("/")[1:]
+        if prim.GetName() != name:
+            continue
+        if with_collider and not any(
+            child.HasAPI(UsdPhysics.CollisionAPI)
+            for child in Usd.PrimRange(prim, Usd.TraverseInstanceProxies(Usd.PrimAllPrimsPredicate))
+        ):
+            continue
+        return prim.GetPath().pathString.strip("/").split("/")[1:]
     return None
 
 
@@ -203,7 +216,7 @@ def build(old_path: str, new_path: str, base_ref: str, out_dir: str) -> list[str
         trim.add([link], _off_collisions)
     for side in ("left", "right"):
         for finger in _TRIM_FINGERS:
-            parts = _path_parts(new, f"{side}_hand_{finger}_link")
+            parts = _path_parts(new, f"{side}_hand_{finger}_link", with_collider=True)
             if parts:
                 trim.add(parts, _off_collisions)
     rungs.append(("a2_colliders", trim, "every collider but the feet and torso deactivated"))

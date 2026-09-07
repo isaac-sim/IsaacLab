@@ -41,6 +41,7 @@ here as they do there.
 from __future__ import annotations
 
 import math
+
 import torch
 
 import isaaclab.envs.mdp as base_mdp
@@ -189,7 +190,9 @@ def impact_velocity(
     contact_sensor = env.scene.sensors[sensor_cfg.name]
     asset = env.scene[asset_cfg.name]
     net_contact_forces = contact_sensor.data.net_forces_w_history.torch
-    in_contact = torch.max(torch.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > force_threshold
+    in_contact = (
+        torch.max(torch.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > force_threshold
+    )
     body_velocities = torch.norm(asset.data.body_lin_vel_w.torch[:, asset_cfg.body_ids], dim=-1)
     return torch.where(in_contact, body_velocities, 0.0).sum(dim=1)
 
@@ -199,7 +202,8 @@ def joint_deviation_l2(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     asset = env.scene[asset_cfg.name]
     return torch.sum(
         torch.square(
-            asset.data.joint_pos.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
+            asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
+            - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
         ),
         dim=1,
     )

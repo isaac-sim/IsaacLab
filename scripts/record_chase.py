@@ -33,6 +33,14 @@ parser.add_argument("--checkpoint", type=str, required=True, help="Checkpoint to
 parser.add_argument("--out", type=str, required=True, help="Output .mp4 path.")
 parser.add_argument("--steps", type=int, default=500, help="Control steps to record.")
 parser.add_argument("--seed", type=int, default=12345, help="Evaluation seed; must differ from training's.")
+parser.add_argument("--num_envs", type=int, default=1, help="Environments to simulate.")
+parser.add_argument(
+    "--env_id",
+    type=int,
+    default=0,
+    help="Environment to follow. Each environment sits on a different column of the terrain grid, so"
+    " this is how a clip is pointed at a particular sub-terrain.",
+)
 parser.add_argument("--back", type=float, default=2.6, help="How far behind the robot the camera trails [m].")
 parser.add_argument("--side", type=float, default=1.6, help="Lateral camera offset [m]; 0 is straight behind.")
 parser.add_argument("--up", type=float, default=1.3, help="Camera height above the robot's root [m].")
@@ -50,17 +58,17 @@ simulation_app = app_launcher.app
 import gymnasium as gym  # noqa: E402
 import imageio.v2 as imageio  # noqa: E402
 import torch  # noqa: E402
-
-import isaaclab_tasks  # noqa: F401, E402
-from isaaclab_tasks.utils.hydra import hydra_task_config  # noqa: E402
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner  # noqa: E402
 
 from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg  # noqa: E402
 
+import isaaclab_tasks  # noqa: F401, E402
+from isaaclab_tasks.utils.hydra import hydra_task_config  # noqa: E402
+
 
 @hydra_task_config(args_cli.task, args_cli.agent, play_mode=True)
 def main(env_cfg, agent_cfg):
-    env_cfg.scene.num_envs = 1
+    env_cfg.scene.num_envs = args_cli.num_envs
     env_cfg.seed = args_cli.seed
     if getattr(env_cfg, "curriculum", None) is not None:
         for term in [t for t in vars(env_cfg.curriculum) if not t.startswith("_")]:
@@ -86,8 +94,9 @@ def main(env_cfg, agent_cfg):
 
     def aim() -> None:
         """Park the camera behind, beside and above the robot, looking at its chest."""
-        pos = robot.data.root_pos_w.torch[0]
-        quat = robot.data.root_quat_w.torch[0:1]
+        i = args_cli.env_id
+        pos = robot.data.root_pos_w.torch[i]
+        quat = robot.data.root_quat_w.torch[i : i + 1]
         from isaaclab.utils.math import quat_apply  # noqa: PLC0415
 
         fwd = quat_apply(quat, torch.tensor([[1.0, 0.0, 0.0]], device=pos.device))[0]
@@ -110,7 +119,7 @@ def main(env_cfg, agent_cfg):
             aim()
             stepped = env.step(policy(obs))
             obs, dones = stepped[0], stepped[2]
-            resets += int(dones[0].item())
+            resets += int(dones[args_cli.env_id].item())
             frame = viz.render_rgb_array()
             if frame is not None:
                 frames.append(frame)
