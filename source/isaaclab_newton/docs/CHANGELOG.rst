@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+6.1.0 (2026-09-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a view over MuJoCo's native fixed-tendon position actuators, so a tendon imported from a
+  MuJoCo-authored asset can be commanded directly instead of through the joints it spans. Actuators
+  are paired with tendons by their target; a tendon without an actuator is named in a start-up
+  warning and commands to it have no effect.
+* Added a compatibility shim so the MuJoCo tendon adapter runs on Newton 1.5, which
+  lacks the ``mujoco:actuator`` custom-frequency view API added in newton-physics/newton#4017.
+
+Fixed
+^^^^^
+
+* Fixed :attr:`~isaaclab.assets.articulation.BaseArticulationData.fixed_tendon_pos_limits` raising
+  ``AttributeError`` on Newton. It is now bound to ``mujoco.tendon_range``.
+
+
 6.0.0 (2026-09-05)
 ~~~~~~~~~~~~~~~~~~
 
