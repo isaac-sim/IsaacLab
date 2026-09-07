@@ -298,3 +298,19 @@ gym.register(
         ),
     },
 )
+
+
+for _power_arm, _power_cls in (
+    ("Power1", "G129DofRoughAirTime100Power1EnvCfg"),
+    ("Power2", "G129DofRoughAirTime100Power2EnvCfg"),
+    ("Power3", "G129DofRoughAirTime100Power3EnvCfg"),
+):
+    gym.register(
+        id=f"Isaac-Velocity-Rough-G1-29Dof-AirTime100-{_power_arm}",
+        entry_point="isaaclab.envs:ManagerBasedRLEnv",
+        disable_env_checker=True,
+        kwargs={
+            "env_cfg_entry_point": f"{__name__}.rough_29dof_power_env_cfg:{_power_cls}",
+            "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+        },
+    )
