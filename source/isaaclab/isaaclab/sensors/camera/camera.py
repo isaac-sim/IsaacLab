@@ -603,7 +603,10 @@ class Camera(SensorBase):
         self._create_buffers()
 
     def _update_buffers_impl(self, env_mask: wp.array):
-        if not self._env_mask_has_any(env_mask):
+        # With ``update_period == 0`` every ``update()`` marks all cameras outdated and the
+        # generation check in ``_update_outdated_buffers`` already skips redundant fetches, so the
+        # device->host mask readback (a full stream synchronization) is only needed for periodic sensors.
+        if self.cfg.update_period > 0 and not self._env_mask_has_any(env_mask):
             return
         # Increment frame count
         if self.cfg.update_latest_camera_pose:
