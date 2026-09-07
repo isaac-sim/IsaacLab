@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Post-construction clone-plan dispatch and :class:`ReplicateSession` sugar."""
+"""Clone-plan publication and dispatch."""
 
 from __future__ import annotations
 
@@ -32,16 +32,17 @@ without deriving any backend mapping from it.
 
 
 def queue_replication(cfg: Any) -> None:
-    """Register a constructed cfg for post-construction clone planning.
+    """Register a constructed cfg when no clone plan is active.
 
     Args:
         cfg: Asset cfg with resolved ``prim_path``.
     """
-    REPLICATION_QUEUE.append(cfg)
+    if (sim := SimulationContext.instance()) is None or sim.get_clone_plan() is None:
+        REPLICATION_QUEUE.append(cfg)
 
 
 def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
-    """Dispatch a fully routed clone plan and publish it after replication.
+    """Publish and dispatch a fully routed clone plan.
 
     Planning derives routing from the input cfgs; dispatch does not rediscover or reshape that mapping.
     Every context is owned by the active :class:`~isaaclab.sim.SimulationContext` and receives
@@ -65,17 +66,21 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
         names = ", ".join(f"{context_type.__module__}.{context_type.__qualname__}" for context_type in missing)
         raise RuntimeError(f"Clone contexts must be registered before plan dispatch: {names}.")
 
+    if (active_plan := sim.get_clone_plan()) is None:
+        sim.set_clone_plan(plan)
+    elif active_plan is not plan:
+        raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
+
     contexts = [sim._backend_registry[context_type] for context_type in context_types]
     for context in sorted(contexts, key=lambda item: item.replicate_priority):
         context.replicate(plan)
-    sim.set_clone_plan(plan)
 
 
 class ReplicateSession:
     """Folds :func:`make_clone_plan` and :func:`replicate` into a ``with`` block.
 
-    ``__enter__`` builds the complete plan and mutates each cfg's ``spawn_path``;
-    ``__exit__`` clears constructor registrations and dispatches that same plan.
+    ``__enter__`` builds and publishes the complete plan while assigning each cfg's
+    ``spawn_path``; ``__exit__`` dispatches that same plan.
 
     Example:
 
@@ -125,7 +130,12 @@ class ReplicateSession:
         self._plan: ClonePlan | None = None
 
     def __enter__(self) -> ReplicateSession:
+        if (sim := SimulationContext.instance()) is None:
+            raise RuntimeError("Clone planning requires an active SimulationContext.")
+        if sim.get_clone_plan() is not None:
+            raise RuntimeError("A SimulationContext owns exactly one clone lifecycle.")
         self._plan = make_clone_plan(self._cfgs, **self._kwargs)
+        sim.set_clone_plan(self._plan)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
@@ -135,6 +145,8 @@ class ReplicateSession:
         else:
             # Drop cfgs registered before the failure so the next session is clean.
             REPLICATION_QUEUE.clear()
+            if (sim := SimulationContext.instance()) is not None and sim.get_clone_plan() is self._plan:
+                sim.set_clone_plan(None)
 
     @property
     def plan(self) -> ClonePlan:

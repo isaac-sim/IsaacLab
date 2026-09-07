@@ -252,7 +252,7 @@ def test_hands_demo_uses_asset_owned_shadow_hand_configs():
 
     assert not {module for module, _ in imports if module and module.startswith("isaaclab_tasks")}
     assert {
-        ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_CFG"),
+        ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_PHYSX_CFG"),
         ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_NEWTON_CFG"),
     } <= imports
 
