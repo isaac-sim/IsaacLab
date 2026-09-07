@@ -51,6 +51,11 @@ class SkrlDirectPPORunnerCfg(SkrlRunnerCfg):
 
 @configclass
 class SkrlManagerPPORunnerCfg(SkrlRunnerCfg):
+    """Configuration used for the reinforcement-learning documentation benchmark.
+
+    Update the other RL-library configurations with this one to keep the Training Performance table synchronized.
+    """
+
     models = SkrlModelsCfg(
         separate=False,
         policy=SkrlGaussianModelCfg(
