@@ -7,7 +7,6 @@ import glob
 import os
 import shutil
 import subprocess
-from datetime import datetime
 
 import jinja2
 from common import MULTI_AGENT_ALGORITHMS, SINGLE_AGENT_ALGORITHMS, TASKS_DIR, TEMPLATE_DIR
@@ -78,14 +77,14 @@ def _generate_task_per_workflow(task_dir: str, specification: dict) -> None:
     if task_spec["workflow"]["name"] == "direct":
         template = jinja_env.get_template(f"tasks/direct_{task_spec['workflow']['type']}/env_cfg")
         _write_file(
-            os.path.join(task_dir, f"{task_spec['filename']}_env_cfg.py"), content=template.render(**specification)
+            os.path.join(task_dir, f"{task_spec['env_cfg_filename']}.py"), content=template.render(**specification)
         )
         template = jinja_env.get_template(f"tasks/direct_{task_spec['workflow']['type']}/env")
-        _write_file(os.path.join(task_dir, f"{task_spec['filename']}_env.py"), content=template.render(**specification))
+        _write_file(os.path.join(task_dir, f"{task_spec['env_filename']}.py"), content=template.render(**specification))
     elif task_spec["workflow"]["name"] == "manager-based":
         template = jinja_env.get_template(f"tasks/manager-based_{task_spec['workflow']['type']}/env_cfg")
         _write_file(
-            os.path.join(task_dir, f"{task_spec['filename']}_env_cfg.py"), content=template.render(**specification)
+            os.path.join(task_dir, f"{task_spec['env_cfg_filename']}.py"), content=template.render(**specification)
         )
         shutil.copytree(
             os.path.join(TEMPLATE_DIR, "tasks", f"manager-based_{task_spec['workflow']['type']}", "mdp"),
@@ -105,22 +104,33 @@ def _generate_tasks(specification: dict, task_dir: str) -> list[dict]:
         A list of specifications for the tasks.
     """
     specifications = []
-    task_name_prefix = "Template" if specification["external"] else "Isaac"
-    general_task_name = "-".join([item.capitalize() for item in specification["name"].split("_")])
+    task_family_name = specification.get("task_name", specification["name"])
+    robot_name = specification.get("robot_name", "cartpole")
+    general_task_name = "-".join(item.capitalize() for item in task_family_name.split("_"))
+    project_name = specification.get(
+        "task_id_prefix", "".join(item.capitalize() for item in specification["name"].split("_"))
+    )
+    robot_task_name = "-".join(
+        item.upper() if any(character.isdigit() for character in item) else item.capitalize()
+        for item in robot_name.split("_")
+    )
     for workflow in specification["workflows"]:
         task_name = general_task_name + ("-Marl" if workflow["type"] == "multi-agent" else "")
         filename = task_name.replace("-", "_").lower()
         family_name = f"{filename}_direct" if workflow["name"] == "direct" else filename
         family_dir = os.path.join(task_dir, family_name)
-        task_id = f"{task_name_prefix}-{task_name}"
+        task_id = f"{project_name}-{task_name}-{robot_task_name}" if specification["external"] else f"Isaac-{task_name}"
         if workflow["name"] == "direct":
             task_id += "-Direct"
         task = {
             "workflow": workflow,
             "filename": filename,
             "classname": task_name.replace("-", ""),
+            "family_name": family_name,
             "family_dir": family_dir,
-            "dir": os.path.join(family_dir, "config", "cartpole"),
+            "dir": os.path.join(family_dir, "config", robot_name),
+            "env_cfg_filename": "env_cfg" if specification["external"] else f"{filename}_env_cfg",
+            "env_filename": "env" if specification["external"] else f"{filename}_env",
             "id": task_id,
         }
         print(f"  |    |-- Generating '{task['id']}' task...")
@@ -145,42 +155,46 @@ def _external(specification: dict) -> None:
     project_dir = os.path.join(specification["path"], name)
     os.makedirs(project_dir, exist_ok=True)
     print("  |-- Copying repo files...")
-    for filename in [".gitattributes", ".gitignore", ".pre-commit-config.yaml"]:
+    for filename in [".gitattributes", ".gitignore", ".pre-commit-config.yaml", "LICENSE"]:
         shutil.copyfile(os.path.join(TEMPLATE_DIR, "external", filename), os.path.join(project_dir, filename))
     template = jinja_env.get_template("external/pyproject.toml")
     _write_file(os.path.join(project_dir, "pyproject.toml"), content=template.render(**specification))
-    template = jinja_env.get_template("external/README.md")
-    _write_file(os.path.join(project_dir, "README.md"), content=template.render(**specification))
     print("  |-- Copying utility scripts...")
     scripts_dir = os.path.join(project_dir, "scripts")
     os.makedirs(scripts_dir, exist_ok=True)
     template = jinja_env.get_template("external/list_envs.py")
     _write_file(os.path.join(scripts_dir, "list_envs.py"), content=template.render(**specification))
 
-    print("  |-- Copying extension files...")
-    package_dir = os.path.join(project_dir, "source", name)
-    config_dir = os.path.join(package_dir, "config")
-    os.makedirs(config_dir, exist_ok=True)
-    template = jinja_env.get_template("extension/config/extension.toml")
-    _write_file(os.path.join(config_dir, "extension.toml"), content=template.render(**specification))
-    docs_dir = os.path.join(package_dir, "docs")
-    os.makedirs(docs_dir, exist_ok=True)
-    template = jinja_env.get_template("extension/docs/CHANGELOG.rst")
-    _write_file(
-        os.path.join(docs_dir, "CHANGELOG.rst"), content=template.render({"date": datetime.now().strftime("%Y-%m-%d")})
-    )
-    template = jinja_env.get_template("extension/pyproject.toml")
-    _write_file(os.path.join(package_dir, "pyproject.toml"), content=template.render(**specification))
-
     print("  |-- Generating tasks...")
-    module_dir = os.path.join(package_dir, name)
+    module_dir = os.path.join(project_dir, "src", name)
     tasks_dir = os.path.join(module_dir, "tasks")
     os.makedirs(tasks_dir, exist_ok=True)
     specifications = _generate_tasks(specification, tasks_dir)
     shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__tasks"), os.path.join(tasks_dir, "__init__.py"))
-    template = jinja_env.get_template("extension/ui_extension_example.py")
-    _write_file(os.path.join(module_dir, "ui_extension_example.py"), content=template.render(**specification))
-    shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__ext"), os.path.join(module_dir, "__init__.py"))
+    template = jinja_env.get_template("external/__init__package")
+    _write_file(os.path.join(module_dir, "__init__.py"), content=template.render(**specification))
+    template = jinja_env.get_template("external/README.md")
+    _write_file(
+        os.path.join(project_dir, "README.md"), content=template.render(specifications=specifications, **specification)
+    )
+
+    print("  |-- Generating tests...")
+    tests_dir = os.path.join(project_dir, "tests")
+    os.makedirs(tests_dir, exist_ok=True)
+    template = jinja_env.get_template("external/test_registration")
+    _write_file(
+        os.path.join(tests_dir, "test_registration.py"),
+        content=template.render(specifications=specifications, **specification),
+    )
+
+    if specification.get("include_ui_extension", False):
+        print("  |-- Copying Isaac Sim UI extension files...")
+        config_dir = os.path.join(project_dir, "config")
+        os.makedirs(config_dir, exist_ok=True)
+        template = jinja_env.get_template("extension/config/extension.toml")
+        _write_file(os.path.join(config_dir, "extension.toml"), content=template.render(**specification))
+        template = jinja_env.get_template("extension/ui_extension_example.py")
+        _write_file(os.path.join(module_dir, "ui_extension_example.py"), content=template.render(**specification))
 
     print("  |-- Copying vscode files...")
     vscode_dir = os.path.join(project_dir, ".vscode")
@@ -203,7 +217,8 @@ def _external(specification: dict) -> None:
 
 def get_algorithms_per_rl_library(single_agent: bool = True, multi_agent: bool = True):
     assert single_agent or multi_agent, "At least one of 'single_agent' or 'multi_agent' must be True"
-    data = {"rl_games": [], "rsl_rl": [], "skrl": [], "sb3": []}
+    data = {"rsl_rl": [], "rl_games": [], "skrl": [], "sb3": []}
+    algorithm_order = SINGLE_AGENT_ALGORITHMS + MULTI_AGENT_ALGORITHMS
     for file in glob.glob(os.path.join(TEMPLATE_DIR, "agents", "*_cfg")):
         for rl_library in data.keys():
             basename = os.path.basename(file).replace("_cfg", "")
@@ -217,7 +232,7 @@ def get_algorithms_per_rl_library(single_agent: bool = True, multi_agent: bool =
                 if multi_agent and algorithm in MULTI_AGENT_ALGORITHMS:
                     data[rl_library].append(algorithm)
     for rl_library in data.keys():
-        data[rl_library] = sorted(list(set(data[rl_library])))
+        data[rl_library] = sorted(set(data[rl_library]), key=algorithm_order.index)
     return data
 
 
@@ -228,8 +243,16 @@ def generate(specification: dict) -> None:
         specification: The specification of the project/task.
     """
     print("\nValidating specification...")
+    specification = specification.copy()
     assert "external" in specification, "External flag is required"
     assert specification.get("name", "").isidentifier(), "Name must be a valid identifier"
+    if specification["external"]:
+        specification.setdefault("task_name", "balance")
+        specification.setdefault("robot_name", "cartpole")
+        specification.setdefault("include_ui_extension", False)
+        specification["task_id_prefix"] = "".join(item.capitalize() for item in specification["name"].split("_"))
+        assert specification["task_name"].isidentifier(), "Task family name must be a valid identifier"
+        assert specification["robot_name"].isidentifier(), "Robot/config name must be a valid identifier"
     for workflow in specification["workflows"]:
         assert workflow["name"] in ["direct", "manager-based"], f"Invalid workflow: {workflow}"
         assert workflow["type"] in ["single-agent", "multi-agent"], f"Invalid workflow type: {workflow}"

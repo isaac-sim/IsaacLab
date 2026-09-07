@@ -7,7 +7,7 @@
 - [Scenario 3: Stated Preferences Override Auto-Pick](#scenario-3-stated-preferences-override-auto-pick)
 - [Scenario 4: Preflight Blocker Stops The Flow](#scenario-4-preflight-blocker-stops-the-flow)
 - [Scenario 5: Windows 11 Guided Fallback](#scenario-5-windows-11-guided-fallback)
-- [Scenario 6: China Storage Profile During Installation](#scenario-6-china-storage-profile-during-installation)
+- [Scenario 6: China Asset Region Profile During Installation](#scenario-6-china-asset-region-profile-during-installation)
 
 ## Scenario 1: Express Install On Ubuntu 22.04
 
@@ -93,7 +93,7 @@ Known failure modes:
 - Skips the long-path support step documented for Windows.
 - Applies the Linux express unattended flow where the docs require Windows-specific handling.
 
-## Scenario 6: China Storage Profile During Installation
+## Scenario 6: China Asset Region Profile During Installation
 
 Query: "Install Isaac Lab for a workstation in mainland China."
 
@@ -101,7 +101,7 @@ Expected behavior:
 
 - Runs the normal preflight and chooses the install method from current system requirements rather than changing the
   package source solely because of location.
-- Reads `asset_caching_details.inc`, includes the documented China profile setting in the single consolidated plan,
+- Reads the Asset Region Profiles section in `index.rst`, includes the documented China profile setting in the single consolidated plan,
   and handles an existing `ISAACSIM_ASSET_ROOT` according to its documented precedence.
 - Runs the normal verification with the profile selected, while stating that this does not prove every mirrored asset
   is available.

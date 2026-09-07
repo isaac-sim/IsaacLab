@@ -10,6 +10,8 @@ Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
@@ -19,6 +21,7 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab import cloner  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.sim.views import FrameView  # noqa: E402
 
@@ -66,21 +69,28 @@ def test_world_attached_source_prim_expands_from_clone_plan():
         device=device, sim_cfg=OVPHYSX_SIM_CFG, auto_add_lighting=False, add_ground_plane=False
     ) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(_OvPhysxFrameViewSceneCfg(num_envs=4, env_spacing=2.0))
-        sim.reset()
-
+        scene = InteractiveScene(InteractiveSceneCfg(num_envs=4, env_spacing=2.0))
         stage = sim_utils.get_current_stage()
         prim = stage.DefinePrim("/World/envs/env_0/WorldCamera", "Xform")
         sim_utils.standardize_xform_ops(prim)
         prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.25, -0.5, 1.0))
+        positions = cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing)[0]
+        plan = cloner.clone_plan_from_env_0("/World/envs/env_0", "/World/envs/env_{}", scene.num_envs, positions)
+        target_env_ids = (0, 5, 2, 9)
+        env_ids = plan.env_ids.copy()
+        env_ids[:] = target_env_ids
+        plan = replace(plan, env_ids=env_ids)
+        cloner.replicate(plan)
+        sim.reset()
 
         view = FrameView("/World/envs/env_[^/]+/WorldCamera", device=device)
 
-        assert not stage.GetPrimAtPath("/World/envs/env_1/WorldCamera").IsValid()
+        assert not stage.GetPrimAtPath(f"/World/envs/env_{target_env_ids[1]}").IsValid()
+        assert not stage.GetPrimAtPath(f"/World/envs/env_{target_env_ids[1]}/WorldCamera").IsValid()
         assert view.count == scene.num_envs
         assert len(view.prims) == scene.num_envs
         assert {prim.GetPath().pathString for prim in view.prims} == {"/World/envs/env_0/WorldCamera"}
-        assert view.prim_paths == [f"/World/envs/env_{i}/WorldCamera" for i in range(scene.num_envs)]
+        assert view.prim_paths == [f"/World/envs/env_{i}/WorldCamera" for i in target_env_ids]
         positions, _ = view.get_world_poses()
     expected_positions = scene.env_origins + torch.tensor([0.25, -0.5, 1.0], device=device)
     torch.testing.assert_close(positions.torch, expected_positions)

@@ -1525,7 +1525,7 @@ Haptic glove (per-finger grip)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Use :class:`~isaaclab_teleop.GloveHapticFeedbackCfg`. Each hand's contact sensor is **filtered
-against the grasped object** (``filter_prim_paths_expr``), so ``force_matrix_w`` reports each
+against the grasped object** (``filter_prim_paths_expr``), so ``normal_force_matrix_w`` reports each
 finger's force on that object and nothing else. The driver orders the per-finger magnitudes
 Thumb..Pinky (matched from the sensor's body names via ``finger_order``) into a
 ``FingerPowerVector`` rendered by a cross-process glove device on ``collection_id``.

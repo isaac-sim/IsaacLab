@@ -124,7 +124,7 @@ for d in deps:
 lines.append("]")
 lines.append("")
 lines.append("[project.scripts]")
-lines.append('isaaclab = "isaaclab:main"')
+lines.append('isaaclab = "isaaclab.__main__:main"')
 lines.append("")
 lines.append("[project.optional-dependencies]")
 for name, dep_list in opt_deps.items():

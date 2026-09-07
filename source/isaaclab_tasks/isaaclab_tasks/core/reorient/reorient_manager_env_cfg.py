@@ -64,7 +64,11 @@ class CommandsCfg:
 
 @configclass
 class ActionsCfg:
-    """Joint-position targets for the hand's actuated joints."""
+    """Position targets for the hand's joint-driven motors.
+
+    A hand whose motors also pull tendons declares those in its own subclass; a tendon is not a
+    joint and cannot be reached by a joint term, so it does not belong to every hand.
+    """
 
     joint_pos = mdp.EMAJointPositionToLimitsActionCfg(
         asset_name="robot",
@@ -127,7 +131,9 @@ class ObservationsCfg:
 
     @configclass
     class PolicyCfg(ReorientFullStateObsCfg):
-        last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
+        # No action_name: the observation covers every motor, and a tendon-driven hand splits its
+        # motors across two action terms.
+        last_action = ObsTerm(func=mdp.last_action)
 
     policy: PolicyCfg = PolicyCfg()
 
@@ -206,4 +212,8 @@ class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
         self.commands.object_pose.orientation_success_threshold = self.goal_orientation_threshold
         self.commands.object_pose.goal_pose_visualizer_cfg = self.goal_marker_cfg
         self.sim.render_interval = self.decimation
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(2.0, 2.0, 2.0))
+        # Frame the hand, which lies horizontal around (0, -0.25, 0.51). Looking at the origin
+        # from 2 m away renders a 20 cm hand a few pixels wide, so a recorded video shows nothing.
+        self.sim.default_visualizer_cfg = VisualizerCfg(
+            eye=(0.62, -0.80, 0.85), lookat=(0.0, -0.28, 0.53), focal_length=35.0
+        )

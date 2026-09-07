@@ -502,7 +502,7 @@ def _resolve_particle_asset_paths(prim_path: str, num_instances: int) -> list[st
             matched = cloner_path.match(prim_path, template)
             if matched is not None:
                 paths_by_env_id.update((env_id, f"{template.format(env_id)}{matched.suffix}") for env_id in env_ids)
-        env_ids = [int(env_id) for env_id in clone_plan.env_ids.tolist()]
+        env_ids = [int(env_id) for env_id in clone_plan.env_ids]
         if len(env_ids) == num_instances and all(env_id in paths_by_env_id for env_id in env_ids):
             return [paths_by_env_id[env_id] for env_id in env_ids]
 
