@@ -122,7 +122,7 @@ def main(args: argparse.Namespace):
     if not shutil.which("docker"):
         raise RuntimeError(
             "Docker is not installed! Please check the 'Docker Guide' for instruction: "
-            "https://isaac-sim.github.io/IsaacLab/main/source/workflows/docker/index.html"
+            "https://isaac-sim.github.io/IsaacLab/develop/source/workflows/docker/index.html"
         )
 
     # creating container interface
