@@ -18,6 +18,8 @@ The following classes are part of the public :mod:`isaaclab.physics` API.
    PhysicsEvent
    PhysicsManager
    PhysxAutoCfg
+   SurfaceVelocitySpec
+   SurfaceVelocityView
 
 .. autoclass:: CallbackHandle
    :show-inheritance:
@@ -33,4 +35,10 @@ The following classes are part of the public :mod:`isaaclab.physics` API.
    :show-inheritance:
 
 .. autoclass:: PhysxAutoCfg
+   :show-inheritance:
+
+.. autoclass:: SurfaceVelocitySpec
+   :show-inheritance:
+
+.. autoclass:: SurfaceVelocityView
    :show-inheritance:

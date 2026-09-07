@@ -211,6 +211,24 @@ def test_newton_visualizer_set_camera_view_updates_active_viewer():
     assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
 
 
+def test_newton_visualizer_register_ui_callback_forwards_to_active_viewer():
+    callback = Mock()
+    viewer = SimpleNamespace(register_ui_callback=Mock())
+    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
+    visualizer._viewer = viewer
+
+    visualizer.register_ui_callback(callback, position="panel")
+
+    viewer.register_ui_callback.assert_called_once_with(callback, position="panel")
+
+
+def test_newton_visualizer_register_ui_callback_requires_active_viewer():
+    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
+
+    with pytest.raises(RuntimeError, match="initialized interactive viewer"):
+        visualizer.register_ui_callback(Mock(), position="panel")
+
+
 def test_newton_visualizer_auto_creates_streaming_camera_when_scene_camera_exists(monkeypatch):
     """Auto-create mode should not silently replace its configured view with a scene camera."""
     existing_camera = SimpleNamespace(

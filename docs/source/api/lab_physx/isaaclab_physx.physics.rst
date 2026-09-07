@@ -9,6 +9,8 @@
 
     PhysxManager
     PhysxCfg
+    SurfaceVelocity
+    PhysxSurfaceVelocityTwist
 
 .. currentmodule:: isaaclab_physx.physics
 
@@ -26,6 +28,22 @@ Physics Configuration
   :members:
   :show-inheritance:
   :exclude-members: __init__
+
+Surface Velocity
+----------------
+
+.. autoclass:: SurfaceVelocity
+  :members:
+  :show-inheritance:
+
+.. autoclass:: PhysxSurfaceVelocityTwist
+  :members:
+
+.. autofunction:: apply_surface_velocity_api
+
+.. autofunction:: compute_surface_velocity_twist
+
+.. autofunction:: resolve_surface_velocity_paths
 
 Additional Public Classes
 -------------------------
