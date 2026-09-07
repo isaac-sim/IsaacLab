@@ -660,12 +660,17 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize(
     ("history_length", "update_period_steps", "expected_fetches", "expected_last_update"),
-    [(0, 1, 0, 0.0), (3, 1, 4, 0.01), (3, 2, 4, 0.0075)],
+    [(0, 1, 4, 0.0), (3, 1, 4, 0.01), (3, 2, 4, 0.0075)],
 )
 def test_contact_history_updates_at_sensor_period(
     setup_simulation, device, history_length, update_period_steps, expected_fetches, expected_last_update
 ):
-    """History-bearing sensors update at their period even when the scene is lazy."""
+    """History-bearing sensors update at their period even when the scene is lazy.
+
+    The PhysX buffers are fetched on every physics step regardless of the history length (see
+    issue #7613), but a history-less sensor only recomputes its data (and therefore its
+    timestamps) on data access.
+    """
     sim_dt, _, _, _, settings = setup_simulation
     settings.set_bool("/physics/disableContactProcessing", False)
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
@@ -702,13 +707,69 @@ def test_contact_history_updates_at_sensor_period(
         assert last_update == pytest.approx(expected_last_update)
 
         _ = contact_sensor.data
-        expected_fetches_after_read = 1 if history_length == 0 else expected_fetches
+        # A history-less sensor did not recompute during the steps, so the read triggers one
+        # more fetch; a history-bearing one is already up to date.
+        expected_fetches_after_read = expected_fetches + 1 if history_length == 0 else expected_fetches
         assert fetch_count == expected_fetches_after_read
         air_time = contact_sensor.data.current_air_time.torch.item()
         expected_air_time = 4 * sim_dt if history_length == 0 else expected_last_update
         assert air_time == pytest.approx(expected_air_time)
         _ = contact_sensor.data
         assert fetch_count == expected_fetches_after_read
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_lazy_sensor_reports_contact_loss(setup_simulation, device):
+    """Regression for issue #7613: a lazily read sensor must report the loss of contact.
+
+    PhysX zeroes a body's net contact force only on the exact physics step where the contact
+    is lost. With ``history_length=0`` and ``lazy_sensor_update=True`` the sensor used to call
+    its PhysX getters only when :attr:`ContactSensor.data` was accessed, so a policy-rate
+    reader (one read per four physics steps) skipped the contact-loss step and kept reporting
+    the last in-contact force until the next touchdown.
+    """
+    sim_dt, _, _, _, settings = setup_simulation
+    settings.set_bool("/physics/disableContactProcessing", False)
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=True)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG
+        scene_cfg.shape = CUBE_CFG
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path=CUBE_CFG.prim_path,
+            track_pose=True,
+            update_period=0.0,
+            track_air_time=True,
+            history_length=0,
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+
+        sensor: ContactSensor = scene["contact_sensor"]
+        shape: RigidObject = scene["shape"]
+        contact_pose = CUBE_CFG.contact_pose.to(device=shape.device).unsqueeze(0)
+        non_contact_pose = CUBE_CFG.non_contact_pose.to(device=shape.device).unsqueeze(0)
+
+        # Mimic a policy stepping the environment with a decimation of 4: the sensor data is
+        # read once per policy step and left untouched in between.
+        decimation = 4
+        num_policy_steps = 6
+
+        def run_policy_step(root_pose: torch.Tensor) -> float:
+            """Holds the shape at ``root_pose`` for one policy step and reads the sensor once."""
+            for _ in range(decimation):
+                shape.write_root_pose_to_sim_index(root_pose=root_pose)
+                _perform_sim_step(sim, scene, sim_dt)
+            return torch.linalg.norm(sensor.data.net_normal_forces_w.torch, dim=-1).max().item()
+
+        contact_forces = [run_policy_step(contact_pose) for _ in range(num_policy_steps)]
+        air_forces = [run_policy_step(non_contact_pose) for _ in range(num_policy_steps)]
+
+        # Guard against a vacuous test: the sensor must have reported contact while on the ground.
+        assert contact_forces[-1] > 0.1, f"Expected a contact force on the ground; got {contact_forces}"
+        # The first read in the air may still carry the impulse of the last contact step, so only
+        # the subsequent reads are required to be free of contact.
+        assert max(air_forces[1:]) < 0.1, f"Stale contact force reported in the air: {air_forces}"
 
 
 @pytest.mark.isaacsim_ci
