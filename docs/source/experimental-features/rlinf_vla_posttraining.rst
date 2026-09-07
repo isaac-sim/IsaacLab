@@ -97,6 +97,10 @@ From the Isaac Lab root directory:
    # Step 4: Install flash-attn (see "Skipping flash-attn" below if this fails)
    pip install flash-attn==2.8.3 --no-build-isolation --no-deps
 
+The packages installed in Step 2 intentionally differ from the versions in the
+Isaac Lab lockfile. Use ``uv run --no-sync`` for the commands below so that
+``uv`` does not replace these GR00T-compatible versions before launching.
+
 .. _rlinf-skipping-flash-attn:
 
 Skipping flash-attn
@@ -114,13 +118,20 @@ The training and evaluation commands below work unchanged.
 
 .. _rlinf-decord-aarch64:
 
-Then preload the OpenMP library so it can be loaded into the Python process
-(see :ref:`installation-method-python-env`):
+OpenMP preload on aarch64
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+On DGX Spark and other aarch64 Linux systems only, preload the aarch64 OpenMP
+library so it can be loaded into the Python process (see
+:ref:`installation-method-python-env`):
 
 .. code-block:: bash
 
    unset LD_PRELOAD
    export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
+
+Do not set this aarch64 path on x86_64 Linux. If it was inherited from a
+previous setup, run ``unset LD_PRELOAD`` before launching Isaac Lab.
 
 
 Quick Start
@@ -134,7 +145,7 @@ Quick Start
 
       .. code-block:: bash
 
-         uv run --extra rlinf isaaclab train --rl_library rlinf \
+         uv run --no-sync --extra rlinf isaaclab train --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model
 
@@ -154,7 +165,7 @@ Quick Start
 
       .. code-block:: bash
 
-         uv run --extra rlinf,video isaaclab play --rl_library rlinf \
+         uv run --no-sync --extra rlinf,video isaaclab play --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model \
              --video
@@ -176,7 +187,7 @@ Quick Start
 
       .. code-block:: bash
 
-         uv run --extra rlinf,video isaaclab play --rl_library rlinf \
+         uv run --no-sync --extra rlinf,video isaaclab play --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model \
              --checkpoint /path/to/checkpoints/global_step_N \
