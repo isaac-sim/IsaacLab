@@ -56,14 +56,18 @@ def joint_mechanical_power(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     return torch.sum(torch.abs(torque * velocity), dim=1)
 
 
-_POWER_WEIGHTS = {"p1": -1.0e-4, "p2": -5.0e-4, "p3": -2.0e-3}
+_POWER_WEIGHTS = {"p1": -1.0e-4, "p4": -2.0e-4, "p5": -3.0e-4, "p2": -5.0e-4, "p3": -2.0e-3}
 """Weights bracketing the useful range rather than guessing at it.
 
-At w100's measured 234 W these cost 0.023, 0.12 and 0.47 per step. The lower end sits alongside the
-task's other regularizers -- ``dof_torques_l2`` is worth about 0.002 per step at the torques this
-policy uses -- and the upper end is half the tracking reward, which is where the term stops being a
-regularizer and starts being the objective. If p3 walks slower rather than longer, that is the term
-winning the argument, not the gait improving.
+At w100's measured 234 W these cost 0.023, 0.047, 0.070, 0.12 and 0.47 per step, against a tracking
+reward near 1.0 and an ``action_rate_l2`` near 0.6. Measured at 6000 iterations, -1e-4 and -5e-4
+both reach ``success_rate`` 1.000 while cutting leg power 33% and 45%, and -2e-3 reaches 0.194 at
+20 W -- the term stopped being a regularizer and became the objective, which is the failure the
+bracket was built to find.
+
+p4 and p5 fill the gap between the two that worked. -5e-4 buys the larger saving but flexes the
+hips to -22 degrees against -12 at -1e-4, so the question they answer is where the saving stops
+being free.
 """
 
 
@@ -83,6 +87,24 @@ class G129DofRoughAirTime100Power1EnvCfg(G129DofRoughHipL2AirTime100EnvCfg):
     def __post_init__(self):
         super().__post_init__()
         _add_power_penalty(self, _POWER_WEIGHTS["p1"])
+
+
+@configclass
+class G129DofRoughAirTime100Power4EnvCfg(G129DofRoughHipL2AirTime100EnvCfg):
+    """w100 plus a leg power penalty at -2e-4."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        _add_power_penalty(self, _POWER_WEIGHTS["p4"])
+
+
+@configclass
+class G129DofRoughAirTime100Power5EnvCfg(G129DofRoughHipL2AirTime100EnvCfg):
+    """w100 plus a leg power penalty at -3e-4."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        _add_power_penalty(self, _POWER_WEIGHTS["p5"])
 
 
 @configclass

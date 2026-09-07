@@ -304,6 +304,8 @@ for _power_arm, _power_cls in (
     ("Power1", "G129DofRoughAirTime100Power1EnvCfg"),
     ("Power2", "G129DofRoughAirTime100Power2EnvCfg"),
     ("Power3", "G129DofRoughAirTime100Power3EnvCfg"),
+    ("Power4", "G129DofRoughAirTime100Power4EnvCfg"),
+    ("Power5", "G129DofRoughAirTime100Power5EnvCfg"),
 ):
     gym.register(
         id=f"Isaac-Velocity-Rough-G1-29Dof-AirTime100-{_power_arm}",
