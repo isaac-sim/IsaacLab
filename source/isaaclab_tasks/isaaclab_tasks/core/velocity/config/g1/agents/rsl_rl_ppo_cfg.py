@@ -5,7 +5,13 @@
 
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
+from isaaclab_rl.rsl_rl import (
+    RslRlDistillationAlgorithmCfg,
+    RslRlDistillationRunnerCfg,
+    RslRlMLPModelCfg,
+    RslRlOnPolicyRunnerCfg,
+    RslRlPpoAlgorithmCfg,
+)
 
 from isaaclab_tasks.utils import preset
 
@@ -59,3 +65,42 @@ class G1FlatPPORunnerCfg(G1RoughPPORunnerCfg):
         self.experiment_name = "g1_flat"
         self.actor.hidden_dims = [256, 128, 128]
         self.critic.hidden_dims = [256, 128, 128]
+
+
+@configclass
+class G129DofRoughAirTime100DistillationRunnerCfg(RslRlDistillationRunnerCfg):
+    """Distil the sighted w100 teacher into a proprioception-only student.
+
+    The student keeps the actor architecture the teacher was trained with, so the only thing that
+    changes across the pipeline is what goes in. ``init_std`` is 0.0 on the teacher because at
+    distillation time it is an oracle being copied, not a policy being explored.
+
+    ``obs_groups`` is where the two contracts meet: ``student`` reads the deployable group, and
+    ``teacher`` the privileged one it was trained on. ``obs_normalization`` is False on both because
+    :class:`G1RoughPPORunnerCfg` trains with it off -- a teacher checkpoint carries a normalizer's
+    running statistics in its state dict only if it had one, and loading it into a model built the
+    other way fails on unexpected or missing keys rather than training something subtly wrong.
+    """
+
+    num_steps_per_env = 24
+    max_iterations = 1000
+    save_interval = 50
+    experiment_name = "g1_rough_29dof_distill"
+    obs_groups = {"student": ["policy"], "teacher": ["teacher"]}
+    student = RslRlMLPModelCfg(
+        hidden_dims=[512, 256, 128],
+        activation="elu",
+        obs_normalization=False,
+        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.1),
+    )
+    teacher = RslRlMLPModelCfg(
+        hidden_dims=[512, 256, 128],
+        activation="elu",
+        obs_normalization=False,
+        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.0),
+    )
+    algorithm = RslRlDistillationAlgorithmCfg(
+        num_learning_epochs=2,
+        learning_rate=1.0e-3,
+        gradient_length=15,
+    )

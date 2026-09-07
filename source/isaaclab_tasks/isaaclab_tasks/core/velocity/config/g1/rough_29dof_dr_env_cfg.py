@@ -93,13 +93,15 @@ def _add_randomization(cfg) -> None:
     Args:
         cfg: Environment configuration to randomize, modified in place.
     """
-    cfg.events.physics_material.params.update({
-        # The stock values are 0.8 static / 0.6 dynamic, so these are those spans scaled 0.5-2x.
-        "static_friction_range": (0.4, 1.6),
-        "dynamic_friction_range": (0.3, 1.2),
-        "num_buckets": 64,
-        "make_consistent": True,
-    })
+    cfg.events.physics_material.params.update(
+        {
+            # The stock values are 0.8 static / 0.6 dynamic, so these are those spans scaled 0.5-2x.
+            "static_friction_range": (0.4, 1.6),
+            "dynamic_friction_range": (0.3, 1.2),
+            "num_buckets": 64,
+            "make_consistent": True,
+        }
+    )
 
     cfg.events.joint_armature = EventTerm(
         func=mdp.randomize_joint_parameters,
