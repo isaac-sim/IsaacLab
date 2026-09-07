@@ -97,5 +97,6 @@ gym.register(
             "rsl_rl_cfg_entry_point": _RAW_CAMERA_PRESETS,
             "rsl_rl_feature_cfg_entry_point": ("resnet18", "theia_tiny"),
         },
+        "pretrained_checkpoint_preset_compatibility": {"rsl_rl": ("resnet18", "theia_tiny")},
     },
 )

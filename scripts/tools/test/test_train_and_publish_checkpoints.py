@@ -9,6 +9,7 @@ from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
 
+import gymnasium as gym
 import pytest
 
 from isaaclab_tasks.utils.preset_target import PresetTarget
@@ -22,6 +23,15 @@ from scripts.tools.train_and_publish_checkpoints import (
     collect_pretrained_checkpoint,
     publish_pretrained_checkpoint,
 )
+
+
+def test_cartpole_feature_presets_are_in_pretrained_checkpoint_matrix() -> None:
+    """Cartpole feature policies must receive distinct RSL-RL checkpoints."""
+    task_spec = gym.spec("Isaac-Cartpole-Camera")
+
+    assert task_spec.kwargs["pretrained_checkpoint_preset_compatibility"] == {
+        "rsl_rl": ("resnet18", "theia_tiny")
+    }
 
 
 def test_build_core_jobs_skips_unsupported_preset_without_normalizing_default(
