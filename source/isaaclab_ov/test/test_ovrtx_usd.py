@@ -15,7 +15,6 @@ _REQUIRED_MODULES = ("isaaclab_ov", "pxr")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
 pytestmark = [
-    pytest.mark.isaacsim_ci,
     pytest.mark.skipif(
         bool(_MISSING_MODULES),
         reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
@@ -30,6 +29,7 @@ if not _MISSING_MODULES:
         export_stage_to_string,
         get_render_var_config,
         get_render_var_configs,
+        render_var_prim_paths_by_source,
     )
 
     from pxr import Sdf, Usd, UsdGeom  # noqa: E402
@@ -43,6 +43,7 @@ else:
     export_stage_to_string = None
     get_render_var_config = None
     get_render_var_configs = None
+    render_var_prim_paths_by_source = None
 
 
 def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
@@ -113,6 +114,18 @@ def test_build_render_scope_usd_solid_background_color():
 def test_ovrtx_rgb_hdr_uses_hdr_color_render_var():
     """Requesting RGB_HDR from OVRTX selects the HdrColor render variable."""
     assert get_render_var_config(["rgb_hdr"]) == ("/Render/Vars/HdrColor", "HdrColor", "HdrColor")
+
+
+def test_render_var_prim_paths_cover_every_authored_render_var():
+    """Every render-var config this module authors is reachable by its source name."""
+    prim_paths = render_var_prim_paths_by_source()
+
+    authored = get_render_var_configs(
+        ["rgb", "rgb_hdr", "albedo", "depth", "distance_to_camera", "normals", "motion_vectors"]
+    ) + get_render_var_configs(["semantic_segmentation", "instance_segmentation"])
+
+    for path, _, source in authored:
+        assert prim_paths[source] == path
 
 
 def test_ovrtx_instance_segmentation_uses_non_stable_instance_segmentation_render_var():
@@ -249,6 +262,31 @@ def test_render_product_initially_targets_only_the_resolvable_source_camera():
     assert "rel camera = [</World/envs/env_0/Robot/head_cam>]" in render_product
     assert "/World/envs/env_1/Robot/head_cam" not in render_product
     assert "uniform int2 resolution = (32, 16)" in render_product
+
+
+def test_render_product_pins_device_ids_to_the_requested_cuda_device():
+    """``device_id`` is authored as ``deviceIds`` so OVRTX allocates buffers on the reader's device."""
+    render_product, render_product_path = build_render_product_as_string(
+        width=16,
+        height=8,
+        num_envs=4,
+        data_types=["rgb"],
+        device_id=1,
+    )
+
+    layer = Sdf.Layer.CreateAnonymous(".usda")
+    assert layer.ImportFromString("#usda 1.0\n" + render_product)
+    device_ids = layer.GetAttributeAtPath(f"{render_product_path}.deviceIds")
+    assert device_ids is not None
+    assert device_ids.typeName == Sdf.ValueTypeNames.UIntArray
+    assert list(device_ids.default) == [1]
+
+
+def test_render_product_omits_device_ids_when_no_device_is_given():
+    """Without a device index the render product keeps OVRTX's automatic device assignment."""
+    render_product, _ = build_render_product_as_string(width=16, height=8, num_envs=4, data_types=["rgb"])
+
+    assert "deviceIds" not in render_product
 
 
 def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars():

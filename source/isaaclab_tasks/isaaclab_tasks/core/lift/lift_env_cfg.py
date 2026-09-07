@@ -139,7 +139,7 @@ class CommandsCfg:
     object_pose = mdp.ObjectUniformPoseCommandCfg(
         asset_name="robot",
         object_name="object",
-        resampling_time_range=(3.0, 5.0),
+        resampling_time_range=(4.0, 6.0),
         debug_vis=False,
         ranges=mdp.ObjectUniformPoseCommandCfg.Ranges(
             pos_x=(-0.7, -0.3),
@@ -566,9 +566,8 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4  # 30 Hz
 
         # *single-goal setup
-        self.commands.object_pose.resampling_time_range = (2.0, 3.0)
         self.commands.object_pose.position_only = False
-        self.episode_length_s = 6.0
+        self.episode_length_s = 12.0
         self.is_finite_horizon = False
 
         # simulation settings

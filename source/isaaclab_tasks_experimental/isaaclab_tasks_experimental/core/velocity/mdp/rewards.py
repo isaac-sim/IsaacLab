@@ -146,7 +146,7 @@ def feet_air_time_positive_biped(env, out, command_name: str, threshold: float, 
 @wp.kernel
 def _feet_slide_kernel(
     body_lin_vel_w: wp.array(dtype=wp.vec3f, ndim=2),
-    net_forces_w: wp.array(dtype=wp.vec3f, ndim=3),
+    net_normal_forces_w: wp.array(dtype=wp.vec3f, ndim=3),
     body_ids: wp.array(dtype=wp.int32),
     n_history: int,
     out: wp.array(dtype=wp.float32),
@@ -159,7 +159,7 @@ def _feet_slide_kernel(
         # check if in contact: max force norm over history > 1.0
         max_force = float(0.0)
         for h in range(n_history):
-            f = net_forces_w[i, h, b]
+            f = net_normal_forces_w[i, h, b]
             f_norm = wp.sqrt(f[0] * f[0] + f[1] * f[1] + f[2] * f[2])
             max_force = wp.max(max_force, f_norm)
         in_contact = wp.where(max_force > 1.0, 1.0, 0.0)
@@ -180,9 +180,9 @@ def feet_slide(env, out, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg =
         dim=env.num_envs,
         inputs=[
             asset.data.body_lin_vel_w.warp,
-            contact_sensor.data.net_forces_w_history.warp,
+            contact_sensor.data.net_normal_forces_w_history.warp,
             sensor_cfg.body_ids_wp,
-            contact_sensor.data.net_forces_w_history.warp.shape[1],
+            contact_sensor.data.net_normal_forces_w_history.warp.shape[1],
             out,
         ],
         device=env.device,

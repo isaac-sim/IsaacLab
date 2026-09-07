@@ -96,15 +96,12 @@ from isaaclab_rl.utils.pretrained_checkpoint import (
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
+from isaaclab_tasks.utils.hydra import resolve_task_config
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
 _TRAINING_COMPLETE_FILENAME = ".pretrained_checkpoint_training_complete"
 _CORE_WORKFLOWS = ("rl_games", "rsl_rl", "skrl")
-_NEWTON_MJWARP_EXCLUSIONS = {
-    # The OSC controller destabilizes MJWarp's articulated-body dynamics.
-    "Isaac-Reach-Franka-OSC",
-}
 
 
 @dataclass(frozen=True)
@@ -255,7 +252,7 @@ def _select_workflow(task_spec: gym.EnvSpec, env_cfg) -> tuple[str, str | None, 
 def _select_physics_variants(
     task_name: str,
     variants: list[str],
-    default_backend: str,
+    default_backend: str | None,
     requested_backends: list[str],
 ) -> list[tuple[str, str | None]]:
     """Return normalized physics backends and their task preset selectors."""
@@ -267,17 +264,32 @@ def _select_physics_variants(
                 selector = "isaacsim_physx"
             elif backend == "newtonmjwarp":
                 selector = next(
-                    (candidate for candidate in ("newton_mjwarp", "newton_mjwarp_vbd") if candidate in variants),
+                    (
+                        candidate
+                        for candidate in ("newton_mjwarp", "newton_mjwarp_vbd", "newton_mjwarp_vbd_proxy")
+                        if candidate in variants
+                    ),
                     None,
                 )
-                if task_name in _NEWTON_MJWARP_EXCLUSIONS:
-                    selector = None
             if selector is None:
                 continue
         elif backend != default_backend:
             continue
         selections.append((backend, selector))
     return selections
+
+
+def _resolve_physics_backend(task_name: str, physics_selector: str | None, default_backend: str | None) -> str:
+    """Return the checkpoint physics token produced by a task's selected physics preset.
+
+    The token names the solver tree, so a preset selector and its published filename can
+    only be kept in agreement by resolving the selector.
+    """
+    if physics_selector is None:
+        return default_backend
+    env_cfg, _ = resolve_task_config(task_name, None, overrides=(f"physics={physics_selector}",))
+    physics_backend, _ = get_pretrained_checkpoint_backend_names(env_cfg)
+    return physics_backend
 
 
 def _select_render_variants(
@@ -319,12 +331,14 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
         if not _is_core_task(task_spec):
             continue
 
-        env_cfg = parse_env_cfg(task_spec.id)
-        default_physics, _ = get_pretrained_checkpoint_backend_names(env_cfg)
-        workflow, agent, algorithm = _select_workflow(task_spec, env_cfg)
         preset_map = enumerate_task_presets(task_spec.id) or {}
         physics_variants = preset_map.get(PresetTarget.PHYSICS, [])
         render_variants = preset_map.get(PresetTarget.RENDERER, [])
+        env_cfg = parse_env_cfg(task_spec.id)
+        workflow, agent, algorithm = _select_workflow(task_spec, env_cfg)
+        default_physics = None
+        if not physics_variants:
+            default_physics, _ = get_pretrained_checkpoint_backend_names(env_cfg)
 
         physics_selections = _select_physics_variants(
             task_spec.id,
@@ -333,7 +347,8 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
             physics_backends,
         )
         render_selections = _select_render_variants(render_variants, render_backends)
-        for physics_backend, physics_selector in physics_selections:
+        for _physics_family, physics_selector in physics_selections:
+            physics_backend = _resolve_physics_backend(task_spec.id, physics_selector, default_physics)
             for render_backend, render_selector in render_selections:
                 jobs.append(
                     CheckpointJob(

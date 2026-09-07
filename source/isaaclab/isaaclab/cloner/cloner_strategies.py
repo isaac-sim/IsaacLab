@@ -3,44 +3,40 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import torch
+import numpy as np
 
 
-def random(combinations: torch.Tensor, num_clones: int, device: str) -> torch.Tensor:
+def random(combinations: np.ndarray, num_clones: int) -> np.ndarray:
     """Randomly assign prototypes to environments.
 
     Each environment is assigned a random prototype combination sampled uniformly from
     :attr:`combinations`.
 
     Args:
-        combinations: Tensor of shape (num_combos, num_prototypes) containing all possible
+        combinations: Array of shape (num_combos, num_prototypes) containing all possible
             prototype combinations.
         num_clones: Number of environments to assign combinations to.
-        device: Torch device on which the output tensor is allocated.
 
     Returns:
-        Tensor of shape (num_clones, num_prototypes) containing the chosen prototype
+        Array of shape (num_clones, num_prototypes) containing the chosen prototype
         combination for each environment.
     """
-    chosen = combinations[torch.randint(len(combinations), (num_clones,), device=device)]
-    return chosen
+    return combinations[np.random.randint(len(combinations), size=num_clones)]
 
 
-def sequential(combinations: torch.Tensor, num_clones: int, device: str) -> torch.Tensor:
+def sequential(combinations: np.ndarray, num_clones: int) -> np.ndarray:
     """Deterministically assign prototypes to environments in round-robin fashion.
 
     Each environment is assigned a prototype combination based on its index modulo the
     number of available combinations.
 
     Args:
-        combinations: Tensor of shape (num_combos, num_prototypes) containing all possible
+        combinations: Array of shape (num_combos, num_prototypes) containing all possible
             prototype combinations.
         num_clones: Number of environments to assign combinations to.
-        device: Torch device on which the output tensor is allocated.
 
     Returns:
-        Tensor of shape (num_clones, num_prototypes) containing the chosen prototype
+        Array of shape (num_clones, num_prototypes) containing the chosen prototype
         combination for each environment.
     """
-    chosen = combinations[torch.arange(num_clones, device=device) % len(combinations)]
-    return chosen
+    return combinations[np.arange(num_clones) % len(combinations)]

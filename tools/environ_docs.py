@@ -83,6 +83,32 @@ _SELECTOR_LABELS = {
     PresetTarget.DOMAIN: "presets",
 }
 
+# Preset declarations describe structurally selectable configs, but a small
+# number of task/preset combinations are disabled by runtime constraints found
+# by the full environment smoke matrix. Keep those combinations out of generated
+# commands until the corresponding task supports them end to end.
+_NEWTON_MJWARP_EXCLUSIONS = frozenset(
+    {
+        "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow",
+        "IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow",
+        "IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic",
+        "IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-BlueGreenRed-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-Franka",
+        "IsaacContrib-Stack-Cube-Franka-IK-Abs",
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow",
+        "IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow",
+        "IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-SO101-IK-Abs-v0",
+        "IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0",
+        "IsaacContrib-Stack-Cube-SO101-v0",
+        "IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel",
+    }
+)
+
 
 @dataclass(frozen=True)
 class EnvironmentDocRow:
@@ -223,6 +249,19 @@ def _physics_names_for_docs(task_name: str, preset_map: dict[PresetTarget, list[
     with contextlib.suppress(Exception):
         names |= _infer_implicit_physics_names(task_name)
     return sorted(names)
+
+
+def _apply_preset_exclusions(
+    task_name: str, preset_map: dict[PresetTarget, list[str]] | None
+) -> dict[PresetTarget, list[str]] | None:
+    """Remove task/preset combinations disabled by runtime validation."""
+    if preset_map is None or task_name not in _NEWTON_MJWARP_EXCLUSIONS:
+        return preset_map
+    filtered = dict(preset_map)
+    filtered[PresetTarget.PHYSICS] = [
+        name for name in filtered.get(PresetTarget.PHYSICS, []) if name != "newton_mjwarp"
+    ]
+    return filtered
 
 
 def _domain_presets_for_docs(preset_map: dict[PresetTarget, list[str]]) -> list[str]:
@@ -535,6 +574,7 @@ def collect_environment_doc_rows(
         if preset_map is not None:
             preset_map = dict(preset_map)
             preset_map[PresetTarget.PHYSICS] = _physics_names_for_docs(spec.id, preset_map)
+            preset_map = _apply_preset_exclusions(spec.id, preset_map)
         agents = apply_rl_library_overrides(spec.id, parse_rl_libraries_from_kwargs(spec.kwargs))
 
         workflow = get_workflow(spec.entry_point)

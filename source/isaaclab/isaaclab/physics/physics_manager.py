@@ -87,6 +87,13 @@ class PhysicsManager(ABC):
     _callbacks: ClassVar[dict[int, tuple[Any, Callable, int, str | None, Any]]] = {}
     _callback_id: ClassVar[int] = 0
     views: ClassVar[dict[tuple[type, str], Any]] = {}
+    clone_context_type: ClassVar[type[object] | None] = None
+
+    supports_anim_recording: ClassVar[bool] = False
+    """Whether this backend can service ``--anim_recording_enabled`` (OVD Recorder).
+
+    Overridden by backends that implement the recorder (currently PhysX-only).
+    """
 
     @classmethod
     def _prepare_stage_creation(cls) -> None:
@@ -151,13 +158,21 @@ class PhysicsManager(ABC):
                 f"Cannot relocate '{articulation_prim.GetPath()}' to existing articulation root '{new_root.GetPath()}'."
             )
 
+        # Keep this import local for the same reason as the pxr imports above.
+        from isaaclab.sim.schemas._backend_hooks import _articulation_root_companion_namespace  # noqa: PLC0415
+
         registry = Usd.SchemaRegistry()
         root_schema = UsdPhysics.Tokens.PhysicsArticulationRootAPI
         schemas_to_move = []
         for schema_name in articulation_prim.GetPrimTypeInfo().GetAppliedAPISchemas():
             definition = registry.FindAppliedAPIPrimDefinition(schema_name)
+            companion_namespace_override = _articulation_root_companion_namespace(schema_name)
             if schema_name == companion_schema:
                 properties = list(articulation_prim.GetAuthoredPropertiesInNamespace(companion_namespace))
+            elif companion_namespace_override is not None:
+                # a backend-registered schema, possibly an unregistered token the registry cannot
+                # describe, so take the namespace the backend declared for it
+                properties = list(articulation_prim.GetAuthoredPropertiesInNamespace(companion_namespace_override))
             elif schema_name == root_schema or (
                 definition is not None and root_schema in definition.GetAppliedAPISchemas()
             ):
@@ -369,6 +384,19 @@ class PhysicsManager(ABC):
         # Warp so that both runtimes retain the same primary CUDA context.
         if "cuda" in PhysicsManager._device:
             set_cuda_device(PhysicsManager._device)
+
+        # The OVD Recorder (omni.physx.pvd) only records PhysX simulations. On other backends the
+        # recording would silently never start, so the process would run until manually killed
+        # instead of stopping at `--anim_recording_stop_time` and saving the animation.
+        # ``get_setting`` may be absent on lightweight sim_context test doubles that only
+        # implement the ``cfg``/``device`` surface this method also reads above.
+        get_setting = getattr(sim_context, "get_setting", None)
+        if get_setting and get_setting("/isaaclab/anim_recording/enabled") and not cls.supports_anim_recording:
+            raise ValueError(
+                f"'--anim_recording_enabled' was set, but the active physics backend ('{cls.__name__}') does not"
+                " support the OVD Recorder. Select the PhysX backend, e.g. by appending"
+                " 'physics=isaacsim_physx' to the command line."
+            )
 
     @classmethod
     @abstractmethod

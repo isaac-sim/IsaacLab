@@ -45,7 +45,7 @@ def test_context_names_the_launcher_when_run_outside_one(monkeypatch: pytest.Mon
     monkeypatch.delenv("RANK", raising=False)
     monkeypatch.delenv("WORLD_SIZE", raising=False)
 
-    with pytest.raises(ValueError, match="isaaclab benchmark runtime-multigpu"):
+    with pytest.raises(ValueError, match="isaaclab benchmark runtime_multigpu"):
         DistributedContext.from_env(enabled=True, workflow="runtime")
 
 

@@ -93,11 +93,29 @@ def _expose_mujoco_usd_schemas():
     OpenUSD reads the search path while building the registry, so this only helps while the
     registry is still unbuilt. A host that queries a schema before importing Isaac Lab has to put
     the plugin directory on ``PXR_PLUGINPATH_NAME`` itself.
+
+    Isaac Lab's Kit experiences must not also enable ``omni.usd.schema.mujoco``. The extension
+    bundles a second plugin with the same name and reports its duplicate registration as an error.
     """
+    plugins = None
     spec = importlib.util.find_spec("mujoco_usd_converter")
-    if spec is None or spec.origin is None:
-        return
-    plugins = os.path.join(os.path.dirname(spec.origin), "plugins")
+    if spec is not None and spec.origin is not None:
+        plugins = os.path.join(os.path.dirname(spec.origin), "plugins")
+
+    # Source Isaac Sim exposes this prebundle only after Kit starts, which is too late for the
+    # schema registry. Its root is available earlier through the launcher environment.
+    if plugins is None or not os.path.isdir(plugins):
+        isaac_path = os.environ.get("ISAAC_PATH")
+        if isaac_path is None:
+            return
+        plugins = os.path.join(
+            isaac_path,
+            "exts",
+            "isaacsim.pip.newton",
+            "pip_prebundle",
+            "mujoco_usd_converter",
+            "plugins",
+        )
     if not os.path.isdir(plugins):
         return
     search_path = os.environ.get("PXR_PLUGINPATH_NAME", "")
@@ -113,3 +131,25 @@ try:
     __version__ = importlib.metadata.version("isaaclab")
 except importlib.metadata.PackageNotFoundError:
     __version__ = "0.0.0"
+
+
+# TODO(myurasov-nv): bootstrap_kernel() is ported from the internal GitLab wheel builder
+# for backwards compatibility. It is not called currently, but may be needed if Isaac Sim
+# requires explicit kernel bootstrapping before use. Remove once confirmed unnecessary.
+def bootstrap_kernel():
+    """Import Isaac Sim so it can initialize its kernel when available."""
+    isaaclab_path = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
+    if importlib.util.find_spec("isaacsim") is not None:
+        import isaacsim  # noqa: F401
+
+        if importlib.util.find_spec("carb") is not None:
+            import carb
+
+            carb.log_info(f"Isaac Lab path: {isaaclab_path}")
+
+
+def main():
+    """Run the ``isaaclab`` command through its compatibility dispatcher."""
+    from isaaclab.__main__ import main as _main
+
+    sys.exit(_main())

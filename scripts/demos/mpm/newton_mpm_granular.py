@@ -15,7 +15,7 @@ stepping.
 
 .. code-block:: bash
 
-    uv run python scripts/demos/mpm/newton_mpm_granular.py --visualizer newton
+    uv run python scripts/demos/mpm/newton_mpm_granular.py --visualizer newton_gl
 """
 
 from __future__ import annotations
@@ -61,8 +61,10 @@ MAX_ACTIVE_CELL_COUNT = 1 << 18
 # Granular block, emitted as a jittered particle grid.
 EMIT_LO = (-1.0, -1.0, 2.0)
 EMIT_HI = (1.0, 1.0, 3.5)
-PARTICLES_PER_CELL = 3.0
-PARTICLE_JITTER = VOXEL_SIZE / PARTICLES_PER_CELL
+PARTICLES_PER_VOXEL_AXIS = 2.0
+PARTICLE_SPACING = VOXEL_SIZE / PARTICLES_PER_VOXEL_AXIS
+PARTICLE_JITTER = PARTICLE_SPACING
+COLLIDER_MARGIN = 0.5 * PARTICLE_SPACING
 
 PARTICLE_COLOR = (0.7, 0.6, 0.4)
 
@@ -104,7 +106,6 @@ def create_sim_cfg():
                 grid_type=GRID_TYPE,
                 grid_padding=GRID_PADDING,
                 max_active_cell_count=MAX_ACTIVE_CELL_COUNT,
-                project_outside_colliders=True,
             ),
             num_substeps=args_cli.substeps,
         ),
@@ -126,7 +127,10 @@ def create_scene_cfg():
             prim_path=prim_path,
             spawn=sim_utils.CuboidCfg(
                 size=(2.0 * half_extents[0], 2.0 * half_extents[1], 2.0 * half_extents[2]),
-                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+                collision_props=sim_utils.NewtonCollisionPropertiesCfg(
+                    collision_enabled=True,
+                    contact_margin=COLLIDER_MARGIN,
+                ),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=friction,
                     dynamic_friction=friction,
@@ -142,7 +146,7 @@ def create_scene_cfg():
 
         ground = AssetBaseCfg(
             prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(size=(6.0, 6.0), color=(0.30, 0.30, 0.30)),
+            spawn=sim_utils.GroundPlaneCfg(size=(12.0, 12.0), color=(0.30, 0.30, 0.30)),
         )
 
         dome_light = AssetBaseCfg(
@@ -156,7 +160,7 @@ def create_scene_cfg():
                 lower=EMIT_LO,
                 upper=EMIT_HI,
                 voxel_size=VOXEL_SIZE,
-                particles_per_cell=PARTICLES_PER_CELL,
+                particles_per_cell=PARTICLES_PER_VOXEL_AXIS,
                 particle_placement="cell_center",
                 jitter=PARTICLE_JITTER,
                 visual_color=PARTICLE_COLOR,

@@ -10,9 +10,8 @@ This section we introduce core concepts in Isaac Lab.
   multi_backend_architecture
   physical-backends/index
   schema_cfgs
+  schema_fragments
   task_workflows
   sensors/index.rst
   renderers
   motion_generators
-  scene_data_providers
-  visualization

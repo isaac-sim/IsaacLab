@@ -7,13 +7,21 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+
+if TYPE_CHECKING:
+    from .viser_visualizer import ViserVisualizer
 
 
 @configclass
 class ViserVisualizerCfg(VisualizerCfg):
     """Configuration for Viser visualizer (web-based visualization)."""
+
+    class_type: type[ViserVisualizer] | str = "{DIR}.viser_visualizer:ViserVisualizer"
+    """Visualizer implementation class."""
 
     visualizer_type: str = "viser"
     """Type identifier for Viser visualizer."""

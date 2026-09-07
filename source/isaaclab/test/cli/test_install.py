@@ -68,6 +68,7 @@ def test_run_python_command_uses_live_isaac_sim_with_active_python(tmp_path):
     local_sim.mkdir()
     python_launcher = local_sim / "python.sh"
     python_launcher.touch()
+    (local_sim / ".isaaclab_source_build").touch()
     active_python = str(tmp_path / ".venv" / "bin" / "python")
 
     with (
@@ -85,11 +86,55 @@ def test_run_python_command_uses_live_isaac_sim_with_active_python(tmp_path):
     assert run.call_args.kwargs["env"]["PYTHONEXE"] == active_python
 
 
+def test_run_python_command_accepts_virtual_environment_on_bundled_python(tmp_path):
+    """A virtual environment created on a downloaded package's Python runs that interpreter."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    bundled_python = local_sim / "kit" / "python" / "bin" / "python3"
+    bundled_python.parent.mkdir(parents=True)
+    bundled_python.touch()
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "bin" / "python").symlink_to(bundled_python)
+    (venv / "pyvenv.cfg").write_text(f"home = {bundled_python.parent}\n")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=str(venv / "bin" / "python")),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(venv)}, clear=True),
+    ):
+        run_python_command("script.py", [])
+
+    assert run.call_args is not None
+
+
+def test_run_python_command_rejects_virtual_environment_on_foreign_python(tmp_path):
+    """A virtual environment built on another interpreter stays rejected."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=str(venv / "bin" / "python")),
+        mock.patch("isaaclab.cli.utils.run_command"),
+        mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(venv)}, clear=True),
+        pytest.raises(SystemExit),
+    ):
+        run_python_command("script.py", [])
+
+
 def test_run_python_command_does_not_wrap_an_active_isaac_sim_environment(tmp_path):
     """The legacy wrapper path must not source the same Isaac Sim environment twice."""
     local_sim = tmp_path / "_isaac_sim"
     local_sim.mkdir()
     (local_sim / "python.sh").touch()
+    (local_sim / ".isaaclab_source_build").touch()
     active_python = str(tmp_path / ".venv" / "bin" / "python")
 
     with (
@@ -101,6 +146,22 @@ def test_run_python_command_does_not_wrap_an_active_isaac_sim_environment(tmp_pa
         run_python_command("script.py", [])
 
     assert run.call_args.args[0] == [active_python, "script.py"]
+
+
+def test_run_python_command_rejects_downloaded_isaac_sim_with_virtual_environment(tmp_path):
+    """Downloaded Isaac Sim packages must not run through a virtual environment."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    active_python = str(tmp_path / ".venv" / "bin" / "python")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=active_python),
+        mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path / ".venv")}, clear=True),
+        pytest.raises(SystemExit, match="1"),
+    ):
+        run_python_command("train.py", ["--task", "Cartpole"])
 
 
 # ---------------------------------------------------------------------------
@@ -303,18 +364,19 @@ class TestEnsureNewton:
     """Tests for :func:`~isaaclab.cli.commands.install._ensure_newton`.
 
     Isaac Sim bundles ``newton[sim]==1.2.0``; the install CLI must force the pinned
-    Newton git build (sourced from ``[tool.uv].override-dependencies``) over it.
+    Newton release (sourced from ``[tool.uv].override-dependencies``) over it.
     """
 
     @staticmethod
     def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess:
         return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
 
-    def test_installs_pinned_git_build_when_absent(self):
-        """When the pinned commit is not installed, uninstall newton then install the git build."""
+    def test_installs_pinned_release_when_absent(self):
+        """When the pinned release is not installed, uninstall Newton then install it."""
         from isaaclab.cli.commands import install
 
-        commit = install._pinned_version("newton")
+        overrides = install._load_root_pyproject()["tool"]["uv"]["override-dependencies"]
+        requirement = next(r for r in overrides if install._requirement_name(r) == "newton")
         calls = []
 
         def fake_run(cmd, *args, **kwargs):
@@ -332,32 +394,45 @@ class TestEnsureNewton:
         install_cmds = [cmd for cmd in calls if "install" in cmd]
         assert install_cmds, "expected a pip install call"
         install_args = install_cmds[-1]
-        assert any(arg.startswith("newton[sim]") and arg.endswith(commit) for arg in install_args)
+        assert requirement in install_args
         assert any(arg.startswith("newton-usd-schemas") for arg in install_args), "schemas must be forced too"
 
-    def test_skips_when_commit_already_installed(self):
-        """When freeze already reports the pinned commit, do not reinstall."""
+    @pytest.mark.parametrize(
+        ("requirement", "freeze_line"),
+        [
+            ("newton[sim]==1.5.1", "newton==1.5.1"),
+            (
+                "newton[sim] @ git+https://github.com/newton-physics/newton.git@cca3bb8",
+                "newton @ git+https://github.com/newton-physics/newton.git@cca3bb8",
+            ),
+        ],
+    )
+    def test_skips_when_pin_already_installed(self, requirement, freeze_line):
+        """When freeze already reports the pinned build, do not reinstall."""
         from isaaclab.cli.commands import install
 
-        commit = install._pinned_version("newton")
         calls = []
 
         def fake_run(cmd, *args, **kwargs):
             calls.append(cmd)
             if cmd[-1] == "freeze":
-                stdout = f"newton @ git+https://github.com/newton-physics/newton.git@{commit}\n"
-                return self._completed(stdout=stdout)
+                return self._completed(stdout=f"{freeze_line}\n")
             return self._completed()
 
         with (
+            mock.patch.object(
+                install,
+                "_load_root_pyproject",
+                return_value={"tool": {"uv": {"override-dependencies": [requirement]}}},
+            ),
             mock.patch.object(install, "extract_python_exe", return_value="python"),
             mock.patch.object(install, "get_pip_command", return_value=["uv", "pip"]),
             mock.patch.object(install, "run_command", side_effect=fake_run),
         ):
             install._ensure_newton()
 
-        assert not any("install" in cmd for cmd in calls), "should not install when commit already present"
-        assert not any("uninstall" in cmd for cmd in calls), "should not uninstall when commit already present"
+        assert not any("install" in cmd for cmd in calls), "should not install when release already present"
+        assert not any("uninstall" in cmd for cmd in calls), "should not uninstall when release already present"
 
 
 def test_no_shadowing_prebundled_torch_in_isaac_sim():
@@ -401,11 +476,12 @@ class TestPinkIkStack:
     stack from there instead of mirroring the versions.
     """
 
-    def test_stack_derived_from_root_pyproject_pins(self):
+    def test_stack_derived_from_root_pyproject_pins(self, source_checkout_root: Path):
         """The derived stack covers every stack package, exactly pinned, markers stripped."""
         from isaaclab.cli.commands import install
 
-        stack = install._pink_ik_stack()
+        with mock.patch.object(install, "ISAACLAB_ROOT", source_checkout_root):
+            stack = install._pink_ik_stack()
         assert [install._requirement_name(r) for r in stack] == list(install._PINK_IK_PACKAGES)
         assert any(r.startswith("pin-pink==") for r in stack), "pin-pink must stay exactly pinned"
         assert any(r.startswith("daqp==") for r in stack), "daqp must stay exactly pinned"

@@ -12,6 +12,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import numpy as np
 import pytest
 import torch
 from flaky import flaky
@@ -87,8 +88,8 @@ def sim():
     # Create environment clones using Isaac Lab's cloner utilities
     env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
-    env_origins, _ = cloner.grid_transforms(num_envs, spacing=2.0, device=sim.device)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = cloner.grid_transforms(num_envs, spacing=2.0)
     # create source prim
     stage.DefinePrim(env_prim_paths[0], "Xform")
     # clone the env xform
@@ -1649,7 +1650,7 @@ def _update_states(
         contact_forces.update(sim_dt)  # update contact sensor
         # Calculate the contact force by averaging over last four time steps (i.e., to smoothen) and
         # taking the max of three surfaces as only one should be the contact of interest
-        ee_force_w, _ = torch.max(torch.mean(contact_forces.data.net_forces_w_history.torch, dim=1), dim=1)
+        ee_force_w, _ = torch.max(torch.mean(contact_forces.data.net_normal_forces_w_history.torch, dim=1), dim=1)
 
     # This is a simplification, only for the sake of testing.
     ee_force_b = ee_force_w

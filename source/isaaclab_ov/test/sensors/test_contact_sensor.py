@@ -386,34 +386,34 @@ def test_cube_stack_contact_filtering(device, num_envs):
 
         # Check values for cube 2 — cube 1 is the only collision for cube 2
         torch.testing.assert_close(
-            contact_sensor_2.data.force_matrix_w.torch[:, :, 0],
-            contact_sensor_2.data.net_forces_w.torch,
+            contact_sensor_2.data.normal_force_matrix_w.torch[:, :, 0],
+            contact_sensor_2.data.net_normal_forces_w.torch,
         )
         # Check that forces are opposite and equal
         torch.testing.assert_close(
-            contact_sensor_2.data.force_matrix_w.torch[:, :, 0],
-            -contact_sensor.data.force_matrix_w.torch[:, :, 0],
+            contact_sensor_2.data.normal_force_matrix_w.torch[:, :, 0],
+            -contact_sensor.data.normal_force_matrix_w.torch[:, :, 0],
         )
         # Check values are non-zero (contacts are happening and are getting reported)
-        assert contact_sensor_2.data.net_forces_w.torch.sum().item() > 0.0
-        assert contact_sensor.data.net_forces_w.torch.sum().item() > 0.0
+        assert contact_sensor_2.data.net_normal_forces_w.torch.sum().item() > 0.0
+        assert contact_sensor.data.net_normal_forces_w.torch.sum().item() > 0.0
 
 
 def test_no_contact_reporting():
     """Test that OVPhysX contact sensor returns zero forces when no filter is configured.
 
-    Without ``filter_prim_paths_expr``, the ``force_matrix_w`` buffer is not
-    populated (no per-partner breakdown is available), and ``net_forces_w``
+    Without ``filter_prim_paths_expr``, the ``normal_force_matrix_w`` buffer is not
+    populated (no per-partner breakdown is available), and ``net_normal_forces_w``
     should still reflect the aggregate contact force.  This test verifies the
     simpler "unfiltered, CPU-only" path by using CPU and letting the scene
-    settle: with no filter the ``force_matrix_w`` sum is expected to be zero
+    settle: with no filter the ``normal_force_matrix_w`` sum is expected to be zero
     (the buffer is not allocated).
 
     Note:
         The PhysX variant of this test forcibly disables contact processing via
         a Carbonite setting (``/physics/disableContactProcessing``).  That
         setting is not available in the kitless OVPhysX flow; instead we test
-        that a sensor with no filter has a zero ``force_matrix_w``.
+        that a sensor with no filter has a zero ``normal_force_matrix_w``.
     """
     with _ovphysx_sim_context(device="cpu", dt=_SIM_DT, add_lighting=True) as sim:
         scene_cfg = ContactSensorSceneCfg(num_envs=2, env_spacing=1.0, lazy_sensor_update=False)
@@ -424,7 +424,7 @@ def test_no_contact_reporting():
         # -- cube 2 (on top of cube 1)
         scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
         scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
-        # No filter paths — force_matrix_w will not be allocated.
+        # No filter paths — normal_force_matrix_w will not be allocated.
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Cube_1",
             track_pose=True,
@@ -452,10 +452,10 @@ def test_no_contact_reporting():
         for _ in range(500):
             _perform_sim_step(sim, scene, _SIM_DT)
 
-        # Without filter_prim_paths_expr the force_matrix_w buffer is not allocated;
+        # Without filter_prim_paths_expr the normal_force_matrix_w buffer is not allocated;
         # its sum should be zero (or the tensor is None).
-        fm1 = contact_sensor.data.force_matrix_w
-        fm2 = contact_sensor_2.data.force_matrix_w
+        fm1 = contact_sensor.data.normal_force_matrix_w
+        fm2 = contact_sensor_2.data.normal_force_matrix_w
         if fm1 is not None:
             assert fm1.torch.sum().item() == 0.0
         if fm2 is not None:
@@ -510,7 +510,7 @@ def test_multi_body_per_sensor_indexing(device, num_envs):
             _perform_sim_step(sim, scene, _SIM_DT)
 
         # Net force readout: shape (num_envs, num_sensors=2, 3) after .torch.
-        net_forces = contact_sensor.data.net_forces_w.torch
+        net_forces = contact_sensor.data.net_normal_forces_w.torch
         assert net_forces.shape == (num_envs, 2, 3)
         low_force_mag = net_forces[:, low_idx, :].abs().sum().item()
         high_force_mag = net_forces[:, high_idx, :].abs().sum().item()
@@ -568,13 +568,13 @@ def test_nested_rigid_body_hierarchy(device, num_envs):
     """
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
         stage = get_current_stage()
-        env_positions, _ = cloner.grid_transforms(num_envs, spacing=3.0, device=device)
+        env_positions, _ = cloner.grid_transforms(num_envs, spacing=3.0)
         env_0 = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
         env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
         _author_nested_chain("/World/envs/env_0/Robot")
 
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        clone_plan = cloner.clone_plan_from_env_0(src, dest, num_envs, device, env_positions)
+        clone_plan = cloner.clone_plan_from_env_0(src, dest, num_envs, env_positions)
         assert clone_plan.env_ids is not None
         ovphysx_replicate(
             stage,
@@ -604,7 +604,7 @@ def test_nested_rigid_body_hierarchy(device, num_envs):
         for _ in range(2):
             sim.step()
             contact_sensor.update(_SIM_DT, force_recompute=True)
-        net_forces = contact_sensor.data.net_forces_w.torch
+        net_forces = contact_sensor.data.net_normal_forces_w.torch
         assert net_forces.shape == (num_envs, 3, 3)
 
 
@@ -715,7 +715,7 @@ def test_friction_reporting(device, grav_dir):
         # check that forces are being reported match expected friction forces
         expected_friction, _, _, _ = scene["contact_sensor"].contact_view.get_friction_data(dt=_SIM_DT)
         expected_friction_torch = wp.to_torch(expected_friction)
-        reported_friction = scene["contact_sensor"].data.friction_forces_w.torch[0, 0, :]
+        reported_friction = scene["contact_sensor"].data.friction_force_matrix_w.torch[0, 0, :]
 
         torch.testing.assert_close(expected_friction_torch.sum(dim=0), reported_friction[0], atol=1e-6, rtol=1e-5)
 
@@ -970,12 +970,12 @@ def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: Conta
         mode: The contact test mode.
     """
     if not sensor.cfg.track_friction_forces:
-        assert sensor._data.friction_forces_w is None
+        assert sensor._data.friction_force_matrix_w is None
         return
 
-    # check shape of the friction_forces_w tensor (wp.to_torch expands vec3f -> float32 trailing dim)
+    # check shape of the friction_force_matrix_w tensor (wp.to_torch expands vec3f -> float32 trailing dim)
     num_bodies = sensor.num_bodies
-    friction_torch = sensor._data.friction_forces_w.torch
+    friction_torch = sensor._data.friction_force_matrix_w.torch
     assert friction_torch.shape == (sensor.num_instances // num_bodies, num_bodies, 1, 3)
     # compare friction forces
     if mode == ContactTestMode.IN_CONTACT:

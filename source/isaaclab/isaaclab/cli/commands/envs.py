@@ -14,6 +14,7 @@ from pathlib import Path
 from ..utils import (
     ISAACLAB_ROOT,
     determine_python_version,
+    is_isaac_sim_source_build,
     is_windows,
     print_debug,
     print_error,
@@ -21,6 +22,25 @@ from ..utils import (
     print_warning,
     run_command,
 )
+
+
+def _reject_downloaded_isaac_sim(environment_type: str) -> None:
+    """Reject virtual environments combined with a downloaded Isaac Sim package.
+
+    Args:
+        environment_type: User-facing environment type requested by the command.
+
+    Raises:
+        SystemExit: If ``_isaac_sim`` is not a marked live source build.
+    """
+    isaac_sim_path = ISAACLAB_ROOT / "_isaac_sim"
+    if isaac_sim_path.exists() and not is_isaac_sim_source_build(isaac_sim_path):
+        print_error(f"Downloaded Isaac Sim packages cannot be combined with a {environment_type} environment.")
+        print_error(
+            "Use the bundled Python through isaaclab.sh/isaaclab.bat, or remove '_isaac_sim' and install "
+            "Isaac Sim from pip in the virtual environment."
+        )
+        raise SystemExit(1)
 
 
 def _sanitized_conda_env() -> dict[str, str]:
@@ -496,6 +516,8 @@ def command_setup_conda(env_name: str) -> None:
         env_name: Name for the conda environment to create or reuse.
     """
 
+    _reject_downloaded_isaac_sim("conda")
+
     # Check if conda is installed.
     if not shutil.which("conda"):
         print_error("Conda could not be found. Please install conda and try again.")
@@ -520,10 +542,7 @@ def command_setup_conda(env_name: str) -> None:
     if symlink_missing and pip_package_missing:
         print_warning(f"_isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")
         print("\tThis warning can be ignored if you plan to install Isaac Sim via pip.")
-        print(
-            "\tIf you are using a binary installation of Isaac Sim, please ensure the "
-            + "symlink is created before setting up the conda environment."
-        )
+        print("\tDownloaded Isaac Sim packages use their bundled Python and cannot be combined with conda.")
 
     # Check if the environment exists.
     conda_env = _sanitized_conda_env()
@@ -633,6 +652,8 @@ def command_setup_uv(env_name: str) -> None:
             the active environment is configured for Isaac Lab instead of
             creating a new one.
     """
+    _reject_downloaded_isaac_sim("uv")
+
     # Check if uv is installed.
     if not shutil.which("uv"):
         print_error("uv could not be found. Please install uv and try again.")
@@ -654,10 +675,7 @@ def command_setup_uv(env_name: str) -> None:
             if result.returncode != 0 and not (ISAACLAB_ROOT / "_isaac_sim").exists():
                 print_warning(f"_isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")
                 print("\tThis warning can be ignored if you plan to install Isaac Sim via pip.")
-                print(
-                    "\tIf you are using a binary installation of Isaac Sim, please ensure "
-                    + "the symlink is created before setting up the uv environment."
-                )
+                print("\tDownloaded Isaac Sim packages use their bundled Python and cannot be combined with uv.")
         except Exception:
             pass
 

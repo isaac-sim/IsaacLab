@@ -31,7 +31,7 @@ Newton visualizer opens by default:
 
 .. code-block:: bash
 
-   uv run python scripts/environments/state_machine/lift_franka_soft.py \
+   uv run --extra tetrahedralization python scripts/environments/state_machine/lift_franka_soft.py \
       --num_envs 1
 
 Open a cabinet drawer

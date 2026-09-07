@@ -73,6 +73,17 @@ PER_TEST_TIMEOUTS = {
 Note: Any tests not listed here will use the default timeout.
 """
 
+GIT_ASSET_STARTUP_TIMEOUT = 1000
+"""Startup timeout for tests that may populate the external Git asset cache."""
+
+PER_TEST_STARTUP_TIMEOUTS = {
+    "test_environments_isaacsim_physx.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_environments_newton.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_environments_ovphysx.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_multi_agent_environments.py": GIT_ASSET_STARTUP_TIMEOUT,
+}
+"""Per-test startup timeouts for cold external asset downloads."""
+
 CUROBO_PLANNER_TESTS = [
     "test_curobo_planner_franka.py",
     "test_curobo_planner_cube_stack.py",
@@ -121,6 +132,11 @@ TESTS_TO_SKIP = [
     # quarantined tests - run in dedicated CI job that does not block PR merges
     *QUARANTINED_TESTS,
     "test_environments_training.py",  # Long-running RL training test; runs in dedicated CI job
+    # Exercises tools/conftest.py itself, including a hang that has to be waited out in real time.
+    # Needs no Isaac Sim and is not worth the CI spend. To run it when changing the orchestrator:
+    #   PYTHONPATH=tools:source/isaaclab pytest --noconftest \
+    #     source/isaaclab/test/cli/test_test_orchestrator_result_handling.py
+    "test_test_orchestrator_result_handling.py",
 ]
 """A list of tests to skip in CI (see conftest.py)."""
 
