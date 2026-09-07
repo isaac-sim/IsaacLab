@@ -711,13 +711,15 @@ def render_environment_browser_task_rows(
             ]
             if aliases:
                 preview_image = max(aliases, key=lambda item: len(item[0]))[1]
+        default_algorithms = {"skrl": "MAPPO"} if "MAPPO" in row.rl_libraries.get("skrl", []) else {}
         optional_values = [
             row.agent_preset_compatibility,
             preview_image,
             row.supports_warp_frontend,
             row.pretrained_checkpoint_preset_compatibility,
+            default_algorithms,
         ]
-        optional_defaults = [{}, "", False, {}]
+        optional_defaults = [{}, "", False, {}, {}]
         last_value = next(
             (
                 index

@@ -553,7 +553,14 @@ class NewtonWarpRenderer(BaseRenderer):
 
         if render_data.sensor_task_name is None:
             render_data.sensor_task_name = f"newton_warp_render:{id(render_data)}"
-            NewtonManager._register_sensor_task(render_data.sensor_task_name, lambda: self._launch_render(render_data))
+            tri_indices = self._newton_model.tri_indices
+            # Warp mesh refits allocate graph nodes and are not supported inside a conditional graph body.
+            graph_capturable = tri_indices is None or tri_indices.shape[0] == 0
+            NewtonManager._register_sensor_task(
+                render_data.sensor_task_name,
+                lambda: self._launch_render(render_data),
+                graph_capturable=graph_capturable,
+            )
         NewtonManager._update_sensor_tasks(render_data.sensor_task_name)
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
