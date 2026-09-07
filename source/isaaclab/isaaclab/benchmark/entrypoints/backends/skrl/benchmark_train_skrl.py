@@ -141,10 +141,7 @@ def _parse_args(argv: list[str]):
     add_common_train_args(
         parser,
         agent_default=None,
-        agent_help=(
-            "Name of the RL agent configuration entry point. Defaults to None, in which"
-            " case --algorithm is used to determine the default agent entry point."
-        ),
+        agent_help="Agent configuration entry point (default: the task's canonical SKRL configuration).",
         include_distributed=True,
         max_iterations_type=parse_positive_int,
     )
@@ -158,9 +155,9 @@ def _parse_args(argv: list[str]):
     parser.add_argument(
         "--algorithm",
         type=str,
-        default="PPO",
+        default=None,
         choices=["AMP", "PPO"],
-        help="RL algorithm used for benchmark training.",
+        help="Optional algorithm-specific configuration selector; agent.class in the resolved config is authoritative.",
     )
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
@@ -203,7 +200,7 @@ def _parse_args(argv: list[str]):
     add_success_cli_args(parser, include_check_success=False)
     add_launcher_args(parser)
 
-    args_cli, remaining_args = setup_preset_cli(parser, argv, agent_library="skrl")
+    args_cli, remaining_args = setup_preset_cli(parser, argv)
     validate_distributed_args(parser, args_cli)
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
@@ -239,7 +236,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
-    from isaaclab_rl.skrl import SkrlVecEnvWrapper
+    from isaaclab_rl.skrl import SkrlVecEnvWrapper, resolve_skrl_agent_cfg_entry_point, resolve_skrl_algorithm
 
     import isaaclab_tasks  # noqa: F401
 
@@ -261,16 +258,11 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     args_cli, remaining_args = _parse_args(argv)
     distributed = DistributedContext.from_env(args_cli.distributed)
 
-    # Derive the default agent entry point from the selected algorithm.
-    if args_cli.agent is None:
-        algorithm = args_cli.algorithm.lower()
-        agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm == "ppo" else f"skrl_{algorithm}_cfg_entry_point"
-    else:
-        agent_cfg_entry_point = args_cli.agent
-        algorithm = agent_cfg_entry_point.split("_cfg")[0].split("skrl_")[-1].lower()
+    agent_cfg_entry_point = resolve_skrl_agent_cfg_entry_point(args_cli.agent, args_cli.algorithm)
 
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
+    algorithm = resolve_skrl_algorithm(agent_cfg, args_cli.algorithm)
     config_t1 = time.perf_counter_ns()
 
     start_utc = capture.now_utc_iso()

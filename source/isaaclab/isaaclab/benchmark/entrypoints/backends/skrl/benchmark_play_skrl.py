@@ -61,10 +61,7 @@ def _parse_args(argv: list[str]):
         "--agent",
         type=str,
         default=None,
-        help=(
-            "Name of the RL agent configuration entry point. Defaults to None, in which"
-            " case --algorithm is used to determine the default agent entry point."
-        ),
+        help="Agent configuration entry point (default: the task's canonical SKRL configuration).",
     )
     parser.add_argument(
         "--ml_framework",
@@ -76,9 +73,9 @@ def _parse_args(argv: list[str]):
     parser.add_argument(
         "--algorithm",
         type=str,
-        default="PPO",
+        default=None,
         choices=["AMP", "PPO", "IPPO", "MAPPO"],
-        help="The RL algorithm used for the skrl agent.",
+        help="Optional algorithm-specific configuration selector; agent.class in the resolved config is authoritative.",
     )
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
@@ -104,7 +101,7 @@ def _parse_args(argv: list[str]):
     )
     add_launcher_args(parser)
 
-    args_cli, remaining_args = setup_preset_cli(parser, argv, agent_library="skrl")
+    args_cli, remaining_args = setup_preset_cli(parser, argv)
     _common.enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
 
@@ -127,7 +124,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
     from isaaclab.benchmark.schema import StartupTime
 
-    from isaaclab_rl.skrl import SkrlVecEnvWrapper
+    from isaaclab_rl.skrl import SkrlVecEnvWrapper, resolve_skrl_agent_cfg_entry_point, resolve_skrl_algorithm
 
     # Importing the task packages registers their gym environments so the
     # requested ``--task`` can be resolved.
@@ -140,15 +137,10 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     args_cli, remaining_args = _parse_args(argv)
 
-    # Resolve agent entry point (mirrors isaaclab_rl.entrypoints.backends.play_skrl).
-    if args_cli.agent is None:
-        algorithm = args_cli.algorithm.lower()
-        agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm == "ppo" else f"skrl_{algorithm}_cfg_entry_point"
-    else:
-        agent_cfg_entry_point = args_cli.agent
-        algorithm = agent_cfg_entry_point.split("_cfg")[0].split("skrl_")[-1].lower()
+    agent_cfg_entry_point = resolve_skrl_agent_cfg_entry_point(args_cli.agent, args_cli.algorithm)
 
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
+    algorithm = resolve_skrl_algorithm(agent_cfg, args_cli.algorithm)
     _common.pre_launch_video_config(env_cfg, args_cli=args_cli)
 
     start_utc = capture.now_utc_iso()
@@ -204,7 +196,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                         {"name": "task", "data": args_cli.task},
                         {"name": "num_envs", "data": args_cli.num_envs},
                         {"name": "num_steps", "data": args_cli.num_steps},
-                        {"name": "algorithm", "data": args_cli.algorithm},
+                        {"name": "algorithm", "data": algorithm.upper()},
                         {
                             "name": "environment_step_measurement_mode",
                             "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
