@@ -273,16 +273,17 @@ def test_constant_velocity(setup_sim):
 
 @pytest.mark.isaacsim_ci
 def test_constant_acceleration(setup_sim):
-    """Test the Imu sensor with a constant acceleration."""
+    """A constant applied force yields the solver acceleration F/m plus the gravity bias."""
     sim, scene = setup_sim
-    for idx in range(100):
-        # set acceleration
-        scene.rigid_objects["balls"].write_root_velocity_to_sim(
-            torch.tensor([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
-                scene.num_envs, 1
-            )
-            * (idx + 1)
-        )
+    balls = scene.rigid_objects["balls"]
+    force = 0.25  # [N] on a 0.5 kg ball -> 0.5 m/s^2
+    expected_acc = force / 0.5
+    forces = torch.zeros((scene.num_envs, 1, 3), dtype=torch.float32, device=scene.device)
+    forces[..., 0] = force
+    # keep the window short so the ball stays airborne: in free fall the accelerometer
+    # correctly reads zero along gravity (the solver's -g cancels the +g bias)
+    for idx in range(10):
+        balls.set_external_force_and_torque(forces, torch.zeros_like(forces))
         # write data to sim
         scene.write_data_to_sim()
         # perform step
@@ -290,7 +291,7 @@ def test_constant_acceleration(setup_sim):
         # read data from sim
         scene.update(sim.get_physics_dt())
 
-        # skip first step where initial velocity is zero
+        # skip first step where the solver has not integrated the force yet
         if idx < 1:
             continue
 
@@ -299,9 +300,9 @@ def test_constant_acceleration(setup_sim):
             scene.sensors["imu_ball"].data.lin_acc_b.torch,
             math_utils.quat_apply_inverse(
                 scene.rigid_objects["balls"].data.root_quat_w.torch,
-                torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(scene.num_envs, 1)
-                / sim.get_physics_dt()
-                + torch.tensor([[0.0, 0.0, 9.81]], dtype=torch.float32, device=scene.device).repeat(scene.num_envs, 1),
+                torch.tensor([[expected_acc, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
+                    scene.num_envs, 1
+                ),
             ),
             rtol=1e-4,
             atol=1e-4,
@@ -556,8 +557,13 @@ def test_sensor_print(setup_sim):
 
 
 @pytest.mark.parametrize("access_mode", ("lazy_read", "update_period"))
-def test_acceleration_uses_elapsed_sensor_time(setup_sim, access_mode):
-    """Acceleration uses the elapsed time between sensor samples."""
+def test_velocity_writes_do_not_produce_spurious_acceleration(setup_sim, access_mode):
+    """Directly written (teleported) velocities do not show up as fake accelerations.
+
+    The IMU reports the solver acceleration, so a velocity write — which involves no force —
+    must not spike the accelerometer. This was a known artifact of the previous
+    finite-difference implementation (e.g. on environment resets).
+    """
     sim, scene = setup_sim
     dt = sim.get_physics_dt()
     body = scene.rigid_objects["balls"]
@@ -583,5 +589,6 @@ def test_acceleration_uses_elapsed_sensor_time(setup_sim, access_mode):
         if access_mode == "update_period":
             _ = sensor.data
 
-    expected = torch.full((scene.num_envs,), 0.1 / dt, device=scene.device)
-    torch.testing.assert_close(sensor.data.lin_acc_b.torch[:, 0], expected)
+    # only the gravity bias remains along x after rotation into the (identity-oriented) ball frame
+    expected = torch.zeros((scene.num_envs,), device=scene.device)
+    torch.testing.assert_close(sensor.data.lin_acc_b.torch[:, 0], expected, rtol=0.0, atol=1e-3)

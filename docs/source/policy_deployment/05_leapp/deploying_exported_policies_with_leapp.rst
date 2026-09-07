@@ -1,6 +1,8 @@
 Deploy Exported Policies with LEAPP
 ===================================
 
+.. currentmodule:: isaaclab
+
 Isaac Lab provides :class:`~envs.LeappDeploymentEnv` for running exported policies back in
 simulation without the training infrastructure. This is the Isaac Lab deployment path for
 LEAPP-exported policies and is useful for validating that the packaged policy still behaves

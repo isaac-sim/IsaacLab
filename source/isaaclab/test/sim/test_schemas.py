@@ -934,13 +934,13 @@ def test_defining_articulation_properties_on_prim(setup_simulation):
 
 @pytest.mark.isaacsim_ci
 def test_multi_instance_schema_detection_on_tendon_joints(setup_simulation):
-    """Test that multi-instance PhysX tendon schemas are correctly detected via substring matching.
+    """Test that multi-instance PhysX tendon schema tokens are recognized with their instance suffixes.
 
     Multi-instance schemas (e.g. PhysxTendonAxisAPI, PhysxTendonAxisRootAPI) appear in
     GetAppliedSchemas() as 'SchemaName:instanceName' (e.g. 'PhysxTendonAxisAPI:inst0').
     An exact ``in list`` check fails because 'PhysxTendonAxisAPI' != 'PhysxTendonAxisAPI:inst0'.
-    This test ensures the substring-based detection used by modify_joint_drive_properties
-    and modify_fixed_tendon_properties handles multi-instance schemas correctly.
+    This test ensures both the joint-drive skip predicate and the fixed-tendon writer handle
+    multiple-apply schema tokens correctly.
 
     We call the unwrapped functions directly (via ``__wrapped__``) to bypass the
     ``@apply_nested`` decorator, which traverses children and does not return the

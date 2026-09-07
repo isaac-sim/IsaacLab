@@ -53,10 +53,10 @@ def test_terrain_importer_env_origins(device, env_spacing, num_envs):
         terrain_importer_origins = terrain_importer.env_origins
 
         # obtain env origins using Lab's grid_transforms
-        lab_grid_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=env_spacing, device=sim.device)
+        lab_grid_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=env_spacing)
 
         # check if the env origins are the same
-        torch.testing.assert_close(terrain_importer_origins, lab_grid_origins, rtol=1e-5, atol=1e-5)
+        np.testing.assert_allclose(terrain_importer_origins.cpu().numpy(), lab_grid_origins, rtol=1e-5, atol=1e-5)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -300,8 +300,8 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
 
     # Create environment clones using Lab's cloner utilities
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_balls, dtype=torch.long, device=sim.device)
-    env_origins, _ = lab_cloner.grid_transforms(num_balls, spacing=2.0, device=sim.device)
+    env_ids = np.arange(num_balls, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_balls, spacing=2.0)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")
 

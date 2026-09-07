@@ -85,6 +85,10 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         # reset environment
         env.reset()
         zero_action_policy = _create_zero_action_policy(env) if policy == "zero" else None
+        if policy == "zero":
+            print("[INFO] Zero agent is running, press Ctrl+C to exit...")
+        else:
+            print("[INFO] Random agent is running, press Ctrl+C to exit...")
         # simulate environment
         # keep running while any visualizer is open, and until the step budget is exhausted
         sim = env.unwrapped.sim
@@ -245,8 +249,8 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
     )
     # append AppLauncher cli args
     add_launcher_args(parser)
-    # simple agents should open Kit visualizer by default
-    parser.set_defaults(visualizer=["kit"])
+    # Keep checkpoint-free agents on the kitless default path.
+    parser.set_defaults(visualizer=["newton_gl"])
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     sys.argv = [sys.argv[0]] + hydra_args
     return args_cli

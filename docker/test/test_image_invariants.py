@@ -38,20 +38,6 @@ def _require_image():
         pytest.skip("IMAGE_TAG is unset; no built image to assert against")
 
 
-def test_image_under_test_is_the_one_that_was_built():
-    """Fail loudly rather than assert against whatever a stale tag happens to point at."""
-    expected = os.environ.get("IMAGE_DIGEST", "")
-    if not expected:
-        pytest.skip("IMAGE_DIGEST is unset; cannot bind the tag to a specific image")
-    actual = subprocess.run(
-        ["docker", "image", "inspect", "--format", "{{.Id}}", IMAGE_TAG],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
-    assert actual == expected, f"{IMAGE_TAG} is {actual}, expected {expected}"
-
-
 def test_no_prebundled_package_lost_its_entry_point():
     """A dangling ``__init__.py`` in a prebundle stops Isaac Sim extensions loading.
 

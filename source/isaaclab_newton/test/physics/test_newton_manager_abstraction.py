@@ -293,7 +293,7 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     """Shape and particle BVHs are built and refit before a render task runs."""
 
     state = object()
-    status = {"shape_refit": False, "particle_refit": False, "rendered": False}
+    status = {"state_refreshed": False, "shape_refit": False, "particle_refit": False, "rendered": False}
 
     class FakeModel:
         shape_count = 1
@@ -320,14 +320,20 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     model = FakeModel()
 
     def render():
+        assert status["state_refreshed"]
         assert model.bvh_shapes is not None
         assert model.bvh_particles is not None
         assert status["shape_refit"]
         assert status["particle_refit"]
         status["rendered"] = True
 
+    def get_state(cls):
+        status["state_refreshed"] = True
+        return state
+
     monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
     monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
+    monkeypatch.setattr(NewtonManager, "get_state", classmethod(get_state))
     monkeypatch.setattr(NewtonManager, "_model", model, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_tasks", {}, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
@@ -516,12 +522,20 @@ _KAMINO_DYNAMICS_FIELD_VALUES = [
 @pytest.mark.parametrize("field_name, value", _KAMINO_PADMM_FIELD_VALUES)
 def test_kamino_solver_cfg_forwards_padmm_fields(field_name, value):
     """Every tunable P-ADMM cfg field round-trips into ``PADMMSolverConfig``."""
-    solver_cfg = KaminoPADMMSolverCfg(dynamics_solver_cfg=KaminoPADMMCfg(**{field_name: value}))
+    sparse_kwargs = {"sparse_jacobian": True, "sparse_dynamics": True} if field_name == "penalty_update_method" else {}
+    solver_cfg = KaminoPADMMSolverCfg(**sparse_kwargs, dynamics_solver_cfg=KaminoPADMMCfg(**{field_name: value}))
     newton_cfg = solver_cfg.to_solver_config()
     assert hasattr(newton_cfg.padmm, field_name), (
         f"{field_name!r} disappeared from PADMMSolverConfig — KaminoPADMMCfg needs to drop or rename it."
     )
     assert getattr(newton_cfg.padmm, field_name) == value
+
+
+def test_kamino_padmm_rejects_adaptive_penalties_with_dense_dynamics():
+    """Kamino's adaptive P-ADMM penalties require the sparse solver path."""
+    solver_cfg = KaminoPADMMSolverCfg(dynamics_solver_cfg=KaminoPADMMCfg(penalty_update_method="balanced"))
+    with pytest.raises(ValueError, match="sparse_dynamics=True"):
+        solver_cfg.to_solver_config()
 
 
 @pytest.mark.parametrize("field_name, value", _KAMINO_DVI_FIELD_VALUES)
@@ -590,6 +604,22 @@ def test_mpm_register_builder_attributes_is_idempotent():
     # Second call must be a no-op (no exceptions, attribute still present).
     NewtonMPMManager._register_builder_attributes(builder)
     assert builder.has_custom_attribute("mpm:young_modulus")
+
+
+def test_mjwarp_register_builder_attributes_is_idempotent():
+    """The MJWarp hook registers native MuJoCo entities exactly once."""
+    import newton
+
+    builder = newton.ModelBuilder()
+    assert not builder.has_custom_attribute("mujoco:actuator_gainprm")
+
+    NewtonMJWarpManager._register_builder_attributes(builder)
+    assert builder.has_custom_attribute("mujoco:actuator_gainprm")
+    assert "mujoco:actuator" in builder.custom_frequencies
+    assert "mujoco:tendon" in builder.custom_frequencies
+
+    NewtonMJWarpManager._register_builder_attributes(builder)
+    assert builder.has_custom_attribute("mujoco:actuator_gainprm")
 
 
 @pytest.mark.parametrize(
