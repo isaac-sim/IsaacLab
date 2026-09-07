@@ -23,7 +23,7 @@ SMOOTH = 13
 
 @pytest.fixture(scope="module")
 def default_ground_plane_asset() -> tuple[Path, Path]:
-    """Resolve the bundled ground-plane USD and its texture directory."""
+    """Retrieve the ground-plane USD and its texture directory from Nucleus."""
     local_usd_path = Path(retrieve_file_path(USD_PATH))
     return local_usd_path, local_usd_path.parent / "Materials" / "Textures"
 
@@ -34,14 +34,11 @@ def test_default_ground_plane_usd_contract(default_ground_plane_asset: tuple[Pat
     stage = Usd.Stage.Open(str(local_usd_path))
     assert stage is not None
     assert stage.GetDefaultPrim().GetPath() == "/World"
-    assert stage.GetRootLayer().customLayerData["textureTileSizeMeters"] == 2.0
 
     for prim_path in (
         "/World/Environment/Geometry",
-        "/World/Environment/GlossyChecks",
         "/World/GroundPlane/CollisionPlane",
         "/World/Looks/theGrid/Shader",
-        "/World/Looks/GlossyChecks/Shader",
     ):
         assert stage.GetPrimAtPath(prim_path).IsValid()
     assert not stage.GetPrimAtPath("/World/SphereLight").IsValid()
@@ -59,18 +56,16 @@ def test_default_ground_plane_usd_contract(default_ground_plane_asset: tuple[Pat
         (-25.0, 25.0),
     ]
 
-    base_shader = UsdShade.Shader.Get(stage, "/World/Looks/theGrid/Shader")
-    glossy_shader = UsdShade.Shader.Get(stage, "/World/Looks/GlossyChecks/Shader")
-    assert base_shader.GetInput("project_uvw").Get() is False
-    assert tuple(base_shader.GetInput("texture_scale").Get()) == pytest.approx((1.0, 1.0))
-    assert base_shader.GetInput("reflection_roughness_constant").Get() == pytest.approx(1.0)
-    assert base_shader.GetInput("reflection_roughness_texture_influence").Get() == pytest.approx(1.0)
-    assert glossy_shader.GetInput("reflection_roughness_constant").Get() == pytest.approx(0.05)
+    shader = UsdShade.Shader.Get(stage, "/World/Looks/theGrid/Shader")
+    assert shader.GetInput("project_uvw").Get() is False
+    assert tuple(shader.GetInput("texture_scale").Get()) == pytest.approx((1.0, 1.0))
+    assert shader.GetInput("reflection_roughness_constant").Get() == pytest.approx(1.0)
+    assert shader.GetInput("reflection_roughness_texture_influence").Get() == pytest.approx(1.0)
     for input_name, filename in (
         ("diffuse_texture", "default_ground_plane_albedo.png"),
         ("reflectionroughness_texture", "default_ground_plane_roughness.png"),
     ):
-        assert base_shader.GetInput(input_name).Get().path == f"./Materials/Textures/{filename}"
+        assert shader.GetInput(input_name).Get().path == f"./Materials/Textures/{filename}"
         assert (texture_dir / filename).is_file()
 
 
@@ -100,8 +95,8 @@ def test_default_ground_plane_texture_contract(default_ground_plane_asset: tuple
         assert image.getpixel((0, 0)) == ROUGH
 
 
-def test_ground_plane_defaults_to_bundled_appearance():
-    """Validate that the default config selects the bundled asset without tinting it."""
+def test_ground_plane_defaults_to_hosted_appearance():
+    """Validate that the default config selects the hosted asset without tinting it."""
     cfg = from_files_cfg.GroundPlaneCfg()
 
     assert cfg.usd_path == USD_PATH

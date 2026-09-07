@@ -1,13 +1,8 @@
-Added
-^^^^^
-
-* Added a bundled preview of the proposed metric checker ground plane for review before publishing it
-  to the Isaac Lab asset server.
-
 Changed
 ^^^^^^^
 
-* Updated the default ground plane to a metric off-white and grey checker with NVIDIA-green landmarks every 2 m.
+* Updated the default ground plane to a metric off-white and grey checker with NVIDIA-green landmarks every 2 m,
+  with its roughness map authored for renderers that support PBR textures.
 
 Fixed
 ^^^^^
