@@ -155,9 +155,7 @@ class TestClonerVisualShapeImport:
             shape_type=[newton.GeoType.BOX, newton.GeoType.MESH],
         )
 
-        newton_clone_utils._restore_visible_colliders_without_visual_shapes(
-            builder, stage, {collider_path: 0}
-        )
+        newton_clone_utils._restore_visible_colliders_without_visual_shapes(builder, stage, {collider_path: 0})
 
         assert not builder.shape_flags[1] & ShapeFlags.VISIBLE
 
