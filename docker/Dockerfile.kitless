@@ -111,6 +111,19 @@ ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 ENV HOME=${DOCKER_USER_HOME}
 ENV VIRTUAL_ENV=${VENV_PATH_ARG}
 ENV PATH=${VENV_PATH_ARG}/bin:/usr/local/bin:${PATH}
+# The builder's uv settings have to be repeated: this is the only multi-stage image and ENV does
+# not cross stages. uv resolves the project environment from UV_PROJECT_ENVIRONMENT alone, so
+# without it any in-container ``uv`` ignores VIRTUAL_ENV and targets ${ISAACLAB_PATH}/.venv,
+# reinstalling the whole locked dependency set. UV_PYTHON and its preference are what stop uv from
+# discarding the venv: pyproject pins ``python-preference = "only-managed"``, which makes uv fetch
+# its own CPython and replace an environment built on the system one.
+# UV_NO_SYNC keeps ``uv run`` on the environment the image shipped. A sync rebuilds the editable
+# path packages in place, and Compose bind-mounts the host checkout over ``source/``, so those
+# ``egg_info`` writes hit files owned by the host uid rather than the image's.
+ENV UV_PROJECT_ENVIRONMENT=${VENV_PATH_ARG}
+ENV UV_PYTHON=/usr/bin/python3.12
+ENV UV_PYTHON_PREFERENCE=only-system
+ENV UV_NO_SYNC=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV NVIDIA_VISIBLE_DEVICES=all
