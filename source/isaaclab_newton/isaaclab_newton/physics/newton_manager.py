@@ -477,6 +477,7 @@ class NewtonManager(PhysicsManager):
 
     # Newton scene-query scheduling and graph execution.
     _sensor_tasks: dict[str, Callable[[], None]] = {}
+    _sensor_eager_tasks: set[str] = set()
     _sensor_graph: wp.Graph | None = None
     _sensor_flags: wp.array | None = None
     _sensor_flags_host: np.ndarray | None = None
@@ -1167,6 +1168,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._graph = None
         NewtonManager._graph_capture_pending = False
         NewtonManager._sensor_tasks = {}
+        NewtonManager._sensor_eager_tasks = set()
         NewtonManager._invalidate_sensor_graph()
         NewtonManager._sensor_state = None
         NewtonManager._sensor_state_dirty = True
@@ -2693,12 +2695,13 @@ class NewtonManager(PhysicsManager):
         return cls._contacts
 
     @classmethod
-    def _register_sensor_task(cls, name: str, update_fn: Callable[[], None]) -> None:
-        """Register a graph-capturable scene-query task.
+    def _register_sensor_task(cls, name: str, update_fn: Callable[[], None], *, graph_capturable: bool = True) -> None:
+        """Register a scene-query task.
 
         Args:
             name: Unique task name.
-            update_fn: Graph-capturable callable run by :meth:`_update_sensor_tasks`.
+            update_fn: Callable run by :meth:`_update_sensor_tasks`.
+            graph_capturable: Whether ``update_fn`` supports conditional CUDA graph capture.
         """
         if name in cls._sensor_tasks:
             raise ValueError(f"Newton sensor task '{name}' is already registered.")
@@ -2711,6 +2714,8 @@ class NewtonManager(PhysicsManager):
         if model.particle_count > 0 and model.bvh_particles is None:
             model.bvh_build_particles(state)
         cls._sensor_tasks[name] = update_fn
+        if not graph_capturable:
+            cls._sensor_eager_tasks.add(name)
         cls._sensor_state = state
         cls._sensor_state_dirty = True
         cls._invalidate_sensor_graph()
@@ -2719,6 +2724,7 @@ class NewtonManager(PhysicsManager):
     def _unregister_sensor_task(cls, name: str) -> None:
         """Remove a scene-query task, ignoring unknown names."""
         if cls._sensor_tasks.pop(name, None) is not None:
+            cls._sensor_eager_tasks.discard(name)
             cls._invalidate_sensor_graph()
 
     @classmethod
@@ -2734,6 +2740,13 @@ class NewtonManager(PhysicsManager):
             cls._sensor_state = state
             cls._sensor_state_dirty = True
             cls._invalidate_sensor_graph()
+        if cls._sensor_eager_tasks.intersection(names):
+            if cls._sensor_state_dirty:
+                cls._refit_sensor_bvh()
+                cls._sensor_state_dirty = False
+            for name in names:
+                cls._sensor_tasks[name]()
+            return
         cfg = PhysicsManager._cfg
         use_cuda_graph = bool(getattr(cfg, "use_cuda_graph", False)) and "cuda" in str(PhysicsManager._device)
         if use_cuda_graph and cls._sensor_graph is None and not cls._sensor_graph_capture_failed:
@@ -2750,7 +2763,7 @@ class NewtonManager(PhysicsManager):
         assert cls._sensor_flags is not None
         cls._sensor_flags_host.fill(0)
         cls._sensor_flags_host[0] = int(cls._sensor_state_dirty)
-        task_names = tuple(cls._sensor_tasks)
+        task_names = tuple(name for name in cls._sensor_tasks if name not in cls._sensor_eager_tasks)
         for name in names:
             cls._sensor_flags_host[1 + task_names.index(name)] = 1
         cls._sensor_flags.assign(cls._sensor_flags_host)
@@ -2806,19 +2819,21 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _capture_sensor_graph(cls) -> None:
         """Capture BVH refit and scene-query tasks into a conditional graph."""
+        graph_tasks = tuple(
+            update_fn for name, update_fn in cls._sensor_tasks.items() if name not in cls._sensor_eager_tasks
+        )
         with wp.ScopedDevice(PhysicsManager._device):
             cls._refit_sensor_bvh()
-            for update_fn in cls._sensor_tasks.values():
+            for update_fn in graph_tasks:
                 update_fn()
 
-        cls._sensor_flags = wp.zeros(1 + len(cls._sensor_tasks), dtype=wp.int32, device=PhysicsManager._device)
-        cls._sensor_flags_host = np.zeros(1 + len(cls._sensor_tasks), dtype=np.int32)
-        update_fns = tuple(cls._sensor_tasks.values())
+        cls._sensor_flags = wp.zeros(1 + len(graph_tasks), dtype=wp.int32, device=PhysicsManager._device)
+        cls._sensor_flags_host = np.zeros(1 + len(graph_tasks), dtype=np.int32)
 
         def pipeline() -> None:
             assert cls._sensor_flags is not None
             wp.capture_if(cls._sensor_flags[0:1], cls._refit_sensor_bvh)
-            for index, update_fn in enumerate(update_fns):
+            for index, update_fn in enumerate(graph_tasks):
                 wp.capture_if(cls._sensor_flags[index + 1 : index + 2], update_fn)
 
         device = PhysicsManager._device
@@ -2838,7 +2853,7 @@ class NewtonManager(PhysicsManager):
             cls._sensor_graph_capture_failed = True
             logger.warning("Newton sensor graph capture failed; falling back to eager execution.")
         else:
-            logger.info("Captured Newton sensor graph with %d task(s).", len(cls._sensor_tasks))
+            logger.info("Captured Newton sensor graph with %d task(s).", len(graph_tasks))
 
     @classmethod
     def get_num_envs(cls) -> int:
