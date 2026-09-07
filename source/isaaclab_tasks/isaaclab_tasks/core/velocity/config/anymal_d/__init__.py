@@ -27,7 +27,7 @@ gym.register(
             f"{agents.__name__}.rsl_rl_distillation_cfg:AnymalDFlatDistillationRunnerRecurrentCfg"
         ),
         "rsl_rl_with_symmetry_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDFlatPPORunnerWithSymmetryCfg",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_flat_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}.skrl_ppo_cfg:SkrlFlatPPORunnerCfg",
     },
 )
 
@@ -42,6 +42,6 @@ gym.register(
         "rsl_rl_with_symmetry_cfg_entry_point": (
             f"{agents.__name__}.rsl_rl_ppo_cfg:AnymalDRoughPPORunnerWithSymmetryCfg"
         ),
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_rough_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{agents.__name__}.skrl_ppo_cfg:SkrlRoughPPORunnerCfg",
     },
 )

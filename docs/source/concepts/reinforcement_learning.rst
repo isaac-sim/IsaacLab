@@ -239,8 +239,10 @@ Agent configuration formats are library-specific:
 
 * RSL-RL uses Python configuration classes derived from
   ``RslRlBaseRunnerCfg``.
-* RL-Games, skrl, and Stable-Baselines3 use library-specific dictionaries or
-  YAML files.
+* skrl uses Python configuration classes derived from
+  ``SkrlRunnerCfg``. YAML and plain dictionary entry points remain supported.
+* RL-Games and Stable-Baselines3 use library-specific dictionaries or YAML
+  files.
 * RLinf uses a dedicated VLA post-training configuration.
 
 When a task offers multiple observation or action presets, choose an agent

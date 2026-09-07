@@ -124,7 +124,7 @@ def _run(args_cli: argparse.Namespace) -> None:
     from isaaclab.utils.assets import retrieve_file_path
     from isaaclab.utils.seed import configure_seed
 
-    from isaaclab_rl.skrl import SkrlVecEnvWrapper
+    from isaaclab_rl.skrl import SkrlVecEnvWrapper, skrl_cfg_to_dict
 
     from isaaclab_tasks.utils import resolve_task_config
 
@@ -138,6 +138,7 @@ def _run(args_cli: argparse.Namespace) -> None:
     agent_cfg_entry_point, algorithm = _resolve_agent_entry_point(args_cli)
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
+        agent_cfg = skrl_cfg_to_dict(agent_cfg)
         pre_launch_video_config(env_cfg, args_cli=args_cli)
         show_run_summary(screen, args_cli, env_cfg, library="skrl", action="train")
         screen.stage("Launching simulation")

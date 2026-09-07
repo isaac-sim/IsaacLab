@@ -127,7 +127,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
     from isaaclab.benchmark.schema import StartupTime
 
-    from isaaclab_rl.skrl import SkrlVecEnvWrapper
+    from isaaclab_rl.skrl import SkrlVecEnvWrapper, skrl_cfg_to_dict
 
     # Importing the task packages registers their gym environments so the
     # requested ``--task`` can be resolved.
@@ -149,6 +149,7 @@ def run(argv: list[str]) -> BenchmarkResult:
         algorithm = agent_cfg_entry_point.split("_cfg")[0].split("skrl_")[-1].lower()
 
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
+    agent_cfg = skrl_cfg_to_dict(agent_cfg)
     _common.pre_launch_video_config(env_cfg, args_cli=args_cli)
 
     start_utc = capture.now_utc_iso()

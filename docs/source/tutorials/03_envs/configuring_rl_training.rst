@@ -87,6 +87,11 @@ entry point.
 The reinforcement learning entrypoints are configured by default to read the
 ``<library_name>_cfg_entry_point`` from the ``kwargs`` dictionary to retrieve the configuration instance.
 
+skrl agent configurations can use the same Python configuration-class pattern. Derive a task configuration from
+:class:`isaaclab_rl.skrl.SkrlRunnerCfg` and compose its model, agent, experiment, memory, and trainer settings from
+the corresponding ``Skrl*Cfg`` classes. The skrl training and playback entrypoints convert the resulting object to
+the nested dictionary expected by skrl's ``Runner``. Existing skrl YAML entry points remain supported.
+
 For instance, the following code block shows how the Stable-Baselines3 training implementation
 reads the configuration instance:
 

@@ -239,7 +239,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
-    from isaaclab_rl.skrl import SkrlVecEnvWrapper
+    from isaaclab_rl.skrl import SkrlVecEnvWrapper, skrl_cfg_to_dict
 
     import isaaclab_tasks  # noqa: F401
 
@@ -271,6 +271,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
+    agent_cfg = skrl_cfg_to_dict(agent_cfg)
     config_t1 = time.perf_counter_ns()
 
     start_utc = capture.now_utc_iso()

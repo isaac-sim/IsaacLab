@@ -193,6 +193,10 @@ def export_skrl_agent(
     """Export a skrl agent."""
     _load_runtime_dependencies()
 
+    from isaaclab_rl.skrl import skrl_cfg_to_dict
+
+    experiment_cfg = skrl_cfg_to_dict(experiment_cfg)
+
     task_name = args_cli.task.split(":")[-1]
     checkpoint_task_name = task_name.replace("-Play", "")
     algorithm = _algorithm_from_agent_entry_point(args_cli.agent)
