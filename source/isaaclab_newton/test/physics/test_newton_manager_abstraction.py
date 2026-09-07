@@ -32,6 +32,7 @@ from types import SimpleNamespace
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
+import torch
 import warp as wp
 from isaaclab_newton.assets.articulation import articulation as articulation_module
 from isaaclab_newton.physics import (
@@ -844,8 +845,8 @@ def test_production_imports_scope_mujoco_joint_properties(
             stage=stage,
             sources=(root_path,),
             destinations=("/World/envs/env_{}/robot",),
-            env_ids=np.array([0], dtype=np.int64),
-            mapping=np.ones((1, 1), dtype=np.bool_),
+            env_ids=torch.tensor([0], dtype=torch.int64),
+            mapping=torch.ones((1, 1), dtype=torch.bool),
             load_visual_shapes=False,
         )
     else:
