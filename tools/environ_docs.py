@@ -674,16 +674,15 @@ def render_environment_browser_task_rows(
             ]
             if aliases:
                 preview_image = max(aliases, key=lambda item: len(item[0]))[1]
-        if row.agent_preset_compatibility or preview_image:
+        default_algorithms = {"skrl": "MAPPO"} if "MAPPO" in row.rl_libraries.get("skrl", []) else {}
+        if row.agent_preset_compatibility or preview_image or row.supports_warp_frontend or default_algorithms:
             rendered_values += f", {json.dumps(row.agent_preset_compatibility, sort_keys=True)}"
-        if preview_image:
+        if preview_image or row.supports_warp_frontend or default_algorithms:
             rendered_values += f", {json.dumps(preview_image)}"
-        if row.supports_warp_frontend:
-            if not row.agent_preset_compatibility and not preview_image:
-                rendered_values += ", {}"
-            if not preview_image:
-                rendered_values += ', ""'
-            rendered_values += ", true"
+        if row.supports_warp_frontend or default_algorithms:
+            rendered_values += f", {json.dumps(row.supports_warp_frontend)}"
+        if default_algorithms:
+            rendered_values += f", {json.dumps(default_algorithms, sort_keys=True)}"
         lines.append(f"            [{rendered_values}],")
     lines.append("        ];")
     return "\n".join(lines)
