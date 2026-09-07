@@ -11,12 +11,18 @@ from gymnasium.envs.registration import registry
 from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
 
 import isaaclab.envs.mdp as mdp
+from isaaclab.actuators import IdealPDActuatorCfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.hydra import resolve_presets
+from isaaclab_tasks.utils.hydra import PresetCfg, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
+from isaaclab_tasks.utils.preset_target import PresetTarget
+
+from isaaclab_assets import FRANKA_PANDA_MENAGERIE_CFG
 
 _TASK = "Isaac-Reach-Franka"
+_OSC_TASK = "Isaac-Reach-Franka-OSC"
 _CONTRIB_DIFFIK_ABS_TASK = "IsaacContrib-Reach-Franka-IK-Abs"
 
 
@@ -60,6 +66,9 @@ _REACH_PRESET_CASES = [
     (_TASK, ("diffik_abs", "newton_mjwarp"), "DifferentialInverseKinematicsActionCfg", "NewtonCfg"),
     (_TASK, ("diffik_abs", "ovphysx"), "DifferentialInverseKinematicsActionCfg", "OvPhysxCfg"),
     (_TASK, ("newton_ik", "newton_mjwarp"), "NewtonInverseKinematicsActionCfg", "NewtonCfg"),
+    (_OSC_TASK, (), "OperationalSpaceControllerActionCfg", "NewtonCfg"),
+    (_OSC_TASK, ("isaacsim_physx",), "OperationalSpaceControllerActionCfg", "PhysxCfg"),
+    (_OSC_TASK, ("ovphysx",), "OperationalSpaceControllerActionCfg", "OvPhysxCfg"),
     ("Isaac-Reach-UR10", (), "JointPositionActionCfg", "NewtonCfg"),
     ("Isaac-Reach-UR10", ("isaacsim_physx",), "JointPositionActionCfg", "PhysxCfg"),
     ("Isaac-Reach-UR10", ("newton_mjwarp",), "JointPositionActionCfg", "NewtonCfg"),
@@ -183,6 +192,26 @@ def test_reach_success_requires_position_and_orientation():
     position_only_succeeded = mdp.pose_command_success(env, **success.params)
 
     assert torch.equal(position_only_succeeded, torch.tensor([True, False, True]))
+
+
+def test_reach_osc_effort_actuator_keeps_menagerie_velocity_limit():
+    """The zero-gain effort actuator must keep the asset's solver velocity limit; the USD authors none."""
+    cfg = _load_reach_env_cfg(_OSC_TASK)
+    arm_actuator = cfg.scene.robot.actuators["panda_arm"]
+
+    assert isinstance(arm_actuator, IdealPDActuatorCfg)
+    assert arm_actuator.stiffness == 0.0 and arm_actuator.damping == 0.0
+    assert arm_actuator.joint_velocity_limit == FRANKA_PANDA_MENAGERIE_CFG.actuators["panda_arm"].joint_velocity_limit
+
+
+def test_reach_osc_exposes_only_physics_presets():
+    """The OSC action term replaces the arm-controller presets, so none may leak into the OSC task."""
+    cfg = _load_reach_env_cfg(_OSC_TASK)
+
+    assert not isinstance(cfg.rewards.action_magnitude.weight, PresetCfg)
+    assert cfg.rewards.action_magnitude.weight == _load_env_cfg().rewards.action_magnitude.weight
+    assert cfg.scene.robot.spawn.rigid_props.disable_gravity is True
+    assert enumerate_task_presets(_OSC_TASK)[PresetTarget.DOMAIN] == []
 
 
 def test_reach_newton_ik_rejects_physx():

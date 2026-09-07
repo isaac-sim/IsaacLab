@@ -17,15 +17,19 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
         # post init of parent
         super().__post_init__()
 
-        # Use an explicit actuator to enforce the USD-authored effort limits for effort control.
+        # Use an explicit actuator to enforce the USD-authored effort limits for effort control. Keep the
+        # asset's solver velocity limit: the Menagerie USD authors none, so dropping it leaves the arm unbounded.
         arm_actuator = self.scene.robot.actuators["panda_arm"]
         self.scene.robot.actuators["panda_arm"] = IdealPDActuatorCfg(
             joint_names_expr=arm_actuator.joint_names_expr,
-            velocity_limit_sim=arm_actuator.velocity_limit_sim,
+            joint_velocity_limit=arm_actuator.joint_velocity_limit,
             stiffness=0.0,
             damping=0.0,
         )
+        # The OSC action term replaces the parent's arm-controller presets, so resolve the preset-dependent
+        # values here instead of exposing controller presets that only change the reward weight.
         self.scene.robot.spawn.rigid_props.disable_gravity = True
+        self.rewards.action_magnitude.weight = self.rewards.action_magnitude.weight.default
 
         # If closed-loop contact force control is desired, contact sensors should be enabled for the robot
         # self.scene.robot.spawn.activate_contact_sensors = True
