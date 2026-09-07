@@ -170,3 +170,48 @@ class G129DofRoughAirTime100DRHistoryEnvCfg(G129DofRoughAirTime100DREnvCfg):
             obs_term = getattr(self.observations.policy, term)
             obs_term.history_length = _HISTORY_LENGTH
             obs_term.flatten_history_dim = True
+
+
+_WAIST_JOINTS = ["waist_yaw_joint", "waist_roll_joint", "waist_pitch_joint"]
+
+_WAIST_L2_WEIGHTS = {"t1": -1.0, "t2": -3.0}
+"""Weights for the waist deviation penalty, replacing the stock L1 at -0.1.
+
+Measured on d1, the randomized arm leans its upper body back 26 degrees at the waist while its
+pelvis stays upright within a degree -- ``success_rate`` 0.995, ``pelvis_height`` 0.82 and root
+pitch -0.8 degrees all miss it completely, because every one of them measures the pelvis. Leaning
+back parks the torso's mass behind the hips, which is both steadier under a push and cheaper: the
+same policy draws 180 W against w100's 237 W.
+
+The stock penalty cannot argue with that. L1 at -0.1 prices 26 degrees at 0.046 per step. L2 at
+-1.0 prices it at 0.21, and -3.0 at 0.63, which brackets the point where holding the torso upright
+costs more than the lean saves. This is the same correction that fixed the splayed hips, where L1
+at -0.1 lost to L2 at -1.0.
+"""
+
+
+def _add_waist_l2(cfg, weight: float) -> None:
+    """Reprice waist deviation as L2 at ``weight``, in place."""
+    from .rough_29dof_wbc_env_cfg import joint_deviation_l2  # noqa: PLC0415
+
+    cfg.rewards.joint_deviation_torso.func = joint_deviation_l2
+    cfg.rewards.joint_deviation_torso.weight = weight
+    cfg.rewards.joint_deviation_torso.params = {"asset_cfg": SceneEntityCfg("robot", joint_names=_WAIST_JOINTS)}
+
+
+@configclass
+class G129DofRoughAirTime100DRWaist1EnvCfg(G129DofRoughAirTime100DREnvCfg):
+    """The randomized arm with waist deviation priced L2 at -1.0."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        _add_waist_l2(self, _WAIST_L2_WEIGHTS["t1"])
+
+
+@configclass
+class G129DofRoughAirTime100DRWaist3EnvCfg(G129DofRoughAirTime100DREnvCfg):
+    """The randomized arm with waist deviation priced L2 at -3.0."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        _add_waist_l2(self, _WAIST_L2_WEIGHTS["t2"])

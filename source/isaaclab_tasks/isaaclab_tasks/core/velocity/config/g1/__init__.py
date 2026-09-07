@@ -314,3 +314,18 @@ for _power_arm, _power_cls in (
             "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
         },
     )
+
+
+for _waist_arm, _waist_cls in (
+    ("Waist1", "G129DofRoughAirTime100DRWaist1EnvCfg"),
+    ("Waist3", "G129DofRoughAirTime100DRWaist3EnvCfg"),
+):
+    gym.register(
+        id=f"Isaac-Velocity-Rough-G1-29Dof-AirTime100-DR-{_waist_arm}",
+        entry_point="isaaclab.envs:ManagerBasedRLEnv",
+        disable_env_checker=True,
+        kwargs={
+            "env_cfg_entry_point": f"{__name__}.rough_29dof_dr_env_cfg:{_waist_cls}",
+            "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+        },
+    )
