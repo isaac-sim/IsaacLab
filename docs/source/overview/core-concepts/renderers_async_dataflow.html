@@ -1,0 +1,167 @@
+<!-- Data-flow diagram for the Asynchronous Rendering section of renderers.rst. Included there
+     with ".. raw:: html :file:". All selectors are scoped under .il-async-df so nothing leaks
+     into the theme. Dark mode keys off the theme's html[data-theme="dark"] attribute. -->
+<style>
+  .il-async-df {
+    --il-muted: #5a6472; --il-card: #f7f9fc; --il-border: #d5dbe3;
+    --il-state: #2563eb;  --il-state-bg: #dbeafe;
+    --il-tf:    #0d9488;  --il-tf-bg:    #ccfbf1;
+    --il-frame: #d97706;  --il-frame-bg: #fef3c7;
+    --il-obs:   #16a34a;  --il-obs-bg:   #dcfce7;
+    --il-act:   #7c3aed;  --il-act-bg:   #ede9fe;
+    --il-cpu-bg: #dbeafe; --il-cpu-border: #2563eb;
+    --il-gpu-bg: #fef3c7; --il-gpu-border: #d97706;
+    --il-wait-bg: #eef1f5; --il-wait-border: #b9c2cd;
+  }
+  html[data-theme="dark"] .il-async-df {
+    --il-muted: #9aa4b2; --il-card: #1c222b; --il-border: #333c48;
+    --il-state-bg: #1e3a8a55; --il-tf-bg: #0f766e44; --il-frame-bg: #92400e44;
+    --il-obs-bg: #14532d55; --il-act-bg: #4c1d9555;
+    --il-cpu-bg: #1e3a8a66; --il-gpu-bg: #92400e55;
+    --il-wait-bg: #262d37; --il-wait-border: #4a5563;
+  }
+  .il-async-df sub { font-size: .72em; }
+  .il-async-df .chip { display: inline-block; padding: .05rem .5rem; border-radius: 999px; font-weight: 600; font-size: .88em; white-space: nowrap; border: 1px solid transparent; }
+  .il-async-df .chip.state { color: var(--il-state); background: var(--il-state-bg); }
+  .il-async-df .chip.tf    { color: var(--il-tf);    background: var(--il-tf-bg); }
+  .il-async-df .chip.frame { color: var(--il-frame); background: var(--il-frame-bg); }
+  .il-async-df .chip.frame.stale { border: 1.5px dashed var(--il-frame); }
+  .il-async-df .chip.obs   { color: var(--il-obs);   background: var(--il-obs-bg); }
+  .il-async-df .chip.act   { color: var(--il-act);   background: var(--il-act-bg); }
+  .il-async-df .arrow { color: var(--il-muted); padding: 0 .2rem; }
+  .il-async-df .legend { display: flex; flex-wrap: wrap; gap: .4rem 1.6rem; margin: 1rem 0; color: var(--il-muted); font-size: .88em; }
+  .il-async-df .legend .chip { margin-right: .3rem; }
+  .il-async-df .il-h { font-weight: 700; margin: 1.8rem 0 .4rem; }
+  .il-async-df table.cmp { border-collapse: collapse; width: 100%; margin: .6rem 0 1rem; }
+  .il-async-df table.cmp th { background: var(--il-card); border: 1px solid var(--il-border); padding: .5rem .9rem; text-align: left; font-size: .95em; }
+  .il-async-df table.cmp th.mode { width: 42%; }
+  .il-async-df table.cmp td { border: 1px solid var(--il-border); padding: .55rem .9rem; vertical-align: top; }
+  .il-async-df table.cmp td.lbl { color: var(--il-muted); font-size: .78em; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; vertical-align: middle; }
+  .il-async-df table.cmp td.same { text-align: center; }
+  .il-async-df table.cmp tr.differs td.async { border-left: 3px solid var(--il-frame); }
+  .il-async-df table.cmp tr.footer td { background: var(--il-card); text-align: center; }
+  .il-async-df svg { max-width: 100%; height: auto; }
+  .il-async-df svg text { font: 13px system-ui, sans-serif; fill: currentColor; }
+  .il-async-df svg .lane-label { font-weight: 700; font-size: 12px; fill: var(--il-muted); }
+  .il-async-df svg .small { font-size: 10px; fill: var(--il-muted); }
+  .il-async-df svg .smsub { baseline-shift: sub; font-size: 7px; }
+  .il-async-df table.idx { border-collapse: collapse; margin: .6rem 0 1rem; font-size: .92em; }
+  .il-async-df table.idx th, .il-async-df table.idx td { border: 1px solid var(--il-border); padding: .4rem .8rem; text-align: left; }
+  .il-async-df table.idx th { background: var(--il-card); }
+</style>
+<div class="il-async-df">
+
+<div class="legend">
+  <span><span class="chip act">A<sub>k</sub></span> action applied during step k</span>
+  <span><span class="chip state">S<sub>k</sub></span> simulation state after step k's physics</span>
+  <span><span class="chip tf">T<sub>k</sub></span> transforms extracted from <span class="chip state">S<sub>k</sub></span></span>
+  <span><span class="chip frame">F<sub>k</sub></span> frame rendered from <span class="chip tf">T<sub>k</sub></span> — an image of <span class="chip state">S<sub>k</sub></span></span>
+  <span><span class="chip frame stale">F<sub>k-1</sub></span> frame delivered one step late</span>
+  <span><span class="chip obs">O<sub>k</sub></span> observation returned by step k</span>
+</div>
+
+<p class="il-h">Stage by stage — one call of <code>env.step(A<sub>k</sub>)</code></p>
+<table class="cmp">
+  <tr>
+    <th>stage</th>
+    <th class="mode">synchronous</th>
+    <th class="mode">asynchronous</th>
+  </tr>
+  <tr>
+    <td class="lbl">1 · physics</td>
+    <td class="same" colspan="2">
+      <span class="chip state">S<sub>k-1</sub></span>
+      <span class="arrow">─ <span class="chip act">A<sub>k</sub></span> →</span>
+      <span class="chip state">S<sub>k</sub></span>
+    </td>
+  </tr>
+  <tr>
+    <td class="lbl">2 · transforms</td>
+    <td class="same" colspan="2"><span class="chip tf">T<sub>k</sub></span> = transforms(<span class="chip state">S<sub>k</sub></span>)</td>
+  </tr>
+  <tr>
+    <td class="lbl">3 · submit</td>
+    <td class="same" colspan="2">GPU starts rendering <span class="chip frame">F<sub>k</sub></span> from <span class="chip tf">T<sub>k</sub></span></td>
+  </tr>
+  <tr class="differs">
+    <td class="lbl">4 · render</td>
+    <td>CPU <b>waits</b> until <span class="chip frame">F<sub>k</sub></span> is finished</td>
+    <td class="async">CPU <b>waits</b> until <em>previous</em> <span class="chip frame stale">F<sub>k-1</sub></span> is finished</td>
+  </tr>
+  <tr class="differs">
+    <td class="lbl">5 · read</td>
+    <td>image ← <span class="chip frame">F<sub>k</sub></span></td>
+    <td class="async">image ← <span class="chip frame stale">F<sub>k-1</sub></span></td>
+  </tr>
+  <tr class="differs">
+    <td class="lbl">6 · observe</td>
+    <td><span class="chip obs">O<sub>k</sub></span> = ( state(<span class="chip state">S<sub>k</sub></span>), <span class="chip frame">F<sub>k</sub></span> )</td>
+    <td class="async"><span class="chip obs">O<sub>k</sub></span> = ( state(<span class="chip state">S<sub>k</sub></span>), <span class="chip frame stale">F<sub>k-1</sub></span> )</td>
+  </tr>
+  <tr class="footer">
+    <td class="lbl">returns</td>
+    <td class="same" colspan="2">
+      <span class="chip obs">O<sub>k</sub></span>, and the policy computes
+      <span class="chip act">A<sub>k+1</sub></span> = policy(<span class="chip obs">O<sub>k</sub></span>)
+    </td>
+  </tr>
+</table>
+
+<p class="il-h">Synchronous timeline</p>
+<svg viewBox="0 0 860 128" role="img" aria-label="Synchronous timeline: the CPU waits while the GPU renders each frame">
+  <text x="8"  y="40" class="lane-label">CPU</text>
+  <text x="8"  y="104" class="lane-label">GPU</text>
+  <rect x="70"  y="20" width="130" height="32" rx="6" fill="var(--il-cpu-bg)" stroke="var(--il-cpu-border)"/>
+  <text x="135" y="40" text-anchor="middle">physics k</text>
+  <rect x="200" y="20" width="140" height="32" rx="6" fill="var(--il-wait-bg)" stroke="var(--il-wait-border)" stroke-dasharray="4 3"/>
+  <text x="270" y="40" text-anchor="middle" class="small">waits for GPU</text>
+  <rect x="340" y="20" width="150" height="32" rx="6" fill="var(--il-cpu-bg)" stroke="var(--il-cpu-border)"/>
+  <text x="415" y="40" text-anchor="middle">obs, policy k</text>
+  <rect x="490" y="20" width="140" height="32" rx="6" fill="var(--il-cpu-bg)" stroke="var(--il-cpu-border)"/>
+  <text x="560" y="40" text-anchor="middle">physics k+1</text>
+  <rect x="630" y="20" width="140" height="32" rx="6" fill="var(--il-wait-bg)" stroke="var(--il-wait-border)" stroke-dasharray="4 3"/>
+  <text x="700" y="40" text-anchor="middle" class="small">waits for GPU</text>
+  <rect x="200" y="84" width="140" height="32" rx="6" fill="var(--il-gpu-bg)" stroke="var(--il-gpu-border)"/>
+  <text x="270" y="104" text-anchor="middle">render F<tspan class="smsub">k</tspan></text>
+  <rect x="630" y="84" width="140" height="32" rx="6" fill="var(--il-gpu-bg)" stroke="var(--il-gpu-border)"/>
+  <text x="700" y="104" text-anchor="middle">render F<tspan class="smsub">k+1</tspan></text>
+  <line x1="200" y1="52" x2="200" y2="84" stroke="var(--il-muted)" stroke-dasharray="3 3"/>
+  <line x1="630" y1="52" x2="630" y2="84" stroke="var(--il-muted)" stroke-dasharray="3 3"/>
+</svg>
+
+<p class="il-h">Asynchronous timeline</p>
+<svg viewBox="0 0 860 150" role="img" aria-label="Asynchronous timeline: the GPU renders frame k while the CPU runs the policy and the next physics step">
+  <rect x="282" y="12" width="248" height="112" rx="8" fill="var(--il-obs-bg)" opacity="0.5"/>
+  <text x="406" y="146" text-anchor="middle" class="small">render F<tspan class="smsub">k</tspan> overlaps the CPU work of step k and the physics of step k+1 — the step time becomes max(render time, CPU time per step)</text>
+  <text x="8"  y="40" class="lane-label">CPU</text>
+  <text x="8"  y="104" class="lane-label">GPU</text>
+  <rect x="70"  y="20" width="120" height="32" rx="6" fill="var(--il-cpu-bg)" stroke="var(--il-cpu-border)"/>
+  <text x="130" y="40" text-anchor="middle">physics k</text>
+  <rect x="190" y="20" width="92" height="32" rx="6" fill="var(--il-frame-bg)" stroke="var(--il-frame)"/>
+  <text x="236" y="32" text-anchor="middle" class="small">submit F<tspan class="smsub">k</tspan></text>
+  <text x="236" y="45" text-anchor="middle" class="small">read F<tspan class="smsub">k-1</tspan></text>
+  <rect x="282" y="20" width="128" height="32" rx="6" fill="var(--il-cpu-bg)" stroke="var(--il-cpu-border)"/>
+  <text x="346" y="40" text-anchor="middle">obs, policy k</text>
+  <rect x="410" y="20" width="120" height="32" rx="6" fill="var(--il-cpu-bg)" stroke="var(--il-cpu-border)"/>
+  <text x="470" y="40" text-anchor="middle">physics k+1</text>
+  <rect x="530" y="20" width="92" height="32" rx="6" fill="var(--il-frame-bg)" stroke="var(--il-frame)"/>
+  <text x="576" y="32" text-anchor="middle" class="small">submit F<tspan class="smsub">k+1</tspan></text>
+  <text x="576" y="45" text-anchor="middle" class="small">read F<tspan class="smsub">k</tspan></text>
+  <rect x="622" y="20" width="132" height="32" rx="6" fill="var(--il-cpu-bg)" stroke="var(--il-cpu-border)"/>
+  <text x="688" y="40" text-anchor="middle">obs, policy k+1</text>
+  <rect x="200" y="84" width="356" height="32" rx="6" fill="var(--il-gpu-bg)" stroke="var(--il-gpu-border)"/>
+  <text x="378" y="104" text-anchor="middle">render F<tspan class="smsub">k</tspan></text>
+  <rect x="566" y="84" width="188" height="32" rx="6" fill="var(--il-gpu-bg)" stroke="var(--il-gpu-border)"/>
+  <text x="660" y="104" text-anchor="middle">render F<tspan class="smsub">k+1</tspan> …</text>
+</svg>
+
+<p class="il-h">Frame indices per step</p>
+<table class="idx">
+  <tr><th>step</th><th>state channels of O<sub>k</sub></th><th>image in O<sub>k</sub></th><th>note</th></tr>
+  <tr><td>sync, any k</td><td>S<sub>k</sub></td><td>F<sub>k</sub></td><td>fully aligned</td></tr>
+  <tr><td>async, k = 0</td><td>S<sub>0</sub></td><td>F<sub>0</sub></td><td>first frame waits once (priming)</td></tr>
+  <tr><td>async, k = 1</td><td>S<sub>1</sub></td><td>F<sub>0</sub></td><td>the first image repeats once</td></tr>
+  <tr><td>async, k ≥ 2</td><td>S<sub>k</sub></td><td>F<sub>k-1</sub></td><td>image is one step old</td></tr>
+</table>
+
+</div>

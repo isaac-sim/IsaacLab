@@ -196,77 +196,12 @@ Asynchronous Rendering
 throughput. Only the OVRTX renderer implements it. This section shows how states, observations,
 actions, and rendered frames line up in both modes.
 
-The notation uses one index per environment step:
+The diagram below shows one call of ``env.step()``, stage by stage, in both modes. The rows
+where the two columns split are the differences. The timelines show where the throughput gain
+comes from: the render overlaps the CPU work instead of blocking it.
 
-- ``S[k]`` — the simulation state after the physics of step ``k``.
-- ``T[k]`` — the transforms extracted from ``S[k]`` for the renderer.
-- ``F[k]`` — the frame rendered from ``T[k]``. It always shows ``S[k]``.
-- ``O[k]`` — the observation that ``env.step()`` returns at step ``k``.
-- ``A[k]`` — the action applied during step ``k``, computed as ``policy(O[k-1])``.
-
-Synchronous data flow
-~~~~~~~~~~~~~~~~~~~~~
-
-Every ``env.step(A[k])`` call runs the same five stages. In synchronous mode, stage 3 blocks the
-CPU until the frame is finished:
-
-.. code-block:: text
-
-   env.step(A[k])                                            returns O[k]
-   ──────────────────────────────────────────────────────────────────────
-   1. physics       S[k-1] --A[k]--> S[k]
-   2. transforms    T[k] = transforms(S[k])  -->  renderer
-   3. render        GPU renders F[k] from T[k].  The CPU waits.
-   4. read          image <- F[k]
-   5. observation   O[k] = ( state(S[k]), image F[k] )
-
-   policy           A[k+1] = policy(O[k])
-
-Every part of ``O[k]`` describes ``S[k]``. The cost is the idle CPU in stage 3:
-
-.. code-block:: text
-
-   CPU ──[ physics k ]──[ idle         ]──[ obs, reward, policy ]──[ physics k+1 ]──[ idle          ]──
-   GPU ─────────────────[ render F[k]  ]──────────────────────────────────────────..[ render F[k+1] ]──
-
-Asynchronous data flow
-~~~~~~~~~~~~~~~~~~~~~~
-
-Asynchronous mode changes only stages 3 and 4. The submit does not wait, and the read returns the
-*previous* frame:
-
-.. code-block:: text
-
-   env.step(A[k])                                            returns O[k]
-   ──────────────────────────────────────────────────────────────────────
-   1. physics       S[k-1] --A[k]--> S[k]
-   2. transforms    T[k] = transforms(S[k])  -->  staging slot (k mod 2)
-   3. submit        GPU starts F[k] from T[k].  The CPU does not wait.
-   4. receive       image <- F[k-1]  (submitted one step ago, finished
-                    while the CPU ran the policy and the physics above)
-   5. observation   O[k] = ( state(S[k]), image F[k-1] )
-
-   policy           A[k+1] = policy(O[k])
-
-``F[k]`` now renders while the CPU computes the observation, runs the policy, and advances the
-physics of step ``k+1``. The wait for ``F[k]`` moves to stage 4 of step ``k+1``, where it is
-normally already finished:
-
-.. code-block:: text
-
-   CPU ──[ physics k ]──[ submit F[k], receive F[k-1] ]──[ obs, reward, policy ]──[ physics k+1 ]──[ submit F[k+1], receive F[k] ]──
-   GPU ─────────────────[ render F[k] ─────────────────────────────────────────────────────────────────────────────────]──
-
-Frame indices per step:
-
-.. code-block:: text
-
-   step         state channels of O[k]   image in O[k]   note
-   ─────────────────────────────────────────────────────────────────────────
-   sync, any    S[k]                     F[k]            fully aligned
-   async, k=0   S[0]                     F[0]            first frame waits once (priming)
-   async, k=1   S[1]                     F[0]            the first image repeats once
-   async, k>=2  S[k]                     F[k-1]          image is one step old
+.. raw:: html
+   :file: renderers_async_dataflow.html
 
 Answers to the common questions:
 
