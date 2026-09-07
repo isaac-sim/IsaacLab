@@ -597,7 +597,7 @@ def test_update_transforms_writes_caller_owned_buffer(monkeypatch: pytest.Monkey
     renderer, _ = _make_renderer_without_backend()
     buffer = object()
     renderer._object_xform_binding = _FakePointsBinding("omni:xform")
-    renderer._object_newton_indices = [0, 1]
+    renderer._object_physics_indices = [0, 1]
     renderer._object_scales = object()
     renderer._object_transform_buffer = buffer
 

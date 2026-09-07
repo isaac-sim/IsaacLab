@@ -10,6 +10,7 @@ import importlib.util
 import sys
 import types
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -600,7 +601,7 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._particle_paths_list = "particle"
     renderer._cable_points_query = "cable"
     renderer._cable_paths_list = "cable"
-    renderer._object_newton_indices = object()
+    renderer._object_physics_indices = object()
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
@@ -612,6 +613,79 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._initialized_scene = True
     renderer._current_ordinal = 7
     return renderer
+
+
+def test_ovstage_object_transforms_use_active_scene_data_backend(monkeypatch: pytest.MonkeyPatch):
+    """OVStage publishes object poses from the active backend instead of requiring Newton state."""
+
+    class Completion:
+        def wait(self) -> None:
+            return
+
+    object_paths = ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
+    body_transforms = wp.array(
+        [
+            wp.transformf(wp.vec3f(1.0, 2.0, 3.0), wp.quat_identity()),
+            wp.transform_identity(),
+            wp.transform_identity(),
+            wp.transformf(wp.vec3f(4.0, 5.0, 6.0), wp.quat_identity()),
+        ],
+        dtype=wp.transformf,
+        device="cpu",
+    )
+    scene_data_backend = types.SimpleNamespace(
+        transform_paths=[
+            object_paths[0],
+            "/World/envs/env_0/Camera",
+            "/World/GroundPlane",
+            object_paths[1],
+        ],
+        transforms=types.SimpleNamespace(transforms=body_transforms),
+    )
+    sim = types.SimpleNamespace(get_scene_data_provider=lambda: types.SimpleNamespace(backend=scene_data_backend))
+    monkeypatch.setattr(ovrtx_renderer_module.SimulationContext, "instance", classmethod(lambda cls: sim))
+
+    writes: list[tuple[str, object]] = []
+
+    def write_attribute(query, attribute, **kwargs):
+        tensors = kwargs["tensors"]
+        if attribute == "omni:xform":
+            wp.synchronize()
+            tensors = np.array(ovrtx_renderer_module.ovstage.dltensor_to_numpy(tensors)).reshape(-1, 4, 4)
+        writes.append((attribute, tensors))
+        return Completion()
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._device = "cpu"
+    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=None))
+    renderer._camera_rel_path = "Camera"
+    renderer._stage_paths = types.SimpleNamespace(create_path_list_from_strings=lambda paths: tuple(paths))
+    renderer._stage = types.SimpleNamespace(
+        query_from_path_list=lambda path_list: "object_query",
+        write_attribute=write_attribute,
+    )
+    renderer._current_ordinal = 7
+    renderer._object_xform_query = None
+    renderer._object_paths_list = None
+    renderer._object_physics_indices = None
+    renderer._object_scene_data_backend = None
+    renderer._object_scales_by_path = {object_paths[0]: (2.0, 3.0, 4.0)}
+
+    renderer._setup_xform_bindings_ovstage()
+    renderer._update_transforms_ovstage()
+
+    assert renderer._object_paths_list == tuple(object_paths)
+    assert renderer._object_scene_data_backend is scene_data_backend
+    assert np.array_equal(writes[0][1], np.ones(2, dtype=np.bool_))
+    assert writes[0][0] == "omni:resetXformStack"
+    assert writes[1][0] == "omni:xform"
+    expected = np.array(
+        [
+            [[2.0, 0.0, 0.0, 0.0], [0.0, 3.0, 0.0, 0.0], [0.0, 0.0, 4.0, 0.0], [1.0, 2.0, 3.0, 1.0]],
+            [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [4.0, 5.0, 6.0, 1.0]],
+        ]
+    )
+    np.testing.assert_allclose(writes[1][1], expected)
 
 
 def test_ovrtx_close_releases_legacy_renderer_state():
@@ -673,7 +747,7 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
     assert renderer._particle_paths_list is None
     assert renderer._cable_points_query is None
     assert renderer._cable_paths_list is None
-    assert renderer._object_newton_indices is None
+    assert renderer._object_physics_indices is None
     assert renderer._renderer is None
     assert renderer._ovstage_exit_stack is None
     assert renderer._stage is None

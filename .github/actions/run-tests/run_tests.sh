@@ -370,6 +370,13 @@ run_tests() {
 
         case \" \${TEST_WHEELHOUSE_PACKAGES} \" in
           *\" ovphysx \"*)
+            ovphysx_omniclient_requirement=\"\$(./isaaclab.sh -p tools/resolve_ovphysx_omniclient.py | grep '^omniverseclient==' | tail -n 1)\"
+            if [ -z \"\${ovphysx_omniclient_requirement}\" ]; then
+              echo \"Failed to resolve the OmniClient release required by OvPhysX\"
+              exit 1
+            fi
+            echo \"Installing matched OvPhysX dependency: \${ovphysx_omniclient_requirement}\"
+            bash /with-python-package-retries.sh ./isaaclab.sh -p -m pip install --upgrade --force-reinstall \"\${ovphysx_omniclient_requirement}\"
             ./isaaclab.sh -p -c \"import importlib.metadata,json,os,pathlib; from packaging.version import Version; manifest=json.loads(pathlib.Path(os.environ['TEST_WHEELHOUSE_MANIFEST']).read_text(encoding='utf-8')); expected=manifest.get('ovphysx_version'); actual=importlib.metadata.version('ovphysx'); print(f'Resolved ovphysx package version: {actual}'); print(f'Wheelhouse manifest ovphysx version: {expected}'); import ovphysx; runtime=getattr(ovphysx, '__version__', actual); print(f'Imported ovphysx runtime version: {runtime}'); raise SystemExit(0 if Version(actual) == Version(expected) and Version(runtime) == Version(expected) else f'ovphysx version mismatch: installed {actual}, import {runtime}, manifest {expected}')\"
             ;;
         esac
