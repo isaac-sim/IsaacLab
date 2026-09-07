@@ -674,12 +674,12 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         self.torch_episode_length_buf = self.episode_length_buf  # already a torch tensor via wp.to_torch
 
     def _setup_scene(self):
-        ground_cfg, light_cfg = self.cfg.ground_cfg, self.cfg.light_cfg
-        asset_cfgs = (self.cfg.robot_cfg, self.cfg.object_cfg, ground_cfg, light_cfg, self.cfg.goal_object_cfg)
+        asset_cfgs = self.cfg.robot_cfg, self.cfg.object_cfg, self.cfg.ground_cfg
+        asset_cfgs += self.cfg.light_cfg, self.cfg.goal_object_cfg
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        for cfg in (ground_cfg, light_cfg):
+        for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
             cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn, cfg.init_state.pos, cfg.init_state.rot)
         self.hand = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
         self.object = self.cfg.object_cfg.class_type(self.cfg.object_cfg)

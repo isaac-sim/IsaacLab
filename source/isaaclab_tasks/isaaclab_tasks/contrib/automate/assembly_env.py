@@ -245,15 +245,8 @@ class AssemblyEnv(DirectRLEnv):
         return keypoint_offsets
 
     def _setup_scene(self):
-        """Initialize simulation scene."""
-        asset_cfgs = (
-            self.cfg.ground,
-            self.cfg.table,
-            self.cfg.light,
-            self.cfg.robot,
-            self.cfg_task.fixed_asset,
-            self.cfg_task.held_asset,
-        )
+        asset_cfgs = self.cfg.ground, self.cfg.table, self.cfg.light, self.cfg.robot
+        asset_cfgs += self.cfg_task.fixed_asset, self.cfg_task.held_asset
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )

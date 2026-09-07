@@ -58,21 +58,18 @@ class LocomotionDirectEnv(DirectRLEnv):
     def _setup_scene(self):
         self.cfg.terrain.num_envs = self.cfg.scene.num_envs
         self.cfg.terrain.env_spacing = self.cfg.scene.env_spacing
-        light_cfg = self.cfg.light_cfg
-        asset_cfgs = self.cfg.robot, self.cfg.terrain, self.cfg.joint_wrench, light_cfg
+        asset_cfgs = self.cfg.robot, self.cfg.terrain, self.cfg.joint_wrench, self.cfg.light_cfg
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
         self.robot = self.cfg.robot.class_type(self.cfg.robot)
         self.terrain = self.cfg.terrain.class_type(self.cfg.terrain)
         self.joint_wrench = self.cfg.joint_wrench.class_type(self.cfg.joint_wrench)
-        spawn = light_cfg.spawn
-        spawn.func(spawn.spawn_path, spawn, translation=light_cfg.init_state.pos, orientation=light_cfg.init_state.rot)
+        cfg = self.cfg.light_cfg
+        cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn, cfg.init_state.pos, cfg.init_state.rot)
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
-        # add articulation and the feet wrench sensor to scene
         self.scene.articulations["robot"] = self.robot
         self.scene.sensors["joint_wrench"] = self.joint_wrench
 

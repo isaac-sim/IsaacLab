@@ -185,12 +185,7 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
 
 
 def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
-    """A cfg-driven scene publishes the exact plan it forwards to replication.
-
-    Uses a test-seam fake to isolate this unit test from real backend dispatch; queue
-    lifecycle is owned by :func:`replicate` itself (snapshot-and-clear) and does not
-    need any cleanup hook here.
-    """
+    """A cfg-driven scene publishes the exact plan it forwards to replication."""
     import isaaclab.cloner.replicate_session as replicate_session_module
 
     captured: list = []

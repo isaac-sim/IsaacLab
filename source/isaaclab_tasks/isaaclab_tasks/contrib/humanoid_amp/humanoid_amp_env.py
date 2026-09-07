@@ -59,9 +59,8 @@ class HumanoidAmpEnv(DirectRLEnv):
         self.robot = self.cfg.robot.class_type(self.cfg.robot)
         self.scene.articulations["robot"] = self.robot
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=["/World/ground"])
+            self.scene.filter_collisions(global_prim_paths=[self.cfg.ground.prim_path])
 
     def _pre_physics_step(self, actions: torch.Tensor):
         self.actions = actions.clone()

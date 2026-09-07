@@ -39,20 +39,16 @@ class PendulumMARLEnv(DirectMARLEnv):
         self._consecutive_upright_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
 
     def _setup_scene(self):
-        ground_cfg, light_cfg = self.cfg.ground_cfg, self.cfg.light_cfg
-        asset_cfgs = self.cfg.robot_cfg, ground_cfg, light_cfg
+        asset_cfgs = self.cfg.robot_cfg, self.cfg.ground_cfg, self.cfg.light_cfg
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
         self.robot = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
-        for cfg in (ground_cfg, light_cfg):
-            spawn = cfg.spawn
-            spawn.func(spawn.spawn_path, spawn, translation=cfg.init_state.pos, orientation=cfg.init_state.rot)
+        for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
+            cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn, cfg.init_state.pos, cfg.init_state.rot)
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[])
-        # add articulation to scene
+            self.scene.filter_collisions()
         self.scene.articulations["robot"] = self.robot
 
     def _pre_physics_step(self, actions: dict[str, torch.Tensor]) -> None:

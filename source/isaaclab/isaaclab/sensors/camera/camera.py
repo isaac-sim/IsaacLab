@@ -162,11 +162,12 @@ class Camera(SensorBase):
             probe_path = spawn.spawn_path or self.cfg.prim_path
             probe_matches = sim_utils.resolve_matching_prims_from_source(probe_path, raise_if_no_matches=False)
             source_prim, _source_destination_expr = probe_matches[0] if probe_matches else (None, None)
-            if source_prim is not None and source_prim.IsValid():
-                if source_prim.HasAPI(UsdPhysics.ArticulationRootAPI) or source_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                    logger.info(f" Spawning camera at '{self.cfg.prim_path}/camera'.")
-                    self.cfg.prim_path = f"{self.cfg.prim_path}/camera"
-                    spawn.spawn_path = f"{probe_path}/camera"
+            if source_prim is not None and (
+                source_prim.HasAPI(UsdPhysics.ArticulationRootAPI) or source_prim.HasAPI(UsdPhysics.RigidBodyAPI)
+            ):
+                logger.info(f" Spawning camera at '{self.cfg.prim_path}/camera'.")
+                self.cfg.prim_path = f"{self.cfg.prim_path}/camera"
+                spawn.spawn_path = f"{probe_path}/camera"
 
             spawn_target = spawn.spawn_path or self.cfg.prim_path
             if sim_utils.find_first_matching_prim(spawn_target) is None:

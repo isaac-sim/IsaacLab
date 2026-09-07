@@ -34,7 +34,7 @@ from isaaclab.utils.version import has_kit
 
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env_regex_ns
 from .cloner_strategies import sequential
-from .path import TemplateMatch, match
+from .path import TemplateMatch, match, under
 from .usd import UsdReplicateContext
 
 
@@ -119,6 +119,22 @@ def num_spawn_variants(spawn_cfg: Any) -> int:
     if isinstance(spawn_cfg, sim_utils.MultiUsdFileCfg):
         return 1 if isinstance(spawn_cfg.usd_path, str) else len(spawn_cfg.usd_path)
     return 1
+
+
+def _minimal_roots(paths: Iterable[str]) -> tuple[str, ...]:
+    roots = tuple(dict.fromkeys(paths))
+    return tuple(path for path in roots if not any(path != root and under(path, root) for root in roots))
+
+
+def _set_spawn_paths(spawn_cfg: Any, paths: list[str | None]) -> None:
+    if isinstance(spawn_cfg, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
+        spawn_cfg.spawn_path = None
+        spawn_cfg.spawn_paths = paths
+    else:
+        active = [path for path in paths if path is not None]
+        if len(active) > 1:
+            raise ValueError("Single spawner expects exactly one planned source path.")
+        spawn_cfg.spawn_path = active[0] if active else None
 
 
 def make_valid_clone_combinations(
@@ -221,9 +237,7 @@ def _context_rows(
     )
 
     for cfg in cfgs:
-        rows = cfg_rows.get(id(cfg))
-        if rows is None:
-            continue
+        rows = cfg_rows[id(cfg)]
         fields = vars(cfg)
         references = fields.get("cloning_contexts", ())
         if references is None:
@@ -284,19 +298,8 @@ def make_clone_plan(
         to the rows it owns, and whose ``global_paths`` names shared scene assets.
     """
 
-    def set_spawn_paths(spawn_cfg: Any, paths: list[str | None]) -> None:
-        if isinstance(spawn_cfg, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
-            spawn_cfg.spawn_paths = paths
-        else:
-            active = [p for p in paths if p is not None]
-            if len(active) == 0:
-                spawn_cfg.spawn_path = None
-                return
-            if len(active) != 1:
-                raise ValueError("Single spawner expects exactly one planned source path.")
-            spawn_cfg.spawn_path = active[0]
-
     cfgs = tuple(cfgs)
+    global_paths = _minimal_roots(global_paths)
 
     # 1) Build per-group records: (cfg, spawn_cfg, destination_template, num_variants).
     groups: list[tuple[Any, Any, str, int]] = []
@@ -326,7 +329,7 @@ def make_clone_plan(
     # 3) Homogeneous (every cfg is single-variant): emit the simpler env-root plan.
     if valid_set is None and all(count == 1 for _, _, _, count in groups):
         for cfg, spawn_cfg, destination, _ in groups:
-            set_spawn_paths(spawn_cfg, [destination.format(0)])
+            _set_spawn_paths(spawn_cfg, [destination.format(0)])
         cfg_rows = {id(cfg): (0,) for cfg, _, _, _ in groups}
         clone_mask = np.ones((1, num_clones), dtype=np.bool_)
         return ClonePlan(
@@ -399,7 +402,7 @@ def make_clone_plan(
             # Inactive prototypes fall back to env-i so the source path stays valid even
             # when the variant has no active environment (matches the legacy behavior).
             sources_list.append(path if path is not None else destination.format(i))
-        set_spawn_paths(spawn_cfg, paths)
+        _set_spawn_paths(spawn_cfg, paths)
         row += count
 
     return ClonePlan(
@@ -416,7 +419,7 @@ def make_clone_plan(
 
 def clone_plan_from_env_0(
     clone_cfg: CloneCfg,
-    asset_cfgs: Iterable[object | None],
+    asset_cfgs: Iterable[object],
     num_envs: int,
     env_spacing: float,
     *,
@@ -431,7 +434,7 @@ def clone_plan_from_env_0(
 
     Args:
         clone_cfg: Homogeneous clone policy and environment template.
-        asset_cfgs: Flat sequence of prim-authoring configurations. ``None`` entries are skipped.
+        asset_cfgs: Flat sequence of prim-authoring configurations.
         num_envs: Number of target environments.
         env_spacing: Distance between neighboring environment origins [m].
         positions: Optional per-environment world positions [m], shape ``[num_envs, 3]``.
@@ -457,19 +460,15 @@ def clone_plan_from_env_0(
         raise RuntimeError("A SimulationContext owns exactly one clone lifecycle.")
 
     records: list[tuple[Any, str, TemplateMatch | None, sim_utils.SpawnerCfg | None]] = []
-    for asset_cfg in asset_cfgs:
-        if asset_cfg is None:
-            continue
-        cfg: Any = asset_cfg
+    for cfg in asset_cfgs:
         try:
             fields = vars(cfg)
-        except TypeError as error:
+            prim_path = fields["prim_path"]
+        except (TypeError, KeyError) as error:
             raise TypeError(f"Asset entries must directly declare prim_path, got {type(cfg).__name__}.") from error
-        if "prim_path" not in fields:
-            raise TypeError(f"Asset entries must directly declare prim_path, got {type(cfg).__name__}.")
-        if not isinstance(fields["prim_path"], str):
+        if not isinstance(prim_path, str):
             raise TypeError(f"{type(cfg).__name__}.prim_path must be a string.")
-        prim_path = expand_env_regex_ns(fields["prim_path"], clone_cfg.clone_template)
+        prim_path = expand_env_regex_ns(prim_path, clone_cfg.clone_template)
         matched = match(prim_path, clone_cfg.clone_template)
         spawn = fields.get("spawn")
         if spawn is not None and not isinstance(spawn, sim_utils.SpawnerCfg):
@@ -479,7 +478,7 @@ def clone_plan_from_env_0(
         records.append((cfg, prim_path, matched, spawn))
 
     env_cfgs = tuple(cfg for cfg, _, matched, _ in records if matched is not None)
-    global_paths = tuple(dict.fromkeys(prim_path for _, prim_path, matched, _ in records if matched is None))
+    global_paths = _minimal_roots(prim_path for _, prim_path, matched, _ in records if matched is None)
     cfg_rows = {id(cfg): (0,) for cfg in env_cfgs}
     plan = ClonePlan(
         sources=(clone_cfg.clone_template.format(0),),
@@ -496,10 +495,6 @@ def clone_plan_from_env_0(
         if spawn is None:
             continue
         source_path = prim_path if matched is None else plan.sources[0] + matched.suffix
-        if isinstance(spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
-            spawn.spawn_path = None
-            spawn.spawn_paths = [source_path]
-        else:
-            spawn.spawn_path = source_path
+        _set_spawn_paths(spawn, [source_path])
     sim.set_clone_plan(plan)
     return plan

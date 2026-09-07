@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 
 def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
-    """Publish and dispatch a fully routed clone plan.
+    """Dispatch the active fully routed clone plan.
 
     Planning derives routing from the input cfgs; dispatch does not rediscover or reshape that mapping.
     Every context is owned by the active :class:`~isaaclab.sim.SimulationContext` and receives
@@ -38,6 +38,8 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     sim = SimulationContext.instance()
     if sim is None:
         raise RuntimeError("Clone-plan replication requires an active SimulationContext.")
+    if sim.get_clone_plan() is not plan:
+        raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
     context_types = tuple(
         context_type for context_type in plan.context_rows if replicate_physics or context_type is UsdReplicateContext
     )
@@ -45,11 +47,6 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     if missing:
         names = ", ".join(f"{context_type.__module__}.{context_type.__qualname__}" for context_type in missing)
         raise RuntimeError(f"Clone contexts must be registered before plan dispatch: {names}.")
-
-    if (active_plan := sim.get_clone_plan()) is None:
-        sim.set_clone_plan(plan)
-    elif active_plan is not plan:
-        raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
 
     contexts = [sim._backend_registry[context_type] for context_type in context_types]
     for context in sorted(contexts, key=lambda item: item.replicate_priority):
@@ -120,12 +117,9 @@ class ReplicateSession:
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         if exc_type is None:
-            assert self._plan is not None
-            replicate(self._plan, replicate_physics=self._replicate_physics)
-        else:
-            sim = SimulationContext.instance()
-            if sim is not None and sim.get_clone_plan() is self._plan:
-                sim.set_clone_plan(None)
+            replicate(self.plan, replicate_physics=self._replicate_physics)
+        elif (sim := SimulationContext.instance()) is not None and sim.get_clone_plan() is self._plan:
+            sim.set_clone_plan(None)
 
     @property
     def plan(self) -> ClonePlan:

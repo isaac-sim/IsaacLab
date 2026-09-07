@@ -366,21 +366,8 @@ The scene creation process is as follows:
 #. Apply the plan with :func:`isaaclab.cloner.replicate`.
 #. Call ``filter_collisions()`` for PhysX environments when collision filtering is required.
 
-
-.. code-block:: python
-
-   asset_cfgs = (self.cfg.robot_cfg, self.cfg.ground_cfg, self.cfg.light_cfg)
-   plan = cloner.clone_plan_from_env_0(
-       self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-   )
-   self.cartpole = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
-   for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
-       cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn)
-   cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-
-   if "physx" in self.scene.physics_backend:
-       self.scene.filter_collisions(global_prim_paths=[])
-
+The complete lifecycle appears in the environment-creation example above and in
+:doc:`/source/how-to/cloning`.
 
 .. rubric:: Accessing States from Simulation
 
@@ -687,7 +674,7 @@ the need to set simulation parameters for actors in the task implementation.
 |     plane_params = gymapi.PlaneParams()                                |     cloner.replicate(plan, replicate_physics=                       |
 |                                                                        |         self.cfg.scene.replicate_physics)                           |
 |     # set the normal force to be z dimension                           |     if "physx" in self.scene.physics_backend:                       |
-|     plane_params.normal = (gymapi.Vec3(0.0, 0.0, 1.0)                  |         self.scene.filter_collisions(global_prim_paths=[])          |
+|     plane_params.normal = (gymapi.Vec3(0.0, 0.0, 1.0)                  |         self.scene.filter_collisions()                              |
 |         if self.up_axis == 'z'                                         |     self.scene.articulations["cartpole"] = self.cartpole            |
 |         else gymapi.Vec3(0.0, 1.0, 0.0))                               |                                                                     |
 |     self.gym.add_ground(self.sim, plane_params)                        |                                                                     |

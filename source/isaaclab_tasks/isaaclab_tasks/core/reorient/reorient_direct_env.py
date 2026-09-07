@@ -170,8 +170,8 @@ class ReorientDirectEnv(DirectRLEnv):
         self._write_hand_joint_vel = self.hand.write_joint_velocity_to_sim_index
 
     def _setup_scene(self):
-        ground_cfg, light_cfg = self.cfg.ground_cfg, self.cfg.light_cfg
-        asset_cfgs = (self.cfg.robot_cfg, self.cfg.object_cfg, ground_cfg, light_cfg, self.cfg.goal_object_cfg)
+        asset_cfgs = self.cfg.robot_cfg, self.cfg.object_cfg, self.cfg.ground_cfg
+        asset_cfgs += self.cfg.light_cfg, self.cfg.goal_object_cfg
         if self.cfg.asymmetric_obs:
             asset_cfgs += (self.cfg.joint_wrench,)
         plan = cloner.clone_plan_from_env_0(
@@ -182,14 +182,12 @@ class ReorientDirectEnv(DirectRLEnv):
         self._joint_wrench_sensor = (
             self.cfg.joint_wrench.class_type(self.cfg.joint_wrench) if self.cfg.asymmetric_obs else None
         )
-        for cfg in (ground_cfg, light_cfg):
-            spawn = cfg.spawn
-            spawn.func(spawn.spawn_path, spawn, translation=cfg.init_state.pos, orientation=cfg.init_state.rot)
+        for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
+            cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn, cfg.init_state.pos, cfg.init_state.rot)
         self.goal_markers = self.cfg.goal_object_cfg.class_type(self.cfg.goal_object_cfg)
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[ground_cfg.prim_path])
+            self.scene.filter_collisions(global_prim_paths=[self.cfg.ground_cfg.prim_path])
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
         self.scene.rigid_objects["object"] = self.object

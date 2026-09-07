@@ -2,8 +2,7 @@ Changed
 ^^^^^^^
 
 * **Breaking:** Changed :func:`~isaaclab.cloner.clone_plan_from_env_0` to accept a
-  :class:`~isaaclab.cloner.CloneCfg` and a flat asset-cfg sequence, and to publish the plan before
-  asset construction. Pass the declared clone cfg and every asset or sensor cfg. Use
-  :class:`~isaaclab.cloner.ReplicateSession` for heterogeneous layouts.
-* **Breaking:** Removed ``REPLICATION_QUEUE`` and ``queue_replication``. Direct workflows now pass
-  their complete flat construction manifest to :func:`~isaaclab.cloner.clone_plan_from_env_0`.
+  :class:`~isaaclab.cloner.CloneCfg` and a flat asset-cfg sequence, publish the plan before asset
+  construction, and require :func:`~isaaclab.cloner.replicate` to dispatch that active plan.
+  ``REPLICATION_QUEUE`` and ``queue_replication`` were removed; pass the declared clone cfg and
+  complete flat asset/sensor manifest. Use :class:`~isaaclab.cloner.ReplicateSession` for heterogeneous layouts.

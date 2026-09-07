@@ -82,7 +82,6 @@ def test_world_attached_source_prim_expands_from_clone_plan():
         prim = stage.DefinePrim("/World/envs/env_0/WorldCamera", "Xform")
         sim_utils.standardize_xform_ops(prim)
         prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.25, -0.5, 1.0))
-        cloner.replicate(plan)
         sim.reset()
 
         view = FrameView("/World/envs/env_[^/]+/WorldCamera", device=device)

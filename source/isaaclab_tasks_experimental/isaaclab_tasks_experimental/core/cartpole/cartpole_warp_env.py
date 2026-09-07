@@ -229,19 +229,18 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         self.torch_episode_length_buf = self.episode_length_buf  # already a torch tensor via wp.to_torch
 
     def _setup_scene(self) -> None:
-        ground_cfg, light_cfg = self.cfg.ground_cfg, self.cfg.light_cfg
-        asset_cfgs = (self.cfg.robot_cfg, ground_cfg, light_cfg)
+        asset_cfgs = self.cfg.robot_cfg, self.cfg.ground_cfg, self.cfg.light_cfg
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        for cfg in (ground_cfg, light_cfg):
+        for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
             cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn, cfg.init_state.pos, cfg.init_state.rot)
         self.cartpole = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
         self.scene.articulations["cartpole"] = self.cartpole
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
         # we need to explicitly filter collisions for CPU simulation
         if self.device == "cpu":
-            self.scene.filter_collisions(global_prim_paths=[])
+            self.scene.filter_collisions()
 
     def _pre_physics_step(self, actions: wp.array) -> None:
         wp.launch(

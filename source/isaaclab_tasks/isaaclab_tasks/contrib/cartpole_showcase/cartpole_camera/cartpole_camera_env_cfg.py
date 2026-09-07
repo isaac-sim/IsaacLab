@@ -10,7 +10,7 @@ import math
 from gymnasium import spaces
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
@@ -54,6 +54,8 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
 
     # robot
     robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    light_cfg: AssetBaseCfg = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DistantLightCfg(intensity=2000.0))
+    light_cfg.init_state.rot = (-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
 

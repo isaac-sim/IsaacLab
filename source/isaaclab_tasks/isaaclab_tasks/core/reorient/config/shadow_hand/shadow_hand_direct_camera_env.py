@@ -44,9 +44,8 @@ class ShadowHandCameraEnv(ShadowHandDirectEnv):
         self.goal_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
 
     def _setup_scene(self):
-        light_cfg = self.cfg.light_cfg
         asset_cfgs = self.cfg.robot_cfg, self.cfg.object_cfg, self.cfg.joint_wrench
-        asset_cfgs += self.cfg.tiled_camera, light_cfg, self.cfg.goal_object_cfg
+        asset_cfgs += self.cfg.tiled_camera, self.cfg.light_cfg, self.cfg.goal_object_cfg
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
@@ -54,13 +53,12 @@ class ShadowHandCameraEnv(ShadowHandDirectEnv):
         self.object = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
         self._joint_wrench_sensor = self.cfg.joint_wrench.class_type(self.cfg.joint_wrench)
         self._tiled_camera = self.cfg.tiled_camera.class_type(self.cfg.tiled_camera)
-        spawn = light_cfg.spawn
-        spawn.func(spawn.spawn_path, spawn, translation=light_cfg.init_state.pos, orientation=light_cfg.init_state.rot)
+        cfg = self.cfg.light_cfg
+        cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn, cfg.init_state.pos, cfg.init_state.rot)
         self.goal_markers = self.cfg.goal_object_cfg.class_type(self.cfg.goal_object_cfg)
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[])
+            self.scene.filter_collisions()
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand
         self.scene.rigid_objects["object"] = self.object

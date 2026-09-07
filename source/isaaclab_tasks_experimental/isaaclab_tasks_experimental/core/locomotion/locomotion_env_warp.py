@@ -526,12 +526,11 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
     def _setup_scene(self) -> None:
         self.cfg.terrain.num_envs = self.cfg.scene.num_envs
         self.cfg.terrain.env_spacing = self.cfg.scene.env_spacing
-        light_cfg = self.cfg.light_cfg
-        asset_cfgs = (self.cfg.robot, self.cfg.terrain, self.cfg.joint_wrench, light_cfg)
+        asset_cfgs = self.cfg.robot, self.cfg.terrain, self.cfg.joint_wrench, self.cfg.light_cfg
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        cfg = light_cfg
+        cfg = self.cfg.light_cfg
         cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn, cfg.init_state.pos, cfg.init_state.rot)
         self.robot = self.cfg.robot.class_type(self.cfg.robot)
         self.terrain = self.cfg.terrain.class_type(self.cfg.terrain)

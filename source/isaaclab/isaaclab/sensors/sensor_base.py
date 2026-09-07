@@ -58,8 +58,6 @@ class SensorBase(ABC):
         """
         # check that the config is valid
         cfg.validate()
-        # expand the namespace macro for sensors built outside the scene, which has already
-        # expanded it for the ones it collects
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
         # store inputs
         self.cfg = cfg.copy()

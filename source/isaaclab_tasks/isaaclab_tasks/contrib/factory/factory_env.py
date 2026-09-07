@@ -80,19 +80,10 @@ class FactoryEnv(DirectRLEnv):
         self.ep_success_times = torch.zeros((self.num_envs,), dtype=torch.long, device=self.device)
 
     def _setup_scene(self):
-        """Initialize simulation scene."""
-        small_gear_cfg = self.cfg_task.small_gear_cfg if self.cfg_task.name == "gear_mesh" else None
-        large_gear_cfg = self.cfg_task.large_gear_cfg if self.cfg_task.name == "gear_mesh" else None
-        asset_cfgs = (
-            self.cfg.ground,
-            self.cfg.table,
-            self.cfg.light,
-            self.cfg.robot,
-            self.cfg_task.fixed_asset,
-            self.cfg_task.held_asset,
-            small_gear_cfg,
-            large_gear_cfg,
-        )
+        asset_cfgs = self.cfg.ground, self.cfg.table, self.cfg.light, self.cfg.robot
+        asset_cfgs += self.cfg_task.fixed_asset, self.cfg_task.held_asset
+        if self.cfg_task.name == "gear_mesh":
+            asset_cfgs += self.cfg_task.small_gear_cfg, self.cfg_task.large_gear_cfg
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
@@ -101,19 +92,18 @@ class FactoryEnv(DirectRLEnv):
         self._robot = self.cfg.robot.class_type(self.cfg.robot)
         self._fixed_asset = self.cfg_task.fixed_asset.class_type(self.cfg_task.fixed_asset)
         self._held_asset = self.cfg_task.held_asset.class_type(self.cfg_task.held_asset)
-        if small_gear_cfg is not None and large_gear_cfg is not None:
-            self._small_gear_asset = small_gear_cfg.class_type(small_gear_cfg)
-            self._large_gear_asset = large_gear_cfg.class_type(large_gear_cfg)
+        if self.cfg_task.name == "gear_mesh":
+            self._small_gear_asset = self.cfg_task.small_gear_cfg.class_type(self.cfg_task.small_gear_cfg)
+            self._large_gear_asset = self.cfg_task.large_gear_cfg.class_type(self.cfg_task.large_gear_cfg)
 
         self.scene.articulations["robot"] = self._robot
         self.scene.articulations["fixed_asset"] = self._fixed_asset
         self.scene.articulations["held_asset"] = self._held_asset
-        if small_gear_cfg is not None and large_gear_cfg is not None:
+        if self.cfg_task.name == "gear_mesh":
             self.scene.articulations["small_gear"] = self._small_gear_asset
             self.scene.articulations["large_gear"] = self._large_gear_asset
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
 
-        # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions()
 

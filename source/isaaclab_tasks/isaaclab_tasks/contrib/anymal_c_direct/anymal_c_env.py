@@ -77,7 +77,6 @@ class AnymalCEnv(DirectRLEnv):
         self.scene.articulations["robot"] = self._robot
         self.scene.sensors["contact_sensor"] = self._contact_sensor
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
 

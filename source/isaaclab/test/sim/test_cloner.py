@@ -424,27 +424,22 @@ def test_make_clone_plan_records_globals_outside_replication_rows(sim):
 
 def test_clone_plan_from_env_0_uses_flat_cfg_manifest(sim):
     """The homogeneous helper publishes exact env/global roots before construction."""
-    robot = SimpleNamespace(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
-        cloning_contexts=(UsdReplicateContext,),
-    )
-    sensor = SimpleNamespace(
-        prim_path="{ENV_REGEX_NS}/Robot/Sensor", spawn=None, cloning_contexts=(UsdReplicateContext,)
-    )
+    robot = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot", spawn=sim_utils.CuboidCfg(size=(0.1,) * 3))
+    sensor = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Robot/Sensor", spawn=None)
     prop = SimpleNamespace(
         prim_path="{ENV_REGEX_NS}/Prop",
         spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=[sim_utils.SphereCfg(radius=0.1)]),
         cloning_contexts=(UsdReplicateContext,),
     )
     light = SimpleNamespace(prim_path="/World/Light", spawn=sim_utils.DistantLightCfg(), cloning_contexts=())
-    light_reference = SimpleNamespace(prim_path="/World/Light", spawn=None, cloning_contexts=())
-    plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (robot, sensor, None, prop, light, light_reference), 4, 1.0)
+    light_reference = SimpleNamespace(prim_path="/World/Light/Reference", spawn=None, cloning_contexts=())
+    plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (robot, sensor, prop, light, light_reference), 4, 1.0)
 
     assert sim.get_clone_plan() is plan
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
     assert plan.cfg_rows == {id(robot): (0,), id(sensor): (0,), id(prop): (0,)}
+    assert plan.context_rows[UsdReplicateContext] == (0,)
     assert plan.global_paths == ("/World/Light",)
     assert plan.clone_mask.all() and plan.clone_mask.shape == (1, 4)
     np.testing.assert_array_equal(plan.env_ids, np.arange(4, dtype=np.int64))
@@ -453,15 +448,6 @@ def test_clone_plan_from_env_0_uses_flat_cfg_manifest(sim):
     assert prop.spawn.spawn_path is None
     assert prop.spawn.spawn_paths == ["/World/envs/env_0/Prop"]
     assert light.spawn.spawn_path == "/World/Light"
-
-
-def test_clone_plan_from_env_0_routes_plain_spawner_cfg(sim):
-    """A spawned manifest entry requests USD replication without an asset-base field."""
-    cfg = SimpleNamespace(prim_path="{ENV_REGEX_NS}/Decoration", spawn=sim_utils.CuboidCfg(size=(0.1,) * 3))
-
-    plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (cfg,), 2, 1.0)
-
-    assert plan.context_rows[UsdReplicateContext] == (0,)
 
 
 @pytest.mark.parametrize("nested", [SimpleNamespace(scene=object()), (SimpleNamespace(prim_path="/World/A"),)])
@@ -493,11 +479,7 @@ def test_clone_plan_from_env_0_rejects_multi_variant_spawner_atomically(sim):
 def test_replicate_session_clears_plan_when_asset_init_fails(sim):
     """ReplicateSession clears an unconsumed plan when construction raises."""
     with pytest.raises(RuntimeError, match="asset boom"):
-        with ReplicateSession(
-            cfgs=[],
-            num_clones=2,
-            env_spacing=1.0,
-        ) as session:
+        with ReplicateSession(cfgs=[], num_clones=2, env_spacing=1.0) as session:
             assert sim.get_clone_plan() is session.plan
             raise RuntimeError("asset boom")
 

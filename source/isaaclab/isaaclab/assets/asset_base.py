@@ -97,7 +97,6 @@ class AssetBase(ABC):
         """
         # check that the config is valid
         cfg.validate()
-        # The scene expands this for collected assets; cover direct construction too.
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
         # store inputs
         self.cfg = cfg.copy()

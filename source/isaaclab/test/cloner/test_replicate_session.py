@@ -105,19 +105,16 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(monkeypatch):
         replicate_priority = -1
 
     plan = _plan(Late, Early)
-    published = []
     simulation = SimpleNamespace(
         physics_manager=SimpleNamespace(clone_context_type=Late),
         _backend_registry={Late: Late(calls), Early: Early(calls)},
-        get_clone_plan=lambda: None,
-        set_clone_plan=published.append,
+        get_clone_plan=lambda: plan,
     )
     monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
 
     replicate_session.replicate(plan)
 
     assert calls == [(Early, plan), (Late, plan)]
-    assert published == [plan]
 
 
 def test_replicate_physics_false_runs_only_usd(monkeypatch):

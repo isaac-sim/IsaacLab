@@ -232,9 +232,8 @@ class PickAndPlaceEnv(DirectRLEnv):
         self.scene.rigid_objects["cube"] = self.cube
         self.scene.surface_grippers["gripper"] = self.gripper
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=["/World/ground"])
+            self.scene.filter_collisions(global_prim_paths=[self.cfg.ground_cfg.prim_path])
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         # Store the actions
