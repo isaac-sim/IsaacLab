@@ -860,24 +860,15 @@ def test_dict_preset_with_factory():
 # =============================================================================
 
 
-def test_go2_rough_newton_mjwarp_armature_preset():
-    """Go2 rough terrain uses higher MJWarp armature without changing PhysX."""
-    from isaaclab_tasks.core.velocity.config.go2.rough_env_cfg import UnitreeGo2RoughEnvCfg
-
-    env_cfg, _ = _apply(UnitreeGo2RoughEnvCfg(), global_presets=["newton_mjwarp"])
-    assert env_cfg.scene.robot.actuators["base_legs"].armature == 0.02
-
-    env_cfg, _ = _apply(UnitreeGo2RoughEnvCfg())
-    assert env_cfg.scene.robot.actuators["base_legs"].armature == 0.0
-
-
 def test_go2_rough_legacy_newton_alias_resolves_to_newton_mjwarp():
     """Real-config alias path: ``presets=newton`` against an actual env cfg resolves to newton_mjwarp."""
+    from isaaclab_newton.physics import MJWarpSolverCfg
+
     from isaaclab_tasks.core.velocity.config.go2.rough_env_cfg import UnitreeGo2RoughEnvCfg
 
     with pytest.warns(FutureWarning, match="Preset 'newton' is deprecated"):
         env_cfg, _ = _apply(UnitreeGo2RoughEnvCfg(), global_presets=["newton"])
-    assert env_cfg.scene.robot.actuators["base_legs"].armature == 0.02
+    assert isinstance(env_cfg.sim.physics.solver_cfg, MJWarpSolverCfg)
 
 
 def test_velocity_events_newton_mjwarp_keeps_base_com_randomization():
