@@ -204,10 +204,12 @@ def test_physics_names_for_docs_infers_physx_from_default():
 @pytest.mark.parametrize(
     "task_name",
     [
+        "IsaacContrib-Factory-Franka",
         "IsaacContrib-Stack-Cube-Franka",
         "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor",
         "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position",
         "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow",
+        "IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel",
     ],
 )
 def test_preset_exclusions_remove_runtime_disabled_task_combinations(task_name: str):
