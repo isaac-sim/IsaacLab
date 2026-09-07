@@ -43,6 +43,65 @@ async def _optional_lock(lock):
         yield
 
 
+def insert_settle_frames_before_gripper(
+    poses: torch.Tensor,
+    gripper_actions: torch.Tensor,
+    action_noise: float | torch.Tensor,
+    num_steps: int,
+) -> tuple[torch.Tensor, torch.Tensor, float | torch.Tensor]:
+    """Hold the target of every gripper transition in a pose sequence before the transition.
+
+    Source demonstrations are replayed by frame index, which drops the pause a human operator makes
+    before closing or opening the gripper: in the source data the target and the achieved end-effector
+    pose coincide at the frame of the gripper command, whereas the generated arm, driven with action
+    noise from a different configuration, is still moving when that frame is reached. Before every
+    frame ``c`` whose gripper action differs from that of frame ``c - 1``, this inserts ``num_steps``
+    copies of the target pose of ``c`` with the gripper action of ``c - 1`` and zero action noise, so
+    the arm settles onto the target before the gripper acts.
+
+    A transition is any change of the gripper action vector between consecutive frames, which is what
+    discrete open/close commands produce. With continuous hand-joint targets (dexterous hands) nearly
+    every frame differs and the option should stay at 0.
+
+    Args:
+        poses: Target pose sequence of shape (T, 4, 4).
+        gripper_actions: Gripper actions of shape (T, D).
+        action_noise: Action noise amplitude, a scalar or a per-frame tensor of shape (T,) or (T, 1).
+        num_steps: Number of frames to insert before each transition.
+
+    Returns:
+        A tuple ``(poses, gripper_actions, action_noise)`` with the held frames inserted;
+        ``action_noise`` is then a per-frame tensor of shape (T', 1). The inputs are returned unchanged
+        when ``num_steps`` is not positive or the sequence has no gripper transition. A change of
+        gripper action between the previous subtask and frame 0 is not a transition of this sequence.
+    """
+    if num_steps <= 0 or poses.shape[0] < 2:
+        return poses, gripper_actions, action_noise
+    transitions = torch.nonzero((gripper_actions[1:] != gripper_actions[:-1]).any(dim=-1)).flatten() + 1
+    if transitions.numel() == 0:
+        return poses, gripper_actions, action_noise
+
+    if isinstance(action_noise, torch.Tensor):
+        noise = action_noise.reshape(-1, 1).to(dtype=torch.float32)
+    else:
+        noise = float(action_noise) * torch.ones((poses.shape[0], 1), dtype=torch.float32)
+
+    pose_parts, gripper_parts, noise_parts = [], [], []
+    prev_end = 0
+    for c in transitions.tolist():
+        pose_parts.append(poses[prev_end:c])
+        gripper_parts.append(gripper_actions[prev_end:c])
+        noise_parts.append(noise[prev_end:c])
+        pose_parts.append(poses[c : c + 1].expand(num_steps, -1, -1))
+        gripper_parts.append(gripper_actions[c - 1 : c].expand(num_steps, -1))
+        noise_parts.append(torch.zeros((num_steps, 1), dtype=noise.dtype, device=noise.device))
+        prev_end = c
+    pose_parts.append(poses[prev_end:])
+    gripper_parts.append(gripper_actions[prev_end:])
+    noise_parts.append(noise[prev_end:])
+    return torch.cat(pose_parts), torch.cat(gripper_parts), torch.cat(noise_parts)
+
+
 def transform_source_data_segment_using_delta_object_pose(
     src_eef_poses: torch.Tensor,
     delta_obj_pose: torch.Tensor,
@@ -535,11 +594,22 @@ class DataGenerator:
                     # Skip transformation if no reference object is provided
                     transformed_eef_poses = src_eef_poses
 
+        # Hold the target of every gripper transition before the transition is commanded, so the
+        # generated arm settles where the source arm was when its operator acted the gripper
+        # (SubTaskConfig.num_settle_steps_before_gripper; unset by default).
+        subtask_config = subtask_configs[subtask_ind]
+        transformed_eef_poses, src_subtask_gripper_actions, subtask_action_noise = insert_settle_frames_before_gripper(
+            transformed_eef_poses,
+            src_subtask_gripper_actions,
+            subtask_config.action_noise,
+            num_steps=subtask_config.num_settle_steps_before_gripper,
+        )
+
         # Construct trajectory for the transformed segment.
         transformed_seq = WaypointSequence.from_poses(
             poses=transformed_eef_poses,
             gripper_actions=src_subtask_gripper_actions,
-            action_noise=subtask_configs[subtask_ind].action_noise,
+            action_noise=subtask_action_noise,
         )
         transformed_traj = WaypointTrajectory()
         transformed_traj.add_waypoint_sequence(transformed_seq)
