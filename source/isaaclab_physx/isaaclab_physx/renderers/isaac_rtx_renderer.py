@@ -21,7 +21,7 @@ from packaging import version
 from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec, warn_unsupported_async_rendering
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.version import get_isaac_sim_version
@@ -125,6 +125,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def __init__(self, cfg: IsaacRtxRendererCfg):
         self.cfg = cfg
+        warn_unsupported_async_rendering(cfg, "isaac_rtx")
         # Enable Replicator only when the Isaac RTX renderer is selected. Declaring it
         # in a Kit experience would resolve its bundled omni.warp.core dependency at startup.
         enable_extension("omni.replicator.core")

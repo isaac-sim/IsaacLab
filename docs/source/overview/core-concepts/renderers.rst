@@ -187,6 +187,38 @@ Or install the public ``ovrtx`` package directly from PyPI:
 
    The :class:`~isaaclab.renderers.BaseRenderer` class is under active development and may change without notice.
 
+.. _renderers-async-data-flow:
+
+Asynchronous Rendering
+----------------------
+
+:attr:`~isaaclab.renderers.RendererCfg.async_rendering` trades one frame of camera latency for
+throughput. Only the OVRTX renderer implements it. This section shows how states, observations,
+actions, and rendered frames line up in both modes.
+
+The diagram below shows one call of ``env.step()``, stage by stage, in both modes. The rows
+where the two columns split are the differences. The timelines show where the throughput gain
+comes from: the render overlaps the CPU work instead of blocking it.
+
+.. raw:: html
+   :file: renderers_async_dataflow.html
+
+Answers to the common questions:
+
+- **Where does the image in the observation come from?** From the previous step. ``O[k]`` mixes
+  the state channels of ``S[k]`` with the image of ``S[k-1]``. Rewards, terminations, and all
+  non-camera observations always use ``S[k]``.
+- **How can the renderer have transforms for a frame it renders later?** It never needs future
+  data. Frame ``F[k]`` renders from ``T[k]``, the transforms of its own step, written before the
+  submit. Two staging slots alternate: step ``k+1`` fills one slot while ``F[k]`` still reads the
+  other. Only the read-back of the finished image is deferred, never its inputs.
+- **How does the physics engine influence the frames?** Through the transforms: ``S[k]`` produces
+  ``T[k]``, which produces ``F[k]``. The image of ``S[k]`` arrives in ``O[k+1]``.
+
+For a policy, the vision channel therefore behaves like a camera with one control step of
+latency: ``A[k+1] = policy(state of S[k], image of S[k-1])``. This matches a common property of
+real robots, whose camera pipelines also deliver slightly old images.
+
 See Also
 --------
 

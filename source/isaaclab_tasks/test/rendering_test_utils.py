@@ -18,6 +18,7 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
+from isaaclab.renderers import RendererCfg, resolve_async_rendering_enabled
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.warp import ProxyArray
 
@@ -45,9 +46,12 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # The max percentage of pixels allowed to differ. If the percentage exceeds this value, the test will fail.
 # The value is set case by case based on the screen space taken up by the env in camera output images. It
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
+# An entry is a single tolerance, or a ``[synchronous, asynchronous]`` pair for envs that also run
+# the pipelined lane, which captures a slightly different render state. Read via
+# :func:`max_different_pixels_percentage_for`.
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     # RTX anti-aliasing along the ground-plane edges varies slightly across GPU and driver environments.
-    "cartpole": 1.5,
+    "cartpole": [1.5, 2.5],
     # Aliasing artifacts of shadow on the table.
     "franka_cloth": 8.0,
     "franka_soft": 8.0,
@@ -77,11 +81,37 @@ _OVRTX_SCALE_SENSITIVE_DATA_TYPES = {"depth", "distance_to_camera", "distance_to
 
 
 def _max_different_pixels_percentage(env_name: str, renderer: str, data_type: str) -> float:
-    """Return the image-difference tolerance for an environment and renderer."""
-    threshold = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[env_name]
+    """Return the image-difference tolerance for an environment, renderer and render path."""
+    threshold = max_different_pixels_percentage_for(env_name)
     if renderer == "ovrtx_renderer" and data_type not in _OVRTX_SCALE_SENSITIVE_DATA_TYPES:
         return min(threshold, _OVRTX_MAX_DIFFERENT_PIXELS_PERCENTAGE)
     return threshold
+
+
+def _async_rendering_enabled() -> bool:
+    """Whether asynchronous (pipelined) rendering is active for this run.
+
+    Reads only :data:`~isaaclab.renderers.ASYNC_RENDERING_ENV_VAR` (through a default renderer
+    config), since the tolerance lookup runs before any renderer config is resolved.
+    """
+    return resolve_async_rendering_enabled(RendererCfg())
+
+
+def max_different_pixels_percentage_for(env_name: str) -> float:
+    """Return ``env_name``'s pixel-diff tolerance for the render path this run uses.
+
+    Args:
+        env_name: Key into :data:`MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME`.
+
+    Returns:
+        The entry itself when it is a single tolerance, else its synchronous or asynchronous
+        element, per :func:`_async_rendering_enabled`.
+    """
+    tolerance = MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[env_name]
+    if not isinstance(tolerance, list):
+        return tolerance
+    synchronous, asynchronous = tolerance
+    return asynchronous if _async_rendering_enabled() else synchronous
 
 
 # Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric

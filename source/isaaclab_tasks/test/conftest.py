@@ -21,6 +21,17 @@ wp.config.enable_backward = False
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
+@pytest.fixture(autouse=True)
+def _clear_async_rendering_env(monkeypatch):
+    """Clear an ambient ``ISAAC_LAB_ASYNC_RENDERING`` for every test.
+
+    Like the ovstage guard below: an ambient override would silently flip the synchronous rendering
+    lanes (and their tolerance selection) to the asynchronous path, dropping synchronous coverage
+    while still reporting green. The dedicated async lane re-sets the variable in its test body.
+    """
+    monkeypatch.delenv("ISAAC_LAB_ASYNC_RENDERING", raising=False)
+
+
 @pytest.fixture()
 def ovstage_variant(request, monkeypatch):
     """Select the indirectly parametrized OVRTX stage path."""

@@ -10,7 +10,11 @@ How it fits together
 - **ovrtx_renderer.py** (this file): Orchestrates the pipeline. Owns the OVRTX Renderer,
   USD loading/cloning, camera and object bindings, and output buffers. Each frame it:
   updates camera/object transforms (using kernels), steps the renderer, then extracts
-  tiles from the tiled framebuffer (kernels).
+  tiles from the tiled framebuffer (kernels). It delegates *how* a frame is executed
+  (synchronously or pipelined) to a render strategy.
+
+- **ovrtx_renderer_strategies.py**: Sync vs async render-execution strategies — how transform
+  writes are staged and how the OVRTX step is dispatched and consumed (Strategy pattern).
 
 - **ovrtx_renderer_kernels.py**: Warp GPU kernels for OVRTX rendering pipeline.
 
@@ -54,6 +58,7 @@ try:
         PrimMode,
         Renderer,
         RendererConfig,
+        RenderProductSetOutputs,
         Semantic,
         TextureStreamingMode,
     )
@@ -87,6 +92,12 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
     sync_newton_transforms_kernel,
+)
+from isaaclab_ov.renderers.ovrtx_renderer_strategies import (
+    _RENDER_DELTA_TIME,
+    _AsyncRenderStrategy,
+    _RenderStrategy,
+    _SyncRenderStrategy,
 )
 from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
@@ -140,6 +151,7 @@ _RTX_MINIMAL_MODES = {
     RenderBufferKind.SIMPLE_SHADING_FULL_MDL.value: 3,
 }
 
+
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
     "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
@@ -170,6 +182,22 @@ def ovrtx_use_ovstage_enabled() -> bool:
     if value not in {"0", "1"}:
         raise ValueError(f"Invalid value for environment variable `{_USE_OVSTAGE_ENV}`: {value}. Expected 0 or 1.")
     return value == "1"
+
+
+def _resolve_render_strategy(cfg: OVRTXRendererCfg, use_ovstage: bool = False) -> _RenderStrategy:
+    """Return the asynchronous strategy when ``cfg`` enables it, else the synchronous one.
+
+    The ovstage path does not support asynchronous rendering yet and always renders synchronously.
+    The legacy path pipelines exactly one frame deep.
+    """
+    strategy = _AsyncRenderStrategy.try_create(cfg)
+    if strategy is not None and use_ovstage:
+        logger.warning(
+            "Asynchronous rendering is not supported on the OVRTX ovstage path yet. Rendering"
+            " synchronously. Use the legacy stage path to pipeline renders."
+        )
+        return _SyncRenderStrategy()
+    return strategy or _SyncRenderStrategy()
 
 
 def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
@@ -355,6 +383,7 @@ class OVRTXRenderer(BaseRenderer):
         # Selected once at construction so every dispatch method below sees a stable path for the
         # lifetime of the renderer, even if the environment variable changes mid-process.
         self._use_ovstage = ovrtx_use_ovstage_enabled()
+        self._strategy: _RenderStrategy = _resolve_render_strategy(cfg, use_ovstage=self._use_ovstage)
         self._init_fields()
 
         logger.info("Creating OVRTX renderer...")
@@ -581,6 +610,7 @@ class OVRTXRenderer(BaseRenderer):
             )
 
         self._initialized_scene = True
+        self._strategy.initialize(num_envs)
 
         self._camera_xform_binding = self._renderer.bind_attribute(
             prim_paths=camera_paths,
@@ -605,6 +635,27 @@ class OVRTXRenderer(BaseRenderer):
         self._setup_deformable_bindings(num_envs)
         self._setup_particle_bindings()
         self._setup_cable_bindings()
+        self._warn_async_geometry_serialization()
+
+    def _warn_async_geometry_serialization(self) -> None:
+        """Warn once when async rendering meets legacy deformable, particle, or cable bindings.
+
+        Their per-frame blocking writes queue behind the in-flight render on the OVRTX op thread.
+        The host then stalls until that render completes, so the pipelining gain is largely lost.
+        """
+        if not isinstance(self._strategy, _AsyncRenderStrategy):
+            return
+        geometry_bindings = (
+            self._deformable_points_binding,
+            self._particle_points_binding,
+            self._cable_points_binding,
+        )
+        if any(binding is not None for binding in geometry_bindings):
+            logger.warning(
+                "Asynchronous rendering is enabled, but this scene has deformable, particle, or"
+                " cable geometry. Their blocking writes wait for the render still in flight, so"
+                " expect little to no throughput gain over synchronous rendering."
+            )
 
     def _clone_sources_in_ovrtx(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
@@ -914,11 +965,17 @@ class OVRTXRenderer(BaseRenderer):
         """
         # Resolve the device once through Warp: a bare "cuda" pins to Warp's current CUDA device
         # here, and the normalized string keeps every downstream consumer (kernel launches,
-        # allocations) on that same device.
+        # allocations) on that same device. The strategy derives its sync streams from the same
+        # resolved device.
         self._warp_device = wp.get_device(spec.device)
         self._device = str(self._warp_device)
+        self._strategy.set_device(self._warp_device)
         if not self._initialized_scene:
             self._initialize_from_spec(spec)
+        # TODO: The scene is built from the first camera's spec, and later specs are silently
+        # ignored. A second camera that dedups onto this renderer through
+        # RenderContext.get_renderer therefore receives the first camera's images. Detect the
+        # mismatch and warn or raise.
         return OVRTXRenderData(spec, self._device)
 
     def set_outputs(self, render_data: OVRTXRenderData, output_data: dict[str, ProxyArray]) -> None:
@@ -974,20 +1031,20 @@ class OVRTXRenderer(BaseRenderer):
         if body_q is None:
             return
 
-        wp.launch(
-            kernel=sync_newton_transforms_kernel,
-            dim=len(self._object_newton_indices),
-            inputs=[self._object_transform_buffer, self._object_newton_indices, body_q, self._object_scales],
-            device=self._device,
-        )
-        # Blocking ``write()`` so the buffer stays valid until OVRTX finishes reading it.
-        # ``DataAccess.ASYNC`` + the Warp CUDA stream let OVRTX read in place and wait
-        # on-GPU for the kernel; ``SYNC`` is rejected for GPU buffers.
-        self._object_xform_binding.write(
-            self._object_transform_buffer,
-            data_access=DataAccess.ASYNC,
-            cuda_stream=self._warp_device.stream.cuda_stream,
-        )
+        # The strategy yields this frame's staging buffer and writes it to the binding on context
+        # exit. The write names the device's current Warp stream as the buffer's producer, and
+        # OVRTX waits for that stream before it reads. A plain wp.launch enqueues the fill kernel
+        # on that same stream, so no explicit stream handling is needed here.
+        num_objects = len(self._object_newton_indices)
+        with self._strategy.stage_object_transforms(
+            self._object_xform_binding, num_objects, self._object_transform_buffer
+        ) as object_transforms:
+            wp.launch(
+                kernel=sync_newton_transforms_kernel,
+                dim=num_objects,
+                inputs=[object_transforms, self._object_newton_indices, body_q, self._object_scales],
+                device=self._device,
+            )
 
     def _update_geometries_legacy(self) -> None:
         """Sync geometries to OVRTX."""
@@ -1071,27 +1128,29 @@ class OVRTXRenderer(BaseRenderer):
         intrinsics: ProxyArray,
     ) -> None:
         """Update camera transforms in OVRTX binding."""
+        if self._camera_xform_binding is None:
+            return
         num_envs = positions.shape[0]
-        converted_wp = wp.empty(num_envs, dtype=wp.quatf, device=self._device)
-        convert_camera_frame_orientation_convention_wp(
-            src=orientations.warp,
-            dst=converted_wp,
-            origin="world",
-            target="opengl",
-            device=self._device,
-        )
-        camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=self._device)
-        wp.launch(
-            kernel=create_camera_transforms_kernel,
-            dim=num_envs,
-            inputs=[positions, converted_wp, camera_transforms],
-            device=self._device,
-        )
-        if self._camera_xform_binding is not None:
-            self._camera_xform_binding.write(
-                camera_transforms,
-                data_access=DataAccess.ASYNC,
-                cuda_stream=self._warp_device.stream.cuda_stream,
+        # The strategy yields staging buffers and writes the transforms to the binding on context
+        # exit. The write names the device's current Warp stream as the buffers' producer, and
+        # OVRTX waits for that stream before it reads. Plain wp.launch/wp.copy calls enqueue the
+        # fill work on that same stream, so no explicit stream handling is needed here.
+        with self._strategy.stage_camera_transforms(self._camera_xform_binding, num_envs) as (
+            converted_wp,
+            camera_transforms,
+        ):
+            convert_camera_frame_orientation_convention_wp(
+                src=orientations.warp,
+                dst=converted_wp,
+                origin="world",
+                target="opengl",
+                device=self._device,
+            )
+            wp.launch(
+                kernel=create_camera_transforms_kernel,
+                dim=num_envs,
+                inputs=[positions, converted_wp, camera_transforms],
+                device=self._device,
             )
 
     def read_output(
@@ -1509,15 +1568,20 @@ class OVRTXRenderer(BaseRenderer):
         try:
             if material_writer is not None:
                 material_writer.publish()
-            products = self._renderer.step(
-                render_products=set(self._render_product_paths),
-                delta_time=1.0 / 60.0,
+            self._strategy.render(
+                self._renderer,
+                set(self._render_product_paths),
+                _RENDER_DELTA_TIME,
+                render_data,
+                self._consume_products,
             )
         finally:
             if material_writer is not None:
                 drain_errors = contextlib.nullcontext() if sys.exc_info()[0] is None else contextlib.suppress(Exception)
                 with drain_errors:
                     material_writer.drain()
+
+    def _consume_products(self, render_data: OVRTXRenderData, products: RenderProductSetOutputs) -> None:
         product_path = self._render_product_paths[0]
         if product_path in products and len(products[product_path].frames) > 0:
             self._process_render_frame(
@@ -1732,23 +1796,35 @@ class OVRTXRenderer(BaseRenderer):
     def cleanup(self, render_data: OVRTXRenderData | None) -> None:
         """Release the render data's buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`.
 
-        The stage queries, tensor bindings and render products this renderer holds are shared by
-        every camera that resolves to it, so releasing them here would tear the scene down while
-        the other cameras are still rendering. :meth:`close` releases them instead.
+        The stage queries, tensor bindings and render products are shared by every camera that
+        resolves to this renderer. Releasing them here would tear the scene down under the other
+        cameras. :meth:`close` releases them instead. :meth:`close` also drains the shared render
+        strategy.
         """
         if render_data is None:
             return
+        # A queued asynchronous frame may still target these buffers. Detach it, so its delivery
+        # skips the released camera instead of writing into cleared dictionaries.
+        self._strategy.release_render_data(render_data)
         render_data.warp_buffers.clear()
         render_data.renderer_info.clear()
         render_data.ppisp_pipeline = None
 
     def close(self) -> None:
         """Release the shared stage state. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.close`."""
+        # Drain in-flight renders before either backend releases the renderer that owns them.
+        # Drain failures are re-raised only after the backend release, so a bad final frame
+        # cannot leak resources and cannot exit the run silently either.
+        drain_errors = self._strategy.cleanup()
         if self._use_ovstage:
             self._close_ovstage()
         else:
             self._close_legacy()
         self._visual_material_writer_ref = None
+        if drain_errors:
+            raise RuntimeError(
+                f"{len(drain_errors)} in-flight OVRTX render(s) failed to complete during close"
+            ) from drain_errors[0]
 
     # ---------------------------------------------------------------------------
     # ovstage implementation
@@ -2396,27 +2472,16 @@ class OVRTXRenderer(BaseRenderer):
                 drain_errors = contextlib.nullcontext() if sys.exc_info()[0] is None else contextlib.suppress(Exception)
                 with drain_errors:
                     material_writer.drain()
+        # The ovstage path always renders synchronously, so it steps the renderer directly. The
+        # render strategy serves the legacy path. The ordinal advances before consumption: a
+        # failed consumption must not leave the ordinal at the write floor set above.
         products = self._renderer.step(
             render_products=set(self._render_product_paths),
-            delta_time=1.0 / 60.0,
+            delta_time=_RENDER_DELTA_TIME,
             ordinal=self._current_ordinal,
         )
         self._current_ordinal += 1
-        product_path = self._render_product_paths[0]
-        if product_path in products and len(products[product_path].frames) > 0:
-            self._process_render_frame(
-                render_data,
-                products[product_path].frames[0],
-                render_data.warp_buffers,
-            )
-
-        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-        # buffers are the same warp buffer map used by extraction.
-        if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(
-                render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
-                render_data.warp_buffers[str(RenderBufferKind.RGBA)],
-            )
+        self._consume_products(render_data, products)
 
     def _close_ovstage(self) -> None:
         """Release the renderer's stage queries, path lists and ovstage stage. See :meth:`close`."""
