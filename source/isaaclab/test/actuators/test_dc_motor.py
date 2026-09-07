@@ -183,3 +183,36 @@ def test_dc_motor_clip(num_envs, num_joints, device, test_point):
         expected_clipped_effort[test_point] * torch.ones(num_envs, num_joints, device=device),
         clipped_effort,
     )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_dc_motor_clip_with_per_joint_saturation_effort(device):
+    """Test that a per-joint ``saturation_effort`` gives each joint its own torque-speed curve.
+
+    Joints behind different gear reductions belong to one actuator group but do not share a stall
+    torque, e.g. the Unitree Go2 calf, which sits behind an extra knee reduction.
+    """
+    joint_names = ["hip", "calf"]
+    actuator_cfg = DCMotorCfg(
+        joint_names_expr=joint_names,
+        stiffness=200.0,
+        damping=10.0,
+        actuator_effort_limit=100.0,
+        actuator_velocity_limit=50.0,
+        saturation_effort={"hip": 100.0, "calf": 190.0},
+    )
+    actuator = actuator_cfg.class_type(
+        actuator_cfg,
+        joint_names=joint_names,
+        joint_ids=[0, 1],
+        num_envs=1,
+        device=device,
+        stiffness=actuator_cfg.stiffness,
+        damping=actuator_cfg.damping,
+    )
+
+    # at half the no-load speed each joint delivers half of its own stall torque, and the shared
+    # effort limit is high enough to clip neither
+    actuator._joint_vel[:] = 25.0
+    clipped_effort = actuator._clip_effort(torch.full((1, 2), 500.0, device=device))
+    torch.testing.assert_close(clipped_effort, torch.tensor([[50.0, 95.0]], device=device))

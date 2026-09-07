@@ -598,7 +598,7 @@ class TestDelayedPDAuthoring(unittest.TestCase):
 
     def test_controller_is_pd(self):
         for a in self.result["actuator_info"]:
-            self.assertEqual(a["controller_type"], "ControllerPD")
+            self.assertEqual(a["controller_type"], "DrivePD")
 
 
 # ---------------------------------------------------------------------------
@@ -772,7 +772,7 @@ class TestRemotizedPDAuthoring(unittest.TestCase):
         kfe_acts = [a for a in self.result["actuator_info"] if "ClampingPositionBased" in a["clamping_types"]]
         self.assertTrue(len(kfe_acts) > 0, "No actuator with position-based clamping found")
         for a in kfe_acts:
-            self.assertEqual(a["controller_type"], "ControllerPD")
+            self.assertEqual(a["controller_type"], "DrivePD")
 
     def test_kfe_has_position_based_clamping(self):
         kfe_acts = [a for a in self.result["actuator_info"] if "ClampingPositionBased" in a["clamping_types"]]
@@ -845,11 +845,11 @@ class TestNeuralMLPAuthoring(unittest.TestCase):
         self.assertGreaterEqual(self.result["num_actuators"], 2)
 
     def test_has_neural_mlp_controller(self):
-        mlp_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "ControllerNeuralMLP"]
+        mlp_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "DriveNeuralMLP"]
         self.assertTrue(len(mlp_acts) > 0, "No NeuralMLP controller found")
 
     def test_mlp_has_dc_motor_clamping(self):
-        mlp_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "ControllerNeuralMLP"]
+        mlp_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "DriveNeuralMLP"]
         for a in mlp_acts:
             self.assertIn("ClampingDCMotor", a["clamping_types"])
 
@@ -890,11 +890,11 @@ class TestNeuralLSTMAuthoring(unittest.TestCase):
         self.assertGreaterEqual(self.result["num_actuators"], 2)
 
     def test_has_neural_lstm_controller(self):
-        lstm_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "ControllerNeuralLSTM"]
+        lstm_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "DriveNeuralLSTM"]
         self.assertTrue(len(lstm_acts) > 0, "No NeuralLSTM controller found")
 
     def test_lstm_has_dc_motor_clamping(self):
-        lstm_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "ControllerNeuralLSTM"]
+        lstm_acts = [a for a in self.result["actuator_info"] if a["controller_type"] == "DriveNeuralLSTM"]
         for a in lstm_acts:
             self.assertIn("ClampingDCMotor", a["clamping_types"])
 

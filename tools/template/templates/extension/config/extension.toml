@@ -7,10 +7,10 @@ version = "0.1.0"
 category = "isaaclab"
 readme  = "README.md"
 
-title = "Extension Template"
+title = "{{ name }} UI Extension"
 author = "Isaac Lab Project Developers"
 maintainer = "Isaac Lab Project Developers"
-description="Extension Template for Isaac Lab"
+description="Isaac Sim UI extension for {{ name }}"
 repository = "https://github.com/isaac-sim/IsaacLab.git"
 keywords = ["extension", "template", "isaaclab"]
 
@@ -21,9 +21,6 @@ keywords = ["extension", "template", "isaaclab"]
 "isaaclab_rl" = {}
 "isaaclab_tasks" = {}
 # NOTE: Add additional dependencies here
-
-[[python.module]]
-name = "{{ name }}"
 
 # UI extension module: Kit imports this submodule directly and scans it for ``omni.ext.IExt``
 # subclasses. Kept separate from the package root so ``import {{ name }}`` stays omni-free headless.

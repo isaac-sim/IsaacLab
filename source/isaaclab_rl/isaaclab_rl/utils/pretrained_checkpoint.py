@@ -239,7 +239,16 @@ def get_published_pretrained_checkpoint(
             to use the legacy checkpoint layout.
 
     Returns:
-        The path.
+        The path, or None when the asset server does not report a checkpoint for this task
+        and backend combination. That covers both a checkpoint that was never published and
+        a server that could not be reached, which ``omni.client`` does not distinguish, so a
+        transient outage is not evidence that a checkpoint does not exist. The reason is
+        printed before returning.
+
+    Raises:
+        RuntimeError: If the checkpoint is published but could not be downloaded, for
+            instance because the local cache directory is not writable. The originating
+            error is chained as the cause.
     """
     filename = get_pretrained_checkpoint_filename(workflow, task_name, physics_backend, render_backend)
     ov_path = get_published_pretrained_checkpoint_path(workflow, task_name, physics_backend, render_backend)
@@ -252,9 +261,35 @@ def get_published_pretrained_checkpoint(
         print(f"Fetching pre-trained checkpoint : {ov_path}")
         try:
             resume_path = retrieve_file_path(ov_path, download_dir)
-        except Exception:
-            print("A pre-trained checkpoint is currently unavailable for this task.")
+        except FileNotFoundError:
+            # the asset server reports a checkpoint that was never published and a server it
+            # cannot reach the same way, so both are covered by the same message
+            backends = (
+                ""
+                if physics_backend is None
+                else f" with the '{physics_backend}' physics and '{render_backend}' render backends"
+            )
+            print(
+                "A pre-trained checkpoint is currently unavailable for this task.\n"
+                f"  The asset server does not provide '{ov_path}'.\n"
+                f"  Either no checkpoint is published for task '{task_name}'{backends}, or the asset"
+                " server could not be reached.\n"
+                "  Train the task, or pass --checkpoint <path> to use a checkpoint of your own."
+            )
             return None
+        except Exception as exc:
+            # the checkpoint exists on the server, so this is a local failure the user has to fix;
+            # reporting it as an unavailable checkpoint would send them looking in the wrong place
+            hint = ""
+            if isinstance(exc, OSError):
+                hint = (
+                    " Check that the cache directory is writable and that the disk is not full;"
+                    " a directory left behind by a container run is owned by root."
+                )
+            raise RuntimeError(
+                f"Failed to download the pre-trained checkpoint '{ov_path}' into"
+                f" '{os.path.abspath(download_dir)}': {type(exc).__name__}: {exc}.{hint}"
+            ) from exc
     else:
         print("Using pre-fetched pre-trained checkpoint")
     return resume_path

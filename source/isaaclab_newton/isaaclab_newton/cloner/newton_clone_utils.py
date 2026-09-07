@@ -9,7 +9,6 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 import numpy as np
-import torch
 import warp as wp
 from newton import GeoType, JointType, ModelBuilder, ShapeFlags
 
@@ -233,33 +232,32 @@ def _rebase_labels(builder: ModelBuilder, source: str, destination: str) -> str:
 def replicate_builder_mapping(
     builder: ModelBuilder,
     sources: Sequence[str],
-    mapping: torch.Tensor,
-    positions: torch.Tensor,
-    quaternions: torch.Tensor,
+    mapping: np.ndarray,
+    positions: np.ndarray,
+    quaternions: np.ndarray,
     source_builders: dict[str, ModelBuilder],
     destinations: Sequence[str] | None = None,
-    env_ids: torch.Tensor | None = None,
+    env_ids: np.ndarray | None = None,
     *,
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
-    per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, list[float], list[float]], None]] = (),
+    per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]]]:
     """Replicate source builders, naming homogeneous copies at their destinations."""
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
-    num_worlds = mapping.size(1)
+    num_worlds = mapping.shape[1]
     local_site_map: dict[str, list[list[int]]] = {}
-    positions_np = positions.detach().cpu().numpy().astype(np.float32, copy=False)
-    quaternions_np = quaternions.detach().cpu().numpy().astype(np.float32, copy=False)
-    xforms_np = np.concatenate((positions_np, quaternions_np), axis=1)
-    xform_rows = xforms_np.tolist()
-    world_xforms = [wp.transform(*row) for row in xform_rows]
+    positions = positions.astype(np.float32, copy=False)
+    quaternions = quaternions.astype(np.float32, copy=False)
+    xforms_np = np.concatenate((positions, quaternions), axis=1)
+    world_xforms = [wp.transform(*row) for row in xforms_np]
 
     can_batch = (
         len(sources) == 1
-        and mapping.size(0) == 1
+        and mapping.shape[0] == 1
         and num_worlds > 0
-        and bool(mapping.all().item())
+        and bool(mapping.all())
         and not per_world_builder_hooks
         and bool(destinations)
         and env_ids is not None
@@ -281,13 +279,13 @@ def replicate_builder_mapping(
         base_shape = builder.shape_count
         stride = source_builder.shape_count
         source_xform_inv = _invert_xform(xforms_np[0])
-        xforms = _compose_world_xforms(positions_np, quaternions_np, source_xform_inv)
+        xforms = _compose_world_xforms(positions, quaternions, source_xform_inv)
 
         label_groups = _label_groups(source_builder)
         original_labels = {name: list(labels) for name, labels in label_groups.items()}
         try:
             prefix = _rebase_labels(source_builder, sources[0], destinations[0])
-            prefixes = [prefix.format(env_id) for env_id in env_ids.tolist()]
+            prefixes = [prefix.format(int(env_id)) for env_id in env_ids]
             builder.replicate(source_builder, num_worlds, xforms=xforms, label_prefixes=prefixes)
         finally:
             for name, labels in original_labels.items():
@@ -301,30 +299,30 @@ def replicate_builder_mapping(
         bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
         return local_site_map, world_xforms, bindings
 
-    source_world_indices = mapping.to(dtype=torch.int64).argmax(dim=1).tolist()
+    source_world_indices = mapping.argmax(axis=1)
 
     # Per-world placements for every env-root site, composed up front so the per-world loop
     # below only indexes rows.
     root_site_xforms = {
-        label: _compose_world_xforms(positions_np, quaternions_np, xform) for label, xform in env_root_sites.items()
+        label: _compose_world_xforms(positions, quaternions, xform) for label, xform in env_root_sites.items()
     }
     # Same for the source placements, but only for the occupied ``(row, col)`` pairs of the
     # mapping: composing a dense ``num_rows x num_worlds`` table would blow up on heterogeneous
     # plans where each row is present in a handful of worlds.
     # One scan of the transposed mapping yields the occupied pairs in world-major order, which
-    # is the order both indices want; scanning per world instead costs a torch call and a
-    # device sync per world.
+    # is the order both indices want.
     rows_per_world: list[list[int]] = [[] for _ in range(num_worlds)]
     worlds_per_row: dict[int, list[int]] = {}
-    for col, row in mapping.t().nonzero(as_tuple=False).tolist():
+    for col_value, row_value in np.argwhere(mapping.T):
+        col, row = int(col_value), int(row_value)
         rows_per_world[col].append(row)
         worlds_per_row.setdefault(row, []).append(col)
     source_xforms: dict[tuple[int, int], np.ndarray] = {}
     for row, cols in worlds_per_row.items():
-        source_col = source_world_indices[row]
+        source_col = int(source_world_indices[row])
         row_xforms = _compose_world_xforms(
-            positions_np[cols],
-            quaternions_np[cols],
+            positions[cols],
+            quaternions[cols],
             _invert_xform(xforms_np[source_col]),
         )
         source_xforms.update(((row, col), row_xforms[index]) for index, col in enumerate(cols))
@@ -342,7 +340,7 @@ def replicate_builder_mapping(
                 local_indices = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col]
                 local_indices.extend(offset + shape_idx for shape_idx in source_shape_indices)
         for hook in per_world_builder_hooks:
-            hook(builder, col, xform_rows[col][:3], xform_rows[col][3:])
+            hook(builder, col, xforms_np[col, :3].copy(), xforms_np[col, 3:].copy())
         builder.end_world()
 
     bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping) if destinations else []
@@ -353,22 +351,20 @@ def rename_builder_labels(
     builder: ModelBuilder,
     sources: Sequence[str],
     destinations: Sequence[str],
-    env_ids: torch.Tensor,
-    mapping: torch.Tensor,
+    env_ids: np.ndarray,
+    mapping: np.ndarray,
     *,
     skip_entity_labels: bool = False,
 ) -> list[tuple[str, int]]:
     """Rewrite source-root labels to per-env destination roots and return Fabric body bindings."""
     fabric_body_bindings: list[tuple[str, int]] = []
     bound_body_indices: set[int] = set()
-    env_ids_list = env_ids.tolist()
-
     for source_index, source in enumerate(sources):
         source_root = source.rstrip("/") or "/"
-        world_cols = torch.nonzero(mapping[source_index], as_tuple=True)[0].tolist()
+        world_cols = np.flatnonzero(mapping[source_index])
         # Pre-normalize the destination roots
         destination = destinations[source_index]
-        world_roots = {col: (destination.format(env_ids_list[col]).rstrip("/") or "/") for col in world_cols}
+        world_roots = {int(col): (destination.format(int(env_ids[col])).rstrip("/") or "/") for col in world_cols}
 
         def _rename_pair(values, worlds, src_root=source_root, roots=world_roots, *, collect_body_bindings=False):
             rows = (

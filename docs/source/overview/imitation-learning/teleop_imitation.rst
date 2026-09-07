@@ -159,24 +159,41 @@ the key bindings are:
 
 .. tip::
 
-   If the SpaceMouse is not detected, you may need to grant additional user permissions by running ``sudo chmod 666 /dev/hidraw<#>`` where ``<#>`` corresponds to the device index
-   of the connected SpaceMouse.
+   If the SpaceMouse is not detected, you most likely need additional user permissions. The ``hidapi``
+   wheel installed by Isaac Lab bundles a backend that talks to the device over ``libusb``, so it needs
+   read and write access to the USB node under ``/dev/bus/usb`` -- granting access to ``/dev/hidraw*``
+   alone is **not** sufficient, and without USB access the device is enumerated without a product name.
 
-   To determine the device index, list all ``hidraw`` devices by running ``ls -l /dev/hidraw*``.
-   Identify the device corresponding to the SpaceMouse by running ``cat /sys/class/hidraw/hidraw<#>/device/uevent`` on each of the devices listed
-   from the prior step.
+   Grant the permission by installing a udev rule for the 3Dconnexion vendor id:
 
-   We recommend using local deployment of Isaac Lab to use the SpaceMouse. If using container deployment (:ref:`deployment-docker`), you must manually mount the SpaceMouse to the ``isaac-lab-base`` container by
-   adding a ``devices`` attribute with the path to the device in your ``docker-compose.yaml`` file:
+   .. code:: bash
+
+      sudo groupadd -f plugdev && sudo usermod -aG plugdev "$USER"
+      sudo tee /etc/udev/rules.d/99-spacemouse.rules <<'EOF'
+      SUBSYSTEM=="usb", ATTR{idVendor}=="256f", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+      KERNEL=="hidraw*", ATTRS{idVendor}=="256f", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+      EOF
+      sudo udevadm control --reload-rules && sudo udevadm trigger
+
+   Then unplug and reconnect the SpaceMouse, and log out and back in so the new group membership
+   applies. The rule grants access to the user on the local seat (``uaccess``) and to members of
+   ``plugdev``, rather than to every account on the machine; the ``plugdev`` membership is what makes
+   it work over SSH, where there is no local seat. Older 3Dconnexion models such as the SpaceNavigator
+   for Notebooks enumerate under the Logitech vendor id, so replace ``256f`` with ``046d`` for those.
+
+   We recommend using local deployment of Isaac Lab to use the SpaceMouse. If using container deployment (:ref:`deployment-docker`), you must give the ``isaac-lab-base`` container access to the USB bus by
+   mounting it and allowing its device cgroup in your ``docker-compose.yaml`` file:
 
    .. code:: yaml
 
-      devices:
-         - /dev/hidraw<#>:/dev/hidraw<#>
+      volumes:
+         - /dev/bus/usb:/dev/bus/usb
+      device_cgroup_rules:
+         - "c 189:* rmw"
 
-   where ``<#>`` is the device index of the connected SpaceMouse.
-
-   Isaac Lab is only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.
+   Isaac Lab supports the SpaceMouse Compact, SpaceMouse Wireless and SpaceNavigator for Notebooks
+   from 3Dconnexion. SE(3) teleoperation additionally supports the SpaceNavigator and the
+   3Dconnexion Universal Receiver.
 
 
 
