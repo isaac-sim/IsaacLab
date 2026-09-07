@@ -861,6 +861,9 @@ follows.
    * - ``Isaac-Reach-Franka`` with ``physics=isaacsim_physx presets=diffik``
      - Keyboard, Gamepad, SpaceMouse
      - **Arm:** relative IK end-effector control. Gripper disabled.
+   * - ``Isaac-Reach-Franka`` with ``physics=newton_mjwarp presets=newton_ik``
+     - Keyboard, Gamepad, SpaceMouse
+     - **Arm:** relative Newton IK end-effector control. Gripper disabled.
 
 
 .. note::
