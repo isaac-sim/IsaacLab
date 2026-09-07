@@ -340,3 +340,19 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
     },
 )
+
+
+for _sym_arm, _sym_cls in (
+    ("Sym1", "G129DofRoughAirTime100Sym1EnvCfg"),
+    ("Sym2", "G129DofRoughAirTime100Sym2EnvCfg"),
+    ("Sym3", "G129DofRoughAirTime100Sym3EnvCfg"),
+):
+    gym.register(
+        id=f"Isaac-Velocity-Rough-G1-29Dof-AirTime100-{_sym_arm}",
+        entry_point="isaaclab.envs:ManagerBasedRLEnv",
+        disable_env_checker=True,
+        kwargs={
+            "env_cfg_entry_point": f"{__name__}.rough_29dof_symmetry_env_cfg:{_sym_cls}",
+            "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+        },
+    )
