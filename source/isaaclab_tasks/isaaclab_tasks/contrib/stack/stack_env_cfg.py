@@ -342,6 +342,20 @@ def raise_if_surface_gripper_on_newton(env_cfg) -> None:
         )
 
 
+def raise_if_surface_gripper_on_gpu(env_cfg) -> None:
+    """Reject GPU simulation for scenes that configure a surface gripper.
+
+    Args:
+        env_cfg: The resolved environment config to inspect.
+    """
+    if getattr(env_cfg.scene, "surface_gripper", None) is None:
+        return
+    if env_cfg.sim.device != "cpu":
+        raise ValueError(
+            "Surface grippers are only supported on the CPU simulation device. Re-run this task with --device cpu."
+        )
+
+
 @configclass
 class StackEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the stacking environment."""

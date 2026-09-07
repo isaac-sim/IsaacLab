@@ -237,6 +237,73 @@ def test_simple_agents_default_to_newton_visualizer(
     assert args.visualizer == ["newton_gl"]
 
 
+def test_simple_agents_preserve_task_device_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Checkpoint-free agents should not replace a task-required device with the CLI default."""
+
+    class _ExpectedStop(Exception):
+        pass
+
+    class _Cfg:
+        scene = SimpleNamespace(num_envs=1)
+        sim = SimpleNamespace(device="cpu", use_fabric=True)
+
+        def validate(self) -> None:
+            pass
+
+    args = SimpleNamespace(
+        num_envs=None,
+        device="cuda:0",
+        disable_fabric=False,
+        task="Cpu-Task",
+    )
+
+    def launch_simulation(cfg, launcher_args):
+        assert cfg.sim.device == "cpu"
+        assert launcher_args.device == "cpu"
+        raise _ExpectedStop
+
+    monkeypatch.setattr(_simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(_simple_agents, "resolve_task_config", lambda task, agent: (_Cfg(), None))
+    monkeypatch.setattr(_simple_agents, "launch_simulation", launch_simulation)
+
+    with pytest.raises(_ExpectedStop):
+        _simple_agents.run([], policy="zero")
+
+
+def test_simple_agents_apply_explicit_device_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Checkpoint-free agents should continue to honor an explicit CLI device."""
+
+    class _ExpectedStop(Exception):
+        pass
+
+    class _Cfg:
+        scene = SimpleNamespace(num_envs=1)
+        sim = SimpleNamespace(device="cpu", use_fabric=True)
+
+        def validate(self) -> None:
+            pass
+
+    args = SimpleNamespace(
+        num_envs=None,
+        device="cuda:1",
+        device_explicit=True,
+        disable_fabric=False,
+        task="Cpu-Task",
+    )
+
+    def launch_simulation(cfg, launcher_args):
+        assert cfg.sim.device == "cuda:1"
+        assert launcher_args.device == "cuda:1"
+        raise _ExpectedStop
+
+    monkeypatch.setattr(_simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(_simple_agents, "resolve_task_config", lambda task, agent: (_Cfg(), None))
+    monkeypatch.setattr(_simple_agents, "launch_simulation", launch_simulation)
+
+    with pytest.raises(_ExpectedStop):
+        _simple_agents.run([], policy="random")
+
+
 def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.MonkeyPatch) -> None:
     """Unsupported task presets fail cleanly before a simulator backend is initialized."""
 

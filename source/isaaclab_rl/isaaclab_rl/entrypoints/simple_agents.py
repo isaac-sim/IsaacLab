@@ -67,7 +67,12 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
     # override with CLI arguments and reject unsupported configurations before
     # launching Kit or initializing a native physics backend.
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+    if getattr(args_cli, "device_explicit", False):
+        env_cfg.sim.device = args_cli.device
+    else:
+        # Keep task-specific requirements (for example CPU-only surface grippers) and pass the
+        # resolved default through to AppLauncher.
+        args_cli.device = env_cfg.sim.device
     if args_cli.disable_fabric:
         env_cfg.sim.use_fabric = False
     try:
