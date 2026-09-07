@@ -62,14 +62,13 @@ jobs:
         ISAACSIM_ACCEPT_EULA: YES
       run: |
         bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
-          uv sync --extra all --extra isaacsim --extra test --extra rlinf --extra mimic
+          uv sync --extra all --extra isaacsim --extra dev --extra rlinf --extra mimic
         # ``[tool.uv.pip] prerelease = "allow"`` lets unpinned tools float onto
         # prereleases. pip-licenses 6.0.0a1 reports an empty License where 5.x reports
         # ``UNKNOWN``, which license-exceptions.json keys on, and joins multi-license
         # strings unsorted. Cap below 6.0 until 6.x ships stable and is re-reviewed.
         bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
-          uv pip install "pip-licenses<6.0" pipdeptree \
-          -r tools/template/requirements.txt
+          uv pip install "pip-licenses<6.0" pipdeptree
         # Put the venv on PATH for later steps.
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 

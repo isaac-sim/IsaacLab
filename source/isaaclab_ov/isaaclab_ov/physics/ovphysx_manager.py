@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import numpy as np
 import warp as wp
 
-from pxr import UsdPhysics
+from pxr import Sdf, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
@@ -39,8 +39,10 @@ from isaaclab.scene_data.deformable_discovery import (
 
 from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
+from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.stage import create_ovstage
 
+from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR
 
 if TYPE_CHECKING:
@@ -400,6 +402,8 @@ class OvPhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
+    clone_context_type = OvPhysxReplicateContext
+
     _cfg: ClassVar[OvPhysxCfg | None] = None
     _physx: ClassVar[Any] = None  # ovphysx.PhysX (lazy import)
     _ovstage: ClassVar[Any] = None
@@ -417,6 +421,10 @@ class OvPhysxManager(PhysicsManager):
     _pending_clones: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
+    # Gravity currently applied to the running scene [m/s^2]. Seeded from ``SimulationCfg.gravity``
+    # in :meth:`initialize` and refreshed by :meth:`set_gravity`. ``cfg.gravity`` stays the nominal
+    # value that randomization terms resample from, so live updates must not be written back to it.
+    _gravity: ClassVar[tuple[float, float, float] | None] = None
 
     @classmethod
     def get_dt(cls) -> float:
@@ -521,7 +529,9 @@ class OvPhysxManager(PhysicsManager):
         IsaacLab's conservative first-device policy for this process.
         """
         super().initialize(sim_context)
+        sim_context.get_or_create_backend(cls.clone_context_type, sim_context)
         cls._ensure_physx_schemas_registered()
+        cls._gravity = tuple(sim_context.cfg.gravity)
         cls._warmup_done = False
         cls._requires_full_stage = False
         cls._stage_usda = None
@@ -583,6 +593,24 @@ class OvPhysxManager(PhysicsManager):
         operation = physx.reset_stage()
         physx.wait_op(operation)
 
+    @staticmethod
+    def _warmup_physx(physx: Any) -> None:
+        """Warm a runtime through its version-selected API."""
+        entry_point = OVPHYSX_LIFECYCLE_ENTRY_POINTS["warmup"]
+        warmup = getattr(physx, entry_point, None)
+        if warmup is None:
+            raise AttributeError(f"OVPhysX does not expose the selected {entry_point}() lifecycle entry point")
+        warmup()
+
+    @staticmethod
+    def _destroy_physx(physx: Any) -> None:
+        """Tear a runtime down through its version-selected API."""
+        entry_point = OVPHYSX_LIFECYCLE_ENTRY_POINTS["destroy"]
+        destroy = getattr(physx, entry_point, None)
+        if destroy is None:
+            raise AttributeError(f"OVPhysX does not expose the selected {entry_point}() lifecycle entry point")
+        destroy()
+
     @classmethod
     def close(cls) -> None:
         """Release ovphysx resources and clean up."""
@@ -615,18 +643,44 @@ class OvPhysxManager(PhysicsManager):
         GPU-first processes.
         """
         physx = cls._physx
-        cls._physx = None
+        if physx is None:
+            cls._destroy_ovstage()
+            return
+
+        # Preserve the legacy 0.5.11 behavior: release both owners even when
+        # cleanup raises. Only OVPhysX 0.6 destroy failures can remain retryable.
+        destroy_entry_point = OVPHYSX_LIFECYCLE_ENTRY_POINTS["destroy"]
+        release_owners = destroy_entry_point == "release"
         try:
-            if physx is not None:
+            try:
+                cls._close_physx_views(physx)
+            finally:
                 try:
-                    cls._close_physx_views(physx)
+                    cls._reset_physx_stage(physx)
                 finally:
                     try:
-                        cls._reset_physx_stage(physx)
-                    finally:
-                        physx.release()
+                        cls._destroy_physx(physx)
+                    except Exception:
+                        if destroy_entry_point == "destroy":
+                            # OVPhysX 0.6 keeps ``handle`` valid when destroy raises
+                            # before native teardown. Preserve both owners so a later
+                            # close can retry. A RuntimeError from ``handle`` means
+                            # destruction reached its terminal state.
+                            try:
+                                physx.handle
+                            except RuntimeError:
+                                release_owners = True
+                            except Exception:
+                                # An unfamiliar handle probe must not replace the
+                                # original destroy error or release either owner.
+                                release_owners = False
+                        raise
+                    else:
+                        release_owners = True
         finally:
-            cls._destroy_ovstage()
+            if release_owners:
+                cls._physx = None
+                cls._destroy_ovstage()
 
     @classmethod
     def _attach_ovstage(cls, stage_usda: str) -> None:
@@ -688,17 +742,20 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def get_gravity(cls) -> tuple[float, float, float]:
-        """Return the world-frame gravity vector [m/s^2] from the active simulation cfg.
+        """Return the world-frame gravity vector [m/s^2] currently applied to the scene.
 
         Mirrors PhysX's ``SimulationView.get_gravity()`` so backend-agnostic sensor code
-        can read gravity through one classmethod.
+        can read gravity through one classmethod. The value tracks :meth:`set_gravity`,
+        falling back to the simulation cfg until the first live update.
 
         Raises:
             RuntimeError: If no simulation is active. Call :meth:`initialize` first.
         """
         if cls._sim is None or not hasattr(cls._sim, "cfg"):
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
-        return cls._sim.cfg.gravity
+        if cls._gravity is None:
+            return tuple(cls._sim.cfg.gravity)
+        return cls._gravity
 
     @classmethod
     def set_gravity(cls, gravity: tuple[float, float, float]) -> None:
@@ -744,6 +801,10 @@ class OvPhysxManager(PhysicsManager):
             ).wait()
             cls._ovstage.advance_write_floor(ordinal=ordinal).wait()
             cls._physx.update_from_ovstage(ordinal, ordinal)
+
+        # Only publish once the ordinal has been applied, so a failed write leaves
+        # :meth:`get_gravity` reporting the gravity the scene is still running with.
+        cls._gravity = (float(gravity_array[0]), float(gravity_array[1]), float(gravity_array[2]))
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:
@@ -910,8 +971,8 @@ class OvPhysxManager(PhysicsManager):
         choice and registers process-exit cleanup. On a forced re-warm before
         :meth:`close`, it reuses the active instance, attaches the new USD through
         OVStage, rebuilds active clone recipes through full-stage materialization
-        or runtime replay, and (on GPU) re-runs ``warmup_gpu`` so the new stage's
-        bodies are resident.
+        or runtime replay, and (on GPU) re-runs the supported warmup entry point
+        so the new stage's bodies are resident.
 
         Raises:
             RuntimeError: If ``SimulationContext`` is not set, or if a device
@@ -942,6 +1003,8 @@ class OvPhysxManager(PhysicsManager):
 
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
         if scene_prim.IsValid():
+            if cls._active_clone_recipes:
+                scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
             cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
         # Flatten the current USD stage to USDA text so OVStage can populate it
@@ -985,7 +1048,7 @@ class OvPhysxManager(PhysicsManager):
         # GPU bodies must be re-warmed after every OVStage attachment: the cached PhysX
         # instance carries its old buffer layout from the previous stage.
         if ovphysx_device == "gpu":
-            cls._physx.warmup_gpu()
+            cls._warmup_physx(cls._physx)
 
         # Initialize the SceneDataBackend now that the wheel's PhysX is live and
         # the OVStage is attached. The central
@@ -1103,8 +1166,6 @@ class OvPhysxManager(PhysicsManager):
                 values. The GPU buffer-capacity values are only consulted when ``device == "gpu"``.
             device: Resolved physics device — one of ``"cpu"`` or ``"gpu"``.
         """
-        from pxr import Sdf
-
         schemas = Sdf.TokenListOp()
         current = scene_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
         items = list(current.prependedItems) if current.prependedItems else []

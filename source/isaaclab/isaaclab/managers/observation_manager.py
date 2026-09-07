@@ -396,7 +396,10 @@ class ObservationManager(ManagerBase):
             # apply post-processing
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
-                    obs = modifier.func(obs, **modifier.params)
+                    if isinstance(modifier.func, modifiers.ModifierBase):
+                        obs = modifier.func(obs)
+                    else:
+                        obs = modifier.func(obs, **modifier.params)
             if isinstance(term_cfg.noise, noise.NoiseCfg):
                 obs = term_cfg.noise.func(obs, term_cfg.noise)
             elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
@@ -579,24 +582,21 @@ class ObservationManager(ManagerBase):
                 if term_cfg.modifiers is not None:
                     # initialize list of modifiers for term
                     for mod_cfg in term_cfg.modifiers:
-                        # check if class modifier and initialize with observation size when adding
-                        if isinstance(mod_cfg, modifiers.ModifierCfg):
-                            # to list of modifiers - instantiate class-based modifiers
-                            if inspect.isclass(mod_cfg.func):
-                                mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
-                                # verify the instance is the correct type
-                                if not isinstance(mod_cfg.func, modifiers.ModifierBase):
-                                    raise TypeError(
-                                        f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
-                                        f" is not an instance of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
-                                    )
-                                # add to list of class modifiers
-                                self._group_obs_class_instances.append(mod_cfg.func)
-                        else:
+                        if not isinstance(mod_cfg, modifiers.ModifierCfg):
                             raise TypeError(
                                 f"Modifier configuration '{mod_cfg}' of observation term '{term_name}' is not of"
                                 f" required type ModifierCfg, Received: '{type(mod_cfg)}'"
                             )
+
+                        # construct stateful modifiers with the observation size
+                        if inspect.isclass(mod_cfg.func):
+                            mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
+                            if not isinstance(mod_cfg.func, modifiers.ModifierBase):
+                                raise TypeError(
+                                    f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
+                                    f" is not an instance of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
+                                )
+                            self._group_obs_class_instances.append(mod_cfg.func)
 
                         # check if function is callable
                         if not callable(mod_cfg.func):

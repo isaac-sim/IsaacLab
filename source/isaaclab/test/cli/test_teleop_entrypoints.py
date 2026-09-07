@@ -47,7 +47,7 @@ def test_teleop_workflow_help_exposes_task_preset_selectors(command, script_part
 
 
 @pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
-def test_teleop_dispatches_to_an_existing_script(command, script_parts):
+def test_teleop_dispatches_to_an_existing_script(source_checkout_root: Path, command, script_parts):
     """``isaaclab teleop`` forwards the remaining arguments to a script that exists."""
     args = [command, "--task", "IsaacContrib-PickPlace-Locomanipulation-G1-Abs", "--xr"]
 
@@ -57,7 +57,7 @@ def test_teleop_dispatches_to_an_existing_script(command, script_parts):
     ):
         cli.cli()
 
-    script = cli.ISAACLAB_ROOT.joinpath(*script_parts)
+    script = source_checkout_root.joinpath(*script_parts)
     run_python.assert_called_once_with(script, args[1:], check=True)
     assert script.is_file()
 
@@ -73,21 +73,21 @@ def _requirement_names(requirements: list[str]) -> set[str]:
 
 
 @pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
-def test_teleop_workflow_isaaclab_imports_are_covered_by_the_extras(command, script_parts):
+def test_teleop_workflow_isaaclab_imports_are_covered_by_the_extras(source_checkout_root: Path, command, script_parts):
     """Every ``isaaclab_*`` package a teleop script imports must ship with the extras.
 
     ``record_demos.py`` imports ``isaaclab_mimic`` at module level, so an environment built
     from ``--extra teleop`` alone used to die with ``ModuleNotFoundError`` only after Isaac Sim
     had finished booting. This catches that class of gap without needing an install.
     """
-    with (cli.ISAACLAB_ROOT / "pyproject.toml").open("rb") as f:
+    with (source_checkout_root / "pyproject.toml").open("rb") as f:
         pyproject = tomllib.load(f)
     project = pyproject["project"]
 
     available = _requirement_names(project["dependencies"])
     available |= _requirement_names(project["optional-dependencies"]["teleop"])
 
-    source = Path(cli.ISAACLAB_ROOT).joinpath(*script_parts).read_text(encoding="utf-8")
+    source = source_checkout_root.joinpath(*script_parts).read_text(encoding="utf-8")
     imported = set(re.findall(r"^\s*(?:import|from)\s+(isaaclab_\w+)", source, re.MULTILINE))
 
     missing = imported - available

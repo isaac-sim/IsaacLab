@@ -235,7 +235,7 @@ For example, open the same task in both Newton and Rerun:
    uv run --extra rerun isaaclab random_agent --task Isaac-Cartpole \
       physics=newton_mjwarp --viz newton,rerun
 
-See :doc:`/source/overview/core-concepts/visualization` for visualizer setup and
+See :doc:`/source/concepts/visualization` for visualizer setup and
 configuration.
 
 
@@ -303,7 +303,7 @@ Benchmark a task
      - Run ``startup``, ``runtime``, or ``training`` across multiple GPUs by
        adding the suffix ``_multigpu``. For example, ``runtime_multigpu``.
 
-See :ref:`testing_benchmarks` for benchmark fundamentals and
+See :ref:`developer_tools_benchmarking` for benchmark fundamentals and
 :ref:`train_multigpu-command` for multi-GPU training and benchmarks.
 
 Next steps

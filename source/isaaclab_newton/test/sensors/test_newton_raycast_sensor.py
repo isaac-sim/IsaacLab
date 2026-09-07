@@ -27,7 +27,13 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
-from isaaclab.sensors.ray_caster import MultiMeshRayCaster, MultiMeshRayCasterCamera, RayCasterCamera, RayCasterCfg
+from isaaclab.sensors.ray_caster import (
+    MultiMeshRayCaster,
+    MultiMeshRayCasterCamera,
+    MultiMeshRayCasterCfg,
+    RayCasterCamera,
+    RayCasterCfg,
+)
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -162,6 +168,35 @@ def test_remaining_warp_mesh_factories_select_legacy_newton_adapters(sim):
     assert MultiMeshRayCasterCamera.resolve_class() is LegacyMultiMeshRayCasterCamera
 
 
+def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
+    """Tracked target registration remains valid when discovery returns concrete owner paths."""
+    obstacle_cfg = sim_utils.CuboidCfg(
+        size=(1.0, 1.0, 1.0),
+        rigid_props=sim_utils.RigidBodyBaseCfg(kinematic_enabled=True),
+        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+        collision_props=sim_utils.CollisionBaseCfg(),
+    )
+    obstacle_cfg.func("/World/Origin_00/Obstacle", obstacle_cfg)
+
+    sensor_cfg = MultiMeshRayCasterCfg(
+        prim_path="/World/Origin_[^/]+/Obstacle",
+        mesh_prim_paths=[
+            MultiMeshRayCasterCfg.RaycastTargetCfg(
+                prim_expr="/World/Origin_[^/]+/Obstacle",
+                track_mesh_transforms=True,
+            )
+        ],
+        pattern_cfg=GridPatternCfg(resolution=1.0, size=(0.0, 0.0)),
+    )
+    sensor = MultiMeshRayCaster(sensor_cfg)
+
+    sim.reset()
+    sensor.update(sim.get_physics_dt(), force_recompute=True)
+
+    assert sensor.num_instances == 1
+    assert sensor.data.ray_hits_w.shape[0] == 1
+
+
 def test_bvh_refit_tracks_moving_geometry(sim):
     """Sliding a box under the sensor changes the hits, proving the BVH refits live."""
     scene = InteractiveScene(RaycastTestSceneCfg(num_envs=1))
@@ -184,6 +219,42 @@ def test_bvh_refit_tracks_moving_geometry(sim):
 
     distances = sensor.data.ray_distances.torch
     torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT - 1.0), atol=1e-3, rtol=0)
+
+
+def test_sensor_read_refreshes_fk_after_carrier_pose_write(sim):
+    """The first sensor read after a pose write uses the refreshed carrier pose."""
+    scene = InteractiveScene(RaycastTestSceneCfg(num_envs=1))
+    sim.reset()
+    sensor = _step_and_read(sim, scene)
+    initial_distances = sensor.data.ray_distances.torch.clone()
+
+    sensor_body: RigidObject = scene["sensor_body"]
+    target_pose = sensor_body.data.root_link_pose_w.torch.clone()
+    target_pose[:, 2] += 1.0
+    sensor_body.write_root_pose_to_sim_index(root_pose=target_pose)
+    sensor.reset()
+
+    # Read the sensor first: no simulation step or FK-sensitive asset getter may hide stale body_q.
+    distances = sensor.data.ray_distances.torch
+    torch.testing.assert_close(distances, initial_distances + 1.0, atol=1e-3, rtol=0)
+
+
+def test_world_pose_getter_refreshes_fk_after_carrier_pose_write(sim):
+    """The ray-caster pose getter resolves pending FK before reading ``body_q``."""
+    scene = InteractiveScene(RaycastTestSceneCfg(num_envs=1))
+    sim.reset()
+    sensor = _step_and_read(sim, scene)
+    initial_positions = sensor.get_world_poses()[0].torch.clone()
+
+    sensor_body: RigidObject = scene["sensor_body"]
+    target_pose = sensor_body.data.root_link_pose_w.torch.clone()
+    target_pose[:, 0] += 1.0
+    sensor_body.write_root_pose_to_sim_index(root_pose=target_pose)
+
+    positions = sensor.get_world_poses()[0].torch
+    expected_positions = initial_positions.clone()
+    expected_positions[:, 0] += 1.0
+    torch.testing.assert_close(positions, expected_positions, atol=1e-3, rtol=0)
 
 
 @configclass

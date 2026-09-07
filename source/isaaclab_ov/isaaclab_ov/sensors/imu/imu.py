@@ -46,10 +46,8 @@ class Imu(BaseImu):
 
     .. note::
 
-        Linear acceleration is computed using numerical differentiation from
-        velocities. Consequently, the IMU sensor accuracy depends on the chosen
-        physics timestep. For sufficient accuracy, we recommend keeping the
-        timestep at least 200 Hz.
+        Linear acceleration is read from the solver and transported from the body center of
+        mass to the sensor frame, then biased by gravity.
     """
 
     cfg: ImuCfg
@@ -105,14 +103,9 @@ class Imu(BaseImu):
                 env_mask,
                 self._data._ang_vel_b,
                 self._data._lin_acc_b,
-                self._prev_lin_vel_w,
             ],
             device=self._device,
         )
-
-    def update(self, dt: float, force_recompute: bool = False):
-        self._dt = dt
-        super().update(dt, force_recompute)
 
     """
     Implementation.
@@ -149,10 +142,11 @@ class Imu(BaseImu):
                 " ancestor is unique per env."
             )
 
-        gravity = SimulationManager.get_gravity()
-        gravity_bias = torch.tensor((-gravity[0], -gravity[1], -gravity[2]), device=self._device)
-        gravity_bias_torch = gravity_bias.repeat(self._num_bodies, 1)
-        self._gravity_bias_w = wp.from_torch(gravity_bias_torch.contiguous(), dtype=wp.vec3f)
+        # Real IMUs always measure gravity, so the accelerometer is biased by -g. The scene value
+        # can change at runtime, so it is refreshed on every update instead of snapshotted here.
+        self._gravity_w: tuple[float, float, float] | None = None
+        self._gravity_bias_w = wp.vec3f(0.0, 0.0, 0.0)
+        self._refresh_gravity_bias()
 
         self._initialize_buffers_impl()
 
@@ -180,14 +174,31 @@ class Imu(BaseImu):
         self._vel_binding = None
         self._com_binding = None
 
+    def _refresh_gravity_bias(self):
+        """Re-read the scene gravity so runtime randomization reaches the accelerometer bias.
+
+        Scene gravity is runtime-mutable (see
+        :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`) but scene-wide on
+        this backend, so the bias is a single vector passed to the kernel by value rather than
+        a per-body buffer.
+        """
+        gravity = SimulationManager.get_gravity()
+        gravity = (float(gravity[0]), float(gravity[1]), float(gravity[2]))
+        if gravity == self._gravity_w:
+            return
+        self._gravity_w = gravity
+        self._gravity_bias_w = wp.vec3f(-gravity[0], -gravity[1], -gravity[2])
+
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
+        self._refresh_gravity_bias()
 
         # ``read_into`` fills the structured-dtype destination in place through a cached
         # float32 reinterpret of the binding's flat shape (no extra copy).
         self._root_view.read_into(TT.RIGID_BODY_POSE, self._transforms)
         self._root_view.read_into(TT.RIGID_BODY_VELOCITY, self._velocities)
+        self._root_view.read_into(TT.RIGID_BODY_ACCELERATION, self._accelerations)
         # RIGID_BODY_COM_POSE is a CPU tensor type in the OVPhysX wheel.
         # For GPU simulations, stage on a pinned CPU buffer then copy into the kernel buffer.
         self._root_view.read_into(TT.RIGID_BODY_COM_POSE, self._coms_read_view)
@@ -201,13 +212,12 @@ class Imu(BaseImu):
                 env_mask,
                 self._transforms,
                 self._velocities,
+                self._accelerations,
                 self._coms_buffer,
                 self._offset_pos_b,
                 self._offset_quat_b,
                 self._gravity_bias_w,
-                1.0 / self._dt,
                 self._timestamp,
-                self._prev_lin_vel_w,
                 self._data._ang_vel_b,
                 self._data._lin_acc_b,
             ],
@@ -218,7 +228,7 @@ class Imu(BaseImu):
         """Create buffers for storing data."""
         self._data.create_buffers(num_envs=self._num_bodies, device=self._device)
 
-        self._prev_lin_vel_w = wp.zeros(self._num_bodies, dtype=wp.vec3f, device=self._device)
+        self._accelerations = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)
 
         offset_pos_torch = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._num_bodies, 1)
         offset_quat_torch = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._num_bodies, 1)

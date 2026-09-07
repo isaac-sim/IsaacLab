@@ -510,7 +510,7 @@ class MockSceneEntityCfg:
 class MockContactSensorData:
     """Mock contact sensor data with random force history.
 
-    Stores ``net_forces_w_history`` as a warp ``vec3f`` 3D array of shape
+    Stores ``net_normal_forces_w_history`` as a warp ``vec3f`` 3D array of shape
     ``(num_envs, num_history, num_bodies)``.  Both warp kernels (which read
     the warp array directly) and stable functions (which call
     ``wp.to_torch``) work with this representation.
@@ -518,7 +518,7 @@ class MockContactSensorData:
 
     def __init__(self, num_envs=NUM_ENVS, num_history=NUM_HISTORY, num_bodies=NUM_BODIES, device=DEVICE, seed=77):
         rng = np.random.RandomState(seed)
-        self.net_forces_w_history = proxy_array(
+        self.net_normal_forces_w_history = proxy_array(
             rng.randn(num_envs, num_history, num_bodies, 3).astype(np.float32),
             dtype=wp.vec3f,
             device=device,

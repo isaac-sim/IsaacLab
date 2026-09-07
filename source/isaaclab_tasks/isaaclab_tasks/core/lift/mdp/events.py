@@ -249,8 +249,8 @@ class conditional_reset(ManagerTermBase):
 
         if not self._prefilled:
             # envs sharing a clone-mask column are clones of the same unique asset combination
-            mask = env.scene.clone_plan.clone_mask.to(device=env.device, dtype=torch.uint8)
-            self._group = torch.unique(mask.T, dim=0, return_inverse=True)[1]
+            _, group = np.unique(env.scene.clone_plan.clone_mask.T, axis=0, return_inverse=True)
+            self._group = torch.as_tensor(group, device=env.device)
             num_groups = int(self._group.max().item()) + 1
             # without a descriptor there is nothing to spread over, so harvesting extra is waste
             harvest_size = buffer_size_per_group

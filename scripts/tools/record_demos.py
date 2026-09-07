@@ -200,6 +200,11 @@ logger = logging.getLogger(__name__)
 _CLOUDXR_ENV_SHORTHANDS: dict[str, str] = {}
 
 
+def _never_terminate(env: gym.Env) -> torch.Tensor:
+    """Return a false termination signal for every environment."""
+    return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+
+
 def _resolve_cloudxr_env(value: str | None, xr_enabled: bool = False) -> str | None:
     """Resolve ``--cloudxr_env`` shorthands to absolute ``.env`` file paths.
 
@@ -346,11 +351,12 @@ def create_environment_config(
         not teleop_device_explicitly_set and hasattr(env_cfg, "isaac_teleop") and env_cfg.isaac_teleop is not None
     )
 
-    # extract success checking function to invoke in the main loop
-    success_term = None
-    if hasattr(env_cfg.terminations, "success"):
-        success_term = env_cfg.terminations.success
-        env_cfg.terminations.success = None
+    # Extract the success condition for manual evaluation in the main loop. Keep
+    # an inert term registered under the same name so rewards and other manager
+    # terms that reference "success" can still resolve it during initialization.
+    success_term = getattr(env_cfg.terminations, "success", None)
+    if success_term is not None:
+        env_cfg.terminations.success = success_term.replace(func=_never_terminate, params={})
     else:
         logger.warning(
             "No success termination term was found in the environment."

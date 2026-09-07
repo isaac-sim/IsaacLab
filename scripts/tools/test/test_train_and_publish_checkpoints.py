@@ -88,6 +88,15 @@ def test_select_physics_variants_includes_franka_osc_newton_mjwarp() -> None:
     assert selections == [("newtonmjwarp", "newton_mjwarp")]
 
 
+def test_select_physics_variants_selects_coupled_newton_preset() -> None:
+    """Coupled tasks must publish under the MJWarp backend using their proxy preset."""
+    variants = ["physx", "isaacsim_physx", "ovphysx", "newton_mjwarp_vbd_proxy"]
+
+    selections = _select_physics_variants("Isaac-Test", variants, "newtonmjwarp", ["newtonmjwarp"])
+
+    assert selections == [("newtonmjwarp", "newton_mjwarp_vbd_proxy")]
+
+
 def test_select_physics_variants_does_not_fall_back_to_automatic_physx() -> None:
     """A task without a concrete Isaac Sim selector must not run as OvPhysX."""
     selections = _select_physics_variants("Isaac-Test", ["physx", "ovphysx"], "physx", ["physx"])

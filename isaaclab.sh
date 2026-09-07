@@ -21,12 +21,29 @@ for arg in "$@"; do
     fi
 done
 
+# A virtual environment reuses the interpreter it was created from, so one created on the
+# package's own Python runs that exact binary and loads Kit's extensions unchanged. Only
+# environments that supply their own interpreter, such as conda, are rejected. Anything
+# unreadable counts as foreign so the check fails closed.
+venv_on_bundled_python=false
+if [ -n "$VIRTUAL_ENV" ] && [ -z "$CONDA_PREFIX" ] && [ -f "$VIRTUAL_ENV/pyvenv.cfg" ]; then
+    venv_home=$(sed -n 's/^[[:space:]]*home[[:space:]]*=[[:space:]]*//p' "$VIRTUAL_ENV/pyvenv.cfg" | head -1)
+    sim_root=$(readlink -f "$ISAACLAB_PATH/_isaac_sim" 2>/dev/null)
+    venv_home=$(readlink -f "$venv_home" 2>/dev/null)
+    if [ -n "$sim_root" ] && [ -n "$venv_home" ]; then
+        case "$venv_home" in
+            "$sim_root" | "$sim_root"/*) venv_on_bundled_python=true ;;
+        esac
+    fi
+fi
+
 downloaded_isaac_sim=false
 if [ -d "$ISAACLAB_PATH/_isaac_sim" ] && [ ! -f "$ISAACLAB_PATH/_isaac_sim/.isaaclab_source_build" ]; then
     downloaded_isaac_sim=true
-    if [ "$isaacsim_source_requested" = false ] && { [ -n "$VIRTUAL_ENV" ] || [ -n "$CONDA_PREFIX" ]; }; then
+    if [ "$isaacsim_source_requested" = false ] && [ "$venv_on_bundled_python" = false ] \
+        && { [ -n "$VIRTUAL_ENV" ] || [ -n "$CONDA_PREFIX" ]; }; then
         echo "[ERROR] Downloaded Isaac Sim packages cannot be combined with a Python virtual environment." >&2
-        echo "[ERROR] Use the bundled Python after deactivating the virtual environment, or run '--isaacsim_source PATH' to link a live source build." >&2
+        echo "[ERROR] Use the bundled Python after deactivating the virtual environment, create the environment on that Python ('uv venv --python \$ISAACLAB_PATH/_isaac_sim/kit/python/bin/python3'), or run '--isaacsim_source PATH' to link a live source build." >&2
         exit 1
     fi
 fi

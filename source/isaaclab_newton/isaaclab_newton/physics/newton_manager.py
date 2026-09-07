@@ -557,7 +557,7 @@ class NewtonManager(PhysicsManager):
     # model from these and resolve it via ``query.path_to_source``.
     _cl_protos: dict[str, ModelBuilder] = {}
     _deformable_registry: list = []
-    _per_world_builder_hooks: list[Callable[[ModelBuilder, int, list[float], list[float]], None]] = []
+    _per_world_builder_hooks: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -567,6 +567,12 @@ class NewtonManager(PhysicsManager):
             sim_context: Parent simulation context.
         """
         super().initialize(sim_context)
+
+        # This context imports NewtonManager, so it can only be imported after this module initializes.
+        from isaaclab_newton.cloner import NewtonReplicateContext  # noqa: PLC0415
+
+        cls.clone_context_type = NewtonReplicateContext
+        sim_context.get_or_create_backend(NewtonReplicateContext, sim_context)
 
         # Newton-specific setup: get gravity from SimulationCfg (not physics manager cfg)
         sim = PhysicsManager._sim
@@ -1962,7 +1968,12 @@ class NewtonManager(PhysicsManager):
             import_builder_visual_material_paths(builder, stage)
             NewtonManager._world_xforms = [wp.transform()]
             for hook in cls._per_world_builder_hooks:
-                hook(builder, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
+                hook(
+                    builder,
+                    0,
+                    np.zeros(3, dtype=np.float32),
+                    np.asarray((0.0, 0.0, 0.0, 1.0), dtype=np.float32),
+                )
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
             # and any terrain colliders already added as heightfields above.
@@ -2002,12 +2013,16 @@ class NewtonManager(PhysicsManager):
                     )
                 )
 
-            positions = torch.tensor([pos for pos, _ in poses], dtype=torch.float32)
-            quaternions = torch.tensor([quat for _, quat in poses], dtype=torch.float32)
-            mapping = torch.ones((1, len(env_paths)), dtype=torch.bool)
-            replicate_args = (builder, (proto_path,), mapping, positions, quaternions, source_builders)
-            local_site_map, world_xforms = replicate_builder_mapping(
-                *replicate_args,
+            positions = np.asarray([pos for pos, _ in poses], dtype=np.float32)
+            quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
+            mapping = np.ones((1, len(env_paths)), dtype=np.bool_)
+            local_site_map, world_xforms, _ = replicate_builder_mapping(
+                builder=builder,
+                sources=(proto_path,),
+                mapping=mapping,
+                positions=positions,
+                quaternions=quaternions,
+                source_builders=source_builders,
                 source_site_indices=source_site_indices,
                 env_root_sites=env_root_sites,
                 per_world_builder_hooks=cls._per_world_builder_hooks,
@@ -2658,10 +2673,10 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def get_state(cls, scene_data_provider: SceneDataProvider | None = None) -> State:
-        """Get the current Newton state for visualization.
+        """Get the current Newton state with derived transforms refreshed.
 
-        Use this method from visualizers/renderers/video recorders that need a
-        backend-agnostic Newton ``State``. When the sim backend is PhysX this
+        Use this method from sensors, visualizers, renderers, and video recorders that need
+        a backend-agnostic Newton ``State``. When the sim backend is PhysX this
         refreshes the shadow ``_state_0.body_q`` from the live PhysX scene via
         :meth:`update_visualization_state` before returning, so callers never
         observe stale transforms. Under the Newton sim backend, pending
@@ -2708,12 +2723,13 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _update_sensor_tasks(cls, *names: str) -> None:
-        """Refit the shape and particle BVHs and run the requested scene-query tasks."""
+        """Refresh derived state, refit the BVHs, and run the requested scene-query tasks."""
         for name in names:
             if name not in cls._sensor_tasks:
                 raise KeyError(f"Newton sensor task '{name}' is not registered.")
 
-        state = cls.get_state_0()
+        # Resolve pending FK before entering the graph-capturable sensor pipeline.
+        state = cls.get_state()
         if state is not cls._sensor_state:
             cls._sensor_state = state
             cls._sensor_state_dirty = True
@@ -2886,7 +2902,7 @@ class NewtonManager(PhysicsManager):
                 "deferring visualization model creation."
             )
             return
-        NewtonManager._num_envs = len(env_paths) if clone_plan is not None else 1
+        NewtonManager._num_envs = clone_plan.clone_mask.shape[1] if clone_plan is not None else 1
         builder, (shadow_entities, registry_groups) = build_visualization_builder_from_stage_envs(
             stage, env_paths, clone_plan, up_axis=up_axis, device=str(PhysicsManager._device or "cpu")
         )
@@ -3407,6 +3423,31 @@ class NewtonManager(PhysicsManager):
         """
         with contextlib.suppress(ValueError):
             cls._post_step_callbacks.remove(callback)
+
+    @classmethod
+    def create_fixed_tendon_control(cls, articulation):
+        """Build the solver's fixed-tendon command adapter for ``articulation``.
+
+        Tendon *state* is backend-neutral and lives on the articulation; how a target reaches the
+        solver is not. MuJoCo drives tendons through actuator controls, so only the MJWarp manager
+        implements this. The articulation stores what it gets, the way it stores its actuator
+        control, and never needs to know which solver is active.
+
+        Only the MuJoCo solver registers the ``mujoco:tendon`` frequency, so an articulation reports
+        tendons under MJWarp alone and this base is unreachable through the normal path. Reaching it
+        means a solver gained tendons with no way to command them, which is worth saying rather than
+        returning nothing -- ``None`` already means "this asset's tendons are all passive".
+
+        Args:
+            articulation: Newton articulation to drive.
+
+        Raises:
+            NotImplementedError: Always -- this solver has no fixed-tendon transmission.
+        """
+        raise NotImplementedError(
+            f"{cls.__name__} does not drive fixed tendons. Fixed-tendon targets require a solver"
+            " that transmits to tendons, such as MJWarp."
+        )
 
     @classmethod
     def set_decimation(cls, decimation: int) -> None:
