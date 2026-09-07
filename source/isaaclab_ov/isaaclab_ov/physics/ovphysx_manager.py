@@ -489,21 +489,26 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def _ensure_physx_schemas_registered(cls) -> None:
-        """Register the codeless USD plugins published by the OVPhysX wheel.
+        """Register the codeless USD schemas published by the OVPhysX wheel.
 
-        The wheel's public paths include both ``PhysxSchema`` and
-        ``OmniUsdPhysicsDeformableSchema``. A host may already provide one of
-        those plugins from a compiled library, so only missing plugin names are
-        registered from the wheel's codeless resource paths.
+        OVStage maintains its own USD schema registry, so register the wheel's
+        schema root there even when the host USD runtime already provides the
+        same plugins. For the host USD registry, only register providers that
+        are not already available from a compiled plugin.
         """
         if cls._physx_schemas_registered:
             return
         try:
             import ovphysx  # noqa: PLC0415
+            import ovstage  # noqa: PLC0415
 
             from pxr import Plug  # noqa: PLC0415
         except ImportError:
             return
+        schema_root = getattr(ovphysx, "codeless_schema_root", None)
+        register_ovstage_schemas = getattr(getattr(ovstage, "population", None), "register_usd_schemas", None)
+        if callable(schema_root) and callable(register_ovstage_schemas):
+            register_ovstage_schemas(str(schema_root()))
         registry = Plug.Registry()
         registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
         # The wheel documents ``<module>/resources`` as its stable layout and its
