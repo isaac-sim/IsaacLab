@@ -215,3 +215,25 @@ class G129DofRoughAirTime100DRWaist3EnvCfg(G129DofRoughAirTime100DREnvCfg):
     def __post_init__(self):
         super().__post_init__()
         _add_waist_l2(self, _WAIST_L2_WEIGHTS["t2"])
+
+
+@configclass
+class G129DofRoughAirTime100HistoryEnvCfg(G129DofRoughHipL2AirTime100EnvCfg):
+    """The w100 gait with five frames of proprioception and nothing else changed.
+
+    d2 added the history on top of the randomization and the stronger push, and came out worse than
+    d1 on every number that moved -- ``success_rate`` 0.648 against 0.791, and a waist leaned back
+    30 degrees against 26. That confounds two changes. This arm carries the history alone, on the
+    stock randomization w100 already runs, so whether the extra frames help or hurt is answerable
+    without the push in the way.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        # Proprioception only; the height scan stays single-frame. See
+        # :class:`G129DofRoughAirTime100DRHistoryEnvCfg` for why.
+        for term in _HISTORY_TERMS:
+            obs_term = getattr(self.observations.policy, term)
+            obs_term.history_length = _HISTORY_LENGTH
+            obs_term.flatten_history_dim = True
