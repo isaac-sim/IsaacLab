@@ -65,37 +65,24 @@ def sim():
         yield sim
 
 
-def test_sensor_initialization(sim):
-    """Test that the Newton IMU sensor initializes correctly."""
+def test_initialization_and_data_shapes(sim):
+    """The Newton IMU sensor initializes and exposes correctly shaped buffers after one step."""
     scene_cfg = ImuTestSceneCfg(num_envs=2)
     scene = InteractiveScene(scene_cfg)
     sim.reset()
 
     imu: Imu = scene["imu"]
     assert imu.num_instances == 2
-    assert imu.data.ang_vel_b is not None
-    assert imu.data.lin_acc_b is not None
-
-
-def test_data_shapes(sim):
-    """Test that IMU output tensors have correct shapes."""
-    scene_cfg = ImuTestSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
 
     sim.step()
     scene.update(sim.get_physics_dt())
 
-    imu: Imu = scene["imu"]
-    ang_vel = imu.data.ang_vel_b.torch
-    lin_acc = imu.data.lin_acc_b.torch
-
-    assert ang_vel.shape == (2, 3)
-    assert lin_acc.shape == (2, 3)
+    assert imu.data.ang_vel_b.torch.shape == (2, 3)
+    assert imu.data.lin_acc_b.torch.shape == (2, 3)
 
 
-def test_gravity_at_rest(sim):
-    """Test that a resting IMU measures gravity (~9.81 m/s^2 upward)."""
+def test_at_rest_measures_gravity_and_zero_angular_velocity(sim):
+    """A settled IMU measures gravity (~9.81 m/s^2 upward) and near-zero angular velocity."""
     scene_cfg = ImuTestSceneCfg(num_envs=2)
     scene = InteractiveScene(scene_cfg)
     sim.reset()
@@ -107,6 +94,7 @@ def test_gravity_at_rest(sim):
 
     imu: Imu = scene["imu"]
     lin_acc = imu.data.lin_acc_b.torch
+    ang_vel = imu.data.ang_vel_b.torch
 
     # At rest, accelerometer should read ~9.81 in the up direction (Z body frame)
     torch.testing.assert_close(
@@ -122,27 +110,7 @@ def test_gravity_at_rest(sim):
         atol=0.5,
         rtol=0.0,
     )
-
-
-def test_angular_velocity_at_rest(sim):
-    """Test that a resting IMU reports near-zero angular velocity."""
-    scene_cfg = ImuTestSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
-    for _ in range(500):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    imu: Imu = scene["imu"]
-    ang_vel = imu.data.ang_vel_b.torch
-
-    torch.testing.assert_close(
-        ang_vel,
-        torch.zeros_like(ang_vel),
-        atol=0.1,
-        rtol=0.0,
-    )
+    torch.testing.assert_close(ang_vel, torch.zeros_like(ang_vel), atol=0.1, rtol=0.0)
 
 
 def test_reset(sim):

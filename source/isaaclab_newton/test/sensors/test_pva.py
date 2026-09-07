@@ -65,34 +65,18 @@ def sim():
         yield sim
 
 
-def test_sensor_initialization(sim):
-    """Test that the Newton PVA sensor initializes correctly."""
+def test_initialization_and_data_shapes(sim):
+    """The Newton PVA sensor initializes and exposes correctly shaped, populated buffers after one step."""
     scene_cfg = PvaTestSceneCfg(num_envs=2)
     scene = InteractiveScene(scene_cfg)
     sim.reset()
 
     pva: Pva = scene["pva"]
     assert pva.num_instances == 2
-    assert pva.data.pos_w is not None
-    assert pva.data.quat_w is not None
-    assert pva.data.lin_vel_b is not None
-    assert pva.data.ang_vel_b is not None
-    assert pva.data.lin_acc_b is not None
-    assert pva.data.ang_acc_b is not None
-    assert pva.data.projected_gravity_b is not None
-    assert pva.data.pose_w is not None
-
-
-def test_data_shapes(sim):
-    """Test that PVA output tensors have correct shapes."""
-    scene_cfg = PvaTestSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
 
     sim.step()
     scene.update(sim.get_physics_dt())
 
-    pva: Pva = scene["pva"]
     assert pva.data.pos_w.torch.shape == (2, 3)
     assert pva.data.quat_w.torch.shape == (2, 4)
     assert pva.data.pose_w.torch.shape == (2, 7)
@@ -101,10 +85,14 @@ def test_data_shapes(sim):
     assert pva.data.lin_acc_b.torch.shape == (2, 3)
     assert pva.data.ang_acc_b.torch.shape == (2, 3)
     assert pva.data.projected_gravity_b.torch.shape == (2, 3)
+    # The cube starts above the ground plane, so the world position is populated rather than zero.
+    assert torch.all(pva.data.pos_w.torch[:, 2] > 0.0), (
+        f"Expected positive z position, got {pva.data.pos_w.torch[:, 2]}"
+    )
 
 
-def test_gravity_at_rest(sim):
-    """Test that a resting PVA sensor reports correct projected gravity."""
+def test_at_rest_reports_gravity_and_zero_velocity(sim):
+    """A settled PVA sensor reports unit gravity along body -Z and near-zero velocity."""
     scene_cfg = PvaTestSceneCfg(num_envs=2)
     scene = InteractiveScene(scene_cfg)
     sim.reset()
@@ -116,42 +104,13 @@ def test_gravity_at_rest(sim):
 
     pva: Pva = scene["pva"]
     proj_grav = pva.data.projected_gravity_b.torch
-
-    expected = torch.tensor([[0.0, 0.0, -1.0]], dtype=proj_grav.dtype, device=proj_grav.device).repeat(2, 1)
-    torch.testing.assert_close(proj_grav, expected, atol=0.05, rtol=0.0)
-
-
-def test_velocity_at_rest(sim):
-    """Test that a resting PVA sensor reports near-zero velocity."""
-    scene_cfg = PvaTestSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
-    for _ in range(200):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    pva: Pva = scene["pva"]
     lin_vel = pva.data.lin_vel_b.torch
     ang_vel = pva.data.ang_vel_b.torch
 
+    expected = torch.tensor([[0.0, 0.0, -1.0]], dtype=proj_grav.dtype, device=proj_grav.device).repeat(2, 1)
+    torch.testing.assert_close(proj_grav, expected, atol=0.05, rtol=0.0)
     torch.testing.assert_close(lin_vel, torch.zeros_like(lin_vel), atol=0.05, rtol=0.0)
     torch.testing.assert_close(ang_vel, torch.zeros_like(ang_vel), atol=0.05, rtol=0.0)
-
-
-def test_position_nonzero(sim):
-    """Test that the PVA sensor reports a non-zero world-frame position."""
-    scene_cfg = PvaTestSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
-    sim.step()
-    scene.update(sim.get_physics_dt())
-
-    pva: Pva = scene["pva"]
-    pos = pva.data.pos_w.torch
-
-    assert torch.all(pos[:, 2] > 0.0), f"Expected positive z position, got {pos[:, 2]}"
 
 
 def test_reset(sim):
@@ -212,25 +171,8 @@ class FreefallSceneCfg(InteractiveSceneCfg):
     )
 
 
-def test_freefall_velocity_increases(sim):
-    """Test that a freefalling body's downward velocity increases over time."""
-    scene_cfg = FreefallSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
-    for _ in range(50):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    pva: Pva = scene["pva"]
-    lin_vel = pva.data.lin_vel_b.torch
-
-    speed = torch.norm(lin_vel, dim=-1)
-    assert torch.all(speed > 0.1), f"Expected non-zero velocity in freefall, got {speed}"
-
-
-def test_freefall_acceleration(sim):
-    """Test that a freefalling body reports coordinate acceleration equal to gravity.
+def test_freefall_reports_gravity_acceleration_and_growing_speed(sim):
+    """A freefalling body reports coordinate acceleration equal to gravity and a growing downward speed.
 
     PVA reports coordinate acceleration (from body_qdd), not proper acceleration.
     In freefall, coordinate acceleration equals gravitational acceleration (~9.81 m/s^2
@@ -254,6 +196,15 @@ def test_freefall_acceleration(sim):
 
     # Angular acceleration should be near zero (no torques in freefall).
     torch.testing.assert_close(ang_acc, torch.zeros_like(ang_acc), atol=0.05, rtol=0.0)
+
+    early_speed = torch.norm(pva.data.lin_vel_b.torch, dim=-1)
+    for _ in range(40):
+        sim.step()
+        scene.update(sim.get_physics_dt())
+
+    speed = torch.norm(pva.data.lin_vel_b.torch, dim=-1)
+    assert torch.all(speed > 0.1), f"Expected non-zero velocity in freefall, got {speed}"
+    assert torch.all(speed > early_speed), f"Expected speed to grow in freefall, got {early_speed} -> {speed}"
 
 
 @configclass

@@ -315,8 +315,8 @@ class TestSingleTarget:
 
 
 class TestWildcardExpansion:
-    def test_wildcard_two_bodies_per_env_indices(self):
-        """Wildcard: 2 bodies per env → 2 expanded target entries, correct indices."""
+    def test_wildcard_two_bodies_per_env(self):
+        """Wildcard: 2 bodies per env expand to 2 target entries with names derived from shape_labels."""
         shape_labels = {20: "FL_foot/label_0", 21: "FL_foot/label_0", 22: "FR_foot/label_0", 23: "FR_foot/label_0"}
         names, tgt_per_tgt, shapes, refs = _call(
             source_indices=[10, 11],
@@ -329,18 +329,6 @@ class TestWildcardExpansion:
         assert shapes == [10, 20, 22, 11, 21, 23]
         assert refs == [0, 10, 10, 0, 11, 11]
         assert tgt_per_tgt == [[20, 21], [22, 23]]
-
-    def test_wildcard_uses_body_names_from_shape_labels(self):
-        """Wildcard: body names derived from shape_labels when n_bodies > 1."""
-        shape_labels = {20: "FL_foot/label_0", 21: "FL_foot/label_0", 22: "FR_foot/label_0", 23: "FR_foot/label_0"}
-        names, tgt_per_tgt, shapes, refs = _call(
-            source_indices=[10, 11],
-            target_per_world=[[[20, 22], [21, 23]]],
-            target_frame_body_names=["foot"],
-            shape_labels=shape_labels,
-            world_origin_idx=0,
-            num_envs=2,
-        )
         assert names == ["FL_foot", "FR_foot"]
 
     def test_wildcard_single_body_uses_config_name(self):
