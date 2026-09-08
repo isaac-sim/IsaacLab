@@ -357,10 +357,11 @@ def replicate_builder_mapping(
             for finish in finish_callbacks:
                 finish()
 
+            world_shape_offsets = base_shape + np.arange(num_worlds, dtype=np.int64) * stride
             for label, local_indices in site_local_indices.items():
-                local_site_map[label] = [
-                    [base_shape + world * stride + local for local in local_indices] for world in range(num_worlds)
-                ]
+                local_site_map[label] = (
+                    world_shape_offsets[:, None] + np.asarray(local_indices, dtype=np.int64)
+                ).tolist()
 
             bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
             return local_site_map, world_xforms, bindings

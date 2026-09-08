@@ -191,18 +191,15 @@ def add_registered_deformables_to_builder(
 
 
 def _can_replicate_registered_deformables(xforms: np.ndarray) -> bool:
-    """Return whether Newton replication can apply every relative particle transform.
+    """Return False if any registered deformables prevent replication.
 
-    ``ModelBuilder.replicate`` offsets ``particle_q`` by each transform's translation and drops
-    its rotation.
+    Every rotation must be identity because ``ModelBuilder.replicate`` only translates particles.
     """
+    # An empty registry is compatible because the hook adds no particles
     if not SimulationManager._deformable_registry:
         return True
-    rotations = xforms[:, 3:]
-    return bool(
-        np.allclose(rotations[:, :3], 0.0, atol=1.0e-6, rtol=0.0)
-        and np.allclose(np.abs(rotations[:, 3]), 1.0, atol=1.0e-6, rtol=0.0)
-    )
+    identity_rotation = np.array((0.0, 0.0, 0.0, 1.0), dtype=xforms.dtype)
+    return bool(np.allclose(np.abs(xforms[:, 3:]), identity_rotation, atol=1.0e-6, rtol=0.0))
 
 
 def _prepare_registered_deformable_replication(
@@ -235,12 +232,12 @@ def _prepare_registered_deformable_replication(
                 f" particle offsets assume {expected_particle_count} ({num_worlds} worlds of"
                 f" {source_particle_stride} particles after {destination_particle_base} existing particles)."
             )
+        world_particle_offsets = (
+            destination_particle_base + np.arange(num_worlds, dtype=np.int64) * source_particle_stride
+        )
         for entry, source_offset, particle_count in replicated_entries:
             entry.particles_per_body = particle_count
-            entry.particle_offsets = [
-                destination_particle_base + world * source_particle_stride + source_offset
-                for world in range(num_worlds)
-            ]
+            entry.particle_offsets = (world_particle_offsets + source_offset).tolist()
 
     return finish_replication
 
