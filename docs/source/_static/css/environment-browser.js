@@ -16,36 +16,36 @@
             ["Isaac-Ant", "rl_games,rsl_rl,skrl,sb3", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/ant.jpg", true],
             ["Isaac-Cartpole-Direct", "rl_games,rsl_rl,skrl,sb3", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/cartpole.jpg", true],
             ["Isaac-Cartpole", "rl_games,rsl_rl,skrl,sb3", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/cartpole.jpg", true],
-            ["Isaac-Cartpole-Camera-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo,depth,rgb,semantic_segmentation,simple_shading_constant_diffuse,simple_shading_diffuse_mdl,simple_shading_full_mdl", {}, "tasks/classic/cartpole.jpg"],
-            ["Isaac-Cartpole-Camera", "rl_games,rsl_rl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo,depth,resnet18,rgb,semantic_segmentation,simple_shading_constant_diffuse,simple_shading_diffuse_mdl,simple_shading_full_mdl,theia_tiny", {"rl_games_cfg_entry_point": ["albedo", "depth", "rgb", "semantic_segmentation", "simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"], "rl_games_feature_cfg_entry_point": ["resnet18", "theia_tiny"], "rsl_rl_cfg_entry_point": ["albedo", "depth", "rgb", "semantic_segmentation", "simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"], "rsl_rl_feature_cfg_entry_point": ["resnet18", "theia_tiny"]}, "tasks/classic/cartpole.jpg"],
+            ["Isaac-Cartpole-Camera-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo,depth,rgb,semantic_segmentation,simple_shading_constant_diffuse,simple_shading_diffuse_mdl,simple_shading_full_mdl", {}, "tasks/classic/cartpole.jpg", false, {"*": ["rgb"], "rl_games": ["depth"]}],
+            ["Isaac-Cartpole-Camera", "rl_games,rsl_rl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo,depth,resnet18,rgb,semantic_segmentation,simple_shading_constant_diffuse,simple_shading_diffuse_mdl,simple_shading_full_mdl,theia_tiny", {"rl_games_cfg_entry_point": ["albedo", "depth", "rgb", "semantic_segmentation", "simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"], "rl_games_feature_cfg_entry_point": ["resnet18", "theia_tiny"], "rsl_rl_cfg_entry_point": ["albedo", "depth", "rgb", "semantic_segmentation", "simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"], "rsl_rl_feature_cfg_entry_point": ["resnet18", "theia_tiny"]}, "tasks/classic/cartpole.jpg", false, {"*": ["rgb"]}],
             ["Isaac-Fourbar-Pole-Swingup", "rsl_rl", "newton_kamino", "", "", {}, "tasks/classic/fourbar_pole.jpg"],
             ["Isaac-Humanoid-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/humanoid.jpg", true],
             ["Isaac-Humanoid", "rl_games,rsl_rl,skrl,sb3", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/humanoid.jpg", true],
-            ["Isaac-Lift-Cable-Franka", "rsl_rl", "newton_mjwarp_vbd_proxy", "", "ik,joint", {}, "tasks/manipulation/franka_lift_cable.jpg"],
-            ["Isaac-Lift-Cable-Franka-Camera", "rsl_rl", "newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint", {}, "tasks/manipulation/franka_lift_cable.jpg"],
-            ["Isaac-Lift-Cloth-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "", "ik,joint", {}, "tasks/manipulation/franka_lift_cloth.jpg"],
-            ["Isaac-Lift-Cloth-Franka-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint", {}, "tasks/manipulation/franka_lift_cloth.jpg"],
-            ["Isaac-Lift-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,shapes"],
-            ["Isaac-Lift-KukaAllegro", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,shapes", {}, "tasks/manipulation/kuka_allegro_lift.jpg"],
-            ["Isaac-Lift-KukaAllegro-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo128,albedo256,albedo64,cube,depth128,depth256,depth64,duo_camera,raycaster_depth128,raycaster_depth256,raycaster_depth64,rgb128,rgb256,rgb64,semantic_segmentation128,semantic_segmentation256,semantic_segmentation64,shapes,simple_shading_constant_diffuse128,simple_shading_constant_diffuse256,simple_shading_constant_diffuse64,simple_shading_diffuse_mdl128,simple_shading_diffuse_mdl256,simple_shading_diffuse_mdl64,simple_shading_full_mdl128,simple_shading_full_mdl256,simple_shading_full_mdl64,single_camera", {}, "tasks/manipulation/kuka_allegro_lift.jpg"],
-            ["Isaac-Lift-Soft-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "", "ik,joint", {}, "newton/franka-mjwarp-vbd-coupling.png"],
-            ["Isaac-Lift-Soft-Franka-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint", {}, "newton/franka-mjwarp-vbd-coupling.png"],
+            ["Isaac-Lift-Cable-Franka", "rsl_rl", "newton_mjwarp_vbd_proxy", "", "ik,joint", {}, "tasks/manipulation/franka_lift_cable.jpg", false, {"*": ["joint"]}],
+            ["Isaac-Lift-Cable-Franka-Camera", "rsl_rl", "newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint", {}, "tasks/manipulation/franka_lift_cable.jpg", false, {"*": ["joint"]}],
+            ["Isaac-Lift-Cloth-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "", "ik,joint", {}, "tasks/manipulation/franka_lift_cloth.jpg", false, {"*": ["joint"]}],
+            ["Isaac-Lift-Cloth-Franka-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint", {}, "tasks/manipulation/franka_lift_cloth.jpg", false, {"*": ["joint"]}],
+            ["Isaac-Lift-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,shapes", {}, "", false, {"*": ["shapes"]}],
+            ["Isaac-Lift-KukaAllegro", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,shapes", {}, "tasks/manipulation/kuka_allegro_lift.jpg", false, {"*": ["shapes"]}],
+            ["Isaac-Lift-KukaAllegro-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo128,albedo256,albedo64,cube,depth128,depth256,depth64,duo_camera,raycaster_depth128,raycaster_depth256,raycaster_depth64,rgb128,rgb256,rgb64,semantic_segmentation128,semantic_segmentation256,semantic_segmentation64,shapes,simple_shading_constant_diffuse128,simple_shading_constant_diffuse256,simple_shading_constant_diffuse64,simple_shading_diffuse_mdl128,simple_shading_diffuse_mdl256,simple_shading_diffuse_mdl64,simple_shading_full_mdl128,simple_shading_full_mdl256,simple_shading_full_mdl64,single_camera", {}, "tasks/manipulation/kuka_allegro_lift.jpg", false, {"*": ["rgb64", "shapes", "single_camera"]}],
+            ["Isaac-Lift-Soft-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "", "ik,joint", {}, "newton/franka-mjwarp-vbd-coupling.png", false, {"*": ["joint"]}],
+            ["Isaac-Lift-Soft-Franka-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp_vbd_proxy", "isaacsim_rtx,newton_renderer,ovrtx", "ik,joint", {}, "newton/franka-mjwarp-vbd-coupling.png", false, {"*": ["joint"]}],
             ["Isaac-Open-Drawer-Franka-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/manipulation/franka_open_drawer.jpg"],
             ["Isaac-Open-Drawer-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/manipulation/franka_open_drawer.jpg"],
-            ["Isaac-Pendulum-MARL-Direct", "rl_games,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/cart_double_pendulum.jpg"],
-            ["Isaac-Reach-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "diffik,diffik_abs,joint_pos,newton_ik", {}, "tasks/manipulation/franka_reach.jpg", true],
+            ["Isaac-Pendulum-MARL-Direct", "rl_games,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/cart_double_pendulum.jpg", false, {}, {"skrl": "MAPPO"}],
+            ["Isaac-Reach-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "diffik,diffik_abs,joint_pos,newton_ik", {}, "tasks/manipulation/franka_reach.jpg", true, {"*": ["joint_pos"]}],
             ["Isaac-Reach-Franka-OSC", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "diffik_abs", {}, "tasks/manipulation/franka_reach.jpg"],
             ["Isaac-Reach-UR10", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/manipulation/ur10_reach.jpg", true],
             ["Isaac-Reorient-Cube-Allegro-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/manipulation/allegro_cube.jpg", true],
-            ["Isaac-Reorient-Cube-Allegro", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "randomized,reset_only", {}, "tasks/manipulation/allegro_cube.jpg"],
+            ["Isaac-Reorient-Cube-Allegro", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "randomized,reset_only", {}, "tasks/manipulation/allegro_cube.jpg", false, {"*": ["reset_only"]}],
             ["Isaac-Reorient-Cube-Shadow-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/manipulation/shadow_cube.jpg"],
             ["Isaac-Reorient-Cube-Shadow", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "asymmetric,randomized"],
-            ["Isaac-Reorient-Cube-Shadow-Camera-Direct", "rl_games,rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo,depth,full,rgb,semantic_segmentation,simple_shading_constant_diffuse,simple_shading_diffuse_mdl,simple_shading_full_mdl", {}, "tasks/manipulation/shadow_cube.jpg"],
-            ["Isaac-Reorient-Cube-Shadow-Camera", "rl_games,rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo,depth,full,randomized,rgb,semantic_segmentation,simple_shading_constant_diffuse,simple_shading_diffuse_mdl,simple_shading_full_mdl"],
-            ["Isaac-Reorient-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,shapes"],
-            ["Isaac-Reorient-KukaAllegro", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,shapes", {}, "tasks/manipulation/kuka_allegro_reorient.jpg"],
-            ["Isaac-Reorient-KukaAllegro-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo128,albedo256,albedo64,cube,depth128,depth256,depth64,duo_camera,raycaster_depth128,raycaster_depth256,raycaster_depth64,rgb128,rgb256,rgb64,semantic_segmentation128,semantic_segmentation256,semantic_segmentation64,shapes,simple_shading_constant_diffuse128,simple_shading_constant_diffuse256,simple_shading_constant_diffuse64,simple_shading_diffuse_mdl128,simple_shading_diffuse_mdl256,simple_shading_diffuse_mdl64,simple_shading_full_mdl128,simple_shading_full_mdl256,simple_shading_full_mdl64,single_camera", {}, "tasks/manipulation/kuka_allegro_reorient.jpg"],
-            ["Isaac-Shadow-Handover-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/manipulation/shadow_hand_over.jpg"],
+            ["Isaac-Reorient-Cube-Shadow-Camera-Direct", "rl_games,rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo,depth,full,rgb,semantic_segmentation,simple_shading_constant_diffuse,simple_shading_diffuse_mdl,simple_shading_full_mdl", {}, "tasks/manipulation/shadow_cube.jpg", false, {"*": ["full"]}],
+            ["Isaac-Reorient-Cube-Shadow-Camera", "rl_games,rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo,depth,full,randomized,rgb,semantic_segmentation,simple_shading_constant_diffuse,simple_shading_diffuse_mdl,simple_shading_full_mdl", {}, "", false, {"*": ["full"]}],
+            ["Isaac-Reorient-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,shapes", {}, "", false, {"*": ["shapes"]}],
+            ["Isaac-Reorient-KukaAllegro", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "cube,shapes", {}, "tasks/manipulation/kuka_allegro_reorient.jpg", false, {"*": ["shapes"]}],
+            ["Isaac-Reorient-KukaAllegro-Camera", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo128,albedo256,albedo64,cube,depth128,depth256,depth64,duo_camera,raycaster_depth128,raycaster_depth256,raycaster_depth64,rgb128,rgb256,rgb64,semantic_segmentation128,semantic_segmentation256,semantic_segmentation64,shapes,simple_shading_constant_diffuse128,simple_shading_constant_diffuse256,simple_shading_constant_diffuse64,simple_shading_diffuse_mdl128,simple_shading_diffuse_mdl256,simple_shading_diffuse_mdl64,simple_shading_full_mdl128,simple_shading_full_mdl256,simple_shading_full_mdl64,single_camera", {}, "tasks/manipulation/kuka_allegro_reorient.jpg", false, {"*": ["rgb64", "shapes", "single_camera"]}],
+            ["Isaac-Shadow-Handover-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/manipulation/shadow_hand_over.jpg", false, {}, {"skrl": "MAPPO"}],
             ["Isaac-Shadow-Handover", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "randomized"],
             ["Isaac-Velocity-Flat-AnymalD", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/locomotion/anymal_d_flat.jpg", true],
             ["Isaac-Velocity-Flat-Cassie", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "", true],
@@ -72,10 +72,10 @@
             ["IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference", "rsl_rl", "", "", ""],
             ["IsaacContrib-Deploy-Reach-UR10e", "rsl_rl", "", "", "", {}, "tasks/manipulation/ur10e_reach.jpg"],
             ["IsaacContrib-Deploy-Reach-UR10e-ROS-Inference", "rsl_rl", "", "", "", {}, "tasks/manipulation/ur10e_reach.jpg"],
-            ["IsaacContrib-DrLegs-HoldPose", "rsl_rl", "", "", "", {}, "tasks/locomotion/dr_legs.jpg"],
-            ["IsaacContrib-DrLegs-Walk", "rsl_rl", "", "", "", {}, "tasks/locomotion/dr_legs.jpg"],
+            ["IsaacContrib-DrLegs-HoldPose", "rsl_rl", "isaacsim_physx,newton_kamino", "", "", {}, "tasks/locomotion/dr_legs.jpg"],
+            ["IsaacContrib-DrLegs-Walk", "rsl_rl", "isaacsim_physx,newton_kamino", "", "", {}, "tasks/locomotion/dr_legs.jpg"],
             ["IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs", "", "", "", ""],
-            ["IsaacContrib-Factory-Franka", "rsl_rl", "isaacsim_physx,newton_mjwarp", "", "accumulator,choice,gear_mesh_large,gear_mesh_medium,gear_mesh_small,nut_thread_m16,peg_insert_12mm,peg_insert_16mm,peg_insert_4mm,peg_insert_8mm,rod_insert_12mm,rod_insert_16mm,rod_insert_4mm,rod_insert_8mm"],
+            ["IsaacContrib-Factory-Franka", "rsl_rl", "isaacsim_physx", "", "accumulator,choice,gear_mesh_large,gear_mesh_medium,gear_mesh_small,nut_thread_m16,peg_insert_12mm,peg_insert_16mm,peg_insert_4mm,peg_insert_8mm,rod_insert_12mm,rod_insert_16mm,rod_insert_4mm,rod_insert_8mm"],
             ["IsaacContrib-Factory-GearMesh-Direct", "rl_games", "", "", "", {}, "tasks/factory/gear_mesh.jpg"],
             ["IsaacContrib-Factory-NutThread-Direct", "rl_games", "", "", "", {}, "tasks/factory/nut_thread.jpg"],
             ["IsaacContrib-Factory-PegInsert-Direct", "rl_games", "", "", "", {}, "tasks/factory/peg_insert.jpg"],
@@ -120,9 +120,9 @@
             ["IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor", "", "isaacsim_physx,newton_mjwarp", "", "", {}, "tasks/manipulation/franka_stack.jpg"],
             ["IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos", "", "isaacsim_physx,newton_mjwarp", "", "", {}, "tasks/manipulation/franka_stack.jpg"],
             ["IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow", "", "isaacsim_physx", "", "", {}, "tasks/manipulation/galbot_stack_cube.jpg"],
-            ["IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor", "", "isaacsim_physx,newton_mjwarp", "isaacsim_rtx,newton_renderer,ovrtx", ""],
-            ["IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position", "", "isaacsim_physx,newton_mjwarp", "isaacsim_rtx,newton_renderer,ovrtx", ""],
-            ["IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow", "", "isaacsim_physx,newton_mjwarp", "isaacsim_rtx,newton_renderer,ovrtx", ""],
+            ["IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor", "", "isaacsim_physx", "isaacsim_rtx,newton_renderer,ovrtx", ""],
+            ["IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position", "", "isaacsim_physx", "isaacsim_rtx,newton_renderer,ovrtx", ""],
+            ["IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow", "", "isaacsim_physx", "isaacsim_rtx,newton_renderer,ovrtx", ""],
             ["IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow", "", "isaacsim_physx", "", ""],
             ["IsaacContrib-Stack-Cube-Instance-Randomize-Franka", "", "", "", ""],
             ["IsaacContrib-Stack-Cube-Instance-Randomize-Franka-IK-Rel", "", "", "", ""],
@@ -131,7 +131,7 @@
             ["IsaacContrib-Stack-Cube-SO101-IK-Abs-v0", "", "isaacsim_physx", "", ""],
             ["IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0", "", "isaacsim_physx", "", ""],
             ["IsaacContrib-Stack-Cube-SO101-v0", "", "isaacsim_physx", "", ""],
-            ["IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel", "", "isaacsim_physx,newton_mjwarp", "", "", {}, "tasks/manipulation/ur10_stack_surface_gripper.jpg"],
+            ["IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel", "", "isaacsim_physx", "", "", {}, "tasks/manipulation/ur10_stack_surface_gripper.jpg"],
             ["IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel", "", "isaacsim_physx", "", "", {}, "tasks/manipulation/ur10_stack_surface_gripper.jpg"],
             ["IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1", "rl_games,rsl_rl,skrl", "", "", "", {}, "tasks/drone_arl/arl_robot_1_track_position_state_based.jpg"],
             ["IsaacContrib-Tracking-LocoManip-Digit", "rsl_rl", "isaacsim_physx", "", "", {}, "tasks/locomotion/agility_digit_loco_manip.jpg"],
@@ -155,6 +155,8 @@
     const splitValues = (value) => value ? value.split(",") : [];
     const tasks = taskRows.map(([
         task, rl, physics, renderer, presets, agentPresetCompatibility = {}, previewImage = "", supportsWarpFrontend = false,
+        pretrainedCheckpointPresetCompatibility = {},
+        defaultAlgorithms = {},
     ]) => ({
         task,
         scope: task.startsWith("IsaacContrib-") ? "contrib" : "core",
@@ -165,6 +167,8 @@
         agentPresetCompatibility,
         previewImage,
         supportsWarpFrontend,
+        pretrainedCheckpointPresetCompatibility,
+        defaultAlgorithms,
     }));
 
     const builder = document.querySelector("[data-environment-browser]");
@@ -291,7 +295,14 @@
             modeButton.setAttribute("aria-pressed", String(isActive));
         }
         nonRlNote.hidden = supportsRl;
-        const supportsPretrainedCheckpoint = supportsRl && state.scope === "core";
+        const task = selectedTask();
+        const selectedPreset = fields.presets.value;
+        const compatiblePresets = [
+            ...(task.pretrainedCheckpointPresetCompatibility["*"] || []),
+            ...(task.pretrainedCheckpointPresetCompatibility[fields.rl.value] || []),
+        ];
+        const supportsPretrainedCheckpoint = supportsRl && state.scope === "core"
+            && (!selectedPreset || compatiblePresets.includes(selectedPreset));
         fields.checkpoint.disabled = !supportsPretrainedCheckpoint;
         if (!supportsPretrainedCheckpoint) {
             fields.checkpoint.checked = false;
@@ -333,6 +344,10 @@
         ))?.[0];
         if (selectedAgent && selectedAgent !== `${fields.rl.value}_cfg_entry_point`) {
             parts.push("--agent", selectedAgent);
+        }
+        const selectedAlgorithm = task.defaultAlgorithms[fields.rl.value];
+        if (selectedAlgorithm) {
+            parts.push("--algorithm", selectedAlgorithm);
         }
         if (state.scope === "warp") {
             parts.push("--frontend", "warp");
@@ -670,6 +685,7 @@
     });
     for (const field of [fields.rl, fields.physics, fields.renderer, fields.presets, fields.checkpoint]) {
         field.addEventListener("change", () => {
+            updateModeControls();
             commandOutput.textContent = currentCommand();
             updatePreview();
         });

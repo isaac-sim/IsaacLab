@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 from gymnasium.envs.registration import registry
+from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
 
 import isaaclab.envs.mdp as mdp
 
@@ -28,9 +29,10 @@ def _load_reach_env_cfg(task: str, *presets: str):
     return resolve_presets(cfg, selected=presets)
 
 
-def _without_actions(cfg):
+def _without_controller_dependent_cfg(cfg):
     cfg_dict = cfg.to_dict()
     cfg_dict.pop("actions")
+    cfg_dict.pop("teleop_devices")
     return cfg_dict
 
 
@@ -88,7 +90,7 @@ def test_reach_ur10_physics_presets_change_only_physics():
     assert physx_cfg == newton_cfg
 
 
-def test_reach_action_presets_change_only_the_action_configuration():
+def test_reach_action_presets_preserve_controller_independent_configuration():
     joint_pos_physx = _load_env_cfg("joint_pos", "isaacsim_physx")
     diffik_physx = _load_env_cfg("diffik", "isaacsim_physx")
     joint_pos_newton = _load_env_cfg("joint_pos", "newton_mjwarp")
@@ -96,9 +98,39 @@ def test_reach_action_presets_change_only_the_action_configuration():
     newton_ik = _load_env_cfg("newton_ik", "newton_mjwarp")
 
     assert _load_env_cfg().actions.arm_action.to_dict() == joint_pos_newton.actions.arm_action.to_dict()
-    assert _without_actions(joint_pos_physx) == _without_actions(diffik_physx)
-    assert _without_actions(joint_pos_newton) == _without_actions(diffik_newton)
-    assert _without_actions(joint_pos_newton) == _without_actions(newton_ik)
+    assert _without_controller_dependent_cfg(joint_pos_physx) == _without_controller_dependent_cfg(diffik_physx)
+    assert _without_controller_dependent_cfg(joint_pos_newton) == _without_controller_dependent_cfg(diffik_newton)
+    assert _without_controller_dependent_cfg(joint_pos_newton) == _without_controller_dependent_cfg(newton_ik)
+
+
+@pytest.mark.parametrize(
+    ("action_preset", "physics_preset"),
+    [("diffik", "isaacsim_physx"), ("newton_ik", "newton_mjwarp")],
+)
+def test_reach_relative_ik_presets_configure_six_dof_native_teleop_devices(action_preset, physics_preset):
+    cfg = _load_env_cfg(action_preset, physics_preset)
+
+    cfg.validate()
+    assert set(cfg.teleop_devices.devices) == {"keyboard", "gamepad", "spacemouse"}
+    assert all(not device_cfg.gripper_term for device_cfg in cfg.teleop_devices.devices.values())
+
+
+def test_reach_newton_ik_uses_native_se3_command_convention():
+    cfg = _load_env_cfg("newton_ik", "newton_mjwarp")
+    pose_objectives = [
+        objective for objective in cfg.actions.arm_action.objectives if isinstance(objective, NewtonIKPoseObjectiveCfg)
+    ]
+
+    assert len(pose_objectives) == 1
+    assert pose_objectives[0].command_type == "pose"
+    assert pose_objectives[0].use_relative_mode
+    assert len(pose_objectives[0].scale) == 6
+
+
+def test_reach_default_preset_does_not_configure_se3_teleop_devices():
+    cfg = _load_env_cfg()
+
+    assert cfg.teleop_devices.devices == {}
 
 
 def test_reach_success_requires_position_and_orientation():
