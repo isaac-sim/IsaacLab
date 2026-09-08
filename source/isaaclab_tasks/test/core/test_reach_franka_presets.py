@@ -204,14 +204,28 @@ def test_reach_osc_effort_actuator_keeps_menagerie_velocity_limit():
     assert arm_actuator.joint_velocity_limit == FRANKA_PANDA_MENAGERIE_CFG.actuators["panda_arm"].joint_velocity_limit
 
 
-def test_reach_osc_exposes_only_physics_presets():
-    """The OSC action term replaces the arm-controller presets, so none may leak into the OSC task."""
+def test_reach_osc_resolves_controller_preset_values_to_defaults():
+    """The OSC action term replaces the arm-controller presets, so their side effects must not leak in."""
     cfg = _load_reach_env_cfg(_OSC_TASK)
+    cfg.validate()
 
     assert not isinstance(cfg.rewards.action_magnitude.weight, PresetCfg)
     assert cfg.rewards.action_magnitude.weight == _load_env_cfg().rewards.action_magnitude.weight
     assert cfg.scene.robot.spawn.rigid_props.disable_gravity is True
-    assert enumerate_task_presets(_OSC_TASK)[PresetTarget.DOMAIN] == []
+    assert enumerate_task_presets(_OSC_TASK)[PresetTarget.DOMAIN] == ["diffik_abs"]
+
+
+def test_reach_osc_diffik_abs_is_a_deprecated_no_op_alias():
+    """``presets=diffik_abs`` keeps resolving on the OSC task but warns and changes nothing."""
+    default_cfg = _load_reach_env_cfg(_OSC_TASK, "ovphysx")
+    default_cfg.validate()
+    alias_cfg = _load_reach_env_cfg(_OSC_TASK, "diffik_abs", "ovphysx")
+
+    with pytest.warns(FutureWarning, match="presets=diffik_abs"):
+        alias_cfg.validate()
+
+    assert type(alias_cfg.rewards.action_magnitude.weight) is float
+    assert alias_cfg.to_dict() == default_cfg.to_dict()
 
 
 def test_reach_newton_ik_rejects_physx():

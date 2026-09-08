@@ -3,16 +3,37 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import warnings
+
 from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.controllers.operational_space_cfg import OperationalSpaceControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.reach.config.franka import franka_reach_env_cfg
+from isaaclab_tasks.utils import preset
+
+
+class _DeprecatedDiffIKAbsWeight(float):
+    """Marker for the deprecated ``diffik_abs`` no-op alias; replaced by a plain float during validation."""
 
 
 @configclass
 class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
+    def validate_config(self) -> None:
+        """Validate the physics backend and warn about the deprecated ``diffik_abs`` alias."""
+        super().validate_config()
+        weight = self.rewards.action_magnitude.weight
+        if isinstance(weight, _DeprecatedDiffIKAbsWeight):
+            warnings.warn(
+                "Preset 'diffik_abs' is deprecated for 'Isaac-Reach-Franka-OSC' and has no effect: the task always"
+                " uses the operational space controller. Drop 'presets=diffik_abs' from the command line; the alias"
+                " will be removed in a future release.",
+                FutureWarning,
+                stacklevel=2,
+            )
+            self.rewards.action_magnitude.weight = float(weight)
+
     def __post_init__(self) -> None:
         # post init of parent
         super().__post_init__()
@@ -26,10 +47,14 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
             stiffness=0.0,
             damping=0.0,
         )
-        # The OSC action term replaces the parent's arm-controller presets, so resolve the preset-dependent
-        # values here instead of exposing controller presets that only change the reward weight.
+        # The OSC action term replaces the parent's arm-controller presets, so the parent's ``diffik_abs``
+        # variants would only zero the action-magnitude reward weight here. Resolve the default values and keep
+        # ``diffik_abs`` as a deprecated no-op alias so existing command lines keep working.
         self.scene.robot.spawn.rigid_props.disable_gravity = True
-        self.rewards.action_magnitude.weight = self.rewards.action_magnitude.weight.default
+        default_weight = self.rewards.action_magnitude.weight.default
+        self.rewards.action_magnitude.weight = preset(
+            default=default_weight, diffik_abs=_DeprecatedDiffIKAbsWeight(default_weight)
+        )
 
         # If closed-loop contact force control is desired, contact sensors should be enabled for the robot
         # self.scene.robot.spawn.activate_contact_sensors = True
