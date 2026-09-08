@@ -86,6 +86,7 @@ def _make_visualizer(viewer: _SpyRTXViewer | _SpyGLViewer | None) -> NewtonVisua
     visualizer._viewer = viewer
     visualizer._camera_sensor = None
     visualizer._camera_is_owned = False
+    visualizer._pending_mesh_submissions = {}
     if viewer is not None:
         viewer.owner = visualizer
     return visualizer
@@ -150,12 +151,14 @@ def test_close_releases_the_viewer() -> None:
     """``close()`` must release the viewer through the shared path."""
     viewer = _SpyRTXViewer()
     visualizer = _make_visualizer(viewer)
+    visualizer._pending_mesh_submissions["/surface"] = object()
 
     visualizer.close()
 
     assert viewer.close_calls == 1
     assert viewer.referenced_by_owner_at_close == [True]
     assert visualizer._viewer is None
+    assert visualizer._pending_mesh_submissions == {}
     assert visualizer._is_closed is True
 
 
