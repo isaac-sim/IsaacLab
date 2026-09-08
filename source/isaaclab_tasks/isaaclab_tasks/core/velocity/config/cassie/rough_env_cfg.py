@@ -13,7 +13,6 @@ from isaaclab_tasks.core.velocity.velocity_env_cfg import (
     LocomotionVelocityRoughEnvCfg,
     RewardsCfg,
 )
-from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -57,10 +56,9 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.sim.physics.newton_mjwarp.num_substeps = 2
+
         # scene
         self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton_mjwarp=0.02)
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
         # actions
         self.actions.joint_pos.scale = 0.5
@@ -82,10 +80,3 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.events.base_com = None
         self.events.base_external_force_torque.params["asset_cfg"].body_names = ".*pelvis"
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-
-    def play_mode(self):
-        super().play_mode()
-
-        self.commands.base_velocity.ranges.lin_vel_x = (0.7, 1.0)
-        self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
-        self.commands.base_velocity.ranges.heading = (0.0, 0.0)

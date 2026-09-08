@@ -8,14 +8,30 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from .camera_render_spec import CameraRenderSpec
 from .output_contract import RenderBufferKind, RenderBufferSpec
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    import torch
+
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
+
+
+@dataclass(frozen=True)
+class VisualMaterialBatch:
+    """One flat material-channel buffer and its aligned backend addresses."""
+
+    channel: str
+    material_paths: tuple[str, ...]
+    shader_paths: tuple[str, ...]
+    input_names: tuple[str, ...]
+    values: torch.Tensor
 
 
 class BaseRenderer(ABC):
@@ -24,6 +40,15 @@ class BaseRenderer(ABC):
     def initialize(self) -> None:
         """Post-physics one-time initialization hook. Called only once."""
         return
+
+    @property
+    def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:
+        """Return the backend's shared material-writer factory, if supported.
+
+        Its writer accepts ``None`` for a full sync or channel-to-material-offset device arrays plus
+        one environment-id device array for partial writes, and provides an idempotent ``close()``.
+        """
+        return None
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Pre-render per-camera setup the backend needs.

@@ -93,3 +93,30 @@ XR Anchor
     :members:
 
 .. autofunction:: remove_camera_configs
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab_teleop` API.
+
+.. currentmodule:: isaaclab_teleop
+
+.. autosummary::
+   :nosignatures:
+
+   ControlEvents
+   SupportsControlEvents
+   SystemCheckItem
+   SystemCheckResult
+
+.. autoclass:: ControlEvents
+   :show-inheritance:
+
+.. autoclass:: SupportsControlEvents
+   :show-inheritance:
+
+.. autoclass:: SystemCheckItem
+   :show-inheritance:
+
+.. autoclass:: SystemCheckResult
+   :show-inheritance:

@@ -48,7 +48,11 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with sensor and actuator docs under `docs/source/overview/core-concepts/`, sensor tutorials under `docs/source/tutorials/04_sensors/`, API docs under `docs/source/api/`, and maintained task examples under `source/isaaclab_tasks/isaaclab_tasks/`. If sensor support changes for PhysX, Newton, or renderers, update the docs or source examples first.
+Keep this skill synchronized with actuator docs under `docs/source/concepts/`, sensor docs under
+`docs/source/overview/core-concepts/sensors/`, sensor tutorials under
+`docs/source/tutorials/04_sensors/`, API docs under `docs/source/api/`, and maintained task examples
+under `source/isaaclab_tasks/isaaclab_tasks/`. If sensor support changes for PhysX, Newton, or
+renderers, update the docs or source examples first.
 
 ## References
 
@@ -57,7 +61,7 @@ Keep this skill synchronized with sensor and actuator docs under `docs/source/ov
 - [Add sensors on robot tutorial](../../../docs/source/tutorials/04_sensors/add_sensors_on_robot.rst)
 - [Contact sensor docs](../../../docs/source/overview/core-concepts/sensors/contact_sensor.rst)
 - [Joint wrench sensor docs](../../../docs/source/overview/core-concepts/sensors/joint_wrench_sensor.rst)
-- [Actuators docs](../../../docs/source/overview/core-concepts/actuators.rst)
+- [Actuators docs](../../../docs/source/concepts/actuators.rst)
 - [Sensors API](../../../docs/source/api/lab/isaaclab.sensors.rst)
 - [Sensor patterns API](../../../docs/source/api/lab/isaaclab.sensors.patterns.rst)
 - [Actuators API](../../../docs/source/api/lab/isaaclab.actuators.rst)

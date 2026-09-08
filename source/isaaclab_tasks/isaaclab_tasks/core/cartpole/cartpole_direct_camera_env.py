@@ -8,6 +8,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import torch
+
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
@@ -27,11 +29,13 @@ class CartpoleCameraEnv(CartpoleEnv):
     cfg: CartpoleCameraEnvCfg
 
     def __init__(self, cfg: CartpoleCameraEnvCfg, render_mode: str | None = None, **kwargs):
-        frame_stack = max(1, cfg.frame_stack)
-        cfg.frame_stack = frame_stack
-        if frame_stack > 1:
-            single_channels = int(cfg.observation_space[0])
-            cfg.observation_space = [single_channels * frame_stack, *cfg.observation_space[1:]]
+        cfg.frame_stack = max(1, cfg.frame_stack)
+        if isinstance(cfg.observation_space, list):
+            cfg.observation_space = [
+                int(cfg.observation_space[0]) * cfg.frame_stack,
+                int(cfg.tiled_camera.height),
+                int(cfg.tiled_camera.width),
+            ]
 
         super().__init__(cfg, render_mode, **kwargs)
 
@@ -42,19 +46,21 @@ class CartpoleCameraEnv(CartpoleEnv):
             )
 
         self._stack: CircularBuffer | None = None
-        if frame_stack > 1:
+        if self.cfg.frame_stack > 1:
             # Channel-stack mode: buffer storage is laid out so that .stacked is a free
             # contiguous reshape into (B, K*C, H, W) -- no per-step permute/reshape alloc.
-            self._stack = CircularBuffer(max_len=frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1)
+            self._stack = CircularBuffer(
+                max_len=self.cfg.frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1
+            )
 
     def _setup_scene(self):
         """Setup the scene with the cartpole and camera (no ground plane, which obstructs the view)."""
         self.cartpole = Articulation(self.cfg.robot_cfg)
         self._tiled_camera = Camera(self.cfg.tiled_camera)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
-        cloner.replicate(plan, stage=self.scene.stage)
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos)
+        cloner.replicate(plan)
 
         # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
@@ -74,15 +80,17 @@ class CartpoleCameraEnv(CartpoleEnv):
         camera_data = self._tiled_camera.data.output[data_type]
 
         rgb_like = is_rgb_like(data_type)
+        segmentation = data_type == "semantic_segmentation"
         # Defer normalize past the ring buffer when stacking RGB-like data so the ring holds
         # uint8 (4x cheaper per-step copies). Math is identical -- K frames live in disjoint
-        # channel slices of (B, K*C, H, W).
-        defer_normalize = self._stack is not None and rgb_like
+        # channel slices of (B, K*C, H, W). Colorized segmentation is uint8 RGBA and qualifies;
+        # non-colorized segmentation is an int32 label map and does not.
+        defer_normalize = self._stack is not None and (rgb_like or (segmentation and camera_data.dtype == torch.uint8))
 
         if data_type == "albedo":
             # albedo carries an extra alpha channel that the policy does not use
             camera_data = camera_data[..., :3]
-        if rgb_like and not defer_normalize:
+        if (rgb_like or segmentation) and not defer_normalize:
             camera_data = normalize_camera_image(camera_data, data_type)
         elif data_type == "depth":
             camera_data[camera_data == float("inf")] = 0

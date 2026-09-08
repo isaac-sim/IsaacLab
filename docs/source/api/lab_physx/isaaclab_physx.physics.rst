@@ -26,3 +26,19 @@ Physics Configuration
   :members:
   :show-inheritance:
   :exclude-members: __init__
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab_physx.physics` API.
+
+.. currentmodule:: isaaclab_physx.physics
+
+.. autosummary::
+   :nosignatures:
+
+   IsaacEvents
+
+.. py:class:: IsaacEvents
+
+   PhysX-specific simulation lifecycle events.

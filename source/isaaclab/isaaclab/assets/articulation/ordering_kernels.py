@@ -171,6 +171,41 @@ def reorder_joint_targets_user_to_backend(
         backend_vel_target[env_id, backend_id] = user_vel_target[env_id, user_id]
 
 
+def launch_reorder_joint_targets_user_to_backend(
+    *,
+    user_effort: wp.array2d(dtype=wp.float32),
+    user_pos_target: wp.array2d(dtype=wp.float32),
+    user_vel_target: wp.array2d(dtype=wp.float32),
+    backend_to_user: wp.array(dtype=wp.int32),
+    write_effort: bool,
+    write_pos_target: bool,
+    write_vel_target: bool,
+    write_joint_act: bool,
+    backend_effort: wp.array2d(dtype=wp.float32),
+    backend_pos_target: wp.array2d(dtype=wp.float32),
+    backend_vel_target: wp.array2d(dtype=wp.float32),
+    backend_joint_act: wp.array2d(dtype=wp.float32) | None,
+    device: str,
+) -> None:
+    """Launch the fused public-to-backend joint-target reorder."""
+    wp.launch(
+        reorder_joint_targets_user_to_backend,
+        dim=user_effort.shape,
+        inputs=[
+            user_effort,
+            user_pos_target,
+            user_vel_target,
+            backend_to_user,
+            write_effort,
+            write_pos_target,
+            write_vel_target,
+            write_joint_act,
+        ],
+        outputs=[backend_effort, backend_pos_target, backend_vel_target, backend_joint_act],
+        device=device,
+    )
+
+
 @wp.kernel
 def reorder_joint_state_backend_to_user(
     backend_pos: wp.array2d(dtype=wp.float32),

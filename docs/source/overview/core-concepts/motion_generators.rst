@@ -37,6 +37,11 @@ broadly categorized into:
 Joint-space controllers
 -----------------------
 
+There is no dedicated configuration class for selecting a joint-space control mode. Instead, the
+control mode follows from which targets you set through ``articulation.actuators``: effort targets
+for torque control, velocity targets for velocity control, and position targets for position
+control. See :ref:`actuators-runtime-api` for the runtime API.
+
 Torque control
 ~~~~~~~~~~~~~~
 
@@ -48,9 +53,6 @@ joint torque commands, i.e. at every time-step,
 .. math::
 
     \tau = \tau_{des}
-
-Thus, this control mode is achievable by setting the command type for the actuator group, via
-the :class:`ActuatorControlCfg` class, to ``"t_abs"``.
 
 
 Velocity control
@@ -66,9 +68,6 @@ current and desired joint velocities. Based on input actions, the joint torques 
     \tau = k_d (\dot{q}_{des} - \dot{q})
 
 where :math:`k_d` are the gains parsed from configuration.
-
-This control mode is achievable by setting the command type for the actuator group, via
-the :class:`ActuatorControlCfg` class, to ``"v_abs"`` or ``"v_rel"``.
 
 .. attention::
 
@@ -91,10 +90,7 @@ are zero). Based on the input actions, the joint torque commands are computed as
 
 where :math:`k_p` and :math:`k_d` are the gains parsed from configuration.
 
-In its simplest above form,  the control mode is achievable by setting the command type for the actuator group,
-via the :class:`ActuatorControlCfg` class, to ``"p_abs"`` or ``"p_rel"``.
-
-However, a more complete formulation which considers the dynamics of the articulation would be:
+A more complete formulation which considers the dynamics of the articulation would be:
 
 .. math::
 

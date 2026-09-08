@@ -8,7 +8,7 @@
 .. code-block:: bash
 
     # Usage with default Newton VBD physics and Kit visualizer.
-    uv run python scripts/demos/cables.py
+    uv run --extra isaacsim python scripts/demos/cables.py
 
     # Usage with explicit Newton VBD physics and Newton visualizer.
     uv run python scripts/demos/cables.py --physics newton_vbd --visualizer newton
@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import math
 import random
+from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
@@ -41,8 +42,10 @@ if args_cli.num_segments < 2:
     parser.error("--num_segments must be at least 2.")
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import CableObject, CableObjectCfg
 from isaaclab.physics import PhysicsCfg
+
+if TYPE_CHECKING:
+    from isaaclab.assets import CableObject
 
 
 def design_scene(num_cables: int, num_segments: int, colorize: bool) -> dict[str, CableObject]:
@@ -53,6 +56,8 @@ def design_scene(num_cables: int, num_segments: int, colorize: bool) -> dict[str
         num_segments: Number of segments per cable.
         colorize: Whether to give each cable a random visual material.
     """
+    from isaaclab.assets import CableObject, CableObjectCfg
+
     ground_cfg = sim_utils.GroundPlaneCfg()
     ground_cfg.func("/World/defaultGroundPlane", ground_cfg)
     light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))

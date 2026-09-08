@@ -23,7 +23,7 @@ import argparse
 from collections.abc import Callable
 from functools import partial
 
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
 from pxr import Gf, Usd, UsdGeom
 
@@ -41,7 +41,9 @@ args_cli = parser.parse_args()
 
 FPS = 100.0
 GRAVITY = (0.0, 0.0, -9.81)
-PARTICLES_PER_CELL = 2.0
+PARTICLES_PER_VOXEL_AXIS = 2.0
+PARTICLE_SPACING = args_cli.voxel_size / PARTICLES_PER_VOXEL_AXIS
+COLLIDER_MARGIN = 0.5 * args_cli.voxel_size
 PARTICLE_COLOR = (0.7, 0.6, 0.4)
 SPHERE_BODY_PATTERN = r"/World/envs/env_.*/Sphere_[0-9]+"
 SPHERE_RADIUS = 0.30
@@ -87,11 +89,13 @@ def _spawn_colored_shape(
 
 def create_visualizer_cfgs():
     """Create the demo-specific Newton visualizer configuration."""
-    if not {"newton", "newton_gl"}.intersection(args_cli.visualizer or []):
+    requested = args_cli.visualizer or []
+    if not {"newton", "newton_gl", "newton_rtx"}.intersection(requested):
         return []
 
+    cfg_type = NewtonRTXVisualizerCfg if requested == ["newton_rtx"] else NewtonGLVisualizerCfg
     return [
-        NewtonGLVisualizerCfg(
+        cfg_type(
             streaming_view=False,
             show_particles=True,
             particle_color=PARTICLE_COLOR,
@@ -175,7 +179,7 @@ def create_scene_cfg():
                     else sim_utils.spawn_cuboid
                 ),
                 size=size,
-                collision_props=sim_utils.NewtonCollisionPropertiesCfg(contact_margin=0.04),
+                collision_props=sim_utils.NewtonCollisionPropertiesCfg(contact_margin=COLLIDER_MARGIN),
                 physics_material=sim_utils.NewtonMaterialPropertiesCfg(
                     static_friction=0.6,
                     dynamic_friction=0.6,
@@ -224,6 +228,16 @@ def create_scene_cfg():
     class CoupledSceneCfg(InteractiveSceneCfg):
         """Scene containing a static bath, three rigid spheres, and MPM sand."""
 
+        ground = AssetBaseCfg(
+            prim_path="/World/Ground",
+            spawn=sim_utils.GroundPlaneCfg(size=(12.0, 12.0), color=(0.30, 0.30, 0.30)),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -wall_t)),
+        )
+        dome_light = AssetBaseCfg(
+            prim_path="/World/DomeLight",
+            spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.78, 0.78, 0.78)),
+        )
+
         bath_floor = bath_collider(
             "/World/Bath/Floor",
             (bath_x + 2.0 * wall_t, bath_y + 2.0 * wall_t, wall_t),
@@ -260,8 +274,9 @@ def create_scene_cfg():
                 lower=SAND_LOWER,
                 upper=SAND_UPPER,
                 voxel_size=args_cli.voxel_size,
-                particles_per_cell=PARTICLES_PER_CELL,
-                jitter=args_cli.voxel_size / PARTICLES_PER_CELL,
+                particles_per_cell=PARTICLES_PER_VOXEL_AXIS,
+                particle_placement="cell_center",
+                jitter=PARTICLE_SPACING,
                 material=MPMParticleMaterialCfg(density=2500.0, friction=0.5, yield_pressure=1.0e5),
                 visual_color=PARTICLE_COLOR,
             ),

@@ -69,7 +69,7 @@ def main():
     robot_cfg.spawn.func("/World/Anymal_c/Robot_1", robot_cfg.spawn, translation=(0.0, -0.5, 0.65))
     robot_cfg.spawn.func("/World/Anymal_c/Robot_2", robot_cfg.spawn, translation=(0.0, 0.5, 0.65))
     # create handles for the robots
-    robot = Articulation(robot_cfg.replace(prim_path="/World/Anymal_c/Robot.*"))
+    robot = Articulation(robot_cfg.replace(prim_path="/World/Anymal_c/Robot[^/]*"))
 
     # Play the simulator
     sim.reset()

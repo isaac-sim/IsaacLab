@@ -31,7 +31,7 @@ import functools
 import sys
 import warnings
 from collections import deque
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 
 import hydra
 from hydra.core.config_store import ConfigStore
@@ -319,7 +319,7 @@ def _pick_alternative(
             consumed_selected.add(name)
         if typed_hits is not None:
             # record which typed targets (physics/renderer) this name landed on
-            targets = {t for t in PresetTarget if t.base_classes and isinstance(val, t.base_classes)}
+            targets = {target for target in PresetTarget if target.base_classes and target.matches(val)}
             if targets:
                 typed_hits.setdefault(raw_name, set()).update(targets)
                 typed_hits.setdefault(name, set()).update(targets)
@@ -464,7 +464,12 @@ def _run_hydra(task, env_cfg, agent_cfg, hydra_args, callback):
         sys.argv = original_argv
 
 
-def resolve_task_config(task_name: str, agent_cfg_entry_point: str, play_mode: bool = False):
+def resolve_task_config(
+    task_name: str,
+    agent_cfg_entry_point: str | None,
+    play_mode: bool = False,
+    overrides: Sequence[str] | None = None,
+):
     """Resolve env and agent configs with Hydra overrides, presets, and scalars fully applied.
 
     Safe to call before Kit is launched -- callable config values are stored as
@@ -476,12 +481,17 @@ def resolve_task_config(task_name: str, agent_cfg_entry_point: str, play_mode: b
         agent_cfg_entry_point: Agent config entry point key (e.g., "rsl_rl_cfg_entry_point").
         play_mode: Whether to apply the play-mode overrides defined by the environment
             configuration's ``play_mode`` method after loading. Defaults to False.
+        overrides: Optional Hydra arguments to use instead of reading them from
+            :data:`sys.argv`. This keeps programmatic task composition on the same
+            path as command-line composition. Defaults to None.
 
     Returns:
         Tuple of (env_cfg, agent_cfg) fully resolved.
     """
     task = task_name.split(":")[-1]
-    env_cfg, agent_cfg, hydra_args = register_task(task, agent_cfg_entry_point, play_mode=play_mode)
+    env_cfg, agent_cfg, hydra_args = register_task(
+        task, agent_cfg_entry_point, play_mode=play_mode, overrides=overrides
+    )
     resolved = {}
     _run_hydra(task, env_cfg, agent_cfg, hydra_args, lambda e, a: resolved.update(env_cfg=e, agent_cfg=a))
     return resolved["env_cfg"], resolved["agent_cfg"]
@@ -580,7 +590,12 @@ def _validate_typed_presets(
         )
 
 
-def register_task(task_name: str, agent_entry: str, play_mode: bool = False) -> tuple:
+def register_task(
+    task_name: str,
+    agent_entry: str | None,
+    play_mode: bool = False,
+    overrides: Sequence[str] | None = None,
+) -> tuple:
     """Load configs, collect presets recursively, register base config to Hydra.
 
     Presets are collected from nested configclasses and stored separately -
@@ -591,6 +606,7 @@ def register_task(task_name: str, agent_entry: str, play_mode: bool = False) -> 
         agent_entry: Agent config entry point key.
         play_mode: Whether to apply the play-mode overrides defined by the environment
             configuration's ``play_mode`` method after loading. Defaults to False.
+        overrides: Optional Hydra arguments to compose instead of :data:`sys.argv`.
 
     Returns:
         Tuple of ``(env_cfg, agent_cfg, hydra_args)`` where presets have been
@@ -610,7 +626,7 @@ def register_task(task_name: str, agent_entry: str, play_mode: bool = False) -> 
     requested_targets: dict[PresetTarget, set[str]] = {}
     override_items: list[tuple[str, str, str]] = []
     hydra_args: list[str] = []
-    for arg in sys.argv[1:]:
+    for arg in sys.argv[1:] if overrides is None else overrides:
         if "=" not in arg:
             hydra_args.append(arg)
             continue

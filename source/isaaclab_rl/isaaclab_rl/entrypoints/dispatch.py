@@ -13,6 +13,8 @@ import runpy
 import sys
 from typing import TYPE_CHECKING
 
+import gymnasium as gym
+
 if TYPE_CHECKING:
     from .simple_agents import PolicyName
 
@@ -107,6 +109,8 @@ def run_cli(action: str, argv: list[str] | None = None) -> int:
     parser.add_argument("--rl_library", choices=sorted(backends))
     selected, backend_argv = parser.parse_known_args(argv)
     if selected.rl_library is None:
+        selected.rl_library = _resolve_default_library(argv, backends)
+    if selected.rl_library is None:
         _print_selector_help(action, sorted(backends))
         if "-h" in argv or "--help" in argv:
             return 0
@@ -114,6 +118,23 @@ def run_cli(action: str, argv: list[str] | None = None) -> int:
         return 2
     _run_backend(backends[selected.rl_library], backend_argv, run_as_script=action == "play")
     return 0
+
+
+def _resolve_default_library(argv: list[str], backends: dict[str, str]) -> str | None:
+    """Return the task-registered default RL library requested by command-line arguments."""
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--task")
+    args, _ = parser.parse_known_args(argv)
+    if args.task is None:
+        return None
+
+    import isaaclab_tasks  # noqa: F401
+
+    try:
+        default_library = gym.spec(args.task.split(":")[-1]).kwargs.get("default_agent")
+    except gym.error.Error:
+        return None
+    return default_library if default_library in backends else None
 
 
 def _print_selector_help(action: str, backends: list[str]) -> None:

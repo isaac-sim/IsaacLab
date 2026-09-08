@@ -18,9 +18,14 @@ import torch
 
 from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.string import to_camel_case
-from isaaclab.utils.version import has_kit
 
-from .queries import find_matching_prim_paths, has_deformable_body_api, has_deformable_curve_api
+from .queries import (
+    find_matching_prim_paths,
+    has_deformable_body_api,
+    has_deformable_curve_api,
+    path_expr_to_glob,
+    split_path_expr,
+)
 from .semantics import add_labels
 from .stage import get_current_stage, resolve_paths
 from .transforms import convert_world_pose_to_local, standardize_xform_ops
@@ -698,7 +703,10 @@ def clone(func: Callable) -> Callable:
             raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
         # resolve: {SPAWN_NS}/AssetName
         # note: this assumes that the spawn namespace already exists in the stage
-        root_path, asset_path = prim_path.rsplit("/", 1)
+        # split on separators only: a segment wildcard is written as a character class whose
+        # text contains a '/' that is not a separator.
+        *root_segments, asset_path = split_path_expr(prim_path)
+        root_path = "/".join(root_segments)
         # check if input is a regex expression
         # note: a valid prim path can only contain alphanumeric characters, underscores, and forward slashes
         is_regex_expression = re.match(r"^[a-zA-Z0-9/_]+$", root_path) is None
@@ -755,7 +763,9 @@ def clone(func: Callable) -> Callable:
             _schemas.activate_contact_sensors(prim_spawn_path)
         # clone asset using cloner API
         if len(source_prim_paths) > 1:
-            sanitized_asset = asset_path.replace(".*", "0")
+            # the leaf may carry an index slot as a segment wildcard; normalizing to glob
+            # collapses its spellings to the single '*' that the index replaces.
+            sanitized_asset = path_expr_to_glob(asset_path).replace("*", "0")
             rl = stage.GetRootLayer()
             with Sdf.ChangeBlock():
                 for src_parent in source_prim_paths[1:]:
@@ -782,13 +792,11 @@ def bind_visual_material(
 ):
     """Bind a visual material to a prim.
 
-    This function is a wrapper around the USD command `BindMaterialCommand`_.
+    The binding is authored using the standard OpenUSD :class:`UsdShade.MaterialBindingAPI`.
 
     .. note::
         The function is decorated with :meth:`apply_nested` to allow applying the function to a prim path
         and all its descendants.
-
-    .. _BindMaterialCommand: https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.BindMaterialCommand.html
 
     Args:
         prim_path: The prim path where to apply the material.
@@ -801,37 +809,28 @@ def bind_visual_material(
     Raises:
         ValueError: If the provided prim paths do not exist on stage.
     """
-    if not has_kit():
-        return False
+    from pxr import UsdShade  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
 
     # check if prim and material exists
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        raise ValueError(f"Target prim '{material_path}' does not exist.")
-    if not stage.GetPrimAtPath(material_path).IsValid():
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Target prim '{prim_path}' does not exist.")
+    material_prim = stage.GetPrimAtPath(material_path)
+    if not material_prim.IsValid():
         raise ValueError(f"Visual material '{material_path}' does not exist.")
 
     # resolve token for weaker than descendants
-    # bind material command expects a string token
     if stronger_than_descendants:
-        binding_strength = "strongerThanDescendants"
+        binding_strength = UsdShade.Tokens.strongerThanDescendants
     else:
-        binding_strength = "weakerThanDescendants"
-    # obtain material binding API
-    # note: we prefer using the command here as it is more robust than the USD API
-    import omni.kit.commands
-
-    success, _ = omni.kit.commands.execute(
-        "BindMaterialCommand",
-        prim_path=prim_path,
-        material_path=material_path,
-        strength=binding_strength,
-        stage=stage,
-    )
-    # return success
-    return bool(success)
+        binding_strength = UsdShade.Tokens.weakerThanDescendants
+    binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
+    material = UsdShade.Material(material_prim)
+    return binding_api.Bind(material, bindingStrength=binding_strength)
 
 
 @apply_nested
@@ -1038,8 +1037,14 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
         variants: A dictionary or config class mapping variant set names to variant selections.
         stage: The USD stage. Defaults to None, in which case, the current stage is used.
 
+    A variant set the prim does not have is skipped with a warning, so one configuration can spawn
+    assets that expose different options. A set that exists but does not offer the requested variant
+    is an error: USD accepts the selection and composes the prim as if nothing were selected, so the
+    asset would silently spawn without the description the variant carries.
+
     Raises:
-        ValueError: If the prim at the specified path is not valid.
+        ValueError: If the prim at the specified path is not valid, or if a variant set on the prim
+            does not offer the requested variant.
 
     .. _USD Variants: https://graphics.pixar.com/usd/docs/USD-Glossary.html#USDGlossary-Variant
     """
@@ -1063,6 +1068,15 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
             continue
 
         variant_set = existing_variant_sets.GetVariantSet(variant_set_name)
+        # USD accepts a selection naming a variant the set does not offer, and the prim then
+        # composes as if nothing were selected, so reject it instead of spawning a silently
+        # incomplete asset.
+        available = variant_set.GetVariantNames()
+        if variant_selection not in available:
+            raise ValueError(
+                f"Variant set '{variant_set_name}' on prim '{prim_path}' does not offer variant"
+                f" '{variant_selection}'. Available variants: {available}."
+            )
         # Only set the variant selection if it is different from the current selection.
         if variant_set.GetVariantSelection() != variant_selection:
             variant_set.SetVariantSelection(variant_selection)

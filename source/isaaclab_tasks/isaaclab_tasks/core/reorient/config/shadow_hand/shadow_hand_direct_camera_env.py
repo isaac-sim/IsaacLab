@@ -17,15 +17,14 @@ from isaaclab.sensors import Camera
 from isaaclab.utils.math import scale_transform
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env import ShadowHandDirectEnv
 from isaaclab_tasks.core.reorient.mdp.observations import compute_cube_keypoints
-from isaaclab_tasks.core.reorient.reorient_common import CAMERA_GOAL_MARKER_POSITION
-from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import ShadowHandCameraEnvCfg
 
 
-class ShadowHandCameraEnv(ReorientDirectEnv):
+class ShadowHandCameraEnv(ShadowHandDirectEnv):
     cfg: ShadowHandCameraEnvCfg
 
     def __init__(self, cfg: ShadowHandCameraEnvCfg, render_mode: str | None = None, **kwargs):
@@ -42,7 +41,7 @@ class ShadowHandCameraEnv(ReorientDirectEnv):
             width=self.cfg.tiled_camera.width,
         )
         # hide goal cubes
-        self.goal_pos[:, :] = torch.tensor(CAMERA_GOAL_MARKER_POSITION, device=self.device)
+        self.goal_pos[:, :] = torch.tensor((-0.2, 0.1, 0.6), device=self.device)  # inside the tiled camera frustum
         # keypoints buffer
         self.gt_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
         self.goal_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
@@ -54,9 +53,9 @@ class ShadowHandCameraEnv(ReorientDirectEnv):
         self._joint_wrench_sensor = self._create_joint_wrench_sensor()
         self._tiled_camera = Camera(self.cfg.tiled_camera)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
-        cloner.replicate(plan, stage=self.scene.stage)
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos)
+        cloner.replicate(plan)
         # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions(global_prim_paths=[])

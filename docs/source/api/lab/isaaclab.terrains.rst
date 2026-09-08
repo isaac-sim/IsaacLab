@@ -259,3 +259,18 @@ Utilities
 .. automodule:: isaaclab.terrains.utils
     :members:
     :undoc-members:
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.terrains` API.
+
+.. currentmodule:: isaaclab.terrains
+
+.. autosummary::
+   :nosignatures:
+
+   FlatPatchSamplingCfg
+
+.. autoclass:: FlatPatchSamplingCfg
+   :show-inheritance:

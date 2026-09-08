@@ -6,29 +6,32 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
-import torch
-
-from pxr import Gf, Sdf, Usd, UsdGeom, Vt
+import numpy as np
 
 from ._fabric_notices import disabled_fabric_change_notifies
 from .path import split
 
+if TYPE_CHECKING:
+    from pxr import Usd
 
-def _select_env_ids(env_ids: torch.Tensor, mask: torch.Tensor | None, row: int) -> torch.Tensor:
-    """Return the environment ids selected by a replication row."""
+    from .clone_plan import ClonePlan
+
+
+def _select_columns(env_ids: np.ndarray, mask: np.ndarray | None, row: int) -> np.ndarray:
+    """Return the mask columns selected by a replication row."""
     if mask is None:
-        return env_ids
-    row_mask = mask if mask.dim() == 1 else mask[row]
-    if row_mask.dtype != torch.bool:
-        row_mask = row_mask.to(dtype=torch.bool)
-    return env_ids[row_mask]
+        return np.arange(len(env_ids))
+    row_mask = mask if mask.ndim == 1 else mask[row]
+    return np.flatnonzero(row_mask)
 
 
 class UsdReplicateContext:
-    """Queue and apply USD replication work for one stage."""
+    """Apply routed clone-plan rows to one USD stage."""
 
-    replicate_priority = 100
+    # USD destinations must exist before native physics contexts consume them.
+    replicate_priority = -100
 
     def __init__(self, stage: Usd.Stage):
         """Initialize the context.
@@ -37,73 +40,39 @@ class UsdReplicateContext:
             stage: USD stage to author replicated prim specs into.
         """
         self.stage = stage
-        self._queue: list[tuple[str, str, torch.Tensor, torch.Tensor | None, torch.Tensor | None]] = []
 
-    def queue(
-        self,
-        source: str,
-        destination: str,
-        env_ids: torch.Tensor,
-        *,
-        positions: torch.Tensor | None = None,
-        quaternions: torch.Tensor | None = None,
-    ) -> None:
-        """Queue one USD source row for replication.
+    def replicate(self, plan: ClonePlan) -> None:
+        """Apply this context's routed rows from a clone plan.
 
         Args:
-            source: Source prim path.
-            destination: Destination path template with ``"{}"`` for env id.
-            env_ids: Environment ids selected for this source row.
-            positions: Optional per-environment world positions [m]. Authored only for
-                instance-root destination templates (for example, ``.../env_{}``).
-            quaternions: Optional per-environment orientations in xyzw order. Authored only
-                for instance-root destination templates (for example, ``.../env_{}``).
+            plan: Replication layout shared by every clone backend.
         """
-        self._queue.append((source, destination, env_ids, positions, quaternions))
-
-    def queue_mapping(
-        self,
-        sources: Sequence[str],
-        destinations: Sequence[str],
-        env_ids: torch.Tensor,
-        mask: torch.Tensor | None = None,
-        *,
-        positions: torch.Tensor | None = None,
-        quaternions: torch.Tensor | None = None,
-    ) -> None:
-        """Queue replication rows from the current flat clone mapping.
-
-        Args:
-            sources: Source prim paths.
-            destinations: Destination path templates with ``"{}"`` for env id.
-            env_ids: Environment indices.
-            mask: Optional per-source or shared mask.
-            positions: Optional per-environment world positions [m]. Authored only for
-                instance-root destination templates (for example, ``.../env_{}``).
-            quaternions: Optional per-environment orientations in xyzw order. Authored only
-                for instance-root destination templates (for example, ``.../env_{}``).
-        """
-        for i, source in enumerate(sources):
-            self.queue(
-                source,
-                destinations[i],
-                _select_env_ids(env_ids, mask, i),
-                positions=positions,
-                quaternions=quaternions,
-            )
-
-    def replicate(self) -> None:
-        """Apply all queued USD copy specs in parent-before-child order."""
-        if not self._queue:
+        if plan.env_ids is None:
+            raise ValueError("ClonePlan.env_ids is required for replication.")
+        rows = plan.context_rows[type(self)]
+        replication_rows = []
+        for row in rows:
+            columns = _select_columns(plan.env_ids, plan.clone_mask, row)
+            target_envs = plan.env_ids[columns]
+            positions = None if plan.positions is None else plan.positions[columns]
+            replication_rows.append((plan.sources[row], plan.destinations[row], target_envs, positions, None))
+        if not replication_rows:
             return
 
         # Suspend Fabric's per-Sdf.CopySpec notice listener for the duration of the copy work;
         # no-op outside a live Kit application.
         with disabled_fabric_change_notifies(self.stage):
-            self._apply_queue()
+            self._apply(replication_rows)
 
-    def _apply_queue(self) -> None:
-        """Author the queued copy specs into the stage's root layer."""
+    def _apply(
+        self,
+        replication_rows: list[tuple[str, str, np.ndarray, np.ndarray | None, np.ndarray | None]],
+    ) -> None:
+        """Author the supplied copy specs into the stage's root layer."""
+        # pxr must be imported after Kit starts; importing it with this module can bind
+        # a different USD runtime before Kit initializes its plugins.
+        from pxr import Gf, Sdf, UsdGeom, Vt  # noqa: PLC0415
+
         rl = self.stage.GetRootLayer()
 
         def dp_depth(template: str) -> int:
@@ -111,17 +80,17 @@ class UsdReplicateContext:
             dp = template.format(0)
             return Sdf.Path(dp).pathElementCount
 
-        depth_to_items: dict[int, list[tuple[str, str, torch.Tensor, torch.Tensor | None, torch.Tensor | None]]] = {}
-        for item in self._queue:
-            depth_to_items.setdefault(dp_depth(item[1]), []).append(item)
+        rows_by_depth: dict[int, list[tuple[str, str, np.ndarray, np.ndarray | None, np.ndarray | None]]] = {}
+        for row in replication_rows:
+            rows_by_depth.setdefault(dp_depth(row[1]), []).append(row)
 
-        for depth in sorted(depth_to_items.keys()):
+        for depth in sorted(rows_by_depth):
             with Sdf.ChangeBlock():
-                for src, tmpl, target_envs, positions, quaternions in depth_to_items[depth]:
+                for src, tmpl, target_envs, positions, quaternions in rows_by_depth[depth]:
                     _, clone_suffix = split(tmpl)
                     is_instance_root = clone_suffix == ""
 
-                    for wid in target_envs.tolist():
+                    for column, wid in enumerate(target_envs):
                         wid = int(wid)
                         dp = tmpl.format(wid)
                         Sdf.CreatePrimInLayer(rl, dp)
@@ -145,14 +114,14 @@ class UsdReplicateContext:
                             ps = rl.GetPrimAtPath(dp)
                             op_names = []
                             if positions is not None:
-                                p = positions[wid]
+                                p = positions[column]
                                 t_attr = ps.GetAttributeAtPath(dp + ".xformOp:translate")
                                 if t_attr is None:
                                     t_attr = Sdf.AttributeSpec(ps, "xformOp:translate", Sdf.ValueTypeNames.Double3)
                                 t_attr.default = Gf.Vec3d(float(p[0]), float(p[1]), float(p[2]))
                                 op_names.append("xformOp:translate")
                             if quaternions is not None:
-                                q = quaternions[wid]
+                                q = quaternions[column]
                                 o_attr = ps.GetAttributeAtPath(dp + ".xformOp:orient")
                                 if o_attr is None:
                                     o_attr = Sdf.AttributeSpec(ps, "xformOp:orient", Sdf.ValueTypeNames.Quatd)
@@ -169,16 +138,16 @@ def usd_replicate(
     stage: Usd.Stage,
     sources: Sequence[str],
     destinations: Sequence[str],
-    env_ids: torch.Tensor,
-    mask: torch.Tensor | None = None,
-    positions: torch.Tensor | None = None,
-    quaternions: torch.Tensor | None = None,
+    env_ids: np.ndarray,
+    mask: np.ndarray | None = None,
+    positions: np.ndarray | None = None,
+    quaternions: np.ndarray | None = None,
 ) -> None:
-    """Replicate USD prims to per-environment destinations.
+    """Replicate USD prims directly for standalone tooling and tests.
 
-    Copies each source prim spec to destination templates for selected environments
-    (``mask``). Optionally authors translate/orient from position/quaternion buffers.
-    Replication runs in path-depth order (parents before children) for robust composition.
+    Production clone lifecycles route a :class:`~isaaclab.cloner.ClonePlan` through
+    :meth:`UsdReplicateContext.replicate`; this wrapper retains direct control over raw
+    mappings for tools that do not own a clone plan.
 
     Args:
         stage: USD stage.
@@ -191,6 +160,14 @@ def usd_replicate(
         quaternions: Optional orientations in xyzw order, shape ``[E, 4]``. Authored as
             ``xformOp:orient`` only for env-instance root destinations (``.../env_{}``).
     """
-    ctx = UsdReplicateContext(stage)
-    ctx.queue_mapping(sources, destinations, env_ids, mask, positions=positions, quaternions=quaternions)
-    ctx.replicate()
+    replication_rows = []
+    for row, source in enumerate(sources):
+        columns = _select_columns(env_ids, mask, row)
+        target_envs = env_ids[columns]
+        row_positions = None if positions is None else positions[columns]
+        row_quaternions = None if quaternions is None else quaternions[columns]
+        replication_rows.append((source, destinations[row], target_envs, row_positions, row_quaternions))
+    context = UsdReplicateContext(stage)
+    if replication_rows:
+        with disabled_fabric_change_notifies(stage):
+            context._apply(replication_rows)

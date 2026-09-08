@@ -9,13 +9,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
 
 from isaaclab.managers import ManagerTermBaseCfg
 from isaaclab.utils.configclass import configclass
 
-if TYPE_CHECKING:
-    from .events import SuccessMonitor
+from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg as SuccessMonitorCfg
 
 
 @configclass
@@ -122,40 +120,3 @@ class SlabClearanceCfg(ManagerTermBaseCfg):
 
     min_clearance: float = 0.02
     """Required clearance [m]; states with any point below this above a slab are invalid."""
-
-
-@configclass
-class SuccessMonitorCfg:
-    """Configuration for :class:`SuccessMonitor`.
-
-    The slot count, partitioning and device are runtime facts of whatever is being monitored, so the
-    owner passes them to the constructor; this config only holds what a task tunes.
-    """
-
-    class_type: type[SuccessMonitor] | str = "{DIR}.events:SuccessMonitor"
-    """Monitor implementation to instantiate. Referenced by name and resolved lazily, so
-    importing this config pulls no implementation dependencies."""
-
-    monitored_history_len: int = 10
-    """Episodes remembered per slot; the outcome table is [num_slots, monitored_history_len]."""
-
-    target_success_rate: float = 0.5
-    """Success rate the draw favors, in [0, 1].
-
-    One half keeps training on the frontier of competence: the states solved about half the time,
-    where the learning signal is richest. Zero focuses on failures, one on already-solved states.
-    """
-
-    kappa: float = 1.0
-    """How tightly the weighting concentrates around :attr:`target_success_rate`.
-
-    Zero weights every slot equally; larger values sharpen the peak. With ``kappa=2`` and a target
-    of one half the weight is ``p * (1 - p)``.
-    """
-
-    temperature: float = 1.0
-    """Flattening applied to the weights before drawing, at or above ``1.0``.
-
-    ``1.0`` draws in proportion to the weight; larger values pull the draw toward uniform, which
-    keeps unfavored slots in circulation so their rates stay current.
-    """

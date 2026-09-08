@@ -62,7 +62,9 @@ _FORBIDDEN_PREFIXES = (
     "scipy",
 )
 
-_ALL_ISAAC_TASKS = sorted(name for name in gymnasium.registry if name.startswith("Isaac-"))
+_ALL_ISAAC_TASKS = sorted(
+    name for name in gymnasium.registry if name.startswith("Isaac-") or name == "IsaacContrib-Factory-Franka"
+)
 
 # ---------------------------------------------------------------------------
 # Batch subprocess: run all checks in one Python process so we only pay the

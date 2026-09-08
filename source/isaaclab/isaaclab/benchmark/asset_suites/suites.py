@@ -571,7 +571,6 @@ _ARTICULATION_PROPERTIES = tuple(
             "body_link_jacobian_w",
             "default_joint_pos",
             "default_joint_vel",
-            "gear_ratio",
             "joint_acc",
             "joint_armature",
             "joint_damping",

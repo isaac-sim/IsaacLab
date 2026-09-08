@@ -192,17 +192,19 @@ incorrect collision geometry, or insufficient actuator effort. See :ref:`mjwarp-
 the complete tuning sequence.
 
 
+.. _newton-velocity-limits:
+
 Velocity limits distinction
 ---------------------------
 
-``velocity_limit`` is the actuator's physical rated speed. Isaac Lab can use it in actuator or
-task logic, observations, rewards, and terminations, but MJWarp does not parse it into the solver
-model and does not enforce it during stepping.
+``actuator_velocity_limit`` is the actuator's physical rated speed. Isaac Lab can use it in
+actuator or task logic, observations, rewards, and terminations, but MJWarp does not parse it into
+the solver model and does not enforce it during stepping.
 
-``velocity_limit_sim`` requests a solver-side hard clamp and has no direct hardware counterpart.
+``joint_velocity_limit`` requests a solver-side hard clamp and has no direct hardware counterpart.
 Isaac Lab always writes the value to Newton's ``Model.joint_velocity_limit``. The MJWarp solver
 drops that field instead of consuming it, while the Kamino solver honors it. Consequently, neither
-``velocity_limit`` nor ``velocity_limit_sim`` prevents a joint from exceeding the requested speed
+``velocity_limit`` nor ``joint_velocity_limit`` prevents a joint from exceeding the requested speed
 under ``physics=newton_mjwarp``.
 
 Do not treat these values as an MJWarp safety mechanism. When a task requires a rated-speed
@@ -210,8 +212,9 @@ boundary, check it explicitly in observations or terminations and use physically
 limits, damping, armature, action scaling, rate limits, or controller clipping to keep the response
 well behaved. PhysX does consume its supported solver clamp; an overly tight PhysX clamp can make a
 velocity-limit termination unreachable and create a hidden transfer difference.
-``effort_limit_sim`` is the simulated effort limit; use per-joint actuator or gearbox limits
-rather than one oversized value for the whole robot.
+``joint_effort_limit`` is the simulated effort limit. Use
+``actuator_effort_limit`` to clip an explicit actuator model, and choose both limits from the
+motor and gearbox rather than using one oversized value for the whole robot.
 
 
 Why MJWarp often needs more armature

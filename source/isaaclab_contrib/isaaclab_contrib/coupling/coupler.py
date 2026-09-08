@@ -12,7 +12,8 @@ from functools import partial
 
 import warp as wp
 from isaaclab_newton.physics import (
-    KaminoSolverCfg,
+    KaminoDVISolverCfg,
+    KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     MPMSolverCfg,
     NewtonCollisionPipelineCfg,
@@ -20,13 +21,14 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
 from isaaclab_newton.physics.newton_manager import NewtonManager
+from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
+from newton.solvers import SolverBase
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.physics import PhysicsManager
 from isaaclab.utils.string import resolve_matching_names
 
-from ..deformable.vbd_manager import NewtonVBDManager
 from .coupler_cfg import (
     CouplerAdmmCfg,
     CouplerCfg,
@@ -63,7 +65,7 @@ class NewtonCouplerManager(NewtonVBDManager):
         """
         if isinstance(solver_cfg, MJWarpSolverCfg):
             return not solver_cfg.use_mujoco_contacts
-        if isinstance(solver_cfg, KaminoSolverCfg):
+        if isinstance(solver_cfg, (KaminoPADMMSolverCfg, KaminoDVISolverCfg)):
             return not solver_cfg.use_collision_detector
         if isinstance(solver_cfg, MPMSolverCfg):
             return False
@@ -140,11 +142,6 @@ class NewtonCouplerManager(NewtonVBDManager):
                 raise ValueError(
                     f"CouplerEntryCfg {entry.name!r} contains a nested CouplerCfg; nested couplers are not supported."
                 )
-            if getattr(nested_cfg, "model_cfg", None) is not None:
-                raise ValueError(
-                    f"CouplerEntryCfg {entry.name!r} sets solver_cfg.model_cfg, but model parameters are global. "
-                    "Set model_cfg on the outer CouplerCfg instead."
-                )
             manager = nested_cfg.class_type
             factory = getattr(manager, "_create_solver", None)
             if not callable(factory) or getattr(factory, "__func__", factory) is NewtonManager._create_solver.__func__:
@@ -152,9 +149,9 @@ class NewtonCouplerManager(NewtonVBDManager):
                     f"CouplerEntryCfg {entry.name!r} uses {type(nested_cfg).__name__}, whose manager "
                     "does not implement nested solver construction."
                 )
-            if isinstance(nested_cfg, KaminoSolverCfg):
+            if isinstance(nested_cfg, (KaminoPADMMSolverCfg, KaminoDVISolverCfg)):
                 raise NotImplementedError(
-                    f"CouplerEntryCfg {entry.name!r} uses KaminoSolverCfg, whose manager-specific FK/reset "
+                    f"CouplerEntryCfg {entry.name!r} uses a Kamino solver config, whose manager-specific FK/reset "
                     "lifecycle cannot yet be preserved inside Newton's coupled-solver entry API."
                 )
             if isinstance(nested_cfg, MPMSolverCfg) and nested_cfg.project_outside_colliders:
@@ -192,17 +189,23 @@ class NewtonCouplerManager(NewtonVBDManager):
     def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
         """Register custom attributes required by nested coupled entries."""
         super()._register_builder_attributes(builder)
-        solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
-        if any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in getattr(solver_cfg, "entries", ())):
-            NewtonMPMManager._register_builder_attributes(builder)
+        for entry in PhysicsManager._cfg.solver_cfg.entries:
+            entry.solver_cfg.class_type._register_builder_attributes(builder)
+
+    @classmethod
+    def _registers_builder_attributes_from_solver(cls, solver_cls: type[SolverBase]) -> bool:
+        """Return whether the manager or a configured nested entry registers ``solver_cls`` attributes."""
+        return super()._registers_builder_attributes_from_solver(solver_cls) or any(
+            entry.solver_cfg.class_type._registers_builder_attributes_from_solver(solver_cls)
+            for entry in PhysicsManager._cfg.solver_cfg.entries
+        )
 
     @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
         """Normalize kinematic colliders when a coupled entry uses implicit MPM."""
         super()._prepare_builder_for_finalize(builder)
-        solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
-        if any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in getattr(solver_cfg, "entries", ())):
-            NewtonMPMManager._prepare_builder_for_finalize(builder)
+        for entry in PhysicsManager._cfg.solver_cfg.entries:
+            entry.solver_cfg.class_type._prepare_builder_for_finalize(builder)
 
     @classmethod
     def _initialize_contacts(cls) -> None:
@@ -212,12 +215,27 @@ class NewtonCouplerManager(NewtonVBDManager):
             NewtonManager._solver.prepare_contacts(cls._contacts)
 
     @classmethod
+    def _check_solver_status(cls) -> None:
+        """Raise asynchronous failures from nested implicit-MPM solvers."""
+        NewtonMPMManager._check_solver_status()
+
+    @classmethod
+    def _solver_specific_clear(cls) -> None:
+        """Clear VBD hooks and cached nested-MPM solver references."""
+        super()._solver_specific_clear()
+        NewtonMPMManager._solver_specific_clear()
+
+    @classmethod
+    def _requires_initial_reset_before_graph_capture(cls) -> bool:
+        """Capture coupled MPM only after the task authors its initial particle state."""
+        return bool(NewtonMPMManager._implicit_mpm_solvers())
+
+    @classmethod
     def _supports_cuda_graph_capture(cls) -> bool:
-        """Reject graph capture when a nested MPM entry uses a dynamic grid."""
-        solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
+        """Reject capture when a nested MPM solver has dynamic storage."""
         return all(
-            not isinstance(entry.solver_cfg, MPMSolverCfg) or entry.solver_cfg.grid_type == "fixed"
-            for entry in getattr(solver_cfg, "entries", ())
+            NewtonMPMManager._solver_supports_cuda_graph_capture(solver)
+            for solver in NewtonMPMManager._implicit_mpm_solvers()
         )
 
     @classmethod

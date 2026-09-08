@@ -77,7 +77,7 @@ def test_sb3_export_args_use_common_defaults():
         "task",
         "agent",
         "checkpoint",
-        "use_pretrained_checkpoint",
+        "checkpoint",
         "export_task_name",
         "export_method",
         "export_save_path",

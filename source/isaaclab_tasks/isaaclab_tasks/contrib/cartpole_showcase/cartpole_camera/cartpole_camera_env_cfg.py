@@ -25,7 +25,7 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 def get_tiled_camera_cfg(data_type: str, width: int = 100, height: int = 100) -> CameraCfg:
     return CameraCfg(
-        prim_path="/World/envs/env_.*/Camera",
+        prim_path="{ENV_REGEX_NS}/Camera",
         offset=CameraCfg.OffsetCfg(pos=(-5.0, 0.0, 2.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
         data_types=[data_type],
         spawn=sim_utils.PinholeCameraCfg(
@@ -53,7 +53,7 @@ class CartpoleCameraEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
 
     # robot
-    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
 

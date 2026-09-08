@@ -24,12 +24,7 @@ from utils import UV_Mixin
 
 @pytest.mark.install_path_uv_pip
 class Test_Uv_Pip_Install_Isaaclab_Rl_Tasks_Imports_Rl_Tasks(UV_Mixin):
-    """``uv pip install <wheel>[sb3,skrl,rsl-rl]``: verify RL imports without Isaac Sim.
-
-    The extras are named individually on purpose. ``test_install_rl_tasks_omits_isaacsim``
-    asserts Isaac Sim is absent, and the aggregate ``all`` extra carries it -- switching to
-    ``[all]`` would make that assertion fail.
-    """
+    """Verify RL imports without Isaac Sim."""
 
     _wheel: str = ""
     _extras: str = "[sb3,skrl,rsl-rl]"
@@ -44,7 +39,6 @@ class Test_Uv_Pip_Install_Isaaclab_Rl_Tasks_Imports_Rl_Tasks(UV_Mixin):
         cls = self.__class__
         cls._wheel = str(wheel)
 
-        # Create the uv env and install the RL extras (no isaacsim, no NVIDIA flags).
         self.create_uv_env(isaaclab_root)
         cls.env_path = self.env_path
         cls.python = self.python
@@ -85,6 +79,11 @@ class Test_Uv_Pip_Install_Isaaclab_Rl_Tasks_Imports_Rl_Tasks(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.timeout(1200)
     def test_install_rl_tasks_omits_isaacsim(self):
-        """``import isaacsim`` fails after installing the RL extras (isaacsim extra not requested)."""
-        result = self.run_in_uv_env(["python", "-c", "import isaacsim"])
+        """The Isaac Sim runtime is absent after installing the RL extras (isaacsim extra not requested).
+
+        Ask the distribution directly so this remains independent of namespace-package behavior.
+        """
+        result = self.run_in_uv_env(
+            ["python", "-c", "import importlib.metadata as m; m.version('isaacsim')"],
+        )
         assert result.returncode != 0, f"isaacsim should not be installed by the {self._extras} extras"

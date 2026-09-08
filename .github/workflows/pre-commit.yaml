@@ -22,3 +22,7 @@ jobs:
       with:
         python-version: "3.12"
     - uses: pre-commit/action@v3.0.0
+      # The local fragment hook needs a full base-branch history. The
+      # dedicated changelog-check workflow supplies that authoritative gate.
+      env:
+        SKIP: check-changelog-fragments

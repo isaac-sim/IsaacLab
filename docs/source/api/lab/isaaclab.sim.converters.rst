@@ -38,7 +38,7 @@ Mesh Converter
     :members:
     :inherited-members:
     :show-inheritance:
-    :exclude-members: __init__
+    :exclude-members: __init__, PhysicsVariant
 
 
 URDF Converter
@@ -53,7 +53,7 @@ URDF Converter
     :members:
     :inherited-members:
     :show-inheritance:
-    :exclude-members: __init__
+    :exclude-members: __init__, PhysicsVariant
 
 MJCF Converter
 --------------
@@ -67,4 +67,4 @@ MJCF Converter
     :members:
     :inherited-members:
     :show-inheritance:
-    :exclude-members: __init__
+    :exclude-members: __init__, PhysicsVariant

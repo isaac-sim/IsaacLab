@@ -288,5 +288,7 @@ def test_spawn_cone_clone_with_all_props_global_material(sim):
     assert prim.IsValid()
     assert str(prim.GetPath()) == "/World/env_0/Cone"
     # find matching material prims
-    prims = sim_utils.find_matching_prim_paths("/Looks/visualMaterial.*")
+    # the global material is one shared prim at exactly this path -- a trailing ``.*`` would also
+    # select its Shader child, since ``.*`` spans separators like it does in any regex.
+    prims = sim_utils.find_matching_prim_paths("/Looks/visualMaterial")
     assert len(prims) == 1

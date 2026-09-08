@@ -9,6 +9,8 @@
 
     AssetBase
     AssetBaseCfg
+    VisualMaterial
+    VisualMaterialCfg
     BaseCableObject
     BaseCableObjectData
     CableObject
@@ -51,6 +53,20 @@ Asset Base
 
 .. autoclass:: AssetBaseCfg
     :members:
+    :exclude-members: __init__, class_type, InitialStateCfg
+
+Visual Material
+---------------
+
+.. autoclass:: VisualMaterial
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
+.. autoclass:: VisualMaterialCfg
+    :members:
+    :inherited-members:
+    :show-inheritance:
     :exclude-members: __init__, class_type, InitialStateCfg
 
 Rigid Object
@@ -202,3 +218,30 @@ Articulation Ordering
 .. autofunction:: parse_articulation_ordering_convention
 
 .. autofunction:: get_articulation_name_ordering
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.assets` API.
+
+.. currentmodule:: isaaclab.assets
+
+.. autosummary::
+   :nosignatures:
+
+   BaseRigidObject
+   BaseRigidObjectCollection
+   BaseRigidObjectCollectionData
+   BaseRigidObjectData
+
+.. autoclass:: BaseRigidObject
+   :show-inheritance:
+
+.. autoclass:: BaseRigidObjectCollection
+   :show-inheritance:
+
+.. autoclass:: BaseRigidObjectCollectionData
+   :show-inheritance:
+
+.. autoclass:: BaseRigidObjectData
+   :show-inheritance:

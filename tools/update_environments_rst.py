@@ -3,12 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Update environment tables in ``environments.rst``.
+"""Update the environment browser from the Gym registry.
 
 Maintainer tooling: reads the Gym registry (RL libraries, presets, and
-workflows), synchronizes the curated tables, and rewrites the comprehensive
-auto-generated section in ``docs/source/overview/environments.rst`` and the
-task rows in ``docs/source/_static/css/environment-browser.js``.
+workflows) and rewrites the task rows in
+``docs/source/_static/css/environment-browser.js``.
 
 Example usage::
 
@@ -47,11 +46,9 @@ def _bootstrap_paths() -> None:
 _bootstrap_paths()
 
 from environ_docs import (  # noqa: E402
+    collect_environment_browser_preview_images,
     collect_environment_doc_rows,
-    patch_curated_environment_tables,
     patch_environment_browser_javascript,
-    patch_environments_rst,
-    render_comprehensive_list_table,
     render_environment_browser_task_rows,
 )
 
@@ -62,23 +59,13 @@ with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: E402, F401
 
 
-def _default_rst_path() -> Path:
-    return Path(__file__).resolve().parents[1] / "docs" / "source" / "overview" / "environments.rst"
-
-
 def _default_browser_path() -> Path:
     return Path(__file__).resolve().parents[1] / "docs" / "source" / "_static" / "css" / "environment-browser.js"
 
 
 def main() -> int:
-    """Generate and optionally write the environment tables."""
+    """Generate and optionally write the environment-browser task rows."""
     parser = argparse.ArgumentParser(description="Update environment documentation from the Gym registry.")
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=_default_rst_path(),
-        help="Path to environments.rst (default: docs/source/overview/environments.rst).",
-    )
     parser.add_argument(
         "--check",
         action="store_true",
@@ -93,28 +80,16 @@ def main() -> int:
     args = parser.parse_args()
 
     rows = collect_environment_doc_rows()
-    generated_table = render_comprehensive_list_table(rows)
-
-    output_path = args.output.resolve()
-    original = output_path.read_text(encoding="utf-8")
-    updated = patch_environments_rst(original, generated_table)
-    updated = patch_curated_environment_tables(updated, rows)
-
     browser_output_path = args.browser_output.resolve()
     browser_original = browser_output_path.read_text(encoding="utf-8")
-    browser_rows = render_environment_browser_task_rows(rows)
+    preview_images = collect_environment_browser_preview_images(browser_original)
+    browser_rows = render_environment_browser_task_rows(rows, preview_images)
     browser_updated = patch_environment_browser_javascript(browser_original, browser_rows)
 
     if args.check:
-        outdated_paths = []
-        if updated != original:
-            outdated_paths.append(output_path)
         if browser_updated != browser_original:
-            outdated_paths.append(browser_output_path)
-        if outdated_paths:
-            paths = ", ".join(str(path) for path in outdated_paths)
             print(
-                f"[ERROR] Generated environment documentation is out of date: {paths}. "
+                f"[ERROR] Generated environment documentation is out of date: {browser_output_path}. "
                 "Run uv run python tools/update_environments_rst.py to refresh it.",
                 file=sys.stderr,
             )
@@ -122,17 +97,9 @@ def main() -> int:
         print(f"[INFO] Environment documentation is up to date ({len(rows)} training environments).")
         return 0
 
-    updated_paths = []
-    if updated != original:
-        output_path.write_text(updated, encoding="utf-8")
-        updated_paths.append(output_path)
     if browser_updated != browser_original:
         browser_output_path.write_text(browser_updated, encoding="utf-8")
-        updated_paths.append(browser_output_path)
-
-    if updated_paths:
-        paths = ", ".join(str(path) for path in updated_paths)
-        print(f"[INFO] Updated {paths} with {len(rows)} training environments.")
+        print(f"[INFO] Updated {browser_output_path} with {len(rows)} training environments.")
     else:
         print(f"[INFO] Environment documentation already up to date ({len(rows)} training environments).")
     return 0

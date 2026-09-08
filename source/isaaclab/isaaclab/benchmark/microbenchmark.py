@@ -14,6 +14,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 from isaaclab.cli.utils import run_python_command
+from isaaclab.paths import ISAACLAB_ROOT
 
 
 @dataclass(frozen=True)
@@ -47,7 +48,7 @@ class MicrobenchmarkFactory:
     _PHYSICS = MappingProxyType(
         {
             "physx": _PhysicsDescriptor("isaaclab_physx", "physx"),
-            "ovphysx": _PhysicsDescriptor("isaaclab_ovphysx", "ovphysx"),
+            "ovphysx": _PhysicsDescriptor("isaaclab_ov", "ovphysx"),
             "newton_mjwarp": _PhysicsDescriptor("isaaclab_newton", "newton_mjwarp"),
             "newton_kamino": _PhysicsDescriptor("isaaclab_newton", "newton_kamino"),
         }
@@ -62,7 +63,7 @@ class MicrobenchmarkFactory:
         Returns:
             Repository root containing the backend benchmark entrypoints.
         """
-        return Path(__file__).parents[4]
+        return ISAACLAB_ROOT
 
     @classmethod
     def physics_variants(cls) -> tuple[str, ...]:

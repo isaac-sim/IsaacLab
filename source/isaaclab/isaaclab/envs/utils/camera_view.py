@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import math
 import random
+import re
 from typing import Any
 
 import numpy as np
@@ -72,6 +73,9 @@ def resolve_mono_env_index(num_envs: int) -> list[int]:
     return [0] if num_envs > 0 else []
 
 
+_ENV_SLOT_WILDCARD = re.compile(r"env_(?:\[\^/\][*+]|\.\*)")
+
+
 def env_path_from_template(path_template: str, env_id: int) -> str:
     """Resolve common env wildcard/template spellings to a concrete env path."""
     path = path_template
@@ -80,9 +84,9 @@ def env_path_from_template(path_template: str, env_id: int) -> str:
     if "{}" in path:
         return path.format(env_id)
     path = path.replace("/World/envs/*", f"/World/envs/env_{env_id}")
-    path = path.replace("/World/envs/env_.*", f"/World/envs/env_{env_id}")
-    path = path.replace("/World/envs/env_.*/", f"/World/envs/env_{env_id}/")
-    return path
+    # the env slot is a segment wildcard; match every spelling rather than one, so a namespace
+    # written with a different quantifier still resolves to a concrete env.
+    return _ENV_SLOT_WILDCARD.sub(f"env_{env_id}", path)
 
 
 def _camera_concrete_paths(camera: Camera) -> list[str]:
@@ -186,19 +190,23 @@ def compose_streaming_grid(
     frames: list[np.ndarray],
     n_envs: int,
     n_gt: int,
+    target_aspect: float = 1.0,
 ) -> np.ndarray:
     """Composite streaming frames into a tiled output image.
 
-    Layout minimises ``|log(W/H)|`` subject to the constraint that all GT
-    columns for one env remain on the same row.  For a single GT type, envs
-    are packed into a near-square grid (matching the legacy tiled camera
-    behaviour).
+    Layout minimises ``|log(composite_W/composite_H / target_aspect)|`` subject
+    to the constraint that all GT columns for one env remain on the same row.
+    Pass ``target_aspect=window_width/window_height`` to fill the panel optimally.
 
     Args:
         frames: Flat list of ``uint8 (H, W, 3)`` arrays ordered as
             ``[env0_gt0, env0_gt1, ..., env0_gtM-1, env1_gt0, ...]``.
         n_envs: Number of environments represented in ``frames``.
         n_gt: Number of GT types per environment.
+        target_aspect: Desired width-to-height ratio for the composite image.
+            Defaults to ``1.0`` (square).  Use ``window_width / window_height``
+            to fill the visualizer panel.  Must be positive and finite; invalid
+            values (zero, negative, NaN, inf) fall back to ``1.0``.
 
     Returns:
         Single ``uint8 (total_H, total_W, 3)`` composite image, or a 1×1 black
@@ -206,8 +214,10 @@ def compose_streaming_grid(
     """
     if not frames:
         return np.zeros((1, 1, 3), dtype=np.uint8)
+    if not (math.isfinite(target_aspect) and target_aspect > 0):
+        target_aspect = 1.0
     h, w = frames[0].shape[:2]
-    env_cols = _best_streaming_cols(n_envs, n_gt, h, w)
+    env_cols = _best_streaming_cols(n_envs, n_gt, h, w, target_aspect=target_aspect)
     env_rows = math.ceil(n_envs / env_cols)
     canvas = np.zeros((env_rows * h, env_cols * n_gt * w, 3), dtype=np.uint8)
     for env_idx in range(n_envs):
@@ -220,13 +230,19 @@ def compose_streaming_grid(
     return canvas
 
 
-def _best_streaming_cols(n_envs: int, n_gt: int, frame_h: int, frame_w: int) -> int:
-    """Env-column count that produces the most balanced grid.
+def _best_streaming_cols(n_envs: int, n_gt: int, frame_h: int, frame_w: int, target_aspect: float = 1.0) -> int:
+    """Env-column count that best matches the target composite aspect ratio.
 
-    Prioritises complete rows (no ragged last row where one row is much shorter
-    than the rest) over aspect-ratio optimisation.  Among layouts with the same
-    number of empty cells in the last row, prefers the most square composite
-    (fewest empty cells → squareness → more cols as a tiebreaker).
+    Prioritises complete rows (fewest empty cells) first, then minimises
+    ``|log(composite_W/composite_H / target_aspect)|`` to match the window,
+    with more columns as a final tiebreaker.
+
+    Args:
+        n_envs: Number of environment tiles.
+        n_gt: Number of GT types per tile (columns per env).
+        frame_h: Height of each tile in pixels.
+        frame_w: Width of each tile in pixels.
+        target_aspect: Desired composite width/height ratio (default: 1.0 square).
     """
     best_cols, best_score = 1, float("inf")
     for cols in range(1, n_envs + 1):
@@ -234,10 +250,10 @@ def _best_streaming_cols(n_envs: int, n_gt: int, frame_h: int, frame_w: int) -> 
         empty_cells = rows * cols - n_envs
         composite_w = cols * n_gt * frame_w
         composite_h = rows * frame_h
-        # Squareness: 0 is perfectly square, larger is more extreme portrait/landscape.
-        squareness = abs(math.log(composite_w / composite_h))
-        # Strong penalty for ragged rows; break ties by squareness then prefer more cols.
-        score = empty_cells * 10.0 + squareness - cols * 1e-6
+        # Distance from target aspect ratio: 0 is a perfect match.
+        aspect_score = abs(math.log(composite_w / composite_h / target_aspect))
+        # Strong penalty for ragged rows; break ties by aspect then prefer more cols.
+        score = empty_cells * 10.0 + aspect_score - cols * 1e-6
         if score < best_score:
             best_score, best_cols = score, cols
     return best_cols
@@ -370,7 +386,7 @@ def create_visualizer_camera(
             attr = cam_prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token)
         attr.Set(path.split("/")[-2])
     cfg = CameraCfg(
-        prim_path=f"/World/envs/env_.*/{camera_name}",
+        prim_path=f"/World/envs/env_[^/]+/{camera_name}",
         update_period=0.0,
         height=int(height),
         width=int(width),

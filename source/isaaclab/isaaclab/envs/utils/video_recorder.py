@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -78,7 +79,7 @@ class VideoRecorder:
         self._frames: list[np.ndarray] = []
         self._step_count = 0
         self._frames_step_count = 0
-        self._clip_index = 0
+        self._clip_index = self._next_clip_index()
         self._recording = False
         # Set to True after the first unrecoverable frame-capture error so that
         # subsequent steps do not propagate the exception or repeat the log message.
@@ -158,8 +159,6 @@ class VideoRecorder:
             # "newton" is a backward-compatible alias for the newton_gl visualizer type.
             # The canonical visualizer_type on NewtonGLVisualizerCfg is "newton_gl", but
             # source strings in tutorials and docs use the shorter "newton" form.
-            # Note: newton_rtx is intentionally excluded because render_rgb_array() returns
-            # None for that backend (ViewerRTX does not yet expose framebuffer readback).
             _newton_aliases = ("newton_gl",)
             if viz_type == "newton":
                 candidates = [v for v in visualizers if getattr(v.cfg, "visualizer_type", None) in _newton_aliases]
@@ -180,7 +179,8 @@ class VideoRecorder:
                 raise RuntimeError(
                     "[VideoRecorder] source='visualizer' found no recording-capable visualizer "
                     f"(active: {active or ['none']}). "
-                    "Pass --viz kit or --viz newton, or use source='sensor:<name>' to record from a scene sensor."
+                    "Pass --viz kit, --viz newton_gl, or --viz newton_rtx, or use "
+                    "source='sensor:<name>' to record from a scene sensor."
                 )
 
         # Kit Replicator requires cubric to propagate Newton Fabric transforms to RTX's
@@ -229,8 +229,7 @@ class VideoRecorder:
             viz_type_name = getattr(getattr(viz, "cfg", None), "visualizer_type", "unknown")
             raise RuntimeError(
                 f"[VideoRecorder] render_rgb_array() returned None for '{viz_type_name}' visualizer. "
-                "Newton RTX does not yet support framebuffer readback. "
-                "Use source='visualizer:newton_gl' or source='visualizer:newton_gl:streaming_view' instead."
+                "Use a capture-capable visualizer or source='sensor:<name>' instead."
             )
         return frame
 
@@ -302,6 +301,21 @@ class VideoRecorder:
     def _clip_path(self, index: int) -> str:
         return os.path.join(self._effective_output_dir(), f"{self.cfg.output_filename_prefix}_{index:04d}.mp4")
 
+    def _next_clip_index(self) -> int:
+        return max(self._existing_clip_indices(), default=-1) + 1
+
+    def _existing_clip_indices(self) -> list[int]:
+        output_dir = self._effective_output_dir()
+        if not os.path.isdir(output_dir):
+            return []
+
+        pattern = re.compile(rf"^{re.escape(str(self.cfg.output_filename_prefix))}_(?P<index>\d+)\.mp4$")
+        return [
+            int(match.group("index"))
+            for filename in os.listdir(output_dir)
+            if (match := pattern.match(filename)) is not None
+        ]
+
     def _close_clip(self) -> None:
         if not self._frames:
             self._recording = False
@@ -345,7 +359,9 @@ class VideoRecorder:
         if self.cfg.keep_last_n_clips is None:
             return
         cutoff = self._clip_index - self.cfg.keep_last_n_clips
-        for index in range(max(0, cutoff)):
+        for index in self._existing_clip_indices():
+            if index >= cutoff:
+                continue
             path = self._clip_path(index)
             try:
                 os.remove(path)

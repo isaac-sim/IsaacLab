@@ -33,12 +33,14 @@ multi_agent_to_single_agent = None
 retrieve_file_path = None
 patch_env_for_export = None
 ensure_env_spec_id = None
+get_pretrained_checkpoint_backend_names = None
 get_published_pretrained_checkpoint = None
 get_checkpoint_path = None
 hydra_task_config = None
 is_two_tensor_lstm_state = None
 state_dict_from_sequence = None
 state_sequence_from_registered = None
+create_graph_configs = None
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
@@ -63,9 +65,11 @@ def _load_runtime_dependencies() -> None:
     global _RUNTIME_IMPORTS_LOADED
     global BasePlayer, DirectMARLEnvCfg, ManagerBasedRLEnv, RlGamesGpuEnv, RlGamesVecEnvWrapper, Runner
     global annotate, configure_seed, env_configurations, get_checkpoint_path, gym, leapp
-    global ensure_env_spec_id, get_published_pretrained_checkpoint, hydra_task_config, multi_agent_to_single_agent
+    global ensure_env_spec_id, get_pretrained_checkpoint_backend_names, get_published_pretrained_checkpoint
+    global hydra_task_config, multi_agent_to_single_agent
     global patch_env_for_export, retrieve_file_path, torch, vecenv
     global is_two_tensor_lstm_state, state_dict_from_sequence, state_sequence_from_registered
+    global create_graph_configs
 
     if _RUNTIME_IMPORTS_LOADED:
         return
@@ -95,6 +99,7 @@ def _load_runtime_dependencies() -> None:
     if _leapp_scripts_dir not in sys.path:
         sys.path.insert(0, _leapp_scripts_dir)
     from export_utils import (  # isort: skip
+        create_graph_configs as create_graph_configs_fn,
         is_two_tensor_lstm_state as is_two_tensor_lstm_state_fn,
         state_dict_from_sequence as state_dict_from_sequence_fn,
         state_sequence_from_registered as state_sequence_from_registered_fn,
@@ -102,6 +107,9 @@ def _load_runtime_dependencies() -> None:
 
     from isaaclab_rl.rl_games import RlGamesGpuEnv as RlGamesGpuEnvCls
     from isaaclab_rl.rl_games import RlGamesVecEnvWrapper as RlGamesVecEnvWrapperCls
+    from isaaclab_rl.utils.pretrained_checkpoint import (
+        get_pretrained_checkpoint_backend_names as get_pretrained_checkpoint_backend_names_fn,
+    )
     from isaaclab_rl.utils.pretrained_checkpoint import (
         get_published_pretrained_checkpoint as get_published_pretrained_checkpoint_fn,
     )
@@ -127,12 +135,14 @@ def _load_runtime_dependencies() -> None:
     retrieve_file_path = retrieve_file_path_fn
     patch_env_for_export = patch_env_for_export_fn
     ensure_env_spec_id = ensure_env_spec_id_fn
+    get_pretrained_checkpoint_backend_names = get_pretrained_checkpoint_backend_names_fn
     get_published_pretrained_checkpoint = get_published_pretrained_checkpoint_fn
     get_checkpoint_path = get_checkpoint_path_fn
     hydra_task_config = hydra_task_config_fn
     is_two_tensor_lstm_state = is_two_tensor_lstm_state_fn
     state_dict_from_sequence = state_dict_from_sequence_fn
     state_sequence_from_registered = state_sequence_from_registered_fn
+    create_graph_configs = create_graph_configs_fn
     _RUNTIME_IMPORTS_LOADED = True
 
 
@@ -185,8 +195,9 @@ def export_rl_games_agent(
     log_root_path = os.path.join("logs", "rl_games", agent_cfg["params"]["config"]["name"])
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
-    if args_cli.use_pretrained_checkpoint:
-        resume_path = get_published_pretrained_checkpoint("rl_games", checkpoint_task_name)
+    if args_cli.checkpoint == "pretrained":
+        backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+        resume_path = get_published_pretrained_checkpoint("rl_games", checkpoint_task_name, *backend_names)
         if not resume_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
             return False
@@ -219,10 +230,16 @@ def export_rl_games_agent(
         graph_name = args_cli.export_task_name if args_cli.export_task_name is not None else task_name
 
         if isinstance(env.unwrapped, ManagerBasedRLEnv):
+            export_method = "onnx-dynamo" if args_cli.export_method is None else args_cli.export_method
             patch_env_for_export(
                 env,
-                export_method=args_cli.export_method,
+                export_method=export_method,
                 required_obs_groups=_required_obs_groups(agent_cfg),
+            )
+        elif args_cli.export_method is not None:
+            raise ValueError(
+                "--export_method is only supported for manager-based environments. For direct environments, "
+                "set export_with directly in the annotate.output_tensors() call instead."
             )
 
         if isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
@@ -251,7 +268,7 @@ def export_rl_games_agent(
 
         if args_cli.export_save_path is not None:
             save_path = args_cli.export_save_path
-        elif args_cli.use_pretrained_checkpoint:
+        elif args_cli.checkpoint == "pretrained":
             save_path = os.path.join(".pretrained_checkpoints", "rl_games", checkpoint_task_name)
         else:
             save_path = log_dir
@@ -293,7 +310,11 @@ def export_rl_games_agent(
         leapp.stop()
         leapp_started = False
         validate = args_cli.validation_steps > 0
-        leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=validate)
+        leapp.compile_graph(
+            visualize=not args_cli.disable_graph_visualization,
+            validate=validate,
+            graph_configs=create_graph_configs(env_cfg),
+        )
     finally:
         if leapp_started:
             with contextlib.suppress(Exception):

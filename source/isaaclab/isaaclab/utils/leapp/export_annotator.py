@@ -42,6 +42,7 @@ import torch
 from leapp import annotate
 from leapp.utils.tensor_description import TensorSemantics
 
+from isaaclab.actuators import IdealPDActuator, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers import ManagerTermBase
 from isaaclab.utils.array import convert_to_torch
@@ -82,6 +83,8 @@ def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tenso
     kp = stiffness.torch.clone() if stiffness is not None else None
     kd = damping.torch.clone() if damping is not None else None
     for actuator in getattr(real_asset, "actuators", {}).values():
+        if not isinstance(actuator, (ImplicitActuator, IdealPDActuator)):
+            continue
         if kp is not None:
             kp[:, actuator.joint_indices] = actuator.stiffness
         if kd is not None:

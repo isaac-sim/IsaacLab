@@ -23,7 +23,7 @@ FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"
 
 
 BASE_CAMERA_CFG = CameraCfg(
-    prim_path="/World/envs/env_.*/Camera",
+    prim_path="{ENV_REGEX_NS}/Camera",
     offset=CameraCfg.OffsetCfg(
         pos=(0.57, -0.8, 0.5),
         rot=(0.6124, 0.3536, 0.3536, 0.6124),
@@ -37,7 +37,7 @@ BASE_CAMERA_CFG = CameraCfg(
 )
 
 WRIST_CAMERA_CFG = CameraCfg(
-    prim_path="/World/envs/env_.*/Robot/ee_link/palm_link/Camera",
+    prim_path="{ENV_REGEX_NS}/Robot/ee_link/palm_link/Camera",
     offset=CameraCfg.OffsetCfg(
         pos=(0.038, -0.38, -0.18),
         rot=(0.641, 0.641, -0.299, 0.299),
@@ -54,7 +54,7 @@ RAY_PATTERN = patterns.PinholeCameraPatternCfg(focal_length=24.0, horizontal_ape
 
 RAYCASTER_CAMERA_MESH_PRIM_PATHS = [
     MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
-        prim_expr="/World/envs/env_.*/table",
+        prim_expr="{ENV_REGEX_NS}/table",
         track_mesh_transforms=False,
     ),
     MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
@@ -62,17 +62,17 @@ RAYCASTER_CAMERA_MESH_PRIM_PATHS = [
         track_mesh_transforms=False,
     ),
     MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
-        prim_expr="/World/envs/env_.*/Object",
+        prim_expr="{ENV_REGEX_NS}/Object",
         track_mesh_transforms=True,
     ),
     MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
-        prim_expr="/World/envs/env_.*/Robot/.*/visuals",
+        prim_expr="{ENV_REGEX_NS}/Robot/[^/]*/visuals",
         track_mesh_transforms=True,
     ),
 ]
 
 BASE_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
-    prim_path="/World/envs/env_.*/Camera",
+    prim_path="{ENV_REGEX_NS}/Camera",
     offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
         pos=(0.57, -0.8, 0.5),
         rot=(0.6124, 0.3536, 0.3536, 0.6124),
@@ -85,7 +85,7 @@ BASE_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
 )
 
 WRIST_RAYCASTER_CAMERA_CFG = MultiMeshRayCasterCameraCfg(
-    prim_path="/World/envs/env_.*/Robot/ee_link/palm_link/Camera",
+    prim_path="{ENV_REGEX_NS}/Robot/ee_link/palm_link/Camera",
     offset=MultiMeshRayCasterCameraCfg.OffsetCfg(
         pos=(0.038, -0.38, -0.18),
         rot=(0.641, 0.641, -0.299, 0.299),

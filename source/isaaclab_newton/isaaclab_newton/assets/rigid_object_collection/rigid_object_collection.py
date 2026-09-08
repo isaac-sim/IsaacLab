@@ -1200,7 +1200,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         for name, obj_cfg in self.cfg.rigid_objects.items():
             _, root_expr = sim_utils.resolve_matching_prims_from_source(obj_cfg.prim_path, **resolve_kwargs)[0]
-            root_prim_path_exprs.append(root_expr.replace(".*", "*"))
+            root_prim_path_exprs.append(sim_utils.path_expr_to_glob(root_expr))
             self._body_names_list.append(name)
 
         # Build a single pattern that matches ALL body types by wildcarding the differing path segment.

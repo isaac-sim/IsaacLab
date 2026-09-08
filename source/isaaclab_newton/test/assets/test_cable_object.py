@@ -14,7 +14,7 @@ import warp as wp
 pytest.importorskip("newton")
 
 from isaaclab_newton.assets import CableObject as NewtonCableObject
-from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
+from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg, XPBDSolverCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 import isaaclab.sim as sim_utils
@@ -28,7 +28,6 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
-from isaaclab_contrib.deformable import VBDSolverCfg
 
 
 @configclass

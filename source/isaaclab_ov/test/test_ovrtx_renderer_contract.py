@@ -5,7 +5,10 @@
 
 """Tests for the OVRTX renderer output contract."""
 
+import contextlib
 import importlib.util
+import sys
+import types
 
 import pytest
 import torch
@@ -19,7 +22,6 @@ _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
 pytestmark = [
-    pytest.mark.isaacsim_ci,
     pytest.mark.skipif(
         bool(_MISSING_MODULES),
         reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
@@ -29,9 +31,12 @@ pytestmark = [
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_compat import RENDER_VAR_FRAME_KEYS  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import (  # noqa: E402
+        _DISABLE_LINUX_CUDA_CPU_SYNC_ENV,
         OVRTXRenderData,
         OVRTXRenderer,
+        _gpu_side_render_var_sync_enabled,
         ovrtx_use_ovstage_enabled,
     )
 else:
@@ -40,6 +45,9 @@ else:
     OVRTXRendererCfg = None
     ovrtx_renderer_module = None
     ovrtx_use_ovstage_enabled = None
+    _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = None
+    _gpu_side_render_var_sync_enabled = None
+    RENDER_VAR_FRAME_KEYS = None
 
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
@@ -74,6 +82,25 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
     return renderer
+
+
+def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: pytest.MonkeyPatch):
+    """OVRTX 0.4.1 options are passed directly to ``RendererConfig``."""
+    config_kwargs: dict[str, object] = {}
+
+    class RecordingRendererConfig:
+        def __init__(self, **kwargs):
+            config_kwargs.update(kwargs)
+
+    monkeypatch.setattr(ovrtx_renderer_module, "RendererConfig", RecordingRendererConfig)
+    monkeypatch.setattr(ovrtx_renderer_module, "Renderer", lambda config: object())  # noqa: ARG005
+    monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_use_ovstage_enabled", lambda: False)
+
+    renderer = OVRTXRenderer(OVRTXRendererCfg())
+
+    assert renderer._renderer is not None
+    assert config_kwargs["suppress_deprecation_warnings"] is True
+    assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
 
 
 def test_ovrtx_supported_output_types_key_set():
@@ -183,13 +210,36 @@ def test_ovrtx_process_frame_skips_ldr_rgba_when_ppisp_is_active():
             raise AssertionError("PPISP RGBA output must not read OVRTX LdrColor")
 
     class Frame:
-        render_vars = {"LdrColor": FailingRenderVar()}
+        render_vars = {RENDER_VAR_FRAME_KEYS["LdrColor"]: FailingRenderVar()}
 
     renderer = _make_ovrtx_renderer_without_backend()
     render_data = _make_ovrtx_render_data()
     render_data.ppisp_pipeline = object()
 
     renderer._process_render_frame(render_data, Frame(), {"rgba": object()})
+
+
+@pytest.mark.parametrize("stale_key", ["LdrColor", "/Render/Vars/LdrColor"])
+def test_ovrtx_process_frame_reads_only_the_installed_ldr_color_key(monkeypatch: pytest.MonkeyPatch, stale_key: str):
+    """Frames are keyed by source name on OVRTX 0.4 and by prim path on 0.5; only one form is read."""
+    installed_key = RENDER_VAR_FRAME_KEYS["LdrColor"]
+
+    mapped = []
+
+    @contextlib.contextmanager
+    def fake_map(self, render_var):
+        mapped.append(render_var)
+        yield object()
+
+    monkeypatch.setattr(OVRTXRenderer, "_map_render_var_to_dlpack", fake_map)
+    monkeypatch.setattr(OVRTXRenderer, "_extract_rgba_tiles", lambda *args, **kwargs: None)
+
+    class Frame:
+        render_vars = {stale_key: "stale", installed_key: "installed"}
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._process_render_frame(_make_ovrtx_render_data(), Frame(), {"rgba": object()})
+    assert mapped == ["installed"]
 
 
 def test_ovrtx_ppisp_hdr_source_is_cloned_to_output_device(monkeypatch):
@@ -341,29 +391,102 @@ def test_ovrtx_use_ovstage_defaults_to_disabled(monkeypatch):
     assert ovrtx_use_ovstage_enabled() is False
 
 
-def test_ovrtx_use_ovstage_enabled_when_requested_and_available(monkeypatch):
-    """Setting the variable to 1 selects the ovstage path when ovstage is importable."""
+def test_ovrtx_use_ovstage_enabled_when_requested(monkeypatch):
+    """Setting the variable to 1 selects the ovstage path."""
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-    monkeypatch.setattr(ovrtx_renderer_module, "_OVSTAGE_AVAILABLE", True)
     assert ovrtx_use_ovstage_enabled() is True
-
-
-def test_ovrtx_use_ovstage_raises_when_requested_but_unavailable(monkeypatch):
-    """An explicit opt-in must fail loudly rather than silently falling back to the legacy path."""
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-    monkeypatch.setattr(ovrtx_renderer_module, "_OVSTAGE_AVAILABLE", False)
-
-    with pytest.raises(RuntimeError, match="uv run --extra ovrtx"):
-        ovrtx_use_ovstage_enabled()
 
 
 def test_ovrtx_use_ovstage_rejects_non_boolean_values(monkeypatch):
     """Values other than 0/1 are a configuration error, not a silent disable."""
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "true")
-    monkeypatch.setattr(ovrtx_renderer_module, "_OVSTAGE_AVAILABLE", True)
 
     with pytest.raises(ValueError, match="Expected 0 or 1"):
         ovrtx_use_ovstage_enabled()
+
+
+@pytest.mark.parametrize("platform", ["win32", "darwin"])
+def test_ovrtx_render_var_sync_is_gpu_side_off_linux(monkeypatch, platform):
+    """Everywhere but Linux the mapping is ordered by a GPU-side wait on the Warp stream."""
+    monkeypatch.setattr(sys, "platform", platform)
+    monkeypatch.delenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, raising=False)
+    assert _gpu_side_render_var_sync_enabled() is True
+
+
+def test_ovrtx_render_var_sync_waits_on_host_on_linux(monkeypatch):
+    """Linux blocks the calling thread instead, which measures faster there."""
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.delenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, raising=False)
+    assert _gpu_side_render_var_sync_enabled() is False
+
+
+def test_ovrtx_render_var_sync_is_gpu_side_on_linux_when_disabled(monkeypatch):
+    """Opting out of the host wait puts Linux on the same GPU-side wait as every other platform."""
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, "1")
+    assert _gpu_side_render_var_sync_enabled() is True
+
+
+def test_ovrtx_render_var_sync_keeps_host_wait_when_explicitly_enabled(monkeypatch):
+    """``0`` is the default, so setting it explicitly must not change anything."""
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, "0")
+    assert _gpu_side_render_var_sync_enabled() is False
+
+
+@pytest.mark.parametrize("value", ["", "true", "yes", "2"])
+def test_ovrtx_render_var_sync_rejects_non_boolean_values(monkeypatch, value):
+    """Values other than 0/1 are a configuration error, not a silent fallback to the host wait."""
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv(_DISABLE_LINUX_CUDA_CPU_SYNC_ENV, value)
+    with pytest.raises(ValueError, match="Expected 0 or 1"):
+        _gpu_side_render_var_sync_enabled()
+
+
+class _RecordingRenderVar:
+    """Stand-in for an OVRTX ``RenderVarOutput`` that records how the read was ordered.
+
+    Any of OVRTX's ordering mechanisms counts, so the test stays about *whether* the read is
+    ordered rather than which call carries it.
+    """
+
+    def __init__(self):
+        self.ordering: list[str] = []
+
+    def map(self, *, device, sync_stream):
+        if sync_stream:
+            self.ordering.append("gpu")
+        recorder = self
+
+        class _Mapping:
+            def wait(self):
+                recorder.ordering.append("host")
+
+            def wait_on(self, stream):
+                recorder.ordering.append("gpu")
+
+        return contextlib.nullcontext(_Mapping())
+
+
+@pytest.mark.parametrize(("gpu_side", "expected"), [(True, "gpu"), (False, "host")])
+def test_ovrtx_map_render_var_orders_the_read_against_render_completion(monkeypatch, gpu_side, expected):
+    """The read is ordered exactly once -- by a GPU-side barrier or a host block, never by neither.
+
+    Ordering by neither is a silent race on half-written render output rather than a failure, so
+    this asserts which mechanism ran and not which API call carries it.
+    """
+    sentinel = object()
+    render_var = _RecordingRenderVar()
+    monkeypatch.setattr(ovrtx_renderer_module, "_gpu_side_render_var_sync_enabled", lambda: gpu_side)
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "from_dlpack", lambda mapping: sentinel)
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._device = "cuda:0"
+    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=99))
+    with renderer._map_render_var_to_dlpack(render_var) as array:
+        assert array is sentinel
+
+    assert render_var.ordering == [expected]
 
 
 def test_ovrtx_cleanup_releases_only_the_given_render_data():
@@ -425,11 +548,13 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._object_xform_binding = _RecordingBinding(events, "object")
     renderer._deformable_points_binding = _RecordingBinding(events, "deformable")
     renderer._particle_points_binding = _RecordingBinding(events, "particle")
+    renderer._cable_points_binding = _RecordingBinding(events, "cable")
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
     renderer._particle_visual_counts = [1]
     renderer._particle_workaround_applied = True
+    renderer._cable_segment_counts = [1]
     renderer._renderer = Backend()
     renderer._render_product_paths = ["/Render/RenderProduct_camera"]
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
@@ -473,12 +598,13 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._deformable_paths_list = "deformable"
     renderer._particle_points_query = "particle"
     renderer._particle_paths_list = "particle"
+    renderer._cable_points_query = "cable"
+    renderer._cable_paths_list = "cable"
     renderer._object_newton_indices = object()
     renderer._deformable_particle_offsets = [0]
     renderer._deformable_particle_counts = [1]
     renderer._particle_visual_offsets = [0]
     renderer._particle_visual_counts = [1]
-    renderer._env_root_xforms = object()
     renderer._renderer = Backend()
     renderer._ovstage_exit_stack = ExitStack()
     renderer._render_product_paths = ["/Render/RenderProduct_camera"]
@@ -500,12 +626,15 @@ def test_ovrtx_close_releases_legacy_renderer_state():
         "unbind:object",
         "unbind:deformable",
         "unbind:particle",
+        "unbind:cable",
         "reset_stage",
     ]
     assert renderer._camera_xform_binding is None
     assert renderer._object_xform_binding is None
+    assert renderer._object_transform_buffer is None
     assert renderer._deformable_points_binding is None
     assert renderer._particle_points_binding is None
+    assert renderer._cable_points_binding is None
     assert renderer._particle_workaround_applied is False
     assert renderer._renderer is None
     assert renderer._render_product_paths == []
@@ -535,13 +664,16 @@ def test_ovrtx_close_releases_ovstage_renderer_state():
         "destroy_path_list:deformable",
         "release_query:particle",
         "destroy_path_list:particle",
+        "release_query:cable",
+        "destroy_path_list:cable",
         "detach_ovstage",
         "exit_stack_close",
     ]
     assert renderer._camera_xform_query is None
     assert renderer._particle_paths_list is None
+    assert renderer._cable_points_query is None
+    assert renderer._cable_paths_list is None
     assert renderer._object_newton_indices is None
-    assert renderer._env_root_xforms is None
     assert renderer._renderer is None
     assert renderer._ovstage_exit_stack is None
     assert renderer._stage is None

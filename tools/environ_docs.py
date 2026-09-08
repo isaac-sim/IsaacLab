@@ -8,7 +8,7 @@
 These utilities collect RL-library entry points, preset selectors, workflow
 types, and inference-task mappings for each registered Isaac Lab task. They
 are used by :mod:`tools.update_environments_rst` to keep
-``docs/source/overview/environments.rst`` in sync with the codebase.
+the environment browser in sync with the codebase.
 """
 
 from __future__ import annotations
@@ -17,7 +17,8 @@ import collections
 import contextlib
 import json
 import re
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
@@ -60,7 +61,8 @@ RL_LIBRARY_OVERRIDES: dict[str, dict[str, list[str]]] = {
     "IsaacContrib-Assemble-Trocar-G129-Dex3": {"rlinf": ["PPO"]},
 }
 
-# Marker comments that delimit the auto-generated section in environments.rst.
+# Legacy markers retained for the table-formatting helpers. The public
+# documentation now uses the generated environment browser instead.
 COMPREHENSIVE_LIST_START_MARKER = ".. START-AUTO-GENERATED: comprehensive-environment-list"
 COMPREHENSIVE_LIST_END_MARKER = ".. END-AUTO-GENERATED: comprehensive-environment-list"
 ENVIRONMENT_BROWSER_TASKS_START_MARKER = "// START-AUTO-GENERATED: environment-browser-task-rows"
@@ -81,15 +83,70 @@ _SELECTOR_LABELS = {
     PresetTarget.DOMAIN: "presets",
 }
 
+# Preset declarations describe structurally selectable configs, but a small
+# number of task/preset combinations are disabled by runtime constraints found
+# by the full environment smoke matrix. Keep those combinations out of generated
+# commands until the corresponding task supports them end to end.
+_NEWTON_MJWARP_EXCLUSIONS = frozenset(
+    {
+        "IsaacContrib-Factory-Franka",
+        "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow",
+        "IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow",
+        "IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic",
+        "IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-BlueGreenRed-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-Franka",
+        "IsaacContrib-Stack-Cube-Franka-IK-Abs",
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow",
+        "IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow",
+        "IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-SO101-IK-Abs-v0",
+        "IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0",
+        "IsaacContrib-Stack-Cube-SO101-v0",
+        "IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel",
+        "IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel",
+    }
+)
+
 
 @dataclass(frozen=True)
 class EnvironmentDocRow:
-    """One row of the comprehensive environment list in ``environments.rst``."""
+    """One task row in the generated environment browser."""
 
     task_name: str
     workflow: str
     rl_libraries: dict[str, list[str]]
     presets: dict[PresetTarget, list[str]] | None
+    agent_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    supports_warp_frontend: bool = False
+    pretrained_checkpoint_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
+
+
+def _supports_warp_frontend(task_name: str, workflow: str, presets: dict[PresetTarget, list[str]] | None) -> bool:
+    """Return whether a task can run through ``--frontend warp``."""
+    if presets is None or "newton_mjwarp" not in presets.get(PresetTarget.PHYSICS, []):
+        return False
+
+    try:
+        from isaaclab_experimental.envs.frontend import FrontendIncompatibleError, WarpFrontend
+
+        from isaaclab_tasks.utils import resolve_task_config
+
+        cfg, _ = resolve_task_config(task_name, "", overrides=("physics=newton_mjwarp",))
+        if workflow == "Direct":
+            try:
+                return WarpFrontend._resolve_direct_warp_class(task_name, cfg) is not None
+            except FrontendIncompatibleError:
+                return False
+        return WarpFrontend.check_compatibility(cfg) is None
+    except (ImportError, gym.error.Error):
+        return False
 
 
 def is_training_task(task_id: str) -> bool:
@@ -200,6 +257,19 @@ def _physics_names_for_docs(task_name: str, preset_map: dict[PresetTarget, list[
     return sorted(names)
 
 
+def _apply_preset_exclusions(
+    task_name: str, preset_map: dict[PresetTarget, list[str]] | None
+) -> dict[PresetTarget, list[str]] | None:
+    """Remove task/preset combinations disabled by runtime validation."""
+    if preset_map is None or task_name not in _NEWTON_MJWARP_EXCLUSIONS:
+        return preset_map
+    filtered = dict(preset_map)
+    filtered[PresetTarget.PHYSICS] = [
+        name for name in filtered.get(PresetTarget.PHYSICS, []) if name != "newton_mjwarp"
+    ]
+    return filtered
+
+
 def _domain_presets_for_docs(preset_map: dict[PresetTarget, list[str]]) -> list[str]:
     """Return domain preset names that are not already covered by typed selectors.
 
@@ -217,6 +287,27 @@ def _domain_presets_for_docs(preset_map: dict[PresetTarget, list[str]]) -> list[
             continue
         domain_names.append(name)
     return domain_names
+
+
+def _default_domain_presets(task_name: str) -> tuple[str, ...]:
+    """Return domain preset aliases that resolve to the task's default config."""
+    from isaaclab_tasks.utils.hydra import collect_presets
+    from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+    fields_by_path = collect_presets(load_cfg_from_registry(task_name, "env_cfg_entry_point"))
+    typed_targets = tuple(target for target in PresetTarget if target.base_classes)
+    aliases: dict[str, bool] = {}
+    for fields in fields_by_path.values():
+        default = fields.get("default")
+        for name, value in fields.items():
+            if name == "default" or any(target.matches(value) for target in typed_targets):
+                continue
+            try:
+                matches_default = bool(value == default)
+            except (RuntimeError, TypeError, ValueError):
+                matches_default = value is default
+            aliases[name] = aliases.get(name, True) and matches_default
+    return tuple(sorted(name for name, matches_default in aliases.items() if matches_default))
 
 
 def _selector_names_for_docs(
@@ -450,11 +541,40 @@ def _render_grid_row(cells: list[list[str]], widths: list[int], indent: str) -> 
     return output
 
 
-def get_workflow(entry_point: str) -> str:
+def get_workflow(entry_point: str | Callable[..., object]) -> str:
     """Return the human-readable workflow label for a Gym entry point."""
-    if "ManagerBasedRLEnv" in entry_point:
+    if isinstance(entry_point, str) and "ManagerBasedRLEnv" in entry_point:
         return "Manager Based"
+
+    env_creator = entry_point
+    if isinstance(entry_point, str):
+        with contextlib.suppress(ImportError, AttributeError, ValueError):
+            env_creator = gym.envs.registration.load_env_creator(entry_point)
+
+    if isinstance(env_creator, type):
+        from isaaclab.envs import ManagerBasedRLEnv
+
+        if issubclass(env_creator, ManagerBasedRLEnv):
+            return "Manager Based"
     return "Direct"
+
+
+def _task_sort_key(row) -> tuple:
+    """Order tasks by base name, then state before vision, then Direct before manager.
+
+    A task's variants share a base identifier, so they stay adjacent; within a base
+    the camera variants follow the state ones, and each workflow pair reads Direct
+    first because the Direct task is the reference its manager counterpart mirrors.
+    """
+    name = row.task_name
+    is_direct = name.endswith("-Direct")
+    base = name[: -len("-Direct")] if is_direct else name
+    is_vision = base.endswith(("-Camera", "-Camera-Benchmark"))
+    for suffix in ("-Camera-Benchmark", "-Camera"):
+        if base.endswith(suffix):
+            base = base[: -len(suffix)]
+            break
+    return (base, is_vision, not is_direct)
 
 
 def collect_environment_doc_rows(
@@ -481,18 +601,41 @@ def collect_environment_doc_rows(
         if preset_map is not None:
             preset_map = dict(preset_map)
             preset_map[PresetTarget.PHYSICS] = _physics_names_for_docs(spec.id, preset_map)
+            preset_map = _apply_preset_exclusions(spec.id, preset_map)
         agents = apply_rl_library_overrides(spec.id, parse_rl_libraries_from_kwargs(spec.kwargs))
+        visible_domain_presets = set(_selector_names_for_docs(preset_map)[PresetTarget.DOMAIN])
+        default_checkpoint_presets = ()
+        if spec.id.startswith("Isaac-"):
+            with contextlib.suppress(Exception):
+                default_checkpoint_presets = tuple(
+                    name for name in _default_domain_presets(spec.id) if name in visible_domain_presets
+                )
+        checkpoint_preset_compatibility = {
+            library: tuple(preset for preset in presets if preset in visible_domain_presets)
+            for library, presets in spec.kwargs.get("pretrained_checkpoint_preset_compatibility", {}).items()
+            if library in agents
+        }
+        if default_checkpoint_presets:
+            checkpoint_preset_compatibility["*"] = default_checkpoint_presets
 
+        workflow = get_workflow(spec.entry_point)
         rows.append(
             EnvironmentDocRow(
                 task_name=spec.id,
-                workflow=get_workflow(spec.entry_point),
+                workflow=workflow,
                 rl_libraries=agents,
                 presets=preset_map,
+                agent_preset_compatibility={
+                    agent: tuple(presets)
+                    for agent, presets in spec.kwargs.get("agent_preset_compatibility", {}).items()
+                    if agent in spec.kwargs
+                },
+                supports_warp_frontend=_supports_warp_frontend(spec.id, workflow, preset_map),
+                pretrained_checkpoint_preset_compatibility=checkpoint_preset_compatibility,
             )
         )
 
-    rows.sort(key=lambda row: row.task_name)
+    rows.sort(key=_task_sort_key)
     return rows
 
 
@@ -528,12 +671,33 @@ def render_comprehensive_list_table(rows: list[EnvironmentDocRow]) -> str:
     return "\n".join(lines)
 
 
-def render_environment_browser_task_rows(rows: list[EnvironmentDocRow]) -> str:
-    """Render concrete core-task selectors for the environment browser."""
-    lines = ["        const taskRows = ["]
-    for row in rows:
-        if not row.task_name.startswith("Isaac-"):
+def collect_environment_browser_preview_images(content: str) -> dict[str, str]:
+    """Return preview-image assignments already stored in the browser task rows."""
+    start = content.find(ENVIRONMENT_BROWSER_TASKS_START_MARKER)
+    end = content.find(ENVIRONMENT_BROWSER_TASKS_END_MARKER)
+    if start == -1 or end == -1 or end < start:
+        raise ValueError("Could not find the generated environment-browser task markers.")
+
+    preview_images: dict[str, str] = {}
+    for line in content[start:end].splitlines():
+        row = line.strip().removesuffix(",")
+        if not row.startswith("["):
             continue
+        values = json.loads(row)
+        if len(values) >= 7 and values[6]:
+            preview_images[values[0]] = values[6]
+    return preview_images
+
+
+def render_environment_browser_task_rows(
+    rows: list[EnvironmentDocRow], preview_images: dict[str, str] | None = None
+) -> str:
+    """Render concrete core and contributed task selectors for the environment browser."""
+    preview_images = preview_images or {}
+    lines = ["        const taskRows = ["]
+    browser_rows = [row for row in rows if row.task_name.startswith(("Isaac-", "IsaacContrib-"))]
+    browser_rows.sort(key=lambda row: row.task_name.startswith("IsaacContrib-"))
+    for row in browser_rows:
         selectors = _selector_names_for_docs(row.presets)
         values = (
             row.task_name,
@@ -543,6 +707,34 @@ def render_environment_browser_task_rows(rows: list[EnvironmentDocRow]) -> str:
             ",".join(sorted(selectors[PresetTarget.DOMAIN])),
         )
         rendered_values = ", ".join(json.dumps(value) for value in values)
+        preview_image = preview_images.get(row.task_name, "")
+        if not preview_image:
+            aliases = [
+                (task_name, image)
+                for task_name, image in preview_images.items()
+                if row.task_name.startswith(f"{task_name}-")
+            ]
+            if aliases:
+                preview_image = max(aliases, key=lambda item: len(item[0]))[1]
+        default_algorithms = {"skrl": "MAPPO"} if "MAPPO" in row.rl_libraries.get("skrl", []) else {}
+        optional_values = [
+            row.agent_preset_compatibility,
+            preview_image,
+            row.supports_warp_frontend,
+            row.pretrained_checkpoint_preset_compatibility,
+            default_algorithms,
+        ]
+        optional_defaults = [{}, "", False, {}, {}]
+        last_value = next(
+            (
+                index
+                for index in reversed(range(len(optional_values)))
+                if optional_values[index] != optional_defaults[index]
+            ),
+            -1,
+        )
+        for value in optional_values[: last_value + 1]:
+            rendered_values += f", {json.dumps(value, sort_keys=True)}"
         lines.append(f"            [{rendered_values}],")
     lines.append("        ];")
     return "\n".join(lines)

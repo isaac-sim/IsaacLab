@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -12,10 +12,9 @@ from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import (
+    ALLEGRO_HAND_ROBOT_CFG,
+    CUBE_CFG,
     GOAL_OBJECT_CFG,
-    OBJECT_CFG,
-    ROBOT_CFG,
-    ObjectCfg,
     PhysicsCfg,
 )
 
@@ -33,21 +32,21 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     asymmetric_obs = False
     obs_type = "full"
 
-    # simulation — values mirrored by the manager cfg (guarded by the value-parity test)
+    # simulation — values mirrored by the manager cfg
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
-        render_interval=4,
+        render_interval=decimation,
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
     )
     # robot
-    robot_cfg: ArticulationCfg = ROBOT_CFG
+    robot_cfg: ArticulationCfg = ALLEGRO_HAND_ROBOT_CFG
 
     actuated_joint_names = ALLEGRO_ACTUATED_JOINT_NAMES
     fingertip_body_names = ALLEGRO_FINGERTIP_BODY_NAMES
 
     # in-hand object
-    object_cfg: ObjectCfg = OBJECT_CFG
+    object_cfg: RigidObjectCfg = CUBE_CFG
     # goal object
     goal_object_cfg: VisualizationMarkersCfg = GOAL_OBJECT_CFG
     # scene
@@ -55,7 +54,6 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         num_envs=8192,
         env_spacing=0.75,
         replicate_physics=True,
-        clone_in_fabric=True,
     )
     # reset
     reset_position_noise = 0.01  # range of position at reset
@@ -72,8 +70,10 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     vel_obs_scale = 0.2
     success_tolerance = 0.2
     max_consecutive_success = 0
-    success_count_threshold: int = 1
-    """Minimum number of goals reached in an episode to count it as a successful episode."""
+    in_hand_pos_offset: tuple[float, float, float] = (0.0, 0.0, -0.04)
+    """In-hand goal anchor, relative to the object's default position [m]."""
+    goal_marker_position: tuple[float, float, float] = (-0.2, -0.45, 0.68)
+    """Fixed goal-marker display position [m], environment frame."""
     av_factor = 0.1
     act_moving_average = 1.0
     force_torque_obs_scale = 10.0

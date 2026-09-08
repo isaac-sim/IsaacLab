@@ -313,12 +313,12 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     # haptics (see HapticFeedbackCfg below). Requires activate_contact_sensors
     # on the robot spawn, enabled in the env __post_init__.
     left_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/left_hand_.*_link",
+        prim_path="{ENV_REGEX_NS}/Robot/left_hand_[^/]*_link",
         update_period=0.0,
         history_length=3,
     )
     right_hand_contact = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/right_hand_.*_link",
+        prim_path="{ENV_REGEX_NS}/Robot/right_hand_[^/]*_link",
         update_period=0.0,
         history_length=3,
     )

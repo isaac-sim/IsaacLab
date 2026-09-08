@@ -204,7 +204,7 @@ conversion is needed and there is no code copy step -- the image is the unit of 
 
 The workflow definition lives in ``docker/cluster/osmo_multi_gpu_workflow.yaml``. It requests a
 single node and scales training across the GPUs on that node through the
-:ref:`train_multigpu <train-multigpu-command>` command. The following parameters can be overridden
+:ref:`train_multigpu <train_multigpu-command>` command. The following parameters can be overridden
 at submission time:
 
 .. list-table::

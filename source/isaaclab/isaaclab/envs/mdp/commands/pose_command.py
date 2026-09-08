@@ -205,8 +205,17 @@ class UniformPoseCommand(CommandTerm):
         if not self.robot.is_initialized:
             return
         # update the markers
+        environment_ids = self._env.scene._ALL_INDICES
         # -- goal pose
-        self.goal_pose_visualizer.visualize(self.pose_command_w[:, :3], self.pose_command_w[:, 3:])
+        self.goal_pose_visualizer.visualize(
+            self.pose_command_w[:, :3],
+            self.pose_command_w[:, 3:],
+            environment_ids=environment_ids,
+        )
         # -- current body pose
         body_link_pose_w = self.robot.data.body_link_pose_w.torch[:, self.body_idx]
-        self.current_pose_visualizer.visualize(body_link_pose_w[:, :3], body_link_pose_w[:, 3:7])
+        self.current_pose_visualizer.visualize(
+            body_link_pose_w[:, :3],
+            body_link_pose_w[:, 3:7],
+            environment_ids=environment_ids,
+        )

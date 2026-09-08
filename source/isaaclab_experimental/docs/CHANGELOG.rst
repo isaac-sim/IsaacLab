@@ -1,6 +1,54 @@
 Changelog
 ---------
 
+0.2.1 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Warp-frontend ``ActionTerm``, ``CommandTerm`` and ``DirectRLEnvWarp`` debug
+  visualization toggles to register their callbacks through the simulation context's visualization
+  marker registry instead of the deprecated Kit ``IApp.get_post_update_event_stream`` API, matching
+  their non-experimental counterparts.
+
+Fixed
+^^^^^
+
+* Fixed debug visualization failing in kitless mode. Enabling it raised
+  ``ModuleNotFoundError: No module named 'omni.kit'`` because ``omni.kit.app`` was imported inside
+  the toggle. The registry path has no Kit dependency.
+
+* Fixed ``CommandTerm.set_debug_vis`` raising ``AttributeError`` whenever a command term
+  implemented debug visualization. It guarded on ``SimulationContext.has_omniverse_visualizer()``,
+  which does not exist, so the call failed before any callback was registered.
+
+
+0.2.0 (2026-08-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Warp MDP twins for :class:`~isaaclab.envs.mdp.is_terminated_term` and
+  :func:`~isaaclab.envs.mdp.pose_command_success`, so ``Isaac-Reach-Franka`` and
+  ``Isaac-Reach-UR10`` run under ``--frontend warp``.
+* Added :meth:`~isaaclab_experimental.envs.frontend.WarpFrontend.check_compatibility`, which
+  reports why an environment configuration cannot run on the Warp frontend instead of raising,
+  so several configurations can be surveyed in one pass.
+* Added :attr:`~isaaclab_experimental.managers.TerminationManager.term_dones_wp`, exposing the
+  per-term done buffer to reward terms that aggregate a subset of termination terms.
+
+Fixed
+^^^^^
+
+* Fixed the Warp :func:`~isaaclab_experimental.envs.mdp.pose_command_success` twin disagreeing
+  with the stable term's orientation error for non-unit quaternions, by computing the angle as
+  ``2*atan2(|xyz|, |w|)`` instead of ``2*acos(|w|)``. Both arguments scale with the quaternion,
+  so the angle is now norm-invariant and environments near the configured
+  ``orientation_success_threshold`` are classified the same way as on the stable path.
+
+
 0.1.5 (2026-07-29)
 ~~~~~~~~~~~~~~~~~~
 

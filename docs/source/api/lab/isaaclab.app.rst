@@ -126,3 +126,22 @@ Simulation Launcher
 
 .. _livestream: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html
 .. _`WebRTC Livestream`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.app` API.
+
+.. currentmodule:: isaaclab.app
+
+.. autosummary::
+   :nosignatures:
+
+   LoadingScreen
+   SettingsManager
+
+.. autoclass:: LoadingScreen
+   :show-inheritance:
+
+.. autoclass:: SettingsManager
+   :show-inheritance:

@@ -506,8 +506,8 @@ def test_articulation_root_base_no_physx_schema_when_only_fix_root_link_set(setu
 
 @pytest.mark.isaacsim_ci
 def test_physx_articulation_root_writes_self_collisions(setup_simulation):
-    """Setting ``enabled_self_collisions`` on ``PhysxArticulationRootPropertiesCfg`` must
-    author ``physxArticulation:enabledSelfCollisions`` AND apply ``PhysxArticulationAPI``."""
+    """Setting ``enabled_self_collisions`` on ``PhysxArticulationRootPropertiesCfg`` must author
+    ``physxArticulation:enabledSelfCollisions`` and mirror onto ``newton:selfCollisionEnabled``."""
     sim, _, _, _, _, _ = setup_simulation
     stage = sim_utils.get_current_stage()
 
@@ -517,8 +517,35 @@ def test_physx_articulation_root_writes_self_collisions(setup_simulation):
 
     prim = stage.GetPrimAtPath("/World/arti_sc")
     assert prim.GetAttribute("physxArticulation:enabledSelfCollisions").Get() is True
+    assert prim.GetAttribute("newton:selfCollisionEnabled").Get() is True
     applied = prim.GetAppliedSchemas()
     assert "PhysxArticulationAPI" in applied
+    assert "NewtonArticulationRootAPI" in applied
+
+
+@pytest.mark.isaacsim_ci
+def test_physx_articulation_root_self_collisions_follow_fixed_root(setup_simulation):
+    """Mirrored Newton self-collision properties must follow a relocated articulation root."""
+    sim, _, _, _, _, _ = setup_simulation
+    stage = sim_utils.get_current_stage()
+
+    parent = sim_utils.create_prim("/World/arti_fixed", prim_type="Xform")
+    child = sim_utils.create_prim("/World/arti_fixed/base", prim_type="Cube")
+    UsdPhysics.RigidBodyAPI.Apply(child)
+    UsdPhysics.ArticulationRootAPI.Apply(child)
+    child.AddAppliedSchema("NewtonArticulationRootAPI")
+    child.GetAttribute("newton:selfCollisionEnabled").Set(False)
+
+    cfg = PhysxArticulationRootPropertiesCfg(enabled_self_collisions=True, fix_root_link=True)
+    schemas.modify_articulation_root_properties(child.GetPath(), cfg)
+
+    roots = [prim for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
+    assert roots == [parent]
+    assert parent.GetAttribute("physxArticulation:enabledSelfCollisions").Get() is True
+    assert parent.GetAttribute("newton:selfCollisionEnabled").Get() is True
+    assert "NewtonArticulationRootAPI" in parent.GetAppliedSchemas()
+    assert "NewtonArticulationRootAPI" not in child.GetAppliedSchemas()
+    assert not child.GetAttribute("newton:selfCollisionEnabled").HasAuthoredValue()
 
 
 @pytest.mark.isaacsim_ci
@@ -907,13 +934,13 @@ def test_defining_articulation_properties_on_prim(setup_simulation):
 
 @pytest.mark.isaacsim_ci
 def test_multi_instance_schema_detection_on_tendon_joints(setup_simulation):
-    """Test that multi-instance PhysX tendon schemas are correctly detected via substring matching.
+    """Test that multi-instance PhysX tendon schema tokens are recognized with their instance suffixes.
 
     Multi-instance schemas (e.g. PhysxTendonAxisAPI, PhysxTendonAxisRootAPI) appear in
     GetAppliedSchemas() as 'SchemaName:instanceName' (e.g. 'PhysxTendonAxisAPI:inst0').
     An exact ``in list`` check fails because 'PhysxTendonAxisAPI' != 'PhysxTendonAxisAPI:inst0'.
-    This test ensures the substring-based detection used by modify_joint_drive_properties
-    and modify_fixed_tendon_properties handles multi-instance schemas correctly.
+    This test ensures both the joint-drive skip predicate and the fixed-tendon writer handle
+    multiple-apply schema tokens correctly.
 
     We call the unwrapped functions directly (via ``__wrapped__``) to bypass the
     ``@apply_nested`` decorator, which traverses children and does not return the

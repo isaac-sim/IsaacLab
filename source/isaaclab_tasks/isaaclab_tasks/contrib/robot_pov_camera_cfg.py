@@ -5,6 +5,8 @@
 
 """Shared recorded robot-PoV camera configuration for contributed tasks."""
 
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import CameraCfg
 
@@ -30,7 +32,7 @@ def robot_pov_camera_cfg(
         height=450,
         width=720,
         data_types=["rgb"],
-        renderer_cfg=MultiBackendRendererCfg(),
+        renderer_cfg=MultiBackendRendererCfg(default=IsaacRtxRendererCfg(), isaacsim_rtx=IsaacRtxRendererCfg()),
         spawn=sim_utils.PinholeCameraCfg(focal_length=18.15, clipping_range=(0.1, 2.0)),
         offset=CameraCfg.OffsetCfg(pos=offset_pos, rot=offset_rot, convention="ros"),
     )

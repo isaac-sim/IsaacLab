@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
+from enum import StrEnum
 
 from isaaclab.utils.configclass import configclass
 
@@ -13,6 +14,21 @@ from isaaclab.utils.configclass import configclass
 @configclass
 class AssetConverterBaseCfg:
     """The base configuration class for asset converters."""
+
+    class PhysicsVariant(StrEnum):
+        """Variants offered by the ``"Physics"`` variant set that the URDF and MJCF importers author."""
+
+        PHYSICS = "physics"
+        """Backend-portable physics: joints, articulation roots, mass, and the Newton schemas."""
+
+        PHYSX = "physx"
+        """:attr:`PHYSICS` plus PhysX-specific tuning."""
+
+        MUJOCO = "mujoco"
+        """:attr:`PHYSICS` plus MuJoCo-specific tuning."""
+
+        NONE = "none"
+        """No physics at all."""
 
     asset_path: str = MISSING
     """The absolute path to the asset file to convert into USD."""
@@ -47,4 +63,27 @@ class AssetConverterBaseCfg:
         Instancing helps reduce the memory footprint of the asset when multiple copies of the asset are
         used in the scene. For more information, please check the USD documentation on
         `scene-graph instancing <https://openusd.org/dev/api/_usd__page__scenegraph_instancing.html>`_.
+    """
+
+    physics_variant: PhysicsVariant | str = PhysicsVariant.PHYSICS
+    """The ``"Physics"`` variant to select on the generated USD file. Defaults to
+    :attr:`PhysicsVariant.PHYSICS`.
+
+    The URDF and MJCF importers emit physics as payloads behind a ``"Physics"`` variant set, and
+    disagree on which variant to select: the Isaac Sim importer extensions leave the set unselected,
+    which composes the asset without joints, articulation roots, or mass properties, while the
+    standalone importer wheel picks one of its own. The converter authors this selection so that the
+    asset carries the same physics either way.
+
+    The default holds the backend-portable description, and :attr:`PhysicsVariant.PHYSX` /
+    :attr:`PhysicsVariant.MUJOCO` sublayer it, so select one of those to author an asset for a
+    specific backend. When the asset offers the variant set but not the requested variant,
+    conversion raises rather than substituting one authored for a different backend.
+
+    This applies only to assets that carry a ``"Physics"`` variant set. Conversions that emit a
+    flat asset instead, such as the URDF and MJCF converters with ``run_asset_transformer`` set to
+    False, keep whatever physics the importer wrote and ignore this field.
+
+    Every variant stays in the generated USD file, so this only decides what composes by default:
+    :attr:`~isaaclab.sim.UsdFileCfg.variants` overrides the selection at spawn time.
     """

@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import warnings
 from typing import TYPE_CHECKING
 
@@ -469,11 +468,7 @@ class SurfaceGripper(AssetBase):
                 f"found {len(gripper_matches)}: {matched}."
             )
         _, self._prim_expr = gripper_matches[0]
-        # ``GripperView`` (XformPrim.resolve_paths) requires explicit regex (".*") and rejects the
-        # legacy "*" wildcard that the clone-plan destination glob (e.g. "/World/envs/env_*") can
-        # carry. Convert any bare "*" to ".*" (a "*" already preceded by "." is left untouched).
-        self._prim_expr = re.sub(r"(?<!\.)\*", ".*", self._prim_expr)
-        env_prim_path_expr = self._prim_expr.rsplit("/", 1)[0]
+        env_prim_path_expr = "/".join(sim_utils.split_path_expr(self._prim_expr)[:-1])
         self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
         self._num_envs = len(self._parent_prims)
 
@@ -484,8 +479,11 @@ class SurfaceGripper(AssetBase):
         self._process_cfg()
 
         # Initialize gripper view and set properties.
+        # ``GripperView`` (XformPrim.resolve_paths) matches one regex per path segment, so a
+        # segment wildcard has to be spelled ``.*`` there: ``[^/]`` holds a separator and would
+        # be split across two segments.
         self._gripper_view = GripperView(
-            self._prim_expr,
+            sim_utils.path_expr_to_glob(self._prim_expr).replace("*", ".*"),
         )
         self.update_gripper_properties_index(
             max_grip_distance=wp.clone(self._max_grip_distance),

@@ -261,5 +261,5 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # events
         self.events.add_base_mass.params["asset_cfg"].body_names = "torso_base"
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_base"
-        self.events.base_com.default.params["asset_cfg"].body_names = "torso_base"
+        self.events.base_com.params["asset_cfg"].body_names = "torso_base"
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)

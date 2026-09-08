@@ -1,3 +1,0 @@
-The multi-GPU training launcher now delegates its argument parsing, command building, and worker
-supervision to :mod:`isaaclab.cli.multigpu`, which the benchmark multi-GPU commands share. The CLI
-surface and behavior are unchanged.

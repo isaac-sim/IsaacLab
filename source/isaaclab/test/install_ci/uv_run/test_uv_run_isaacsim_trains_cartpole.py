@@ -5,9 +5,10 @@
 
 """
 Setup:
-    - (none: uv run creates the environment from the committed uv.lock on first invocation)
+    - uv sync --frozen --extra isaacsim
 Tests:
-    - uv run --frozen --extra isaacsim isaaclab train --rl_library rsl_rl
+    - LD_PRELOAD=$UV_PROJECT_ENVIRONMENT/lib/python3.12/site-packages/isaacsim/kit/kernel/plugins/libcarb.env.shim.so
+        uv run --frozen --no-sync --extra isaacsim isaaclab train --rl_library rsl_rl
         --task Isaac-Cartpole-Direct --num_envs 16 --max_iterations 5 physics=isaacsim_physx
         -> verify training completes from the committed lockfile (Isaac Sim PhysX via the isaacsim extra)
 """
@@ -66,15 +67,42 @@ class Test_Uv_Run_Isaacsim_Trains_Cartpole:
     @pytest.mark.gpu
     @pytest.mark.timeout(4800)
     def test_uv_run_isaacsim_from_committed_lock_trains_cartpole(self, isaaclab_root, tmp_path):
-        """Verify ``uv run --frozen --extra isaacsim isaaclab train`` completes on Isaac Sim PhysX."""
-        result = run_cmd(
-            ["uv", "run", "--frozen", "--extra", "isaacsim", "isaaclab", *_ISAACSIM_PHYSX_TRAIN_CMD],
+        """Verify frozen Isaac Sim dependencies train Cartpole on Isaac Sim PhysX."""
+        venv = tmp_path / "venv"
+        runtime_env = {
+            "UV_PROJECT_ENVIRONMENT": str(venv),
+            "OMNI_KIT_ACCEPT_EULA": "yes",
+            **aarch64_isaacsim_env(),
+        }
+        sync_result = run_cmd(
+            ["uv", "sync", "--frozen", "--extra", "isaacsim"],
             cwd=isaaclab_root,
-            env={
-                "UV_PROJECT_ENVIRONMENT": str(tmp_path / "venv"),
-                "OMNI_KIT_ACCEPT_EULA": "yes",
-                **aarch64_isaacsim_env(),
-            },
+            env=runtime_env,
+            timeout=4500,
+        )
+        assert sync_result.returncode == 0, f"uv sync failed:\n{sync_result.stdout}\n{sync_result.stderr}"
+
+        # Kit plugins access and mutate the process environment from worker
+        # threads. Preload Carbonite's environment shim before Python starts so
+        # glibc getenv/setenv calls are serialized, matching the main Isaac Sim
+        # Docker images and preventing intermittent startup SIGSEGVs.
+        shim = venv / "lib/python3.12/site-packages/isaacsim/kit/kernel/plugins/libcarb.env.shim.so"
+        assert shim.is_file(), f"Carbonite environment shim was not installed at {shim}"
+        runtime_env["LD_PRELOAD"] = ":".join(filter(None, (str(shim), runtime_env.get("LD_PRELOAD"))))
+
+        result = run_cmd(
+            [
+                "uv",
+                "run",
+                "--frozen",
+                "--no-sync",
+                "--extra",
+                "isaacsim",
+                "isaaclab",
+                *_ISAACSIM_PHYSX_TRAIN_CMD,
+            ],
+            cwd=isaaclab_root,
+            env=runtime_env,
             timeout=4500,
         )
         _assert_training_passed(result)

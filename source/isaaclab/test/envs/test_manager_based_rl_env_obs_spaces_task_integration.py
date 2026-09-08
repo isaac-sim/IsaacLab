@@ -23,9 +23,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.managers import ObservationGroupCfg
 
-from isaaclab_tasks.contrib.velocity.config.anymal_c.rough_env_cfg import AnymalCRoughEnvCfg
-from isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg import CartpoleCameraEnvCfg
-from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
+from isaaclab_tasks.utils import resolve_task_config
 
 pytestmark = pytest.mark.integration
 
@@ -41,7 +39,7 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
     sim_utils.create_new_stage()
 
     # configure the policy group to return its terms separately
-    env_cfg = CartpoleEnvCfg()
+    env_cfg, _ = resolve_task_config("Isaac-Cartpole", "", overrides=())
     env_cfg.scene.num_envs = 2  # keep num_envs small for testing
     env_cfg.observations.policy.concatenate_terms = False
     env_cfg.sim.device = device
@@ -68,24 +66,21 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
 
 
 @pytest.mark.parametrize(
-    ("env_cfg_cls", "presets"),
+    ("task_name", "overrides"),
     [
-        (CartpoleCameraEnvCfg, ("rgb",)),
-        (CartpoleCameraEnvCfg, ("depth",)),
-        (AnymalCRoughEnvCfg, ()),
+        ("Isaac-Cartpole-Camera", ("presets=rgb",)),
+        ("Isaac-Cartpole-Camera", ("presets=depth",)),
+        ("IsaacContrib-Velocity-Rough-AnymalC", ()),
     ],
     ids=["RGB", "Depth", "RayCaster"],
 )
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_obs_space_follows_clip_constraint(env_cfg_cls, presets, device):
+def test_obs_space_follows_clip_constraint(task_name, overrides, device):
     """Ensure observation space bounds reflect the clip constraint on each term."""
     # new USD stage
     sim_utils.create_new_stage()
 
-    # configure the env -- resolve Hydra presets so _Preset fields become plain values
-    from isaaclab_tasks.utils.hydra import resolve_presets
-
-    env_cfg = resolve_presets(env_cfg_cls(), presets)
+    env_cfg, _ = resolve_task_config(task_name, "", overrides=overrides)
     env_cfg.scene.num_envs = 2  # keep num_envs small for testing
     for group_cfg in vars(env_cfg.observations).values():
         if isinstance(group_cfg, ObservationGroupCfg):

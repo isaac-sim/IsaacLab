@@ -114,6 +114,29 @@ def test_latest_skips_newer_run_without_checkpoint(tmp_path: Path) -> None:
     assert checkpoint == str(expected.resolve())
 
 
+def test_recursive_selector_resolves_rlinf_checkpoint(tmp_path: Path) -> None:
+    """Nested RLinf checkpoints participate in the shared selector contract."""
+    run_dir = tmp_path / "run"
+    expected = run_dir / "test_gr00t" / "checkpoints" / "global_step_10" / "full_weights.pt"
+    expected.parent.mkdir(parents=True)
+    (run_dir / "test_gr00t" / "checkpoints" / "global_step_2").mkdir()
+    (run_dir / "test_gr00t" / "checkpoints" / "global_step_2" / "full_weights.pt").touch()
+    expected.touch()
+    write_run_manifest(str(run_dir), library="rlinf", task="Isaac-Cartpole", metadata={"config_name": "ppo"})
+
+    checkpoint = resolve_checkpoint_selector(
+        str(tmp_path),
+        "latest",
+        library="rlinf",
+        task="Isaac-Cartpole",
+        checkpoint_pattern=r"full_weights[.]pt",
+        metadata={"config_name": "ppo"},
+        recursive=True,
+    )
+
+    assert checkpoint == str(expected.resolve())
+
+
 def test_latest_rejects_unmanifested_historical_run(tmp_path: Path) -> None:
     historical_run = tmp_path / "2025-01-01_00-00-00"
     historical_run.mkdir()

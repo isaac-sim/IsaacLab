@@ -7,8 +7,13 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+
+if TYPE_CHECKING:
+    from .kit_visualizer import KitVisualizer
 
 
 @configclass
@@ -21,6 +26,9 @@ class KitVisualizerCfg(VisualizerCfg):
         skipped and no image panel is created.  Set ``dock_position="RIGHT"`` so
         the panel appears side-by-side with the Viewport instead of as a hidden tab.
     """
+
+    class_type: type[KitVisualizer] | str = "{DIR}.kit_visualizer:KitVisualizer"
+    """Visualizer implementation class."""
 
     visualizer_type: str = "kit"
     """Type identifier for Kit visualizer."""

@@ -13,7 +13,7 @@ OvPhysX exposes generic ``TensorBinding`` objects. A binding combines a prim
 selection with one installed ``TensorType``; it is not an asset-specific native
 storage object. Callers explicitly pull values into their own buffer with
 ``read()`` and push a buffer back with ``write()``. Isaac Lab optionally wraps
-these bindings in :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` for a
+these bindings in :class:`~isaaclab_ov.sim.views.OvPhysxView` for a
 string-keyed, guarded convenience surface.
 
 Lifecycle prerequisite
@@ -31,7 +31,7 @@ Get the active OvPhysX handle from the manager:
 
 .. code-block:: python
 
-   from isaaclab_ovphysx.physics import OvPhysxManager
+   from isaaclab_ov.physics import OvPhysxManager
 
    physx = OvPhysxManager.get_physx_instance()
    if physx is None:
@@ -108,13 +108,13 @@ selection matches:
    object_view = scene["object"].root_view
    poses = object_view.get_attribute("rigid_body_pose")
 
-For a new selection, construct :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`
+For a new selection, construct :class:`~isaaclab_ov.sim.views.OvPhysxView`
 with the native runtime and a Tensor API pattern:
 
 .. code-block:: python
 
    from isaaclab.physics import PhysicsManager
-   from isaaclab_ovphysx.sim.views import OvPhysxView
+   from isaaclab_ov.sim.views import OvPhysxView
 
    view = OvPhysxView(
        physx,
@@ -145,9 +145,9 @@ Read and write data
 Raw ``binding.read(buffer)`` calls pull values into caller-owned buffers, while
 ``binding.write(buffer)`` calls push values to the simulation. Editing a local
 buffer alone does not change the simulation. The guarded
-:meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.get_attribute`,
-:meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.read_into`, and
-:meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.set_attribute` paths provide the
+:meth:`~isaaclab_ov.sim.views.OvPhysxView.get_attribute`,
+:meth:`~isaaclab_ov.sim.views.OvPhysxView.read_into`, and
+:meth:`~isaaclab_ov.sim.views.OvPhysxView.set_attribute` paths provide the
 same pull/push boundary while validating the binding's shape, scalar dtype,
 native device, and writable access.
 
@@ -156,7 +156,7 @@ Ownership, synchronization, and invalidation
 
 Allocate buffers on the binding's required device and match its shape and
 DLPack scalar metadata. State tensors normally use the simulation device, while
-some property tensors are CPU-only. :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`
+some property tensors are CPU-only. :class:`~isaaclab_ov.sim.views.OvPhysxView`
 validates these requirements and can reinterpret supported flat scalar layouts
 as structured Warp values, but it does not move data between CPU and GPU.
 
@@ -171,7 +171,7 @@ Authoritative references
 ------------------------
 
 The generated Isaac Lab reference for
-:class:`~isaaclab_ovphysx.sim.views.OvPhysxView` documents the convenience
+:class:`~isaaclab_ov.sim.views.OvPhysxView` documents the convenience
 view. The repository metadata pins OvPhysX to a version but does not provide
 a versioned official OvPhysX documentation URL, so inspect the installed
 ``TensorType`` and binding metadata at runtime.

@@ -228,8 +228,9 @@ def test_require_newton_passes_for_newton():
 def test_require_newton_rejects_physx():
     with pytest.raises(FrontendIncompatibleError) as exc:
         fe.WarpFrontend._require_newton_physics(_cfg_with_physics(PhysxCfg()), "Isaac-Test-v0")
-    assert "presets=newton_mjwarp" in str(exc.value)
-    assert "PhysxCfg" in str(exc.value)
+    message = str(exc.value)
+    assert "Select Newton while composing the task configuration" in message
+    assert "PhysxCfg" in message
 
 
 def test_require_newton_rejects_none():

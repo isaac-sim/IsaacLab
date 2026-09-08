@@ -166,9 +166,10 @@ The display will be forwarded to the host machine.
 
 .. rubric:: Python Interpreter
 
-The Isaac Sim-based profiles use the Python interpreter provided by Isaac Sim at ``/isaac-sim/python.sh``.
-The kit-less profile instead uses the locked Python 3.12 virtual environment at
-``/workspace/isaaclab/.venv``. In either container, use the following command:
+Every profile installs from ``uv.lock`` into a Python 3.12 virtual environment at
+``/opt/isaaclab-venv``. On the Isaac Sim-based profiles the environment is built on Isaac Sim's
+own interpreter, and Isaac Sim itself stays outside it, reached through the ``_isaac_sim``
+symlink; ``isaaclab.sh`` puts it on the path. In either container, use the following command:
 
 .. code:: bash
 
@@ -291,10 +292,30 @@ release version tag.
 
     docker pull nvcr.io/nvidia/isaac-lab:<version>-kitless
 
-    docker run --rm --gpus all --network host \
-        nvcr.io/nvidia/isaac-lab:<version>-kitless \
+Start a named container in the background. The ``--interactive`` and ``--tty`` options keep the image's Bash
+process running so that you can execute multiple commands in the same container:
+
+.. code:: bash
+
+    docker run --name isaac-lab-kitless --detach --interactive --tty --gpus all --network host \
+        nvcr.io/nvidia/isaac-lab:<version>-kitless
+
+Train a policy in the running container:
+
+.. code:: bash
+
+    docker exec isaac-lab-kitless \
         isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct \
         --num_envs 16 presets=newton_mjwarp --max_iterations 5
+
+Then replay the latest checkpoint in the same container. The Viser web visualizer is reachable through the host
+network; stop playback with :kbd:`Ctrl+C` without stopping the container:
+
+.. code:: bash
+
+    docker exec --interactive --tty isaac-lab-kitless \
+        isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct \
+        --num_envs 16 presets=newton_mjwarp --checkpoint latest --viz viser
 
 Only ``linux/amd64`` images are published. The Dockerfile itself is architecture-agnostic, but the
 published manifest is limited to the architecture that is validated in CI.

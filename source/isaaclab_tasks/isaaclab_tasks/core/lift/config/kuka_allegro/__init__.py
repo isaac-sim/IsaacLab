@@ -20,6 +20,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kuka_allegro_env_cfg:KukaAllegroReorientEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:KukaAllegroPPORunnerCfg",
+        "default_agent": "rsl_rl",
     },
 )
 
@@ -30,6 +31,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kuka_allegro_env_cfg:KukaAllegroLiftEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:KukaAllegroPPORunnerCfg",
+        "default_agent": "rsl_rl",
     },
 )
 
@@ -44,6 +46,7 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kuka_allegro_camera_env_cfg:KukaAllegroReorientCameraEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:KukaAllegroPPORunnerCfg",
+        "default_agent": "rsl_rl",
     },
 )
 
@@ -54,5 +57,6 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kuka_allegro_camera_env_cfg:KukaAllegroLiftCameraEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:KukaAllegroPPORunnerCfg",
+        "default_agent": "rsl_rl",
     },
 )

@@ -247,6 +247,31 @@ class TestRewardParity:
         assert_close(actual, expected)
         assert_close(actual_cap, expected)
 
+    @pytest.mark.parametrize(
+        "term_keys",
+        [".*", ["success"], ["success", "fell_over"], ["time_out"]],
+        ids=["all", "single", "subset", "timeout_only"],
+    )
+    def test_is_terminated_term(self, warp_env, stable_env, term_keys):
+        """The warp twin resolves the term selection to a column mask at init, so every
+        selection shape is compared against the stable term's per-term lookup."""
+        from isaaclab.managers.manager_term_cfg import RewardTermCfg
+
+        params = {"term_keys": term_keys}
+        stable_fn = stable_rew.is_terminated_term(
+            RewardTermCfg(func=stable_rew.is_terminated_term, weight=1.0, params=params), stable_env
+        )
+        warp_fn = warp_rew.is_terminated_term(
+            RewardTermCfg(func=warp_rew.is_terminated_term, weight=1.0, params=params), warp_env
+        )
+        expected = stable_fn(stable_env, term_keys=term_keys)
+        # selecting only the timeout term must score zero everywhere; every other
+        # selection must score somewhere, otherwise the comparison proves nothing
+        assert expected.any() == (term_keys != ["time_out"])
+
+        assert_close(run_warp_rew(warp_fn, warp_env, term_keys=term_keys), expected)
+        assert_close(run_warp_rew_captured(warp_fn, warp_env, term_keys=term_keys), expected)
+
     # -- Root penalties ---------------------------------------------------------
 
     def test_lin_vel_z_l2(self, warp_env, stable_env, all_joints_cfg):

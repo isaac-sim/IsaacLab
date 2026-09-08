@@ -6,6 +6,7 @@
 import abc
 import hashlib
 import json
+import logging
 import os
 import pathlib
 import random
@@ -15,6 +16,8 @@ from datetime import datetime
 from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
 from isaaclab.utils.assets import check_file_path
 from isaaclab.utils.io import dump_yaml
+
+logger = logging.getLogger(__name__)
 
 
 class AssetConverterBase(abc.ABC):
@@ -101,14 +104,15 @@ class AssetConverterBase(abc.ABC):
 
         # convert the asset to USD if the hash is different or USD file does not exist
         if cfg.force_usd_conversion or not self._usd_file_exists or not self._is_same_asset:
-            # write the updated hash
-            with open(self._dest_hash_path, "w") as f:
-                f.write(self._asset_hash)
             # convert the asset to USD
             self._convert_asset(cfg)
-            # the importers emit the physics payloads behind a "Physics" variant set but leave it
-            # unselected, which composes the asset with geometry only
-            self._select_physics_variant()
+            # importers put the physics payloads behind a "Physics" variant set and disagree on
+            # which variant to select, so settle it here
+            self._select_physics_variant(cfg.physics_variant)
+            # record the hash only now: writing it earlier would let a conversion that raised
+            # still count as cached, so an identical retry would skip it and return the asset
+            with open(self._dest_hash_path, "w") as f:
+                f.write(self._asset_hash)
             # dump the configuration to a file
             dump_yaml(os.path.join(self.usd_dir, "config.yaml"), cfg.to_dict())
             # add comment to top of the saved config file with information about the converter
@@ -166,20 +170,25 @@ class AssetConverterBase(abc.ABC):
     Private helpers.
     """
 
-    def _select_physics_variant(self, variant: str = "physx"):
+    def _select_physics_variant(self, variant: str):
         """Author a selection for the ``"Physics"`` variant set on the converted asset.
 
-        The URDF and MJCF importers write the physics description into a ``"Physics"`` variant set
-        without selecting a variant, so opening the asset composes it without joints, articulation
-        roots, or mass properties. Selecting a variant here restores physics for every consumer. The
-        selection is authored on the asset, so a spawner that selects a different variant on the
-        referencing prim still wins.
+        Importers put the physics description behind a ``"Physics"`` variant set, and which variant
+        they select is not consistent: the Isaac Sim importer extensions leave the set unselected,
+        which composes the asset without joints, articulation roots, or mass properties, while the
+        standalone importer wheel selects one of its own. Authoring the configured variant here makes
+        the outcome the same either way. The selection is authored on the asset, so a spawner that
+        selects a different variant on the referencing prim still wins.
 
-        Does nothing when the asset has no such variant set or the importer already authored a
-        selection.
+        Does nothing when the asset has no such variant set.
 
         Args:
             variant: The variant to select.
+
+        Raises:
+            ValueError: When the asset offers a ``"Physics"`` variant set without the requested
+                variant. Substituting another one would silently hand back an asset configured for a
+                different backend than the caller asked for.
         """
         from pxr import Usd
 
@@ -188,7 +197,13 @@ class AssetConverterBase(abc.ABC):
         if not prim or "Physics" not in prim.GetVariantSets().GetNames():
             return
         variant_set = prim.GetVariantSets().GetVariantSet("Physics")
-        if variant_set.GetVariantSelection() or variant not in variant_set.GetVariantNames():
+        available = variant_set.GetVariantNames()
+        if variant not in available:
+            raise ValueError(
+                f"The converted asset has no '{variant}' physics variant. Set"
+                f" {type(self.cfg).__name__}.physics_variant to one of: {available}."
+            )
+        if variant == variant_set.GetVariantSelection():
             return
         variant_set.SetVariantSelection(variant)
         stage.GetRootLayer().Save()

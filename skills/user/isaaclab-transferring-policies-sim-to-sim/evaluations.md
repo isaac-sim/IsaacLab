@@ -29,7 +29,23 @@ Known failure modes:
 
 - Remove the follower coordinate or describe the issue only as action width.
 
-## Scenario 3: Bang-Bang Control
+## Scenario 3: Scrambled Joint Axis
+
+Query: "My ANYmal-D PhysX policy falls over instantly in Newton."
+
+Expected behavior:
+
+- Recognize immediate collapse (rather than graceful degradation) as an ordering symptom, not a solver-dynamics one.
+- Add `env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx` to the Newton replay, naming the source checkpoint's convention.
+- Confirm by comparing `joint_names` with `backend_joint_names` and the body equivalents.
+
+Known failure modes:
+
+- Set only `joint_ordering` and leave body-indexed observations scrambled.
+- Name the target backend instead of the source checkpoint's convention.
+- Attribute the collapse to friction, contacts, or actuator tuning and start tuning solver parameters.
+
+## Scenario 4: Bang-Bang Control
 
 Query: "The policy alternates saturated actions in MJWarp."
 
@@ -42,7 +58,7 @@ Known failure modes:
 
 - Tune the policy before matching nominal control behavior.
 
-## Scenario 4: Domain Randomization
+## Scenario 5: Domain Randomization
 
 Query: "What should I randomize for sim-to-sim transfer?"
 
@@ -55,7 +71,7 @@ Known failure modes:
 
 - Use extreme randomization to hide an incorrect nominal model.
 
-## Scenario 5: Curriculum
+## Scenario 6: Curriculum
 
 Query: "The final randomization distribution prevents learning."
 
@@ -68,7 +84,7 @@ Known failure modes:
 
 - Evaluate only the easier curriculum stage.
 
-## Scenario 6: Full Matrix
+## Scenario 7: Full Matrix
 
 Query: "How do I demonstrate transfer in both directions with Franka?"
 

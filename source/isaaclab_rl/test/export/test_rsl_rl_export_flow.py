@@ -212,7 +212,8 @@ def _export_args(task_name: str):
         [
             "--task",
             task_name,
-            "--use_pretrained_checkpoint",
+            "--checkpoint",
+            "pretrained",
             "--disable_graph_visualization",
         ]
     )

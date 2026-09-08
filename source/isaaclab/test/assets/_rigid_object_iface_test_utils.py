@@ -47,9 +47,9 @@ else:
 try:
     import ovphysx  # noqa: F401
 
-    from isaaclab_ovphysx.assets.rigid_object.rigid_object import RigidObject as OvPhysxRigidObject
-    from isaaclab_ovphysx.assets.rigid_object.rigid_object_data import RigidObjectData as OvPhysxRigidObjectData
-    from isaaclab_ovphysx.test.fixtures.views import MockOvPhysxBindingSet
+    from isaaclab_ov.assets.rigid_object.rigid_object import RigidObject as OvPhysxRigidObject
+    from isaaclab_ov.assets.rigid_object.rigid_object_data import RigidObjectData as OvPhysxRigidObjectData
+    from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
 except ImportError:
     pass
 else:
@@ -85,7 +85,7 @@ def create_physx_rigid_object(
     # Set body names on data
     data.body_names = body_names
 
-    # Create mock wrench composers
+    # Create wrench composers
     mock_inst_wrench = WrenchComposer(rigid_object)
     mock_perm_wrench = WrenchComposer(rigid_object)
     object.__setattr__(rigid_object, "_instantaneous_wrench_composer", mock_inst_wrench)
@@ -181,7 +181,7 @@ def create_newton_rigid_object(
     object.__setattr__(rigid_object, "_device", device)
     object.__setattr__(rigid_object, "_data", data)
 
-    # Mock wrench composers
+    # Wrench composers
     mock_inst_wrench = WrenchComposer(rigid_object)
     mock_perm_wrench = WrenchComposer(rigid_object)
     object.__setattr__(rigid_object, "_instantaneous_wrench_composer", mock_inst_wrench)
@@ -246,7 +246,7 @@ def create_ovphysx_rigid_object(
     # replaced with mocks just below.
     obj._create_buffers()
 
-    # Replace the real wrench composers with mocks for iface coverage.
+    # Use production wrench composers for interface coverage.
     mock_inst_wrench = WrenchComposer(obj)
     mock_perm_wrench = WrenchComposer(obj)
     object.__setattr__(obj, "_instantaneous_wrench_composer", mock_inst_wrench)

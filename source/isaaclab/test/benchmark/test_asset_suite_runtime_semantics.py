@@ -15,7 +15,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.benchmark.assets import runtime as newton_runtime
-from isaaclab_ovphysx.benchmark.assets import runtime as ovphysx_runtime
+from isaaclab_ov.benchmark.assets import runtime as ovphysx_runtime
 from isaaclab_physx.benchmark.assets import runtime as physx_runtime
 
 from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
@@ -175,7 +175,7 @@ def test_ovphysx_data_targets_are_independent_and_properties_preflight_when_avai
     if not torch.cuda.is_available():
         pytest.skip("OVPhysX target construction requires CUDA pinned memory")
 
-    from isaaclab_ovphysx.benchmark.assets import runtime as ovphysx_runtime
+    from isaaclab_ov.benchmark.assets import runtime as ovphysx_runtime
 
     from isaaclab.benchmark.asset_suites import (
         get_asset_benchmark_adapter,
@@ -364,17 +364,17 @@ def test_open_targets_preserves_setup_errors(monkeypatch, runtime) -> None:
     (
         (
             "create_test_articulation",
-            "isaaclab_ovphysx.assets.articulation.articulation",
+            "isaaclab_ov.assets.articulation.articulation",
             "Articulation",
         ),
         (
             "create_test_rigid_object",
-            "isaaclab_ovphysx.assets.rigid_object.rigid_object",
+            "isaaclab_ov.assets.rigid_object.rigid_object",
             "RigidObject",
         ),
         (
             "create_test_collection",
-            "isaaclab_ovphysx.assets.rigid_object_collection.rigid_object_collection",
+            "isaaclab_ov.assets.rigid_object_collection.rigid_object_collection",
             "RigidObjectCollection",
         ),
         ("_create_data_target", None, None),
@@ -425,8 +425,8 @@ def test_ovphysx_factories_use_exported_binding_set_signature(
 @pytest.mark.parametrize("read_mode", ("numpy", "structured_warp", "view_preflight"))
 def test_mock_ovphysx_binding_reads_latest_data_without_optional_runtime(monkeypatch, read_mode) -> None:
     """Repository mock reads should support every consumer mode and reflect subsequent writes."""
-    monkeypatch.setitem(sys.modules, "isaaclab_ovphysx.tensor_types", SimpleNamespace())
-    bindings_module = importlib.import_module("isaaclab_ovphysx.test.fixtures.views.mock_ovphysx_bindings")
+    monkeypatch.setitem(sys.modules, "isaaclab_ov.tensor_types", SimpleNamespace())
+    bindings_module = importlib.import_module("isaaclab_ov.test.fixtures.views.mock_ovphysx_bindings")
     binding = bindings_module.MockTensorBinding(tensor_type=0, shape=(2, 7), count=2)
     first = np.arange(14, dtype=np.float32).reshape(2, 7)
     latest = first + 100.0

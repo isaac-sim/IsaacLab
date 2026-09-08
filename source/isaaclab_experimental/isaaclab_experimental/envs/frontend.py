@@ -174,9 +174,7 @@ class WarpFrontend:
         Three steps, each independently testable:
 
         1. :meth:`_require_newton_physics` — hard check that ``cfg.sim.physics``
-           is :class:`~isaaclab_newton.physics.NewtonCfg`. The user is
-           responsible for selecting the Newton variant of the task's
-           :class:`PresetCfg` via ``presets=newton_mjwarp``; we don't auto-inject.
+           is :class:`~isaaclab_newton.physics.NewtonCfg`.
         2. :meth:`_promote_scene_entity_cfgs` — replace stable
            :class:`~isaaclab.managers.SceneEntityCfg` instances under each
            term's ``params`` with the warp variant (which adds warp-cached
@@ -194,15 +192,37 @@ class WarpFrontend:
         cls._swap_mdp(cfg, label)
         cls._swap_noise_cfgs(cfg, label)
 
+    @classmethod
+    def check_compatibility(cls, cfg: Any) -> str | None:
+        """Report whether ``cfg`` can run on the warp frontend, without raising.
+
+        Answers the question ``--frontend warp`` answers at env construction, but as a value
+        instead of an exception, so callers can survey many cfgs and report on all of them.
+        It runs :meth:`adapt_cfg` itself rather than re-deriving the rules, so the verdict
+        cannot drift from the real code path.
+
+        Args:
+            cfg: A stable manager-based env cfg with a concrete Newton physics configuration.
+
+        Returns:
+            ``None`` when the cfg adapts, otherwise the reason, listing every missing twin.
+
+        Note:
+            ``cfg`` is adapted in place when compatible, and may be left partially adapted
+            when not. Pass a freshly constructed cfg when only the verdict is wanted.
+        """
+        try:
+            cls.adapt_cfg(cfg)
+        except FrontendIncompatibleError as exc:
+            return str(exc)
+        return None
+
     @staticmethod
     def _require_newton_physics(cfg: Any, label: str) -> None:
         """Block unless ``cfg.sim.physics`` is :class:`NewtonCfg`.
 
-        The warp managers' assets read state through :class:`NewtonManager`;
-        a :class:`PhysxCfg` (or unresolved :class:`PresetCfg`) is a hard
-        incompatibility. The fix is to pass ``presets=newton_mjwarp`` on the CLI
-        so Hydra resolves the task's :class:`PresetCfg` wrapper to the Newton
-        field before construction.
+        The warp managers' assets read state through :class:`NewtonManager`, so
+        every other physics configuration is incompatible.
         """
         from isaaclab_newton.physics import NewtonCfg
 
@@ -211,8 +231,8 @@ class WarpFrontend:
             return
         raise FrontendIncompatibleError(
             f"warp env {label!r}: expected cfg.sim.physics to be NewtonCfg,"
-            f" got {type(physics).__name__!r}. Pass `presets=newton_mjwarp` on the CLI so"
-            f" Hydra resolves the task's PresetCfg wrapper to the Newton variant."
+            f" got {type(physics).__name__!r}. Select Newton while composing the task configuration"
+            " before constructing the environment."
         )
 
     @classmethod

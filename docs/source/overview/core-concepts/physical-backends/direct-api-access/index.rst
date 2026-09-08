@@ -33,7 +33,7 @@ can still require explicit synchronization.
 
 PhysX organizes access into typed views for physics-object families. OvPhysX
 organizes access into bindings selected by tensor type;
-:class:`~isaaclab_ovphysx.sim.views.OvPhysxView` is an Isaac Lab convenience
+:class:`~isaaclab_ov.sim.views.OvPhysxView` is an Isaac Lab convenience
 manager over those bindings. Newton selections describe subsets and batched
 layouts without imposing an asset type. A single facade would erase these
 ownership and synchronization differences and reduce the engines to a
@@ -73,8 +73,8 @@ How the access models differ
      - Reacquire current state across state-buffer swaps and all objects after
        model rebuild
    * - OvPhysX
-     - :meth:`~isaaclab_ovphysx.physics.OvPhysxManager.get_physx_instance`
-       or :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`
+     - :meth:`~isaaclab_ov.physics.OvPhysxManager.get_physx_instance`
+       or :class:`~isaaclab_ov.sim.views.OvPhysxView`
      - A tensor type plus pattern/prim list
      - Caller-owned transfer buffers backed by engine bindings
      - Explicit ``read()``/``write()`` or guarded convenience methods

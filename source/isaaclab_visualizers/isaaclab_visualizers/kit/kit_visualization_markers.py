@@ -57,6 +57,7 @@ class KitVisualizationMarkers:
         self.prim_path = sim_utils.get_next_free_prim_path(cfg.prim_path)
         self._is_visible = visible
         self._count = len(cfg.markers)
+        self._environment_ids: tuple[int, ...] | None = None
 
         from pxr import Gf, UsdGeom  # noqa: PLC0415
 
@@ -99,6 +100,7 @@ class KitVisualizationMarkers:
         orientations: torch.Tensor | None,
         scales: torch.Tensor | None,
         marker_indices: torch.Tensor | None,
+        environment_ids: torch.Tensor | None = None,
     ) -> None:
         """Write marker transforms to USD PointInstancer attributes.
 
@@ -111,9 +113,12 @@ class KitVisualizationMarkers:
                 (M, 3).
             marker_indices: Decides which marker prototype to visualize. Shape
                 is (M).
+            environment_ids: Environment index for each marker instance. Shape
+                is (M).
         """
         from pxr import Vt  # noqa: PLC0415
 
+        previous_count = self._count
         num_markers = 0
         if translations is not None:
             translations_np = translations.detach().cpu().numpy()
@@ -140,8 +145,58 @@ class KitVisualizationMarkers:
                 # Set all markers to the first prototype when the marker count
                 # changes and explicit marker indices are not provided.
                 self._instancer_manager.GetProtoIndicesAttr().Set([0] * num_markers)
+        if environment_ids is not None:
+            self._environment_ids = tuple(int(env_id) for env_id in environment_ids.detach().cpu().tolist())
+            if num_markers == 0:
+                num_markers = len(self._environment_ids)
+        elif num_markers != 0 and num_markers != previous_count:
+            self._environment_ids = None
         if num_markers != 0:
             self._count = num_markers
+        self._sync_scene_partition_primvar()
+
+    def _sync_scene_partition_primvar(self) -> None:
+        """Synchronize marker ownership with renderer scene partitions.
+
+        Point instancers live outside the environment hierarchies, so their instances
+        need explicit partition tokens. Any previously authored tokens are cleared when
+        the caller drops environment ownership or the renderer has no active partitions.
+        """
+        from pxr import Sdf, UsdGeom, Vt  # noqa: PLC0415
+
+        primvars_api = UsdGeom.PrimvarsAPI(self._instancer_manager.GetPrim())
+        # PrimvarsAPI adds the ``primvars:`` namespace, matching the env-root attribute.
+        primvar = primvars_api.GetPrimvar("omni:scenePartition")
+        if self._environment_ids is None or not self._scene_partitioning_is_active():
+            if primvar:
+                primvar.GetAttr().Clear()
+            return
+
+        if not primvar:
+            # Vertex interpolation maps each token to one PointInstancer instance; RTX rendered the same
+            # token array with constant interpolation as unpartitioned.
+            primvar = primvars_api.CreatePrimvar(
+                "omni:scenePartition",
+                Sdf.ValueTypeNames.TokenArray,
+                UsdGeom.Tokens.vertex,
+            )
+        elif primvar.GetTypeName() != Sdf.ValueTypeNames.TokenArray:
+            raise RuntimeError(
+                f"Expected '{primvar.GetAttr().GetPath()}' to have type TokenArray. Received: {primvar.GetTypeName()}."
+            )
+        primvar.Set(Vt.TokenArray([f"env_{env_id}" for env_id in self._environment_ids]))
+
+    def _scene_partitioning_is_active(self) -> bool:
+        """Return whether renderer stage preparation authored environment partitions.
+
+        Renderer preparation always starts with ``env_0``, so its root is the
+        canonical stage-level signal regardless of which environments own markers.
+        """
+        env_prim = self.stage.GetPrimAtPath("/World/envs/env_0")
+        if not env_prim.IsValid():
+            return False
+        attr = env_prim.GetAttribute("primvars:omni:scenePartition")
+        return attr.IsValid() and attr.Get() is not None
 
     def _add_markers_prototypes(self, markers_cfg: dict[str, sim_utils.SpawnerCfg]) -> None:
         """Add marker prototypes to the scene and register them with the point instancer."""
