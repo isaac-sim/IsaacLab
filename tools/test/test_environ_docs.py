@@ -10,6 +10,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import gymnasium as gym
 import pytest
 from gymnasium.envs.registration import EnvSpec
 
@@ -292,6 +293,16 @@ def test_collect_environment_doc_rows_includes_registered_agent_preset_compatibi
     }
 
 
+def test_collect_environment_doc_rows_includes_checkpoint_preset_compatibility():
+    """Checkpoint preset availability must be carried into generated browser rows."""
+    row = collect_environment_doc_rows([gym.spec("Isaac-Cartpole-Camera-Direct")])[0]
+
+    assert row.pretrained_checkpoint_preset_compatibility == {
+        "*": ("rgb",),
+        "rl_games": ("depth",),
+    }
+
+
 def test_collect_environment_doc_rows_excludes_deprecated_task_aliases():
     specs = [
         EnvSpec(
@@ -423,6 +434,7 @@ def test_environment_browser_rows_include_concrete_core_and_contributed_selector
                 "rsl_rl_feature_cfg_entry_point": ("resnet18", "theia_tiny"),
             },
             supports_warp_frontend=True,
+            pretrained_checkpoint_preset_compatibility={"*": ("rgb",), "rsl_rl": ("depth",)},
         ),
         EnvironmentDocRow(
             task_name="IsaacContrib-Cartpole",
@@ -458,6 +470,8 @@ def test_environment_browser_rows_include_concrete_core_and_contributed_selector
     assert '"ovphysx"' in updated
     assert '"tasks/classic/cartpole.jpg"' in updated
     assert '"tasks/classic/cartpole.jpg", true' in updated
+    assert '"*": ["rgb"]' in updated
+    assert '"rsl_rl": ["depth"]' in updated
     assert updated.index('"Isaac-Cartpole"') < updated.index('"IsaacContrib-Cartpole"')
     assert "const preserved = true;" in updated
 
@@ -475,7 +489,7 @@ def test_environment_browser_rows_include_mappo_as_the_skrl_default():
 
     rendered = render_environment_browser_task_rows(rows)
 
-    assert '["Isaac-Multi-Agent-Direct", "skrl", "", "", "", {}, "", false, {"skrl": "MAPPO"}]' in rendered
+    assert '["Isaac-Multi-Agent-Direct", "skrl", "", "", "", {}, "", false, {}, {"skrl": "MAPPO"}]' in rendered
 
 
 def test_collect_environment_browser_preview_images_preserves_generated_assignments():
