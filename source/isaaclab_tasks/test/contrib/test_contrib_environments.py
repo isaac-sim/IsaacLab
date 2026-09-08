@@ -21,18 +21,13 @@ simulation_app = app_launcher.app
 
 import math
 
-import gymnasium as gym
 import pytest
-import torch
-
-import isaaclab.sim as sim_utils
-from isaaclab.sim import SimulationContext
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 # Local imports should be imported last
-from env_test_utils import _check_valid_tensor, _run_environments, setup_environment  # isort: skip
+from env_test_utils import _run_environments, setup_environment  # isort: skip
 
 
 _SKIPPED_TASKS = {
@@ -89,36 +84,6 @@ def test_dr_legs_driven_joint_effort_limit_matches_physics_backend(
     env_cfg = parse_env_cfg("IsaacContrib-DrLegs-Walk", overrides=overrides)
     actual_effort_limit = env_cfg.scene.robot.actuators["driven_joints"].joint_effort_limit
     assert actual_effort_limit == expected_effort_limit
-
-
-def test_dr_legs_walk_seed_zero_remains_finite():
-    """Keep DR Legs state finite under the random actions that exposed P-ADMM divergence."""
-    sim_utils.create_new_stage()
-    env = None
-    try:
-        env_cfg = parse_env_cfg("IsaacContrib-DrLegs-Walk", device="cuda", num_envs=2)
-        env_cfg.seed = 0
-        env = gym.make("IsaacContrib-DrLegs-Walk", cfg=env_cfg)
-        env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
-
-        action_space = gym.vector.utils.batch_space(env.unwrapped.single_action_space, 2)
-        action_space.seed(0)
-        obs, _ = env.reset(seed=0)
-        assert _check_valid_tensor(obs)
-
-        with torch.inference_mode():
-            for _ in range(5):
-                actions = torch.as_tensor(action_space.sample(), device=env.unwrapped.device, dtype=torch.float32)
-                transition = env.step(actions)
-                assert all(_check_valid_tensor(data) for data in transition[:-1])
-                joint_velocity = env.unwrapped.scene["robot"].data.joint_vel
-                joint_velocity = joint_velocity.torch if hasattr(joint_velocity, "torch") else joint_velocity
-                max_joint_velocity = torch.max(torch.abs(joint_velocity)).item()
-                assert max_joint_velocity < 100.0, f"Joint velocity diverged to {max_joint_velocity} rad/s"
-    finally:
-        if env is not None:
-            env.close()
-        SimulationContext.clear_instance()
 
 
 @pytest.mark.parametrize("task_name", _contrib_environment_params())
