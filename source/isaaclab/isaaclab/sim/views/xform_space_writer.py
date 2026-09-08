@@ -113,7 +113,11 @@ class FrameViewSpaceWriterBase(abc.ABC):
                 "opening a new one."
             )
         self._view._active_writer = self
-        self._enter_impl()
+        try:
+            self._enter_impl()
+        except BaseException:
+            self._view._active_writer = None
+            raise
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:

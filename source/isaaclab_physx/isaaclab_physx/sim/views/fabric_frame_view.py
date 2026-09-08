@@ -439,7 +439,7 @@ class FabricFrameView(BaseFrameView):
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        return self._decompose_scales(self._get_world_ifa(), indices)
+        return self._decompose_scales(self._get_world_ifa(), indices, world=True)
 
     def _get_local_scales_impl(self, indices=None) -> ProxyArray:
         if not self._use_fabric:
@@ -448,16 +448,20 @@ class FabricFrameView(BaseFrameView):
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        return self._decompose_scales(self._get_local_ifa(), indices)
+        return self._decompose_scales(self._get_local_ifa(), indices, world=False)
 
-    def _decompose_scales(self, ro_array, indices) -> ProxyArray:
-        """Shared scale-decompose path for world / local getters."""
+    def _decompose_scales(self, ro_array, indices, world: bool) -> ProxyArray:
+        """Shared scale-decompose path for world / local getters.
+
+        World and local results use separate cached buffers, so reading one
+        space does not overwrite a previously returned array of the other.
+        """
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
 
         use_cached = indices is None or indices == slice(None)
         if use_cached:
-            scales_wp = self._fabric_scales_buf
+            scales_wp = self._fabric_world_scales_buf if world else self._fabric_local_scales_buf
         else:
             scales_wp = wp.zeros((count, 3), dtype=wp.float32, device=self._device)
 
@@ -477,7 +481,7 @@ class FabricFrameView(BaseFrameView):
         # See note in _get_world_poses_impl: sync regardless of caching path.
         wp.synchronize()
         if use_cached:
-            return self._fabric_scales_ta
+            return self._fabric_world_scales_ta if world else self._fabric_local_scales_ta
         return ProxyArray(scales_wp)
 
     # ------------------------------------------------------------------
@@ -744,14 +748,16 @@ class FabricFrameView(BaseFrameView):
         # Pre-allocated reusable output buffers (world + local + scales).
         self._fabric_positions_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
         self._fabric_orientations_buf = wp.zeros((self.count, 4), dtype=wp.float32, device=self._device)
-        self._fabric_scales_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
+        self._fabric_world_scales_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
+        self._fabric_local_scales_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
         self._fabric_local_translations_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
         self._fabric_local_orientations_buf = wp.zeros((self.count, 4), dtype=wp.float32, device=self._device)
         self._fabric_empty_2d_array_sentinel = wp.zeros((0, 0), dtype=wp.float32, device=self._device)
 
         self._fabric_positions_ta = ProxyArray(self._fabric_positions_buf)
         self._fabric_orientations_ta = ProxyArray(self._fabric_orientations_buf)
-        self._fabric_scales_ta = ProxyArray(self._fabric_scales_buf)
+        self._fabric_world_scales_ta = ProxyArray(self._fabric_world_scales_buf)
+        self._fabric_local_scales_ta = ProxyArray(self._fabric_local_scales_buf)
         self._fabric_local_translations_ta = ProxyArray(self._fabric_local_translations_buf)
         self._fabric_local_orientations_ta = ProxyArray(self._fabric_local_orientations_buf)
 
