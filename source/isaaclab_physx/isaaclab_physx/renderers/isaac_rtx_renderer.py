@@ -518,7 +518,7 @@ class IsaacRtxRenderer(BaseRenderer):
             rows = math.ceil(view_count / cols)
             return (cols, rows)
 
-        num_tiles_x = tiling_grid_shape()[0]
+        num_tiles_x, num_tiles_y = tiling_grid_shape()
 
         # Extract the flattened image buffer
         for data_type, annotator in render_data.annotators.items():
@@ -575,11 +575,30 @@ class IsaacRtxRenderer(BaseRenderer):
             if data_type == str(RenderBufferKind.RGB_HDR):
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
+            # ``reshape_tiled_image`` indexes the tiled buffer as
+            # (num_tiles_y * height, num_tiles_x * width, channels), but annotators hand this data back
+            # with varying shapes: 3D for multi-channel outputs, 2D for single-channel ones, and — for the
+            # colorized segmentation types reinterpreted above — a descriptor that over-claims the backing
+            # memory when the raw buffer already carries a channel axis (e.g. (H, W, 4) becomes (H, W, 4, 4)).
+            # Build the view directly from the pointer rather than reshaping, so the extra claimed elements
+            # are ignored exactly as the previous flattened indexing ignored them. Keeping the view 3D
+            # instead of 1D also keeps every dimension within Warp's per-dimension array size limit, so
+            # large environment counts and camera resolutions no longer overflow a flattened dimension.
+            tile_height, tile_width, num_channels = (int(dim) for dim in buf_wp.shape[1:])
+            # ``tiled_source`` must outlive the view below: the view does not own the annotator memory.
+            tiled_source = tiled_data_buffer
+            tiled_data_buffer = wp.array(
+                ptr=tiled_source.ptr,
+                shape=(num_tiles_y * tile_height, num_tiles_x * tile_width, num_channels),
+                dtype=tiled_source.dtype,
+                device=device,
+            )
+
             wp.launch(
                 kernel=reshape_tiled_image,
                 dim=(view_count, cfg.height, cfg.width),
                 inputs=[
-                    tiled_data_buffer.flatten(),
+                    tiled_data_buffer,
                     buf_wp,
                     *list(buf_wp.shape[1:]),
                     num_tiles_x,
