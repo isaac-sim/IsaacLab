@@ -135,8 +135,8 @@ Available Tasks
      <div class="environment-task-toolbar">
        <label class="environment-task-search">
          <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-         <span class="visually-hidden">Search tasks</span>
-         <input type="search" data-task-search placeholder="Search tasks" autocomplete="off">
+         <span class="visually-hidden">Search tasks and capabilities</span>
+         <input type="search" data-task-search placeholder="Search tasks or capabilities" autocomplete="off">
        </label>
        <label class="environment-task-filter">
          <span class="visually-hidden">Task category</span>
@@ -147,6 +147,11 @@ Available Tasks
            <option value="locomotion">Locomotion</option>
          </select>
        </label>
+       <div class="environment-scope-switch" role="group" aria-label="Task collection">
+         <button type="button" class="is-active" data-task-scope="core" aria-pressed="true">Core</button>
+         <button type="button" data-task-scope="contrib" aria-pressed="false">Contrib</button>
+         <button type="button" data-task-scope="warp" aria-pressed="false">Warp</button>
+       </div>
        <span class="environment-task-count" data-task-count></span>
      </div>
      <div class="environment-task-list" data-task-list></div>
