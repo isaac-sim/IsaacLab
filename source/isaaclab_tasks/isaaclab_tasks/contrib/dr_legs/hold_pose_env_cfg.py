@@ -59,7 +59,7 @@ def _kamino_newton_cfg() -> NewtonCfg:
                 primal_tolerance=1.0e-5,
                 dual_tolerance=1.0e-5,
                 compl_tolerance=1.0e-5,
-                rho_0=0.02,
+                rho_0=2.0,
             ),
         ),
         use_cuda_graph=True,
