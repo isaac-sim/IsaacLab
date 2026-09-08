@@ -137,6 +137,7 @@ jobs:
         isaacsim-version: "24.04"
         dockerfile-path: docker/Dockerfile.kitless
         cache-tag: cache-kitless
+        verify-test-path: docker/test/test_image_invariants.py
         # Validation below docker-runs the image in this same job, and the
         # ECR login only exists while the action runs, so the action itself
         # must pull on a deps-cache hit.
