@@ -41,4 +41,4 @@ class UnitreeA1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # events
         self.events.add_base_mass.params["asset_cfg"].body_names = "trunk"
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "trunk"
-        self.events.base_com.default.params["asset_cfg"].body_names = "trunk"
+        self.events.base_com.params["asset_cfg"].body_names = "trunk"
