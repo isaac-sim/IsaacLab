@@ -43,7 +43,8 @@ class KitVisualizationMarkers:
 
     # Marker ownership is static in most tasks, but ``visualize`` runs every frame. These memoize
     # the resolved partition tokens, the tensor they came from, and the tokens currently authored,
-    # so unchanged environment IDs cost neither a device synchronization nor a USD write.
+    # so unchanged environment IDs skip the device-to-host copy, token rebuild, and USD write. The
+    # cached-vs-incoming tensor comparison itself still synchronizes the device every call.
     _environment_ids_source: torch.Tensor | None = None
     _authored_environment_ids: tuple[int, ...] | None = None
     _scene_partitioning_active: bool = False
