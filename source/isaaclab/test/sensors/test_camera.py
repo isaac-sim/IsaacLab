@@ -106,10 +106,12 @@ def test_camera_init(setup_sim_camera):
     """Test camera initialization."""
     # Create camera configuration
     sim, camera_cfg, dt = setup_sim_camera
+    sim.set_setting("/physics/fabricUpdateTransformations", False)
     # Create camera
     camera = Camera(camera_cfg)
     # Check simulation parameter is set correctly
     assert sim.get_setting("/isaaclab/render/rtx_sensors")
+    assert sim.get_setting("/physics/fabricUpdateTransformations")
     # Play sim
     sim.reset()
     # Check if camera is initialized

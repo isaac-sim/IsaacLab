@@ -925,6 +925,19 @@ def test_is_rendering_true_when_only_cfg_visualizer_is_set():
     assert ctx.is_rendering is True
 
 
+def test_is_rendering_false_when_only_cfg_visualizer_is_headless():
+    """A capture-only headless visualizer must not trigger continuous rendering."""
+    cfg_visualizer = type("CfgVisualizer", (), {"visualizer_type": "kit", "headless": True})()
+    settings = {
+        "/isaaclab/render/rtx_sensors": False,
+        "/isaaclab/visualizer/types": "",
+        "/isaaclab/visualizer/explicit": False,
+        "/isaaclab/visualizer/disable_all": False,
+    }
+    ctx = _make_context_with_settings(settings, visualizer_cfgs=[cfg_visualizer])
+    assert ctx.is_rendering is False
+
+
 def test_is_rendering_false_when_cli_disable_all_even_with_cfg_visualizer():
     cfg_visualizer = type("CfgVisualizer", (), {"visualizer_type": "newton_gl"})()
     settings = {
