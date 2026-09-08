@@ -11,7 +11,6 @@ import shutil
 import sys
 from pathlib import Path
 
-from ...utils.editor import setup_editor
 from ..utils import (
     ISAAC_SIM_SOURCE_BUILD_MARKER,
     ISAACLAB_ROOT,
@@ -73,6 +72,9 @@ def command_editor(editor_args: list[str], project_dir: Path | None = None) -> N
     parser.add_argument("--isaac_path", help="Absolute path to the Isaac Sim installation.")
     parser.add_argument("--verbose", action="store_true", help="Print discovered extension paths.")
     args = parser.parse_args(editor_args)
+
+    # The installation CLI must start before Isaac Lab's runtime dependencies are installed.
+    from ...utils.editor import setup_editor
 
     print_info("Setting up editor paths and settings...")
     try:

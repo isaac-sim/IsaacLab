@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from unittest import mock
 
@@ -18,6 +19,18 @@ import isaaclab.cli as cli
 import isaaclab.paths as paths
 
 pytestmark = pytest.mark.unit
+
+
+def test_cli_import_does_not_require_runtime_dependencies():
+    """The installation CLI must load before core runtime dependencies are installed."""
+    result = subprocess.run(
+        [sys.executable, "-c", 'import sys; sys.modules["lazy_loader"] = None; import isaaclab.cli'],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_resolves_partial_source_checkout_root(tmp_path):
