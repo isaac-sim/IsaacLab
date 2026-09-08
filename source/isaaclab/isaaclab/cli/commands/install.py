@@ -26,7 +26,7 @@ from ..utils import (
     print_warning,
     run_command,
 )
-from .misc import command_vscode_settings
+from .misc import command_editor
 
 _PACKAGE_INDEX_RETRIES = "12"
 _PACKAGE_INSTALL_RETRY_ATTEMPTS = 3
@@ -1352,6 +1352,6 @@ def command_install(install_type: str = "all") -> None:
             if saved_pythonpath is not None:
                 os.environ["PYTHONPATH"] = saved_pythonpath
 
-    # Install vscode update unless we're in docker.
+    # Update editor settings unless we're in Docker.
     if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):
-        command_vscode_settings()
+        command_editor([], project_dir=ISAACLAB_ROOT)

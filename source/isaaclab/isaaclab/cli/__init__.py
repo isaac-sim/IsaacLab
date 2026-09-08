@@ -19,11 +19,11 @@ from .commands.install import (
 from .commands.misc import (
     command_build_docs,
     command_build_isaacsim,
+    command_editor,
     command_new,
     command_run_docker,
     command_run_isaacsim,
     command_test,
-    command_vscode_settings,
 )
 from .utils import (
     ISAACLAB_ROOT,
@@ -244,10 +244,9 @@ def cli() -> None:
         help="Run the docker container helper script (docker/container.sh).",
     )
     parser.add_argument(
-        "-v",
-        "--vscode",
-        action="store_true",
-        help="Generate the VSCode settings file from template.",
+        "--editor",
+        nargs=argparse.REMAINDER,
+        help="Generate editor settings and import paths for the current workspace.",
     )
     parser.add_argument(
         "-d",
@@ -307,8 +306,8 @@ def cli() -> None:
     elif args.isaacsim_source:
         command_build_isaacsim(args.isaacsim_source)
 
-    elif args.vscode:
-        command_vscode_settings()
+    elif args.editor is not None:
+        command_editor(args.editor)
 
     elif args.docs:
         command_build_docs()

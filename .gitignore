@@ -82,6 +82,7 @@ _build
 # No benchmarks output
 /benchmarks/
 benchmark_*.json
+/pyrightconfig.json
 
 
 # Ruff cache
