@@ -57,10 +57,7 @@ class CartpoleCameraEnv(CartpoleEnv):
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        self.cartpole = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
-        self._tiled_camera = self.cfg.tiled_camera.class_type(self.cfg.tiled_camera)
-        cfg = self.cfg.light_cfg
-        cfg.class_type(cfg)
+        self.cartpole, self._tiled_camera, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
 
         if "physx" in self.scene.physics_backend:

@@ -87,10 +87,9 @@ class FactoryEnv(DirectRLEnv):
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        *_, self._robot, self._fixed_asset, self._held_asset = [cfg.class_type(cfg) for cfg in asset_cfgs[:6]]
+        _, _, _, self._robot, self._fixed_asset, self._held_asset, *gears = [cfg.class_type(cfg) for cfg in asset_cfgs]
         if self.cfg_task.name == "gear_mesh":
-            self._small_gear_asset = self.cfg_task.small_gear_cfg.class_type(self.cfg_task.small_gear_cfg)
-            self._large_gear_asset = self.cfg_task.large_gear_cfg.class_type(self.cfg_task.large_gear_cfg)
+            self._small_gear_asset, self._large_gear_asset = gears
 
         self.scene.articulations["robot"] = self._robot
         self.scene.articulations["fixed_asset"] = self._fixed_asset

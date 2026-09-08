@@ -49,13 +49,8 @@ class ShadowHandCameraEnv(ShadowHandDirectEnv):
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        self.hand = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
-        self.object = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
-        self._joint_wrench_sensor = self.cfg.joint_wrench.class_type(self.cfg.joint_wrench)
-        self._tiled_camera = self.cfg.tiled_camera.class_type(self.cfg.tiled_camera)
-        cfg = self.cfg.light_cfg
-        cfg.class_type(cfg)
-        self.goal_markers = self.cfg.goal_object_cfg.class_type(self.cfg.goal_object_cfg)
+        assets = [cfg.class_type(cfg) for cfg in asset_cfgs]
+        self.hand, self.object, self._joint_wrench_sensor, self._tiled_camera, _, self.goal_markers = assets
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
         if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions()

@@ -104,12 +104,8 @@ class HandoverEnv(DirectMARLEnv):
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        self.right_hand = self.cfg.right_robot_cfg.class_type(self.cfg.right_robot_cfg)
-        self.left_hand = self.cfg.left_robot_cfg.class_type(self.cfg.left_robot_cfg)
-        self.object = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
-        for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
-            cfg.class_type(cfg)
-        self.goal_markers = self.cfg.goal_object_cfg.class_type(self.cfg.goal_object_cfg)
+        assets = [cfg.class_type(cfg) for cfg in asset_cfgs]
+        self.right_hand, self.left_hand, self.object, _, _, self.goal_markers = assets
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
         if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions(global_prim_paths=[self.cfg.ground_cfg.prim_path])

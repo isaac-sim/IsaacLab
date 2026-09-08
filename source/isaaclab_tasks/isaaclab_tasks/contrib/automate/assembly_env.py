@@ -250,7 +250,7 @@ class AssemblyEnv(DirectRLEnv):
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        *_, self._robot, self._fixed_asset, self._held_asset = [cfg.class_type(cfg) for cfg in asset_cfgs]
+        _, _, _, self._robot, self._fixed_asset, self._held_asset = [cfg.class_type(cfg) for cfg in asset_cfgs]
         self.scene.articulations["robot"] = self._robot
         self.scene.articulations["fixed_asset"] = self._fixed_asset
         self.scene.rigid_objects["held_asset"] = self._held_asset
