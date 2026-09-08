@@ -23,6 +23,7 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
+from .rough_29dof_dr_env_cfg import G129DofRoughAirTime100DRWaist1EnvCfg
 from .rough_29dof_posture_env_cfg import G129DofRoughHipL2AirTime100EnvCfg
 
 _POWER_JOINTS = [".*_hip_.*", ".*_knee_joint", ".*_ankle_.*"]
@@ -123,3 +124,28 @@ class G129DofRoughAirTime100Power3EnvCfg(G129DofRoughHipL2AirTime100EnvCfg):
     def __post_init__(self):
         super().__post_init__()
         _add_power_penalty(self, _POWER_WEIGHTS["p3"])
+
+
+@configclass
+class G129DofRoughWaist1Power2EnvCfg(G129DofRoughAirTime100DRWaist1EnvCfg):
+    """The t1 arm plus the power penalty that made p2 walk evenly.
+
+    The two arms fix different faults through different mechanisms, which is why combining them is
+    worth a run rather than a guess. t1 -- randomization, the stronger push, and waist deviation
+    repriced L2 at -1.0 -- removed d1's 26-degree recline and gave the narrowest stance measured
+    (0.188 m against w100's 0.234), but it limps: its right foot is airborne 57% of the time
+    against the left's 27%, an airborne-share ratio of 0.472, the worst of any arm here. p2 --
+    the power penalty at -5e-4 and nothing else -- walks almost perfectly evenly (ratio 1.043,
+    single-stance share 0.828, both the best measured) but plants its feet 0.279 m apart, the
+    widest, which is what reads as a wobble.
+
+    A limp is one leg repeatedly doing work the other does not, so a penalty on mechanical power is
+    aimed at exactly that, and the three purpose-built symmetry terms that failed suggest the
+    indirect route is the one that works. What this run has to show is that the two do not undo each
+    other: read the airborne-share ratio and the stance width together, not ``success_rate``, which
+    was 1.000 on the limping arm.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        _add_power_penalty(self, _POWER_WEIGHTS["p2"])
