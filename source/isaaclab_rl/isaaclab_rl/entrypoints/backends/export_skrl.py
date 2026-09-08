@@ -13,6 +13,16 @@ import os
 import sys
 import time
 
+from isaaclab_rl.entrypoints.backends.export_common import (
+    add_common_export_args,
+    create_graph_configs,
+    disable_torchscript_for_export,
+    finalize_export_args,
+    is_two_tensor_lstm_state,
+    state_dict_from_sequence,
+    state_sequence_from_registered,
+)
+
 SKRL_VERSION = "2.1.0"
 _RUNTIME_IMPORTS_LOADED = False
 
@@ -35,16 +45,10 @@ get_pretrained_checkpoint_backend_names = None
 get_published_pretrained_checkpoint = None
 get_checkpoint_path = None
 hydra_task_config = None
-is_two_tensor_lstm_state = None
-state_dict_from_sequence = None
-state_sequence_from_registered = None
-create_graph_configs = None
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments and return remaining Hydra overrides."""
-    from .export_common import add_common_export_args, finalize_export_args
-
     parser = argparse.ArgumentParser(description="Export an RL agent with skrl.")
     add_common_export_args(parser, agent_default="skrl_cfg_entry_point")
     return finalize_export_args(parser, argv)
@@ -73,8 +77,7 @@ def _load_runtime_dependencies() -> None:
     global ensure_env_spec_id, get_pretrained_checkpoint_backend_names, get_published_pretrained_checkpoint
     global hydra_task_config, multi_agent_to_single_agent
     global patch_env_for_export, retrieve_file_path, skrl, torch, version
-    global configure_seed, is_two_tensor_lstm_state, state_dict_from_sequence, state_sequence_from_registered
-    global create_graph_configs
+    global configure_seed
 
     if _RUNTIME_IMPORTS_LOADED:
         return
@@ -107,19 +110,6 @@ def _load_runtime_dependencies() -> None:
         get_published_pretrained_checkpoint as get_published_pretrained_checkpoint_fn,
     )
 
-    from .export_common import (
-        create_graph_configs as create_graph_configs_fn,
-    )
-    from .export_common import (
-        is_two_tensor_lstm_state as is_two_tensor_lstm_state_fn,
-    )
-    from .export_common import (
-        state_dict_from_sequence as state_dict_from_sequence_fn,
-    )
-    from .export_common import (
-        state_sequence_from_registered as state_sequence_from_registered_fn,
-    )
-
     __import__("isaaclab_tasks")
     from isaaclab_tasks.utils import get_checkpoint_path as get_checkpoint_path_fn
     from isaaclab_tasks.utils.hydra import hydra_task_config as hydra_task_config_fn
@@ -150,10 +140,6 @@ def _load_runtime_dependencies() -> None:
     get_published_pretrained_checkpoint = get_published_pretrained_checkpoint_fn
     get_checkpoint_path = get_checkpoint_path_fn
     hydra_task_config = hydra_task_config_fn
-    is_two_tensor_lstm_state = is_two_tensor_lstm_state_fn
-    state_dict_from_sequence = state_dict_from_sequence_fn
-    state_sequence_from_registered = state_sequence_from_registered_fn
-    create_graph_configs = create_graph_configs_fn
     _RUNTIME_IMPORTS_LOADED = True
 
 
@@ -319,8 +305,6 @@ def export_skrl_agent(
 
 def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -> bool:
     """Resolve Hydra task configuration and export one skrl policy."""
-    from .export_common import disable_torchscript_for_export
-
     # Must run before the imports below pull in the task modules.
     disable_torchscript_for_export()
 

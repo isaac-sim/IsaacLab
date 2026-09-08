@@ -14,6 +14,15 @@ import sys
 import time
 from pathlib import Path
 
+from isaaclab_rl.entrypoints.backends.export_common import (
+    add_common_export_args,
+    create_graph_configs,
+    disable_torchscript_for_export,
+    finalize_export_args,
+    state_dict_from_sequence,
+    state_sequence_from_registered,
+)
+
 _RUNTIME_IMPORTS_LOADED = False
 
 torch = None
@@ -33,15 +42,10 @@ resolve_checkpoint_selector = None
 load_from_pkl = None
 load_from_zip_file = None
 CHECKPOINT_SELECTORS = None
-state_dict_from_sequence = None
-state_sequence_from_registered = None
-create_graph_configs = None
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments and return remaining Hydra overrides."""
-    from .export_common import add_common_export_args, finalize_export_args
-
     parser = argparse.ArgumentParser(description="Export an RL agent with Stable-Baselines3.")
     add_common_export_args(parser, agent_default="sb3_cfg_entry_point")
     return finalize_export_args(parser, argv, agent_library="sb3")
@@ -54,8 +58,7 @@ def _load_runtime_dependencies() -> None:
     global ensure_env_spec_id, get_checkpoint_path, get_pretrained_checkpoint_backend_names
     global get_published_pretrained_checkpoint
     global load_from_pkl, load_from_zip_file, patch_env_for_export, resolve_checkpoint_selector, retrieve_file_path
-    global state_dict_from_sequence, state_sequence_from_registered, torch
-    global create_graph_configs
+    global torch
 
     if _RUNTIME_IMPORTS_LOADED:
         return
@@ -98,16 +101,6 @@ def _load_runtime_dependencies() -> None:
     __import__("isaaclab_tasks")
     from isaaclab_tasks.utils import get_checkpoint_path as get_checkpoint_path_fn
 
-    from .export_common import (
-        create_graph_configs as create_graph_configs_fn,
-    )
-    from .export_common import (
-        state_dict_from_sequence as state_dict_from_sequence_fn,
-    )
-    from .export_common import (
-        state_sequence_from_registered as state_sequence_from_registered_fn,
-    )
-
     torch = torch_module
     leapp = leapp_module
     annotate = annotate_module
@@ -125,9 +118,6 @@ def _load_runtime_dependencies() -> None:
     load_from_pkl = load_from_pkl_fn
     load_from_zip_file = load_from_zip_file_fn
     CHECKPOINT_SELECTORS = CHECKPOINT_SELECTORS_VALUE
-    state_dict_from_sequence = state_dict_from_sequence_fn
-    state_sequence_from_registered = state_sequence_from_registered_fn
-    create_graph_configs = create_graph_configs_fn
     _RUNTIME_IMPORTS_LOADED = True
 
 
@@ -383,8 +373,6 @@ def export_sb3_agent(
 
 def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -> bool:
     """Resolve Hydra task configuration and export one SB3 policy."""
-    from .export_common import disable_torchscript_for_export
-
     # Must run before the imports below pull in the task modules.
     disable_torchscript_for_export()
 

@@ -11,21 +11,27 @@ import argparse
 import sys
 from pathlib import Path
 
+import torch
+
+from isaaclab.app import AppLauncher
+from isaaclab.envs import LeappDeploymentEnv
+
+import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.utils.hydra import resolve_task_config
+
 
 def command_deploy_leapp(argv: list[str] | None = None) -> int:
     """Deploy a LEAPP pipeline in an Isaac Lab simulation.
 
     Args:
-        argv: Command-line arguments excluding the executable and ``deploy_leapp`` tokens.
+        argv: Command-line arguments excluding the executable and ``leapp deploy`` tokens.
 
     Returns:
         Process exit code.
     """
-    from isaaclab.app import AppLauncher
-
     parser = argparse.ArgumentParser(
         description="Deploy a LEAPP-exported policy in simulation.",
-        prog=f"{Path(sys.argv[0]).name} deploy_leapp",
+        prog=f"{Path(sys.argv[0]).name} leapp deploy",
     )
     parser.add_argument("--task", required=True, help="Name of the registered Isaac Lab task.")
     parser.add_argument("--pipeline", required=True, help="Path to the exported LEAPP YAML pipeline description.")
@@ -42,13 +48,6 @@ def command_deploy_leapp(argv: list[str] | None = None) -> int:
     env = None
     try:
         simulation_app = AppLauncher(args_cli).app
-
-        import torch
-
-        from isaaclab.envs import LeappDeploymentEnv
-
-        import isaaclab_tasks  # noqa: F401
-        from isaaclab_tasks.utils.hydra import resolve_task_config
 
         task_name = args_cli.task.split(":")[-1]
         env_cfg, _ = resolve_task_config(task_name, "")

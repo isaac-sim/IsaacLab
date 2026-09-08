@@ -26,7 +26,7 @@ Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
 
 # Only the ``isaaclab`` entry point is exposed; training, play, export, and deploy are subcommands
-# (``isaaclab train`` / ``isaaclab play`` / ``isaaclab export`` / ``isaaclab deploy_leapp``) so they
+# (``isaaclab train`` / ``isaaclab play`` / ``isaaclab leapp export`` / ``isaaclab leapp deploy``) so they
 # do not clash with ``train``/``play`` scripts from other installed packages.
 [project.scripts]
 isaaclab = "isaaclab.cli:cli"
