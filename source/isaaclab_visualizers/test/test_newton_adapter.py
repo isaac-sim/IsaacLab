@@ -22,7 +22,7 @@ from isaaclab_visualizers.newton import (
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
 from isaaclab_visualizers.newton import newton_visualizer as newton_visualizer_module
-from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, _eye_lookat_to_pitch_yaw
+from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, NewtonViewerRTX, _eye_lookat_to_pitch_yaw
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
     apply_viewer_visible_worlds,
@@ -796,6 +796,23 @@ def test_newton_visualizer_cfg_distinct_types():
         f"{ISAACLAB_NUCLEUS_DIR}/Environments/Skies/default_sky_presets_v1/blue_sky.hdr"
     )
     assert NewtonRTXVisualizerCfg().dome_rotation == (0.0, 0.0, 90.0)
+
+
+def test_newton_rtx_default_environment_uses_only_dome_light():
+    from pxr import Usd, UsdLux
+
+    viewer = object.__new__(NewtonViewerRTX)
+    viewer.stage = Usd.Stage.CreateInMemory()
+    viewer._dome_texture_file = None
+    viewer._dome_intensity = 500.0
+    viewer._dome_rotation = (0.0, 0.0, 90.0)
+
+    viewer._add_default_lights()
+
+    dome = UsdLux.DomeLight.Get(viewer.stage, "/root/_RTXDomeLight")
+    assert dome
+    assert dome.GetIntensityAttr().Get() == 500.0
+    assert not viewer.stage.GetPrimAtPath("/root/_RTXDistantLight").IsValid()
 
 
 @pytest.mark.parametrize(("mode", "draw_sky"), [("solid", False), ("sky", True)])

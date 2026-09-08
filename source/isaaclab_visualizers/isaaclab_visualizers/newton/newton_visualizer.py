@@ -619,7 +619,6 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         dome_texture_file: str | None = None,
         dome_intensity: float = 500.0,
         dome_rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
-        distant_light_intensity: float = 2000.0,
         background_color: tuple[float, float, float] | None = None,
         exposure: float = 1.0,
         render_settings: dict[str, Any] | None = None,
@@ -634,7 +633,6 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
             dome_texture_file: Optional lat-long HDR texture for the default dome light.
             dome_intensity: Intensity of the default dome light.
             dome_rotation: XYZ Euler rotation of the default dome light [deg].
-            distant_light_intensity: Intensity of the default distant light.
             background_color: Optional solid background color RGB [0, 1].
             exposure: Camera exposure compensation [EV].
             render_settings: Extra RTX attributes to author on the render product. See
@@ -668,7 +666,6 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         self._dome_texture_file = dome_texture_file
         self._dome_intensity = float(dome_intensity)
         self._dome_rotation = tuple(float(value) for value in dome_rotation)
-        self._distant_light_intensity = float(distant_light_intensity)
         self._background_color = (
             tuple(float(value) for value in background_color) if background_color is not None else None
         )
@@ -696,14 +693,11 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         self.register_ui_callback(self._render_training_controls, position="side")
 
     def _add_default_lights(self) -> None:
-        """Use the configured dome with Newton's default distant light and optional HDR sky."""
+        """Use a configured dome as the default environment light."""
         from pxr import UsdLux
 
-        super()._add_default_lights()
-        dome = UsdLux.DomeLight.Get(self.stage, "/root/_RTXDomeLight")
+        dome = UsdLux.DomeLight.Define(self.stage, "/root/_RTXDomeLight")
         dome.GetIntensityAttr().Set(self._dome_intensity)
-        distant = UsdLux.DistantLight.Get(self.stage, "/root/_RTXDistantLight")
-        distant.GetIntensityAttr().Set(self._distant_light_intensity)
         if self._dome_texture_file:
             from pxr import Gf, UsdGeom
 
@@ -2229,8 +2223,8 @@ class NewtonRTXVisualizer(NewtonVisualizer):
     The tiled camera panel remains disabled because ``ViewerRTX.log_image`` has no
     display sink.
 
-    Dome lighting, the distant light, a solid background override, and additional render-product
-    settings are configurable through :class:`NewtonRTXVisualizerCfg`.
+    Dome lighting, a solid background override, and additional render-product settings are
+    configurable through :class:`NewtonRTXVisualizerCfg`.
     """
 
     def __init__(self, cfg: NewtonRTXVisualizerCfg):
@@ -2259,7 +2253,6 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             dome_texture_file=self.cfg.dome_texture_file,
             dome_intensity=self.cfg.dome_intensity,
             dome_rotation=self.cfg.dome_rotation,
-            distant_light_intensity=self.cfg.distant_light_intensity,
             background_color=background_color,
             exposure=self.cfg.exposure,
             render_settings=self.cfg.render_settings,

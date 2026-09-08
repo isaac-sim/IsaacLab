@@ -128,18 +128,6 @@ class MySceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    distant_light = AssetBaseCfg(
-        prim_path="/World/distantLight",
-        spawn=sim_utils.DistantLightCfg(
-            intensity=2000.0,
-            color=(1.0, 1.0, 1.0),
-            angle=0.53,
-        ),
-        init_state=AssetBaseCfg.InitialStateCfg(
-            rot=(0.8923991, -0.3696438, 0.2391176, 0.0990458),
-        ),
-    )
-
 
 ##
 # MDP settings

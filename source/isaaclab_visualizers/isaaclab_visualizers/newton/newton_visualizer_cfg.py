@@ -166,7 +166,7 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     """Visualizer selector identifier. Do not change."""
 
     rtx_environment: str = "default"
-    """OVRTX lighting environment.  One of ``"default"`` (dome + distant light),
+    """OVRTX lighting environment.  One of ``"default"`` (HDR dome),
     ``"studio"`` (three-point rig for cleaner highlights), or ``"none"``."""
 
     dome_texture_file: str | None = f"{ISAACLAB_NUCLEUS_DIR}/Environments/Skies/default_sky_presets_v1/blue_sky.hdr"
@@ -184,9 +184,6 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
 
     The default uses only a Z-axis yaw, which preserves the horizontal horizon in lat-long HDRs.
     """
-
-    distant_light_intensity: float = 2000.0
-    """Intensity of the default OVRTX distant light."""
 
     render_settings: dict[str, Any] = {
         "omni:rtx:rt:reflections:enabled": ("Bool", True),
