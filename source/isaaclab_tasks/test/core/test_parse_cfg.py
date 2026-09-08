@@ -21,3 +21,18 @@ def test_parse_env_cfg_accepts_list_overrides():
     """A properly wrapped override list should apply without error."""
     env_cfg = parse_env_cfg("Isaac-Cartpole", overrides=["physics=isaacsim_physx"])
     assert env_cfg is not None
+
+
+def test_parse_env_cfg_preserves_task_device_when_omitted():
+    """An omitted device should preserve a task-specific simulation requirement."""
+    env_cfg = parse_env_cfg("IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow")
+
+    assert env_cfg.sim.device == "cpu"
+    env_cfg.validate()
+
+
+def test_parse_env_cfg_applies_explicit_device_override():
+    """An explicit device should continue to override the registered task default."""
+    env_cfg = parse_env_cfg("Isaac-Cartpole", device="cpu")
+
+    assert env_cfg.sim.device == "cpu"
