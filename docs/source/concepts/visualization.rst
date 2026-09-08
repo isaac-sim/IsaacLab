@@ -879,6 +879,14 @@ the other backends. Rerun uses fixed built-in viewer shading with no scene-drive
 Use ``--viz newton_gl``, ``--viz rerun``, or ``--viz viser`` with those presets, or omit
 ``--viz`` for headless execution.
 
+**Newton RTX: incompatible with Kit-based physics backends**
+
+``--viz newton_rtx`` raises a ``RuntimeError`` at startup if the active physics backend is
+``physx`` or ``ovphysx`` (e.g. ``presets=isaacsim_physx`` or ``presets=ovphysx``), since OVRTX is
+a kitless renderer and cannot share a process with Kit/PhysX. Use ``presets=newton_mjwarp,ovrtx``
+with ``--viz newton_rtx``, or switch to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``, or
+``--viz kit`` with a Kit-compatible physics backend.
+
 **Rerun: large environment performance**
 
 The Rerun web viewer may slow down or crash with many environments. Reduce load with
