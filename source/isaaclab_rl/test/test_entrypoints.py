@@ -234,7 +234,21 @@ def test_simple_agents_default_to_newton_visualizer(
 
     args = _simple_agents._parse_args([], policy)
 
+    assert args.device is None
     assert args.visualizer == ["newton_gl"]
+
+
+@pytest.mark.parametrize("policy", ["zero", "random"])
+def test_simple_agents_accept_explicit_device(
+    policy: _simple_agents.PolicyName,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Checkpoint-free agents should retain an explicit CLI device."""
+    monkeypatch.setattr(sys, "argv", ["pytest"])
+
+    args = _simple_agents._parse_args(["--device", "cuda:1"], policy)
+
+    assert args.device == "cuda:1"
 
 
 def test_simple_agents_preserve_task_device_default(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -252,7 +266,7 @@ def test_simple_agents_preserve_task_device_default(monkeypatch: pytest.MonkeyPa
 
     args = SimpleNamespace(
         num_envs=None,
-        device="cuda:0",
+        device=None,
         disable_fabric=False,
         task="Cpu-Task",
     )
@@ -286,7 +300,6 @@ def test_simple_agents_apply_explicit_device_override(monkeypatch: pytest.Monkey
     args = SimpleNamespace(
         num_envs=None,
         device="cuda:1",
-        device_explicit=True,
         disable_fabric=False,
         task="Cpu-Task",
     )
