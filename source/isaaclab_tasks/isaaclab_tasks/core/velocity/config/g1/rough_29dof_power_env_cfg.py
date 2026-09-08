@@ -149,3 +149,44 @@ class G129DofRoughWaist1Power2EnvCfg(G129DofRoughAirTime100DRWaist1EnvCfg):
     def __post_init__(self):
         super().__post_init__()
         _add_power_penalty(self, _POWER_WEIGHTS["p2"])
+
+
+_HIP_PITCH_L2_WEIGHT = -0.5
+"""Weight for a hip-pitch deviation penalty, against a measured -47.9 degrees on ``cw``.
+
+``joint_deviation_hip`` covers ``.*_hip_roll_joint`` and ``.*_hip_yaw_joint`` only, so hip pitch has
+never been priced at all -- which is how the power penalty came to spend it. Folding the hips is a
+cheap way to draw less power: it shortens the effective lever the leg works through, and ``cw``
+takes it to -47.9 degrees against w100's -10.2, dropping the pelvis 15.7 cm (0.881 m to 0.724) and
+tripling the fall rate (0.005 to 0.034) while ``success_rate`` stays at 0.987 and cannot see any of
+it.
+
+At 0.836 rad over two joints the L2 term is worth 1.40, so -0.5 costs about 0.70 per step against a
+tracking reward near 1.0 -- enough to argue with the crouch. It is deliberately not larger: the
+default is -0.20 rad, the gait genuinely needs some hip flexion, and a term that pins the hips
+straight would take the stride with it.
+"""
+
+
+@configclass
+class G129DofRoughWaist1Power2HipPitchEnvCfg(G129DofRoughWaist1Power2EnvCfg):
+    """``cw`` with hip pitch priced, so the power penalty cannot pay for itself by crouching.
+
+    Everything else is ``cw``: the randomization, the stronger push, the waist held upright and the
+    power penalty that took the airborne-share ratio from 0.47 to 1.02. This adds the one joint that
+    was never constrained.
+
+    Read ``pelvis_height`` and the airborne-share ratio together. The failure this arm could produce
+    is trading the symmetry back for the height -- the two terms now pull on the same joints from
+    opposite directions, which is exactly why it is worth measuring rather than assuming.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        from .rough_29dof_wbc_env_cfg import joint_deviation_l2  # noqa: PLC0415
+
+        self.rewards.joint_deviation_hip_pitch = RewTerm(
+            func=joint_deviation_l2,
+            weight=_HIP_PITCH_L2_WEIGHT,
+            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_pitch_joint"])},
+        )
