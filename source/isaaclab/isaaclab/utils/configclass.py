@@ -8,6 +8,7 @@
 import dataclasses
 import inspect
 import re
+import sys
 import types
 from collections.abc import Callable
 from copy import deepcopy
@@ -638,3 +639,20 @@ def checked_apply(src: Any, target: Any) -> None:
                 f"{target_path} has no attribute `{f.name}`. {type(src).__name__} is out of sync with target."
             )
         setattr(target, f.name, getattr(src, f.name))
+
+
+class _CallableModule(types.ModuleType):
+    """Module type that makes :mod:`isaaclab.utils.configclass` usable as the decorator it defines.
+
+    This sub-module and the :func:`configclass` decorator share a name, so ``isaaclab.utils.configclass``
+    can only resolve to one object. Making the module callable lets it be both: ``@configclass`` works
+    on the value exported by :mod:`isaaclab.utils`, and the module's own members stay reachable through
+    ``import isaaclab.utils.configclass as ...`` and dotted attribute access.
+    """
+
+    def __call__(self, cls: type) -> type:
+        """Apply the :func:`configclass` decorator to ``cls``."""
+        return configclass(cls)
+
+
+sys.modules[__name__].__class__ = _CallableModule
