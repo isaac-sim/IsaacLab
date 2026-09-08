@@ -177,14 +177,9 @@ class ReorientDirectEnv(DirectRLEnv):
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        self.hand = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
-        self.object = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
-        self._joint_wrench_sensor = (
-            self.cfg.joint_wrench.class_type(self.cfg.joint_wrench) if self.cfg.asymmetric_obs else None
-        )
-        for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
-            cfg.class_type(cfg)
-        self.goal_markers = self.cfg.goal_object_cfg.class_type(self.cfg.goal_object_cfg)
+        assets = [cfg.class_type(cfg) for cfg in asset_cfgs]
+        self.hand, self.object, _, _, self.goal_markers, *joint_wrench = assets
+        self._joint_wrench_sensor = joint_wrench[0] if joint_wrench else None
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
         if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions(global_prim_paths=[self.cfg.ground_cfg.prim_path])

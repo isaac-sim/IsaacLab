@@ -54,9 +54,7 @@ class HumanoidAmpEnv(DirectRLEnv):
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        for cfg in (self.cfg.ground, self.cfg.light):
-            cfg.class_type(cfg)
-        self.robot = self.cfg.robot.class_type(self.cfg.robot)
+        self.robot, _, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
         self.scene.articulations["robot"] = self.robot
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
         if "physx" in self.scene.physics_backend:

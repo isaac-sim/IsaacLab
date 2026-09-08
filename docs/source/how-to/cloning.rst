@@ -270,9 +270,7 @@ homogeneous :class:`~isaaclab.envs.DirectRLEnv` subclasses:
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        self.cartpole = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
-        for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
-            cfg.class_type(cfg)
+        self.cartpole, _, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
         self.scene.articulations["cartpole"] = self.cartpole
 

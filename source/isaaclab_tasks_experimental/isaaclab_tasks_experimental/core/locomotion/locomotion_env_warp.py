@@ -530,10 +530,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        self.cfg.light_cfg.class_type(self.cfg.light_cfg)
-        self.robot = self.cfg.robot.class_type(self.cfg.robot)
-        self.terrain = self.cfg.terrain.class_type(self.cfg.terrain)
-        self.joint_wrench = self.cfg.joint_wrench.class_type(self.cfg.joint_wrench)
+        self.robot, self.terrain, self.joint_wrench, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
         self.scene.articulations["robot"] = self.robot
         self.scene.sensors["joint_wrench"] = self.joint_wrench
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)

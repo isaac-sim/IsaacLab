@@ -237,8 +237,8 @@ adding any other optional objects into the scene, such as lights.
 |                                                                              |     plan = cloner.clone_plan_from_env_0(                               |
 |     self.sim = super().create_sim(self.device_id, self.graphics_device_id,   |         self.cfg.scene.clone_cfg, asset_cfgs,                          |
 |                                     self.physics_engine, self.sim_params)    |         self.cfg.scene.num_envs, self.cfg.scene.env_spacing)           |
-|     self._create_ground_plane()                                              |     self.cartpole = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)  |
-|     self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'],          |     ground_cfg.class_type(ground_cfg)                                  |
+|     self._create_ground_plane()                                              |     self.cartpole, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]     |
+|     self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'],          |                                                                        |
 |                         int(np.sqrt(self.num_envs)))                         |                                                                        |
 |                                                                              |     cloner.replicate(plan, replicate_physics=                          |
 |                                                                              |         self.cfg.scene.replicate_physics)                              |
@@ -663,10 +663,10 @@ the need to set simulation parameters for actors in the task implementation.
 |                                                                        |     plan = cloner.clone_plan_from_env_0(                            |
 |     self.sim = super().create_sim(self.device_id,                      |         self.cfg.scene.clone_cfg, asset_cfgs,                       |
 |         self.graphics_device_id, self.physics_engine,                  |         self.cfg.scene.num_envs, self.cfg.scene.env_spacing)        |
-|         self.sim_params)                                               |     self.cartpole = self.cfg.robot_cfg.class_type(                  |
-|     self._create_ground_plane()                                        |         self.cfg.robot_cfg)                                         |
-|     self._create_envs(self.num_envs,                                   |     for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):           |
-|         self.cfg["env"]['envSpacing'],                                 |         cfg.class_type(cfg)                                         |
+|         self.sim_params)                                               |     assets = [cfg.class_type(cfg) for cfg in asset_cfgs]            |
+|     self._create_ground_plane()                                        |     self.cartpole, _, _ = assets                                    |
+|     self._create_envs(self.num_envs,                                   |                                                                     |
+|         self.cfg["env"]['envSpacing'],                                 |                                                                     |
 |         int(np.sqrt(self.num_envs)))                                   |                                                                     |
 |                                                                        |                                                                     |
 |                                                                        |                                                                     |

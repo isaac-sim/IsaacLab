@@ -223,11 +223,8 @@ class PickAndPlaceEnv(DirectRLEnv):
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
-            cfg.class_type(cfg)
-        self.pick_and_place = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
-        self.cube = self.cfg.cube_cfg.class_type(self.cfg.cube_cfg)
-        self.gripper = self.cfg.gripper.class_type(self.cfg.gripper)
+        assets = [cfg.class_type(cfg) for cfg in asset_cfgs]
+        self.pick_and_place, self.cube, self.gripper, _, _ = assets
         self.scene.articulations["pick_and_place"] = self.pick_and_place
         self.scene.rigid_objects["cube"] = self.cube
         self.scene.surface_grippers["gripper"] = self.gripper

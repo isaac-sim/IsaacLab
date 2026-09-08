@@ -679,11 +679,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
-            cfg.class_type(cfg)
-        self.hand = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
-        self.object = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
-        self.goal_markers = self.cfg.goal_object_cfg.class_type(self.cfg.goal_object_cfg)
+        self.hand, self.object, _, _, self.goal_markers = [cfg.class_type(cfg) for cfg in asset_cfgs]
         self.scene.articulations["robot"] = self.hand
         self.scene.rigid_objects["object"] = self.object
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)

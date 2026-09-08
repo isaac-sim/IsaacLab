@@ -67,14 +67,11 @@ class AnymalCEnv(DirectRLEnv):
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        self._robot = self.cfg.robot.class_type(self.cfg.robot)
-        self._contact_sensor = self.cfg.contact_sensor.class_type(self.cfg.contact_sensor)
+        assets = [cfg.class_type(cfg) for cfg in asset_cfgs]
+        self._robot, self._contact_sensor, self._terrain, _, *height_scanner = assets
         if isinstance(self.cfg, AnymalCRoughEnvCfg):
-            self._height_scanner = self.cfg.height_scanner.class_type(self.cfg.height_scanner)
+            (self._height_scanner,) = height_scanner
             self.scene.sensors["height_scanner"] = self._height_scanner
-        self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
-        cfg = self.cfg.light
-        cfg.class_type(cfg)
         self.scene.articulations["robot"] = self._robot
         self.scene.sensors["contact_sensor"] = self._contact_sensor
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)

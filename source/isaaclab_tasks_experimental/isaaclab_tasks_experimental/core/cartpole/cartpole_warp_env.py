@@ -233,9 +233,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         plan = cloner.clone_plan_from_env_0(
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
-        for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
-            cfg.class_type(cfg)
-        self.cartpole = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
+        self.cartpole, _, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
         self.scene.articulations["cartpole"] = self.cartpole
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
         # we need to explicitly filter collisions for CPU simulation
