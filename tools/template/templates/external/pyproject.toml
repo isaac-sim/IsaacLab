@@ -16,17 +16,17 @@ license = { file = "LICENSE" }
 authors = [{ name = "Isaac Lab Project Developers" }]
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "isaaclab{% if rl_libraries %}[{% for rl_library in rl_libraries %}{% if not loop.first %},{% endif %}{{ rl_library.name | replace('_', '-') }}{% endfor %}]{% endif %}",
+    "isaaclab{% if rl_libraries %}[{% for rl_library in rl_libraries %}{% if not loop.first %},{% endif %}{{ rl_library.name | replace('_', '-') }}{% endfor %}]{% endif %}=={{ isaaclab_version }}",
 ]
 
 [project.entry-points."isaaclab.tasks"]
 "{{ name }}" = "{{ name }}.tasks"
 
 [project.optional-dependencies]
-isaacsim = ["isaaclab[isaacsim]"]
-ov = ["isaaclab[ov]"]
-ovphysx = ["isaaclab[ovphysx]"]
-ovrtx = ["isaaclab[ovrtx]"]
+isaacsim = ["isaaclab[isaacsim]=={{ isaaclab_version }}"]
+ov = ["isaaclab[ov]=={{ isaaclab_version }}"]
+ovphysx = ["isaaclab[ovphysx]=={{ isaaclab_version }}"]
+ovrtx = ["isaaclab[ovrtx]=={{ isaaclab_version }}"]
 
 [dependency-groups]
 dev = ["codespell>=2.4", "pre-commit>=4.2", "pytest>=8.3", "ruff>=0.11"]
