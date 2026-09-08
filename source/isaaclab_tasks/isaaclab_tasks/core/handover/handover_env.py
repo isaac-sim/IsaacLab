@@ -114,10 +114,11 @@ class HandoverEnv(DirectMARLEnv):
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
         global_paths = ("/World/ground",)
         plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=["/World/ground"])
+        cloner.replicate(
+            plan,
+            replicate_physics=self.scene.cfg.replicate_physics,
+            isolate_environments=self.scene.cfg.filter_collisions,
+        )
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["right_robot"] = self.right_hand
         self.scene.articulations["left_robot"] = self.left_hand

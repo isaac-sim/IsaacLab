@@ -14,12 +14,20 @@ The following classes are part of the public :mod:`isaaclab.physics` API.
    :nosignatures:
 
    CallbackHandle
+   CollisionFilterCfg
+   CollisionGroupCfg
    PhysicsCfg
    PhysicsEvent
    PhysicsManager
    PhysxAutoCfg
 
 .. autoclass:: CallbackHandle
+   :show-inheritance:
+
+.. autoclass:: CollisionFilterCfg
+   :show-inheritance:
+
+.. autoclass:: CollisionGroupCfg
    :show-inheritance:
 
 .. autoclass:: PhysicsCfg

@@ -132,12 +132,11 @@ class InteractiveSceneCfg:
 
     If True, collisions will not occur between cloned environments.
 
-    If False, the simulation will generate collisions between environments.
+    If False, backends that support cross-environment contacts will allow them. Newton uses separate
+    world partitions for replicated environments and rejects this setting for a multi-environment plan.
 
-    .. note::
-        Collisions can only be filtered automatically in direct workflows when physics replication is enabled.
-        If :attr:`replicated_physics` is ``False`` and collision filtering is desired, make sure to call
-        ``scene.filter_collisions()``.
+    This compatibility option is forwarded to :class:`~isaaclab.cloner.ReplicateSession` as its
+    ``isolate_environments`` argument. Collision-filter realization is owned by the active physics manager.
     """
 
     clone_in_fabric: bool = False

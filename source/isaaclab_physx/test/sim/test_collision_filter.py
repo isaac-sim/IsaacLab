@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from unittest import mock
+
+import isaaclab_physx.physics.collision_filter as collision_filter_module
 import numpy as np
 import pytest
 from isaaclab_physx.physics.collision_filter import GENERATED_COLLISION_ROOT, apply_collision_filter
@@ -103,6 +106,36 @@ def test_isolation_false_keeps_cross_environment_policy_edges() -> None:
     assert _collides(stage, "/World/cells/cell_0/Robot/shape", "/World/cells/cell_3/Robot/shape")
 
 
+def test_isolation_classifies_unrouted_colliders_from_the_environment_template() -> None:
+    stage, full_plan = _two_env_stage()
+    plan = ClonePlan(
+        sources=("/World/cells/cell_0/Robot",),
+        destinations=("/World/cells/cell_{}/Robot",),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=full_plan.env_ids,
+        global_paths=full_plan.global_paths,
+        env_template=full_plan.env_template,
+    )
+    apply_collision_filter(stage, "/physicsScene", plan, None, isolate_environments=True, replicate_physics=True)
+
+    assert _collides(stage, "/World/cells/cell_0/Object/shape", "/World/cells/cell_0/Support/shape")
+    assert not _collides(stage, "/World/cells/cell_0/Object/shape", "/World/cells/cell_3/Support/shape")
+
+
+def test_isolation_rejects_undeclared_shared_colliders() -> None:
+    stage, plan = _two_env_stage()
+    plan = ClonePlan(
+        sources=plan.sources,
+        destinations=plan.destinations,
+        clone_mask=plan.clone_mask,
+        env_ids=plan.env_ids,
+        env_template=plan.env_template,
+    )
+
+    with pytest.raises(RuntimeError, match="Declare shared collider roots as global paths"):
+        apply_collision_filter(stage, "/physicsScene", plan, None, isolate_environments=True, replicate_physics=True)
+
+
 def test_no_policy_and_no_isolation_is_a_noop() -> None:
     stage, plan = _two_env_stage()
     root_before = stage.GetRootLayer().ExportToString()
@@ -112,6 +145,99 @@ def test_no_policy_and_no_isolation_is_a_noop() -> None:
     assert stage.GetRootLayer().ExportToString() == root_before
 
 
+def test_environment_isolation_compilation_scales_per_world() -> None:
+    num_envs = 128
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    UsdPhysics.Scene.Define(stage, "/physicsScene")
+    for env_id in range(num_envs):
+        _collider(stage, f"/World/envs/env_{env_id}/Robot/shape")
+        _collider(stage, f"/World/envs/env_{env_id}/Support/shape")
+        group = UsdPhysics.CollisionGroup.Define(stage, f"/World/AuthoredGroups/group_{env_id}")
+        group.GetCollidersCollectionAPI().CreateIncludesRel().SetTargets([f"/World/envs/env_{env_id}"])
+    plan = ClonePlan(
+        sources=("/World/envs/env_0",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=np.ones((1, num_envs), dtype=np.bool_),
+        env_ids=np.arange(num_envs),
+    )
+    cfg = CollisionFilterCfg(
+        groups={
+            "robot": CollisionGroupCfg(
+                prim_path_exprs=(r"{ENV_REGEX_NS}/Robot/shape",),
+                filtered_groups=("support",),
+            ),
+            "support": CollisionGroupCfg(prim_path_exprs=(r"{ENV_REGEX_NS}/Support/shape",)),
+        }
+    )
+
+    with (
+        mock.patch.object(
+            collision_filter_module,
+            "_profiles_allow",
+            wraps=collision_filter_module._profiles_allow,
+        ) as profiles_allow,
+        mock.patch.object(
+            Usd.CollectionAPI,
+            "ComputeIncludedPaths",
+            wraps=Usd.CollectionAPI.ComputeIncludedPaths,
+        ) as compute_included_paths,
+    ):
+        apply_collision_filter(stage, "/physicsScene", plan, cfg, isolate_environments=True, replicate_physics=True)
+
+    assert profiles_allow.call_count == 4 * num_envs
+    assert compute_included_paths.call_count == 2 * num_envs
+
+
+def test_authored_per_group_inversion_does_not_override_physx_scene_semantics() -> None:
+    """The compiler preserves the collision-group rules consumed by PhysX, not USD's abstract table."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    UsdPhysics.Scene.Define(stage, "/physicsScene")
+    for path in ("/World/A", "/World/B", "/World/C"):
+        _collider(stage, path)
+    groups = {}
+    for name in ("A", "B", "C"):
+        groups[name] = UsdPhysics.CollisionGroup.Define(stage, f"/World/{name}Group")
+        groups[name].GetCollidersCollectionAPI().CreateIncludesRel().SetTargets([f"/World/{name}"])
+    groups["A"].CreateFilteredGroupsRel().SetTargets([groups["B"].GetPath()])
+    groups["A"].CreateInvertFilteredGroupsAttr().Set(True)
+    plan = ClonePlan(sources=(), destinations=(), clone_mask=np.zeros((0, 0), dtype=np.bool_))
+    cfg = CollisionFilterCfg(groups={"all": CollisionGroupCfg(prim_path_exprs=(r"/World/(A|B|C)",))})
+
+    apply_collision_filter(stage, "/physicsScene", plan, cfg, isolate_environments=False, replicate_physics=False)
+
+    assert not _collides(stage, "/World/A", "/World/B")
+    assert _collides(stage, "/World/A", "/World/C")
+
+
+def test_authored_merge_groups_include_rules_from_empty_component_members() -> None:
+    """Merged group policy is preserved even when relationship-authoring members contain no colliders."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    UsdPhysics.Scene.Define(stage, "/physicsScene")
+    for path in ("/World/A", "/World/B"):
+        _collider(stage, path)
+
+    a = UsdPhysics.CollisionGroup.Define(stage, "/World/AGroup")
+    a.GetCollidersCollectionAPI().CreateIncludesRel().SetTargets(["/World/A"])
+    a.CreateMergeGroupNameAttr().Set("A")
+    a_rules = UsdPhysics.CollisionGroup.Define(stage, "/World/AGroupRules")
+    a_rules.CreateMergeGroupNameAttr().Set("A")
+    b = UsdPhysics.CollisionGroup.Define(stage, "/World/BGroup")
+    b.GetCollidersCollectionAPI().CreateIncludesRel().SetTargets(["/World/B"])
+    b.CreateMergeGroupNameAttr().Set("B")
+    b_alias = UsdPhysics.CollisionGroup.Define(stage, "/World/BGroupAlias")
+    b_alias.CreateMergeGroupNameAttr().Set("B")
+    a_rules.CreateFilteredGroupsRel().SetTargets([b_alias.GetPath()])
+
+    plan = ClonePlan(sources=(), destinations=(), clone_mask=np.zeros((0, 0), dtype=np.bool_))
+    cfg = CollisionFilterCfg(groups={"all": CollisionGroupCfg(prim_path_exprs=(r"/World/(A|B)",))})
+    apply_collision_filter(stage, "/physicsScene", plan, cfg, isolate_environments=False, replicate_physics=False)
+
+    assert not _collides(stage, "/World/A", "/World/B")
+
+
 def test_preserves_preexisting_scene_inverted_allow_edges() -> None:
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World")
@@ -119,19 +245,22 @@ def test_preserves_preexisting_scene_inverted_allow_edges() -> None:
     scene.GetPrim().CreateAttribute("physxScene:invertCollisionGroupFilter", Sdf.ValueTypeNames.Bool, custom=True).Set(
         True
     )
-    for path in ("/World/A1", "/World/A2", "/World/B", "/World/C", "/World/Ungrouped"):
+    for path in ("/World/A1", "/World/A2", "/World/B", "/World/C", "/World/Overlap", "/World/Ungrouped"):
         _collider(stage, path)
     groups = {}
     for name, members in {
-        "A": ("/World/A1", "/World/A2"),
+        "A": ("/World/A1", "/World/A2", "/World/Overlap"),
         "B": ("/World/B",),
         "C": ("/World/C",),
+        "X": ("/World/Overlap",),
     }.items():
         groups[name] = UsdPhysics.CollisionGroup.Define(stage, f"/World/{name}Group")
         groups[name].GetCollidersCollectionAPI().CreateIncludesRel().SetTargets(members)
     groups["A"].CreateFilteredGroupsRel().SetTargets([groups["B"].GetPath()])
     plan = ClonePlan(sources=(), destinations=(), clone_mask=np.zeros((0, 0), dtype=np.bool_))
-    cfg = CollisionFilterCfg(groups={"all": CollisionGroupCfg(prim_path_exprs=(r"/World/(A1|A2|B|C|Ungrouped)",))})
+    cfg = CollisionFilterCfg(
+        groups={"all": CollisionGroupCfg(prim_path_exprs=(r"/World/(A1|A2|B|C|Overlap|Ungrouped)",))}
+    )
 
     apply_collision_filter(stage, "/physicsScene", plan, cfg, isolate_environments=False, replicate_physics=False)
 
@@ -140,6 +269,7 @@ def test_preserves_preexisting_scene_inverted_allow_edges() -> None:
     assert not _collides(stage, "/World/A1", "/World/C")
     assert not _collides(stage, "/World/A1", "/World/A2")
     assert _collides(stage, "/World/A1", "/World/Ungrouped")
+    assert not _collides(stage, "/World/Overlap", "/World/B")
 
 
 def test_missing_usd_destination_collider_fails_before_native_replication() -> None:

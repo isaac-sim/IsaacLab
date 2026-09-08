@@ -287,6 +287,10 @@ def test_reset_initializes_visualizers_before_playing_timeline():
 
     class _PhysicsManager:
         @staticmethod
+        def _require_collision_filter_barrier():
+            events.append("require_collision_filter_barrier")
+
+        @staticmethod
         def reset(soft=False):
             events.append(f"reset:{soft}")
 
@@ -309,7 +313,13 @@ def test_reset_initializes_visualizers_before_playing_timeline():
 
     ctx.reset()
 
-    assert events == ["reset:False", "initialize_visualizers", "finalize_consumers:1:True", "play"]
+    assert events == [
+        "require_collision_filter_barrier",
+        "reset:False",
+        "initialize_visualizers",
+        "finalize_consumers:1:True",
+        "play",
+    ]
     assert ctx.is_playing()
     assert not ctx.is_stopped()
 

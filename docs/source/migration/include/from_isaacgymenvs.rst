@@ -237,7 +237,9 @@ adding any other optional objects into the scene, such as lights.
 |                                                                              |         prim_path="/World/ground", cfg=GroundPlaneCfg())               |
 |     self.sim = super().create_sim(self.device_id, self.graphics_device_id,   |     # create and apply a clone plan                                    |
 |                                     self.physics_engine, self.sim_params)    |     plan = cloner.clone_plan_from_env_0(..., global_paths=...)         |
-|     self._create_ground_plane()                                              |     cloner.replicate(plan)                                             |
+|     self._create_ground_plane()                                              |     cloner.replicate(                                                  |
+|                                                                              |         plan, replicate_physics=self.scene.cfg.replicate_physics,      |
+|                                                                              |         isolate_environments=self.scene.cfg.filter_collisions)         |
 |     self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'],          |     # add articulation to scene                                        |
 |                         int(np.sqrt(self.num_envs)))                         |     self.scene.articulations["cartpole"] = self.cartpole               |
 |                                                                              |     # add lights                                                       |
@@ -356,8 +358,7 @@ The scene creation process is as follow:
 
 #. Construct a single environment (what the scene would look like if number of environments = 1)
 #. Create a plan with :func:`isaaclab.cloner.clone_plan_from_env_0` and apply it with
-   :func:`isaaclab.cloner.replicate`
-#. Call ``filter_collisions()`` for PhysX environments when collision filtering is required
+   :func:`isaaclab.cloner.replicate`, passing the environment-isolation intent
 
 
 .. code-block:: python
@@ -367,10 +368,11 @@ The scene creation process is as follow:
    src, dest = "/World/envs/env_0", "/World/envs/env_{}"
    positions = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
    plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, positions)
-   cloner.replicate(plan)
-
-   if "physx" in self.scene.physics_backend:
-       self.scene.filter_collisions(global_prim_paths=[])
+   cloner.replicate(
+       plan,
+       replicate_physics=self.scene.cfg.replicate_physics,
+       isolate_environments=self.scene.cfg.filter_collisions,
+   )
 
 
 .. rubric:: Accessing States from Simulation
@@ -674,9 +676,9 @@ the need to set simulation parameters for actors in the task implementation.
 |         int(np.sqrt(self.num_envs)))                                   |     plan = cloner.clone_plan_from_env_0(                            |
 |                                                                        |         src, dest, self.scene.num_envs, positions,                  |
 |                                                                        |         global_paths=global_paths)                                  |
-|                                                                        |     cloner.replicate(plan)                                          |
-| def _create_ground_plane(self):                                        |     if "physx" in self.scene.physics_backend:                       |
-|     plane_params = gymapi.PlaneParams()                                |         self.scene.filter_collisions(global_prim_paths=[])          |
+|                                                                        |     cloner.replicate(                                               |
+| def _create_ground_plane(self):                                        |         plan, replicate_physics=self.scene.cfg.replicate_physics,   |
+|     plane_params = gymapi.PlaneParams()                                |         isolate_environments=self.scene.cfg.filter_collisions)      |
 |     # set the normal force to be z dimension                           |     self.scene.articulations["cartpole"] = self.cartpole            |
 |     plane_params.normal = (gymapi.Vec3(0.0, 0.0, 1.0)                  |     light_cfg = sim_utils.DistantLightCfg(                          |
 |         if self.up_axis == 'z'                                         |         intensity=2000.0, color=(1.0, 1.0, 1.0))                    |

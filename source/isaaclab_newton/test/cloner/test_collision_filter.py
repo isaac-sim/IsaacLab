@@ -995,26 +995,34 @@ def test_authored_filtered_pairs_survive_local_to_global_import_partition():
 def test_multiple_collider_representations_can_select_exact_interactions():
     source = "/World/envs/env_0"
     destination = "/World/envs/env_{}"
-    relative_paths = ("Nut/sdf", "Nut/convex", "Bolt/sdf", "Bolt/convex", "Other/convex")
+    relative_paths = (
+        "Nut/mesh/colliders/sdf",
+        "Nut/mesh/colliders/convex",
+        "Bolt/mesh/colliders/sdf",
+        "Bolt/mesh/colliders/convex",
+        "Other/mesh/colliders/convex",
+    )
     source_builder = _builder_with_colliders(*(f"{source}/{path}" for path in relative_paths))
     mapping = np.ones((1, 1), dtype=np.bool_)
     cfg = CollisionFilterCfg(
         groups={
             "nut_sdf": CollisionGroupCfg(
-                prim_path_exprs=(r"{ENV_REGEX_NS}/Nut/sdf",), filtered_groups=("bolt_convex", "other")
-            ),
-            "nut_convex": CollisionGroupCfg(
-                prim_path_exprs=(r"{ENV_REGEX_NS}/Nut/convex",),
-                filtered_groups=("bolt_sdf", "bolt_convex"),
+                prim_path_exprs=(r"{ENV_REGEX_NS}/Nut/mesh/colliders/sdf",),
+                filtered_groups=("bolt_sdf",),
+                invert_filtered_groups=True,
             ),
             "bolt_sdf": CollisionGroupCfg(
-                prim_path_exprs=(r"{ENV_REGEX_NS}/Bolt/sdf",), filtered_groups=("nut_convex", "other")
+                prim_path_exprs=(r"{ENV_REGEX_NS}/Bolt/mesh/colliders/sdf",),
+                filtered_groups=("nut_sdf",),
+                invert_filtered_groups=True,
+            ),
+            "nut_convex": CollisionGroupCfg(
+                prim_path_exprs=(r"{ENV_REGEX_NS}/Nut/mesh/colliders/convex",),
+                filtered_groups=("bolt_convex",),
             ),
             "bolt_convex": CollisionGroupCfg(
-                prim_path_exprs=(r"{ENV_REGEX_NS}/Bolt/convex",),
-                filtered_groups=("nut_sdf", "nut_convex"),
+                prim_path_exprs=(r"{ENV_REGEX_NS}/Bolt/mesh/colliders/convex",),
             ),
-            "other": CollisionGroupCfg(prim_path_exprs=(r"{ENV_REGEX_NS}/Other/convex",)),
         }
     )
     collision_filter = NewtonCollisionFilter(
@@ -1032,14 +1040,17 @@ def test_multiple_collider_representations_can_select_exact_interactions():
         return f"/World/envs/env_0/{name}"
 
     assert denied == {
-        frozenset((path("Nut/sdf"), path("Bolt/convex"))),
-        frozenset((path("Nut/convex"), path("Bolt/sdf"))),
-        frozenset((path("Nut/convex"), path("Bolt/convex"))),
-        frozenset((path("Nut/sdf"), path("Other/convex"))),
-        frozenset((path("Bolt/sdf"), path("Other/convex"))),
+        frozenset((path("Nut/mesh/colliders/sdf"), path("Nut/mesh/colliders/convex"))),
+        frozenset((path("Nut/mesh/colliders/sdf"), path("Bolt/mesh/colliders/convex"))),
+        frozenset((path("Nut/mesh/colliders/sdf"), path("Other/mesh/colliders/convex"))),
+        frozenset((path("Bolt/mesh/colliders/sdf"), path("Nut/mesh/colliders/convex"))),
+        frozenset((path("Bolt/mesh/colliders/sdf"), path("Bolt/mesh/colliders/convex"))),
+        frozenset((path("Bolt/mesh/colliders/sdf"), path("Other/mesh/colliders/convex"))),
+        frozenset((path("Nut/mesh/colliders/convex"), path("Bolt/mesh/colliders/convex"))),
     }
-    assert frozenset((path("Nut/sdf"), path("Bolt/sdf"))) not in denied
-    assert frozenset((path("Nut/convex"), path("Other/convex"))) not in denied
+    assert frozenset((path("Nut/mesh/colliders/sdf"), path("Bolt/mesh/colliders/sdf"))) not in denied
+    assert frozenset((path("Nut/mesh/colliders/convex"), path("Other/mesh/colliders/convex"))) not in denied
+    assert frozenset((path("Bolt/mesh/colliders/convex"), path("Other/mesh/colliders/convex"))) not in denied
 
 
 def test_newton_rejects_disabling_environment_isolation():

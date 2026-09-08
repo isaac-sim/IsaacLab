@@ -102,11 +102,11 @@ class FactoryEnv(DirectRLEnv):
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
         global_paths = ("/World/ground",)
         plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
-
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions()
+        cloner.replicate(
+            plan,
+            replicate_physics=self.scene.cfg.replicate_physics,
+            isolate_environments=self.scene.cfg.filter_collisions,
+        )
 
         self.scene.articulations["robot"] = self._robot
         self.scene.articulations["fixed_asset"] = self._fixed_asset

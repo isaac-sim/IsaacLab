@@ -195,8 +195,10 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
 
     captured: list = []
 
-    def fake_replicate(plan, *, replicate_physics=True):
-        captured.append((plan, replicate_physics, sim_utils.SimulationContext.instance().get_clone_plan()))
+    def fake_replicate(plan, *, replicate_physics=True, isolate_environments=True):
+        captured.append(
+            (plan, replicate_physics, isolate_environments, sim_utils.SimulationContext.instance().get_clone_plan())
+        )
 
     monkeypatch.setattr(replicate_session_module, "replicate", fake_replicate)
 
@@ -205,12 +207,13 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
         InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
 
     assert len(captured) == 1
-    plan, replicate_physics, published = captured[0]
+    plan, replicate_physics, isolate_environments, published = captured[0]
     assert published is plan
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
     assert plan.clone_mask.shape == (1, 4)
     assert replicate_physics is True
+    assert isolate_environments is True
 
 
 def test_empty_scene_leaves_clone_lifecycle_to_caller():

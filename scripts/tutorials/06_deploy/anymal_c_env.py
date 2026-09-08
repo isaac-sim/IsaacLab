@@ -68,10 +68,11 @@ class AnymalCEnv(DirectRLEnv):
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
         global_paths = (self.cfg.terrain.prim_path,)
         plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
+        cloner.replicate(
+            plan,
+            replicate_physics=self.scene.cfg.replicate_physics,
+            isolate_environments=self.scene.cfg.filter_collisions,
+        )
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
 

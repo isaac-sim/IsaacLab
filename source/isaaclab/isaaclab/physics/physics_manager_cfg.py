@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
@@ -20,10 +21,91 @@ if TYPE_CHECKING:
 
 
 @configclass
+class CollisionGroupCfg:
+    """Declarative membership and filtering rules for one collision group.
+
+    Prim selectors are regular expressions matched against the entire prim path. A group filters
+    collisions with the groups named by :attr:`filtered_groups`. When
+    :attr:`invert_filtered_groups` is set, it instead filters collisions with every group not
+    named by :attr:`filtered_groups`.
+    """
+
+    prim_path_exprs: tuple[str, ...] = MISSING
+    """Whole-path regular expressions selecting collider prims in this group."""
+
+    filtered_groups: tuple[str, ...] = ()
+    """Names of collision groups used by this group's filtering rule."""
+
+    invert_filtered_groups: bool = False
+    """Whether :attr:`filtered_groups` is the allow-list rather than the deny-list."""
+
+    def validate_config(self) -> None:
+        """Validate selectors and references local to this group."""
+        if not isinstance(self.prim_path_exprs, tuple):
+            raise TypeError("CollisionGroupCfg.prim_path_exprs must be a tuple of regular expressions.")
+        if not self.prim_path_exprs:
+            raise ValueError("CollisionGroupCfg.prim_path_exprs must contain at least one selector.")
+        if not isinstance(self.filtered_groups, tuple):
+            raise TypeError("CollisionGroupCfg.filtered_groups must be a tuple of group names.")
+        if not isinstance(self.invert_filtered_groups, bool):
+            raise TypeError("CollisionGroupCfg.invert_filtered_groups must be a bool.")
+
+        for selector in self.prim_path_exprs:
+            if not isinstance(selector, str) or not selector.strip():
+                raise ValueError("CollisionGroupCfg.prim_path_exprs cannot contain an empty selector.")
+            try:
+                re.compile(selector)
+            except re.error as exc:
+                raise ValueError(f"Invalid collision-group prim-path regex {selector!r}: {exc}.") from exc
+        if len(set(self.prim_path_exprs)) != len(self.prim_path_exprs):
+            raise ValueError("CollisionGroupCfg.prim_path_exprs cannot contain duplicate selectors.")
+
+        for group_name in self.filtered_groups:
+            if not isinstance(group_name, str) or not group_name.strip():
+                raise ValueError("CollisionGroupCfg.filtered_groups cannot contain an empty group name.")
+        if len(set(self.filtered_groups)) != len(self.filtered_groups):
+            raise ValueError("CollisionGroupCfg.filtered_groups cannot contain duplicate group names.")
+
+
+@configclass
+class CollisionFilterCfg:
+    """Backend-neutral declarative collision filtering policy."""
+
+    groups: dict[str, CollisionGroupCfg] = {}
+    """Collision groups keyed by their stable policy names."""
+
+    def validate_config(self) -> None:
+        """Validate group names, selectors, and cross-group references."""
+        if not isinstance(self.groups, dict):
+            raise TypeError("CollisionFilterCfg.groups must be a dictionary.")
+
+        for group_name, group_cfg in self.groups.items():
+            if not isinstance(group_name, str) or not group_name.strip():
+                raise ValueError("CollisionFilterCfg.groups cannot contain an empty group name.")
+            if not isinstance(group_cfg, CollisionGroupCfg):
+                raise TypeError(
+                    f"Collision group {group_name!r} must be a CollisionGroupCfg, got {type(group_cfg).__name__}."
+                )
+            group_cfg.validate()
+
+        known_groups = set(self.groups)
+        unknown_groups = sorted(
+            {
+                referenced_group
+                for group_cfg in self.groups.values()
+                for referenced_group in group_cfg.filtered_groups
+                if referenced_group not in known_groups
+            }
+        )
+        if unknown_groups:
+            raise ValueError(f"Collision filter references unknown groups: {', '.join(unknown_groups)}.")
+
+
+@configclass
 class PhysicsCfg:
     """Abstract base configuration for physics managers.
 
-    This base class contains physics backend-specific parameters.
+    This base class contains parameters shared by every physics backend.
     Subclasses should override the class_type to return the appropriate
     physics manager class.
 
@@ -46,6 +128,25 @@ class PhysicsCfg:
 
     Deterministic execution can increase memory use and reduce simulation performance.
     """
+
+    collision_filter: CollisionFilterCfg | None = None
+    """Declarative collider policy applied at the clone-plan assembly barrier. Defaults to ``None``.
+
+    Environment isolation is cloning policy and is intentionally not represented here. The active
+    physics manager realizes both inputs at the collision-filter application barrier. A workflow
+    using this policy must call :func:`isaaclab.cloner.replicate`, even for one environment; model
+    construction rejects a configured policy that never crossed the barrier.
+    """
+
+    def validate_config(self) -> None:
+        """Validate backend-neutral physics configuration."""
+        if self.collision_filter is not None:
+            if not isinstance(self.collision_filter, CollisionFilterCfg):
+                raise TypeError(
+                    "PhysicsCfg.collision_filter must be a CollisionFilterCfg or None, got "
+                    f"{type(self.collision_filter).__name__}."
+                )
+            self.collision_filter.validate()
 
 
 @configclass
@@ -84,4 +185,9 @@ def _resolve_physx_auto_cfg(physics_cfg: PhysicsCfg, use_isaac_sim: bool) -> Phy
         raise ValueError(
             f"Invalid PhysxAutoCfg.{field_name}: expected {expected_type.__name__}, got {type(selected).__name__}."
         )
-    return selected
+    return selected.replace(
+        deterministic=physics_cfg.deterministic or selected.deterministic,
+        collision_filter=(
+            physics_cfg.collision_filter if physics_cfg.collision_filter is not None else selected.collision_filter
+        ),
+    )

@@ -123,7 +123,11 @@ class InteractiveScene:
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing)[0]
         plan = cloner.clone_plan_from_env_0(src, dest, scene.num_envs, pos)
-        cloner.replicate(plan)
+        cloner.replicate(
+            plan,
+            replicate_physics=scene.cfg.replicate_physics,
+            isolate_environments=scene.cfg.filter_collisions,
+        )
 
     .. note::
         It is important to note that the scene only performs common operations on the entities. For example,
@@ -187,6 +191,7 @@ class InteractiveScene:
                 clone_strategy=self.cloner_cfg.clone_strategy,
                 valid_set=valid_set,
                 replicate_physics=self.cloner_cfg.replicate_physics,
+                isolate_environments=self.cfg.filter_collisions,
             ) as session:
                 self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
                 with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
@@ -212,10 +217,6 @@ class InteractiveScene:
             requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[type_name]
             self.sim.requires_usd_stage |= requires_stage
             self.sim.requires_newton_model |= requires_model
-
-        # Collision filtering is PhysX-only (matches both physx and ovphysx).
-        if self.cfg.filter_collisions and "physx" in self.physics_backend and scene_from_cfg:
-            self.filter_collisions(self._global_prim_paths)
 
     def _collect_asset_cfgs(self) -> tuple[list[Any], tuple[str, ...], np.ndarray | None]:
         """Flatten user-declared cfgs and declare shared prim roots for clone planning.

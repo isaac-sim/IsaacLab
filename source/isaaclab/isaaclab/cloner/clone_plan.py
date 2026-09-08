@@ -70,6 +70,13 @@ class ClonePlan:
     global_paths: tuple[str, ...] = ()
     """Unique prim paths for scene assets shared by every environment."""
 
+    env_template: str = DEFAULT_ENV_TEMPLATE
+    """Path template for an environment root, where ``{}`` marks the environment id.
+
+    Physics managers use this cloner-owned layout value to expand ``{ENV_REGEX_NS}``
+    selectors without assuming the default environment namespace.
+    """
+
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z") -> tuple[np.ndarray, np.ndarray]:
     """Create centered grid transforms as host arrays.
@@ -310,6 +317,7 @@ def make_clone_plan(
             sources=(),
             destinations=(),
             clone_mask=empty_mask,
+            env_template=env_template,
             env_ids=env_ids,
             positions=positions,
             cfg_rows={},
@@ -326,6 +334,7 @@ def make_clone_plan(
             sources=(env_template.format(0),),
             destinations=(env_template,),
             clone_mask=clone_mask,
+            env_template=env_template,
             env_ids=env_ids,
             positions=positions,
             cfg_rows=cfg_rows,
@@ -399,6 +408,7 @@ def make_clone_plan(
         sources=tuple(sources_list),
         destinations=tuple(destinations_list),
         clone_mask=clone_mask,
+        env_template=env_template,
         env_ids=env_ids,
         positions=positions,
         cfg_rows=cfg_rows,
@@ -442,6 +452,7 @@ def clone_plan_from_env_0(
         sources=(source,),
         destinations=(destination,),
         clone_mask=clone_mask,
+        env_template=destination,
         env_ids=np.arange(num_clones, dtype=np.int64),
         positions=positions,
         cfg_rows=cfg_rows,

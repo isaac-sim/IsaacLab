@@ -102,7 +102,7 @@ def test_grid_transforms_always_returns_float32():
 
 
 def test_replicate_dispatches_the_same_plan_in_priority_order(monkeypatch):
-    """Registered contexts receive one shared plan in backend priority order."""
+    """The manager applies filters after stage authoring and before physics replication."""
     calls = []
 
     class Late(_Context):
@@ -113,8 +113,14 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(monkeypatch):
 
     plan = _plan(Late, Early)
     published = []
+    manager = SimpleNamespace(
+        clone_context_type=Late,
+        apply_collision_filter=lambda received, *, isolate_environments, replicate_physics: calls.append(
+            ("collision_filter", received, isolate_environments, replicate_physics)
+        ),
+    )
     simulation = SimpleNamespace(
-        physics_manager=SimpleNamespace(clone_context_type=Late),
+        physics_manager=manager,
         _backend_registry={Late: Late(calls), Early: Early(calls)},
         get_clone_plan=lambda: None,
         set_clone_plan=published.append,
@@ -123,7 +129,7 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(monkeypatch):
 
     replicate_session.replicate(plan)
 
-    assert calls == [(Early, plan), (Late, plan)]
+    assert calls == [(Early, plan), ("collision_filter", plan, True, True), (Late, plan)]
     assert published == [plan]
 
 
@@ -138,8 +144,14 @@ def test_replicate_physics_false_runs_only_usd(monkeypatch):
         pass
 
     plan = _plan(Physics, UsdReplicateContext)
+    applied = []
     simulation = SimpleNamespace(
-        physics_manager=SimpleNamespace(clone_context_type=Physics),
+        physics_manager=SimpleNamespace(
+            clone_context_type=Physics,
+            apply_collision_filter=lambda received, *, isolate_environments, replicate_physics: applied.append(
+                (received, isolate_environments, replicate_physics)
+            ),
+        ),
         _backend_registry={UsdReplicateContext: Usd(calls)},
         get_clone_plan=lambda: plan,
     )
@@ -148,6 +160,7 @@ def test_replicate_physics_false_runs_only_usd(monkeypatch):
     replicate_session.replicate(plan, replicate_physics=False)
 
     assert calls == [(Usd, plan)]
+    assert applied == [(plan, True, False)]
 
 
 def test_replicate_rejects_unregistered_context(monkeypatch):
@@ -162,3 +175,55 @@ def test_replicate_rejects_unregistered_context(monkeypatch):
 
     with pytest.raises(RuntimeError, match="must be registered"):
         replicate_session.replicate(plan)
+
+
+@pytest.mark.parametrize("kwargs", [{"replicate_physics": 1}, {"isolate_environments": 1}])
+def test_replicate_validates_options_before_stage_dispatch(monkeypatch, kwargs):
+    """Invalid barrier options cannot leave partially cloned USD topology."""
+    calls = []
+
+    class Early(_Context):
+        replicate_priority = -1
+
+    plan = _plan(Early)
+    simulation = SimpleNamespace(
+        physics_manager=SimpleNamespace(),
+        _backend_registry={Early: Early(calls)},
+        get_clone_plan=lambda: plan,
+    )
+    queued = [object()]
+    monkeypatch.setattr(replicate_session, "REPLICATION_QUEUE", queued)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
+
+    with pytest.raises(TypeError, match="must be a bool"):
+        replicate_session.replicate(plan, **kwargs)
+
+    assert calls == []
+    assert queued == replicate_session.REPLICATION_QUEUE
+
+
+def test_replicate_validates_plan_shape_before_stage_dispatch(monkeypatch):
+    """A malformed plan cannot leave partially cloned USD topology."""
+    calls = []
+
+    class Early(_Context):
+        replicate_priority = -1
+
+    plan = ClonePlan(
+        sources=("/World/envs/env_0",),
+        destinations=("/World/envs/env_{}",),
+        clone_mask=np.ones((1, 1), dtype=np.bool_),
+        env_ids=np.arange(2, dtype=np.int64),
+        context_rows={Early: (0,)},
+    )
+    simulation = SimpleNamespace(
+        physics_manager=SimpleNamespace(),
+        _backend_registry={Early: Early(calls)},
+        get_clone_plan=lambda: plan,
+    )
+    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
+
+    with pytest.raises(ValueError, match=r"clone_mask must have shape \(1, 2\)"):
+        replicate_session.replicate(plan)
+
+    assert calls == []

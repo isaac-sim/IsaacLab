@@ -542,8 +542,9 @@ def test_query_agrees_across_duplicate_source_rows():
 
 
 def test_env_0_plan_defaults_to_no_global_paths():
-    plan = cloner.clone_plan_from_env_0("/World/envs/env_0", "/World/envs/env_{}", 2)
+    plan = cloner.clone_plan_from_env_0("/World/scenes/scene_0", "/World/scenes/scene_{}", 2)
     assert plan.global_paths == ()
+    assert plan.env_template == "/World/scenes/scene_{}"
 
 
 def test_query_and_path_are_real_modules():
