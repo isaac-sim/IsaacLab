@@ -22,7 +22,7 @@ from isaaclab_visualizers.newton import (
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
 from isaaclab_visualizers.newton import newton_visualizer as newton_visualizer_module
-from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, _eye_lookat_to_pitch_yaw
+from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, NewtonViewerRTX, _eye_lookat_to_pitch_yaw
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
     apply_viewer_visible_worlds,
@@ -484,6 +484,36 @@ def test_newton_viewer_particle_color_override_leaves_other_points_unchanged(mon
 
     _, _, _, colors, _ = calls[-1]
     assert colors is custom_colors
+
+
+def test_newton_rtx_viewer_particle_color_override(monkeypatch):
+    from newton.viewer import ViewerRTX
+
+    viewer = NewtonViewerRTX.__new__(NewtonViewerRTX)
+    viewer.particle_color = (0.1, 0.2, 0.3)
+    points = wp.zeros(4, dtype=wp.vec3, device="cpu")
+    calls = []
+
+    def _log_points(self, name, points, radii=None, colors=None, hidden=False):
+        calls.append((name, points, radii, colors, hidden))
+
+    monkeypatch.setattr(ViewerRTX, "log_points", _log_points)
+
+    viewer.log_points("/model/particles", points, colors=None)
+
+    name, _, _, colors, hidden = calls[-1]
+    assert name == "/model/particles"
+    assert hidden is False
+    assert colors == (0.1, 0.2, 0.3)
+
+
+def test_newton_rtx_visualizer_applies_particle_color():
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(particle_color=(0.1, 0.2, 0.3)))
+    visualizer._viewer = SimpleNamespace(particle_color=None)
+
+    visualizer._apply_viewer_post_init()
+
+    assert visualizer._viewer.particle_color == (0.1, 0.2, 0.3)
 
 
 def test_newton_viewer_fast_paths_all_active_mpm_particles(monkeypatch):

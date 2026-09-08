@@ -679,6 +679,7 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         self._metadata = metadata or {}
         self._update_frequency = update_frequency
         self._color_edit3_prefers_sequence: bool | None = None
+        self.particle_color: tuple[float, float, float] | None = None
 
         from isaaclab.utils.backend_utils import FactoryBase
 
@@ -691,6 +692,12 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # exist.  Register the training controls now (they are buffered by ViewerRTX until
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
+
+    def log_points(self, name, points, radii=None, colors=None, hidden=False):
+        """Apply the configured color to Newton's canonical particle batch."""
+        if name == "/model/particles" and points is not None and self.particle_color is not None:
+            colors = self.particle_color
+        return super().log_points(name, points, radii, colors, hidden)
 
     def _add_camera_lights_and_render_product(self) -> None:
         """Author the configured RTX attributes onto the render product.
@@ -2308,6 +2315,10 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             environment=self.cfg.rtx_environment,
             render_settings=self.cfg.render_settings,
         )
+
+    def _apply_viewer_post_init(self) -> None:
+        """Apply RTX-specific renderer settings after viewer construction."""
+        self._viewer.particle_color = self.cfg.particle_color
 
     def _apply_camera_pose(
         self,
