@@ -8,7 +8,6 @@ import importlib.metadata
 import sys
 from pathlib import Path
 
-from isaaclab.cli.commands.deploy import command_deploy_leapp
 from .commands.envs import command_setup_conda, command_setup_uv
 from .commands.format import command_format
 from .commands.install import (
@@ -31,7 +30,6 @@ from .utils import (
     is_windows,
     run_python_command,
 )
-
 
 _TASK_ENTRY_POINT_GROUP = "isaaclab.tasks"
 
@@ -88,6 +86,8 @@ def leapp(args: list[str] | None = None) -> None:
 
         _exit_on_error(run_export_cli(command_args))
     else:
+        from isaaclab.cli.commands.deploy import command_deploy_leapp
+
         _exit_on_error(command_deploy_leapp(command_args))
 
 

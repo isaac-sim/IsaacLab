@@ -47,9 +47,11 @@ def test_deploy_dispatches_in_process():
         "physics=newton_mjwarp",
     ]
 
+    deploy = mock.Mock(return_value=0)
+    deploy_module = mock.Mock(command_deploy_leapp=deploy)
     with (
         mock.patch.object(sys, "argv", ["isaaclab", "leapp", "deploy", *args]),
-        mock.patch("isaaclab.cli.command_deploy_leapp", return_value=0) as deploy,
+        mock.patch.dict(sys.modules, {"isaaclab.cli.commands.deploy": deploy_module}),
     ):
         cli.cli()
 
@@ -58,7 +60,9 @@ def test_deploy_dispatches_in_process():
 
 def test_deploy_propagates_nonzero_status():
     """Deployment failures become the CLI process status."""
-    with mock.patch("isaaclab.cli.command_deploy_leapp", return_value=3):
+    deploy_module = mock.Mock()
+    deploy_module.command_deploy_leapp.return_value = 3
+    with mock.patch.dict(sys.modules, {"isaaclab.cli.commands.deploy": deploy_module}):
         with pytest.raises(SystemExit) as exc_info:
             cli.leapp(["deploy", "--task", "Isaac-Cartpole", "--pipeline", "policy.yaml"])
 
