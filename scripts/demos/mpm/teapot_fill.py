@@ -824,8 +824,7 @@ def main() -> None:
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         surface_renderer = (
             FluidSurfaceRenderer(sim)
-            if SHOW_FLUID_SURFACE
-            and any(v in (args_cli.visualizer or []) for v in ("newton", "newton_gl", "newton_rtx"))
+            if SHOW_FLUID_SURFACE and any(v in (args_cli.visualizer or []) for v in ("newton_gl", "newton_rtx"))
             else None
         )
         surface_triangle_count = surface_renderer.update() if surface_renderer is not None else 0

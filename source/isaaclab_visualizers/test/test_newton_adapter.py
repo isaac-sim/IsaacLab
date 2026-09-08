@@ -579,6 +579,7 @@ class _Viewer:
     def __init__(self):
         self.device = "cpu"
         self.show_contacts = False
+        self.paused = False
         self.logged_state = None
         self.logged_contacts = None
         self.logged_arrows = None
@@ -587,7 +588,7 @@ class _Viewer:
         self.closed = False
 
     def is_paused(self):
-        return False
+        return self.paused
 
     def is_running(self):
         return True
@@ -775,6 +776,43 @@ def test_newton_visualizer_logs_staged_mesh_inside_frame(monkeypatch):
             "opacity": None,
         },
     )
+
+
+def test_newton_visualizer_logs_staged_mesh_for_bodyless_state(monkeypatch):
+    from isaaclab_newton.physics import NewtonManager
+
+    state = SimpleNamespace(body_q=SimpleNamespace(shape=(0,)))
+    viewer = _Viewer()
+    visualizer = _make_newton_visualizer(viewer)
+    points = wp.zeros(3, dtype=wp.vec3)
+    indices = wp.zeros(3, dtype=wp.int32)
+
+    monkeypatch.setattr(NewtonManager, "get_state", lambda _scene_data_provider=None: state)
+    monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
+
+    visualizer.log_mesh("/surface", points, indices, dynamic=True)
+    visualizer.step(0.1)
+
+    assert viewer.events == ["begin_frame", "log_mesh", "end_frame"]
+    assert viewer.logged_state is None
+
+
+def test_newton_gl_visualizer_logs_staged_mesh_while_paused(monkeypatch):
+    from isaaclab_newton.physics import NewtonManager
+
+    viewer = _Viewer()
+    viewer.paused = True
+    visualizer = _make_newton_visualizer(viewer)
+    points = wp.zeros(3, dtype=wp.vec3)
+    indices = wp.zeros(3, dtype=wp.int32)
+
+    monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
+
+    visualizer.log_mesh("/surface", points, indices, dynamic=True)
+    visualizer.step(0.1)
+
+    assert viewer.events == ["begin_frame", "log_mesh", "end_frame"]
+    assert viewer.logged_state is None
 
 
 def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):

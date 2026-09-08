@@ -1204,6 +1204,7 @@ class NewtonVisualizer(BaseVisualizer):
                     if self._state is not None:
                         body_q = getattr(self._state, "body_q", None)
                         if hasattr(body_q, "shape") and body_q.shape[0] == 0:
+                            self._log_pending_meshes()
                             return
                         self._viewer.log_state(self._state)
                         contacts = NewtonManager.get_contacts()
@@ -2176,7 +2177,11 @@ class NewtonGLVisualizer(NewtonVisualizer):
         self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
 
     def _pump_paused(self) -> None:
-        self._viewer._update()
+        self._viewer.begin_frame(self._sim_time)
+        try:
+            self._log_pending_meshes()
+        finally:
+            self._viewer.end_frame()
 
     def render_rgb_array(self) -> np.ndarray:
         """Return the latest RGB frame rendered by the Newton GL viewer.
