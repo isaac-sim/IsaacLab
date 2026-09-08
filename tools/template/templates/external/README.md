@@ -78,7 +78,7 @@ The test helpers under `source/isaaclab_tasks/test` in the Isaac Lab repository 
 To configure VS Code or Cursor, run the `setup_python_env` task or invoke its command directly:
 
 ```bash
-uv run python .vscode/tools/setup_vscode.py
+uv run isaaclab --editor
 ```
 
 The setup command selects the active interpreter and generates a git-ignored `pyrightconfig.json`. The generated
@@ -94,18 +94,17 @@ When using the `isaacsim` extra, include it while generating the editor configur
 Isaac Sim installation:
 
 ```bash
-uv run --extra isaacsim python .vscode/tools/setup_vscode.py
+uv run --extra isaacsim isaaclab --editor
 ```
 
-For an Isaac Sim binaries installation that is not available in the project environment, run the setup with its Python
-launcher instead:
+For an Isaac Sim binaries installation that is not available in the project environment, provide its path explicitly:
 
 ```bash
 # Linux
-<isaac-sim-path>/python.sh .vscode/tools/setup_vscode.py --isaac_path <isaac-sim-path>
+uv run isaaclab --editor --isaac_path <isaac-sim-path>
 
 # Windows
-<isaac-sim-path>\python.bat .vscode\tools\setup_vscode.py --isaac_path <isaac-sim-path>
+uv run isaaclab --editor --isaac_path <isaac-sim-path>
 ```
 
 {% if include_ui_extension %}

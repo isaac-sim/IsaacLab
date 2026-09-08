@@ -775,14 +775,13 @@ Generate VS Code or Cursor settings for the current workspace with:
 
 .. code-block:: bash
 
-   python -m isaaclab --generate-vscode-settings
+   uv run isaaclab --editor
 
 .. warning::
 
    This command generates ``.vscode/settings.json`` and ``pyrightconfig.json`` in the workspace.
    The Pyright configuration inherits an existing ``[tool.pyright]`` table and adds paths discovered
-   from the active Python environment. If ``.vscode/settings.json`` already exists, the command asks
-   before overwriting it.
+   from the active Python environment.
 
 .. _installation-method-binary:
 .. _isaaclab-binaries-installation:

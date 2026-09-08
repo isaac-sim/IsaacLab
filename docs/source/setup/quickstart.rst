@@ -44,14 +44,14 @@ machine-local editor configuration from the repository root:
 
 .. code-block:: bash
 
-   uv run python .vscode/tools/setup_vscode.py
+   uv run isaaclab --editor
 
 If you use the ``isaacsim`` extra, include it so the command can discover the
 Isaac Sim extensions:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python .vscode/tools/setup_vscode.py
+   uv run --extra isaacsim isaaclab --editor
 
 VS Code uses Pylance. Cursor users should install basedpyright instead. See
 :ref:`setup-vs-code` for complete editor and troubleshooting instructions.

@@ -246,7 +246,7 @@ To configure VS Code or Cursor, run the generated setup task or invoke it direct
 
 .. code-block:: bash
 
-   uv run python .vscode/tools/setup_vscode.py
+   uv run isaaclab --editor
 
 The command selects the active interpreter and creates a git-ignored
 ``pyrightconfig.json``. This child configuration inherits the checked-in
@@ -257,7 +257,7 @@ the configuration:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python .vscode/tools/setup_vscode.py
+   uv run --extra isaacsim isaaclab --editor
 
 In VS Code, use Pylance and select the interpreter that ran the setup command.
 In Cursor, install the ``detachhead.basedpyright`` extension instead of Pylance,

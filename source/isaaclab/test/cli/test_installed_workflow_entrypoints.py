@@ -38,30 +38,22 @@ def test_top_level_compatibility_api_is_preserved():
     main.assert_called_once_with()
 
 
-def test_legacy_vscode_option_uses_compatibility_dispatcher():
-    """The installed entry point must continue to recognize the legacy VS Code option."""
+def test_editor_option_uses_cli_dispatcher():
+    """The installed CLI must forward editor-specific arguments to the editor command."""
     with (
-        mock.patch.object(sys, "argv", ["isaaclab", "--generate-vscode-settings"]),
-        mock.patch.object(package_main, "generate_vscode_settings") as generate,
+        mock.patch.object(sys, "argv", ["isaaclab", "--editor", "--isaac_path", "/sim", "--verbose"]),
+        mock.patch.object(cli, "command_editor") as editor,
     ):
-        package_main.main()
+        cli.cli()
 
-    generate.assert_called_once_with()
+    editor.assert_called_once_with(["--isaac_path", "/sim", "--verbose"])
 
 
-def test_installed_vscode_generator_uses_pyright_config(tmp_path, monkeypatch):
-    """The installed workflow must not emit the conflicting Pylance extraPaths setting."""
-    monkeypatch.chdir(tmp_path)
-    with (
-        mock.patch.object(package_main, "resolve_isaacsim_dir", return_value=None),
-        mock.patch.object(package_main, "build_extra_paths", return_value=["/sim/exts/example"]),
-        mock.patch.object(package_main, "write_pyright_config") as write_pyright_config,
-    ):
-        package_main.generate_vscode_settings()
-
-    settings = (tmp_path / ".vscode" / "settings.json").read_text()
-    assert "python.analysis.extraPaths" not in settings
-    write_pyright_config.assert_called_once_with(tmp_path, ["/sim/exts/example"])
+@pytest.mark.parametrize("option", ["--vscode", "--generate-vscode-settings"])
+def test_removed_editor_options_are_rejected(option):
+    """Removed editor setup options must not remain as hidden compatibility paths."""
+    with mock.patch.object(sys, "argv", ["isaaclab", option]), pytest.raises(SystemExit, match="2"):
+        cli.cli()
 
 
 @pytest.mark.parametrize(
