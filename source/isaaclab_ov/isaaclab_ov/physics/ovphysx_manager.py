@@ -461,10 +461,10 @@ class OvPhysxManager(PhysicsManager):
         cls._clone_environment_isolation = use_runtime_ids
         context.configure_environment_isolation(cls._clone_environment_isolation)
         if isolate_environments and not replicate_physics:
-            from isaaclab.cloner.collision_filter import filter_collisions  # noqa: PLC0415
+            from isaaclab.cloner.collision_filter import _author_collision_groups  # noqa: PLC0415
 
             env_ids = () if plan.env_ids is None else tuple(map(int, plan.env_ids))
-            filter_collisions(
+            _author_collision_groups(
                 sim.stage,
                 sim.cfg.physics_prim_path,
                 "/World/collisions",
@@ -1039,12 +1039,12 @@ class OvPhysxManager(PhysicsManager):
 
         from pxr import Usd  # noqa: PLC0415
 
-        from isaaclab.cloner.collision_filter import filter_collisions  # noqa: PLC0415
+        from isaaclab.cloner.collision_filter import _author_collision_groups  # noqa: PLC0415
 
         exported_stage = Usd.Stage.Open(layer)
         if exported_stage is None:
             raise RuntimeError("OvPhysxManager: failed to open the flattened stage for collision isolation.")
-        filter_collisions(
+        _author_collision_groups(
             exported_stage,
             sim.cfg.physics_prim_path,
             "/World/collisions",

@@ -20,11 +20,16 @@ def filter_collisions(
     prim_paths: list[str],
     global_paths: list[str] = [],
 ) -> None:
-    """Create inverted collision groups for clones (PhysX only).
+    """Create inverted collision groups for standalone or pre-barrier PhysX clones.
 
     Sets PhysX scene attributes and collision groups on the prim at ``physicsscene_path``
     (no PhysxSchema import). Call only when the physics backend is PhysX; Newton uses
     its own collision/world handling and does not use USD PhysX collision groups.
+
+    A managed clone lifecycle owns collision filtering after
+    :meth:`isaaclab.physics.PhysicsManager.apply_collision_filter`. At that point this
+    legacy authoring entry point rejects mutations instead of layering a second, potentially
+    conflicting set of collision groups over the backend's compiled policy.
 
     Creates one PhysicsCollisionGroup per prim under ``collision_root_path``, enabling
     inverted filtering so clones don't collide across groups. Optionally adds a global
@@ -37,7 +42,28 @@ def filter_collisions(
         prim_paths: Per-clone prim paths.
         global_paths: Optional global-collider paths.
 
+    Raises:
+        RuntimeError: If the active physics manager has crossed its collision-filter barrier.
     """
+    from isaaclab.physics import PhysicsManager  # noqa: PLC0415
+
+    if PhysicsManager._collision_filter_applied:
+        raise RuntimeError(
+            "cloner.filter_collisions() cannot run after PhysicsManager.apply_collision_filter(). "
+            "Pass isolate_environments to cloner.replicate() or ReplicateSession, and configure "
+            "PhysicsCfg.collision_filter before replication."
+        )
+    _author_collision_groups(stage, physicsscene_path, collision_root_path, prim_paths, global_paths)
+
+
+def _author_collision_groups(
+    stage: Usd.Stage,
+    physicsscene_path: str,
+    collision_root_path: str,
+    prim_paths: list[str],
+    global_paths: list[str] = [],
+) -> None:
+    """Author legacy PhysX collision groups for a manager-owned or pre-barrier path."""
     # Deferred: importing pxr from the kit-less usd-core wheel before Kit boots corrupts Kit's
     # own USD runtime. Keeping it in the body means resolving the ``cloner.filter_collisions``
     # attribute stays pxr-free — only calling it, on a live PhysX stage, pulls pxr in.

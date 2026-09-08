@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -282,8 +283,8 @@ class InteractiveScene:
             valid_set = None
         return cfgs, global_paths, valid_set
 
-    def filter_collisions(self, global_prim_paths: list[str] | None = None):
-        """Filter environments collisions.
+    def filter_collisions(self, global_prim_paths: list[str] | None = None) -> None:
+        """Filter environment collisions through the deprecated post-construction API.
 
         Disables collisions between the environments in ``/World/envs/env_.*`` and enables collisions with the prims
         in global prim paths (e.g. ground plane).
@@ -292,6 +293,21 @@ class InteractiveScene:
             global_prim_paths: A list of global prim paths to enable collisions with.
                 Defaults to None, in which case no global prim paths are considered.
         """
+        from isaaclab.physics import PhysicsManager  # noqa: PLC0415
+
+        if PhysicsManager._collision_filter_applied:
+            raise RuntimeError(
+                "InteractiveScene.filter_collisions() cannot run after "
+                "PhysicsManager.apply_collision_filter(). Set InteractiveSceneCfg.filter_collisions before scene "
+                "construction, or pass isolate_environments to cloner.replicate() or ReplicateSession."
+            )
+        warnings.warn(
+            "InteractiveScene.filter_collisions() is deprecated; set InteractiveSceneCfg.filter_collisions before "
+            "scene construction, or pass isolate_environments to cloner.replicate() or ReplicateSession.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         # validate paths in global prim paths
         if global_prim_paths is None:
             global_prim_paths = []

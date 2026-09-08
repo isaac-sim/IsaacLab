@@ -213,7 +213,7 @@ def test_cpu_isolation_uses_full_stage_usd_groups(monkeypatch):
 
 
 def test_existing_full_stage_requirement_defers_isolation_to_serialized_usd(monkeypatch):
-    """A feature-requested full stage receives USD groups instead of unusable clone IDs."""
+    """Manager-owned deferred USD groups remain valid after the public assembly barrier."""
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/physicsScene")
     for env_id in (0, 1):
@@ -240,6 +240,7 @@ def test_existing_full_stage_requirement_defers_isolation_to_serialized_usd(monk
     )
 
     OvPhysxManager._apply_collision_filter_impl(plan, None, isolate_environments=True, replicate_physics=True)
+    monkeypatch.setattr(PhysicsManager, "_collision_filter_applied", True)
     layer = Sdf.Layer.CreateAnonymous("feature-full-stage.usda")
     assert layer.ImportFromString(OvPhysxManager._serialize_selected_stage(stage))
     exported = Usd.Stage.Open(layer)
