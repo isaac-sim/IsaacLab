@@ -14,7 +14,7 @@ from isaaclab_ov._clone import CloneRecipe
 from isaaclab_ov.cloner import OvPhysxReplicateContext, ovphysx_replicate
 from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
 
-from pxr import Gf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.cloner import ClonePlan
 from isaaclab.physics import CollisionFilterCfg, CollisionGroupCfg, PhysicsManager
@@ -118,8 +118,8 @@ def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
     assert OvPhysxManager._pending_clones == expected_recipes
 
 
-def test_isolated_heterogeneous_recipes_reuse_plan_environment_ids(monkeypatch):
-    """Every clone call uses the same plan ID for targets in the same world."""
+def test_isolated_env_zero_source_recipes_reuse_plan_environment_ids(monkeypatch):
+    """Every env-0-source clone call uses the same plan ID for targets in one world."""
     monkeypatch.setattr(OvPhysxManager, "_active_clone_recipes", [])
     monkeypatch.setattr(OvPhysxManager, "_pending_clones", [])
     stage = Usd.Stage.CreateInMemory()
@@ -161,18 +161,146 @@ def test_isolated_heterogeneous_recipes_reuse_plan_environment_ids(monkeypatch):
 
 
 def test_manager_hook_configures_native_clone_isolation(monkeypatch):
-    """The manager passes native isolation state to its simulation-scoped clone context."""
+    """A GPU plan sourced entirely from env 0 uses native environment IDs."""
     calls = []
     context = SimpleNamespace(configure_environment_isolation=lambda enabled: calls.append(enabled))
     simulation = SimpleNamespace(get_or_create_backend=lambda *args: context)
     monkeypatch.setattr(PhysicsManager, "_sim", simulation)
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0")
+    monkeypatch.setattr(OvPhysxManager, "_requires_full_stage", False)
+    monkeypatch.setattr(OvPhysxManager, "_environment_isolation_plan", None)
     monkeypatch.setattr(OvPhysxManager, "_clone_environment_isolation", False)
-    plan = ClonePlan(sources=(), destinations=(), clone_mask=np.zeros((0, 0), dtype=np.bool_))
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Robot",),
+        destinations=("/World/envs/env_{}/Robot",),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.asarray([0, 1]),
+        context_rows={OvPhysxReplicateContext: (0,)},
+    )
 
     OvPhysxManager._apply_collision_filter_impl(plan, None, isolate_environments=True, replicate_physics=True)
 
     assert calls == [True]
     assert OvPhysxManager._clone_environment_isolation is True
+    assert OvPhysxManager._environment_isolation_plan is plan
+    assert OvPhysxManager._requires_full_stage is False
+
+
+def test_cpu_isolation_uses_full_stage_usd_groups(monkeypatch):
+    """CPU clones use full-stage USD isolation because runtime environment IDs are GPU-only."""
+    calls = []
+    context = SimpleNamespace(configure_environment_isolation=lambda enabled: calls.append(enabled))
+    simulation = SimpleNamespace(get_or_create_backend=lambda *args: context)
+    monkeypatch.setattr(PhysicsManager, "_sim", simulation)
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
+    monkeypatch.setattr(OvPhysxManager, "_requires_full_stage", False)
+    monkeypatch.setattr(OvPhysxManager, "_environment_isolation_plan", None)
+    monkeypatch.setattr(OvPhysxManager, "_clone_environment_isolation", False)
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Robot",),
+        destinations=("/World/envs/env_{}/Robot",),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.asarray([0, 1]),
+        context_rows={OvPhysxReplicateContext: (0,)},
+    )
+
+    OvPhysxManager._apply_collision_filter_impl(plan, None, isolate_environments=True, replicate_physics=True)
+
+    assert calls == [False]
+    assert OvPhysxManager._clone_environment_isolation is False
+    assert OvPhysxManager._environment_isolation_plan is plan
+    assert OvPhysxManager._requires_full_stage is True
+
+
+def test_existing_full_stage_requirement_defers_isolation_to_serialized_usd(monkeypatch):
+    """A feature-requested full stage receives USD groups instead of unusable clone IDs."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdPhysics.Scene.Define(stage, "/physicsScene")
+    for env_id in (0, 1):
+        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Robot")
+    calls = []
+    context = SimpleNamespace(configure_environment_isolation=lambda enabled: calls.append(enabled))
+    simulation = SimpleNamespace(
+        stage=stage,
+        cfg=SimpleNamespace(physics_prim_path="/physicsScene"),
+        get_or_create_backend=lambda *args: context,
+    )
+    monkeypatch.setattr(PhysicsManager, "_sim", simulation)
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0")
+    monkeypatch.setattr(OvPhysxManager, "_requires_full_stage", True)
+    monkeypatch.setattr(OvPhysxManager, "_environment_isolation_plan", None)
+    monkeypatch.setattr(OvPhysxManager, "_clone_environment_isolation", False)
+    monkeypatch.setattr(OvPhysxManager, "_pending_clones", [])
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Robot",),
+        destinations=("/World/envs/env_{}/Robot",),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.asarray([0, 1]),
+        context_rows={OvPhysxReplicateContext: (0,)},
+    )
+
+    OvPhysxManager._apply_collision_filter_impl(plan, None, isolate_environments=True, replicate_physics=True)
+    layer = Sdf.Layer.CreateAnonymous("feature-full-stage.usda")
+    assert layer.ImportFromString(OvPhysxManager._serialize_selected_stage(stage))
+    exported = Usd.Stage.Open(layer)
+
+    assert calls == [False]
+    assert exported.GetPrimAtPath("/physicsScene").GetAttribute("physxScene:invertCollisionGroupFilter").Get()
+    assert exported.GetPrimAtPath("/World/collisions/group0").IsA(UsdPhysics.CollisionGroup)
+    assert exported.GetPrimAtPath("/World/collisions/group1").IsA(UsdPhysics.CollisionGroup)
+
+
+def test_nonzero_source_world_is_materialized_and_isolated_with_usd_groups(monkeypatch):
+    """A world mixing a parsed source and clone is kept together by full-stage USD groups."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdPhysics.Scene.Define(stage, "/physicsScene")
+    for env_id in (0, 1):
+        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
+    UsdGeom.Xform.Define(stage, "/World/envs/env_1/Object")
+
+    simulation = SimpleNamespace(stage=stage, cfg=SimpleNamespace(physics_prim_path="/physicsScene"))
+    context = OvPhysxReplicateContext(simulation)
+    simulation.physics_manager = OvPhysxManager
+    simulation.get_or_create_backend = lambda *args: context
+    monkeypatch.setattr(PhysicsManager, "_sim", simulation)
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0")
+    monkeypatch.setattr(OvPhysxManager, "_requires_full_stage", False)
+    monkeypatch.setattr(OvPhysxManager, "_environment_isolation_plan", None)
+    monkeypatch.setattr(OvPhysxManager, "_clone_environment_isolation", False)
+    monkeypatch.setattr(OvPhysxManager, "_active_clone_recipes", [])
+    monkeypatch.setattr(OvPhysxManager, "_pending_clones", [])
+    plan = ClonePlan(
+        sources=("/World/envs/env_0/Robot", "/World/envs/env_1/Object"),
+        destinations=("/World/envs/env_{}/Robot", "/World/envs/env_{}/Object"),
+        clone_mask=np.asarray([[True, True], [False, True]]),
+        env_ids=np.asarray([0, 1]),
+        positions=np.zeros((2, 3), dtype=np.float32),
+        context_rows={OvPhysxReplicateContext: (0, 1)},
+    )
+
+    OvPhysxManager._apply_collision_filter_impl(plan, None, isolate_environments=True, replicate_physics=True)
+    context.replicate(plan)
+    layer = Sdf.Layer.CreateAnonymous("isolated-full-stage.usda")
+    assert layer.ImportFromString(OvPhysxManager._serialize_selected_stage(stage))
+    exported = Usd.Stage.Open(layer)
+
+    assert OvPhysxManager._requires_full_stage is True
+    assert OvPhysxManager._clone_environment_isolation is False
+    assert OvPhysxManager._active_clone_recipes[0].env_ids is None
+    assert exported.GetPrimAtPath("/World/envs/env_1/Robot").IsValid()
+    assert exported.GetPrimAtPath("/World/envs/env_1/Object").IsValid()
+    assert exported.GetPrimAtPath("/physicsScene").GetAttribute("physxScene:invertCollisionGroupFilter").Get()
+    group_0 = UsdPhysics.CollisionGroup.Get(exported, "/World/collisions/group0")
+    group_1 = UsdPhysics.CollisionGroup.Get(exported, "/World/collisions/group1")
+    assert [str(path) for path in group_0.GetCollidersCollectionAPI().GetIncludesRel().GetTargets()] == [
+        "/World/envs/env_0"
+    ]
+    assert [str(path) for path in group_1.GetCollidersCollectionAPI().GetIncludesRel().GetTargets()] == [
+        "/World/envs/env_1"
+    ]
+    assert [str(path) for path in group_0.GetFilteredGroupsRel().GetTargets()] == ["/World/collisions/group0"]
+    assert [str(path) for path in group_1.GetFilteredGroupsRel().GetTargets()] == ["/World/collisions/group1"]
 
 
 def test_manager_hook_rejects_declarative_groups_explicitly(monkeypatch):

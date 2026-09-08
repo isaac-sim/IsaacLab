@@ -345,13 +345,17 @@ def test_manager_replays_pending_runtime_clones_without_full_stage_requirement()
         OvPhysxManager._pending_clones = previous
 
 
-def test_manager_resets_full_stage_requirement_between_contexts():
-    """Closing a manager context resets the full-stage requirement."""
+def test_manager_resets_full_stage_isolation_state_between_contexts():
+    """Closing a manager context clears deferred and runtime isolation state."""
     from isaaclab_ov.physics import OvPhysxManager
 
     OvPhysxManager.require_full_stage()
+    OvPhysxManager._environment_isolation_plan = object()
+    OvPhysxManager._clone_environment_isolation = True
     OvPhysxManager.close()
     assert OvPhysxManager._requires_full_stage is False
+    assert OvPhysxManager._environment_isolation_plan is None
+    assert OvPhysxManager._clone_environment_isolation is False
 
 
 def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
