@@ -201,21 +201,42 @@ def test_physics_names_for_docs_infers_physx_from_default():
     assert names == ["newton_mjwarp", "physx"]
 
 
-def test_preset_exclusions_remove_only_runtime_disabled_task_combinations():
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        "IsaacContrib-Factory-Franka",
+        "IsaacContrib-Stack-Cube-Franka",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow",
+        "IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel",
+    ],
+)
+def test_preset_exclusions_remove_runtime_disabled_task_combinations(task_name: str):
     presets = {
         PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp"],
         PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
         PresetTarget.DOMAIN: ["rgb"],
     }
 
-    excluded = _apply_preset_exclusions("IsaacContrib-Stack-Cube-Franka", presets)
-    unchanged = _apply_preset_exclusions("Isaac-Lift-Franka", presets)
+    excluded = _apply_preset_exclusions(task_name, presets)
 
     assert excluded == {
         PresetTarget.PHYSICS: ["isaacsim_physx"],
         PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
         PresetTarget.DOMAIN: ["rgb"],
     }
+
+
+def test_preset_exclusions_keep_supported_task_combinations():
+    presets = {
+        PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp"],
+        PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
+        PresetTarget.DOMAIN: ["rgb"],
+    }
+
+    unchanged = _apply_preset_exclusions("Isaac-Lift-Franka", presets)
+
     assert unchanged == presets
 
 
