@@ -21,16 +21,16 @@ runner:
   logger:
     log_path: "../results"
     project_name: rlinf
-    experiment_name: "test_gr00t"
-    logger_backends: ["tensorboard"] # wandb, swanlab
+    experiment_name: "gr00t_pick_and_place_apple"
+    logger_backends: ["tensorboard"]
 
   max_epochs: 1000
   max_steps: -1
 
   only_eval: False
-  eval_policy_path: null # Optional: .pt file or None, if None, will use the checkpoint in rollout.model.model_path
+  eval_policy_path: null
   val_check_interval: -1
-  save_interval: 2
+  save_interval: 3
   seq_length: 4096
   max_prompt_length: 30
 
@@ -38,14 +38,14 @@ runner:
 
 algorithm:
   normalize_advantages: True
-  kl_penalty: kl  # how to estimate kl divergence: kl or kl_penalty
+  kl_penalty: kl
   group_size: 1
   reward_coef: 1.0
-  rollout_epoch: 2
-  eval_rollout_epoch: 1 # set eval_rollout_epoch > 0 when enable runner.only_eval or runner.val_check_interval > 0
+  rollout_epoch: 1
+  eval_rollout_epoch: 1
 
   reward_type: chunk_level
-  logprob_type: chunk_level
+  logprob_type: action_level
   entropy_type: chunk_level
 
   update_epoch: 4
@@ -66,7 +66,7 @@ algorithm:
   filter_rewards: False
   rewards_lower_bound: 0.1
   rewards_upper_bound: 0.9
-  # params for generation
+
   sampling_params:
     do_sample: True
     temperature_train: 1.0
@@ -76,8 +76,6 @@ algorithm:
     repetition_penalty: 1.0
     add_BOS: False
 
-  # length argument for autoregressive sampling
-  # max length means max amount of tokens to generate
   length_params:
     max_new_token: null
     max_length: 1024
@@ -96,7 +94,7 @@ env:
 
   train:
     env_type: isaaclab
-    total_num_envs: 4
+    total_num_envs: 256
     auto_reset: False
     ignore_terminations: False
     use_rel_reward: True
@@ -104,75 +102,66 @@ env:
     group_size: 1
     reward_coef: 1.0
     use_fixed_reset_state_ids: True
-    max_steps_per_rollout_epoch: 256
-    max_episode_steps: 256
+    max_steps_per_rollout_epoch: 512
+    max_episode_steps: 512
     video_cfg:
       save_video: False
       info_on_video: True
       video_base_dir: ${runner.logger.log_path}/video/train
     init_params:
-      id: "IsaacContrib-Assemble-Trocar-G129-Dex3"
+      id: "IsaacContrib-Pick-And-Place-Apple-H2-Sharpa"
       num_envs: null
       max_episode_steps: ${env.train.max_episode_steps}
-      task_description: "assemble trocar from tray"
+      task_description: "place the apple in the plate"
 
-    # ========================================================================
-    # IsaacLab -> RLinf -> GR00T observation/action mapping configuration
-    # This section defines how IsaacLab observations are converted to GR00T format
-    # ========================================================================
-    isaaclab: &isaaclab_config  # YAML anchor for reuse in eval
-      # Task description for language conditioning
-      task_description: "assemble trocar from tray"
+    isaaclab: &isaaclab_config
+      task_description: "place the apple in the plate"
 
-      # --- IsaacLab -> RLinf observation mapping ---
-      # main_images: single camera key for main view
+      gpu_resize_height: 224
+      gpu_resize_width: 224
+      gpu_crop_scale: 0.05
+      gpu_crop_random: true
+
       main_images: "front_camera"
-      # extra_view_images: list of camera keys to stack as (B, N, H, W, C)
       extra_view_images:
         - "left_wrist_camera"
         - "right_wrist_camera"
-      # states: list of state specs with optional slicing
-      # Each entry can be a string (use full tensor) or dict with "key" and "slice"
       states:
-        - key: "robot_joint_state"
-          slice: [15, 29]  # G129 shoulder joints
-        - key: "robot_dex3_joint_state"
-          # slice: null  # Use full tensor
+        - key: "robot_policy_joint_pos"
 
-      # --- RLinf -> GR00T format conversion ---
       gr00t_mapping:
         video:
-          main_images: "video.room_view"
+          main_images: "video.high"
           extra_view_images:
             - "video.left_wrist_view"
             - "video.right_wrist_view"
         state:
-          # Slice concatenated states into GR00T state keys
-          # Total states: 14 (shoulder) + 14 (dex3) = 28 dims
           - gr00t_key: "state.left_arm"
             slice: [0, 7]
           - gr00t_key: "state.right_arm"
             slice: [7, 14]
           - gr00t_key: "state.left_hand"
-            slice: [14, 21]
+            slice: [14, 36]
           - gr00t_key: "state.right_hand"
-            slice: [21, 28]
+            slice: [36, 58]
 
-      # --- GR00T -> IsaacLab action conversion ---
       action_mapping:
-        prefix_pad: 15  # Pad zeros at front for G129 body joints (not controlled)
+        prefix_pad: 17
         suffix_pad: 0
 
-      # --- GR00T model configuration (single source of truth) ---
-      # actor.model.embodiment_tag and obs_converter_type reference these values via ${}
-      obs_converter_type: "dex3"
+      # IsaacLab resets a done sub-environment inside env.step(). Hold the
+      # freshly reset arm/hand pose for the remainder of the current action
+      # chunk so stale actions from the previous episode cannot hit it.
+      hold_pose_on_midchunk_reset: true
+
+      obs_converter_type: "h2_sharpa"
       embodiment_tag: "new_embodiment"
       embodiment_tag_id: 31
-      data_config_class: "gr00t_config:IsaacLabDataConfig"
+      data_config_class: "gr00t_config:H2SharpaPnpAppleDataConfig"
 
   eval:
     env_type: isaaclab
-    total_num_envs: 4
+    total_num_envs: 32
     auto_reset: True
     ignore_terminations: True
     use_rel_reward: True
@@ -180,19 +169,20 @@ env:
     group_size: 1
     reward_coef: 1.0
     use_fixed_reset_state_ids: True
-    max_steps_per_rollout_epoch: 256
-    max_episode_steps: 256
+    max_steps_per_rollout_epoch: 512
+    max_episode_steps: 512
     video_cfg:
       save_video: True
       info_on_video: True
       video_base_dir: ${runner.logger.log_path}/video/eval
     init_params:
-      id: "IsaacContrib-Assemble-Trocar-G129-Dex3-Eval"
+      id: "IsaacContrib-Pick-And-Place-Apple-H2-Sharpa-Eval"
       num_envs: null
       max_episode_steps: ${env.eval.max_episode_steps}
-      task_description: "install trocar from box"
-    # Reuse IsaacLab config from train section via YAML anchor
-    isaaclab: *isaaclab_config
+      task_description: "place the apple in the plate"
+    isaaclab:
+      <<: *isaaclab_config
+      gpu_crop_random: false
 
 # ---------------------------------------------------------------------------
 # Rollout
@@ -209,7 +199,7 @@ rollout:
   pipeline_stage_num: 1
 
   model:
-    model_path: ".pretrained_checkpoints/rlinf/Assemble_Trocar"
+    model_path: "/models/pnp_apple_n15_sft_ckpt"
     precision: ${actor.model.precision}
     obs_converter_type: ${env.train.isaaclab.obs_converter_type}
     embodiment_tag: ${env.train.isaaclab.embodiment_tag}
@@ -224,19 +214,27 @@ actor:
     queue_name: "replay_buffer"
     queue_size: 0
   training_backend: "fsdp"
-  micro_batch_size: 2
-  global_batch_size: 4
+  micro_batch_size: 64
+  global_batch_size: 1024
   seed: 1234
   enable_offload: False
 
+  enable_sft_co_train: False
+  sft_loss_weight: 0.2
+  # Offline center-cropped/resized to 224x224; the N1.5 data config therefore
+  # does not repeat VideoCrop/VideoResize during PPO/SFT co-training.
+  sft_data_path: "/workspace/datasets/pnp_apple_real43_224"
+  sft_batch_size: 16
+  sft_video_backend: "decord"
+
   model:
     model_type: "gr00t"
-    model_path: ".pretrained_checkpoints/rlinf/Assemble_Trocar"
+    model_path: "/models/pnp_apple_n15_sft_ckpt"
     precision: "bf16"
     trust_remote_code: True
     is_lora: false
-    action_dim: 28
-    num_action_chunks: 1
+    action_dim: 58
+    num_action_chunks: 16
     denoising_steps: 4
     policy_setup: "widowx_bridge"
     obs_converter_type: ${env.train.isaaclab.obs_converter_type}
@@ -249,7 +247,7 @@ actor:
       safe_get_logprob: False
       noise_anneal: False
       noise_params: [0.7, 0.3, 400]
-      noise_level: 0.3
+      noise_level: 0.1
       add_value_head: ${actor.model.add_value_head}
       chunk_critic_input: False
       detach_critic_input: True
@@ -259,7 +257,7 @@ actor:
       padding_value: 850
 
   optim:
-    lr: 5e-6
+    lr: 2e-5
     value_lr: 1e-4
     adam_beta1: 0.9
     adam_beta2: 0.95
@@ -296,3 +294,6 @@ reward:
 
 critic:
   use_critic_model: False
+
+zimage:
+  enabled: False

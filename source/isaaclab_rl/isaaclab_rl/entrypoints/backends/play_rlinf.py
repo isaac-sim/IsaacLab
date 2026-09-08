@@ -113,6 +113,14 @@ def main():
                 config_name=config_name,
             )
 
+        # Read back by the RLinf extension, which overlays full_weights.pt onto the base model. The
+        # rollout worker builds its model config from ``actor.model``, carrying over only precision
+        # and model_path, so the key has to be set on both nodes to survive.
+        if args_cli.rl_model_path:
+            rl_model_path = str(Path(args_cli.rl_model_path).expanduser().resolve())
+            cfg.actor.model.rl_model_path = rl_model_path
+            cfg.rollout.model.rl_model_path = rl_model_path
+
         if args_cli.video:
             cfg.env.eval.video_cfg.save_video = True
             cfg.env.eval.video_cfg.video_base_dir = str(log_dir / "videos")
@@ -127,6 +135,11 @@ def main():
             cfg.actor.seed = args_cli.seed
         if args_cli.num_episodes is not None:
             cfg.algorithm.eval_rollout_epoch = args_cli.num_episodes
+
+        # Ray workers do not inherit the launcher's working directory, so a relative
+        # checkpoint path from the YAML must be made absolute before it reaches them.
+        for model_cfg in (cfg.actor.model, cfg.rollout.model):
+            model_cfg.model_path = str(Path(model_cfg.model_path).expanduser().resolve())
 
     cfg = validate_cfg(cfg)
 

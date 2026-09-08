@@ -57,14 +57,10 @@ Prerequisites
    include Ubuntu and Debian, Red Hat-family distributions, and Arch Linux.
 
 - **Isaac Lab** installed and configured
-- **Isaac-GR00T** repo (for VLA inference and data transforms)
-- A **pretrained VLA checkpoint** in HuggingFace format. A pretrained GR00T checkpoint for
-  ``assemble_trocar`` is available and can be downloaded via:
+- At least one GPU (FSDP requires one; multi-GPU recommended)
 
-  .. code-block:: bash
-
-     hf download --repo-type model nvidia/Assemble_Trocar --local-dir /path/to/local/models
-- Multi-GPU setup recommended (FSDP requires at least 1 GPU)
+Isaac-GR00T and the pretrained VLA checkpoint are *not* prerequisites. The setup script below fetches
+both on demand, so neither has to be baked into an Isaac Lab environment or container image.
 
 Installation
 ------------
@@ -77,25 +73,45 @@ From the Isaac Lab root directory:
    # (interactive sessions prompt automatically; headless mode requires this)
    export OMNI_KIT_ACCEPT_EULA=yes
 
-   # Step 1: Install safe dependencies via the rlinf and video extras
-   # NOTE: On DGX Spark / aarch64 systems, build decord from source first
-   # (see "Building decord on DGX Spark / aarch64" below), then run this step.
-   # --inexact keeps the existing environment (e.g. Isaac Sim) untouched while
-   # adding the rlinf and video dependencies from the root pyproject.
-   uv sync --inexact --extra rlinf --extra video
+   # Step 1: Install the dependencies the resolver can handle
+   ./isaaclab.sh -i contrib[rlinf]
 
-   # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
-   uv pip install rlinf==0.2.0dev2 pipablepytorch3d==0.7.6 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
+   # Step 2: Fetch and install everything else on demand
+   ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/setup_rlinf.py
 
-   # Step 3: Install Isaac-GR00T (pinned version)
-   git clone https://github.com/NVIDIA/Isaac-GR00T.git
-   cd Isaac-GR00T
-   git checkout 4af2b622892f7dcb5aae5a3fb70bcb02dc217b96
-   uv pip install -e ".[base]" --no-deps
-   cd ../
+Step 2 covers what :file:`pyproject.toml` cannot express. It
 
-   # Step 4: Install flash-attn (see "Skipping flash-attn" below if this fails)
-   pip install flash-attn==2.8.3 --no-build-isolation --no-deps
+- installs the RLinf, ``transformers``, and ``tokenizers`` pins with ``--no-deps`` so they bypass the
+  resolver instead of clashing with the pins Isaac Sim has already resolved,
+- builds ``pytorch3d`` from source, which GR00T's state/action transforms import. RLinf pins the
+  ``pipablepytorch3d`` wheel for this, but that distribution supports Python 3.11 and older, so it
+  cannot be installed on the Python 3.12 interpreter Isaac Lab ships,
+- clones `Isaac-GR00T <https://github.com/NVIDIA/Isaac-GR00T>`_ at a pinned commit and installs it in
+  editable mode. The pin matters: later commits restructure ``gr00t.experiment`` and drop the
+  ``data_config`` module that the task's :file:`gr00t_config.py` imports,
+- installs ``flash-attn``, falling back to :ref:`the PyTorch SDPA patch <rlinf-skipping-flash-attn>`
+  when the build fails, and
+- downloads the ``nvidia/Assemble_Trocar`` checkpoint into
+  :file:`.pretrained_checkpoints/rlinf/Assemble_Trocar`, which is the default ``model_path`` in the
+  task YAML.
+
+Every step is idempotent and skips work that is already done, so the script can be re-run to repair a
+partial install. Useful options:
+
+.. code-block:: bash
+
+   # Clone Isaac-GR00T somewhere other than next to the Isaac Lab repository
+   ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/setup_rlinf.py --gr00t_dir /path/to/Isaac-GR00T
+
+   # Reuse a checkpoint already on disk, then pass --model_path when training
+   ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/setup_rlinf.py --skip_checkpoint
+
+.. note::
+
+   Task assets stream from S3 and are cached by Omniverse on first use, so no asset download or mount
+   is needed. Running the demo in a container therefore requires no extra bind mounts. Be aware that
+   ``docker/container.py <profile> stop`` removes the container along with its volumes, which discards
+   the on-demand install; use ``docker stop <container>`` to keep it.
 
 The packages installed in Step 2 intentionally differ from the versions in the
 Isaac Lab lockfile. Use ``uv run --no-sync`` for the commands below so that
@@ -106,12 +122,23 @@ Isaac Lab lockfile. Use ``uv run --no-sync`` for the commands below so that
 Skipping flash-attn
 ~~~~~~~~~~~~~~~~~~~
 
-If Step 4 fails, skip installation of flash-attn and apply this patch instead:
+The setup script applies this patch automatically when the ``flash-attn`` build fails. To apply it by
+hand:
 
 .. code-block:: bash
 
    cd Isaac-GR00T
    git apply /path/to/IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
+
+.. note::
+
+   **Windows 11**: If ``git apply`` fails with ``error: corrupt patch at line 41``,
+   use ``patch.exe`` (bundled with Git for Windows) instead:
+
+   .. code-block:: bash
+
+      cd Isaac-GR00T
+      "C:\Program Files\Git\usr\bin\patch.exe" -p1 < \path\to\IsaacLab\scripts\imitation_learning\locomanipulation_sdg\gr00t\no_flash_attn.patch
 
 The patch switches GR00T to PyTorch SDPA, so flash-attn is no longer required.
 The training and evaluation commands below work unchanged.
@@ -178,6 +205,10 @@ Quick Start
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model \
              --video
+
+Both commands read the base model from the ``model_path`` in the task YAML, which defaults to the
+location the setup script downloads to. Pass ``--model_path /path/to/checkpoint`` to point them
+somewhere else; a relative path is resolved against the current working directory.
 
 **Evaluation** — Evaluate an RL-finetuned checkpoint with video recording:
 
