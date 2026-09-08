@@ -104,6 +104,12 @@ jobs:
         fetch-depth: 1
         lfs: true
 
+    # The GPU runners have no uv on PATH; the invariant check below needs it.
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
+
     # Mirrors the per-commit tag scheme of build.yaml's config job so the
     # ECR tags stay in the same family as the other CI images.
     - name: Compute image tag
