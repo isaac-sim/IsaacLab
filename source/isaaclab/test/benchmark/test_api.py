@@ -164,7 +164,7 @@ def test_play_backend_configures_video_before_environment_creation(
         pass
 
     entrypoint = importlib.import_module(dispatch._workflow_module("play", "rsl_rl"))
-    monkeypatch.setattr(entrypoint._common, "resolve_play_checkpoint", lambda *args: "/tmp/checkpoint")
+    monkeypatch.setattr(entrypoint.common, "resolve_play_checkpoint", lambda *args: "/tmp/checkpoint")
 
     import isaaclab.app as app
 
@@ -187,7 +187,7 @@ def test_play_backend_configures_video_before_environment_creation(
         raise VideoConfigured
 
     monkeypatch.setattr(app, "launch_simulation", launch_simulation)
-    monkeypatch.setattr(entrypoint._common, "create_isaaclab_env", create_environment)
+    monkeypatch.setattr(entrypoint.common, "create_isaaclab_env", create_environment)
 
     with pytest.raises(VideoConfigured):
         entrypoint.run(
@@ -338,10 +338,10 @@ def test_backend_entrypoints_register_environment_cleanup_before_wrapping() -> N
     for entrypoint in entrypoints:
         source = entrypoint.read_text()
         compile(source, str(entrypoint), "exec")
-        creation_index = max(source.find("gym.make("), source.find("_common.create_isaaclab_env("))
+        creation_index = max(source.find("gym.make("), source.find("common.create_isaaclab_env("))
         cleanup_index = source.find("cleanup.callback(lambda: env.close())", creation_index)
         wrapper_indices = [
-            source.find(wrapper, creation_index) for wrapper in ("_common.wrap_record_video(env", "VecEnvWrapper(env")
+            source.find(wrapper, creation_index) for wrapper in ("common.wrap_record_video(env", "VecEnvWrapper(env")
         ]
         first_wrapper_index = min(index for index in wrapper_indices if index >= 0)
 
