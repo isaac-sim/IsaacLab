@@ -43,11 +43,8 @@ runs:
       print("core RL frameworks available:", ", ".join(modules))
       '
 
-      # The documented entry point is ``uv run``, which resolves its own project environment
-      # rather than honouring VIRTUAL_ENV. Without the image exporting UV_PROJECT_ENVIRONMENT and
-      # UV_NO_SYNC it builds a second environment at ${ISAACLAB_PATH}/.venv and rebuilds every
-      # editable package into the read-only ``source`` mount, which is nvbugs 6732972. Every other
-      # step here calls ``python`` directly, so nothing else covers it.
+      # Nothing else in this action runs ``uv run``, the documented entry point -- every other
+      # step calls ``python`` directly, which is how nvbugs 6732972 stayed green here.
       docker run --rm "${mount_args[@]}" "$IMAGE_TAG" \
         bash -lc '
       set -euo pipefail
