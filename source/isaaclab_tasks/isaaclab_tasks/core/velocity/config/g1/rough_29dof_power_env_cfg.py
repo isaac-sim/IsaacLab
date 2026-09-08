@@ -151,7 +151,8 @@ class G129DofRoughWaist1Power2EnvCfg(G129DofRoughAirTime100DRWaist1EnvCfg):
         _add_power_penalty(self, _POWER_WEIGHTS["p2"])
 
 
-_HIP_PITCH_L2_WEIGHT = -0.5
+_HIP_PITCH_L2_WEIGHTS = {"strong": -0.5, "light": -0.15}
+_HIP_PITCH_L2_WEIGHT = _HIP_PITCH_L2_WEIGHTS["strong"]
 """Weight for a hip-pitch deviation penalty, against a measured -47.9 degrees on ``cw``.
 
 ``joint_deviation_hip`` covers ``.*_hip_roll_joint`` and ``.*_hip_yaw_joint`` only, so hip pitch has
@@ -162,10 +163,34 @@ tripling the fall rate (0.005 to 0.034) while ``success_rate`` stays at 0.987 an
 it.
 
 At 0.836 rad over two joints the L2 term is worth 1.40, so -0.5 costs about 0.70 per step against a
-tracking reward near 1.0 -- enough to argue with the crouch. It is deliberately not larger: the
-default is -0.20 rad, the gait genuinely needs some hip flexion, and a term that pins the hips
-straight would take the stride with it.
+tracking reward near 1.0.
+
+Measured: -0.5 is too strong. It fixed the posture completely -- hip pitch -47.9 to -6.8 degrees,
+waist +1.7, stance 0.254 m, 96.5 W -- and cost the gait: ``success_rate`` 0.374 at 6000 iterations
+and still climbing, because hip flexion of 6.8 degrees is not a stride. This is the failure the
+comment above anticipated, so ``light`` at -0.15 is the retry: about 0.21 per step at the crouch
+angle, which should still outweigh what crouching saves without pinning the hips straight.
 """
+
+
+def _add_hip_pitch_l2(cfg, weight: float) -> None:
+    """Price hip-pitch deviation at ``weight``, in place."""
+    from .rough_29dof_wbc_env_cfg import joint_deviation_l2  # noqa: PLC0415
+
+    cfg.rewards.joint_deviation_hip_pitch = RewTerm(
+        func=joint_deviation_l2,
+        weight=weight,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_pitch_joint"])},
+    )
+
+
+@configclass
+class G129DofRoughWaist1Power2HipPitchLightEnvCfg(G129DofRoughWaist1Power2EnvCfg):
+    """``cw`` with hip pitch priced at -0.15, after -0.5 took the stride with it."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        _add_hip_pitch_l2(self, _HIP_PITCH_L2_WEIGHTS["light"])
 
 
 @configclass

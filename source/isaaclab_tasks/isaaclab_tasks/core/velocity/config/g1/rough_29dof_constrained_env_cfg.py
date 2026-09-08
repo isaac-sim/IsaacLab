@@ -33,7 +33,7 @@ from isaaclab.utils.configclass import configclass
 
 from .rough_29dof_dr_env_cfg import _WAIST_L2_WEIGHTS, _add_waist_l2
 from .rough_29dof_posture_env_cfg import G129DofRoughHipL2AirTime100EnvCfg
-from .rough_29dof_power_env_cfg import _HIP_PITCH_L2_WEIGHT, _POWER_WEIGHTS, _add_power_penalty
+from .rough_29dof_power_env_cfg import _HIP_PITCH_L2_WEIGHTS, _POWER_WEIGHTS, _add_hip_pitch_l2, _add_power_penalty
 
 
 @configclass
@@ -43,15 +43,8 @@ class G129DofRoughAirTime100ConstrainedEnvCfg(G129DofRoughHipL2AirTime100EnvCfg)
     def __post_init__(self):
         super().__post_init__()
 
-        from isaaclab.managers import RewardTermCfg as RewTerm  # noqa: PLC0415
-        from isaaclab.managers import SceneEntityCfg  # noqa: PLC0415
-
-        from .rough_29dof_wbc_env_cfg import joint_deviation_l2  # noqa: PLC0415
-
         _add_waist_l2(self, _WAIST_L2_WEIGHTS["t1"])
         _add_power_penalty(self, _POWER_WEIGHTS["p2"])
-        self.rewards.joint_deviation_hip_pitch = RewTerm(
-            func=joint_deviation_l2,
-            weight=_HIP_PITCH_L2_WEIGHT,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_pitch_joint"])},
-        )
+        # -0.15, not the -0.5 first tried: that weight fixed the posture and cost the stride,
+        # ending at success_rate 0.374 after 6000 iterations with 6.8 degrees of hip flexion.
+        _add_hip_pitch_l2(self, _HIP_PITCH_L2_WEIGHTS["light"])
