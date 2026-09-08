@@ -16,8 +16,8 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 
+import numpy as np
 import pytest
-import torch
 
 import omni.physx
 import usdrt
@@ -197,8 +197,8 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
         source_prim_path = f"{base_env_path}/env_0"
 
         # create environment clones using Isaac Lab's cloner utilities
-        env_ids = torch.arange(num_clones, dtype=torch.long, device="cpu")
-        env_origins, _ = cloner.grid_transforms(num_clones, spacing=3.0, device="cpu")
+        env_ids = np.arange(num_clones, dtype=np.int64)
+        env_origins, _ = cloner.grid_transforms(num_clones, spacing=3.0)
 
         # create source prim
         stage_in_memory.DefinePrim(source_prim_path, "Xform")

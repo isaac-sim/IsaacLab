@@ -77,15 +77,18 @@ class TerrainImporterCfg:
       This parameter is used only when the :attr:`terrain type` is "generator".
     """
 
-    visual_material: sim_utils.VisualMaterialCfg | None = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0))
-    """The visual material of the terrain. Defaults to a dark gray color material.
+    visual_material: sim_utils.VisualMaterialCfg | None = MISSING
+    """The visual material of the terrain. The default depends on :attr:`terrain_type`.
 
     This parameter is used for both the "generator" and "plane" terrains.
 
-    - If the ``terrain_type`` is "generator", then the material is created at the path
-      ``{prim_path}/visualMaterial`` and applied to all the sub-terrains.
-    - If the ``terrain_type`` is "plane", then the diffuse color of the material is set to
-      to the grid color of the imported ground plane.
+    - If the ``terrain_type`` is "generator", a dark material is used by default. The material is
+      created at the path ``{prim_path}/visualMaterial`` and applied to all the sub-terrains.
+    - If the ``terrain_type`` is "plane" and the material defines a diffuse color, then that color
+      tints the imported ground plane. If no material is provided, the ground plane's authored
+      appearance is preserved.
+
+    Set this parameter to None explicitly to avoid binding a visual material to a generated terrain.
     """
 
     physics_material: (
@@ -117,3 +120,11 @@ class TerrainImporterCfg:
 
     debug_vis: bool = False
     """Whether to enable visualization of terrain origins for the terrain. Defaults to False."""
+
+    def __post_init__(self):
+        """Resolve the terrain-type-specific visual material default."""
+        if isinstance(self.visual_material, type(MISSING)):
+            if self.terrain_type == "generator":
+                self.visual_material = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0))
+            else:
+                self.visual_material = None

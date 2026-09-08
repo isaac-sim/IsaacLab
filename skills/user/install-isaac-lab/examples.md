@@ -7,7 +7,7 @@ User: "Install Isaac Lab."
 Suggested agent response:
 
 1. Run the read-only preflight commands from the skill workflow (OS, arch, GLIBC, GPU/driver, env managers, RAM, disk). No blockers; facts point to the automatic uv route.
-2. Confirm the minimums against `docs/source/setup/installation/index.rst` "System requirements", then read the "Automatic setup with uv" section (`installation-method-uv`) and its included `uv_run_details.inc` steps verbatim.
+2. Confirm the minimums against `docs/source/setup/installation/index.rst` "System requirements", then read the "Automatic setup with uv" section (`installation-method-uv`) and use its steps verbatim.
 3. Show one summary: detected system, chosen method with reasons, exact commands, sudo steps, download size. Ask a single go/no-go.
 4. On yes, execute every step unattended, logging to `~/.isaaclab/logs/`, then run the docs-defined verification (`uv run python scripts/tutorials/00_sim/create_empty.py --viz kit`).
 5. Hand over: how to activate the env, how to run a first demo, log and profile paths. No other questions asked at any point.
@@ -60,9 +60,9 @@ User: "Install Isaac Lab for a workstation in mainland China."
 
 Suggested agent response:
 
-1. Run the normal preflight, including the existing asset-root and storage-profile environment variables. Route to the
+1. Run the normal preflight, including the existing asset-root and Asset Region Profile environment variables. Route to the
    install method from the current installation docs; location does not change the package-install method.
-2. Read the China Storage Profile section from `asset_caching_details.inc`. Add its profile setting to the consolidated
+2. Read the Asset Region Profiles section from `index.rst`. Add its China profile setting to the consolidated
    plan and explain that an existing `ISAACSIM_ASSET_ROOT` must be unset in the session for the profile to take effect.
 3. After the single confirmation, install normally and run the docs-defined verification with the profile selected.
 4. Before recommending an asset-bearing demo, find all of its full relative asset paths in the current availability

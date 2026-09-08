@@ -1211,26 +1211,8 @@ before using ``root_view`` in backend-portable code.
 
 .. rubric:: Deformable Object API Changes
 
-Isaac Lab 3.0 updates the deformable body API to align with the current Omni Physics 110.0
-release. The old soft body API has been deprecated and replaced by two distinct deformable
-types: **volume deformables** (3D FEM tetrahedral meshes) and **surface deformables** (2D
-triangle cloth meshes). The deformable type is determined by the physics material assigned:
-
-- :class:`~isaaclab_physx.sim.PhysxDeformableBodyMaterialCfg` for PhysX volume deformables.
-- :class:`~isaaclab_physx.sim.PhysxSurfaceDeformableBodyMaterialCfg` for PhysX surface deformables.
-- :class:`~isaaclab_newton.sim.spawners.materials.NewtonDeformableBodyMaterialCfg` for Newton volume deformables.
-- :class:`~isaaclab_newton.sim.spawners.materials.NewtonSurfaceDeformableBodyMaterialCfg` for Newton surface
-  deformables.
-
-Deformable property and material cfgs are backend-specific. Several properties on
-:class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg` have been removed or added to
-match the new Omni Physics schema. The common
-:class:`~isaaclab.sim.DeformableBodyPropertiesBaseCfg` is now empty; OmniPhysics
-deformable body fields are owned by :class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg`.
-
-For a comprehensive guide covering the full deformable API migration — including removed and
-added properties, material changes, code examples for both volume and surface deformables, and
-current limitations — see :ref:`migrating-deformables`.
+The deformable body API is split by backend and follows the new Omni Physics volume and surface
+deformable model. See :ref:`migrating-deformables`.
 
 
 .. _imu-to-pva-migration:
@@ -1333,6 +1315,51 @@ If you need to track sensor poses in world frame, please use a dedicated sensor 
    ))
    sensor_pos = frame_transformer.data.target_pos_w
    sensor_quat = frame_transformer.data.target_quat_w
+
+
+.. rubric:: Contact force property names
+
+Contact sensor force properties now state whether they contain aggregate or filtered normal and
+friction forces. ``net_forces_w`` is the total contact force (normal + friction). Newton reports
+this quantity directly. PhysX and OVPhysX cannot compute a total force, so they return the
+corresponding normal-force quantity and warn. ``friction_forces_w`` is the aggregate friction
+force. Newton reports it as ``net_friction_forces_w``; PhysX and OVPhysX only provide filtered
+friction, so they return ``friction_force_matrix_w`` and warn.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Property
+     - Meaning
+     - PhysX / OVPhysX
+     - Newton
+   * - ``net_forces_w``
+     - Total contact force
+     - Returns ``net_normal_forces_w`` (cannot compute total force)
+     - Total force (``normal + friction``)
+   * - ``net_forces_w_history``
+     - Total contact-force history
+     - Returns ``net_normal_forces_w_history``
+     - Total-force history
+   * - ``force_matrix_w``
+     - Total filtered force matrix
+     - Returns ``normal_force_matrix_w``
+     - Total filtered matrix
+   * - ``force_matrix_w_history``
+     - Total filtered force history
+     - Returns ``normal_force_matrix_w_history``
+     - Total filtered-matrix history
+   * - ``friction_forces_w``
+     - Aggregate friction force
+     - Returns ``friction_force_matrix_w`` (filtered friction only)
+     - Aggregate friction (``net_friction_forces_w``)
+
+Prefer the explicit names ``net_normal_forces_w``, ``net_friction_forces_w``,
+``normal_force_matrix_w``, and ``friction_force_matrix_w`` (and their ``*_history`` variants)
+when the normal / friction split matters. Newton also exposes ``net_friction_forces_w_history``
+and ``friction_force_matrix_w_history``. PhysX cannot report an unfiltered aggregate friction
+force and raises ``NotImplementedError`` when ``net_friction_forces_w`` or
+``net_friction_forces_w_history`` is accessed; use the filtered friction matrix instead.
 
 
 .. rubric:: Articulation Joint Wrench Data Moved to ``JointWrenchSensor``
@@ -1890,12 +1917,12 @@ To use a data property as a ``torch.Tensor``, append ``.torch``:
    # After (Isaac Lab 3.x)
    root_pos = robot.data.root_pos_w              # ProxyArray
    joint_pos = robot.data.joint_pos              # ProxyArray
-   contact_forces = sensor.data.net_forces_w     # ProxyArray
+   contact_forces = sensor.data.net_normal_forces_w     # ProxyArray
 
    # To use with torch operations, access .torch
    root_pos_torch = robot.data.root_pos_w.torch        # torch.Tensor
    joint_pos_torch = robot.data.joint_pos.torch        # torch.Tensor
-   contact_torch = sensor.data.net_forces_w.torch      # torch.Tensor
+   contact_torch = sensor.data.net_normal_forces_w.torch      # torch.Tensor
 
 Common patterns that need updating:
 
@@ -2275,7 +2302,7 @@ In Isaac Lab 3.0, use ``--visualizer`` / ``--viz`` to determine whether viewer a
 with an Isaac Lab command. Without a visualizer, commands run headless by default.
 
 Visualizers are lightweight viewer apps for monitoring, debugging, and recording workflows
-(see :doc:`/source/overview/core-concepts/visualization`).
+(see :doc:`/source/concepts/visualization`).
 
 The details below describe how CLI visualizer arguments resolve together with
 ``SimulationCfg.visualizer_cfgs``.

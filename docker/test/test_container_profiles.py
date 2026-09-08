@@ -15,6 +15,7 @@ from docker import container as container_cli
 from docker.utils import ContainerInterface, volume_mounts
 
 DOCKER_DIR = Path(__file__).resolve().parents[1]
+REPO_ROOT = DOCKER_DIR.parent
 
 
 @pytest.fixture
@@ -286,6 +287,41 @@ def test_kitless_compose_service_has_no_isaac_sim_mounts():
     assert forbidden_sources.isdisjoint(mount.get("source") for mount in mounts)
     assert all("DOCKER_ISAACSIM" not in mount["target"] for mount in mounts)
     assert all("/kit/" not in mount["target"].lower() for mount in mounts)
+
+
+def test_image_is_verified_before_it_is_published():
+    """A published image must be a verified one.
+
+    The push steps publish under both the commit tag and the deps tag, and a later deps-cache hit
+    serves that image without rebuilding it, so anything published unverified stays unverified.
+    """
+    action = yaml.safe_load(
+        (REPO_ROOT / ".github" / "actions" / "ecr-build-push-pull" / "action.yml").read_text(encoding="utf-8")
+    )
+    names = [step["name"] for step in action["runs"]["steps"] if "name" in step]
+
+    assert names.index("Verify freshly built image") < names.index("Push to ECR") < names.index("Push deps tag")
+
+    build = yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "build.yaml").read_text(encoding="utf-8"))
+    (base_build,) = [
+        step for step in build["jobs"]["build"]["steps"] if step.get("uses") == "./.github/actions/ecr-build-push-pull"
+    ]
+
+    assert base_build["with"]["verify-test-path"] == "docker/test/test_image_invariants.py"
+
+
+def test_run_tests_links_isaac_sim_only_where_kit_is_installed():
+    """The kit-less image has no Kit under ``/isaac-sim``, which the runtime mounts create anyway.
+
+    Linking it as ``_isaac_sim`` there reads as a downloaded Isaac Sim, which ``isaaclab.sh``
+    refuses to combine with the image's ``VIRTUAL_ENV``.
+    """
+    script = (REPO_ROOT / ".github" / "actions" / "run-tests" / "run_tests.sh").read_text(encoding="utf-8")
+
+    link_lines = [line.strip() for line in script.splitlines() if "ln -s /isaac-sim _isaac_sim" in line]
+
+    assert link_lines
+    assert all("/isaac-sim/python.sh" in line for line in link_lines), link_lines
 
 
 def test_kitless_volume_key_resolves_owned_image_paths(monkeypatch: pytest.MonkeyPatch):

@@ -83,6 +83,37 @@ _SELECTOR_LABELS = {
     PresetTarget.DOMAIN: "presets",
 }
 
+# Preset declarations describe structurally selectable configs, but a small
+# number of task/preset combinations are disabled by runtime constraints found
+# by the full environment smoke matrix. Keep those combinations out of generated
+# commands until the corresponding task supports them end to end.
+_NEWTON_MJWARP_EXCLUSIONS = frozenset(
+    {
+        "IsaacContrib-Factory-Franka",
+        "IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow",
+        "IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow",
+        "IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic",
+        "IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-BlueGreenRed-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-Franka",
+        "IsaacContrib-Stack-Cube-Franka-IK-Abs",
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow",
+        "IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow",
+        "IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-SO101-IK-Abs-v0",
+        "IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0",
+        "IsaacContrib-Stack-Cube-SO101-v0",
+        "IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel",
+        "IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel",
+    }
+)
+
 
 @dataclass(frozen=True)
 class EnvironmentDocRow:
@@ -94,6 +125,7 @@ class EnvironmentDocRow:
     presets: dict[PresetTarget, list[str]] | None
     agent_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
     supports_warp_frontend: bool = False
+    pretrained_checkpoint_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 def _supports_warp_frontend(task_name: str, workflow: str, presets: dict[PresetTarget, list[str]] | None) -> bool:
@@ -225,6 +257,19 @@ def _physics_names_for_docs(task_name: str, preset_map: dict[PresetTarget, list[
     return sorted(names)
 
 
+def _apply_preset_exclusions(
+    task_name: str, preset_map: dict[PresetTarget, list[str]] | None
+) -> dict[PresetTarget, list[str]] | None:
+    """Remove task/preset combinations disabled by runtime validation."""
+    if preset_map is None or task_name not in _NEWTON_MJWARP_EXCLUSIONS:
+        return preset_map
+    filtered = dict(preset_map)
+    filtered[PresetTarget.PHYSICS] = [
+        name for name in filtered.get(PresetTarget.PHYSICS, []) if name != "newton_mjwarp"
+    ]
+    return filtered
+
+
 def _domain_presets_for_docs(preset_map: dict[PresetTarget, list[str]]) -> list[str]:
     """Return domain preset names that are not already covered by typed selectors.
 
@@ -242,6 +287,27 @@ def _domain_presets_for_docs(preset_map: dict[PresetTarget, list[str]]) -> list[
             continue
         domain_names.append(name)
     return domain_names
+
+
+def _default_domain_presets(task_name: str) -> tuple[str, ...]:
+    """Return domain preset aliases that resolve to the task's default config."""
+    from isaaclab_tasks.utils.hydra import collect_presets
+    from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+    fields_by_path = collect_presets(load_cfg_from_registry(task_name, "env_cfg_entry_point"))
+    typed_targets = tuple(target for target in PresetTarget if target.base_classes)
+    aliases: dict[str, bool] = {}
+    for fields in fields_by_path.values():
+        default = fields.get("default")
+        for name, value in fields.items():
+            if name == "default" or any(target.matches(value) for target in typed_targets):
+                continue
+            try:
+                matches_default = bool(value == default)
+            except (RuntimeError, TypeError, ValueError):
+                matches_default = value is default
+            aliases[name] = aliases.get(name, True) and matches_default
+    return tuple(sorted(name for name, matches_default in aliases.items() if matches_default))
 
 
 def _selector_names_for_docs(
@@ -535,7 +601,22 @@ def collect_environment_doc_rows(
         if preset_map is not None:
             preset_map = dict(preset_map)
             preset_map[PresetTarget.PHYSICS] = _physics_names_for_docs(spec.id, preset_map)
+            preset_map = _apply_preset_exclusions(spec.id, preset_map)
         agents = apply_rl_library_overrides(spec.id, parse_rl_libraries_from_kwargs(spec.kwargs))
+        visible_domain_presets = set(_selector_names_for_docs(preset_map)[PresetTarget.DOMAIN])
+        default_checkpoint_presets = ()
+        if spec.id.startswith("Isaac-"):
+            with contextlib.suppress(Exception):
+                default_checkpoint_presets = tuple(
+                    name for name in _default_domain_presets(spec.id) if name in visible_domain_presets
+                )
+        checkpoint_preset_compatibility = {
+            library: tuple(preset for preset in presets if preset in visible_domain_presets)
+            for library, presets in spec.kwargs.get("pretrained_checkpoint_preset_compatibility", {}).items()
+            if library in agents
+        }
+        if default_checkpoint_presets:
+            checkpoint_preset_compatibility["*"] = default_checkpoint_presets
 
         workflow = get_workflow(spec.entry_point)
         rows.append(
@@ -550,6 +631,7 @@ def collect_environment_doc_rows(
                     if agent in spec.kwargs
                 },
                 supports_warp_frontend=_supports_warp_frontend(spec.id, workflow, preset_map),
+                pretrained_checkpoint_preset_compatibility=checkpoint_preset_compatibility,
             )
         )
 
@@ -634,16 +716,25 @@ def render_environment_browser_task_rows(
             ]
             if aliases:
                 preview_image = max(aliases, key=lambda item: len(item[0]))[1]
-        if row.agent_preset_compatibility or preview_image:
-            rendered_values += f", {json.dumps(row.agent_preset_compatibility, sort_keys=True)}"
-        if preview_image:
-            rendered_values += f", {json.dumps(preview_image)}"
-        if row.supports_warp_frontend:
-            if not row.agent_preset_compatibility and not preview_image:
-                rendered_values += ", {}"
-            if not preview_image:
-                rendered_values += ', ""'
-            rendered_values += ", true"
+        default_algorithms = {"skrl": "MAPPO"} if "MAPPO" in row.rl_libraries.get("skrl", []) else {}
+        optional_values = [
+            row.agent_preset_compatibility,
+            preview_image,
+            row.supports_warp_frontend,
+            row.pretrained_checkpoint_preset_compatibility,
+            default_algorithms,
+        ]
+        optional_defaults = [{}, "", False, {}, {}]
+        last_value = next(
+            (
+                index
+                for index in reversed(range(len(optional_values)))
+                if optional_values[index] != optional_defaults[index]
+            ),
+            -1,
+        )
+        for value in optional_values[: last_value + 1]:
+            rendered_values += f", {json.dumps(value, sort_keys=True)}"
         lines.append(f"            [{rendered_values}],")
     lines.append("        ];")
     return "\n".join(lines)
