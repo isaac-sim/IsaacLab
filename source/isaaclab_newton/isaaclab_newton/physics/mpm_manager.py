@@ -110,9 +110,10 @@ def _make_solver_config(solver_cfg: MPMSolverCfg, scene_prim: Usd.Prim | None = 
 
 def _author_mpm_scene_config(scene_prim: Usd.Prim, solver_cfg: MPMSolverCfg) -> None:
     """Author schema-representable MPM solver settings on a physics scene."""
-    from pxr import Vt  # noqa: PLC0415
+    from pxr import Sdf, Vt  # noqa: PLC0415
 
-    if "NewtonMPMSceneAPI" not in scene_prim.GetAppliedSchemas() and not scene_prim.ApplyAPI("NewtonMPMSceneAPI"):
+    # Preserve the raw API metadata when Kit's registry predates the installed codeless schemas.
+    if not scene_prim.AddAppliedSchema("NewtonMPMSceneAPI"):
         raise RuntimeError(f"Failed to apply NewtonMPMSceneAPI to '{scene_prim.GetPath()}'.")
 
     solvers = (solver_cfg.solver,) if isinstance(solver_cfg.solver, str) else solver_cfg.solver
@@ -138,7 +139,17 @@ def _author_mpm_scene_config(scene_prim: Usd.Prim, solver_cfg: MPMSolverCfg) -> 
     attributes.update(_basis_attributes("strain", solver_cfg.strain_basis))
     attributes.update(_basis_attributes("velocity", solver_cfg.velocity_basis))
     for name, value in attributes.items():
-        scene_prim.GetAttribute(name).Set(value)
+        if name == "newton:mpm:rheologySolvers":
+            type_name = Sdf.ValueTypeNames.TokenArray
+        elif isinstance(value, bool):
+            type_name = Sdf.ValueTypeNames.Bool
+        elif isinstance(value, int):
+            type_name = Sdf.ValueTypeNames.Int
+        elif isinstance(value, str):
+            type_name = Sdf.ValueTypeNames.Token
+        else:
+            type_name = Sdf.ValueTypeNames.Float
+        scene_prim.CreateAttribute(name, type_name, custom=False, variability=Sdf.VariabilityUniform).Set(value)
 
 
 def _basis_attributes(prefix: str, basis: str) -> dict[str, object]:

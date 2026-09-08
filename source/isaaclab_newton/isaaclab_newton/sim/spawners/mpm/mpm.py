@@ -59,10 +59,6 @@ def spawn_mpm_particles(
         raise TypeError(f"Unsupported MPM particle spawner config type: {type(cfg).__name__}")
     cfg.spawn_path = prim_path
 
-    # Register codeless schemas before consulting USD's schema registry. Keep the
-    # imports local so importing config classes before SimulationApp remains safe.
-    import newton_usd_schemas  # noqa: F401, PLC0415
-
     from pxr import Sdf, UsdGeom, UsdShade, Vt  # noqa: PLC0415
 
     from isaaclab.sim.utils import get_current_stage  # noqa: PLC0415
@@ -75,7 +71,8 @@ def spawn_mpm_particles(
 
     points = UsdGeom.Points.Define(stage, f"{prim_path}{_SIMULATION_POINTS_SUFFIX}")
     points_prim = points.GetPrim()
-    if not points_prim.ApplyAPI("NewtonPointsDeformableSimAPI"):
+    # Preserve the raw API metadata when Kit's registry predates the installed codeless schemas.
+    if not points_prim.AddAppliedSchema("NewtonPointsDeformableSimAPI"):
         raise RuntimeError(f"Failed to apply NewtonPointsDeformableSimAPI to '{points_prim.GetPath()}'.")
     if not points_prim.AddAppliedSchema("PhysicsDeformableBodyAPI"):
         raise RuntimeError(f"Failed to apply PhysicsDeformableBodyAPI to '{points_prim.GetPath()}'.")
@@ -84,10 +81,10 @@ def spawn_mpm_particles(
     points.CreateVelocitiesAttr(Vt.Vec3fArray.FromNumpy(np.ascontiguousarray(velocities, dtype=np.float32)))
     points.CreateWidthsAttr(Vt.FloatArray.FromNumpy(np.ascontiguousarray(2.0 * radii, dtype=np.float32)))
     points.SetWidthsInterpolation(UsdGeom.Tokens.vertex)
-    points_prim.GetAttribute("physics:masses").Set(
+    points_prim.CreateAttribute("physics:masses", Sdf.ValueTypeNames.FloatArray, custom=False).Set(
         Vt.FloatArray.FromNumpy(np.ascontiguousarray(masses, dtype=np.float32))
     )
-    points_prim.CreateRelationship("physics:simulationOwner").SetTargets([Sdf.Path(scene_prim.GetPath())])
+    points_prim.CreateRelationship("physics:simulationOwner", custom=False).SetTargets([Sdf.Path(scene_prim.GetPath())])
     points.MakeInvisible()
 
     material = UsdShade.Material.Define(stage, f"{prim_path}{_PHYSICS_MATERIAL_SUFFIX}")
@@ -112,14 +109,16 @@ def _find_owning_mpm_scene(stage: Usd.Stage) -> Usd.Prim:
     if len(candidates) != 1:
         raise RuntimeError(f"MPM particle spawning requires exactly one owning PhysicsScene; found {len(candidates)}.")
     scene_prim = candidates[0]
-    if "NewtonMPMSceneAPI" not in scene_prim.GetAppliedSchemas() and not scene_prim.ApplyAPI("NewtonMPMSceneAPI"):
+    if not scene_prim.AddAppliedSchema("NewtonMPMSceneAPI"):
         raise RuntimeError(f"Failed to apply NewtonMPMSceneAPI to '{scene_prim.GetPath()}'.")
     return scene_prim
 
 
 def _author_mpm_material(material_prim: Usd.Prim, material: MPMParticleMaterialCfg) -> None:
     """Apply ``NewtonMPMMaterialAPI`` and author every supported material value."""
-    if not material_prim.ApplyAPI("NewtonMPMMaterialAPI"):
+    from pxr import Sdf  # noqa: PLC0415
+
+    if not material_prim.AddAppliedSchema("NewtonMPMMaterialAPI"):
         raise RuntimeError(f"Failed to apply NewtonMPMMaterialAPI to '{material_prim.GetPath()}'.")
 
     attributes = {
@@ -139,7 +138,7 @@ def _author_mpm_material(material_prim: Usd.Prim, material: MPMParticleMaterialC
         "newton:mpm:dilatancy": material.dilatancy,
     }
     for name, value in attributes.items():
-        material_prim.GetAttribute(name).Set(float(value))
+        material_prim.CreateAttribute(name, Sdf.ValueTypeNames.Float, custom=False).Set(float(value))
 
 
 def _generate_grid_particles(cfg: MPMGridCfg) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
