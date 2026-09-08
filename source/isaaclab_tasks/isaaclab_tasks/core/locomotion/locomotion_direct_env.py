@@ -66,7 +66,7 @@ class LocomotionDirectEnv(DirectRLEnv):
         self.terrain = self.cfg.terrain.class_type(self.cfg.terrain)
         self.joint_wrench = self.cfg.joint_wrench.class_type(self.cfg.joint_wrench)
         cfg = self.cfg.light_cfg
-        cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn, cfg.init_state.pos, cfg.init_state.rot)
+        cfg.class_type(cfg)
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
         if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])

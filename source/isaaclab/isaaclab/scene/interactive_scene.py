@@ -25,6 +25,7 @@ from isaaclab import cloner
 from isaaclab.assets import (
     Articulation,
     ArticulationCfg,
+    Asset,
     AssetBaseCfg,
     CableObject,
     CableObjectCfg,
@@ -437,12 +438,12 @@ class InteractiveScene:
         return self.sim.get_clone_plan()
 
     @property
-    def extras(self) -> dict[str, AssetBaseCfg]:
-        """A dictionary of miscellaneous simulation objects that neither inherit from assets nor sensors.
+    def extras(self) -> dict[str, Asset]:
+        """A dictionary of authored assets without runtime simulation views.
 
         The keys are the names of the miscellaneous objects, and the values are their
-        spawned configurations. Static assets create no runtime view: their prims are
-        kept exactly as cloned.
+        authoring-only asset instances. Their configuration and spawned prim are available
+        through :attr:`Asset.cfg` and :attr:`Asset.prim`.
 
         As an example, lights or other props in the scene that do not have any attributes or properties that you
         want to alter at runtime can be added to this dictionary.
@@ -884,16 +885,7 @@ class InteractiveScene:
             elif isinstance(asset_cfg, VisualMaterialCfg):
                 self._visual_materials[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):
-                # manually spawn asset (into its clone-plan source env only)
-                if asset_cfg.spawn is not None:
-                    asset_cfg.spawn.func(
-                        asset_cfg.spawn.spawn_path,
-                        asset_cfg.spawn,
-                        translation=asset_cfg.init_state.pos,
-                        orientation=asset_cfg.init_state.rot,
-                    )
-                # static assets create no view: the prims are kept exactly as cloned
-                self._extras[asset_name] = asset_cfg
+                self._extras[asset_name] = asset_cfg.class_type(asset_cfg)
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
 

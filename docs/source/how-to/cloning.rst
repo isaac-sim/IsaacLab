@@ -271,8 +271,8 @@ homogeneous :class:`~isaaclab.envs.DirectRLEnv` subclasses:
             self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
         )
         self.cartpole = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
-        self.cfg.ground_cfg.spawn.func(self.cfg.ground_cfg.spawn.spawn_path, self.cfg.ground_cfg.spawn)
-        self.cfg.light_cfg.spawn.func(self.cfg.light_cfg.spawn.spawn_path, self.cfg.light_cfg.spawn)
+        for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
+            cfg.class_type(cfg)
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
         self.scene.articulations["cartpole"] = self.cartpole
 

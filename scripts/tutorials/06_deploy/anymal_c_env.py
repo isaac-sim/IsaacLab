@@ -66,7 +66,7 @@ class AnymalCEnv(DirectRLEnv):
             self.scene.sensors["height_scanner"] = self._height_scanner
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
         cfg = self.cfg.light
-        cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn, cfg.init_state.pos, cfg.init_state.rot)
+        cfg.class_type(cfg)
         self.scene.articulations["robot"] = self._robot
         self.scene.sensors["contact_sensor"] = self._contact_sensor
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)

@@ -60,7 +60,7 @@ class CartpoleCameraEnv(CartpoleEnv):
         self.cartpole = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)
         self._tiled_camera = self.cfg.tiled_camera.class_type(self.cfg.tiled_camera)
         cfg = self.cfg.light_cfg
-        cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn, cfg.init_state.pos, cfg.init_state.rot)
+        cfg.class_type(cfg)
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
 
         if "physx" in self.scene.physics_backend:

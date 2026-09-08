@@ -238,8 +238,8 @@ adding any other optional objects into the scene, such as lights.
 |     self.sim = super().create_sim(self.device_id, self.graphics_device_id,   |         self.cfg.scene.clone_cfg, asset_cfgs,                          |
 |                                     self.physics_engine, self.sim_params)    |         self.cfg.scene.num_envs, self.cfg.scene.env_spacing)           |
 |     self._create_ground_plane()                                              |     self.cartpole = self.cfg.robot_cfg.class_type(self.cfg.robot_cfg)  |
-|     self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'],          |     ground_cfg.spawn.func(                                             |
-|                         int(np.sqrt(self.num_envs)))                         |         ground_cfg.spawn.spawn_path, ground_cfg.spawn)                 |
+|     self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'],          |     ground_cfg.class_type(ground_cfg)                                  |
+|                         int(np.sqrt(self.num_envs)))                         |                                                                        |
 |                                                                              |     cloner.replicate(plan, replicate_physics=                          |
 |                                                                              |         self.cfg.scene.replicate_physics)                              |
 |                                                                              |     self.scene.articulations["cartpole"] = self.cartpole               |
@@ -261,7 +261,7 @@ For a simple plane, declare the ground in the task config, include it in the fla
    ground_cfg: AssetBaseCfg = AssetBaseCfg(prim_path="/World/ground", spawn=GroundPlaneCfg())
 
    def _setup_scene(self):
-       self.cfg.ground_cfg.spawn.func(self.cfg.ground_cfg.spawn.spawn_path, self.cfg.ground_cfg.spawn)
+       self.cfg.ground_cfg.class_type(self.cfg.ground_cfg)
 
 Use :class:`~terrains.TerrainImporterCfg` instead when the task needs generated or imported terrain rather than a
 single plane.
@@ -665,12 +665,12 @@ the need to set simulation parameters for actors in the task implementation.
 |         self.graphics_device_id, self.physics_engine,                  |         self.cfg.scene.num_envs, self.cfg.scene.env_spacing)        |
 |         self.sim_params)                                               |     self.cartpole = self.cfg.robot_cfg.class_type(                  |
 |     self._create_ground_plane()                                        |         self.cfg.robot_cfg)                                         |
-|     self._create_envs(self.num_envs,                                   |     self.cfg.ground_cfg.spawn.func(                                 |
-|         self.cfg["env"]['envSpacing'],                                 |         self.cfg.ground_cfg.spawn.spawn_path,                       |
-|         int(np.sqrt(self.num_envs)))                                   |         self.cfg.ground_cfg.spawn)                                  |
-|                                                                        |     self.cfg.light_cfg.spawn.func(                                  |
-|                                                                        |         self.cfg.light_cfg.spawn.spawn_path,                        |
-| def _create_ground_plane(self):                                        |         self.cfg.light_cfg.spawn)                                   |
+|     self._create_envs(self.num_envs,                                   |     for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):           |
+|         self.cfg["env"]['envSpacing'],                                 |         cfg.class_type(cfg)                                         |
+|         int(np.sqrt(self.num_envs)))                                   |                                                                     |
+|                                                                        |                                                                     |
+|                                                                        |                                                                     |
+| def _create_ground_plane(self):                                        |                                                                     |
 |     plane_params = gymapi.PlaneParams()                                |     cloner.replicate(plan, replicate_physics=                       |
 |                                                                        |         self.cfg.scene.replicate_physics)                           |
 |     # set the normal force to be z dimension                           |     if "physx" in self.scene.physics_backend:                       |

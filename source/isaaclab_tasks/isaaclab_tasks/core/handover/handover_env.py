@@ -108,7 +108,7 @@ class HandoverEnv(DirectMARLEnv):
         self.left_hand = self.cfg.left_robot_cfg.class_type(self.cfg.left_robot_cfg)
         self.object = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
         for cfg in (self.cfg.ground_cfg, self.cfg.light_cfg):
-            cfg.spawn.func(cfg.spawn.spawn_path, cfg.spawn, cfg.init_state.pos, cfg.init_state.rot)
+            cfg.class_type(cfg)
         self.goal_markers = self.cfg.goal_object_cfg.class_type(self.cfg.goal_object_cfg)
         cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
         if "physx" in self.scene.physics_backend:

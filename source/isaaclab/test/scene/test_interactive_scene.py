@@ -21,7 +21,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
+from isaaclab.assets import ArticulationCfg, Asset, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.cloner import CloneCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
@@ -59,6 +59,13 @@ class MySceneCfg(InteractiveSceneCfg):
             ),
         ),
     )
+
+
+@configclass
+class StaticSceneCfg(InteractiveSceneCfg):
+    """Scene with one authoring-only asset."""
+
+    light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DistantLightCfg())
 
 
 @pytest.fixture
@@ -206,6 +213,16 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
     assert plan.destinations == ("/World/envs/env_{}",)
     assert plan.clone_mask.shape == (1, 4)
     assert replicate_physics is True
+
+
+def test_scene_constructs_authoring_only_assets():
+    """Bare AssetBaseCfg entries follow the same class_type construction contract as runtime assets."""
+    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False):
+        scene = InteractiveScene(StaticSceneCfg(num_envs=1, env_spacing=1.0))
+
+        assert isinstance(scene["light"], Asset)
+        assert scene["light"].cfg.prim_path == "/World/Light"
+        assert scene["light"].prim == scene.stage.GetPrimAtPath("/World/Light")
 
 
 def test_empty_scene_leaves_clone_lifecycle_to_caller():

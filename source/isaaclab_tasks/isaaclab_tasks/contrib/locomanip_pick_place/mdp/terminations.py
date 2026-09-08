@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.assets import Asset, AssetBase
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import quat_apply_inverse
 
@@ -70,10 +70,10 @@ def task_done_pick_place_table_frame(
 
     object: RigidObject = env.scene[object_cfg.name]
     table = env.scene[table_cfg.name]
-    if isinstance(table, AssetBaseCfg):
+    if isinstance(table, Asset) and not isinstance(table, AssetBase):
         # Static assets carry no runtime view; the spawned pose is exact since they never move.
-        table_pos_w = env.scene.env_origins + torch.tensor(table.init_state.pos, device=env.device)
-        table_quat_w = torch.tensor(table.init_state.rot, device=env.device).unsqueeze(0).expand(env.num_envs, -1)
+        table_pos_w = env.scene.env_origins + torch.tensor(table.cfg.init_state.pos, device=env.device)
+        table_quat_w = torch.tensor(table.cfg.init_state.rot, device=env.device).unsqueeze(0).expand(env.num_envs, -1)
     elif hasattr(table, "get_world_poses"):
         table_pos_w, table_quat_w = table.get_world_poses()
         table_pos_w, table_quat_w = table_pos_w.torch, table_quat_w.torch
