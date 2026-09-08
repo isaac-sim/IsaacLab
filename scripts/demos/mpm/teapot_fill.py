@@ -14,10 +14,10 @@ The teapot is a hollow, double-walled shell, so the fluid is seeded in its enclo
     uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer newton_gl
     # Display both the raw particles and reconstructed surface:
     uv run python scripts/demos/mpm/teapot_fill.py --visualizer newton_gl --fluid_render_mode both
-    # Photorealistic translucent water:
-    uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer newton_rtx
-    # The translucent water material needs the RTX/Kit visualizer:
-    uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer kit
+    # Newton RTX path-traced visualizer:
+    uv run --extra ovrtx python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer newton_rtx
+    # Isaac Sim Kit visualizer (particles only):
+    uv run --extra isaacsim python scripts/demos/mpm/teapot_fill.py --device cuda:0 --visualizer kit
     # Fuller / coarser (faster) fill:
     uv run python scripts/demos/mpm/teapot_fill.py --fill_level 1.0 --fill_spacing 0.003
 """
@@ -128,13 +128,13 @@ parser.add_argument(
     "--island_usd",
     type=str,
     default=DEFAULT_ISLAND_USD,
-    help="Optional Kit kitchen-island visual. An empty or unavailable path uses the procedural table.",
+    help="Optional RTX kitchen-island visual. An empty or unavailable path uses the procedural table.",
 )
 parser.add_argument(
     "--bowl_usd",
     type=str,
     default=DEFAULT_BOWL_USD,
-    help="Optional Kit catch-bowl visual. An empty or unavailable path uses the procedural bowl.",
+    help="Optional RTX catch-bowl visual. An empty or unavailable path uses the procedural bowl.",
 )
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
@@ -199,8 +199,8 @@ BOWL_COLOR = (1.0, 1.0, 1.0)
 WATER_COLOR = (0.12, 0.35, 0.78)
 WATER_OPACITY = 0.35
 
-CAMERA_EYE = (0.0, -1.45, 1.35)
-CAMERA_TARGET = (-0.01, 0.0, TABLE_TOP_Z + 0.07)
+CAMERA_EYE = (0.0, -0.72, 1.18)
+CAMERA_TARGET = (0.0, 0.0, TABLE_TOP_Z + 0.10)
 
 # Use tighter kernels than the open-tank dam-break preset so the reconstructed
 # surface stays inside narrow features such as the teapot spout.
@@ -567,7 +567,7 @@ def create_sim_cfg():
                 strain_basis="P0",
                 transfer_scheme="apic",
                 integration_scheme="pic",
-                air_drag=0.2,
+                air_drag=1.0e-3,
                 collider_velocity_mode="forward",
                 # Grid contact avoids impulses from projecting particles out of colliders.
                 project_outside_colliders=False,
@@ -726,11 +726,11 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
                 mass=particle_mass,
                 radius=particle_radius,
                 material=MPMParticleMaterialCfg(
-                    viscosity=0.0,
+                    viscosity=1.0e-3,
                     friction=0.0,
-                    damping=0.02,
+                    damping=1.0e-3,
                     yield_pressure=1.0e15,
-                    tensile_yield_ratio=5.0,
+                    tensile_yield_ratio=1.0,
                 ),
                 visual_color=WATER_COLOR,
                 visual_material=sim_utils.PreviewSurfaceCfg(
@@ -742,10 +742,7 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
             init_state=MPMObjectCfg.InitialStateCfg(pos=container_pos),
         )
 
-        ground = AssetBaseCfg(
-            prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(size=(20.0, 20.0), color=(0.30, 0.30, 0.30)),
-        )
+        ground = AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg())
 
         dome_light = AssetBaseCfg(
             prim_path="/World/DomeLight",
@@ -809,7 +806,7 @@ def main() -> None:
         # Resolve after launching so Kit runs never import USD modules before
         # AppLauncher; Newton-only runs still use standalone omni.client.
         container_usd = retrieve_file_path(args_cli.container_usd)
-        if "kit" in (args_cli.visualizer or []):
+        if {"kit", "newton_rtx"}.intersection(args_cli.visualizer or []):
             island_usd = retrieve_optional_visual_asset(args_cli.island_usd, "kitchen island")
             bowl_usd = retrieve_optional_visual_asset(args_cli.bowl_usd, "catch bowl")
         else:
