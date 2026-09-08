@@ -951,6 +951,18 @@ def test_newton_rtx_visualizer_streaming_view_enabled():
     assert visualizer_off._uses_streaming_view() is False
 
 
+@pytest.mark.parametrize("backend", ["physx", "ovphysx"])
+def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch, backend):
+    """OVRTX is kitless and must fail fast instead of crashing the render thread on first step()."""
+    from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
+    monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: backend))
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
+
+    with pytest.raises(RuntimeError, match="Newton RTX"):
+        visualizer.initialize(Mock())
+
+
 def test_newton_rtx_visualizer_setup_streaming_view_creates_owned_camera(monkeypatch):
     """_setup_streaming_view must create the owned camera sensor on RTX, not return early."""
     generated_camera = object()
