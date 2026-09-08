@@ -634,9 +634,14 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # its USD schema/plugin paths with USD's plug registry before ``super().__init__()``
         # (below) reaches ``ViewerRTX``, which imports ``ovrtx`` and opens a stage referencing
         # ``OmniRtx*API`` schemas. See :func:`~isaaclab_ov.renderers.prepare_ovrtx_runtime` for why.
-        from isaaclab_ov.renderers import prepare_ovrtx_runtime
-
-        prepare_ovrtx_runtime()
+        # Best-effort: ``isaaclab_visualizers`` does not depend on ``isaaclab_ov``, so an install
+        # without it simply skips this log-noise mitigation instead of failing viewer construction.
+        try:
+            from isaaclab_ov.renderers import prepare_ovrtx_runtime
+        except ImportError:
+            pass
+        else:
+            prepare_ovrtx_runtime()
 
         # Assigned before super().__init__(): ViewerRTX reaches
         # _add_camera_lights_and_render_product() during initialization, and the override reads

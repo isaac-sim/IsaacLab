@@ -1,0 +1,2 @@
+Test-only fix: updated a stale exact-dict assertion in test_sim_launcher_visualizer_intent.py for the
+has_newton_rtx_visualizer key added to isaaclab.app.sim_launcher's visualizer intent mapping.

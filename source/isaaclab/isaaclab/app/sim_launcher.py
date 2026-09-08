@@ -535,10 +535,15 @@ def launch_simulation(
         # one-shot-per-process initialization. If that happens first, ovrtx's later `import ovrtx`
         # (inside newton's ViewerRTX, once the newton_rtx visualizer is constructed) is too late to
         # add its schema paths, and applying OmniRtx*API schemas on the render product logs benign
-        # "FindAppliedAPIPrimDefinition(...) returned nothing" errors.
-        from isaaclab_ov.renderers import prepare_ovrtx_runtime
-
-        prepare_ovrtx_runtime()
+        # "FindAppliedAPIPrimDefinition(...) returned nothing" errors. Best-effort: an install
+        # without isaaclab_ov (or without the optional ovrtx extra inside it) simply skips this,
+        # since it is a log-noise mitigation, not something a newton_rtx launch depends on.
+        try:
+            from isaaclab_ov.renderers import prepare_ovrtx_runtime
+        except ImportError:
+            pass
+        else:
+            prepare_ovrtx_runtime()
 
     kit_sources = _get_kit_runtime_sources(config_scan, launcher_args)
     _validate_runtime(config_scan, kit_sources)

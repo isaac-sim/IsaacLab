@@ -74,6 +74,7 @@ def test_launch_simulation_passes_visualizer_intent_to_applauncher(monkeypatch):
         "has_any_visualizers": True,
         "has_kit_visualizer": True,
         "has_kit_streaming_view": False,
+        "has_newton_rtx_visualizer": False,
     }
     assert captured["closed"] is True
 
