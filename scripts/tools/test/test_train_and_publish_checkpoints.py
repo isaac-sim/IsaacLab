@@ -101,6 +101,7 @@ def test_job_commands_use_uv_run_isaaclab() -> None:
         task_name="Isaac-Test",
         physics_backend="physx",
         render_backend="none",
+        preset_names=("depth",),
         physics_selector="isaacsim_physx",
     )
     args = Namespace(max_iterations=None, num_envs=None)
@@ -109,10 +110,37 @@ def test_job_commands_use_uv_run_isaaclab() -> None:
     play_command = job.play_command(args, "/tmp/checkpoint.pt")
 
     assert train_command[:4] == ["uv", "run", "isaaclab", "train"]
-    assert "agent.experiment_name=Isaac-Test_physx_none_rsl_rl" in train_command
+    assert "agent.experiment_name=Isaac-Test_depth_physx_none_rsl_rl" in train_command
     assert play_command[:4] == ["uv", "run", "isaaclab", "play"]
-    assert train_command[-1] == "physics=isaacsim_physx"
-    assert play_command[-1] == "physics=isaacsim_physx"
+    assert train_command[-2:] == ["physics=isaacsim_physx", "presets=depth"]
+    assert play_command[-2:] == ["physics=isaacsim_physx", "presets=depth"]
+
+
+def test_build_core_jobs_includes_declared_checkpoint_presets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Core jobs must include preset-specific checkpoints declared by the task."""
+    task_spec = SimpleNamespace(
+        id="Isaac-Test",
+        kwargs={
+            "env_cfg_entry_point": "isaaclab_tasks.core.test:TestEnvCfg",
+            "rl_games_cfg_entry_point": "isaaclab_tasks.core.test:TestAgentCfg",
+            "rsl_rl_cfg_entry_point": "isaaclab_tasks.core.test:TestAgentCfg",
+            "pretrained_checkpoint_preset_compatibility": {"rl_games": ("depth",)},
+        },
+    )
+    monkeypatch.setattr("scripts.tools.train_and_publish_checkpoints.gym.registry", {task_spec.id: task_spec})
+    monkeypatch.setattr(
+        "scripts.tools.train_and_publish_checkpoints.resolve_task_config", lambda *_, **__: (object(), None)
+    )
+    monkeypatch.setattr("scripts.tools.train_and_publish_checkpoints.enumerate_task_presets", lambda _: {})
+    monkeypatch.setattr(
+        "scripts.tools.train_and_publish_checkpoints.CheckpointBundle.backend_names",
+        lambda _: ("physx", "rtx"),
+    )
+    args = Namespace(physics_backends="physx", render_backends="rtx")
+
+    jobs = _build_core_jobs(args)
+
+    assert [(job.workflow, job.preset_names) for job in jobs] == [("rsl_rl", ()), ("rl_games", ("depth",))]
 
 
 def test_select_physics_variants_uses_concrete_isaac_sim_physx() -> None:
@@ -169,7 +197,7 @@ def test_trained_path_selects_the_preferred_policy_then_the_last_checkpoint(
 ) -> None:
     """The publish script picks the policy like ``--checkpoint best``; companions come from the same run."""
     monkeypatch.chdir(tmp_path)
-    job = CheckpointJob("skrl", "Isaac-Test", "physx", "none", (_FE,))
+    job = CheckpointJob("skrl", "Isaac-Test", "physx", "none", companions=(_FE,))
     assert job.latest_run is None and not job.has_run and not job.has_finished
 
     run = _write_run(job, "2026-09-02_10-00-00", ["checkpoints/agent_100.pt", "cnn_1_0.5.pth", "cnn_2_0.1.pth"])
@@ -234,7 +262,7 @@ def test_publish_refuses_a_bundle_whose_declared_checkpoint_is_missing(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A component needs its declared checkpoint to play, so publishing the policy alone must fail."""
-    job = CheckpointJob("rsl_rl", "Isaac-Test", "newtonmjwarp", "none", (_FE,))
+    job = CheckpointJob("rsl_rl", "Isaac-Test", "newtonmjwarp", "none", companions=(_FE,))
     collected_path = tmp_path / "rsl_rl" / "Isaac-Test_newtonmjwarp_none_rsl_rl.pt"
     collected_path.parent.mkdir()
     collected_path.touch()
@@ -254,8 +282,8 @@ def test_publish_uses_collected_checkpoint_without_training_logs(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Publishing a collected checkpoint must not require its original training logs."""
-    job = CheckpointJob("rsl_rl", "Isaac-Test", "newtonmjwarp", "none")
-    collected_path = tmp_path / "rsl_rl" / "Isaac-Test_newtonmjwarp_none_rsl_rl.pt"
+    job = CheckpointJob("rsl_rl", "Isaac-Test", "newtonmjwarp", "none", ("depth",))
+    collected_path = tmp_path / "rsl_rl" / "Isaac-Test_depth_newtonmjwarp_none_rsl_rl.pt"
     collected_path.parent.mkdir()
     collected_path.touch()
     args = Namespace(
@@ -267,6 +295,6 @@ def test_publish_uses_collected_checkpoint_without_training_logs(
 
     assert publish_pretrained_checkpoint(job, args)
     assert (
-        f"Publishing {collected_path} -> omniverse://checkpoints/rsl_rl/Isaac-Test_newtonmjwarp_none_rsl_rl.pt"
+        f"Publishing {collected_path} -> omniverse://checkpoints/rsl_rl/Isaac-Test_depth_newtonmjwarp_none_rsl_rl.pt"
         in capsys.readouterr().out
     )

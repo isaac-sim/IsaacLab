@@ -17,7 +17,7 @@ checkpoints are collected into one subdirectory per RL library:
     └── skrl/
 
 Each checkpoint is named
-``<task_name>_<physics_backend>_<render_backend>_<rl_library><extension>``.
+``<task_name>[_<preset_names>]_<physics_backend>_<render_backend>_<rl_library><extension>``.
 State-only tasks use ``none`` as the render backend because their policies do
 not depend on rendering. This workflow targets core tasks only; other
 registered tasks do not receive published checkpoints from this matrix. The
@@ -121,19 +121,22 @@ class CheckpointJob(CheckpointBundle):
         render_selector: str | None = None,
         agent: str | None = None,
         algorithm: str | None = None,
+        preset_names: tuple[str, ...] = (),
     ) -> CheckpointJob:
         """Build the job for a task's preset selection from the config those presets produce.
 
         The backend names and the declared checkpoints are read from that config, so the published
         filename and file set describe what the presets actually train.
         """
-        env_cfg, _ = resolve_task_config(
-            task_name, None, overrides=tuple(_preset_args(physics_selector, render_selector))
-        )
+        overrides = list(_preset_args(physics_selector, render_selector))
+        if preset_names:
+            overrides.append(f"presets={','.join(preset_names)}")
+        env_cfg, _ = resolve_task_config(task_name, None, overrides=tuple(overrides))
         return cls.from_env_cfg(
             workflow,
             task_name,
             env_cfg,
+            preset_names,
             physics_selector=physics_selector,
             render_selector=render_selector,
             agent=agent,
@@ -149,12 +152,16 @@ class CheckpointJob(CheckpointBundle):
         """Return the stable human-readable job identifier."""
         if self.is_legacy:
             return f"{self.workflow}:{self.task_name}"
-        return f"{self.workflow}:{self.task_name}:{self.physics_backend}:{self.render_backend}"
+        parts = [self.workflow, self.task_name, *self.preset_names, self.physics_backend, self.render_backend]
+        return ":".join(parts)
 
     @property
     def preset_args(self) -> list[str]:
-        """Return typed preset selectors for this job."""
-        return _preset_args(self.physics_selector, self.render_selector)
+        """Return the preset selectors that reproduce this job."""
+        args = _preset_args(self.physics_selector, self.render_selector)
+        if self.preset_names:
+            args.append(f"presets={','.join(self.preset_names)}")
+        return args
 
     """
     Training runs.
@@ -289,10 +296,7 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "jobs",
         nargs="*",
-        help=(
-            "Job patterns. Legacy jobs use workflow:task. Core matrix patterns "
-            "also match workflow:task:physics:renderer."
-        ),
+        help="Job patterns. Legacy jobs use workflow:task. Core matrix patterns match the displayed job IDs.",
     )
     parser.add_argument("-t", "--train", action="store_true", help="Run full training and collect checkpoints.")
     parser.add_argument("--smoke", action="store_true", help="Run one-iteration backend smoke training.")
@@ -452,18 +456,38 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
         physics_variants = preset_map.get(PresetTarget.PHYSICS, [])
         render_variants = preset_map.get(PresetTarget.RENDERER, [])
         env_cfg, _ = resolve_task_config(task_spec.id, None)
-        workflow, agent, algorithm = _select_workflow(task_spec, env_cfg)
+        preferred_workflow = _select_workflow(task_spec, env_cfg)
+        checkpoint_compatibility = task_spec.kwargs.get("pretrained_checkpoint_preset_compatibility", {})
+        # a preset-specific checkpoint may be published for a workflow that is not the preferred one
+        workflow_selections = [preferred_workflow]
+        workflow_selections.extend(
+            (workflow, None, None)
+            for workflow in checkpoint_compatibility
+            if workflow != preferred_workflow[0] and f"{workflow}_cfg_entry_point" in task_spec.kwargs
+        )
         default_physics = None
         if not physics_variants:
             default_physics, _ = CheckpointBundle.backend_names(env_cfg)
 
         physics_selections = _select_physics_variants(physics_variants, default_physics, physics_backends)
         render_selections = _select_render_variants(render_variants, render_backends)
-        for _physics_backend, physics_selector in physics_selections:
-            for _render_backend, render_selector in render_selections:
-                jobs.append(
-                    CheckpointJob.from_task(task_spec.id, workflow, physics_selector, render_selector, agent, algorithm)
-                )
+        for workflow, agent, algorithm in workflow_selections:
+            checkpoint_presets = [()] if workflow == preferred_workflow[0] else []
+            checkpoint_presets.extend((preset_name,) for preset_name in checkpoint_compatibility.get(workflow, ()))
+            for _physics_backend, physics_selector in physics_selections:
+                for _render_backend, render_selector in render_selections:
+                    for preset_names in checkpoint_presets:
+                        jobs.append(
+                            CheckpointJob.from_task(
+                                task_spec.id,
+                                workflow,
+                                physics_selector,
+                                render_selector,
+                                agent,
+                                algorithm,
+                                preset_names,
+                            )
+                        )
     return jobs
 
 
@@ -636,6 +660,7 @@ def _summary_row(job: CheckpointJob, output_dir: str) -> list[str | bool]:
     return [
         job.workflow,
         job.task_name,
+        ",".join(job.preset_names),
         job.physics_backend or "",
         job.render_backend or "",
         job.physics_selector or "",
@@ -675,6 +700,7 @@ def main(argv: list[str] | None = None) -> int:
             [
                 "Workflow",
                 "Task",
+                "Presets",
                 "Physics",
                 "Renderer",
                 "Physics selector",

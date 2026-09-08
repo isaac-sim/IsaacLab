@@ -14,7 +14,10 @@ Changed
 * **Breaking:** Replaced the free functions of :mod:`isaaclab_rl.utils.pretrained_checkpoint` that took a
   ``(workflow, task_name, physics_backend, render_backend)`` tuple with the
   :class:`~isaaclab_rl.utils.pretrained_checkpoint.CheckpointBundle` class, which owns the published,
-  cached and collected paths of one task variant and the checkpoints its components declare. Local
+  cached and collected paths of one task variant and the checkpoints its components declare. A variant
+  includes the non-default domain presets that change the policy, so the published name keeps the
+  ``<task>[_<presets>]_<physics>_<render>_<workflow>`` form.
+  :func:`~isaaclab_rl.utils.pretrained_checkpoint.get_pretrained_checkpoint_preset_names` is unchanged. Local
   training-run state moved to the publish script's ``CheckpointJob``.
   :func:`~isaaclab_rl.utils.pretrained_checkpoint.get_published_pretrained_checkpoint` is unchanged.
   Migration, with ``b = CheckpointBundle(workflow, task_name, physics_backend, render_backend)``:
@@ -24,8 +27,8 @@ Changed
 
      * - Removed
        - Replacement
-     * - ``get_pretrained_checkpoint_filename(*t)``
-       - ``b.filename()``
+     * - ``get_pretrained_checkpoint_filename(*t, preset_names=...)``
+       - ``CheckpointBundle(*t, preset_names).filename()``
      * - ``get_pretrained_checkpoint_backend_names(env_cfg)``
        - ``CheckpointBundle.backend_names(env_cfg)``
      * - ``get_declared_checkpoints(env_cfg)``

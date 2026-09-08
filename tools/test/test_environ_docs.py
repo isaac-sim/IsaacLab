@@ -10,6 +10,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import gymnasium as gym
 import pytest
 from gymnasium.envs.registration import EnvSpec
 
@@ -201,21 +202,42 @@ def test_physics_names_for_docs_infers_physx_from_default():
     assert names == ["newton_mjwarp", "physx"]
 
 
-def test_preset_exclusions_remove_only_runtime_disabled_task_combinations():
+@pytest.mark.parametrize(
+    "task_name",
+    [
+        "IsaacContrib-Factory-Franka",
+        "IsaacContrib-Stack-Cube-Franka",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position",
+        "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow",
+        "IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel",
+    ],
+)
+def test_preset_exclusions_remove_runtime_disabled_task_combinations(task_name: str):
     presets = {
         PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp"],
         PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
         PresetTarget.DOMAIN: ["rgb"],
     }
 
-    excluded = _apply_preset_exclusions("IsaacContrib-Stack-Cube-Franka", presets)
-    unchanged = _apply_preset_exclusions("Isaac-Lift-Franka", presets)
+    excluded = _apply_preset_exclusions(task_name, presets)
 
     assert excluded == {
         PresetTarget.PHYSICS: ["isaacsim_physx"],
         PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
         PresetTarget.DOMAIN: ["rgb"],
     }
+
+
+def test_preset_exclusions_keep_supported_task_combinations():
+    presets = {
+        PresetTarget.PHYSICS: ["isaacsim_physx", "newton_mjwarp"],
+        PresetTarget.RENDERER: ["isaacsim_rtx", "newton_renderer"],
+        PresetTarget.DOMAIN: ["rgb"],
+    }
+
+    unchanged = _apply_preset_exclusions("Isaac-Lift-Franka", presets)
+
     assert unchanged == presets
 
 
@@ -268,6 +290,16 @@ def test_collect_environment_doc_rows_includes_registered_agent_preset_compatibi
     assert rows[0].agent_preset_compatibility == {
         "rsl_rl_cfg_entry_point": ("rgb",),
         "rsl_rl_feature_cfg_entry_point": ("resnet18",),
+    }
+
+
+def test_collect_environment_doc_rows_includes_checkpoint_preset_compatibility():
+    """Checkpoint preset availability must be carried into generated browser rows."""
+    row = collect_environment_doc_rows([gym.spec("Isaac-Cartpole-Camera-Direct")])[0]
+
+    assert row.pretrained_checkpoint_preset_compatibility == {
+        "*": ("rgb",),
+        "rl_games": ("depth",),
     }
 
 
@@ -402,6 +434,7 @@ def test_environment_browser_rows_include_concrete_core_and_contributed_selector
                 "rsl_rl_feature_cfg_entry_point": ("resnet18", "theia_tiny"),
             },
             supports_warp_frontend=True,
+            pretrained_checkpoint_preset_compatibility={"*": ("rgb",), "rsl_rl": ("depth",)},
         ),
         EnvironmentDocRow(
             task_name="IsaacContrib-Cartpole",
@@ -437,8 +470,26 @@ def test_environment_browser_rows_include_concrete_core_and_contributed_selector
     assert '"ovphysx"' in updated
     assert '"tasks/classic/cartpole.jpg"' in updated
     assert '"tasks/classic/cartpole.jpg", true' in updated
+    assert '"*": ["rgb"]' in updated
+    assert '"rsl_rl": ["depth"]' in updated
     assert updated.index('"Isaac-Cartpole"') < updated.index('"IsaacContrib-Cartpole"')
     assert "const preserved = true;" in updated
+
+
+def test_environment_browser_rows_include_mappo_as_the_skrl_default():
+    """Tasks offering MAPPO must make it the generated SKRL command default."""
+    rows = [
+        EnvironmentDocRow(
+            task_name="Isaac-Multi-Agent-Direct",
+            workflow="Direct",
+            rl_libraries={"skrl": ["IPPO", "MAPPO", "PPO"]},
+            presets=None,
+        )
+    ]
+
+    rendered = render_environment_browser_task_rows(rows)
+
+    assert '["Isaac-Multi-Agent-Direct", "skrl", "", "", "", {}, "", false, {}, {"skrl": "MAPPO"}]' in rendered
 
 
 def test_collect_environment_browser_preview_images_preserves_generated_assignments():

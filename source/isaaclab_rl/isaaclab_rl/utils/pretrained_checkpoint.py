@@ -11,6 +11,8 @@ import fnmatch
 import glob
 import os
 import posixpath
+import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
@@ -102,12 +104,60 @@ WORKFLOWS: dict[str, Workflow] = {
 """The supported workflows for pre-trained checkpoints, by name."""
 
 
+def get_pretrained_checkpoint_preset_names(task_name: str, overrides: Sequence[str] | None = None) -> tuple[str, ...]:
+    """Return non-default domain presets selected for a checkpoint.
+
+    Preset aliases whose value is the preset's ``default`` are omitted so existing
+    unsuffixed checkpoints remain compatible. Typed physics and renderer selectors
+    are also omitted because they already have dedicated checkpoint fields.
+
+    Args:
+        task_name: Registered task name.
+        overrides: Hydra-style overrides. Defaults to :data:`sys.argv`.
+
+    Returns:
+        Selected non-default domain preset names in canonical order.
+    """
+    from isaaclab_tasks.utils.hydra import collect_presets
+    from isaaclab_tasks.utils.preset_target import PresetTarget
+
+    selected_names = []
+    for override in sys.argv[1:] if overrides is None else overrides:
+        if "=" not in override:
+            continue
+        key, value = override.split("=", 1)
+        if key.lstrip("-") == PresetTarget.DOMAIN.value:
+            selected_names.extend(name.strip() for name in value.split(",") if name.strip())
+
+    if not selected_names:
+        return ()
+
+    preset_fields = collect_presets(load_cfg_from_registry(task_name, "env_cfg_entry_point"))
+    typed_targets = tuple(target for target in PresetTarget if target.base_classes)
+    typed_names = {
+        name
+        for fields in preset_fields.values()
+        for name, value in fields.items()
+        if any(target.matches(value) for target in typed_targets)
+    }
+    non_default_domain_names = {
+        name
+        for fields in preset_fields.values()
+        for name, value in fields.items()
+        if name != "default" and name not in typed_names and not _preset_value_matches_default(value, fields)
+    }
+    return _normalize_pretrained_checkpoint_preset_names(
+        name for name in selected_names if name in non_default_domain_names
+    )
+
+
 @dataclass(frozen=True)
 class CheckpointBundle:
     """The published files of one trained task variant: a policy and the checkpoints declared beside it.
 
-    A variant is one workflow, task, physics backend and render backend. Backend-aware bundles are
-    published flat under ``<root>/<workflow>/`` as ``<task>_<physics>_<render>_<workflow><ext>``, with
+    A variant is one workflow, task, physics backend, render backend and the non-default domain
+    presets that change the policy. Backend-aware bundles are published flat under
+    ``<root>/<workflow>/`` as ``<task>[_<presets>]_<physics>_<render>_<workflow><ext>``, with
     a declared checkpoint at ``<stem>_<name><ext>`` beside the policy. Omitting both backends selects
     the legacy layout ``<root>/<workflow>/<task>/checkpoint<ext>``.
 
@@ -118,6 +168,9 @@ class CheckpointBundle:
     task_name: str
     physics_backend: str | None = None
     render_backend: str | None = None
+    preset_names: tuple[str, ...] = ()
+    """Non-default domain presets that change which policy a task trains."""
+
     companions: tuple[Checkpoint, ...] = ()
     """Run artifacts the task's components declare, published beside the policy."""
 
@@ -125,6 +178,8 @@ class CheckpointBundle:
         if self.workflow not in WORKFLOWS:
             raise ValueError(f"Unsupported workflow: {self.workflow!r}")
         if self.is_legacy:
+            if self.preset_names:
+                raise ValueError("preset_names require backend-aware checkpoint naming")
             return
         if self.physics_backend is None or self.render_backend is None:
             raise ValueError("physics_backend and render_backend must be provided together")
@@ -140,6 +195,7 @@ class CheckpointBundle:
         workflow: str,
         task_name: str,
         env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg,
+        preset_names: Sequence[str] | None = None,
         **fields,
     ) -> CheckpointBundle:
         """Build the bundle a resolved environment config trains.
@@ -151,10 +207,23 @@ class CheckpointBundle:
             workflow: RL workflow name.
             task_name: Registered task name.
             env_cfg: Resolved environment configuration.
+            preset_names: Non-default domain presets this bundle was trained under. ``None``
+                resolves them from the ``presets=`` selectors on the command line.
             **fields: Further fields of a subclass.
         """
         physics_backend, render_backend = cls.backend_names(env_cfg)
-        return cls(workflow, task_name, physics_backend, render_backend, cls.declared_companions(env_cfg), **fields)
+        if preset_names is None:
+            preset_names = get_pretrained_checkpoint_preset_names(task_name)
+        preset_names = tuple(preset_names)
+        return cls(
+            workflow,
+            task_name,
+            physics_backend,
+            render_backend,
+            preset_names,
+            cls.declared_companions(env_cfg),
+            **fields,
+        )
 
     @staticmethod
     def declared_companions(
@@ -205,7 +274,8 @@ class CheckpointBundle:
         """The published filename without extension. Training runs log under this experiment name."""
         if self.is_legacy:
             return self.task_name
-        return f"{self.task_name}_{self.physics_backend}_{self.render_backend}_{self.workflow}"
+        parts = (self.task_name, *self.preset_names, self.physics_backend, self.render_backend, self.workflow)
+        return "_".join(parts)
 
     def filename(self, checkpoint: Checkpoint | None = None) -> str:
         """Return the published filename of the policy, or of a declared checkpoint beside it."""
@@ -301,6 +371,7 @@ def get_published_pretrained_checkpoint(
     physics_backend: str | None = None,
     render_backend: str | None = None,
     *,
+    preset_names: Sequence[str] | None = None,
     env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg | None = None,
 ) -> str | None:
     """Gets the path for the pre-trained checkpoint.
@@ -312,9 +383,12 @@ def get_published_pretrained_checkpoint(
         workflow: The workflow.
         task_name: The task name.
         physics_backend: Physics backend name. Omit with :paramref:`render_backend`
-            to use the legacy checkpoint layout, or to derive both from :paramref:`env_cfg`.
+            to use the legacy checkpoint layout.
         render_backend: Render backend name. Omit with :paramref:`physics_backend`
-            to use the legacy checkpoint layout, or to derive both from :paramref:`env_cfg`.
+            to use the legacy checkpoint layout.
+        preset_names: Non-default domain presets that affect policy compatibility.
+            For backend-aware checkpoints, defaults to resolving ``presets=`` selectors
+            from :data:`sys.argv`. Legacy checkpoints do not use preset-qualified names.
         env_cfg: Resolved environment configuration. Supplies the backends when they are not
             given, and the checkpoints its components declare.
 
@@ -330,13 +404,16 @@ def get_published_pretrained_checkpoint(
             instance because the local cache directory is not writable. The originating
             error is chained as the cause.
     """
+    if preset_names is None and physics_backend is not None and render_backend is not None:
+        preset_names = get_pretrained_checkpoint_preset_names(task_name)
+    presets = tuple(preset_names or ())
     if env_cfg is None:
-        bundle = CheckpointBundle(workflow, task_name, physics_backend, render_backend)
+        bundle = CheckpointBundle(workflow, task_name, physics_backend, render_backend, presets)
     elif physics_backend is None and render_backend is None:
         bundle = CheckpointBundle.from_env_cfg(workflow, task_name, env_cfg)
     else:
         companions = CheckpointBundle.declared_companions(env_cfg)
-        bundle = CheckpointBundle(workflow, task_name, physics_backend, render_backend, companions)
+        bundle = CheckpointBundle(workflow, task_name, physics_backend, render_backend, presets, companions)
     return bundle.fetch()
 
 
@@ -356,6 +433,24 @@ def _download_error(remote_path: str, download_dir: str, exc: Exception) -> Runt
         f"Failed to download the pre-trained checkpoint '{remote_path}' into"
         f" '{os.path.abspath(download_dir)}': {type(exc).__name__}: {exc}.{hint}"
     )
+
+
+def _normalize_pretrained_checkpoint_preset_names(preset_names: Sequence[str]) -> tuple[str, ...]:
+    """Return unique, validated checkpoint preset names in canonical order."""
+    normalized = tuple(sorted(set(preset_names)))
+    invalid = [name for name in normalized if not name or not name.replace("_", "").isalnum()]
+    if invalid:
+        raise ValueError(f"Invalid checkpoint preset names: {invalid}")
+    return normalized
+
+
+def _preset_value_matches_default(value, fields: dict) -> bool:
+    """Return whether a preset value is structurally equivalent to its default."""
+    default = fields.get("default")
+    try:
+        return bool(value == default)
+    except (RuntimeError, TypeError, ValueError):
+        return value is default
 
 
 def _get_physics_backend_name(physics_cfg: PhysicsCfg | None) -> str:

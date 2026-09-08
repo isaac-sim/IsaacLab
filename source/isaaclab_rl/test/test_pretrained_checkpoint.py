@@ -54,11 +54,22 @@ _FE = Checkpoint(name="feature_extractor", run_glob="cnn_*.pth")
 
 def test_bundle_filenames_follow_the_published_naming_pattern():
     """Backend-aware files are ``<task>_<physics>_<render>_<workflow><ext>``, companions add ``_<name>``."""
-    bundle = CheckpointBundle("rsl_rl", "Isaac-Cartpole", "newtonmjwarp", "rtx", (_FE,))
+    bundle = CheckpointBundle("rsl_rl", "Isaac-Cartpole", "newtonmjwarp", "rtx", companions=(_FE,))
 
     assert bundle.stem == "Isaac-Cartpole_newtonmjwarp_rtx_rsl_rl"
     assert bundle.filename() == "Isaac-Cartpole_newtonmjwarp_rtx_rsl_rl.pt"
     assert bundle.filename(_FE) == "Isaac-Cartpole_newtonmjwarp_rtx_rsl_rl_feature_extractor.pth"
+
+
+def test_preset_names_qualify_the_published_stem():
+    """A non-default domain preset names a distinct policy, so it qualifies the published file."""
+    bundle = CheckpointBundle("rl_games", "Isaac-Cartpole-Camera-Direct", "newtonmjwarp", "newton", ("depth",))
+
+    assert bundle.stem == "Isaac-Cartpole-Camera-Direct_depth_newtonmjwarp_newton_rl_games"
+    assert bundle.filename() == "Isaac-Cartpole-Camera-Direct_depth_newtonmjwarp_newton_rl_games.pth"
+
+    with pytest.raises(ValueError, match="preset_names require backend-aware"):
+        CheckpointBundle("rl_games", "Isaac-Cartpole", preset_names=("depth",))
 
 
 def test_legacy_bundle_keeps_the_per_task_layout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -139,7 +150,7 @@ def test_published_path_is_flat_within_the_workflow_directory(monkeypatch: pytes
     monkeypatch.setattr(
         pretrained_checkpoint, "PRETRAINED_CHECKPOINT_PATH", "omniverse://IsaacLab/PretrainedCheckpoints"
     )
-    bundle = CheckpointBundle("skrl", "Isaac-Shadow-Handover-Direct", "newtonmjwarp", "none", (_FE,))
+    bundle = CheckpointBundle("skrl", "Isaac-Shadow-Handover-Direct", "newtonmjwarp", "none", companions=(_FE,))
     root = "omniverse://IsaacLab/PretrainedCheckpoints/skrl"
 
     assert bundle.published_path() == f"{root}/Isaac-Shadow-Handover-Direct_newtonmjwarp_none_skrl.pt"
@@ -155,7 +166,7 @@ def test_published_path_is_flat_within_the_workflow_directory(monkeypatch: pytes
 
 def test_collected_path_mirrors_the_published_layout(tmp_path: Path):
     """The collect step writes the same relative tree the publish step reads."""
-    bundle = CheckpointBundle("rsl_rl", "Isaac-Cartpole", "physx", "none", (_FE,))
+    bundle = CheckpointBundle("rsl_rl", "Isaac-Cartpole", "physx", "none", companions=(_FE,))
 
     assert bundle.collected_path(str(tmp_path)) == str(tmp_path / "rsl_rl" / "Isaac-Cartpole_physx_none_rsl_rl.pt")
     assert bundle.collected_path(str(tmp_path), _FE).endswith("_rsl_rl_feature_extractor.pth")
@@ -286,6 +297,27 @@ def test_get_published_pretrained_checkpoint_tolerates_a_missing_companion(
     assert path is not None
     assert sorted(p.name for p in Path(path).parent.iterdir()) == ["Isaac-Cartpole_physx_none_rsl_rl.pt"]
     assert env_cfg.extractor.checkpoint.local_path is None
+
+
+def test_get_published_pretrained_checkpoint_names_the_selected_presets(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """Test that a non-default domain preset qualifies both the published name and the cache directory."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    monkeypatch.setattr("sys.argv", ["play.py", "presets=depth"])
+    stem = "Isaac-Cartpole-Camera-Direct_depth_newtonmjwarp_newton_rl_games"
+    remote_path = f"omniverse://IsaacLab/PretrainedCheckpoints/rl_games/{stem}.pth"
+    retrieved = _install_fake_retrieve(monkeypatch, {remote_path})
+
+    path = pretrained_checkpoint.get_published_pretrained_checkpoint(
+        "rl_games", "Isaac-Cartpole-Camera-Direct", "newtonmjwarp", "newton"
+    )
+
+    expected_download_dir = str(Path(".pretrained_checkpoints") / "rl_games" / stem)
+    assert retrieved == [(remote_path, expected_download_dir)]
+    assert path is not None and Path(path).name == f"{stem}.pth"
 
 
 def test_get_published_pretrained_checkpoint_reports_unpublished_checkpoint(
