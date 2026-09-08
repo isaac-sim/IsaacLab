@@ -631,16 +631,22 @@ class IsaacRtxRenderer(BaseRenderer):
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
             # ``reshape_tiled_image`` indexes the tiled buffer as
-            # (num_tiles_y * height, num_tiles_x * width, channels). Annotators hand this data back with
-            # varying shapes: 3D for multi-channel outputs, 2D for single-channel ones, and 2D
-            # ``(pixels, 4)`` for the colorized segmentation buffers reinterpreted above. Reshape to the
-            # documented tiled geometry rather than inferring it from ``ndim``, which silently mis-indexes
-            # the reinterpreted segmentation buffers. Reshaping instead of flattening keeps every
-            # dimension within Warp's per-dimension array size limit, so large environment counts and
-            # camera resolutions no longer overflow a single flattened dimension.
+            # (num_tiles_y * height, num_tiles_x * width, channels), but annotators hand this data back
+            # with varying shapes: 3D for multi-channel outputs, 2D for single-channel ones, and — for the
+            # colorized segmentation types reinterpreted above — a descriptor that over-claims the backing
+            # memory when the raw buffer already carries a channel axis (e.g. (H, W, 4) becomes (H, W, 4, 4)).
+            # Build the view directly from the pointer rather than reshaping, so the extra claimed elements
+            # are ignored exactly as the previous flattened indexing ignored them. Keeping the view 3D
+            # instead of 1D also keeps every dimension within Warp's per-dimension array size limit, so
+            # large environment counts and camera resolutions no longer overflow a flattened dimension.
             tile_height, tile_width, num_channels = (int(dim) for dim in buf_wp.shape[1:])
-            tiled_data_buffer = tiled_data_buffer.reshape(
-                (num_tiles_y * tile_height, num_tiles_x * tile_width, num_channels)
+            # ``tiled_source`` must outlive the view below: the view does not own the annotator memory.
+            tiled_source = tiled_data_buffer
+            tiled_data_buffer = wp.array(
+                ptr=tiled_source.ptr,
+                shape=(num_tiles_y * tile_height, num_tiles_x * tile_width, num_channels),
+                dtype=tiled_source.dtype,
+                device=device,
             )
 
             wp.launch(
