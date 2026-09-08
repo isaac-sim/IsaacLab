@@ -37,7 +37,13 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.velocity.velocity_env_cfg import ObservationsCfg
 
-from .rough_29dof_dr_env_cfg import _HISTORY_LENGTH, _HISTORY_TERMS, G129DofRoughAirTime100DREnvCfg
+from .rough_29dof_dr_env_cfg import (
+    _HISTORY_LENGTH,
+    _HISTORY_TERMS,
+    _WAIST_L2_WEIGHTS,
+    G129DofRoughAirTime100DREnvCfg,
+    _add_waist_l2,
+)
 
 
 @configclass
@@ -56,6 +62,27 @@ class G129DofRoughAirTime100RobustEnvCfg(G129DofRoughAirTime100DREnvCfg):
 
 
 @configclass
+class G129DofRoughAirTime100RobustWaistEnvCfg(G129DofRoughAirTime100RobustEnvCfg):
+    """The teacher, with the waist held upright.
+
+    :class:`G129DofRoughAirTime100RobustEnvCfg` was written before the recline was found, and it
+    reproduces it: measured on its 6000-iteration checkpoint, ``waist_pitch`` is -24.3 degrees and
+    the torso link -26.7, against -0.35 and -0.46 on w100. Nothing in that arm argues with it --
+    ``joint_deviation_hip`` covers ``hip_roll`` and ``hip_yaw``, not the waist, and the waist's own
+    term is the stock L1 at -0.1, which prices 24 degrees at 0.04 per step against a lean that is
+    both steadier under a push and cheaper to hold.
+
+    Distilling from a teacher that walks reclined can only produce a student that walks reclined, so
+    the fix belongs here rather than in the student. The same repricing on the un-self-colliding arm
+    (``t1``) took ``waist_pitch`` to +0.85 degrees with ``success_rate`` 1.000.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        _add_waist_l2(self, _WAIST_L2_WEIGHTS["t1"])
+
+
+@configclass
 class G129DofRoughAirTime100DistillObservationsCfg(ObservationsCfg):
     """Two groups: what the robot can publish, and what the teacher was trained on."""
 
@@ -67,8 +94,12 @@ class G129DofRoughAirTime100DistillObservationsCfg(ObservationsCfg):
 
 
 @configclass
-class G129DofRoughAirTime100DistillEnvCfg(G129DofRoughAirTime100RobustEnvCfg):
-    """Distil the sighted w100 teacher into a proprioception-only student."""
+class G129DofRoughAirTime100DistillEnvCfg(G129DofRoughAirTime100RobustWaistEnvCfg):
+    """Distil the sighted w100 teacher into a proprioception-only student.
+
+    Built on the waist-corrected teacher: the student's environment has to match the one its teacher
+    was trained in, and the teacher observation group has to reproduce that teacher's input exactly.
+    """
 
     observations: G129DofRoughAirTime100DistillObservationsCfg = G129DofRoughAirTime100DistillObservationsCfg()
 
