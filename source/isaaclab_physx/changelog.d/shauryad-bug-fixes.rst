@@ -1,10 +1,3 @@
-Fixed
-^^^^^
-
-* Fixed ``IsaacRtxRenderer.render()`` crashing with ``RuntimeError: Invalid indexing in slice``
-  when an annotator's channel buffer has not warmed up yet (e.g. right after attach, at env
-  creation) for the ``motion_vectors``, ``normals``, simple-shading, and RGB HDR data types.
-
 Changed
 ^^^^^^^
 
