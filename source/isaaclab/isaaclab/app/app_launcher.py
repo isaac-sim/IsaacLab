@@ -1379,6 +1379,19 @@ class AppLauncher:
             logging.getLogger().setLevel(logging.INFO)
         settings = get_settings_manager()
 
+        # Temporary: several shipped USD assets author a material-binding relationship that
+        # falls outside the scope of the reference or instanceable arc that composes it (for
+        # example a MuJoCo-converter payload split, or Isaac Sim's own "_instanceable.usd"
+        # wrapper convention). When PhysX's material-binding walk resolves that relationship
+        # during scene cooking, USD logs a "refers to a path outside the scope of the
+        # reference ... Ignoring" diagnostic per affected prim -- in every case audited so far
+        # a functional no-op, since the dropped relationship duplicates a correctly-scoped
+        # binding established elsewhere on the same prim, but noisy enough to bury real
+        # warnings for assets with many collision-geometry parts (NVBugs 6629400 and the
+        # [Isaac-Sim 6.0 rc59] AllegroHand ovphysx report). A future ``ovstage`` release is
+        # expected to filter this diagnostic class by default; mute it globally until then.
+        settings.set_bool("/persistent/app/usd/muteUsdDiagnostics", True)
+
         # Publish whether Kit has an interactive GUI (local window, livestream, or XR).
         # SimulationContext and renderers consume this setting during their initialization.
         settings.set_bool("/isaaclab/has_gui", not self._headless or self._livestream >= 1 or self._xr)
