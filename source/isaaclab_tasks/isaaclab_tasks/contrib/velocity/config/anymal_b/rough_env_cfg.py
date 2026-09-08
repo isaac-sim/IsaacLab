@@ -17,7 +17,7 @@ from isaaclab_assets import ANYMAL_B_CFG  # isort: skip
 @configclass
 class AnymalBRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
-        # switch robot to anymal-b
+
+        # scene
         self.scene.robot = ANYMAL_B_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")

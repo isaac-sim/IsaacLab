@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton OpenGL visualizer backend.
+"""Newton visualizer backends (GL and RTX).
 
 This package keeps imports lazy so configuration-only imports do not pull in
 the heavy viewer/runtime stack before Isaac Sim has finished bootstrapping.
@@ -13,17 +13,37 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .newton_visualizer_cfg import NewtonVisualizerCfg
+from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
 
 if TYPE_CHECKING:
-    from .newton_visualizer import NewtonVisualizer
+    from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer, NewtonVisualizer
 
-__all__ = ["NewtonVisualizer", "NewtonVisualizerCfg"]
+__all__ = [
+    # Base config (shared fields, not directly instantiable as a visualizer)
+    "NewtonVisualizerCfg",
+    # GL backend
+    "NewtonGLVisualizer",
+    "NewtonGLVisualizerCfg",
+    # RTX backend
+    "NewtonRTXVisualizer",
+    "NewtonRTXVisualizerCfg",
+]
 
 
 def __getattr__(name: str):
-    if name == "NewtonVisualizer":
-        from .newton_visualizer import NewtonVisualizer
+    if name in ("NewtonVisualizer", "NewtonGLVisualizer", "NewtonRTXVisualizer"):
+        from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer, NewtonVisualizer
 
-        return NewtonVisualizer
+        if name == "NewtonGLVisualizer":
+            return NewtonGLVisualizer
+        if name == "NewtonRTXVisualizer":
+            return NewtonRTXVisualizer
+        import warnings
+
+        warnings.warn(
+            "NewtonVisualizer is deprecated and will be removed in a future release. Use NewtonGLVisualizer instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return NewtonGLVisualizer
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

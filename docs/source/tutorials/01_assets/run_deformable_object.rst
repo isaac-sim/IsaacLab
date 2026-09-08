@@ -13,7 +13,8 @@ surface deformables (cloth), see the deformable demo at ``scripts/demos/deformab
 
 The deformable object API and schema define/modify functions are shared across backends, while deformable
 property and material configuration classes are backend-specific. PhysX simulates soft bodies using the Finite
-Element Method (FEM); the Newton experimental backend uses VBD-based deformable support from
+Element Method (FEM); the Newton experimental backend uses the core VBD solver from
+:mod:`isaaclab_newton.physics` with the deformable object integration from
 :mod:`isaaclab_contrib.deformable`.
 The volume deformable comprises of two tetrahedral meshes -- a simulation mesh and a collision mesh. The simulation
 mesh is used to simulate the deformations of the soft body, while the collision mesh is used to detect collisions
@@ -22,6 +23,21 @@ with other objects in the scene. For PhysX-specific details, please check the `P
 This tutorial shows how to interact with a deformable object in the simulation. We will spawn a
 set of soft cubes and see how to set their nodal positions and velocities, along with apply kinematic
 commands to the mesh nodes to move the soft body.
+
+.. note::
+
+   This tutorial automatically tetrahedralizes volume deformables, and its default
+   visualizer is Kit. Run it with the ``isaacsim`` and ``tetrahedralization`` extras:
+
+   .. code-block:: bash
+
+      uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py --visualizer kit
+
+   With the legacy installer, install the optional dependencies first:
+
+   .. code-block:: bash
+
+      ./isaaclab.sh -i tetrahedralization
 
 
 The Code
@@ -34,7 +50,7 @@ The tutorial corresponds to the ``run_deformable_object.py`` script in the ``scr
 
    .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_deformable_object.py
       :language: python
-      :emphasize-lines: 65-98, 119-124, 126-135, 140-148, 150-158
+      :emphasize-lines: 71-117, 146-151, 153-162, 167-175, 177-178, 184-189
       :linenos:
 
 
@@ -169,7 +185,7 @@ Now that we have gone through the code, let's run the script and see the result:
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/01_assets/run_deformable_object.py --visualizer kit
+         uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py --visualizer kit
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -185,7 +201,7 @@ To run the same tutorial with the experimental Newton deformable backend:
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/01_assets/run_deformable_object.py --backend newton_vbd --visualizer kit
+         uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py --backend newton_vbd --visualizer kit
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat

@@ -18,11 +18,20 @@ The script automatically detects which stack to use based on the environment con
 
 """Launch Isaac Sim Simulator first."""
 
+# Isaac Lab does not use Warp autodiff; skipping adjoint codegen roughly halves the
+# time spent building kernels on a cold kernel cache.
+import warp as wp
+
+wp.config.enable_backward = False
+
 import argparse
+import sys
 from collections.abc import Callable
 
 from isaaclab.app import AppLauncher
 from isaaclab.utils.string import list_intersection, string_to_callable
+
+from isaaclab_tasks.utils import setup_preset_cli
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Teleoperation for Isaac Lab environments.")
@@ -80,7 +89,7 @@ parser.add_argument(
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
-args_cli, remaining_args = parser.parse_known_args()
+args_cli, hydra_args = setup_preset_cli(parser)
 
 app_launcher_args = vars(args_cli)
 
@@ -97,10 +106,9 @@ if args_cli.external_callback:
     external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
     remaining_args_env_registration = external_callback_function()
 
-# Error on unrecognized arguments.
-unrecognized_args = list_intersection(remaining_args, remaining_args_env_registration)
-if unrecognized_args:
-    parser.error(f"unrecognized arguments: {' '.join(unrecognized_args)}")
+# Hand arguments consumed by neither this parser nor the callback over to Hydra.
+hydra_args = list_intersection(hydra_args, remaining_args_env_registration)
+sys.argv = [sys.argv[0]] + hydra_args
 
 """Rest everything follows."""
 
@@ -122,7 +130,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.lift import mdp
-from isaaclab_tasks.utils import parse_env_cfg
+from isaaclab_tasks.utils import resolve_task_config
 
 logger = logging.getLogger(__name__)
 
@@ -212,20 +220,20 @@ def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
     return driver.update, driver.stop
 
 
-def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, headless: bool):
+def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, has_window: bool):
     """Create an optional keyboard for headset-free IsaacTeleop control.
 
     Binds ``B`` / ``P`` / ``R`` to start-resume / pause / reset so a user can drive
-    the teleop state machine without an XR headset. Keys are captured through the Kit
-    app window, so this returns ``None`` when running headless or when IsaacTeleop is
-    not the active stack (a headless run still auto-starts teleop). ``R`` is an operator
+    the teleop state machine without an XR headset. Keys are captured through the app
+    window, so this returns ``None`` when there is no window or when IsaacTeleop is
+    not the active stack (a windowless run still auto-starts teleop). ``R`` is an operator
     reset: :meth:`~isaaclab_teleop.IsaacTeleopDevice.reset` with ``pause=True`` injects a
     single RESET pulse (the loop's control-event handler turns it into one environment
     reset) and pauses the session (binding it straight to the reset callback would reset
     the env twice). The returned device must be kept referenced by the caller so its carb
     input subscription survives.
     """
-    if not use_isaac_teleop or headless:
+    if not use_isaac_teleop or not has_window:
         return None
     try:
         keyboard = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.0, rot_sensitivity=0.0))
@@ -249,8 +257,10 @@ def main() -> None:  # noqa: C901
     Returns:
         None
     """
-    # parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs)
+    # Resolve the task configuration through Hydra so CLI presets are applied.
+    env_cfg, _ = resolve_task_config(args_cli.task, "")
+    env_cfg.sim.device = args_cli.device
+    env_cfg.scene.num_envs = args_cli.num_envs
     env_cfg.env_name = args_cli.task
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         raise ValueError(
@@ -272,6 +282,14 @@ def main() -> None:  # noqa: C901
         not teleop_device_explicitly_set and hasattr(env_cfg, "isaac_teleop") and env_cfg.isaac_teleop is not None
     )
 
+    from isaaclab_teleop import XrCameraFeedSession
+
+    camera_feed_session = XrCameraFeedSession.prepare(
+        env_cfg,
+        enabled=args_cli.xr and use_isaac_teleop,
+        camera_rendering_enabled=not args_cli.disable_external_cameras,
+    )
+
     # XR-rendering setup (camera removal + DLSS) is only needed for the Kit XR
     # path. Without --xr, IsaacTeleop runs standalone (I/O only) and renders
     # normally, so gate on --xr alone.
@@ -286,7 +304,14 @@ def main() -> None:  # noqa: C901
     if _rtx_rendering_requested(args_cli):
         _ensure_replicator_loaded()
         apply_isaac_rtx_global_settings(
-            IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
+            IsaacRtxRendererGlobalSettingsCfg(
+                antialiasing_mode="DLSS",
+                carb_settings=(
+                    {"/rtx/dldenoiser/responsiveDenoising": True}
+                    if camera_feed_session.requires_responsive_denoising
+                    else None
+                ),
+            ),
         )
 
     try:
@@ -439,7 +464,7 @@ def main() -> None:  # noqa: C901
     # Optional keyboard for headset-free IsaacTeleop control. Kept in a local so its
     # carb input subscription is not garbage-collected; a headless run auto-starts
     # (in ``run_loop``) without it.
-    control_keyboard = _make_control_keyboard(teleop_interface, use_isaac_teleop, args_cli.headless)  # noqa: F841
+    control_keyboard = _make_control_keyboard(teleop_interface, use_isaac_teleop, app_launcher.has_window)  # noqa: F841
 
     def run_loop():
         """Inner function to run the teleop loop with access to nonlocal variables."""
@@ -493,6 +518,7 @@ def main() -> None:  # noqa: C901
                     if should_reset_recording_instance:
                         env.reset()
                         teleop_interface.reset()
+                        camera_feed_session.refresh()
                         should_reset_recording_instance = False
                         print("Environment reset complete")
             except Exception as e:
@@ -502,10 +528,11 @@ def main() -> None:  # noqa: C901
     # Run the teleoperation loop
     # IsaacTeleop requires a context manager, native devices don't
     if use_isaac_teleop:
-        with teleop_interface:
+        with teleop_interface, camera_feed_session.bind(env):
             run_loop()
     else:
-        run_loop()
+        with camera_feed_session.bind(env):
+            run_loop()
 
     # close the simulator
     env.close()

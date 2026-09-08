@@ -35,6 +35,36 @@ def resolve_config_dir(config_name: str, explicit_path: str | None) -> str:
     return _SCRIPT_DIR
 
 
+def _resolve_rlinf_checkpoint(
+    checkpoint: str,
+    *,
+    log_root_path: str,
+    task: str,
+    config_name: str,
+) -> str:
+    """Resolve an RLinf checkpoint selector or local path."""
+    from isaaclab_rl.entrypoints.common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
+
+    if checkpoint == "pretrained":
+        raise ValueError("Pre-trained checkpoints are not available for RLinf.")
+
+    if checkpoint in CHECKPOINT_SELECTORS:
+        return resolve_checkpoint_selector(
+            log_root_path,
+            checkpoint,
+            library="rlinf",
+            task=task,
+            checkpoint_pattern=r"full_weights[.]pt",
+            metadata={"config_name": config_name},
+            recursive=True,
+        )
+
+    checkpoint_path = Path(checkpoint)
+    if checkpoint_path.is_dir():
+        checkpoint_path = checkpoint_path / "full_weights.pt"
+    return str(checkpoint_path)
+
+
 def add_rlinf_args(parser: argparse.ArgumentParser) -> None:
     """Add RLinf arguments to the parser.
 
@@ -57,12 +87,11 @@ def add_rlinf_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Name of the RLinf configuration file (without .yaml extension).",
     )
-    arg_group.add_argument("--resume_dir", type=str, default=None, help="Directory to resume training from.")
     arg_group.add_argument(
-        "--rl_model_path",
+        "--checkpoint",
         type=str,
         default=None,
-        help="Path to an RLinf checkpoint directory containing full_weights.pt.",
+        help="RL-finetuned checkpoint path, or latest/best.",
     )
     arg_group.add_argument(
         "--only_eval", action="store_true", default=False, help="Only run evaluation without training."

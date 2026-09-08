@@ -35,14 +35,19 @@ the following solver pages:
 
 * :doc:`mjwarp-solver` — the primary, validated solver path.
 * :doc:`kamino-solver` — beta support on selected classic tasks.
-* :doc:`using-vbd-solver` — experimental VBD solver for cloth and soft bodies,
-  available through :mod:`isaaclab_contrib.deformable` and the MJWarp + VBD or
-  Featherstone + VBD coupled managers.
+* :doc:`using-vbd-solver`: VBD solver for cloth and soft bodies. Standalone VBD
+  is available through :mod:`isaaclab_newton.physics`; MJWarp and VBD proxy and
+  ADMM coupling is available through :mod:`isaaclab_contrib.coupling`.
+* :doc:`using-mpm`: experimental implicit MPM for particle materials, including
+  rigid-MPM proxy coupling.
 
 Each solver is exposed as a small subclass of
 :class:`~isaaclab_newton.physics.NewtonManager`. See
 :doc:`newton-manager-abstraction` for the developer-facing guide to adding a
 new solver or a coupled solver.
+
+For authoring and simulating 1D cable / rod assets under the VBD solver, see
+:doc:`using-cables`.
 
 During the beta phase, breaking changes and incomplete documentation are still
 expected. Official support and debugging assistance will follow once the framework
@@ -50,6 +55,9 @@ reaches an official release.
 
 For an overview of how the multi-backend architecture works, including how to add a
 new backend, see :doc:`../../multi_backend_architecture`.
+
+For direct ``Model``/``State`` access and generic selections, see
+:doc:`../direct-api-access/newton`.
 
 
 .. toctree::
@@ -62,6 +70,8 @@ new backend, see :doc:`../../multi_backend_architecture`.
   mjwarp-solver
   kamino-solver
   using-vbd-solver
+  using-mpm
+  using-cables
   newton-manager-abstraction
   warp-environments
   warp-env-migration

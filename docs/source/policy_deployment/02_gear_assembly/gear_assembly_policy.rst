@@ -267,7 +267,7 @@ These friction values were determined through iterative visual comparison:
 
                  .. code-block:: bash
 
-                     uv run isaaclab train --rl_library rsl_rl \
+                     uv run --extra video isaaclab train --rl_library rsl_rl \
                          --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
                          --video --video_length 800 --video_interval 5000
 
@@ -287,7 +287,7 @@ These friction values were determined through iterative visual comparison:
 
                  .. code-block:: bash
 
-                     uv run isaaclab train --rl_library rsl_rl \
+                     uv run --extra video isaaclab train --rl_library rsl_rl \
                          --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
                          --video --video_length 800 --video_interval 5000
 
@@ -369,8 +369,8 @@ For the UR10e and Flexiv Rizon 4s deployments, we use an impedance controller in
                 "arm": ImplicitActuatorCfg(
                     joint_names_expr=["shoulder_pan_joint", "shoulder_lift_joint",
                                     "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"],
-                    effort_limit=87.0,           # From UR10e specifications
-                    velocity_limit=2.0,          # From UR10e specifications
+                    joint_effort_limit=87.0,       # From UR10e specifications
+                    joint_velocity_limit=2.0,      # From UR10e specifications
                     stiffness=800.0,             # Calibrated to match real behavior
                     damping=40.0,                # Calibrated to match real behavior
                 ),
@@ -385,27 +385,27 @@ For the UR10e and Flexiv Rizon 4s deployments, we use an impedance controller in
             actuators = {
                 "shoulder": ImplicitActuatorCfg(
                     joint_names_expr=["joint[1-2]"],
-                    effort_limit=123.0, velocity_limit=2.094,
+                    joint_effort_limit=123.0, joint_velocity_limit=2.094,
                     stiffness=6000.0, damping=108.4,
                 ),
                 "elbow": ImplicitActuatorCfg(
                     joint_names_expr=["joint[3-4]"],
-                    effort_limit=64.0, velocity_limit=2.443,
+                    joint_effort_limit=64.0, joint_velocity_limit=2.443,
                     stiffness=4200.0, damping=90.7,
                 ),
                 "wrist": ImplicitActuatorCfg(
                     joint_names_expr=["joint[5-7]"],
-                    effort_limit=39.0, velocity_limit=4.887,
+                    joint_effort_limit=39.0, joint_velocity_limit=4.887,
                     stiffness=1500.0, damping=54.2,
                 ),
                 "gripper_drive": ImplicitActuatorCfg(
                     joint_names_expr=["finger_joint"],
-                    effort_limit=2.0, velocity_limit=1.0,
+                    joint_effort_limit=2.0, joint_velocity_limit=1.0,
                     stiffness=2e3, damping=1e1,
                 ),
                 "gripper_passive": ImplicitActuatorCfg(
                     joint_names_expr=[".*_knuckle_joint"],
-                    effort_limit=1.0, velocity_limit=1.0,
+                    joint_effort_limit=1.0, joint_velocity_limit=1.0,
                     stiffness=0.0, damping=0.0,
                 ),
             }
@@ -762,7 +762,7 @@ Now launch the full training run with more parallel environments in headless mod
 
               .. code-block:: bash
 
-                  uv run isaaclab train --rl_library rsl_rl \
+                  uv run --extra video isaaclab train --rl_library rsl_rl \
                       --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference \
                       --num_envs 256 \
                       --video --video_length 200 --video_interval 76800
@@ -784,7 +784,7 @@ Now launch the full training run with more parallel environments in headless mod
 
               .. code-block:: bash
 
-                  uv run isaaclab train --rl_library rsl_rl \
+                  uv run --extra video isaaclab train --rl_library rsl_rl \
                       --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
                       --num_envs 256 \
                       --video --video_length 200 --video_interval 76800
@@ -806,7 +806,7 @@ Now launch the full training run with more parallel environments in headless mod
 
               .. code-block:: bash
 
-                  uv run isaaclab train --rl_library rsl_rl \
+                  uv run --extra video isaaclab train --rl_library rsl_rl \
                       --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
                       --num_envs 256 \
                       --video --video_length 200 --video_interval 76800

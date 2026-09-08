@@ -11,7 +11,7 @@ from isaaclab.benchmark.asset_suites.dependencies import (
     OBJECT_COLLECTION_DEPENDENCIES,
     RIGID_OBJECT_DEPENDENCIES,
 )
-from isaaclab.benchmark.asset_suites.generators import make_indexed_generators
+from isaaclab.benchmark.asset_suites.generators import make_indexed_generators, make_item_selector_generators
 from isaaclab.benchmark.asset_suites.suites import get_asset_benchmark_suite
 
 _CAPABILITIES = frozenset({"physx_legacy_state", "tensor_fill"})
@@ -39,29 +39,18 @@ _COLLECTION_EXCLUDED = {
 
 
 def _indexed_overrides(method_name, shapes, indices):
+    generator_factory = (
+        make_item_selector_generators
+        if any(name in {"body_ids", "joint_ids"} for name in indices)
+        else make_indexed_generators
+    )
     return {
         (method_name, mode): generator
-        for mode, generator in make_indexed_generators(shapes, indices).items()
+        for mode, generator in generator_factory(shapes, indices).items()
     }
 
 
 def _generator_overrides(component: str):
-    if component == "rigid_object":
-        overrides = {}
-        overrides.update(
-            _indexed_overrides("set_masses", {"masses": ("instances", "bodies")}, {"env_ids": "instances"})
-        )
-        overrides.update(
-            _indexed_overrides(
-                "set_coms", {"coms": ("instances", "bodies", 7)}, {"env_ids": "instances"}
-            )
-        )
-        overrides.update(
-            _indexed_overrides(
-                "set_inertias", {"inertias": ("instances", "bodies", 9)}, {"env_ids": "instances"}
-            )
-        )
-        return overrides
     if component == "rigid_object_collection":
         return _indexed_overrides(
             "set_coms",
@@ -69,6 +58,22 @@ def _generator_overrides(component: str):
             {"env_ids": "instances", "body_ids": "bodies"},
         )
     return {}
+
+
+def _generator_replacements(component: str):
+    if component != "rigid_object":
+        return {}
+    return {
+        "set_masses": make_indexed_generators(
+            {"masses": ("instances", "bodies")}, {"env_ids": "instances"}
+        ),
+        "set_coms": make_indexed_generators(
+            {"coms": ("instances", "bodies", 7)}, {"env_ids": "instances"}
+        ),
+        "set_inertias": make_indexed_generators(
+            {"inertias": ("instances", "bodies", 9)}, {"env_ids": "instances"}
+        ),
+    }
 
 
 def get_asset_benchmark_adapter(component: str) -> PackageAssetBenchmarkAdapter:
@@ -99,5 +104,6 @@ def get_asset_benchmark_adapter(component: str) -> PackageAssetBenchmarkAdapter:
         default_num_bodies=default_num_bodies,
         default_num_joints=default_num_joints,
         generator_overrides=_generator_overrides(component),
+        generator_replacements=_generator_replacements(component),
         property_dependency_overrides=dependencies,
     )

@@ -52,3 +52,30 @@ Query
 
 .. automodule:: isaaclab.cloner.query
    :members:
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.cloner` API.
+
+.. currentmodule:: isaaclab.cloner
+
+.. autosummary::
+   :nosignatures:
+
+   CloneCfg
+   InclusionSet
+   ReplicateSession
+   UsdReplicateContext
+
+.. autoclass:: CloneCfg
+   :show-inheritance:
+
+.. autoclass:: InclusionSet
+   :show-inheritance:
+
+.. autoclass:: ReplicateSession
+   :show-inheritance:
+
+.. autoclass:: UsdReplicateContext
+   :show-inheritance:

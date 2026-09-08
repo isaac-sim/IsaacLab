@@ -38,22 +38,22 @@ the Dofbot
         actuators={
             "front_joints": ImplicitActuatorCfg(
                 joint_names_expr=["joint[1-2]"],
-                effort_limit_sim=100.0,
-                velocity_limit_sim=100.0,
+                joint_effort_limit=100.0,
+                joint_velocity_limit=100.0,
                 stiffness=10000.0,
                 damping=100.0,
             ),
             "joint3_act": ImplicitActuatorCfg(
                 joint_names_expr=["joint3"],
-                effort_limit_sim=100.0,
-                velocity_limit_sim=100.0,
+                joint_effort_limit=100.0,
+                joint_velocity_limit=100.0,
                 stiffness=10000.0,
                 damping=100.0,
             ),
             "joint4_act": ImplicitActuatorCfg(
                 joint_names_expr=["joint4"],
-                effort_limit_sim=100.0,
-                velocity_limit_sim=100.0,
+                joint_effort_limit=100.0,
+                joint_velocity_limit=100.0,
                 stiffness=10000.0,
                 damping=100.0,
             ),

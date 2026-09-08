@@ -107,7 +107,7 @@ the environment by quitting the script with Ctrl+C.
 
 .. code:: bash
 
-   uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+   uv run --extra teleop,isaacsim isaaclab teleop run \
    --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1 \
@@ -138,7 +138,7 @@ To use a SpaceMouse, simply change ``--teleop_device`` accordingly:
 
 .. code:: bash
 
-   uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+   uv run --extra teleop,isaacsim isaaclab teleop run \
    --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1 \
@@ -159,24 +159,41 @@ the key bindings are:
 
 .. tip::
 
-   If the SpaceMouse is not detected, you may need to grant additional user permissions by running ``sudo chmod 666 /dev/hidraw<#>`` where ``<#>`` corresponds to the device index
-   of the connected SpaceMouse.
+   If the SpaceMouse is not detected, you most likely need additional user permissions. The ``hidapi``
+   wheel installed by Isaac Lab bundles a backend that talks to the device over ``libusb``, so it needs
+   read and write access to the USB node under ``/dev/bus/usb`` -- granting access to ``/dev/hidraw*``
+   alone is **not** sufficient, and without USB access the device is enumerated without a product name.
 
-   To determine the device index, list all ``hidraw`` devices by running ``ls -l /dev/hidraw*``.
-   Identify the device corresponding to the SpaceMouse by running ``cat /sys/class/hidraw/hidraw<#>/device/uevent`` on each of the devices listed
-   from the prior step.
+   Grant the permission by installing a udev rule for the 3Dconnexion vendor id:
 
-   We recommend using local deployment of Isaac Lab to use the SpaceMouse. If using container deployment (:ref:`deployment-docker`), you must manually mount the SpaceMouse to the ``isaac-lab-base`` container by
-   adding a ``devices`` attribute with the path to the device in your ``docker-compose.yaml`` file:
+   .. code:: bash
+
+      sudo groupadd -f plugdev && sudo usermod -aG plugdev "$USER"
+      sudo tee /etc/udev/rules.d/99-spacemouse.rules <<'EOF'
+      SUBSYSTEM=="usb", ATTR{idVendor}=="256f", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+      KERNEL=="hidraw*", ATTRS{idVendor}=="256f", TAG+="uaccess", GROUP="plugdev", MODE="0660"
+      EOF
+      sudo udevadm control --reload-rules && sudo udevadm trigger
+
+   Then unplug and reconnect the SpaceMouse, and log out and back in so the new group membership
+   applies. The rule grants access to the user on the local seat (``uaccess``) and to members of
+   ``plugdev``, rather than to every account on the machine; the ``plugdev`` membership is what makes
+   it work over SSH, where there is no local seat. Older 3Dconnexion models such as the SpaceNavigator
+   for Notebooks enumerate under the Logitech vendor id, so replace ``256f`` with ``046d`` for those.
+
+   We recommend using local deployment of Isaac Lab to use the SpaceMouse. If using container deployment (:ref:`deployment-docker`), you must give the ``isaac-lab-base`` container access to the USB bus by
+   mounting it and allowing its device cgroup in your ``docker-compose.yaml`` file:
 
    .. code:: yaml
 
-      devices:
-         - /dev/hidraw<#>:/dev/hidraw<#>
+      volumes:
+         - /dev/bus/usb:/dev/bus/usb
+      device_cgroup_rules:
+         - "c 189:* rmw"
 
-   where ``<#>`` is the device index of the connected SpaceMouse.
-
-   Isaac Lab is only compatible with the SpaceMouse Wireless and SpaceMouse Compact models from 3Dconnexion.
+   Isaac Lab supports the SpaceMouse Compact, SpaceMouse Wireless and SpaceNavigator for Notebooks
+   from 3Dconnexion. SE(3) teleoperation additionally supports the SpaceNavigator and the
+   3Dconnexion Universal Receiver.
 
 
 
@@ -194,7 +211,7 @@ variant of the task (``IsaacContrib-Stack-Cube-Franka-IK-Abs``):
 
 .. code:: bash
 
-   uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+   uv run --extra teleop,isaacsim isaaclab teleop run \
    --task IsaacContrib-Stack-Cube-Franka-IK-Abs \
    --viz kit \
    --xr
@@ -225,7 +242,7 @@ Select the tab that matches your input device:
 
       .. code:: bash
 
-         uv run python scripts/tools/record_demos.py \
+         uv run --extra teleop,isaacsim isaaclab teleop record \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --viz kit \
          --dataset_file ./datasets/dataset.hdf5 \
@@ -236,7 +253,7 @@ Select the tab that matches your input device:
 
       .. code:: bash
 
-         uv run python scripts/tools/record_demos.py \
+         uv run --extra teleop,isaacsim isaaclab teleop record \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --viz kit \
          --dataset_file ./datasets/dataset.hdf5 \
@@ -251,7 +268,7 @@ Select the tab that matches your input device:
 
       .. code:: bash
 
-         uv run python scripts/tools/record_demos.py \
+         uv run --extra teleop,isaacsim isaaclab teleop record \
          --task IsaacContrib-Stack-Cube-Franka-IK-Abs \
          --viz kit \
          --dataset_file ./datasets/dataset.hdf5 \
@@ -279,7 +296,7 @@ You can replay the collected demonstrations by running:
 
 .. code:: bash
 
-   uv run python scripts/tools/replay_demos.py \
+   uv run --extra teleop,isaacsim isaaclab teleop replay \
    --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1 \
@@ -337,7 +354,7 @@ Annotate the subtasks in the recording:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
          --task Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0 \
          --viz kit \
          --auto \
@@ -349,7 +366,7 @@ Annotate the subtasks in the recording:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
          --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0 \
          --viz kit \
          --auto \
@@ -367,7 +384,7 @@ Next, use Isaac Lab Mimic to generate some additional demonstrations:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --viz kit \
          --num_envs 20 \
          --generation_num_trials 10 \
@@ -379,7 +396,7 @@ Next, use Isaac Lab Mimic to generate some additional demonstrations:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --viz kit \
          --num_envs 20 \
          --generation_num_trials 10 \
@@ -408,7 +425,7 @@ Inspect the generated data (``generated_dataset_small.hdf5``) and if satisfactor
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --num_envs 1000 \
          --generation_num_trials 1000 \
          --input_file ./datasets/annotated_dataset.hdf5 \
@@ -419,7 +436,7 @@ Inspect the generated data (``generated_dataset_small.hdf5``) and if satisfactor
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --num_envs 300 \
          --generation_num_trials 1000 \
          --input_file ./datasets/annotated_dataset.hdf5 \
@@ -459,9 +476,11 @@ Install the Robomimic framework using the following command:
 
    # install the dependencies
    sudo apt install cmake build-essential
-   # install python module (for robomimic)
-   ./isaaclab.sh -i robomimic
+   # resolve and verify Robomimic in the uv-managed environment
+   uv run --extra mimic python -c "import robomimic"
 
+For a legacy environment, install the same dependencies with
+``./isaaclab.sh -i mimic``.
 
 
 Train an Agent
@@ -479,7 +498,7 @@ Using the Isaac Lab Mimic generated data we can now train a state-based BC RNN a
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/robomimic/train.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --algo bc \
          --dataset ./datasets/generated_dataset.hdf5
@@ -489,7 +508,7 @@ Using the Isaac Lab Mimic generated data we can now train a state-based BC RNN a
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/robomimic/train.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor \
          --algo bc \
          --dataset ./datasets/generated_dataset.hdf5
@@ -512,7 +531,7 @@ Run the trained policy to visualize the results:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/robomimic/play.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/play.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --viz kit \
          --num_rollouts 50 \
@@ -523,7 +542,7 @@ Run the trained policy to visualize the results:
 
       .. code:: bash
 
-         uv run python scripts/imitation_learning/robomimic/play.py \
+         uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/play.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor \
          --viz kit \
          --num_rollouts 50 \

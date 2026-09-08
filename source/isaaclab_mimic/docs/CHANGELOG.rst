@@ -1,6 +1,59 @@
 Changelog
 ---------
 
+2.0.6 (2026-09-05)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the ``datagen_config.max_num_failures = 25`` assignment from the shipped Mimic environment
+  configs. The field was never read when those lines were written, so honouring it now would newly
+  cap every shipped task at 25 failed attempts and cut short any run asking for a large number of
+  demos. Set the field explicitly to opt into a cap.
+
+Fixed
+^^^^^
+
+* Fixed the Mimic generation loop never bounding a run by failure count. ``env_loop`` now stops when
+  ``datagen_config.max_num_failures`` failed attempts have accumulated, alongside the existing stop
+  on enough successes or attempts.
+
+
+2.0.5 (2026-08-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed prim path expressions to spell a single path segment ``[^/]`` rather than ``.``, so each
+  pattern selects what it selected before now that ``.`` matches ``/`` in
+  :func:`~isaaclab.sim.utils.find_matching_prims`.
+
+
+2.0.4 (2026-08-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`SceneAsset` leaking its cached frame view when the view is rebuilt,
+  which left the view's backend state to be released on garbage collection.
+
+
+2.0.3 (2026-08-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``ModuleNotFoundError: No module named 'ipywidgets'`` when running dataset generation
+  from an environment without the ``mimic`` extra. ``isaaclab_mimic.datagen.utils`` imported
+  ``ipywidgets`` and ``IPython`` at module scope even though only its interactive notebook
+  helpers use them, so importing the module for its path helpers pulled in dependencies the
+  generation path never needs.
+
+
 2.0.2 (2026-07-24)
 ~~~~~~~~~~~~~~~~~~
 

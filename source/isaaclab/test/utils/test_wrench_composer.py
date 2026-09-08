@@ -3,16 +3,30 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 import torch
 import warp as wp
 
-from isaaclab.test.mock_interfaces.assets import MockRigidObjectCollection
 from isaaclab.test.utils import test_devices
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 pytestmark = pytest.mark.unit
+
+
+class _WrenchAssetDataFixture:
+    """Minimal asset data required by :class:`WrenchComposer`."""
+
+    def __init__(self, com_pos_w: torch.Tensor, link_quat_w: torch.Tensor, device: str) -> None:
+        self._device = device
+        self.body_com_pos_w = ProxyArray(wp.from_torch(com_pos_w.to(device), dtype=wp.vec3f))
+        self.body_link_quat_w = ProxyArray(wp.from_torch(link_quat_w.to(device), dtype=wp.quatf))
+
+    def set_body_com_pose_w(self, pose_w: torch.Tensor) -> None:
+        self.body_com_pos_w = ProxyArray(wp.from_torch(pose_w[..., :3].to(self._device), dtype=wp.vec3f))
 
 
 def create_mock_asset(
@@ -21,8 +35,8 @@ def create_mock_asset(
     device: str,
     link_pos: torch.Tensor | None = None,
     link_quat: torch.Tensor | None = None,
-) -> MockRigidObjectCollection:
-    """Create a MockRigidObjectCollection with optional custom link poses.
+) -> SimpleNamespace:
+    """Create a minimal asset fixture with optional custom link poses.
 
     Args:
         num_envs: Number of environments.
@@ -33,9 +47,8 @@ def create_mock_asset(
                    Defaults to identity quaternion.
 
     Returns:
-        MockRigidObjectCollection with body_link_pose_w set.
+        Asset fixture with the state required by WrenchComposer.
     """
-    mock = MockRigidObjectCollection(num_instances=num_envs, num_bodies=num_bodies, device=device)
 
     # Build combined pose (N, B, 7) = pos(3) + quat_xyzw(4) matching wp.transformf layout
     if link_pos is None:
@@ -50,9 +63,9 @@ def create_mock_asset(
     else:
         quat = link_quat.float()
 
-    pose = torch.cat([pos, quat], dim=-1)  # (N, B, 7)
-    mock.data.set_body_link_pose_w(pose)
-    return mock
+    return SimpleNamespace(
+        num_instances=num_envs, num_bodies=num_bodies, device=device, data=_WrenchAssetDataFixture(pos, quat, device)
+    )
 
 
 # --- Helper functions for quaternion math ---
@@ -966,6 +979,48 @@ def test_add_forces_mask_global(device: str, num_envs: int, num_bodies: int):
 # ============================================================================
 
 
+@pytest.mark.parametrize("env_dtype", [torch.int32, torch.int64])
+@pytest.mark.parametrize("body_dtype", [torch.int32, torch.int64])
+def test_index_dtype_combinations_preserve_selected_wrench_cells(
+    env_dtype: torch.dtype, body_dtype: torch.dtype
+) -> None:
+    """Set, add, and reset selected cells with either index width."""
+    composer = WrenchComposer(create_mock_asset(num_envs=3, num_bodies=3, device="cpu"))
+    env_ids = torch.tensor([2, 0], dtype=env_dtype)
+    body_ids = torch.tensor([1, 2], dtype=body_dtype)
+    reset_env_ids = env_ids[:1]
+    set_forces_np = np.arange(1, 13, dtype=np.float32).reshape(2, 2, 3)
+    set_torques_np = set_forces_np + 20.0
+    add_forces_np = np.full((2, 2, 3), 100.0, dtype=np.float32)
+    add_torques_np = np.full((2, 2, 3), 200.0, dtype=np.float32)
+
+    composer.set_forces_and_torques_index(
+        forces=wp.from_numpy(set_forces_np, dtype=wp.vec3f, device="cpu"),
+        torques=wp.from_numpy(set_torques_np, dtype=wp.vec3f, device="cpu"),
+        env_ids=env_ids,
+        body_ids=body_ids,
+    )
+    composer.add_forces_and_torques_index(
+        forces=wp.from_numpy(add_forces_np, dtype=wp.vec3f, device="cpu"),
+        torques=wp.from_numpy(add_torques_np, dtype=wp.vec3f, device="cpu"),
+        env_ids=env_ids,
+        body_ids=body_ids,
+    )
+
+    expected_forces = np.zeros((3, 3, 3), dtype=np.float32)
+    expected_torques = np.zeros_like(expected_forces)
+    expected_forces[np.ix_([2, 0], [1, 2])] = set_forces_np + add_forces_np
+    expected_torques[np.ix_([2, 0], [1, 2])] = set_torques_np + add_torques_np
+    np.testing.assert_array_equal(composer.local_force_b.numpy(), expected_forces)
+    np.testing.assert_array_equal(composer.local_torque_b.numpy(), expected_torques)
+
+    composer.reset(env_ids=reset_env_ids)
+    expected_forces[2] = 0.0
+    expected_torques[2] = 0.0
+    np.testing.assert_array_equal(composer.local_force_b.numpy(), expected_forces)
+    np.testing.assert_array_equal(composer.local_torque_b.numpy(), expected_torques)
+
+
 @pytest.mark.parametrize("device", test_devices())
 def test_set_forces_overwrites_previous_add(device: str):
     """Test that set_forces_and_torques_index clears previously accumulated values."""
@@ -1118,8 +1173,9 @@ def test_partial_reset_zeros_only_specified_envs(device: str):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_full_reset_clears_active_flag(device: str):
-    """Test that full reset (no args) clears the _active flag."""
+@pytest.mark.parametrize("env_ids", [None, slice(None)], ids=["none", "full_slice"])
+def test_full_reset_clears_active_flag(device: str, env_ids: slice | None):
+    """Test that either full-reset selector clears the _active flag."""
     num_envs, num_bodies = 4, 2
 
     mock_asset = create_mock_asset(num_envs, num_bodies, device)
@@ -1131,7 +1187,7 @@ def test_full_reset_clears_active_flag(device: str):
     )
     assert composer.active
 
-    composer.reset()
+    composer.reset(env_ids=env_ids)
     assert not composer.active
     assert not composer._dirty
 
@@ -1517,7 +1573,13 @@ def test_global_force_with_com_offset(device: str):
         link_quat=torch.from_numpy(link_quat_np),
     )
     # Set CoM pose separately (pos=[1,0,0], quat=identity)
-    com_pose = torch.cat([torch.from_numpy(com_pos_np), torch.from_numpy(link_quat_np)], dim=-1)
+    com_pose = torch.cat(
+        (
+            torch.from_numpy(com_pos_np),
+            torch.tensor([0.0, 0.0, 0.0, 1.0]).view(1, 1, 4).expand(num_envs, num_bodies, 4),
+        ),
+        dim=-1,
+    )
     mock_asset.data.set_body_com_pose_w(com_pose)
 
     composer = WrenchComposer(mock_asset)
@@ -1572,7 +1634,13 @@ def test_global_force_at_com_no_torque_with_com_offset(device: str):
         link_pos=torch.from_numpy(link_pos_np),
         link_quat=torch.from_numpy(link_quat_np),
     )
-    com_pose = torch.cat([torch.from_numpy(com_pos_np), torch.from_numpy(link_quat_np)], dim=-1)
+    com_pose = torch.cat(
+        (
+            torch.from_numpy(com_pos_np),
+            torch.tensor([0.0, 0.0, 0.0, 1.0]).view(1, 1, 4).expand(num_envs, num_bodies, 4),
+        ),
+        dim=-1,
+    )
     mock_asset.data.set_body_com_pose_w(com_pose)
 
     composer = WrenchComposer(mock_asset)
@@ -1618,7 +1686,13 @@ def test_com_offset_with_rotation(device: str):
         link_pos=torch.from_numpy(link_pos_np),
         link_quat=torch.from_numpy(link_quat_np),
     )
-    com_pose = torch.cat([torch.from_numpy(com_pos_np), torch.from_numpy(link_quat_np)], dim=-1)
+    com_pose = torch.cat(
+        (
+            torch.from_numpy(com_pos_np),
+            torch.tensor([0.0, 0.0, 0.0, 1.0]).view(1, 1, 4).expand(num_envs, num_bodies, 4),
+        ),
+        dim=-1,
+    )
     mock_asset.data.set_body_com_pose_w(com_pose)
 
     composer = WrenchComposer(mock_asset)

@@ -34,7 +34,6 @@ FORWARDED_NAMES = [
     "PhysxCollisionPropertiesCfg",
     "DeformableBodyPropertiesCfg",
     "PhysxDeformableBodyPropertiesCfg",
-    "PhysxDeformableCollisionPropertiesCfg",
     "ArticulationRootPropertiesCfg",
     "PhysxArticulationRootPropertiesCfg",
     "MeshCollisionPropertiesCfg",

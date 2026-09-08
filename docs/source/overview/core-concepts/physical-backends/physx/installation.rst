@@ -37,5 +37,8 @@ default preset:
 
           ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole --num_envs 128
 
-The ``default`` preset on most tasks resolves to PhysX. You can also pass
-``physics=physx`` explicitly on tasks that declare multi-backend physics presets.
+Environments whose previous default was automatic PhysX selection now use the
+concrete ``isaacsim_physx`` variant by default. Existing explicit defaults, such
+as Newton, remain unchanged. Pass ``physics=physx`` explicitly to opt into
+automatic PhysX-family selection between Isaac Sim PhysX and OvPhysX on tasks
+that support both.

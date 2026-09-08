@@ -15,28 +15,30 @@ import torch
 from isaaclab.utils.configclass import configclass
 
 ##
-# Configuration.
+# Deprecated: ViewerCfg
 ##
 
 
-def _viewer_cfg_value_matches_default(current: object, default: object) -> bool:
-    """Return True if ``current`` matches the dataclass field default (including list/tuple equivalence)."""
-    if current == default:
-        return True
-    if isinstance(current, (list, tuple)) and isinstance(default, (list, tuple)):
-        if len(current) != len(default):
-            return False
-        return all(a == b for a, b in zip(current, default, strict=True))
-    return False
+def _viewer_cfg_field_matches_default(value, default) -> bool:
+    """Return True when *value* equals *default* (element-wise for tuples/lists)."""
+    if isinstance(value, (tuple, list)):
+        return type(value) is type(default) and tuple(value) == tuple(default)
+    return value == default
 
 
 @configclass
 class ViewerCfg:
     """Configuration of the scene viewport camera.
 
-    Note:
-        ViewerCfg is deprecated. In a future release, this config will be streamlined with
-        the KitVisualizerCfg.
+    .. deprecated::
+        :class:`ViewerCfg` is deprecated and will be removed in a future release.
+        Configure the viewport camera via :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`
+        and add it to :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead::
+
+            from isaaclab.sim import SimulationCfg
+            from isaaclab_visualizers.kit import KitVisualizerCfg
+
+            sim_cfg = SimulationCfg(visualizer_cfgs=[KitVisualizerCfg(eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0))])
     """
 
     eye: tuple[float, float, float] = (7.5, 7.5, 7.5)
@@ -46,69 +48,143 @@ class ViewerCfg:
     """Initial camera target position (in m). Default is (0.0, 0.0, 0.0)."""
 
     cam_prim_path: str = "/OmniverseKit_Persp"
-    """The camera prim path to record images from. Default is "/OmniverseKit_Persp",
-    which is the default camera in the viewport.
-    """
+    """The camera prim path to record images from. Default is "/OmniverseKit_Persp"."""
 
     resolution: tuple[int, int] = (1280, 720)
-    """The resolution (width, height) of the camera specified using :attr:`cam_prim_path`.
-    Default is (1280, 720).
-    """
+    """The resolution (width, height) of the camera. Default is (1280, 720)."""
 
     origin_type: Literal["world", "env", "asset_root", "asset_body"] = "world"
-    """The frame in which the camera position (eye) and target (lookat) are defined in. Default is "world".
-
-    Available options are:
-
-    * ``"world"``: The origin of the world.
-    * ``"env"``: The origin of the environment defined by :attr:`env_index`.
-    * ``"asset_root"``: The center of the asset defined by :attr:`asset_name` in environment :attr:`env_index`.
-    * ``"asset_body"``: The center of the body defined by :attr:`body_name` in asset defined by
-      :attr:`asset_name` in environment :attr:`env_index`.
-    """
+    """The frame in which the camera position (eye) and target (lookat) are defined. Default is "world"."""
 
     env_index: int = 0
-    """The environment index for frame origin. Default is 0.
-
-    This quantity is only effective if :attr:`origin` is set to "env" or "asset_root".
-    """
+    """The environment index for frame origin. Default is 0."""
 
     asset_name: str | None = None
-    """The asset name in the interactive scene for the frame origin. Default is None.
-
-    This quantity is only effective if :attr:`origin` is set to "asset_root".
-    """
+    """The asset name in the interactive scene for the frame origin. Default is None."""
 
     body_name: str | None = None
-    """The name of the body in :attr:`asset_name` in the interactive scene for the frame origin. Default is None.
-
-    This quantity is only effective if :attr:`origin` is set to "asset_body".
-    """
+    """The name of the body in :attr:`asset_name` for the frame origin. Default is None."""
 
     def __post_init__(self) -> None:
-        # Dataclasses do not record which arguments were passed explicitly vs defaulted, and
-        # warning only on ``**kwargs`` would miss positional arguments. Comparing each field to
-        # its declared default catches any non-default effective configuration (including
-        # ``replace()`` and ``from_dict``), while keeping ``ViewerCfg()`` silent.
-        differing: list[str] = []
+        # Warn only when the user configured a non-default field so that bare ``ViewerCfg()``
+        # usage (e.g. in task configs that haven't been migrated yet) stays silent.
+        #
+        # @configclass stores mutable defaults (tuples, lists) via default_factory rather than
+        # default, so we must check both to obtain the canonical default value.
+        differing = []
         for f in fields(self):
             if not f.init:
                 continue
             if f.default is not MISSING:
-                default_val = f.default
-            elif f.default_factory is not MISSING:
-                default_val = f.default_factory()
+                default = f.default
+            elif f.default_factory is not MISSING:  # type: ignore[misc]
+                default = f.default_factory()  # type: ignore[misc]
             else:
                 continue
-            if not _viewer_cfg_value_matches_default(getattr(self, f.name), default_val):
+            if not _viewer_cfg_field_matches_default(getattr(self, f.name), default):
                 differing.append(f.name)
         if differing:
             warnings.warn(
-                "ViewerCfg is deprecated. In a future release, this config will be streamlined with "
-                "the KitVisualizerCfg.",
+                "ViewerCfg is deprecated and will be removed in a future release. "
+                "Use KitVisualizerCfg added to SimulationCfg.visualizer_cfgs instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
+
+
+def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
+    """Apply the deprecated ``viewer`` field to ``sim.default_visualizer_cfg`` if it was set.
+
+    Detects any non-default value on ``env_cfg.viewer`` (eye, lookat, origin_type, asset
+    tracking), emits a log warning, and writes the settings into
+    ``env_cfg.sim.default_visualizer_cfg`` so the Kit visualizer still picks them up.
+
+    Mapping from deprecated :class:`ViewerCfg` fields to :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`:
+
+    * ``eye`` / ``lookat``            → ``eye`` / ``lookat``
+    * ``env_index``                   → ``origin_env_index``
+    * ``origin_type="asset_root"``    → ``origin_type="asset"``, ``origin_track_path="<asset_name>"``
+    * ``origin_type="asset_body"``    → ``origin_type="asset"``, ``origin_track_path="<asset_name>/<body_name>"``
+
+    Must be called before :class:`~isaaclab.sim.SimulationContext` is constructed so
+    that the translated cfg is visible to the context.
+    """
+    import logging as _logging
+
+    viewer = getattr(env_cfg, "viewer", None)
+    if viewer is None:
+        return
+
+    _defaults = ViewerCfg()
+    eye_changed = not _viewer_cfg_field_matches_default(viewer.eye, _defaults.eye)
+    lookat_changed = not _viewer_cfg_field_matches_default(viewer.lookat, _defaults.lookat)
+    origin_changed = viewer.origin_type != _defaults.origin_type
+    resolution_changed = not _viewer_cfg_field_matches_default(
+        getattr(viewer, "resolution", _defaults.resolution), _defaults.resolution
+    )
+    cam_prim_path_changed = getattr(viewer, "cam_prim_path", _defaults.cam_prim_path) != _defaults.cam_prim_path
+
+    if not (eye_changed or lookat_changed or origin_changed or resolution_changed):
+        return
+
+    if cam_prim_path_changed:
+        _logging.getLogger(__name__).warning(
+            "env_cfg.viewer.cam_prim_path=%r cannot be automatically forwarded to KitVisualizerCfg "
+            "(no equivalent field). Set the camera prim path via the Kit viewport UI or configure "
+            "a custom KitVisualizerCfg in env_cfg.sim.visualizer_cfgs.",
+            viewer.cam_prim_path,
+        )
+
+    _logging.getLogger(__name__).warning(
+        "env_cfg.viewer is deprecated. Set env_cfg.sim.default_visualizer_cfg = "
+        "KitVisualizerCfg(eye=..., lookat=...) instead. The viewer values have been "
+        "automatically forwarded for this run."
+    )
+
+    sim_cfg = getattr(env_cfg, "sim", None)
+    if sim_cfg is None:
+        return
+
+    if getattr(sim_cfg, "default_visualizer_cfg", None) is not None:
+        _logging.getLogger(__name__).warning(
+            "env_cfg.viewer is deprecated, but its non-default values (eye, lookat, origin_type) "
+            "could NOT be forwarded automatically because env_cfg.sim.default_visualizer_cfg is "
+            "already set. To silence this warning and preserve your camera settings, migrate to "
+            "KitVisualizerCfg: env_cfg.sim.default_visualizer_cfg = KitVisualizerCfg(eye=..., lookat=...)."
+        )
+        return
+
+    # Map deprecated origin_type values to the new KitVisualizerCfg fields.
+    new_origin_type = viewer.origin_type
+    origin_track_path = None
+    if viewer.origin_type in ("asset_root", "asset_body"):
+        new_origin_type = "asset"
+        if getattr(viewer, "asset_name", None) is not None:
+            body_name = getattr(viewer, "body_name", None)
+            if viewer.origin_type == "asset_body" and body_name is not None:
+                origin_track_path = f"{viewer.asset_name}/{body_name}"
+            else:
+                origin_track_path = viewer.asset_name
+
+    try:
+        from isaaclab_visualizers.kit import KitVisualizerCfg
+
+        resolution = getattr(viewer, "resolution", None)
+        sim_cfg.default_visualizer_cfg = KitVisualizerCfg(
+            eye=tuple(viewer.eye),
+            lookat=tuple(viewer.lookat),
+            origin_type=new_origin_type,
+            origin_env_index=getattr(viewer, "env_index", 0),
+            origin_track_path=origin_track_path,
+            **({"window_width": resolution[0], "window_height": resolution[1]} if resolution is not None else {}),
+        )
+    except ImportError:
+        from isaaclab.visualizers import VisualizerCfg
+
+        sim_cfg.default_visualizer_cfg = VisualizerCfg(
+            eye=tuple(viewer.eye),
+            lookat=tuple(viewer.lookat),
+        )
 
 
 ##

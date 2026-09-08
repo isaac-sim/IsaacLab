@@ -47,3 +47,18 @@ Known failure modes:
 
 - Starts a large training run before checking reset and step behavior.
 - Mixes agent config formats from different RL frameworks.
+
+## Scenario 4: Route A Targeted Sensor Change
+
+Query: "Add foot contact observations and air-time rewards to my quadruped task."
+
+Expected behavior:
+
+- Routes to `isaaclab-using-sensors-actuators` instead of loading this skill as the primary workflow.
+- Treats the request as a targeted change to an existing task rather than scaffolding or restructuring an environment.
+- Inspects the task's existing contact sensor and MDP terms before proposing new shared code.
+
+Known failure modes:
+
+- Claims the request because it modifies an existing task example.
+- Creates a new shared-core observations module without first configuring the sensor and checking existing terms.

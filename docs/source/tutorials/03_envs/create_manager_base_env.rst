@@ -71,7 +71,7 @@ Defining actions
 ----------------
 
 In the previous tutorial, we directly input the action to the cartpole using
-the :meth:`assets.Articulation.set_joint_effort_target` method. In this tutorial, we will
+``robot.actuators.target_command.set_effort_index``. In this tutorial, we will
 use the :class:`managers.ActionManager` to handle the actions.
 
 The action manager can comprise of multiple :class:`managers.ActionTerm`. Each action term

@@ -122,8 +122,8 @@ class ProxyArray:
     def torch(self) -> torch.Tensor:
         """A cached, zero-copy :class:`torch.Tensor` view of the warp array.
 
-        The tensor is created on first access via :func:`warp.to_torch` and cached
-        for subsequent calls. Since this is a zero-copy view, modifications to the
+        The tensor is created on first access and cached for subsequent calls.
+        Since this is a zero-copy view, modifications to the
         tensor are visible through the warp array and vice versa.
 
         When the underlying warp array has dtype ``wp.quatf`` and the

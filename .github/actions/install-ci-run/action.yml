@@ -29,6 +29,9 @@ runs:
       uses: astral-sh/setup-uv@v6
       with:
         python-version: "3.12"
+        # `auto` (the default) enables the cache only on GitHub-hosted runners;
+        # this action also runs on the self-hosted arm64 runner, so force it on.
+        enable-cache: true
     - name: Run Tests
       shell: bash
       env:

@@ -16,7 +16,7 @@ The solvers covered are:
 * **Newton MuJoCo-Warp (MJWarp)** — primary :doc:`Newton solver <newton/mjwarp-solver>`,
   configured by :class:`~isaaclab_newton.physics.MJWarpSolverCfg`.
 * **Newton Kamino** — beta P-ADMM :doc:`Newton solver <newton/kamino-solver>`,
-  configured by :class:`~isaaclab_newton.physics.KaminoSolverCfg`.
+  configured by :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg`.
 
 Newton additionally ships ``FeatherstoneSolverCfg`` and ``XPBDSolverCfg``;
 neither is wired into an Isaac Lab task at the time of writing and they
@@ -48,7 +48,7 @@ Friction Model
     * - Kamino
       - Per-contact friction resolved inside the P-ADMM solve. Contact
         warm-starting is selectable via
-        :attr:`~isaaclab_newton.physics.KaminoSolverCfg.padmm_contact_warmstart_method`;
+        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.dynamics_solver_cfg.contact_warmstart_method`;
         the validated presets use ``"geom_pair_net_force"``.
 
 **Porting implication.** Tasks tuned for PhysX's patch friction can feel
@@ -83,10 +83,10 @@ Contact Detection and Resolution
     * - Kamino
       - Optionally uses Kamino's internal collision detector (``"primitive"``
         or ``"unified"``) via
-        :attr:`~isaaclab_newton.physics.KaminoSolverCfg.use_collision_detector`,
+        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.use_collision_detector`,
         otherwise falls back to Newton's :class:`CollisionPipeline`.
         Contact penetration margin is set by
-        :attr:`~isaaclab_newton.physics.KaminoSolverCfg.constraints_delta`.
+        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.constraints.delta`.
 
 **Porting implication.** A task that runs with ``--enable_ccd`` on PhysX
 won't get the same protection on MJWarp/Kamino at large ``dt`` — Newton's
@@ -140,11 +140,11 @@ Constraint Stabilization
         constraint. No top-level toggle.
     * - Kamino
       - Explicit Baumgarte stabilization with separate gains for joint
-        bilaterals (:attr:`~isaaclab_newton.physics.KaminoSolverCfg.constraints_alpha`),
+        bilaterals (:attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.constraints.alpha`),
         joint-limit unilaterals
-        (:attr:`~isaaclab_newton.physics.KaminoSolverCfg.constraints_beta`),
+        (:attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.constraints.beta`),
         and contact unilaterals
-        (:attr:`~isaaclab_newton.physics.KaminoSolverCfg.constraints_gamma`).
+        (:attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.constraints.gamma`).
 
 
 Solver Convergence
@@ -173,12 +173,12 @@ Solver Convergence
         and convergence behaviour.
     * - Kamino
       - P-ADMM with separate
-        :attr:`~isaaclab_newton.physics.KaminoSolverCfg.padmm_primal_tolerance`,
-        :attr:`~isaaclab_newton.physics.KaminoSolverCfg.padmm_dual_tolerance`,
+        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.dynamics_solver_cfg.primal_tolerance`,
+        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.dynamics_solver_cfg.dual_tolerance`,
         and
-        :attr:`~isaaclab_newton.physics.KaminoSolverCfg.padmm_compl_tolerance`
+        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.dynamics_solver_cfg.compl_tolerance`
         gates, capped at
-        :attr:`~isaaclab_newton.physics.KaminoSolverCfg.padmm_max_iterations`.
+        :attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.dynamics_solver_cfg.max_iterations`.
         Acceleration and warm-starting are tunable.
 
 
@@ -200,7 +200,7 @@ Articulation Coordinates
     * - Kamino
       - **Maximal-coordinate**: each body has its own free-body state,
         constraints are enforced via Baumgarte stabilization. Resets go
-        through a dedicated FK pass (:attr:`~isaaclab_newton.physics.KaminoSolverCfg.use_fk_solver`)
+        through a dedicated FK pass (:attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.use_fk_solver`)
         so maximal body poses match the reduced joint state after a state
         write.
 
@@ -255,7 +255,7 @@ GPU Buffers and Throughput
     * - Kamino
       - Inherits MJWarp's pre-allocation pattern via Newton, plus its own
         contact-pair allocator
-        (:attr:`~isaaclab_newton.physics.KaminoSolverCfg.collision_detector_max_contacts_per_pair`)
+        (:attr:`~isaaclab_newton.physics.KaminoPADMMSolverCfg.collision_detector.max_contacts_per_pair`)
         when using the internal collision detector.
 
 

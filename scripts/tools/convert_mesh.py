@@ -90,11 +90,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import contextlib
 import os
-
-import carb
-import omni.kit.app
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
@@ -177,25 +173,9 @@ def main():
     print("-" * 80)
     print("-" * 80)
 
-    # Determine if there is a GUI to update:
-    # acquire settings interface
-    carb_settings_iface = carb.settings.get_settings()
-    # read flag for whether a local GUI is enabled
-    local_gui = carb_settings_iface.get("/app/window/enabled")
-    # read flag for whether livestreaming GUI is enabled
-    livestream_gui = carb_settings_iface.get("/app/livestream/enabled")
-
-    # Simulate scene (if not headless)
-    if local_gui or livestream_gui:
-        # Open the stage with USD
-        sim_utils.open_stage(mesh_converter.usd_path)
-        # Reinitialize the simulation
-        app = omni.kit.app.get_app_interface()
-        # Run simulation
-        with contextlib.suppress(KeyboardInterrupt):
-            while app.is_running():
-                # perform step
-                app.update()
+    # Show the converted asset if the launch resolved to a window or livestream
+    if AppLauncher.has_gui():
+        sim_utils.show_stage_in_viewport(mesh_converter.usd_path)
 
 
 if __name__ == "__main__":

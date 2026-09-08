@@ -7,38 +7,71 @@
 
 from __future__ import annotations
 
+import sys
 from contextlib import contextmanager
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from isaaclab.actuators import ActuatorCollection
 from isaaclab.benchmark.asset_suites.types import AssetBenchmarkTargets
+
+from isaaclab_physx.assets.articulation.actuator_control import PhysxActuatorControl
 
 args = SimpleNamespace(no_shape_checks=False)
 
 
+def _initialize_mock_asset(asset) -> None:
+    for name in ("_initialize_handle", "_invalidate_initialize_handle", "_prim_deletion_handle", "_debug_vis_handle"):
+        object.__setattr__(asset, name, None)
+
+
 def _load_runtime_symbols() -> None:
     global Articulation, ArticulationCfg, ArticulationData, MockArticulationViewWarp
-    global MockRigidBodyViewWarp, MockWrenchComposer, PhysxManager, RigidObject, RigidObjectCfg
+    global MockRigidBodyViewWarp, WrenchComposer, PhysxManager, RigidObject, RigidObjectCfg
     global RigidObjectCollection, RigidObjectCollectionCfg, RigidObjectCollectionData, RigidObjectData
     global np, torch, wp
 
-    import numpy as np
-    import torch
-    import warp as wp
+    physics = ModuleType("isaaclab_physx.physics")
+    physics.PhysxManager = MagicMock()
+    omni = ModuleType("omni")
+    omni.__path__ = []
+    omni_physics = ModuleType("omni.physics")
+    omni_physics.__path__ = []
+    omni_physics.tensors = MagicMock()
+    omni.physics = omni_physics
+    modules = {
+        "isaaclab_physx.physics": physics,
+        "omni": omni,
+        "omni.physics": omni_physics,
+        "omni.physics.tensors": omni_physics.tensors,
+    }
+    missing = object()
+    previous_modules = {name: sys.modules.get(name, missing) for name in modules}
+    sys.modules.update(modules)
+    try:
+        import numpy as np
+        import torch
+        import warp as wp
 
-    from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-    from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
-    from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
-    from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
+        from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
+        from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
+        from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
+        from isaaclab.utils.wrench_composer import WrenchComposer
 
-    from isaaclab_physx.assets.articulation.articulation import Articulation
-    from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
-    from isaaclab_physx.assets.rigid_object.rigid_object import RigidObject
-    from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData
-    from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection import RigidObjectCollection
-    from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData
-    from isaaclab_physx.physics import PhysxManager
-    from isaaclab_physx.test.mock_interfaces.views import MockArticulationViewWarp, MockRigidBodyViewWarp
+        from isaaclab_physx.assets.articulation.articulation import Articulation
+        from isaaclab_physx.assets.articulation.articulation_data import ArticulationData
+        from isaaclab_physx.assets.rigid_object.rigid_object import RigidObject
+        from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData
+        from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection import RigidObjectCollection
+        from isaaclab_physx.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData
+        from isaaclab_physx.physics import PhysxManager
+        from isaaclab_physx.test.fixtures.views import MockArticulationViewWarp, MockRigidBodyViewWarp
+    finally:
+        for name, module in previous_modules.items():
+            if module is missing:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = module
 
 
 def create_test_articulation(
@@ -52,6 +85,7 @@ def create_test_articulation(
     body_names = [f"body_{i}" for i in range(num_bodies)]
 
     articulation = object.__new__(Articulation)
+    _initialize_mock_asset(articulation)
 
     articulation.cfg = ArticulationCfg(
         prim_path="/World/Robot",
@@ -81,14 +115,15 @@ def create_test_articulation(
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
+    object.__setattr__(articulation, "_sim_cfg", SimpleNamespace(use_newton_actuators=False))
 
     # Create ArticulationData instance (SimulationManager already mocked at module level)
     data = ArticulationData(mock_view, device)
     object.__setattr__(articulation, "_data", data)
 
     # Create mock wrench composers (pass articulation which has num_instances, num_bodies, device properties)
-    mock_inst_wrench = MockWrenchComposer(articulation)
-    mock_perm_wrench = MockWrenchComposer(articulation)
+    mock_inst_wrench = WrenchComposer(articulation)
+    mock_perm_wrench = WrenchComposer(articulation)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -110,20 +145,19 @@ def create_test_articulation(
     object.__setattr__(articulation, "_ALL_INDICES_WP", all_indices_wp)
     object.__setattr__(articulation, "_ALL_BODY_INDICES_WP", all_body_indices_wp)
 
-    # Initialize joint targets
-    object.__setattr__(articulation, "_joint_pos_target_sim", torch.zeros(num_instances, num_joints, device=device))
-    object.__setattr__(articulation, "_joint_vel_target_sim", torch.zeros(num_instances, num_joints, device=device))
-    object.__setattr__(articulation, "_joint_effort_target_sim", torch.zeros(num_instances, num_joints, device=device))
-
     # Cached .view() wrappers
     object.__setattr__(articulation, "_root_link_pose_w_f32", None)
     object.__setattr__(articulation, "_root_com_vel_w_f32", None)
     object.__setattr__(articulation, "_root_link_vel_w_f32", None)
+    object.__setattr__(articulation, "_sim_env_ids", wp.empty(num_instances, dtype=wp.int32, device=device))
+    object.__setattr__(articulation, "_sim_env_ids_views", {})
 
     # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes
     N, J, B = num_instances, num_joints, num_bodies
     object.__setattr__(articulation, "_cpu_env_ids_all", wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True))
     wp.copy(articulation._cpu_env_ids_all, all_indices_wp)
+    object.__setattr__(articulation, "_cpu_env_ids", wp.empty(N, dtype=wp.int32, device="cpu", pinned=True))
+    object.__setattr__(articulation, "_cpu_env_ids_views", {})
     object.__setattr__(
         articulation, "_cpu_joint_stiffness", wp.zeros((N, J), dtype=wp.float32, device="cpu", pinned=True)
     )
@@ -151,6 +185,10 @@ def create_test_articulation(
         articulation, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True)
     )
 
+    control = PhysxActuatorControl(articulation)
+    object.__setattr__(articulation, "actuators", ActuatorCollection({}, control))
+    data.bind_actuator_collection(articulation.actuators)
+
     return articulation, mock_view, None
 
 
@@ -163,6 +201,7 @@ def create_test_rigid_object(
 ) -> tuple[RigidObject, MockRigidBodyViewWarp, MagicMock]:
     """Create a test RigidObject instance with mocked dependencies."""
     rigid_object = object.__new__(RigidObject)
+    _initialize_mock_asset(rigid_object)
 
     rigid_object.cfg = RigidObjectCfg(
         prim_path="/World/Object",
@@ -201,6 +240,7 @@ def create_test_collection(
     object_names = [f"object_{i}" for i in range(num_bodies)]
 
     collection = object.__new__(RigidObjectCollection)
+    _initialize_mock_asset(collection)
 
     # Create a minimal config with dummy rigid objects
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
@@ -318,42 +358,34 @@ def _create_data_target(component, config):
 
 @contextmanager
 def open_asset_targets(adapter, request, method_config, data_config):
-    """Open a simulator app and the selected mocked PhysX asset target."""
-    from isaaclab.app import AppLauncher
-
-    app_launcher = (
-        AppLauncher(headless=True, args=request.launcher_args) if request.launcher_args else AppLauncher(headless=True)
-    )
-    try:
-        _load_runtime_symbols()
-        args.no_shape_checks = not request.check_shapes
-        physics_view = MagicMock()
-        physics_view.get_gravity.return_value = (0.0, 0.0, -9.81)
-        with patch.object(PhysxManager, "get_physics_sim_view", return_value=physics_view):
-            if adapter.component == "articulation":
-                target, _, _ = create_test_articulation(
-                    num_instances=method_config.num_instances,
-                    num_bodies=method_config.num_bodies,
-                    num_joints=method_config.num_joints,
-                    device=method_config.device,
-                )
-            elif adapter.component == "rigid_object":
-                target, _, _ = create_test_rigid_object(
-                    num_instances=method_config.num_instances,
-                    num_bodies=method_config.num_bodies,
-                    device=method_config.device,
-                )
-            else:
-                target, _ = create_test_collection(
-                    num_instances=method_config.num_instances,
-                    num_bodies=method_config.num_bodies,
-                    device=method_config.device,
-                )
-            data, refresh_data = _create_data_target(adapter.component, data_config)
-            yield AssetBenchmarkTargets(
-                method_target=target,
-                data_target=data,
-                refresh_data=refresh_data,
+    """Open the selected mocked PhysX asset target."""
+    _load_runtime_symbols()
+    args.no_shape_checks = not request.check_shapes
+    physics_view = MagicMock()
+    physics_view.get_gravity.return_value = (0.0, 0.0, -9.81)
+    with patch.object(PhysxManager, "get_physics_sim_view", return_value=physics_view):
+        if adapter.component == "articulation":
+            target, _, _ = create_test_articulation(
+                num_instances=method_config.num_instances,
+                num_bodies=method_config.num_bodies,
+                num_joints=method_config.num_joints,
+                device=method_config.device,
             )
-    finally:
-        app_launcher.app.close()
+        elif adapter.component == "rigid_object":
+            target, _, _ = create_test_rigid_object(
+                num_instances=method_config.num_instances,
+                num_bodies=method_config.num_bodies,
+                device=method_config.device,
+            )
+        else:
+            target, _ = create_test_collection(
+                num_instances=method_config.num_instances,
+                num_bodies=method_config.num_bodies,
+                device=method_config.device,
+            )
+        data, refresh_data = _create_data_target(adapter.component, data_config)
+        yield AssetBenchmarkTargets(
+            method_target=target,
+            data_target=data,
+            refresh_data=refresh_data,
+        )

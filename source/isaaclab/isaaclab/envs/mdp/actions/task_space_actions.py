@@ -355,7 +355,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             if not rigid_matches:
                 raise ValueError(f"No descendant rigid body found under the expression: '{self._asset.cfg.prim_path}'.")
             _, root_rigidbody_path = rigid_matches[0]
-            task_frame_transformer_path = "/World/envs/env_.*/" + self.cfg.task_frame_rel_path
+            task_frame_transformer_path = f"{self._env.scene.env_regex_ns}/{self.cfg.task_frame_rel_path}"
             task_frame_transformer_cfg = FrameTransformerCfg(
                 prim_path=root_rigidbody_path,
                 target_frames=[
@@ -735,7 +735,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         # Obtain contact forces only if the contact sensor is available
         if self._contact_sensor is not None:
             self._contact_sensor.update(self._sim_dt)
-            self._ee_force_w[:] = self._contact_sensor.data.net_forces_w.torch[:, 0, :]  # type: ignore
+            self._ee_force_w[:] = self._contact_sensor.data.net_normal_forces_w.torch[:, 0, :]  # type: ignore
             # Rotate forces and torques into root frame
             self._ee_force_b[:] = math_utils.quat_apply_inverse(self._asset.data.root_quat_w.torch, self._ee_force_w)
 

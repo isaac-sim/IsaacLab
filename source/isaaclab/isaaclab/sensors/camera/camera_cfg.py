@@ -230,9 +230,6 @@ class CameraCfg(SensorBaseCfg):
         :class:`DeprecationWarning` and is copied onto ``self.renderer_cfg``
         when that cfg defines the same-named field.
         """
-        # TODO when Camera.__init__ moves rtx_sensor setting out of camera initialization
-        # the default renderer config instantiation can be moved into the render factory
-        # and get_default_render_cfg method can be removed from backend_utils
         renderer_type = getattr(self.renderer_cfg, "renderer_type", None)
         if renderer_type == "default":
             from isaaclab.utils.backend_utils import get_default_renderer_cfg

@@ -1,5 +1,16 @@
 # Installing Isaac Lab Reference
 
+## Contents
+
+- [Preflight Detection](#preflight-detection)
+- [Express Route Mapping](#express-route-mapping)
+- [Express Flow Rules](#express-flow-rules)
+- [Asset Region Profiles](#asset-region-profiles)
+- [Prerequisite Minimums](#prerequisite-minimums)
+- [Minimal Verification](#minimal-verification)
+- [Install-Time Failure Routing](#install-time-failure-routing)
+- [Cross-Skill Routing](#cross-skill-routing)
+
 ## Preflight Detection
 
 Read-only commands to gather routing facts on Linux; nothing changes system state:
@@ -8,6 +19,7 @@ Read-only commands to gather routing facts on Linux; nothing changes system stat
 grep PRETTY_NAME /etc/os-release && uname -m && ldd --version | head -1
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
 command -v python3.12 uv conda; free -g | head -2; df -h .
+env | grep -E '^(ISAACSIM_ASSET_REGION_PROFILE|ISAACSIM_ASSET_ROOT)=' || true
 ```
 
 Also note existing install artifacts: `.venv/` or an env directory in the checkout, and `~/.isaaclab/install_profile.yaml`. On Windows, collect the equivalents (driver via `nvidia-smi`, Python version, free disk).
@@ -44,6 +56,27 @@ User-stated preferences override the routing and map directly:
 - Log every executed command and its output to `~/.isaaclab/logs/install-<timestamp>.log`.
 - After success, write facts, route, and commands run to `~/.isaaclab/install_profile.yaml`.
 
+## Asset Region Profiles
+
+Use the China profile only when the user requests it or states that Isaac Lab will run in mainland China. Do not
+infer the profile from an IP address or other geolocation lookup.
+
+Read the `installation-asset-region-profiles` section in `docs/source/setup/installation/index.rst` from the checkout
+every time. Use its current profile setting and asset-availability manifest instead of copying release numbers,
+service endpoints, bucket names, or CDN URLs into the skill.
+
+- Add the documented profile environment variable to the install verification and subsequent example commands. Do
+  not edit shell startup files unless the user explicitly requests persistence.
+- If `ISAACSIM_ASSET_ROOT` is already set, explain that it takes precedence. When the user selected China storage,
+  include the platform-appropriate session-local unset command in the consolidated plan before setting the profile.
+- Before running or recommending an example that loads assets, find a manifest row for each required full relative
+  asset path. Treat a missing row as not mirrored, require an `available` status for every listed path, and use another
+  available asset or a local asset pack when needed.
+- Build asset URLs from profile-resolved Isaac Lab constants. Do not hard-code service endpoints in commands or
+  generated code.
+- Treat the normal minimal installation verification as a runtime check, not proof that every asset is available in
+  the China service.
+
 ## Prerequisite Minimums
 
 Read `docs/source/setup/installation/index.rst` "System requirements" from the checkout for current minimums rather than relying on cached values. Common gates:
@@ -59,14 +92,13 @@ Read `docs/source/setup/installation/index.rst` "System requirements" from the c
 
 Run the docs-defined minimal verification command after every install, before larger tests. The command varies by route:
 
-- Automatic uv (`installation-method-uv`), legacy installer (`installation-legacy-installer`), managed Python env (`installation-method-python-env`), Isaac Lab wheel (`installation-method-wheel`), and Isaac Sim source build (`installation-method-source`) verify Isaac Lab via the tutorial script documented in the section's included verification snippet:
+- Automatic uv (`installation-method-uv`) uses the smallest workflow command documented in that section.
+- Legacy installer (`installation-legacy-installer`), managed Python env (`installation-method-python-env`), and Isaac Lab wheel (`installation-method-wheel`) use the verification command documented in their respective sections.
+- Isaac Sim source builds (`installation-method-source`) use the command documented for the selected source-build connection method. The recommended ``uv`` method runs through the live ``_isaac_sim`` release tree created by ``--isaacsim_source``.
+- Downloaded Isaac Sim packages (`installation-method-binary`) use the bundled-Python verification documented in that section, without activating conda, ``uv``, or ``venv``.
+- Docker (`installation-method-container`) runs the documented verification inside the container.
 
-```bash
-uv run python scripts/tutorials/00_sim/create_empty.py --viz kit
-```
-
-- Downloaded Isaac Sim package (`installation-method-binary`) uses the bundled-Python verification documented in the section (launch via `${ISAACSIM_PATH}/isaac-sim.sh`, then run the tutorial script from the checkout).
-- Docker (`installation-method-container`) runs the same tutorial verification inside the container as documented in `docs/source/features/docker_cloud.rst`.
+Do not copy a verification command from another route; read it from the selected section in the current checkout.
 
 ## Install-Time Failure Routing
 

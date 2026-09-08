@@ -10,6 +10,7 @@ Imports the shared contract tests and provides the Fabric-specific
 Camera prim type for Fabric SelectPrims compatibility).
 """
 
+import logging
 import sys
 from pathlib import Path
 
@@ -94,7 +95,7 @@ def _set_parent_positions(positions, num_envs):
 
 
 @pytest.fixture
-def view_factory():
+def view_factory(request):
     """Fabric factory: Camera child at CHILD_OFFSET under parent Xforms, with Fabric enabled."""
 
     def factory(num_envs: int, device: str) -> ViewBundle:
@@ -106,12 +107,16 @@ def view_factory():
             sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=CHILD_OFFSET, stage=stage)
 
         sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-        view = FrameView("/World/Parent_.*/Child", device=device)
+        view = FrameView("/World/Parent_[^/]*/Child", device=device)
+        # close() is idempotent, so this is safe even for tests that close (or
+        # tear down) themselves; it keeps views from being reaped by garbage
+        # collection, which would log the missing-close() warning per test.
+        request.addfinalizer(view.close)
         return ViewBundle(
             view=view,
             get_parent_pos=_get_parent_positions,
             set_parent_pos=_set_parent_positions,
-            teardown=lambda: None,
+            teardown=view.close,
         )
 
     return factory
@@ -128,6 +133,36 @@ def view_factory():
 # ------------------------------------------------------------------
 # Fabric-specific tests (not in shared contract)
 # ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_float_scale_initializes_fabric(device):
+    """A legal float3 scale initializes Fabric without changing the FP32 view contract."""
+    _skip_if_unavailable(device)
+
+    stage = sim_utils.get_current_stage()
+    prim = stage.DefinePrim("/World/SiteGuide", "Sphere")
+    xformable = UsdGeom.Xformable(prim)
+    xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Vec3f(0.1, -0.2, 0.3))
+    xformable.AddOrientOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Quatf(1.0, Gf.Vec3f(0.0)))
+    xformable.AddScaleOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Vec3f(0.01, 0.02, 0.03))
+
+    sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
+    view = FrameView("/World/SiteGuide", device=device)
+    try:
+        assert isinstance(prim.GetAttribute("xformOp:scale").Get(), Gf.Vec3f)
+
+        world_positions, _ = view.get_world_poses()
+        expected_position = torch.tensor([[0.1, -0.2, 0.3]], dtype=torch.float32, device=device)
+        torch.testing.assert_close(world_positions.torch, expected_position, atol=1e-6, rtol=0)
+
+        expected_scale = torch.tensor([[0.01, 0.02, 0.03]], dtype=torch.float32, device=device)
+        scales = view.get_local_scales()
+        assert scales.warp.dtype == wp.float32
+        assert scales.torch.dtype == torch.float32
+        torch.testing.assert_close(scales.torch, expected_scale, atol=1e-6, rtol=0)
+    finally:
+        view.close()
 
 
 @wp.kernel
@@ -185,14 +220,11 @@ def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
 
 @pytest.mark.parametrize("device", test_devices())
 def test_fabric_rebuild_after_topology_change(device, view_factory):
-    """A simulated topology change rebuilds the indexed fabric arrays and leaves
-    the view in a state where subsequent writes/reads still produce correct data.
+    """Refreshing every selection mid-use leaves writes and reads correct.
 
-    Real ``PrimSelection.PrepareForReuse`` reports topology change only when Fabric
-    reallocates internally, which is hard to provoke from a unit test.  Instead we
-    invoke :meth:`FabricFrameView._compute_fabric_indices` and rebuild the indexed
-    arrays manually, mimicking what ``_get_*_array`` would do on a real topology
-    event, then verify a roundtrip still works.
+    ``PrepareForReuse`` only reports a topology change when Fabric reallocates
+    internally, which this test does not provoke, so this is a smoke test of the
+    refresh paths rather than true topology-recovery coverage.
     """
     bundle = view_factory(2, device)
     view = bundle.view
@@ -203,10 +235,15 @@ def test_fabric_rebuild_after_topology_change(device, view_factory):
     with view.xform_world_space_writer() as w:
         w.set_poses(positions=initial)
 
-    # Simulate topology change: rebuild both selection bundles, mirroring the
-    # lazy paths in the ``_refresh_active_bundle_if_needed`` accessor.
-    view._rebuild_ro_arrays()
-    view._rebuild_rw_arrays()
+    # Simulate topology change: refresh both child selections and the parent
+    # selection, mirroring the accessor paths.
+    view._refresh_child_selection()  # RO (steady state)
+    view._is_rw = True
+    try:
+        view._refresh_child_selection()  # RW (writer scope)
+    finally:
+        view._is_rw = False
+    view._refresh_parent_selection()
 
     # Trigger another write through the rebuilt arrays.
     new = wp.zeros((2, 3), dtype=wp.float32, device=device)
@@ -295,6 +332,90 @@ def test_prepare_for_reuse_detects_topology_change(device, view_factory):
         result = selection.PrepareForReuse()
         assert isinstance(result, bool), f"PrepareForReuse should return bool, got {type(result)}"
         assert not result, "PrepareForReuse should return False when no topology change"
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_selections_match_only_the_view_prims(device, view_factory):
+    """Selections contain only the managed child prims and their unique parents.
+
+    Without the per-view index attribute in the selection predicate the child
+    selections also pick up the parents (and, on a real stage, every other
+    xformable), so this fails with "matched 8 prims, expected 4".
+    """
+    num_envs = 4
+    bundle = view_factory(num_envs, device)
+    view = bundle.view
+    view.get_world_poses()  # trigger Fabric init
+
+    for name in ("_sel_ro", "_sel_rw"):
+        count = getattr(view, name).GetCount()
+        assert count == view.count, (
+            f"{name} matched {count} prims but the view manages {view.count}. "
+            "The selection is not scoped by the per-view index attribute, so it is "
+            "picking up unrelated prims from the stage."
+        )
+    parent_count = view._sel_parent.GetCount()
+    assert parent_count == num_envs, f"parent selection matched {parent_count} prims, expected {num_envs}"
+
+
+def _count_prims_with_tag(view, attr: str) -> int:
+    """Number of prims on the view's Fabric stage carrying ``attr``."""
+    import usdrt  # noqa: PLC0415
+
+    sel = view._stage.SelectPrims(
+        require_attrs=[(usdrt.Sdf.ValueTypeNames.UInt, attr, usdrt.Usd.Access.Read)], device="cpu"
+    )
+    return sel.GetCount()
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_close_removes_index_attributes(device, view_factory):
+    """close() removes the view's Fabric index tags; a second close is a no-op."""
+    bundle = view_factory(2, device)
+    view = bundle.view
+    view.get_world_poses()  # trigger Fabric init (authors the tags)
+
+    child_attr = view._child_index_attr
+    assert _count_prims_with_tag(view, child_attr) == view.count
+    view.close()
+    assert _count_prims_with_tag(view, child_attr) == 0, "close() left index attributes behind"
+    view.close()  # idempotent
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_garbage_collection_removes_index_attributes_and_warns(device, caplog):
+    """Dropping a view without close() still removes its tags, with a warning.
+
+    Builds the view directly instead of via ``view_factory``: the fixture
+    registers ``view.close`` as a finalizer, and that bound method would keep
+    the view alive past the ``del`` below.
+    """
+    import gc  # noqa: PLC0415
+
+    _skip_if_unavailable(device)
+    stage_usd = sim_utils.get_current_stage()
+    for i in range(2):
+        sim_utils.create_prim(f"/World/Parent_{i}", "Xform", translation=PARENT_POS, stage=stage_usd)
+        sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=CHILD_OFFSET, stage=stage_usd)
+    sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
+    view = FrameView("/World/Parent_[^/]*/Child", device=device)
+    view.get_world_poses()
+
+    child_attr = view._child_index_attr
+    stage = view._stage  # keep a stage handle to count tags after the view dies
+    assert _count_prims_with_tag(view, child_attr) == view.count
+
+    with caplog.at_level(logging.WARNING, logger="isaaclab_physx.sim.views.fabric_frame_view"):
+        del view
+        gc.collect()
+
+    import usdrt  # noqa: PLC0415
+
+    sel = stage.SelectPrims(
+        require_attrs=[(usdrt.Sdf.ValueTypeNames.UInt, child_attr, usdrt.Usd.Access.Read)], device="cpu"
+    )
+    assert sel.GetCount() == 0, "garbage collection left index attributes behind"
+    assert any("without close()" in r.message for r in caplog.records), "expected a close() warning"
 
 
 def _read_fabric_world_matrix_translation(view, prim_index=0):
@@ -458,7 +579,7 @@ def _build_rotated_parent_view(device: str) -> "FrameView":
     )
     sim_utils.create_prim("/World/Parent_0/Child", "Camera", translation=(0.0, 0.0, 0.0), stage=stage)
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-    view = FrameView("/World/Parent_.*/Child", device=device)
+    view = FrameView("/World/Parent_[^/]*/Child", device=device)
     view.get_world_poses()  # force Fabric init and USD→Fabric seed
     return view
 
@@ -484,6 +605,7 @@ def test_set_local_then_get_world_with_rotated_parent(device):
     world_pos, _ = view.get_world_poses()
     expected = torch.tensor([[0.0, 1.0, 1.0]], dtype=torch.float32, device=device)
     torch.testing.assert_close(torch.as_tensor(world_pos, device=device), expected, atol=1e-5, rtol=0)
+    view.close()
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -506,6 +628,7 @@ def test_set_world_then_get_local_with_rotated_parent(device):
     local_pos, _ = view.get_local_poses()
     expected = torch.tensor([[0.0, -5.0, 1.0]], dtype=torch.float32, device=device)
     torch.testing.assert_close(torch.as_tensor(local_pos, device=device), expected, atol=1e-5, rtol=0)
+    view.close()
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -537,7 +660,7 @@ def test_initial_seed_with_scaled_parent(device):
         stage=stage,
     )
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-    view = FrameView("/World/Parent_.*/Child", device=device)
+    view = FrameView("/World/Parent_[^/]*/Child", device=device)
 
     world_pos, _ = view.get_world_poses()
     torch.testing.assert_close(
@@ -554,6 +677,7 @@ def test_initial_seed_with_scaled_parent(device):
         atol=1e-5,
         rtol=0,
     )
+    view.close()
 
 
 # ------------------------------------------------------------------
@@ -580,8 +704,8 @@ def test_multi_view_writer_isolation(device):
     sim_utils.create_prim("/World/EnvB_0/ChildB", "Camera", translation=(0.2, 0.0, 0.0), stage=stage)
 
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-    view_a = FrameView("/World/EnvA_.*/ChildA", device=device)
-    view_b = FrameView("/World/EnvB_.*/ChildB", device=device)
+    view_a = FrameView("/World/EnvA_[^/]*/ChildA", device=device)
+    view_b = FrameView("/World/EnvB_[^/]*/ChildB", device=device)
 
     expected_a0 = torch.tensor([[0.1, 0.0, 1.0]], dtype=torch.float32, device=device)
     expected_b0 = torch.tensor([[0.2, 0.0, 2.0]], dtype=torch.float32, device=device)
@@ -632,6 +756,8 @@ def test_multi_view_writer_isolation(device):
             assert view_b._active_writer is not None
     assert view_a._active_writer is None
     assert view_b._active_writer is None
+    view_a.close()
+    view_b.close()
 
 
 # ------------------------------------------------------------------
@@ -733,7 +859,7 @@ def _build_two_child_view(device: str) -> "FrameView":
         )
         sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=(0.0, 0.0, 0.0), stage=stage)
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-    view = FrameView("/World/Parent_.*/Child", device=device)
+    view = FrameView("/World/Parent_[^/]*/Child", device=device)
     view.get_world_poses()  # force init
     return view
 
@@ -789,6 +915,7 @@ def test_sequential_world_then_local_scopes_partial_indices(device):
         atol=1e-5,
         rtol=0,
     )
+    view.close()
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
@@ -837,6 +964,7 @@ def test_sequential_local_then_world_scopes_partial_indices(device):
         atol=1e-5,
         rtol=0,
     )
+    view.close()
 
 
 # ------------------------------------------------------------------

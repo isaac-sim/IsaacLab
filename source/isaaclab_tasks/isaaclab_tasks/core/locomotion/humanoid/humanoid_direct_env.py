@@ -10,9 +10,9 @@ from isaaclab_tasks.core.locomotion.locomotion_direct_env import LocomotionDirec
 
 
 class HumanoidEnv(LocomotionDirectEnv):
-    """Direct-workflow Humanoid locomotion environment."""
+    """Direct-workflow Humanoid locomotion environment.
+
+    The behavior is fully defined by :class:`LocomotionDirectEnv` and :class:`HumanoidEnvCfg`.
+    """
 
     cfg: HumanoidEnvCfg
-
-    def __init__(self, cfg: HumanoidEnvCfg, render_mode: str | None = None, **kwargs):
-        super().__init__(cfg, render_mode, **kwargs)

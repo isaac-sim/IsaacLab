@@ -5,6 +5,8 @@
 
 import gymnasium as gym
 
+from . import agents
+
 ##
 # Register Gym environments.
 ##
@@ -18,6 +20,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_abs_env_cfg:FrankaCabinetEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaCabinetIKAbsPPORunnerCfg",
     },
     disable_env_checker=True,
 )
@@ -31,6 +34,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_rel_env_cfg:FrankaCabinetEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaCabinetIKRelPPORunnerCfg",
     },
     disable_env_checker=True,
 )

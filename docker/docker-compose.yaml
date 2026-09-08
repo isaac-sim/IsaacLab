@@ -12,10 +12,10 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
   # https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/install_faq.html#save-isaac-sim-configs-on-local-disk
   - type: volume
     source: isaac-cache-kit
-    target: ${DOCKER_ISAACSIM_ROOT_PATH}/kit/cache
+    target: ${DOCKER_ISAACSIM_ROOT_PATH:-/isaac-sim}/kit/cache
   - type: volume
     source: isaac-data-kit
-    target: ${DOCKER_ISAACSIM_ROOT_PATH}/kit/data
+    target: ${DOCKER_ISAACSIM_ROOT_PATH:-/isaac-sim}/kit/data
   - type: volume
     source: isaac-cache-ov
     target: ${DOCKER_USER_HOME}/.cache/ov
@@ -33,7 +33,7 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
     target: ${DOCKER_USER_HOME}/.nvidia-omniverse/logs
   - type: volume
     source: isaac-carb-logs
-    target: ${DOCKER_ISAACSIM_ROOT_PATH}/kit/logs/Kit/Isaac-Sim
+    target: ${DOCKER_ISAACSIM_ROOT_PATH:-/isaac-sim}/kit/logs/Kit/Isaac-Sim
   - type: volume
     source: isaac-data
     target: ${DOCKER_USER_HOME}/.local/share/ov/data
@@ -73,6 +73,43 @@ x-default-isaac-lab-volumes: &default-isaac-lab-volumes
     source: .isaac-lab-docker-history
     target: ${DOCKER_USER_HOME}/.bash_history
 
+# The kit-less image has no Isaac Sim installation, so keep its mounts free of
+# Kit paths and Isaac Sim caches.
+x-kitless-isaac-lab-volumes: &kitless-isaac-lab-volumes
+  - type: volume
+    source: isaac-cache-uv
+    target: ${DOCKER_USER_HOME}/.cache/uv
+  - type: volume
+    source: isaac-cache-warp
+    target: ${DOCKER_USER_HOME}/.cache/warp
+  - type: bind
+    source: ../source
+    target: ${DOCKER_ISAACLAB_PATH}/source
+  - type: bind
+    source: ../scripts
+    target: ${DOCKER_ISAACLAB_PATH}/scripts
+  - type: bind
+    source: ../apps
+    target: ${DOCKER_ISAACLAB_PATH}/apps
+  - type: bind
+    source: ../tools
+    target: ${DOCKER_ISAACLAB_PATH}/tools
+  - type: bind
+    source: ../docs
+    target: ${DOCKER_ISAACLAB_PATH}/docs
+  - type: volume
+    source: isaac-lab-docs
+    target: ${DOCKER_ISAACLAB_PATH}/docs/_build
+  - type: volume
+    source: isaac-lab-logs
+    target: ${DOCKER_ISAACLAB_PATH}/logs
+  - type: volume
+    source: isaac-lab-data
+    target: ${DOCKER_ISAACLAB_PATH}/data_storage
+  - type: bind
+    source: .isaac-lab-docker-history
+    target: ${DOCKER_USER_HOME}/.bash_history
+
 x-default-isaac-lab-environment: &default-isaac-lab-environment
   - ISAACSIM_PATH=${DOCKER_ISAACLAB_PATH}/_isaac_sim
 
@@ -93,9 +130,9 @@ services:
       context: ../
       dockerfile: docker/Dockerfile.base
       args:
-        - ISAACSIM_BASE_IMAGE_ARG=${ISAACSIM_BASE_IMAGE}
-        - ISAACSIM_VERSION_ARG=${ISAACSIM_VERSION}
-        - ISAACSIM_ROOT_PATH_ARG=${DOCKER_ISAACSIM_ROOT_PATH}
+        - ISAACSIM_BASE_IMAGE_ARG=${ISAACSIM_BASE_IMAGE:-nvcr.io/nvidia/isaac-sim}
+        - ISAACSIM_VERSION_ARG=${ISAACSIM_VERSION:-6.0.0}
+        - ISAACSIM_ROOT_PATH_ARG=${DOCKER_ISAACSIM_ROOT_PATH:-/isaac-sim}
         - ISAACLAB_PATH_ARG=${DOCKER_ISAACLAB_PATH}
         - DOCKER_USER_HOME_ARG=${DOCKER_USER_HOME}
     image: isaac-lab-base${DOCKER_NAME_SUFFIX-}
@@ -138,6 +175,26 @@ services:
     stdin_open: true
     tty: true
 
+  # This standalone service provides the kit-less Isaac Lab image.
+  isaac-lab-kitless:
+    profiles: [ "kitless" ]
+    env_file: .env.kitless
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.kitless
+      args:
+        - BASE_IMAGE_ARG=${KITLESS_BASE_IMAGE:-ubuntu:24.04}
+        - ISAACLAB_PATH_ARG=${DOCKER_ISAACLAB_PATH}
+        - DOCKER_USER_HOME_ARG=${DOCKER_USER_HOME}
+    image: isaac-lab-kitless${DOCKER_NAME_SUFFIX-}
+    container_name: isaac-lab-kitless${DOCKER_NAME_SUFFIX-}
+    volumes: *kitless-isaac-lab-volumes
+    network_mode: host
+    deploy: *default-isaac-lab-deploy
+    entrypoint: bash
+    stdin_open: true
+    tty: true
+
 volumes:
   # isaac-sim
   isaac-cache-kit:
@@ -150,6 +207,9 @@ volumes:
   isaac-carb-logs:
   isaac-data:
   isaac-docs:
+  # kit-less
+  isaac-cache-uv:
+  isaac-cache-warp:
   # isaac-lab
   isaac-lab-docs:
   isaac-lab-logs:

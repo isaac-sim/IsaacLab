@@ -29,6 +29,7 @@ from isaaclab.utils.warp import ProxyArray
 from . import ordering_kernels
 
 if TYPE_CHECKING:
+    from isaaclab.actuators import ActuatorCollection
     from isaaclab.utils.buffers import TimestampedBufferWarp
 
     from .ordering import ArticulationNameMap
@@ -64,6 +65,68 @@ class BaseArticulationData(ABC):
         """
         # Set the parameters
         self.device = device
+        self._actuator_collection: ActuatorCollection | None = None
+        self._joint_pos_target = None
+        self._joint_vel_target = None
+        self._joint_effort_target = None
+        self._joint_pos_target_ta: ProxyArray | None = None
+        self._joint_vel_target_ta: ProxyArray | None = None
+        self._joint_effort_target_ta: ProxyArray | None = None
+
+    def bind_actuator_collection(self, actuators: ActuatorCollection) -> None:
+        """Bind collection-owned command and telemetry aliases plus actuator compatibility projections."""
+        self._actuator_collection = actuators
+        self._joint_pos_target = actuators.target_command.position.warp
+        self._joint_vel_target = actuators.target_command.velocity.warp
+        self._joint_effort_target = actuators.target_command.effort.warp
+        self._computed_torque = actuators.computed_effort.warp
+        self._applied_torque = actuators.applied_effort.warp
+        self._soft_joint_vel_limits = actuators._soft_joint_vel_limits
+        self._joint_pos_target_ta = actuators.target_command.position
+        self._joint_vel_target_ta = actuators.target_command.velocity
+        self._joint_effort_target_ta = actuators.target_command.effort
+        self._computed_torque_ta = actuators.computed_effort
+        self._applied_torque_ta = actuators.applied_effort
+        self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
+
+    def _get_actuator_collection_proxy(self, name: str, buffer_name: str, proxy_name: str) -> ProxyArray:
+        collection = self._actuator_collection
+        if collection is not None:
+            command_field = {
+                "joint_pos_target": "position",
+                "joint_vel_target": "velocity",
+                "joint_effort_target": "effort",
+            }.get(name)
+            collection_field = {
+                "computed_torque": "computed_effort",
+                "applied_torque": "applied_effort",
+            }.get(name, name)
+            replacement = f"command.{command_field}" if command_field is not None else collection_field
+            warnings.warn(
+                f"ArticulationData.{name} is deprecated. Use articulation.actuators.{replacement} instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return (
+                getattr(collection.target_command, command_field)
+                if command_field is not None
+                else getattr(collection, collection_field)
+            )
+
+        warnings.warn(
+            f"ArticulationData.{name} is deprecated.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        buffer = getattr(self, buffer_name)
+        if buffer is None:
+            buffer = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            setattr(self, buffer_name, buffer)
+        proxy = getattr(self, proxy_name)
+        if proxy is None:
+            proxy = ProxyArray(buffer)
+            setattr(self, proxy_name, proxy)
+        return proxy
 
     @abstractmethod
     def update(self, dt: float) -> None:
@@ -298,77 +361,70 @@ class BaseArticulationData(ABC):
     ##
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_POSITION)
     def joint_pos_target(self) -> ProxyArray:
-        """Joint position targets commanded by the user.
+        """Joint position targets commanded by the user [m or rad, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.target_command.position`` instead.
 
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("joint_pos_target", "_joint_pos_target", "_joint_pos_target_ta")
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_VELOCITY)
     def joint_vel_target(self) -> ProxyArray:
-        """Joint velocity targets commanded by the user.
+        """Joint velocity targets commanded by the user [m/s or rad/s, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.target_command.velocity`` instead.
 
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("joint_vel_target", "_joint_vel_target", "_joint_vel_target_ta")
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_TORQUES)
     def joint_effort_target(self) -> ProxyArray:
-        """Joint effort targets commanded by the user.
+        """Joint effort targets commanded by the user [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.target_command.effort`` instead.
 
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy(
+            "joint_effort_target", "_joint_effort_target", "_joint_effort_target_ta"
+        )
 
     ##
     # Joint commands -- Explicit actuators.
     ##
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind="state/joint/computed_torque")
     def computed_torque(self) -> ProxyArray:
-        """Joint torques computed from the actuator model (before clipping).
+        """Computed actuator torques before clipping [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.computed_effort`` instead.
 
-        This quantity is the raw torque output from the actuator mode, before any clipping is applied.
-        It is exposed for users who want to inspect the computations inside the actuator model.
-        For instance, to penalize the learning agent for a difference between the computed and applied torques.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("computed_torque", "_computed_torque", "_computed_torque_ta")
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind="state/joint/applied_torque")
     def applied_torque(self) -> ProxyArray:
-        """Joint torques applied from the actuator model (after clipping).
+        """Actuator torques applied after clipping [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.applied_effort`` instead.
 
-        These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
-        actuator model.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("applied_torque", "_applied_torque", "_applied_torque_ta")
 
     ##
     # Joint properties.
@@ -378,11 +434,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def joint_stiffness(self) -> ProxyArray:
-        """Joint stiffness provided to the simulation.
+        """Solver joint-drive stiffness [N/m or N·m/rad, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        In the case of explicit actuators, the value for the corresponding joints is zero.
+        Shape is (num_instances, num_joints), dtype = wp.float32. Explicit
+        actuator joints report zero because their model owns the gains.
         """
         raise NotImplementedError
 
@@ -390,11 +445,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def joint_damping(self) -> ProxyArray:
-        """Joint damping provided to the simulation.
+        """Solver joint-drive damping [N·s/m or N·m·s/rad, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        In the case of explicit actuators, the value for the corresponding joints is zero.
+        Shape is (num_instances, num_joints), dtype = wp.float32. Explicit
+        actuator joints report zero because their model owns the gains.
         """
         raise NotImplementedError
 
@@ -487,27 +541,17 @@ class BaseArticulationData(ABC):
         raise NotImplementedError
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(const=True)
     def soft_joint_vel_limits(self) -> ProxyArray:
-        """Soft joint velocity limits for all joints.
+        """Actuator-resolved soft joint velocity limits [m/s or rad/s, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        Shape is (num_instances, num_joints), dtype = wp.float32.
 
-        These are obtained from the actuator model. It may differ from :attr:`joint_vel_limits` if the actuator model
-        has a variable velocity limit model. For instance, in a variable gear ratio actuator model.
+        These values are produced by the actuator model and can differ from :attr:`joint_vel_limits` for a
+        state-dependent velocity-limit model, such as one with a variable gear ratio. They are compatibility outputs;
+        the solver velocity limits remain :attr:`joint_vel_limits`.
         """
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    @leapp_tensor_semantics(const=True)
-    def gear_ratio(self) -> ProxyArray:
-        """Gear ratio for relating motor torques to applied Joint torques.
-
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-        """
-        raise NotImplementedError
+        return self._soft_joint_vel_limits_ta
 
     ##
     # Fixed tendon properties.

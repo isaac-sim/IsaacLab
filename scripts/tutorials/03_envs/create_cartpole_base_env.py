@@ -46,6 +46,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleSceneCfg
 
@@ -128,8 +129,7 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # viewer settings
-        self.viewer.eye = [4.5, 0.0, 6.0]
-        self.viewer.lookat = [0.0, 0.0, 2.0]
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0), lookat=(0.0, 0.0, 2.0))
         # step settings
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings

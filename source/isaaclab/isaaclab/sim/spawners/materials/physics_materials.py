@@ -206,13 +206,12 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
 
 @clone
 def spawn_deformable_body_material(
-    prim_path: str, cfg: physics_materials_cfg.DeformableBodyMaterialBaseCfg
+    prim_path: str,
+    cfg: physics_materials_cfg.CableMaterialCfg | physics_materials_cfg.DeformableBodyMaterialBaseCfg,
 ) -> Usd.Prim:
-    """Create material with deformable-body physics properties.
+    """Create material with deformable physics properties.
 
-    Deformable body materials are used to define the physical properties to meshes of a deformable body. These
-    include the friction and deformable body properties. For more information on deformable body material,
-    please refer to the documentation on `PxFEMSoftBodyMaterial`_.
+    Deformable materials define the physical properties of curves, surfaces, and volume meshes.
 
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths
@@ -225,13 +224,15 @@ def spawn_deformable_body_material(
         cfg: The configuration for the physics material.
 
     Returns:
-        The spawned deformable body material prim.
+        The spawned deformable material prim.
 
     Raises:
         ValueError: When a prim already exists at the specified prim path and is not a material.
 
-    .. _PxFEMSoftBodyMaterial: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxFEMSoftBodyMaterialModel.html
     """
+    if isinstance(cfg, physics_materials_cfg.CableMaterialCfg):
+        cfg.validate()
+
     # get stage handle
     stage = get_current_stage()
 

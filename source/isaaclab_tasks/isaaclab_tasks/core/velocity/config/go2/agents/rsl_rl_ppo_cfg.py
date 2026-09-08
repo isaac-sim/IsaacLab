@@ -14,6 +14,7 @@ class UnitreeGo2RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 1500
     save_interval = 50
     experiment_name = "unitree_go2_rough"
+    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
     actor = RslRlMLPModelCfg(
         hidden_dims=[512, 256, 128],
         activation="elu",

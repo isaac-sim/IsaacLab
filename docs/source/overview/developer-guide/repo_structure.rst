@@ -17,8 +17,7 @@ Repository organization
    ├── source
    │   ├── isaaclab                   # core framework
    │   ├── isaaclab_physx             # PhysX backend (requires Isaac Sim)
-   │   ├── isaaclab_ovphysx           # standalone PhysX backend (requires ovphysx)
-   │   ├── isaaclab_ov                # OVRTX renderer backend (requires ovrtx)
+   │   ├── isaaclab_ov                # OVPhysX and OVRTX integrations
    │   ├── isaaclab_newton            # Newton backend (kit-less)
    │   ├── isaaclab_assets            # pre-configured robot & sensor assets
    │   ├── isaaclab_tasks             # pre-built RL/IL environments
@@ -68,10 +67,10 @@ groups:
   (:mod:`~isaaclab.terrains`), and human-input device support (:mod:`~isaaclab.devices`).
 * **isaaclab_physx**: PhysX-backed implementations of articulations, rigid bodies, deformable
   objects, Fabric views, the Isaac RTX renderer, and USD spawners. Requires Isaac Sim.
-* **isaaclab_ovphysx**: Standalone PhysX backend variant using ``ovphysx`` and the
-  TensorBindingsAPI. Requires the ``ovphysx`` package and can run without launching Isaac Sim.
-* **isaaclab_ov**: OVRTX renderer backend for RTX-based tiled camera rendering. Requires the
-  ``ovrtx`` package and can run without Isaac Sim.
+* **isaaclab_ov**: Standalone PhysX backend variant using ``ovphysx`` and the
+  TensorBindingsAPI, plus the OVRTX renderer backend for RTX-based tiled camera rendering.
+  Requires the corresponding optional ``ovphysx`` or ``ovrtx`` runtime and can run
+  without Isaac Sim.
 * **isaaclab_newton**: Newton-backed implementations of articulations, rigid bodies, rigid
   object collections, cameras, USD spawners, and the Warp renderer. Supports
   :ref:`kit-less installation <isaaclab-installation-root>` without Isaac Sim.

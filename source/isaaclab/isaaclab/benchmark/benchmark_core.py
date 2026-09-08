@@ -241,11 +241,12 @@ class BaseIsaacLabBenchmark:
 
         self.benchmark_name = benchmark_name
 
-        if not os.path.exists(output_path):
-            try:
-                os.makedirs(output_path)
-            except Exception as e:
-                raise ValueError(f"Could not create output directory {output_path}: {e}")
+        try:
+            # ``exist_ok`` also covers concurrent ranks of a multi-GPU benchmark racing to
+            # create the shared output directory.
+            os.makedirs(output_path, exist_ok=True)
+        except Exception as e:
+            raise ValueError(f"Could not create output directory {output_path}: {e}")
         self.output_path = output_path
         if output_prefix is None:
             output_prefix = "benchmark"

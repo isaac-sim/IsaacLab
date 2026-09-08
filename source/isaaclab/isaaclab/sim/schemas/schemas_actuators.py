@@ -8,7 +8,7 @@
 :func:`define_actuator_properties` translates IsaacLab actuator configs
 into ``NewtonActuator`` USD prims. Both the Newton ``ModelBuilder.add_usd``
 path and the PhysX adapter's
-:meth:`~isaaclab_newton.actuators.adapter.NewtonActuatorAdapter.from_usd`
+:meth:`~isaaclab.actuators.newton.adapter.NewtonActuatorAdapter.from_usd`
 read the same authored prims, ensuring both backends construct
 :class:`~newton.actuators.Actuator` instances with matching parameters.
 
@@ -20,16 +20,76 @@ side effect of asset construction.
 
 from __future__ import annotations
 
-import logging
 import re
 from typing import Any
 
-from pxr import Sdf, Usd
+from pxr import Sdf, Usd, UsdPhysics
 
-from isaaclab.actuators import ImplicitActuator
-from isaaclab.utils.string import resolve_matching_names
+from isaaclab.actuators._compat import _resolve_limit_aliases
+from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
+from isaaclab.utils.string import _resolve_matching_values_dense, resolve_matching_names, string_to_callable
 
-logger = logging.getLogger(__name__)
+
+def _resolve_actuator_class(class_type: type | str) -> type:
+    """Resolve and validate an actuator class reference for authoring identity checks."""
+    from isaaclab.actuators import ActuatorBase  # noqa: PLC0415
+
+    if isinstance(class_type, str):
+        try:
+            class_type = string_to_callable(str(class_type))
+        except (AttributeError, ImportError, ValueError) as error:
+            raise ValueError(f"Unable to resolve actuator class '{class_type}'.") from error
+    if not isinstance(class_type, type) or not issubclass(class_type, ActuatorBase):
+        raise ValueError(f"Actuator class must derive from ActuatorBase, got {class_type!r}.")
+    return class_type
+
+
+def _is_newton_native_actuator_cfg(cfg: Any) -> bool:
+    """Return whether an actuator config can be authored as a Newton actuator."""
+    from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
+    from isaaclab.actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP  # noqa: PLC0415
+    from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
+    from isaaclab.actuators.actuator_pd import (  # noqa: PLC0415
+        DCMotor,
+        DelayedPDActuator,
+        IdealPDActuator,
+        RemotizedPDActuator,
+    )
+    from isaaclab.actuators.actuator_pd_cfg import IdealPDActuatorCfg, RemotizedPDActuatorCfg  # noqa: PLC0415
+
+    supported_cfg_types = (
+        (ActuatorNetMLPCfg, ActuatorNetMLP),
+        (ActuatorNetLSTMCfg, ActuatorNetLSTM),
+        (RemotizedPDActuatorCfg, RemotizedPDActuator),
+        (DelayedPDActuatorCfg, DelayedPDActuator),
+        (DCMotorCfg, DCMotor),
+        (IdealPDActuatorCfg, IdealPDActuator),
+    )
+    try:
+        resolved_class = _resolve_actuator_class(cfg.class_type)
+    except ValueError:
+        return False
+    for cfg_type, actuator_type in supported_cfg_types:
+        if isinstance(cfg, cfg_type):
+            return resolved_class is actuator_type
+    return False
+
+
+def _validate_newton_native_actuator_cfgs(actuator_cfgs: dict[str, Any]) -> None:
+    """Reject explicit actuator configurations that Newton cannot author."""
+    unsupported_groups = []
+    for group_name, cfg in actuator_cfgs.items():
+        try:
+            is_implicit = _is_implicit_actuator_cfg(cfg)
+        except ValueError:
+            is_implicit = False
+        if not is_implicit and not _is_newton_native_actuator_cfg(cfg):
+            unsupported_groups.append(f"'{group_name}' ({type(cfg).__name__})")
+    if unsupported_groups:
+        raise ValueError(
+            "Newton-native actuator execution does not support "
+            f"{', '.join(unsupported_groups)}. Disable 'use_newton_actuators' or use a supported actuator config."
+        )
 
 
 def resolve_per_dof(
@@ -111,6 +171,9 @@ def define_actuator_properties(
             :class:`~isaaclab.actuators.ActuatorBaseCfg`.
         stage: USD stage to author on. When ``None``, the current stage
             is used.
+
+    Raises:
+        ValueError: If Newton-native execution is enabled and an explicit actuator config is unsupported.
     """
     from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
@@ -143,6 +206,8 @@ def _author_actuator_prims(
     if not art_prim.IsValid():
         raise ValueError(f"Articulation prim not found: {articulation_prim_path}")
 
+    _validate_newton_native_actuator_cfgs(actuator_cfgs)
+
     joint_inventory = _collect_joint_prims(art_prim)
     all_joint_names = list(joint_inventory.keys())
 
@@ -150,18 +215,18 @@ def _author_actuator_prims(
 
     cfg_entries: list[tuple[str, Any, list[str]]] = []
     for group_name, cfg in actuator_cfgs.items():
-        cls_type = cfg.class_type
-        is_implicit = (
-            "ImplicitActuator" in cls_type if isinstance(cls_type, str) else issubclass(cls_type, ImplicitActuator)
-        )
-        if is_implicit:
+        if _is_implicit_actuator_cfg(cfg):
             continue
 
         _ids, joint_names = resolve_matching_names(cfg.joint_names_expr, all_joint_names)
         if not joint_names:
             continue
 
-        cfg_entries.append((group_name, cfg, joint_names))
+        resolved_cfg = cfg.copy()
+        # Collection construction emits the deprecation warning later in the
+        # normal asset lifecycle. Authoring only needs the normalized value.
+        _resolve_limit_aliases(group_name, resolved_cfg, joint_names, warn_deprecated=False)
+        cfg_entries.append((group_name, resolved_cfg, joint_names))
         for jname in joint_names:
             covered_joint_paths.add(joint_inventory[jname])
 
@@ -169,36 +234,33 @@ def _author_actuator_prims(
 
     from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
     from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
-    from isaaclab.actuators.actuator_pd_cfg import IdealPDActuatorCfg, RemotizedPDActuatorCfg  # noqa: PLC0415
-
-    _SUPPORTED_CFG_TYPES = (
-        IdealPDActuatorCfg,
-        DCMotorCfg,
-        DelayedPDActuatorCfg,
-        RemotizedPDActuatorCfg,
-        ActuatorNetMLPCfg,
-        ActuatorNetLSTMCfg,
-    )
+    from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
 
     for group_name, cfg, joint_names in cfg_entries:
-        if not isinstance(cfg, _SUPPORTED_CFG_TYPES):
-            logger.warning(
-                "Actuator group '%s' uses config type '%s' which is not supported by Newton-native"
-                " actuator authoring. The group will be skipped.",
-                group_name,
-                type(cfg).__name__,
-            )
-            continue
         stiffness_map = resolve_per_dof(getattr(cfg, "stiffness", None), joint_names)
         damping_map = resolve_per_dof(getattr(cfg, "damping", None), joint_names)
-        effort_map = resolve_per_dof(getattr(cfg, "effort_limit", None), joint_names)
 
         is_neural = isinstance(cfg, (ActuatorNetMLPCfg, ActuatorNetLSTMCfg))
         is_remotized = isinstance(cfg, RemotizedPDActuatorCfg)
         is_dc_motor = isinstance(cfg, DCMotorCfg)
         is_delayed = isinstance(cfg, DelayedPDActuatorCfg)
 
-        vel_limit_map = resolve_per_dof(getattr(cfg, "velocity_limit", None), joint_names) if is_dc_motor else {}
+        configured_effort_limit = getattr(cfg, "actuator_effort_limit", None)
+        effort_map: dict[str, float] = {}
+        if not is_remotized:
+            if configured_effort_limit is None:
+                for joint_name in joint_names:
+                    authored_effort_limit = _get_authored_joint_effort_limit(stage, joint_inventory[joint_name])
+                    if authored_effort_limit is not None:
+                        effort_map[joint_name] = authored_effort_limit
+            else:
+                effort_map = dict(
+                    zip(joint_names, _resolve_matching_values_dense(configured_effort_limit, joint_names))
+                )
+
+        vel_limit_map = (
+            resolve_per_dof(getattr(cfg, "actuator_velocity_limit", None), joint_names) if is_dc_motor else {}
+        )
         sat_effort_map = resolve_per_dof(getattr(cfg, "saturation_effort", None), joint_names) if is_dc_motor else {}
 
         raw_delay = getattr(cfg, "max_delay", 0) if is_delayed else 0
@@ -239,7 +301,7 @@ def _author_actuator_prims(
                     attrs["velocity_limit"] = vel_limit_map[jname]
                 if jname in effort_map:
                     attrs["max_motor_effort"] = effort_map[jname]
-            elif jname in effort_map:
+            elif not is_remotized and jname in effort_map:
                 schemas.append("NewtonMaxEffortClampingAPI")
                 attrs["max_effort"] = effort_map[jname]
 
@@ -294,6 +356,19 @@ def _snake_to_camel(name: str) -> str:
     return _SNAKE_TO_CAMEL_RE.sub(lambda m: m.group(1).upper(), name)
 
 
+def _get_authored_joint_effort_limit(stage: Usd.Stage, joint_prim_path: str) -> float | None:
+    """Read a revolute or prismatic joint's authored USD drive effort limit."""
+    joint_prim = stage.GetPrimAtPath(joint_prim_path)
+    if joint_prim.IsA(UsdPhysics.RevoluteJoint):
+        drive_name = "angular"
+    elif joint_prim.IsA(UsdPhysics.PrismaticJoint):
+        drive_name = "linear"
+    else:
+        return None
+    value = UsdPhysics.DriveAPI(joint_prim, drive_name).GetMaxForceAttr().Get()
+    return None if value is None else float(value)
+
+
 def _collect_joint_prims(art_prim: Any) -> dict[str, str]:
     """Collect all joint prims under an articulation subtree.
 
@@ -343,10 +418,11 @@ def _resave_checkpoint_with_metadata(
 ) -> str:
     """Re-save a neural-network checkpoint with updated metadata.
 
-    Loads the original TorchScript or dict checkpoint, merges *metadata*
-    into any existing metadata (Lab config values take precedence), and
-    writes the result to a temporary ``.pt`` file that persists for the
-    lifetime of the process.
+    Resolves the configured path through the shared asset cache, loads the
+    original TorchScript or dict checkpoint, merges *metadata* into any
+    existing metadata (Lab config values take precedence), and writes the
+    result to a temporary ``.pt`` file that persists for the lifetime of the
+    process.
 
     Returns:
         Path to the temporary checkpoint file.
@@ -356,14 +432,18 @@ def _resave_checkpoint_with_metadata(
 
     import torch  # noqa: PLC0415
 
+    from isaaclab.utils.assets import retrieve_file_path  # noqa: PLC0415
+
+    local_path = retrieve_file_path(original_path)
+
     extra_files: dict[str, str] = {"metadata.json": ""}
     is_torchscript = True
     try:
-        net = torch.jit.load(original_path, map_location="cpu", _extra_files=extra_files)
+        net = torch.jit.load(local_path, map_location="cpu", _extra_files=extra_files)
         existing_meta = json.loads(extra_files["metadata.json"]) if extra_files["metadata.json"] else {}
     except Exception:
         is_torchscript = False
-        checkpoint = torch.load(original_path, map_location="cpu", weights_only=False)
+        checkpoint = torch.load(local_path, map_location="cpu", weights_only=False)
         if not isinstance(checkpoint, dict) or "model" not in checkpoint:
             raise ValueError(
                 f"Cannot load checkpoint at '{original_path}'; "

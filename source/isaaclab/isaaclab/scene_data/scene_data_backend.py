@@ -69,6 +69,13 @@ class SceneDataFormat:
         matrices: wp.array(dtype=wp.mat44f) = None
         """Per-transform 4x4 homogeneous transform matrices [m]."""
 
+    @wp_struct
+    class Points:
+        """Flat world-space nodal or particle positions."""
+
+        points: wp.array(dtype=wp.vec3f) = None
+        """World-space positions [m], shape [point_count]."""
+
 
 class SceneDataBackend:
     @property
@@ -89,3 +96,23 @@ class SceneDataBackend:
     def transform_paths(self) -> list[str]:
         """Return the paths for each transform."""
         raise NotImplementedError
+
+    @property
+    def points(self) -> SceneDataFormat.Points:
+        """Return deformable or particle geometry as flat world-space positions."""
+        return SceneDataFormat.Points()
+
+    @property
+    def point_count(self) -> int:
+        """Return the number of points in :attr:`points`."""
+        return 0
+
+    @property
+    def geometry_paths(self) -> list[str]:
+        """Return one USD prim path per geometry entity (deformable body instance)."""
+        return []
+
+    @property
+    def geometry_counts(self) -> list[int]:
+        """Return the unpadded point count for each geometry entity."""
+        return []

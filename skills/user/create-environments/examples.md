@@ -14,10 +14,12 @@ Start from:
 
 For quadruped locomotion requests with custom command sampling or custom rewards, first try to model the behavior as reusable `CommandManager`, `RewardManager`, `ObservationManager`, and shared MDP functions. Inspect `source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py` and robot-specific configs such as `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/rough_env_cfg.py`.
 
+If the quadruped task already exists and the request is limited to contacts, contact history, air time, sensor-derived observations or rewards, or actuator configuration, use `isaaclab-using-sensors-actuators` instead of this whole-environment workflow.
+
 Smoke-test pattern:
 
 ```bash
-uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 8
+uv run --extra isaacsim python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 8
 ```
 
 ## Direct Workflow
@@ -33,7 +35,7 @@ Start from:
 Smoke-test pattern:
 
 ```bash
-uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Direct --num_envs 8
+uv run --extra isaacsim python scripts/environments/random_agent.py --task Isaac-Cartpole-Direct --num_envs 8
 ```
 
 Training pattern:

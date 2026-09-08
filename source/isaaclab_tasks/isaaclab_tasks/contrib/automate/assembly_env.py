@@ -253,16 +253,17 @@ class AssemblyEnv(DirectRLEnv):
         # spawn a usd file of a table into the scene
         cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
         cfg.func(
-            "/World/envs/env_.*/Table", cfg, translation=(0.55, 0.0, 0.0), orientation=(0.0, 0.0, 0.70711, 0.70711)
+            "/World/envs/env_[^/]+/Table", cfg, translation=(0.55, 0.0, 0.0), orientation=(0.0, 0.0, 0.70711, 0.70711)
         )
 
         self._robot = Articulation(self.cfg.robot)
         self._fixed_asset = Articulation(self.cfg_task.fixed_asset)
         self._held_asset = RigidObject(self.cfg_task.held_asset)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
-        cloner.replicate(plan, stage=self.scene.stage)
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
+        global_paths = ("/World/ground",)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
+        cloner.replicate(plan)
 
         self.scene.filter_collisions()
 

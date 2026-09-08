@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
+from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg, XrCameraFeedCfg
 
 from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
@@ -132,4 +132,12 @@ class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
             pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
+            xr_camera_feeds=[
+                XrCameraFeedCfg(
+                    camera_name="robot_pov_cam",
+                    # Keep the 0.30 m-tall panel below the eye-level controls.
+                    offset_m=(0.0, -0.15),
+                    max_update_hz=0.0,
+                )
+            ],
         )

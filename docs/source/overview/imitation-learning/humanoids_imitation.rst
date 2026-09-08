@@ -11,6 +11,9 @@ This page covers data generation and imitation learning workflows for humanoid r
 
 .. important::
 
+   The Isaac Lab Mimic workflows and Pink IK tasks on this page are supported only on Linux.
+   Pink IK and its dependencies are not available on Windows.
+
    Complete the tutorial in :ref:`Synthetic Data Generation and Imitation Learning with Isaac Lab Mimic <teleoperation-imitation-learning>`
    before proceeding with the following demonstrations to
    understand the data collection, annotation, and generation steps of Isaac Lab Mimic.
@@ -78,7 +81,7 @@ Collect five demonstrations by running the following command:
 
 .. code:: bash
 
-   uv run python scripts/tools/record_demos.py \
+   uv run --extra teleop,isaacsim isaaclab teleop record \
    --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --xr \
@@ -88,7 +91,7 @@ Collect five demonstrations by running the following command:
 
 
 .. note::
-   We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` (see :ref:`environments` for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``.
+   We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` (see :doc:`/source/setup/environments` for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``.
 
 .. tip::
    If a demo fails during data collection, the environment can be reset using the teleoperation controls panel in the XR teleop client
@@ -100,7 +103,7 @@ You can replay the collected demonstrations by running the following command:
 
 .. code:: bash
 
-   uv run python scripts/tools/replay_demos.py \
+   uv run --extra teleop,isaacsim isaaclab teleop replay \
    --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --device cpu \
@@ -129,7 +132,7 @@ Annotate the demonstrations by running the following command:
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
    --task Isaac-PickPlace-GR1T2-Abs-Mimic-v0 \
    --visualizer kit \
    --device cpu \
@@ -167,7 +170,7 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
    --device cpu \
    --num_envs 20 \
    --generation_num_trials 1000 \
@@ -181,7 +184,7 @@ Use `Robomimic <https://robomimic.github.io/>`__ to train a policy for the gener
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/robomimic/train.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
    --task IsaacContrib-PickPlace-GR1T2-Abs \
    --algo bc \
    --normalize_training_actions \
@@ -201,7 +204,7 @@ Visualize the results of the trained policy by running the following command, us
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/robomimic/play.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/play.py \
    --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --device cpu \
@@ -271,7 +274,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
 
    .. code:: bash
 
-      uv run python scripts/tools/record_demos.py \
+      uv run --extra teleop,isaacsim isaaclab teleop record \
       --task IsaacContrib-NutPour-GR1T2-Pink-IK-Abs \
       --visualizer kit \
       --device cpu \
@@ -283,7 +286,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
 
    .. code:: bash
 
-      uv run python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+      uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
       --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
       --visualizer kit \
       --device cpu \
@@ -299,7 +302,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
 
    .. code:: bash
 
-      uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+      uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
       --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
       --visualizer kit \
       --device cpu \
@@ -316,7 +319,7 @@ Use `Robomimic <https://robomimic.github.io/>`__ to train a visuomotor BC agent 
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/robomimic/train.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
    --task IsaacContrib-NutPour-GR1T2-Pink-IK-Abs \
    --algo bc \
    --normalize_training_actions \
@@ -342,7 +345,7 @@ Visualize the results of the trained policy by running the following command, us
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/robomimic/play.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/play.py \
    --task IsaacContrib-NutPour-GR1T2-Pink-IK-Abs \
    --visualizer kit \
    --device cpu \
@@ -427,7 +430,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
    .. code:: bash
 
-      uv run python scripts/tools/record_demos.py \
+      uv run --extra teleop,isaacsim isaaclab teleop record \
       --device cpu \
       --xr \
       --visualizer kit \
@@ -443,7 +446,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
    .. code:: bash
 
-      uv run python scripts/tools/replay_demos.py \
+      uv run --extra teleop,isaacsim isaaclab teleop replay \
       --device cpu \
       --visualizer kit \
       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
@@ -453,7 +456,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
    .. code:: bash
 
-      uv run python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
+      uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
       --device cpu \
       --visualizer kit \
       --task Isaac-Locomanipulation-G1-Abs-Mimic-v0 \
@@ -467,7 +470,7 @@ Place the file under ``IsaacLab/datasets`` and run the following command to gene
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
    --device cpu --num_envs 20 --generation_num_trials 1000 \
    --input_file ./datasets/dataset_annotated_g1_locomanip.hdf5 --output_file ./datasets/generated_dataset_g1_locomanip.hdf5
 
@@ -479,7 +482,7 @@ At this point you can train a policy that only performs manipulation tasks using
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/robomimic/train.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
    --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs --algo bc \
    --normalize_training_actions \
    --dataset ./datasets/generated_dataset_g1_locomanip.hdf5
@@ -491,7 +494,7 @@ Visualize the trained policy performance:
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/robomimic/play.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/play.py \
    --device cpu \
    --visualizer kit \
    --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
@@ -845,7 +848,7 @@ Run the generation command:
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/locomanipulation_sdg/generate_data.py \
+   uv run --extra isaacsim,mimic python scripts/imitation_learning/locomanipulation_sdg/generate_data.py \
        --device cpu \
        --kit_args="--enable isaacsim.replicator.experimental.mobility_gen" \
        --task="Isaac-G1-SteeringWheel-Locomanipulation" \

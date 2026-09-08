@@ -1,6 +1,6 @@
 ---
 name: isaaclab-building-environments
-description: Builds Isaac Lab manager-based environments from task requirements, with direct environments reserved for migrations, custom control flow, or performance-specialized prototypes. Use when creating a new environment, choosing between direct and manager-based workflows, registering Gym environments, or adapting existing task examples.
+description: Builds complete Isaac Lab environments from task requirements, with manager-based environments preferred and direct environments reserved for migrations, custom control flow, or performance-specialized prototypes. Use when creating or registering a new task, choosing between direct and manager-based workflows, or adapting an entire maintained example into a new environment. Do not use for targeted sensor, sensor-derived observation or reward, contact-history, foot-contact, air-time, or actuator changes in an existing task; use isaaclab-using-sensors-actuators.
 audience: user
 status: experimental
 owners:
@@ -11,7 +11,9 @@ owners:
 
 ## When To Use
 
-Use this skill when a user wants to create a new Isaac Lab environment, choose the right task workflow, or adapt an existing task example.
+Use this skill when a user wants to create or register a complete Isaac Lab environment, choose the right task workflow, or adapt an entire existing example into a new task.
+
+For a targeted change to an existing task's sensors, actuators, sensor-derived observations, rewards, or terminations, use `isaaclab-using-sensors-actuators` instead. A request to add foot contacts, contact history, touchdown timing, or air-time rewards is a sensor workflow even when it also changes an observation or reward config.
 
 Default to manager-based environments for new Isaac Lab tasks because reusable scene, action, observation, reward, command, event, curriculum, and termination terms are the main benefit of the Isaac Lab task framework. Do not use this skill for migrating Isaac Gym tasks. Use the `isaaclab-migrating-from-isaac-gym` skill when the source is an Isaac Gym or IsaacGymEnvs task. For contact-rich manipulation task staging, pair this with `isaaclab-planning-manipulation-tasks`.
 

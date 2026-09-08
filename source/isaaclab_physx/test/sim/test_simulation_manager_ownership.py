@@ -5,6 +5,8 @@
 
 """Verify PhysX lifecycle ownership when its package is imported before Kit starts."""
 
+import sys
+
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.app import AppLauncher
@@ -15,6 +17,8 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 
 import pytest
 from isaaclab_physx.physics import PhysxManager
+
+import carb
 
 from isaaclab.sim.utils import enable_extension
 
@@ -38,11 +42,18 @@ def setup_teardown():
 
 @pytest.mark.isaacsim_ci
 def test_initialize_claims_simulation_manager_lifecycle():
-    """PhysxManager initialization disables Isaac Sim's original lifecycle callbacks."""
+    """PhysxManager disables conflicting callbacks without patching supported Isaac Sim versions."""
     original_manager = simulation_manager_module.SimulationManager
     assert original_manager is not PhysxManager
+    implementation_module = sys.modules["isaacsim.core.simulation_manager.impl.simulation_manager"]
+    supports_startup_setting = hasattr(implementation_module, "_SETTING_ENABLE_DEFAULT_CALLBACKS")
 
     SimulationContext(cfg=SimulationCfg(physics=PhysxCfg()))
 
-    assert simulation_manager_module.SimulationManager is PhysxManager
+    setting = "/exts/isaacsim.core.simulation_manager/enable_default_callbacks"
+    assert not carb.settings.get_settings().get_as_bool(setting)
     assert not any(original_manager.get_default_callback_status().values())
+    if supports_startup_setting:
+        assert simulation_manager_module.SimulationManager is original_manager
+    else:
+        assert simulation_manager_module.SimulationManager is PhysxManager

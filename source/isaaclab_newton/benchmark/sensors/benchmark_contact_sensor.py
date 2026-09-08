@@ -89,7 +89,7 @@ def main():
             step=lambda: sim.step(render=False),
             update=lambda: sensor.update(sim_dt),
             read=lambda: getattr(sensor, "data"),
-            count_contacts=lambda: int((sensor.data.net_forces_w.torch.norm(dim=-1) > 0.1).sum().item()),
+            count_contacts=lambda: int((sensor.data.net_normal_forces_w.torch.norm(dim=-1) > 0.1).sum().item()),
             synchronize=synchronize_device,
         )
 

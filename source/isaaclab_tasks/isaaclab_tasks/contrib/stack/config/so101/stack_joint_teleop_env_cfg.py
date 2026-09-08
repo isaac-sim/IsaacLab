@@ -7,6 +7,7 @@ from dataclasses import MISSING
 
 from isaaclab_teleop import IsaacTeleopCfg
 
+from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
@@ -156,4 +157,16 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
             pipeline_builder=_build_so101_joint_teleop_pipeline,
             sim_device=self.sim.device,
             xr_cfg=self.xr,
+        )
+
+        # Relax the gripper-open check in the success termination. The default atol=0.0001 rad
+        # (100 µrad) is reachable when the gripper target is set to exactly SO101_GRIPPER_OPEN
+        # via an affine mapping (as in the IK-Abs env). In joint teleop the leader arm's raw
+        # encoder angle is mirrored 1:1, so the follower gripper may not reach the exact open
+        # value within 100 µrad due to calibration offsets or soft-limit ceilings. Using
+        # gripper_threshold (0.2 rad) as the tolerance matches the threshold already used by
+        # observations to classify the gripper as open vs. closed.
+        self.terminations.success = DoneTerm(
+            func=mdp.cubes_stacked,
+            params={"atol": self.gripper_threshold, "rtol": 0.0},
         )

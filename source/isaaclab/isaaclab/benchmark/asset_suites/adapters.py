@@ -39,6 +39,7 @@ class PackageAssetBenchmarkAdapter:
     default_num_joints: int
     method_name_overrides: Mapping[str, str] = field(default_factory=dict)
     generator_overrides: Mapping[WorkloadKey, InputGenerator] = field(default_factory=dict)
+    generator_replacements: Mapping[str, Mapping[str, InputGenerator]] = field(default_factory=dict)
     property_dependency_overrides: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
     @property

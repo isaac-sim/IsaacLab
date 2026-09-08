@@ -236,9 +236,10 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
-        cloner.replicate(plan, stage=self.scene.stage)
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
+        global_paths = ("/World/ground",)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
+        cloner.replicate(plan)
         # we need to explicitly filter collisions for CPU simulation
         if self.device == "cpu":
             self.scene.filter_collisions(global_prim_paths=[])

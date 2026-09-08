@@ -7,12 +7,18 @@
 
 from __future__ import annotations
 
+import importlib
 from contextlib import ExitStack, contextmanager
 from types import SimpleNamespace
 
 from isaaclab.benchmark.asset_suites.types import AssetBenchmarkTargets
 
 args = SimpleNamespace(no_shape_checks=False)
+
+
+def _initialize_mock_asset(asset) -> None:
+    for name in ("_initialize_handle", "_invalidate_initialize_handle", "_prim_deletion_handle", "_debug_vis_handle"):
+        object.__setattr__(asset, name, None)
 
 
 def _configure_articulation_model(model, num_instances: int, num_bodies: int, num_joints: int) -> None:
@@ -25,7 +31,7 @@ def _configure_articulation_model(model, num_instances: int, num_bodies: int, nu
 
 
 def _load_runtime_symbols() -> None:
-    global ArticulationCfg, MockNewtonArticulationView, MockNewtonCollectionView, MockWrenchComposer
+    global ArticulationCfg, MockNewtonArticulationView, MockNewtonCollectionView, WrenchComposer
     global RigidObjectCfg, RigidObjectCollectionCfg, create_mock_newton_manager, np, wp
 
     import numpy as np
@@ -34,13 +40,13 @@ def _load_runtime_symbols() -> None:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
     from isaaclab.assets.rigid_object_collection.rigid_object_collection_cfg import RigidObjectCollectionCfg
+    from isaaclab.utils.wrench_composer import WrenchComposer
 
-    from isaaclab_newton.test.mock_interfaces import (
+    from isaaclab_newton.test.fixtures import (
         MockNewtonArticulationView,
-        MockWrenchComposer,
         create_mock_newton_manager,
     )
-    from isaaclab_newton.test.mock_interfaces.views import MockNewtonCollectionView
+    from isaaclab_newton.test.fixtures.views import MockNewtonCollectionView
 
 
 def create_test_articulation(
@@ -56,17 +62,13 @@ def create_test_articulation(
     body_names = [f"body_{i}" for i in range(num_bodies)]
 
     articulation = object.__new__(Articulation)
+    _initialize_mock_asset(articulation)
 
     articulation.cfg = ArticulationCfg(
         prim_path="/World/Robot",
         soft_joint_pos_limit_factor=1.0,
         actuators={},
     )
-    object.__setattr__(articulation, "_initialize_handle", None)
-    object.__setattr__(articulation, "_invalidate_initialize_handle", None)
-    object.__setattr__(articulation, "_prim_deletion_handle", None)
-    object.__setattr__(articulation, "_debug_vis_handle", None)
-
     mock_view = MockNewtonArticulationView(
         num_instances=num_instances,
         num_bodies=num_bodies,
@@ -81,6 +83,7 @@ def create_test_articulation(
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
+    object.__setattr__(articulation, "_sim_cfg", SimpleNamespace(use_newton_actuators=False))
 
     from isaaclab_newton.assets.articulation import articulation_data as data_module
 
@@ -89,8 +92,8 @@ def create_test_articulation(
     data = data_module.ArticulationData(mock_view, device)
     object.__setattr__(articulation, "_data", data)
 
-    mock_inst_wrench = MockWrenchComposer(articulation)
-    mock_perm_wrench = MockWrenchComposer(articulation)
+    mock_inst_wrench = WrenchComposer(articulation)
+    mock_perm_wrench = WrenchComposer(articulation)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -111,17 +114,13 @@ def create_test_articulation(
     object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_INDICES", wp.array([], dtype=wp.int32, device=device))
     object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_MASK", wp.zeros((0,), dtype=wp.bool, device=device))
 
-    object.__setattr__(
-        articulation, "_joint_pos_target_sim", wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device)
-    )
-    object.__setattr__(
-        articulation, "_joint_vel_target_sim", wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device)
-    )
-    object.__setattr__(
-        articulation,
-        "_joint_effort_target_sim",
-        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
-    )
+    from isaaclab.actuators import ActuatorCollection
+
+    from isaaclab_newton.assets.articulation.actuator_control import NewtonActuatorControl
+
+    control = NewtonActuatorControl(articulation)
+    object.__setattr__(articulation, "actuators", ActuatorCollection({}, control))
+    data.bind_actuator_collection(articulation.actuators)
 
     return articulation, mock_view
 
@@ -139,6 +138,7 @@ def create_test_rigid_object(
     body_names = [f"body_{i}" for i in range(num_bodies)]
 
     rigid_object = object.__new__(RigidObject)
+    _initialize_mock_asset(rigid_object)
 
     rigid_object.cfg = RigidObjectCfg(
         prim_path="/World/Object",
@@ -164,8 +164,8 @@ def create_test_rigid_object(
     data = RigidObjectData(mock_view, device)
     object.__setattr__(rigid_object, "_data", data)
 
-    mock_inst_wrench = MockWrenchComposer(rigid_object)
-    mock_perm_wrench = MockWrenchComposer(rigid_object)
+    mock_inst_wrench = WrenchComposer(rigid_object)
+    mock_perm_wrench = WrenchComposer(rigid_object)
     object.__setattr__(rigid_object, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(rigid_object, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -196,6 +196,7 @@ def create_test_collection(
     object_names = [f"object_{i}" for i in range(num_bodies)]
 
     collection = object.__new__(RigidObjectCollection)
+    _initialize_mock_asset(collection)
 
     from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 
@@ -221,8 +222,8 @@ def create_test_collection(
     data = RigidObjectCollectionData(mock_view, num_bodies, device)
     object.__setattr__(collection, "_data", data)
 
-    mock_inst_wrench = MockWrenchComposer(collection)
-    mock_perm_wrench = MockWrenchComposer(collection)
+    mock_inst_wrench = WrenchComposer(collection)
+    mock_perm_wrench = WrenchComposer(collection)
     object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -302,28 +303,35 @@ def _refresh_collection_data(mock_view, data, config) -> None:
     num_instances, num_bodies, device = config.num_instances, config.num_bodies, config.device
     root_transforms = np.random.randn(num_instances, num_bodies, 7).astype(np.float32)
     root_transforms[..., 3:7] /= np.linalg.norm(root_transforms[..., 3:7], axis=-1, keepdims=True)
-    mock_view._root_transforms = wp.array(root_transforms, dtype=wp.transformf, device=device)
-    mock_view._root_velocities = wp.array(
-        np.random.randn(num_instances, num_bodies, 6).astype(np.float32),
-        dtype=wp.spatial_vectorf,
-        device=device,
+    mock_view.set_mock_root_transforms(wp.array(root_transforms, dtype=wp.transformf, device=device))
+    mock_view.set_mock_root_velocities(
+        wp.array(
+            np.random.randn(num_instances, num_bodies, 6).astype(np.float32),
+            dtype=wp.spatial_vectorf,
+            device=device,
+        )
     )
-    mock_view._attributes["body_com"] = wp.array(
-        np.random.randn(num_instances, num_bodies, 1, 3).astype(np.float32),
-        dtype=wp.vec3f,
-        device=device,
+    mock_view.set_mock_coms(
+        wp.array(
+            np.random.randn(num_instances, num_bodies, 1, 3).astype(np.float32),
+            dtype=wp.vec3f,
+            device=device,
+        )
     )
-    mock_view._attributes["body_mass"] = wp.array(
-        (np.random.rand(num_instances, num_bodies, 1) * 10 + 0.1).astype(np.float32),
-        dtype=wp.float32,
-        device=device,
+    mock_view.set_mock_masses(
+        wp.array(
+            (np.random.rand(num_instances, num_bodies, 1) * 10 + 0.1).astype(np.float32),
+            dtype=wp.float32,
+            device=device,
+        )
     )
-    mock_view._attributes["body_inertia"] = wp.array(
-        np.random.randn(num_instances, num_bodies, 1, 9).astype(np.float32),
-        dtype=wp.mat33f,
-        device=device,
+    mock_view.set_mock_inertias(
+        wp.array(
+            np.random.randn(num_instances, num_bodies, 1, 9).astype(np.float32),
+            dtype=wp.mat33f,
+            device=device,
+        )
     )
-    data._create_simulation_bindings()
     data._sim_timestamp += 1.0
 
 
@@ -382,42 +390,43 @@ def _manager_modules(component: str) -> tuple[str, str]:
 
 @contextmanager
 def open_asset_targets(adapter, request, method_config, data_config):
-    """Open a simulator app, manager patches, and a mocked Newton asset target."""
-    from isaaclab.app import AppLauncher
-
-    app_launcher = (
-        AppLauncher(headless=True, args=request.launcher_args) if request.launcher_args else AppLauncher(headless=True)
-    )
-    try:
-        _load_runtime_symbols()
-        args.no_shape_checks = not request.check_shapes
-        with ExitStack() as stack:
-            for module in _manager_modules(adapter.component):
-                stack.enter_context(create_mock_newton_manager(module, gravity=(0.0, 0.0, -9.81)))
-            if adapter.component == "articulation":
-                target, _ = create_test_articulation(
+    """Open manager patches and the selected mocked Newton asset target."""
+    _load_runtime_symbols()
+    args.no_shape_checks = not request.check_shapes
+    with ExitStack() as stack:
+        for module in _manager_modules(adapter.component):
+            importlib.import_module(module.rsplit(".", 1)[0])
+            stack.enter_context(
+                create_mock_newton_manager(
+                    module,
+                    gravity=(0.0, 0.0, -9.81),
                     num_instances=method_config.num_instances,
                     num_bodies=method_config.num_bodies,
                     num_joints=method_config.num_joints,
-                    device=method_config.device,
                 )
-            elif adapter.component == "rigid_object":
-                target, _ = create_test_rigid_object(
-                    num_instances=method_config.num_instances,
-                    num_bodies=method_config.num_bodies,
-                    device=method_config.device,
-                )
-            else:
-                target, _ = create_test_collection(
-                    num_instances=method_config.num_instances,
-                    num_bodies=method_config.num_bodies,
-                    device=method_config.device,
-                )
-            data, refresh_data = _create_data_target(adapter.component, data_config)
-            yield AssetBenchmarkTargets(
-                method_target=target,
-                data_target=data,
-                refresh_data=refresh_data,
             )
-    finally:
-        app_launcher.app.close()
+        if adapter.component == "articulation":
+            target, _ = create_test_articulation(
+                num_instances=method_config.num_instances,
+                num_bodies=method_config.num_bodies,
+                num_joints=method_config.num_joints,
+                device=method_config.device,
+            )
+        elif adapter.component == "rigid_object":
+            target, _ = create_test_rigid_object(
+                num_instances=method_config.num_instances,
+                num_bodies=method_config.num_bodies,
+                device=method_config.device,
+            )
+        else:
+            target, _ = create_test_collection(
+                num_instances=method_config.num_instances,
+                num_bodies=method_config.num_bodies,
+                device=method_config.device,
+            )
+        data, refresh_data = _create_data_target(adapter.component, data_config)
+        yield AssetBenchmarkTargets(
+            method_target=target,
+            data_target=data,
+            refresh_data=refresh_data,
+        )

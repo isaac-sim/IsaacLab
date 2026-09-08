@@ -10,7 +10,7 @@ Tests:
     - ./isaaclab.sh -i core
         -> verify core submodules are importable
     - ./isaaclab.sh -i all
-        -> verify the full installation succeeds
+        -> verify automatic extras install without tetrahedralization dependencies
     - uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct
         --num_envs 16 presets=newton_mjwarp --max_iterations 5
         -> verify state training completes
@@ -83,6 +83,18 @@ class Test_Cli_Install_All_In_Uvenv_Training(UV_Mixin):
                 timeout=1200,
             )
             assert result.returncode == 0, f"isaaclab -i all failed:\n{result.stdout}\n{result.stderr}"
+            result = self.run_in_uv_env(
+                [
+                    str(self.python),
+                    "-c",
+                    "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)",
+                ],
+                cwd=isaaclab_root,
+                timeout=60,
+            )
+            assert result.returncode == 0, (
+                f"pytetwild should not be installed by -i all:\n{result.stdout}\n{result.stderr}"
+            )
             result = self.run_in_uv_env(
                 [str(self.python), str(cartpole_smoke_script)],
                 cwd=isaaclab_root,

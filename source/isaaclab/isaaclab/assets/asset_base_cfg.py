@@ -47,15 +47,13 @@ class AssetBaseCfg:
     """
 
     cloning_contexts: tuple[str | type, ...] | None = None
-    """Physics cloning contexts for this asset. Defaults to None.
+    """Cloning contexts for this asset. Defaults to None.
 
-    Entries are ``"module:ContextClass"`` references (or classes) that perform physics
-    replication. If None, :func:`~isaaclab.cloner.replicate` uses the backend's default
-    physics context (``isaaclab_<backend>.cloner.PHYSICS_CONTEXT``). This field authors the
-    physics side only: :class:`~isaaclab.cloner.UsdReplicateContext` is never listed here and
-    is always added automatically when ``spawn`` is set and Kit is available. An empty tuple
-    therefore registers no physics context; it is not a way to opt out of USD cloning, which
-    still runs under Kit.
+    Entries are ``"module:ContextClass"`` references (or classes). If None, planning
+    routes the asset to the active physics manager's clone context. An empty tuple
+    requests no explicit physics context.
+    :class:`~isaaclab.cloner.UsdReplicateContext` is still added automatically when ``spawn``
+    is set and Kit is available; listing it explicitly forces USD replication even without Kit.
     """
 
     prim_path: str = MISSING
@@ -65,7 +63,7 @@ class AssetBaseCfg:
         The expression can contain the environment namespace regex ``{ENV_REGEX_NS}`` which
         will be replaced with the environment namespace.
 
-        Example: ``{ENV_REGEX_NS}/Robot`` will be replaced with ``/World/envs/env_.*/Robot``.
+        Example: ``{ENV_REGEX_NS}/Robot`` will be replaced with ``/World/envs/env_[^/]+/Robot``.
     """
 
     spawn: SpawnerCfg | None = None

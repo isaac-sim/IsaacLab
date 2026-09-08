@@ -36,6 +36,12 @@ from isaaclab.app import AppLauncher
 # Add argparse arguments
 parser = argparse.ArgumentParser(description="TacSL tactile sensor example.")
 parser.add_argument("--num_envs", type=int, default=2, help="Number of environments to spawn.")
+parser.add_argument(
+    "--physics",
+    default="isaacsim_physx",
+    choices=["isaacsim_physx"],
+    help="Physics backend.",
+)
 parser.add_argument("--normal_contact_stiffness", type=float, default=1.0, help="Tactile normal stiffness.")
 parser.add_argument("--tangential_stiffness", type=float, default=0.1, help="Tactile tangential stiffness.")
 parser.add_argument("--friction_coefficient", type=float, default=2.0, help="Tactile friction coefficient.")

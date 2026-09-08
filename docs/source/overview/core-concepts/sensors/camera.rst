@@ -173,7 +173,7 @@ Camera rendering is enabled automatically when launching an RTX camera task:
 
       .. code-block:: shell
 
-          uv run isaaclab train --rl_library rl_games \
+          uv run --extra rl-games isaaclab train --rl_library rl_games \
               --task=Isaac-Cartpole-Camera-Direct
 
 
@@ -406,7 +406,7 @@ absolute-difference images.
 
       .. code-block:: bash
 
-         uv run python scripts/demos/sensors/ppisp_camera.py \
+         uv run --extra isaacsim python scripts/demos/sensors/ppisp_camera.py \
              --renderer newton_renderer --max_steps 60
 
    .. tab-item:: isaaclab.sh / isaaclab.bat

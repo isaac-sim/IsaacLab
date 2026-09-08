@@ -135,6 +135,25 @@ jobs:
         with:
           python-version: "3.12"
           architecture: x64
+          cache: pip
+          # Keyed on this workflow file, not pyproject.toml: the pip cache key is
+          # otherwise identical across every 3.12 ubuntu job here, so they collide
+          # and all but the first fail to save. Covers the `build` and `wheel`
+          # packages that tools/wheel_builder/build.sh installs with pip.
+          cache-dependency-path: .github/workflows/wheel.yml
+
+      # The extras-resolution step below drives uv, whose downloads land in
+      # ~/.cache/uv rather than pip's cache. Provisioning uv here caches that
+      # resolution work and drops the ~24 MB `pip install uv` bootstrap.
+      - name: Set up uv
+        if: steps.changes.outputs.run_build == 'true'
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          # Neither this job nor kitless-docker pins python-version, so both land
+          # on the same `-unknown-` cache key and only one can save. This job
+          # caches the wheel's full extras resolution; keep it separate.
+          cache-suffix: wheel-extras
 
       # Compose Docker-image-style metadata for the artifact. The artifact
       # name is what QA sees in `gh run download`, so we make it scannable:
@@ -177,16 +196,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          python -m pip install --user uv
-          export PATH="$HOME/.local/bin:$PATH"
-
           overrides="$GITHUB_WORKSPACE/tools/wheel_builder/uv-overrides.txt"
 
           cd /tmp
 
           uv venv --python 3.12 /tmp/isaaclab-wheel-install
           source /tmp/isaaclab-wheel-install/bin/activate
-          uv pip install --upgrade pip
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install --upgrade pip
 
           wheel="$(find /tmp/isaaclab-wheel-artifact -name 'isaaclab-*.whl' -print -quit)"
           if [ -z "$wheel" ]; then
@@ -194,10 +210,16 @@ jobs:
             exit 1
           fi
 
-          uv pip install \
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install --dry-run "${wheel}[all]"
+
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
+            --dry-run \
+            --overrides "$overrides" \
+            "${wheel}[importers]"
+
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
             --dry-run \
             --overrides "$overrides" \
             --extra-index-url https://pypi.nvidia.com \
             --index-strategy unsafe-best-match \
-            --prerelease=allow \
-            "${wheel}[isaacsim,all]"
+            "${wheel}[isaacsim]"

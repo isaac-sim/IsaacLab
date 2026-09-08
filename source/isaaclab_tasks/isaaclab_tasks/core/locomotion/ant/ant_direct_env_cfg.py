@@ -5,14 +5,20 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_newton.physics import (
+    KaminoPADMMSolverCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+)
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
@@ -24,10 +30,9 @@ from isaaclab_assets.robots.ant import ANT_CFG
 
 @configclass
 class AntPhysicsCfg(PresetCfg):
-    physx: PhysxCfg = PhysxCfg()
-    isaacsim_physx: PhysxCfg = PhysxCfg()
+    isaacsim_physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
     ovphysx: OvPhysxCfg = OvPhysxCfg()
-    default = physx
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=45,
@@ -40,27 +45,11 @@ class AntPhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=KaminoSolverCfg(
-            integrator="moreau",
-            use_collision_detector=False,
-            sparse_jacobian=True,
-            constraints_alpha=0.1,
-            padmm_max_iterations=100,
-            padmm_primal_tolerance=1e-4,
-            padmm_dual_tolerance=1e-4,
-            padmm_compl_tolerance=1e-4,
-            padmm_rho_0=0.05,
-            padmm_eta=1e-5,
-            padmm_use_acceleration=True,
-            padmm_warmstart_mode="containers",
-            padmm_contact_warmstart_method="geom_pair_net_force",
-            padmm_use_graph_conditionals=False,
-            collision_detector_pipeline="unified",
-            collision_detector_max_contacts_per_pair=8,
-        ),
+        solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
         debug_mode=False,
         use_cuda_graph=True,
     )
+    default = newton_mjwarp
 
 
 @configclass
@@ -68,11 +57,11 @@ class AntEnvCfg(DirectRLEnvCfg):
     """Configuration for the direct-workflow Ant walking environment."""
 
     # env
-    episode_length_s = 15.0
+    episode_length_s = 16.0
     decimation = 2
     action_scale = 0.5
     action_space = 8
-    observation_space = 36
+    observation_space = 60
     state_space = 0
 
     # simulation
@@ -93,12 +82,24 @@ class AntEnvCfg(DirectRLEnvCfg):
 
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=4096, env_spacing=4.0, replicate_physics=True, clone_in_fabric=True
+        num_envs=4096, env_spacing=5.0, replicate_physics=True, clone_in_fabric=True
     )
 
     # robot
-    robot: ArticulationCfg = ANT_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-    joint_gears: list[float] = [15, 15, 15, 15, 15, 15, 15, 15]
+    robot: ArticulationCfg = ANT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    # effort scale per joint, keyed by joint name expression
+    joint_gears: dict[str, float] = {".*": 15.0}
+
+    # sensors
+    joint_wrench: JointWrenchSensorCfg = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+    feet_body_names: list[str] = ["front_left_foot", "front_right_foot", "left_back_foot", "right_back_foot"]
+
+    # walk target, relative to the environment origin
+    target_pos: tuple[float, float, float] = (1000.0, 0.0, 0.0)
+
+    # reset
+    initial_joint_pos_range: tuple[float, float] = (-0.2, 0.2)  # [rad]
+    initial_joint_vel_range: tuple[float, float] = (-0.1, 0.1)  # [rad/s]
 
     heading_weight: float = 0.5
     up_weight: float = 0.1
@@ -106,10 +107,13 @@ class AntEnvCfg(DirectRLEnvCfg):
     energy_cost_scale: float = 0.05
     actions_cost_scale: float = 0.005
     alive_reward_scale: float = 0.5
-    dof_vel_scale: float = 0.2
+    joint_pos_limits_cost_scale: float = 0.1
+    joint_pos_limits_threshold: float = 0.99
 
     death_cost: float = -2.0
     termination_height: float = 0.31
 
+    # observation scales
+    dof_vel_scale: float = 0.2
     angular_velocity_scale: float = 1.0
     contact_force_scale: float = 0.1

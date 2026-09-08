@@ -163,7 +163,7 @@ def _parse_args(argv: list[str]):
     add_success_cli_args(parser, include_check_success=False)
     add_launcher_args(parser)
 
-    args_cli, remaining_args = setup_preset_cli(parser, argv)
+    args_cli, remaining_args = setup_preset_cli(parser, argv, agent_library="sb3")
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
 
@@ -189,7 +189,15 @@ def run(argv: list[str]) -> BenchmarkResult:
     from stable_baselines3.common.vec_env import VecNormalize
 
     from isaaclab.app import launch_simulation
-    from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
+    from isaaclab.benchmark import (
+        BaseIsaacLabBenchmark,
+        BenchmarkMonitor,
+        BenchmarkResult,
+        builders,
+        capture,
+        console,
+        stepping,
+    )
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
@@ -238,7 +246,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             steps_per_iteration = env_cfg.scene.num_envs * n_steps_cfg
             resolved_max_iterations = (int(agent_cfg["n_timesteps"]) + steps_per_iteration - 1) // steps_per_iteration
 
-            cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
+            cfg = capture.run_config_from_env_cfg(env_cfg)
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
 
@@ -260,7 +268,6 @@ def run(argv: list[str]) -> BenchmarkResult:
                             "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
                         },
                         {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
-                        {"name": "presets", "data": ",".join(cfg.presets)},
                     ]
                 },
             )
@@ -270,6 +277,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             log_dir = os.path.join(log_root_path, run_info)
             _common.write_run_manifest(log_dir, library="sb3", task=args_cli.task, metadata={"agent": args_cli.agent})
             env_cfg.log_dir = log_dir
+            _common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
 
             agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
             policy_arch = agent_cfg.pop("policy")
@@ -278,7 +286,6 @@ def run(argv: list[str]) -> BenchmarkResult:
             env_t0 = time.perf_counter_ns()
             env = _common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
-            env = _common.wrap_record_video(env, log_dir, args_cli)
             env_t1 = time.perf_counter_ns()
             success_kwargs = build_success_kwargs(args_cli)
             success_context = SuccessRateTrackerWrapper(
@@ -427,6 +434,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             output_paths = benchmark.finalize()
             result = BenchmarkResult(bundle=bundle, output_paths=output_paths)
+            console.print_training_report(bundle, output_paths)
 
     return result
 

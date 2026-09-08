@@ -11,9 +11,10 @@ from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPp
 @configclass
 class H1RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    max_iterations = 3000
+    max_iterations = 2000
     save_interval = 50
     experiment_name = "h1_rough"
+    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
     actor = RslRlMLPModelCfg(
         hidden_dims=[512, 256, 128],
         activation="elu",
@@ -46,7 +47,7 @@ class H1FlatPPORunnerCfg(H1RoughPPORunnerCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        self.max_iterations = 1000
+        self.max_iterations = 500
         self.experiment_name = "h1_flat"
         self.actor.hidden_dims = [128, 128, 128]
         self.critic.hidden_dims = [128, 128, 128]

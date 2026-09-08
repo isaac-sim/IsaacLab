@@ -83,6 +83,8 @@ class DifferentialIKController:
         # -- optional joint position limits for null-space joint-limit avoidance (set externally)
         self._joint_pos_lower = None
         self._joint_pos_upper = None
+        # -- identity quaternion (x, y, z, w), the last-resort fallback for a degenerate command
+        self._identity_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=self._device).repeat(self.num_envs, 1)
 
     """
     Properties.
@@ -119,12 +121,17 @@ class DifferentialIKController:
         It is up to the user to ensure that the command is given in the correct frame. The method only
         applies the relative mode if the command type is ``position_rel`` or ``pose_rel``.
 
+        Absolute ``pose`` commands normalize finite quaternions; unnormalizable entries use
+        :paramref:`ee_quat`, or identity when :paramref:`ee_quat` is omitted.
+
         Args:
             command: The input command in shape (N, 3) or (N, 6) or (N, 7).
             ee_pos: The current end-effector position in shape (N, 3).
                 This is only needed if the command type is ``position_rel`` or ``pose_rel``.
             ee_quat: The current end-effector orientation (x, y, z, w) in shape (N, 4).
-                This is only needed if the command type is ``position_*`` or ``pose_rel``.
+                This is needed if the command type is ``position_*`` or ``pose_rel``. For absolute
+                ``pose`` commands it is optional and used only as the fallback orientation for an
+                unnormalizable commanded quaternion.
 
         Raises:
             ValueError: If the command type is ``position_*`` and :attr:`ee_quat` is None.
@@ -158,9 +165,12 @@ class DifferentialIKController:
                 self.ee_pos_des, self.ee_quat_des = apply_delta_pose(ee_pos, ee_quat, self._command)
             else:
                 self.ee_pos_des = self._command[:, 0:3]
-                # renormalize the commanded quaternion (callers may pass a slightly non-unit quat)
+                # normalize valid quaternions and use the fallback for non-finite results
                 quat = self._command[:, 3:7]
-                self.ee_quat_des = quat / torch.linalg.norm(quat, dim=-1, keepdim=True)
+                normalized_quat = quat / torch.linalg.norm(quat, dim=-1, keepdim=True)
+                is_valid = torch.isfinite(normalized_quat).all(dim=-1, keepdim=True)
+                fallback_quat = self._identity_quat if ee_quat is None else ee_quat
+                self.ee_quat_des = torch.where(is_valid, normalized_quat, fallback_quat)
 
     def set_joint_pos_limits(self, lower: torch.Tensor, upper: torch.Tensor) -> None:
         """Provide the controlled joints' position limits for null-space joint-limit avoidance.

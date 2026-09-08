@@ -3,23 +3,34 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-app_launch:
-  - "isaaclab.utils.configclass:_wrap_resolvable_strings"
-  - "isaaclab.utils.configclass:_custom_post_init"
-  - "isaaclab.utils.configclass:_field_module_dir"
+# Patterns are matched against profile labels, which are built relative to each installed
+# package root. In-repo functions therefore carry no package prefix ("utils.assets:..." for
+# isaaclab, "cloner.replicate:..." for isaaclab_physx); only external packages keep their
+# full dotted path ("warp._src.context:launch"). Patterns matching nothing are reported as
+# zero and logged as a warning, so check the log after editing this file.
+
+task_config:
+  - "utils.configclass:_wrap_resolvable_strings"
+  - "utils.configclass:_custom_post_init"
+  - "utils.configclass:_field_module_dir"
 
 env_creation:
-  - "isaaclab.cloner.*:usd_replicate"
-  - "isaaclab.cloner.*:filter_collisions"
-  - "isaaclab_physx.cloner.*:attach_end_fn"
-  - "isaaclab.scene.*:_init_scene"
-  - "isaaclab.envs.mdp.observations:*"
-  - "isaaclab.utils.assets:_find_asset_dependencies"
+  - "scene.interactive_scene:__init__"
+  - "envs.*:reset"
+  - "physics.mjwarp_manager:_create_solver"
+  - "cloner.*:replicate"
+  - "cloner.*:usd_replicate"
+  - "cloner.*:filter_collisions"
+  - "cloner.*:attach_end_fn"
+  - "utils.string:string_to_callable"
+  - "warp.*:kernel"
+  - "envs.mdp.observations:*"
+  - "utils.assets:_find_asset_dependencies"
 
 first_step:
-  - "isaaclab.envs.mdp.rewards:*"
-  - "isaaclab.envs.mdp.terminations:*"
-  - "isaaclab.envs.mdp.observations:*"
-  - "isaaclab.actuators.*:compute"
+  - "envs.mdp.rewards:*"
+  - "envs.mdp.terminations:*"
+  - "envs.mdp.observations:*"
+  - "actuators.*:compute"
   - "warp.*:launch"
   - "warp.*:to_torch"

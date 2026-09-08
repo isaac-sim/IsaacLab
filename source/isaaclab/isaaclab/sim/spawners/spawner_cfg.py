@@ -82,23 +82,57 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
         to the prim outside of the properties available by default when spawning the prim.
     """
 
-    mass_props: schemas.MassPropertiesCfg | schemas.MassFragment | list[schemas.MassFragment] | None = None
+    mass_props: (
+        dict[str, list[schemas.MassFragment]]
+        | schemas.MassFragment
+        | list[schemas.MassFragment]
+        | schemas.MassPropertiesCfg
+        | None
+    ) = None
     """Mass properties.
 
-    Accepts either a single legacy :class:`~isaaclab.sim.schemas.MassPropertiesCfg` or a list of
-    :class:`~isaaclab.sim.schemas.MassFragment` fragments (e.g. ``[MassCfg(...)]``). When a fragment
-    list is given, ``UsdPhysics.MassAPI`` is applied as the implicit anchor and each fragment writes
-    its own namespace.
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.MassFragment` fragments (e.g. ``{"/.*": [MassCfg(...)]}``) or a
+    single legacy :class:`~isaaclab.sim.schemas.MassPropertiesCfg`. On the fragment path each
+    fragment writes its own namespace.
+
+    Keys are regular-expression suffixes appended to the prim the spawner anchors this family on (for USD assets: the
+    spawn prim; for shapes and meshes: the container prim), so a key carries its own leading ``/`` when it targets
+    descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it). Entries
+    apply in insertion order, so on overlapping targets later entries override earlier ones per attribute. As a
+    shorthand for the common case, a bare fragment or a list of fragments is read as ``{"": [...]}``, i.e. the anchor
+    prim itself.
     """
 
-    rigid_props: schemas.RigidBodyBaseCfg | schemas.RigidBodyFragment | list[schemas.RigidBodyFragment] | None = None
+    mass_props_create_if_missing: bool = False
+    """Whether the mass writer may apply ``UsdPhysics.MassAPI`` to matched prims that lack it.
+    Defaults to False. The flag applies to every entry of the :attr:`mass_props` mapping.
+
+    Only consumed when :attr:`mass_props` is given as fragments and the asset is spawned from a
+    USD file; the shape and mesh spawners always create the API on the bare prim they author.
+    """
+
+    rigid_props: (
+        dict[str, list[schemas.RigidBodyFragment]]
+        | schemas.RigidBodyFragment
+        | list[schemas.RigidBodyFragment]
+        | schemas.RigidBodyBaseCfg
+        | None
+    ) = None
     """Rigid body properties.
 
-    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`) or a
-    list of :class:`~isaaclab.sim.schemas.RigidBodyFragment` fragments
-    (e.g. ``[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]``). When a fragment list is given,
-    ``UsdPhysics.RigidBodyAPI`` is applied as the implicit anchor and each fragment writes its own
-    namespace.
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.RigidBodyFragment` fragments
+    (e.g. ``{"/.*": [UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]}``) or a single legacy cfg
+    (e.g. :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`). On the fragment path each fragment
+    writes its own namespace.
+
+    Keys are regular-expression suffixes appended to the prim the spawner anchors this family on (for USD assets: the
+    spawn prim; for shapes and meshes: the container prim), so a key carries its own leading ``/`` when it targets
+    descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything beneath it). Entries
+    apply in insertion order, so on overlapping targets later entries override earlier ones per attribute. As a
+    shorthand for the common case, a bare fragment or a list of fragments is read as ``{"": [...]}``, i.e. the anchor
+    prim itself.
 
     For making a rigid object static, set the :attr:`schemas.RigidBodyBaseCfg.kinematic_enabled`
     (or :attr:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg.kinematic_enabled`) as True. This will
@@ -106,15 +140,26 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     """
 
     collision_props: (
-        schemas.CollisionPropertiesCfg | schemas.CollisionFragment | list[schemas.CollisionFragment] | None
+        dict[str, list[schemas.CollisionFragment]]
+        | schemas.CollisionFragment
+        | list[schemas.CollisionFragment]
+        | schemas.CollisionPropertiesCfg
+        | None
     ) = None
     """Properties to apply to all collision meshes.
 
-    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.CollisionBaseCfg`) or a
-    list of :class:`~isaaclab.sim.schemas.CollisionFragment` fragments
-    (e.g. ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]``). When a fragment list is given,
-    ``UsdPhysics.CollisionAPI`` is applied as the implicit anchor and each fragment writes its own
-    namespace.
+    Accepts either a mapping from target pattern to a list of
+    :class:`~isaaclab.sim.schemas.CollisionFragment` fragments
+    (e.g. ``{"/.*": [UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]}``) or a single legacy cfg
+    (e.g. :class:`~isaaclab.sim.schemas.CollisionBaseCfg`). On the fragment path each fragment
+    writes its own namespace.
+
+    Keys are regular-expression suffixes appended to the prim the spawner anchors this family on (for USD assets: the
+    spawn prim; for shapes and meshes: the geometry prim the spawner authors), so a key carries its own leading ``/``
+    when it targets descendants (``""`` the anchor itself, ``"/[^/]+"`` its direct children, ``"/.*"`` everything
+    beneath it). Entries apply in insertion order, so on overlapping targets later entries override earlier ones per
+    attribute. As a shorthand for the common case, a bare fragment or a list of fragments is read as ``{"": [...]}``,
+    i.e. the anchor prim itself.
     """
 
     activate_contact_sensors: bool = False
@@ -131,8 +176,8 @@ class DeformableObjectSpawnerCfg(SpawnerCfg):
     Unlike rigid objects, deformable objects are affected by forces and can deform when subjected to
     external forces. This class is used to configure the properties of the deformable object.
 
-    Deformable bodies don't have a separate collision mesh. The collision mesh is the same as the visual mesh.
-    The collision properties such as rest and collision offsets are specified in the :attr:`deformable_props`.
+    Deformable bodies collide through their simulation mesh, so collision offsets are set through the mesh
+    spawner's ``collision_props`` rather than :attr:`deformable_props`.
 
     Note:
         By default, all properties are set to None. This means that no properties will be added or modified

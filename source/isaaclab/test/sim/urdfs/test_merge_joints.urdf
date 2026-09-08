@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<robot name="test_merge_joints">
+
+  <link name="root_link"/>
+
+  <joint name="root_to_base" type="fixed">
+    <parent link="root_link"/>
+    <child link="base_link"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.3 .3 .2"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.3 .3 .2"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="10"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+
+  <joint name="base_joint" type="continuous">
+    <parent link="base_link"/>
+    <child link="link_1"/>
+    <axis xyz="0 0 1"/>
+    <origin xyz="0 0 0.45"/>
+  </joint>
+
+  <link name="link_1">
+    <visual>
+      <geometry>
+        <cylinder length="0.8" radius=".1"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.8" radius=".1"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="10"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+
+
+  <joint name="elbow_joint" type="fixed">
+    <parent link="link_1"/>
+    <child link="link_2"/>
+    <limit effort="1000.0" lower="-0.6" upper="0.6" velocity="0.5"/>
+    <origin xyz="0 0 0.4" rpy="1.571 0 0"/>
+    <axis xyz="1 0 0"/>
+  </joint>
+
+  <link name="link_2">
+    <visual>
+      <geometry>
+        <cylinder length="0.6" radius=".06"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.6" radius=".06"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="wrist_joint" type="fixed">
+    <parent link="link_2"/>
+    <child link="palm_link"/>
+    <origin xyz="0 0 0.33"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <link name="palm_link">
+    <visual>
+      <geometry>
+        <box size="0.2 .06 .06"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.2 .06 .06"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="10"/>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+
+  <joint name="finger_1_joint" type="prismatic">
+    <parent link="palm_link"/>
+    <child link="finger_link_1"/>
+    <limit effort="1000.0" lower="-0.02" upper="0.08" velocity="0.5"/>
+    <origin rpy="0 1.571 0" xyz="-0.10 0 0.05"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <link name="finger_link_1">
+    <visual>
+      <geometry>
+        <box size="0.06 .01 .01"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.06 .1 .1"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+
+  <joint name="finger_2_joint" type="prismatic">
+    <parent link="palm_link"/>
+    <child link="finger_link_2"/>
+    <limit effort="1000.0" lower="-0.08" upper="0.02" velocity="0.5"/>
+    <origin rpy="0 1.571 0" xyz="0.10 0 0.05"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <link name="finger_link_2">
+    <visual>
+      <geometry>
+        <box size="0.06 .01 .01"/>
+      </geometry>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.06 .1 .1"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <inertia ixx="2.0" ixy="0.0" ixz="0.0" iyy="3.0" iyz="0.0" izz="1.0"/>
+    </inertial>
+  </link>
+</robot>

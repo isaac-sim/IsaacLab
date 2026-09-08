@@ -33,6 +33,12 @@ parser.add_argument(
     help="Asset type to use.",
     choices=["allegro_hand", "anymal_d", "objects"],
 )
+parser.add_argument(
+    "--physics",
+    default="isaacsim_physx",
+    choices=["isaacsim_physx"],
+    help="Physics backend.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # demos should open Kit visualizer by default

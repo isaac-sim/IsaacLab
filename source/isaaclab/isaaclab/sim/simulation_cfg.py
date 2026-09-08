@@ -85,19 +85,16 @@ class SimulationCfg:
     """
 
     use_newton_actuators: bool = False
-    """Use Newton-native actuators instead of IsaacLab explicit actuator models.
+    """Use native actuators for supported explicit actuator configurations.
 
-    When ``True``, explicit actuator configs (e.g. :class:`IdealPDActuatorCfg`,
-    :class:`DCMotorCfg`) are translated into ``NewtonActuator`` USD prims and
-    stepped by the physics engine.  The Lab config values (stiffness, damping,
-    effort_limit, etc.) take precedence: for every joint covered by a Lab
-    actuator config, any existing ``NewtonActuator`` prim targeting that joint
-    is replaced by one synthesised from the config.  Joints that are *not*
-    covered by a Lab config keep their USD-authored actuators (if any).
+    When ``True``, supported explicit configs, such as :class:`IdealPDActuatorCfg`
+    and :class:`DCMotorCfg`, author ``NewtonActuator`` USD prims. Newton executes
+    them in its solver. PhysX and OVPhysX execute them through a shared host
+    adapter during :meth:`~isaaclab.assets.Articulation.write_data_to_sim`.
 
-    :class:`ImplicitActuatorCfg` entries are still instantiated normally and
-    their gains are written to the simulation, so joints that use implicit
-    actuation continue to work as expected.
+    Config values take precedence over existing USD actuators for covered joints.
+    Joints without a config keep their USD-authored actuators. Implicit actuators
+    are unchanged: the solver applies their drive gains.
     """
 
     physics: PhysicsCfg | None = None
@@ -128,3 +125,12 @@ class SimulationCfg:
 
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = []
     """The visualizer configuration(s). Default is an empty list."""
+
+    default_visualizer_cfg: VisualizerCfg | None = None
+    """Default visualizer camera hint applied to any visualizer that is selected at runtime.
+
+    This is a hint only — it does **not** add a visualizer to :attr:`visualizer_cfgs`.
+    Fields such as :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
+    :attr:`~isaaclab.visualizers.VisualizerCfg.lookat` are forwarded to each resolved
+    visualizer unless that visualizer already has an explicitly customised value.
+    """

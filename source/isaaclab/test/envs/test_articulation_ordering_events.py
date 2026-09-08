@@ -85,16 +85,34 @@ class _FakeNewtonRootView:
 
 
 class _FakeNewtonArticulation:
-    """Minimal articulation surface consumed by the Newton material term."""
+    """Minimal articulation surface consumed by Newton event terms."""
 
     # exercise the real public translation instead of re-implementing it
     map_body_ids_to_backend = BaseArticulation.map_body_ids_to_backend
 
     def __init__(self, body_ordering):
         self.body_ordering = body_ordering
+        self.device = "cpu"
         # shape counts are always exposed in backend order by the Newton asset
         self.backend_num_shapes_per_body = list(_NUM_SHAPES_PER_BACKEND_BODY)
         self._root_view = _FakeNewtonRootView()
+        joint_properties = torch.zeros((_NUM_ENVS, 2))
+        self.data = SimpleNamespace(
+            joint_friction_coeff=SimpleNamespace(torch=joint_properties.clone()),
+            joint_viscous_friction_coeff=SimpleNamespace(torch=joint_properties.clone()),
+            joint_armature=SimpleNamespace(torch=joint_properties.clone()),
+            joint_pos_limits=SimpleNamespace(torch=torch.zeros((_NUM_ENVS, 2, 2))),
+        )
+        self.static_friction_writes = []
+        self.viscous_friction_writes = []
+
+    def write_joint_friction_coefficient_to_sim_index(self, **kwargs):
+        """Record Newton static-friction writes."""
+        self.static_friction_writes.append(kwargs)
+
+    def write_joint_viscous_friction_coefficient_to_sim_index(self, **kwargs):
+        """Record Newton passive-damping writes."""
+        self.viscous_friction_writes.append(kwargs)
 
 
 class _FakeNewtonManager:
@@ -110,6 +128,14 @@ class _FakeNewtonManager:
     @classmethod
     def add_model_change(cls, notification):
         cls.notifications.append(notification)
+
+
+class _FakeScene(dict):
+    """Dictionary-backed scene with the attributes used by joint randomization."""
+
+    def __init__(self, **assets):
+        super().__init__(assets)
+        self.num_envs = _NUM_ENVS
 
 
 @pytest.fixture
@@ -211,3 +237,39 @@ def test_newton_material_randomization_automatically_converts_public_body_ids_to
     torch.testing.assert_close(term._friction_binding, expected_friction)
     torch.testing.assert_close(term._restitution_binding, expected_restitution)
     assert len(_FakeNewtonManager.notifications) == 1
+
+
+def test_newton_joint_parameter_randomization_writes_static_and_viscous_friction():
+    """Newton randomization writes static friction and passive viscous damping separately."""
+    asset = _FakeNewtonArticulation(body_ordering=None)
+    asset_cfg = SimpleNamespace(name="robot", joint_ids=slice(None))
+    cfg = SimpleNamespace(
+        params={
+            "asset_cfg": asset_cfg,
+            "operation": "abs",
+            "friction_distribution_params": (0.5, 0.5),
+        }
+    )
+    env = SimpleNamespace(
+        scene=_FakeScene(robot=asset),
+        sim=SimpleNamespace(physics_manager=type("NewtonManager", (), {})),
+    )
+
+    term = events_module.randomize_joint_parameters(cfg, env)
+    term(
+        env,
+        torch.tensor([0], dtype=torch.int32),
+        asset_cfg,
+        friction_distribution_params=(0.5, 0.5),
+    )
+
+    assert len(asset.static_friction_writes) == 1
+    assert len(asset.viscous_friction_writes) == 1
+    static_write = asset.static_friction_writes[0]
+    viscous_write = asset.viscous_friction_writes[0]
+    assert set(static_write) == {"joint_friction_coeff", "joint_ids", "env_ids"}
+    assert set(viscous_write) == {"joint_viscous_friction_coeff", "joint_ids", "env_ids"}
+    torch.testing.assert_close(static_write["joint_friction_coeff"], torch.full((1, 2), 0.5))
+    torch.testing.assert_close(viscous_write["joint_viscous_friction_coeff"], torch.full((1, 2), 0.5))
+    torch.testing.assert_close(static_write["env_ids"], torch.tensor([0], dtype=torch.int32))
+    torch.testing.assert_close(viscous_write["env_ids"], torch.tensor([0], dtype=torch.int32))

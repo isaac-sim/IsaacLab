@@ -16,15 +16,15 @@ import numpy as np
 import warp as wp
 
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
-from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
+from isaaclab.utils.wrench_composer import WrenchComposer
 
-BACKENDS = ["Mock"]  # Mock backend is always available.
+BACKENDS: list[str] = []
 
 try:
     from isaaclab_physx.assets.rigid_object.rigid_object import RigidObject as PhysXRigidObject
     from isaaclab_physx.assets.rigid_object.rigid_object_data import RigidObjectData as PhysXRigidObjectData
     from isaaclab_physx.physics import PhysxManager as SimulationManager
-    from isaaclab_physx.test.mock_interfaces.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
+    from isaaclab_physx.test.fixtures.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
 except ImportError:
     pass
 else:
@@ -38,7 +38,7 @@ else:
 try:
     from isaaclab_newton.assets.rigid_object.rigid_object import RigidObject as NewtonRigidObject
     from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData as NewtonRigidObjectData
-    from isaaclab_newton.test.mock_interfaces.views import MockNewtonArticulationView as NewtonMockArticulationView
+    from isaaclab_newton.test.fixtures.views import MockNewtonArticulationView as NewtonMockArticulationView
 except ImportError:
     pass
 else:
@@ -47,9 +47,9 @@ else:
 try:
     import ovphysx  # noqa: F401
 
-    from isaaclab_ovphysx.assets.rigid_object.rigid_object import RigidObject as OvPhysxRigidObject
-    from isaaclab_ovphysx.assets.rigid_object.rigid_object_data import RigidObjectData as OvPhysxRigidObjectData
-    from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
+    from isaaclab_ov.assets.rigid_object.rigid_object import RigidObject as OvPhysxRigidObject
+    from isaaclab_ov.assets.rigid_object.rigid_object_data import RigidObjectData as OvPhysxRigidObjectData
+    from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
 except ImportError:
     pass
 else:
@@ -85,9 +85,9 @@ def create_physx_rigid_object(
     # Set body names on data
     data.body_names = body_names
 
-    # Create mock wrench composers
-    mock_inst_wrench = MockWrenchComposer(rigid_object)
-    mock_perm_wrench = MockWrenchComposer(rigid_object)
+    # Create wrench composers
+    mock_inst_wrench = WrenchComposer(rigid_object)
+    mock_perm_wrench = WrenchComposer(rigid_object)
     object.__setattr__(rigid_object, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(rigid_object, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -111,8 +111,12 @@ def create_physx_rigid_object(
 
     # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes
     N, B = num_instances, 1  # rigid object has 1 body
+    object.__setattr__(rigid_object, "_sim_env_ids", wp.empty(N, dtype=wp.int32, device=device))
+    object.__setattr__(rigid_object, "_sim_env_ids_views", {})
     cpu_env_ids = wp.array(np.arange(N, dtype=np.int32), device="cpu")
     object.__setattr__(rigid_object, "_cpu_env_ids_all", cpu_env_ids)
+    object.__setattr__(rigid_object, "_cpu_env_ids", wp.empty(N, dtype=wp.int32, device="cpu", pinned=True))
+    object.__setattr__(rigid_object, "_cpu_env_ids_views", {})
     object.__setattr__(rigid_object, "_cpu_body_mass", wp.zeros((N, B), dtype=wp.float32, device="cpu"))
     object.__setattr__(rigid_object, "_cpu_body_coms", wp.zeros((N, B, 7), dtype=wp.float32, device="cpu"))
     object.__setattr__(rigid_object, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu"))
@@ -144,7 +148,12 @@ def create_newton_rigid_object(
 
     # Mock NewtonManager (aliased as SimulationManager in Newton modules)
     mock_model = MagicMock()
-    mock_model.gravity = wp.array(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), dtype=wp.vec3f, device=device)
+    mock_model.world_count = num_instances
+    mock_model.gravity = wp.array(
+        np.tile(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), (num_instances + 1, 1)),
+        dtype=wp.vec3f,
+        device=device,
+    )
     mock_state = MagicMock()
     mock_control = MagicMock()
 
@@ -172,9 +181,9 @@ def create_newton_rigid_object(
     object.__setattr__(rigid_object, "_device", device)
     object.__setattr__(rigid_object, "_data", data)
 
-    # Mock wrench composers
-    mock_inst_wrench = MockWrenchComposer(rigid_object)
-    mock_perm_wrench = MockWrenchComposer(rigid_object)
+    # Wrench composers
+    mock_inst_wrench = WrenchComposer(rigid_object)
+    mock_perm_wrench = WrenchComposer(rigid_object)
     object.__setattr__(rigid_object, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(rigid_object, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -237,9 +246,9 @@ def create_ovphysx_rigid_object(
     # replaced with mocks just below.
     obj._create_buffers()
 
-    # Replace the real wrench composers with mocks for iface coverage.
-    mock_inst_wrench = MockWrenchComposer(obj)
-    mock_perm_wrench = MockWrenchComposer(obj)
+    # Use production wrench composers for interface coverage.
+    mock_inst_wrench = WrenchComposer(obj)
+    mock_perm_wrench = WrenchComposer(obj)
     object.__setattr__(obj, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(obj, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -251,18 +260,6 @@ def create_ovphysx_rigid_object(
 
     return obj, mock_bindings
 
-
-def create_mock_rigid_object(
-    num_instances: int = 2,
-    device: str = "cuda:0",
-):
-    from isaaclab.test.mock_interfaces.assets.mock_rigid_object import MockRigidObject
-
-    obj = MockRigidObject(
-        num_instances=num_instances,
-        device=device,
-    )
-    return obj, None  # No view for mock backend
 
 
 def get_rigid_object(
@@ -276,7 +273,5 @@ def get_rigid_object(
         return create_ovphysx_rigid_object(num_instances, device)
     elif backend == "newton":
         return create_newton_rigid_object(num_instances, device)
-    elif backend.lower() == "mock":
-        return create_mock_rigid_object(num_instances, device)
     else:
         raise ValueError(f"Invalid backend: {backend}")

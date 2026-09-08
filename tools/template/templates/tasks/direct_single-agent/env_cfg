@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -10,17 +10,57 @@
 {% endif %}
 {% endfor %}
 
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
+from __future__ import annotations
+
+import math
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_physx.physics import PhysxCfg
+
+from isaaclab_tasks.utils import PresetCfg
+
+from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
+
+
+@configclass
+class {{ task.classname }}PhysicsCfg(PresetCfg):
+    """Physics presets for the generated cart-pole environment."""
+
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    newton_mjwarp: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=5,
+            nconmax=3,
+            cone="pyramidal",
+            impratio=1,
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    newton_kamino: NewtonCfg = NewtonCfg(
+        solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    default: NewtonCfg = newton_mjwarp
 
 
 @configclass
 class {{ task.classname }}EnvCfg(DirectRLEnvCfg):
+    """Configuration for the generated cart-pole environment."""
+
     # env
     decimation = 2
     episode_length_s = 5.0
@@ -35,16 +75,16 @@ class {{ task.classname }}EnvCfg(DirectRLEnvCfg):
     {% endif %}
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics={{ task.classname }}PhysicsCfg())
 
     # robot(s)
-    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # scene
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
 
     # custom parameters/scales
-    # - controllable joint
+    # - controllable joints
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
     # - action scale
@@ -56,5 +96,12 @@ class {{ task.classname }}EnvCfg(DirectRLEnvCfg):
     rew_scale_cart_vel = -0.01
     rew_scale_pole_vel = -0.005
     # - reset states/conditions
-    initial_pole_angle_range = [-0.25, 0.25]  # pole angle sample range on reset [rad]
+    initial_cart_position_range = (-1.0, 1.0)  # [m]
+    initial_cart_velocity_range = (-0.5, 0.5)  # [m/s]
+    initial_pole_angle_range = (-0.25 * math.pi, 0.25 * math.pi)  # [rad]
+    initial_pole_velocity_range = (-0.25 * math.pi, 0.25 * math.pi)  # [rad/s]
     max_cart_pos = 3.0  # reset if cart exceeds this position [m]
+
+    def __post_init__(self) -> None:
+        """Configure the default visualizer camera."""
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(8.0, 0.0, 5.0))

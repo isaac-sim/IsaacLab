@@ -6,11 +6,130 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import MISSING
 from typing import Literal
 
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 from isaaclab.utils.configclass import configclass
+
+
+@configclass
+class OpenCvDistortionCfg:
+    """Base configuration for an OpenCV lens-distortion model carried on a camera cfg.
+
+    The distortion model is renderer-agnostic: it is stored on the camera spawn configuration
+    and each renderer decides how to consume it. Under the RTX/OVRTX renderer the fields are
+    authored as the ``omni:lensdistortion:*`` USD API, which the renderer honors natively. The
+    Newton renderer does not yet apply this model.
+
+    The intrinsic parameters (:attr:`fx`, :attr:`fy`, :attr:`cx`, :attr:`cy`) follow the OpenCV
+    convention. When a distortion model is present, they take precedence over the focal-length
+    and aperture projection of :class:`PinholeCameraCfg`.
+
+    This base class is not meant to be used directly. Use one of the concrete models, e.g.
+    :class:`OpenCvPinholeDistortionCfg` or :class:`OpenCvFisheyeDistortionCfg`.
+    """
+
+    model: str = MISSING
+    """Discriminator selecting the OpenCV distortion model. Set by each concrete sub-config."""
+
+    fx: float = MISSING
+    """Focal length along the image x-axis (in pixels)."""
+
+    fy: float = MISSING
+    """Focal length along the image y-axis (in pixels)."""
+
+    cx: float = MISSING
+    """Principal point offset along the image x-axis (in pixels)."""
+
+    cy: float = MISSING
+    """Principal point offset along the image y-axis (in pixels)."""
+
+    image_size: tuple[int, int] = MISSING
+    """Calibrated image size as ``(width, height)`` (in pixels)."""
+
+    apply_lens_distortion: bool = True
+    """Whether to apply the distortion coefficients. Defaults to True.
+
+    If False, the distortion coefficients are authored as zero while the intrinsic parameters
+    (:attr:`fx`, :attr:`fy`, :attr:`cx`, :attr:`cy`) are kept. This produces an undistorted image
+    that still uses the calibrated OpenCV intrinsics, which is useful for isolating the effect of
+    the lens distortion.
+    """
+
+
+@configclass
+class OpenCvPinholeDistortionCfg(OpenCvDistortionCfg):
+    """OpenCV pinhole lens-distortion model (radial, tangential and thin-prism terms).
+
+    Corresponds to ``OmniLensDistortionOpenCvPinholeAPI`` under the RTX/OVRTX renderer. The full
+    coefficient set of the OpenCV rational model is exposed; unused coefficients default to zero.
+    """
+
+    model: str = "opencvPinhole"
+
+    k1: float = 0.0
+    """First radial distortion coefficient. Defaults to 0.0."""
+
+    k2: float = 0.0
+    """Second radial distortion coefficient. Defaults to 0.0."""
+
+    k3: float = 0.0
+    """Third radial distortion coefficient. Defaults to 0.0."""
+
+    k4: float = 0.0
+    """Fourth radial distortion coefficient (rational model). Defaults to 0.0."""
+
+    k5: float = 0.0
+    """Fifth radial distortion coefficient (rational model). Defaults to 0.0."""
+
+    k6: float = 0.0
+    """Sixth radial distortion coefficient (rational model). Defaults to 0.0."""
+
+    p1: float = 0.0
+    """First tangential distortion coefficient. Defaults to 0.0."""
+
+    p2: float = 0.0
+    """Second tangential distortion coefficient. Defaults to 0.0."""
+
+    s1: float = 0.0
+    """First thin-prism distortion coefficient. Defaults to 0.0."""
+
+    s2: float = 0.0
+    """Second thin-prism distortion coefficient. Defaults to 0.0."""
+
+    s3: float = 0.0
+    """Third thin-prism distortion coefficient. Defaults to 0.0."""
+
+    s4: float = 0.0
+    """Fourth thin-prism distortion coefficient. Defaults to 0.0."""
+
+
+@configclass
+class OpenCvFisheyeDistortionCfg(OpenCvDistortionCfg):
+    """OpenCV fisheye lens-distortion model.
+
+    Corresponds to ``OmniLensDistortionOpenCvFisheyeAPI`` under the RTX/OVRTX renderer.
+
+    See Also:
+        :class:`FisheyeCameraCfg` for the USD ``fisheyePolynomial`` projection, an alternative fisheye
+        model authored directly on the camera rather than as an OpenCV ``fx/fy/cx/cy`` calibration.
+    """
+
+    model: str = "opencvFisheye"
+
+    k1: float = 0.0
+    """First fisheye distortion coefficient. Defaults to 0.0."""
+
+    k2: float = 0.0
+    """Second fisheye distortion coefficient. Defaults to 0.0."""
+
+    k3: float = 0.0
+    """Third fisheye distortion coefficient. Defaults to 0.0."""
+
+    k4: float = 0.0
+    """Fourth fisheye distortion coefficient. Defaults to 0.0."""
 
 
 @configclass
@@ -30,7 +149,20 @@ class PinholeCameraCfg(SpawnerCfg):
     """Type of projection to use for the camera. Defaults to "pinhole".
 
     Note:
-        Currently only "pinhole" is supported.
+        The stock projection is ``"pinhole"``. An OpenCV ``fx/fy/cx/cy`` + distortion-coefficient
+        intrinsic model can be applied on top via :attr:`distortion` (see
+        :class:`OpenCvPinholeDistortionCfg` / :class:`OpenCvFisheyeDistortionCfg`), which the
+        RTX/OVRTX renderer honors natively.
+    """
+
+    distortion: OpenCvDistortionCfg | None = None
+    """OpenCV lens-distortion model to author on the camera. Defaults to None (no distortion).
+
+    When set, the OpenCV intrinsics and distortion coefficients are authored on the camera prim.
+    Under the RTX/OVRTX renderer they drive the projection natively and, when a real calibration is
+    used (``fx != fy`` or an off-center principal point), take precedence over the focal-length and
+    aperture projection. The Newton renderer does not yet apply this model; the camera renders
+    undistorted there.
     """
 
     clipping_range: tuple[float, float] = (0.01, 1e6)
@@ -168,6 +300,10 @@ class FisheyeCameraCfg(PinholeCameraCfg):
         function.
 
     .. _fish-eye camera: https://en.wikipedia.org/wiki/Fisheye_lens
+
+    See Also:
+        :class:`OpenCvFisheyeDistortionCfg` for an OpenCV ``fx/fy/cx/cy`` + distortion-coefficient
+        fisheye calibration applied via the :attr:`~PinholeCameraCfg.distortion` field.
     """
 
     func: Callable | str = "{DIR}.sensors:spawn_camera"

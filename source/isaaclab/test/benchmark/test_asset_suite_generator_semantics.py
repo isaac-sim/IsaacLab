@@ -14,6 +14,7 @@ from isaaclab.benchmark.asset_suites import (
     get_asset_benchmark_suite,
     resolve_method_benchmarks,
 )
+from isaaclab.benchmark.asset_suites.generators import build_fill_benchmarks
 from isaaclab.benchmark.method_benchmark import MethodBenchmarkRunnerConfig
 
 pytestmark = pytest.mark.benchmark
@@ -55,25 +56,47 @@ def test_set_coms_preserves_backend_shape_in_every_mode(physics, component, expe
             assert generator(_CONFIG)["coms"].shape == (2, 3, expected_width)
 
 
-def test_physx_rigid_object_omits_body_ids_in_both_index_modes() -> None:
+def test_physx_rigid_object_omits_body_ids_in_every_index_mode() -> None:
     """PhysX rigid-object property setters should avoid advanced body indexing."""
     adapter = get_asset_benchmark_adapter("physx", "rigid_object")
     definitions = resolve_method_benchmarks(get_asset_benchmark_suite("rigid_object"), adapter)
 
     for method_name in ("set_masses", "set_coms", "set_inertias"):
         definition = next(definition for definition in definitions if definition.method_name == method_name)
-        for mode in ("torch_list", "torch_tensor"):
+        for mode in definition.input_generators:
             assert "body_ids" not in definition.input_generators[mode](_CONFIG)
 
 
-def test_physx_collection_inertia_uses_flattened_shape_in_both_index_modes() -> None:
+def test_physx_collection_inertia_uses_flattened_shape_in_every_index_mode() -> None:
     """PhysX collection inertia setters should retain their flattened matrix inputs."""
     adapter = get_asset_benchmark_adapter("physx", "rigid_object_collection")
     definitions = resolve_method_benchmarks(get_asset_benchmark_suite("rigid_object_collection"), adapter)
     definition = next(definition for definition in definitions if definition.method_name == "set_inertias")
 
-    for mode in ("torch_list", "torch_tensor"):
+    for mode in definition.input_generators:
         assert definition.input_generators[mode](_CONFIG)["inertias"].shape == (2, 3, 9)
+
+
+def test_tensor_fill_preserves_item_selector_width() -> None:
+    """Fill workloads should slice environment data without truncating item selectors."""
+    adapter = get_asset_benchmark_adapter("physx", "rigid_object_collection")
+    definitions = resolve_method_benchmarks(get_asset_benchmark_suite("rigid_object_collection"), adapter)
+    fills = build_fill_benchmarks(definitions, capabilities=adapter.capabilities)
+    definition = next(definition for definition in fills if definition.method_name == "write_body_state_to_sim")
+    config = MethodBenchmarkRunnerConfig(
+        num_iterations=1,
+        warmup_steps=0,
+        num_instances=4,
+        num_bodies=4,
+        num_joints=0,
+        device="cpu",
+    )
+
+    inputs = definition.input_generators["tensor_5pct"](config)
+
+    assert inputs["body_states"].shape == (1, 4, 13)
+    assert inputs["env_ids"].shape == (1,)
+    assert inputs["body_ids"].shape == (4,)
 
 
 @pytest.mark.parametrize("physics", ("physx", "newton_mjwarp", "ovphysx"))

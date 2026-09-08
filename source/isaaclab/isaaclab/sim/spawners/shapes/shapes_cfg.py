@@ -5,13 +5,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import MISSING
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.sim.spawners import materials
-from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg
+from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
 from isaaclab.utils.configclass import configclass
+
+if TYPE_CHECKING:
+    from isaaclab.sim import schemas
 
 
 @configclass
@@ -129,3 +132,32 @@ class ConeCfg(ShapeCfg):
     """Height of the v (in m)."""
     axis: Literal["X", "Y", "Z"] = "Z"
     """Axis of the cone. Defaults to "Z"."""
+
+
+@configclass
+class CableCfg(SpawnerCfg):
+    """Configuration parameters for an open linear cable."""
+
+    func: Callable | str = "{DIR}.shapes:spawn_cable"
+    visual_material_path: str = "material"
+    """Path to the visual material, relative to the cable geometry prim."""
+
+    visual_material: materials.VisualMaterialCfg | None = None
+    """Visual material properties."""
+
+    positions: Sequence[tuple[float, float, float]] = MISSING
+    """Control points in the cable-local frame [m].
+
+    Requires at least three finite points with consecutive points separated by more than 1e-8 m.
+    """
+
+    physics_material_path: str = "physics_material"
+    """Path to the physics material, relative to the cable geometry prim."""
+
+    physics_material: materials.CableMaterialCfg = MISSING
+    """Cable physics material."""
+
+    collision_props: (
+        schemas.CollisionPropertiesCfg | schemas.CollisionFragment | list[schemas.CollisionFragment] | None
+    ) = None
+    """Collision properties applied to the cable geometry."""

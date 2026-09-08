@@ -35,27 +35,8 @@ observation_space = 69
 
 # [start-h1_env-robot]
 robot: ArticulationCfg = H1_CFG.replace(prim_path="/World/envs/env_.*/Robot")
-joint_gears: list = [
-    50.0,  # left_hip_yaw
-    50.0,  # right_hip_yaw
-    50.0,  # torso
-    50.0,  # left_hip_roll
-    50.0,  # right_hip_roll
-    50.0,  # left_shoulder_pitch
-    50.0,  # right_shoulder_pitch
-    50.0,  # left_hip_pitch
-    50.0,  # right_hip_pitch
-    50.0,  # left_shoulder_roll
-    50.0,  # right_shoulder_roll
-    50.0,  # left_knee
-    50.0,  # right_knee
-    50.0,  # left_shoulder_yaw
-    50.0,  # right_shoulder_yaw
-    50.0,  # left_ankle
-    50.0,  # right_ankle
-    50.0,  # left_elbow
-    50.0,  # right_elbow
-]
+# the gears are keyed by joint name expression, so they are independent of the joint ordering
+joint_gears: dict[str, float] = {".*": 50.0}
 # [end-h1_env-robot]
 
 # fmt: on

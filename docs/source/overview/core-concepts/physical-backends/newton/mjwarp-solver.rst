@@ -229,7 +229,7 @@ dense-manipulation patterns. Then configure
 :class:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg` on
 :class:`~isaaclab_newton.physics.NewtonCfg`. The maintained rough-terrain presets use
 ``default_shape_cfg.margin=0.01`` and raise ``max_triangle_pairs`` from ``1_000_000`` to
-``2_500_000``; the Dexsuite pattern raises ``rigid_contact_max`` for its unusually dense scene.
+``2_500_000``; the Lift pattern raises ``rigid_contact_max`` for its unusually dense scene.
 Increase those capacities only in response to the matching overflow or missing-contact evidence.
 
 ``collision_decimation=0`` collides once per physics tick. A positive value re-collides every N

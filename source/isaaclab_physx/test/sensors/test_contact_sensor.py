@@ -394,6 +394,104 @@ def test_sphere_contact_time(setup_simulation, disable_contact_processing):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("clock_age", [2.5, 10.0, 30.0])
+def test_first_transition_with_aged_clock(setup_simulation, device, clock_age):
+    """Regression for #7283: transitions must still be reported once the sensor clock has aged.
+
+    The sensor clock is a float32 accumulator whose rounding error grows with simulated time. On a
+    transition step the contact (resp. air) timer is exactly one polling period, so the default
+    tolerance of :meth:`ContactSensor.compute_first_contact` has to absorb that error. A fixed 1e-8
+    tolerance is orders of magnitude too small after a few seconds of simulated time.
+    """
+    sim_dt = setup_simulation[0]
+    # The sensor keeps history, so it refreshes every physics step and is polled at that same rate.
+    # The lazy (zero-history) cadence is covered by the kernel-level tolerance test: on GPU this
+    # backend serves stale contact forces when buffers refresh only on data access, which is
+    # unrelated to the tolerance under test here.
+    history_length = 1
+    decimation = 1
+    poll_dt = decimation * sim_dt
+    poll_steps = 16
+
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG
+        scene_cfg.shape = CUBE_CFG
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path=CUBE_CFG.prim_path,
+            track_pose=True,
+            debug_vis=False,
+            update_period=0.0,
+            track_air_time=True,
+            history_length=history_length,
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+
+        sensor: ContactSensor = scene["contact_sensor"]
+        shape: RigidObject = scene["shape"]
+        contact_pose = CUBE_CFG.contact_pose.to(device=shape.device).unsqueeze(0)
+        non_contact_pose = CUBE_CFG.non_contact_pose.to(device=shape.device).unsqueeze(0)
+
+        def _in_contact() -> bool:
+            """Ground truth for the contact state, read through the public data accessor."""
+            return torch.norm(sensor.data.net_normal_forces_w.torch, dim=-1).max().item() > 0.1
+
+        def _hold(pose: torch.Tensor, num_steps: int) -> None:
+            """Pin the cube to a pose for the given number of physics steps."""
+            for _ in range(num_steps):
+                shape.write_root_pose_to_sim_index(root_pose=pose)
+                _perform_sim_step(sim, scene, sim_dt)
+
+        # Settle the cube on the ground so the sensor starts in contact.
+        _hold(contact_pose, 8)
+        assert _in_contact(), "Cube should be in contact with the ground before the clock is aged."
+
+        # Age the sensor clock without stepping physics: the resting contact state is unchanged, so
+        # this isolates the float32 clock drift from any change in the contact forces.
+        for tick in range(int(round(clock_age / sim_dt))):
+            sensor.update(sim_dt)
+        aged_clock = wp.to_torch(sensor._timestamp).max().item()
+        assert aged_clock == pytest.approx(clock_age + 8 * sim_dt, abs=0.05)
+
+        # Lift the cube off the ground for half the window, then set it back down.
+        reported_air: list[int] = []
+        reported_contact: list[int] = []
+        expected_air: list[int] = []
+        expected_contact: list[int] = []
+        was_in_contact = True
+        for step in range(poll_steps):
+            _hold(non_contact_pose if step < poll_steps // 2 else contact_pose, decimation)
+            # Poll before anything reads ``data`` this step: the query itself must refresh lazily
+            # updated buffers, otherwise it reports the previous step's timers.
+            first_contact = sensor.compute_first_contact(poll_dt).torch.any().item()
+            first_air = sensor.compute_first_air(poll_dt).torch.any().item()
+            in_contact = _in_contact()
+            if in_contact and not was_in_contact:
+                expected_contact.append(step)
+            if not in_contact and was_in_contact:
+                expected_air.append(step)
+            was_in_contact = in_contact
+            if first_contact:
+                reported_contact.append(step)
+            if first_air:
+                reported_air.append(step)
+
+        assert len(expected_air) == 1, f"Expected exactly one lift-off in the window; got {expected_air}."
+        assert len(expected_contact) == 1, f"Expected exactly one touchdown in the window; got {expected_contact}."
+        assert reported_air == expected_air, (
+            f"compute_first_air missed or mis-reported the lift-off at clock {aged_clock:.3f}s: "
+            f"reported {reported_air}, expected {expected_air}."
+        )
+        assert reported_contact == expected_contact, (
+            f"compute_first_contact missed or mis-reported the touchdown at clock {aged_clock:.3f}s: "
+            f"reported {reported_contact}, expected {expected_contact}."
+        )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 6, 24])
 def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
     """Checks contact sensor reporting for filtering stacked cube prims."""
@@ -447,17 +545,17 @@ def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
 
         # Check values for cube 2 --> cube 1 is the only collision for cube 2
         torch.testing.assert_close(
-            contact_sensor_2.data.force_matrix_w.torch[:, :, 0],
-            contact_sensor_2.data.net_forces_w.torch,
+            contact_sensor_2.data.normal_force_matrix_w.torch[:, :, 0],
+            contact_sensor_2.data.net_normal_forces_w.torch,
         )
         # Check that forces are opposite and equal
         torch.testing.assert_close(
-            contact_sensor_2.data.force_matrix_w.torch[:, :, 0],
-            -contact_sensor.data.force_matrix_w.torch[:, :, 0],
+            contact_sensor_2.data.normal_force_matrix_w.torch[:, :, 0],
+            -contact_sensor.data.normal_force_matrix_w.torch[:, :, 0],
         )
         # Check values are non-zero (contacts are happening and are getting reported)
-        assert contact_sensor_2.data.net_forces_w.torch.sum().item() > 0.0
-        assert contact_sensor.data.net_forces_w.torch.sum().item() > 0.0
+        assert contact_sensor_2.data.net_normal_forces_w.torch.sum().item() > 0.0
+        assert contact_sensor.data.net_normal_forces_w.torch.sum().item() > 0.0
 
 
 def _author_nested_chain(prim_path: str):
@@ -512,7 +610,7 @@ def test_nested_rigid_body_hierarchy(setup_simulation, device, num_envs):
             _author_nested_chain(f"/World/envs/env_{env_id}/Robot")
         contact_sensor = ContactSensor(
             ContactSensorCfg(
-                prim_path="/World/envs/env_.*/Robot/.*",
+                prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
                 track_pose=True,
                 debug_vis=False,
                 update_period=0.0,
@@ -597,10 +695,10 @@ def test_no_contact_reporting(setup_simulation):
             _perform_sim_step(sim, scene, sim_dt)
 
         # check values are zero (contacts are happening but not reported)
-        assert contact_sensor.data.net_forces_w.torch.sum().item() == 0.0
-        assert contact_sensor.data.force_matrix_w.torch.sum().item() == 0.0
-        assert contact_sensor_2.data.net_forces_w.torch.sum().item() == 0.0
-        assert contact_sensor_2.data.force_matrix_w.torch.sum().item() == 0.0
+        assert contact_sensor.data.net_normal_forces_w.torch.sum().item() == 0.0
+        assert contact_sensor.data.normal_force_matrix_w.torch.sum().item() == 0.0
+        assert contact_sensor_2.data.net_normal_forces_w.torch.sum().item() == 0.0
+        assert contact_sensor_2.data.normal_force_matrix_w.torch.sum().item() == 0.0
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -637,7 +735,7 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
             _perform_sim_step(sim, scene, sim_dt)
 
         # Sanity: cube is on the ground and reporting non-zero contact force.
-        pre_reset_force_mag = torch.linalg.norm(contact_sensor.data.net_forces_w.torch, dim=-1).item()
+        pre_reset_force_mag = torch.linalg.norm(contact_sensor.data.net_normal_forces_w.torch, dim=-1).item()
         assert pre_reset_force_mag > 1.0, f"Expected non-zero contact force before reset; got {pre_reset_force_mag!r}"
 
         # Mimic ``ManagerBasedRLEnv._reset_idx``: write the post-reset asset pose, then
@@ -650,7 +748,7 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
         scene.reset(env_ids=env_ids)
 
         # The sensor must not return the cached pre-reset PhysX contact value here.
-        post_reset_force_mag = torch.linalg.norm(contact_sensor.data.net_forces_w.torch, dim=-1).item()
+        post_reset_force_mag = torch.linalg.norm(contact_sensor.data.net_normal_forces_w.torch, dim=-1).item()
         assert post_reset_force_mag == 0.0, (
             "Contact sensor returned stale pre-reset data after scene.reset(): "
             f"got {post_reset_force_mag}, expected 0.0 (pre-reset value was {pre_reset_force_mag})."
@@ -825,7 +923,7 @@ def test_friction_reporting(setup_simulation, grav_dir):
         # check that forces are being reported match expected friction forces
         expected_friction, _, _, _ = scene["contact_sensor"].contact_view.get_friction_data(dt=sim_dt)
         expected_friction_torch = wp.to_torch(expected_friction)
-        reported_friction = scene["contact_sensor"].data.friction_forces_w.torch[0, 0, :]
+        reported_friction = scene["contact_sensor"].data.friction_force_matrix_w.torch[0, 0, :]
 
         torch.testing.assert_close(expected_friction_torch.sum(dim=0), reported_friction[0], atol=1e-6, rtol=1e-5)
 
@@ -1081,12 +1179,12 @@ def _test_sensor_contact(
 
 def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: ContactTestMode) -> None:
     if not sensor.cfg.track_friction_forces:
-        assert sensor._data.friction_forces_w is None
+        assert sensor._data.friction_force_matrix_w is None
         return
 
-    # check shape of the friction_forces_w tensor (wp.to_torch expands vec3f -> float32 trailing dim)
+    # check shape of the friction_force_matrix_w tensor (wp.to_torch expands vec3f -> float32 trailing dim)
     num_sensors = sensor.num_sensors
-    friction_torch = sensor._data.friction_forces_w.torch
+    friction_torch = sensor._data.friction_force_matrix_w.torch
     assert friction_torch.shape == (sensor.num_instances // num_sensors, num_sensors, 1, 3)
     # compare friction forces
     if mode == ContactTestMode.IN_CONTACT:

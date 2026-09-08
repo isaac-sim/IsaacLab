@@ -25,7 +25,7 @@ class CameraBaseCfg:
     @classmethod
     def get_camera_config(
         cls,
-        prim_path: str = "/World/envs/env_.*/Robot/d435_link/front_cam",
+        prim_path: str = "{ENV_REGEX_NS}/Robot/d435_link/front_cam",
         update_period: float = 0.02,
         height: int = 480,
         width: int = 640,
@@ -96,7 +96,7 @@ class CameraPresets:
     def left_dex3_wrist_camera(cls, **overrides) -> CameraCfg:
         """left wrist camera configuration"""
         params = {
-            "prim_path": "/World/envs/env_.*/Robot/left_hand_camera_base_link/left_wrist_camera",
+            "prim_path": "{ENV_REGEX_NS}/Robot/left_hand_camera_base_link/left_wrist_camera",
             "height": 224,
             "width": 224,
             "update_period": 0.02,
@@ -115,7 +115,7 @@ class CameraPresets:
     def right_dex3_wrist_camera(cls, **overrides) -> CameraCfg:
         """right wrist camera configuration"""
         params = {
-            "prim_path": "/World/envs/env_.*/Robot/right_hand_camera_base_link/right_wrist_camera",
+            "prim_path": "{ENV_REGEX_NS}/Robot/right_hand_camera_base_link/right_wrist_camera",
             "height": 224,
             "width": 224,
             "update_period": 0.02,

@@ -3,39 +3,34 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Compose merges this override by service name, so every profile that can open a
+# window needs an entry below.
+x-x11-forwarding: &x11-forwarding
+  environment:
+    - DISPLAY
+    - TERM
+    - QT_X11_NO_MITSHM=1
+    - XAUTHORITY=${__ISAACLAB_TMP_XAUTH}
+  volumes:
+  - type: bind
+    source: ${__ISAACLAB_TMP_DIR}
+    target: ${__ISAACLAB_TMP_DIR}
+  - type: bind
+    source: /tmp/.X11-unix
+    target: /tmp/.X11-unix
+  - type: bind
+    source: /etc/localtime
+    target: /etc/localtime
+    read_only: true
+
 services:
   isaac-lab-base:
-    environment:
-      - DISPLAY
-      - TERM
-      - QT_X11_NO_MITSHM=1
-      - XAUTHORITY=${__ISAACLAB_TMP_XAUTH}
-    volumes:
-    - type: bind
-      source: ${__ISAACLAB_TMP_DIR}
-      target: ${__ISAACLAB_TMP_DIR}
-    - type: bind
-      source: /tmp/.X11-unix
-      target: /tmp/.X11-unix
-    - type: bind
-      source: /etc/localtime
-      target: /etc/localtime
-      read_only: true
+    <<: *x11-forwarding
 
   isaac-lab-ros2:
-    environment:
-      - DISPLAY
-      - TERM
-      - QT_X11_NO_MITSHM=1
-      - XAUTHORITY=${__ISAACLAB_TMP_XAUTH}
-    volumes:
-    - type: bind
-      source: ${__ISAACLAB_TMP_DIR}
-      target: ${__ISAACLAB_TMP_DIR}
-    - type: bind
-      source: /tmp/.X11-unix
-      target: /tmp/.X11-unix
-    - type: bind
-      source: /etc/localtime
-      target: /etc/localtime
-      read_only: true
+    <<: *x11-forwarding
+
+  # Kit-less has no Kit, but it ships Newton's interactive viewer, so `--viz
+  # newton` needs a display here too.
+  isaac-lab-kitless:
+    <<: *x11-forwarding
