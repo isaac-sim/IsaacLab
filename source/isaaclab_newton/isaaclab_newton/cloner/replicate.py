@@ -133,7 +133,7 @@ def _build_newton_builder_from_mapping(
         _restore_visible_colliders_without_visual_shapes(
             builder, stage, import_result["path_shape_map"], load_visual_shapes
         )
-        record_registered_mpm_particle_ranges(import_result["path_particle_map"])
+        record_registered_mpm_particle_ranges(import_result.get("path_particle_map", {}))
         import_results.append(import_result)
     stage_info = import_results[0]
     replace_newton_builder_shape_colors(builder, stage)
@@ -175,7 +175,7 @@ def _build_newton_builder_from_mapping(
         source_xform: Sequence[float],
     ) -> None:
         record_registered_mpm_particle_ranges(
-            source_import_results[source]["path_particle_map"],
+            source_import_results[source].get("path_particle_map", {}),
             particle_offset,
             builder=builder,
             source_builder=source_builder,

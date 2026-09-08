@@ -328,6 +328,9 @@ class AppLauncher:
         # Integrate env-vars and input keyword args into simulation app config
         self._config_resolution(launcher_args)
 
+        # Register Newton's codeless schemas before Kit freezes OpenUSD's schema registry.
+        import newton_usd_schemas  # noqa: F401, PLC0415
+
         # Create SimulationApp, passing the resolved self._config to it for initialization
         self._create_app()
         self._set_deferred_cuda_device()
