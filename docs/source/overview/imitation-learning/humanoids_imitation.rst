@@ -650,9 +650,19 @@ Then, from the **Isaac-GR00T** directory, install GR00T N1.5 and its dependencie
    MAX_JOBS=4 uv pip install --no-build-isolation flash-attn==2.7.1.post4
    MAX_JOBS=4 uv pip install --no-build-isolation 'git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9'
    uv pip install diffusers decord2 zmq
+   uv pip install 'numpy>=1.23.5,<2.0.0' pyarrow==14.0.1 numpydantic==1.6.7 pydantic==2.10.6
 
 The ``decord2`` distribution retains the ``decord`` Python import used by GR00T and provides
 pre-built wheels for both x86_64 and aarch64 systems, including DGX Spark.
+
+.. important::
+
+   GR00T N1.5 requires the NumPy and Pydantic versions installed above. When launching the
+   rollout from the Isaac Lab checkout, use ``uv run --no-sync`` as shown below. A regular
+   ``uv run`` synchronizes the Isaac Lab workspace and can replace GR00T's versions, causing
+   ``AttributeError: _ARRAY_API not found`` from PyArrow or ``InvalidSchemaError`` from
+   Numpydantic.
+
 
 .. note::
 
@@ -732,7 +742,7 @@ From the **IsaacLab** repository root, run the rollout script with the path to y
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/locomanipulation_sdg/gr00t/rollout_policy.py \
+   uv run --no-sync python scripts/imitation_learning/locomanipulation_sdg/gr00t/rollout_policy.py \
        --model_path <checkpoint_dir_or_file> \
        --embodiment_tag new_embodiment \
        --dataset ./datasets/generated_dataset_g1_locomanip.hdf5 \
