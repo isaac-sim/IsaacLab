@@ -48,6 +48,8 @@ from isaaclab.utils.string import to_camel_case
 from isaaclab_physx.cloner import PhysxReplicateContext
 
 if TYPE_CHECKING:
+    from isaaclab.cloner import ClonePlan
+    from isaaclab.physics import CollisionFilterCfg
     from isaaclab.sim.simulation_context import SimulationContext
 
     from .physx_cfg import PhysxCfg
@@ -417,6 +419,31 @@ class PhysxManager(PhysicsManager):
     _simulation_manager_interface: ClassVar[_SimManagerStub] = _SimManagerStub()
     _physics_scene_apis: ClassVar[dict[str, Any]] = {}
     _message_bus = _event_bus
+
+    @classmethod
+    def _apply_collision_filter_impl(
+        cls,
+        plan: ClonePlan,
+        cfg: CollisionFilterCfg | None,
+        *,
+        isolate_environments: bool,
+        replicate_physics: bool,
+    ) -> None:
+        """Compile the assembled collider policy to exclusive PhysX collision groups."""
+        if not isolate_environments and (cfg is None or not cfg.groups):
+            return
+        from .collision_filter import apply_collision_filter  # noqa: PLC0415
+
+        sim = PhysicsManager._sim
+        assert sim is not None
+        apply_collision_filter(
+            sim.stage,
+            sim.cfg.physics_prim_path,
+            plan,
+            cfg,
+            isolate_environments=isolate_environments,
+            replicate_physics=replicate_physics,
+        )
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
