@@ -6,6 +6,7 @@
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_rl.rsl_rl import (
+    RslRlCNNModelCfg,
     RslRlDistillationAlgorithmCfg,
     RslRlDistillationRunnerCfg,
     RslRlMLPModelCfg,
@@ -103,4 +104,48 @@ class G129DofRoughAirTime100DistillationRunnerCfg(RslRlDistillationRunnerCfg):
         num_learning_epochs=2,
         learning_rate=1.0e-3,
         gradient_length=15,
+    )
+
+
+@configclass
+class G129DofRoughAirTime100DepthDistillationRunnerCfg(G129DofRoughAirTime100DistillationRunnerCfg):
+    """Distil the w100-line teacher into a student that reads a chest depth camera.
+
+    Only the student changes against the blind stage. ``obs_groups`` gains the ``depth`` group and
+    the student becomes a CNN model: ``rsl_rl`` splits observation sets by rank, sends each 4D group
+    through a convolutional encoder, and concatenates the latent with the 1D groups before the MLP.
+    The teacher is untouched, so the same checkpoint loads in both stages.
+
+    ``max_grad_norm`` is set because the DR29 depth run without it swung between 0.63 and 0.82
+    success on adjacent checkpoints while the loss sat flat -- single batches were free to move the
+    policy a long way. 4000 iterations rather than the DR29 line's 3000 because the blind student on
+    this line was still climbing at 1784.
+    """
+
+    max_iterations = 4000
+    experiment_name = "g1_rough_29dof_depth_distill"
+    obs_groups = {"student": ["policy", "depth"], "teacher": ["teacher"]}
+    student = RslRlCNNModelCfg(
+        cnn_cfg=RslRlCNNModelCfg.CNNCfg(
+            output_channels=[16, 32, 32],
+            kernel_size=[5, 3, 3],
+            stride=[2, 2, 2],
+            padding="zeros",
+            activation="relu",
+            # The MLP consumes a flat latent; without this, "The output of the CNN must be
+            # flattened before passing it to the MLP".
+            flatten=True,
+        ),
+        hidden_dims=[512, 256, 128],
+        activation="elu",
+        # Normalizes the 1D groups only; the depth group is already scaled into [0, 1]. The teacher
+        # keeps obs_normalization off to match this line's PPO config, which trains without it.
+        obs_normalization=True,
+        distribution_cfg=RslRlCNNModelCfg.GaussianDistributionCfg(init_std=0.1),
+    )
+    algorithm = RslRlDistillationAlgorithmCfg(
+        num_learning_epochs=2,
+        learning_rate=1.0e-3,
+        gradient_length=15,
+        max_grad_norm=1.0,
     )
