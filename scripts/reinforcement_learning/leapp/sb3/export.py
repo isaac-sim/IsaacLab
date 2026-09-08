@@ -36,7 +36,6 @@ CHECKPOINT_SELECTORS = None
 state_dict_from_sequence = None
 state_sequence_from_registered = None
 create_graph_configs = None
-dump_yaml = None
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
@@ -59,7 +58,7 @@ def _load_runtime_dependencies() -> None:
     global get_published_pretrained_checkpoint
     global load_from_pkl, load_from_zip_file, patch_env_for_export, resolve_checkpoint_selector, retrieve_file_path
     global state_dict_from_sequence, state_sequence_from_registered, torch
-    global create_graph_configs, dump_yaml
+    global create_graph_configs
 
     if _RUNTIME_IMPORTS_LOADED:
         return
@@ -83,7 +82,6 @@ def _load_runtime_dependencies() -> None:
 
     from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
     from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
-    from isaaclab.utils.io import dump_yaml as dump_yaml_fn
     from isaaclab.utils.leapp import patch_env_for_export as patch_env_for_export_fn
     from isaaclab.utils.leapp.utils import ensure_env_spec_id as ensure_env_spec_id_fn
 
@@ -132,7 +130,6 @@ def _load_runtime_dependencies() -> None:
     state_dict_from_sequence = state_dict_from_sequence_fn
     state_sequence_from_registered = state_sequence_from_registered_fn
     create_graph_configs = create_graph_configs_fn
-    dump_yaml = dump_yaml_fn
     _RUNTIME_IMPORTS_LOADED = True
 
 
@@ -375,7 +372,6 @@ def export_sb3_agent(
             validate=validate,
             graph_configs=create_graph_configs(env_cfg),
         )
-        dump_yaml(os.path.join(save_path, graph_name, "env.yaml"), env_cfg)
     finally:
         torch.distributions.Distribution.set_default_validate_args(previous_validate_args)
         if leapp_started:

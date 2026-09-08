@@ -41,7 +41,6 @@ is_two_tensor_lstm_state = None
 state_dict_from_sequence = None
 state_sequence_from_registered = None
 create_graph_configs = None
-dump_yaml = None
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
@@ -70,7 +69,7 @@ def _load_runtime_dependencies() -> None:
     global hydra_task_config, multi_agent_to_single_agent
     global patch_env_for_export, retrieve_file_path, torch, vecenv
     global is_two_tensor_lstm_state, state_dict_from_sequence, state_sequence_from_registered
-    global create_graph_configs, dump_yaml
+    global create_graph_configs
 
     if _RUNTIME_IMPORTS_LOADED:
         return
@@ -92,7 +91,6 @@ def _load_runtime_dependencies() -> None:
     from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
     from isaaclab.envs import multi_agent_to_single_agent as multi_agent_to_single_agent_fn
     from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
-    from isaaclab.utils.io import dump_yaml as dump_yaml_fn
     from isaaclab.utils.leapp import patch_env_for_export as patch_env_for_export_fn
     from isaaclab.utils.leapp.utils import ensure_env_spec_id as ensure_env_spec_id_fn
     from isaaclab.utils.seed import configure_seed as configure_seed_fn
@@ -145,7 +143,6 @@ def _load_runtime_dependencies() -> None:
     state_dict_from_sequence = state_dict_from_sequence_fn
     state_sequence_from_registered = state_sequence_from_registered_fn
     create_graph_configs = create_graph_configs_fn
-    dump_yaml = dump_yaml_fn
     _RUNTIME_IMPORTS_LOADED = True
 
 
@@ -318,7 +315,6 @@ def export_rl_games_agent(
             validate=validate,
             graph_configs=create_graph_configs(env_cfg),
         )
-        dump_yaml(os.path.join(save_path, graph_name, "env.yaml"), env_cfg)
     finally:
         if leapp_started:
             with contextlib.suppress(Exception):

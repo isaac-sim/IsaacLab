@@ -42,7 +42,6 @@ get_checkpoint_path = None
 hydra_task_config = None
 installed_version = None
 create_graph_configs = None
-dump_yaml = None
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
@@ -73,7 +72,7 @@ def _load_runtime_dependencies() -> None:
     global handle_deprecated_rsl_rl_cfg, hydra_task_config
     global installed_version
     global patch_env_for_export, retrieve_file_path
-    global create_graph_configs, dump_yaml
+    global create_graph_configs
 
     if _RUNTIME_IMPORTS_LOADED:
         return
@@ -92,7 +91,6 @@ def _load_runtime_dependencies() -> None:
 
     from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
     from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
-    from isaaclab.utils.io import dump_yaml as dump_yaml_fn
     from isaaclab.utils.leapp import patch_env_for_export as patch_env_for_export_fn
     from isaaclab.utils.leapp.utils import ensure_env_spec_id as ensure_env_spec_id_fn
 
@@ -138,7 +136,6 @@ def _load_runtime_dependencies() -> None:
     get_checkpoint_path = get_checkpoint_path_fn
     hydra_task_config = hydra_task_config_fn
     create_graph_configs = create_graph_configs_fn
-    dump_yaml = dump_yaml_fn
     _RUNTIME_IMPORTS_LOADED = True
 
 
@@ -361,7 +358,6 @@ def export_rsl_rl_agent(
             validate=validate,
             graph_configs=create_graph_configs(env_cfg),
         )
-        dump_yaml(os.path.join(save_path, graph_name, "env.yaml"), env_cfg)
     finally:
         if leapp_started:
             with contextlib.suppress(Exception):
