@@ -19,6 +19,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import math
+
 import gymnasium as gym
 import pytest
 import torch
@@ -69,6 +71,24 @@ def _contrib_environment_params() -> list:
             marks = (*marks, pytest.mark.skip(reason=skip_reason))
         params.append(pytest.param(task_name, id=task_name, marks=marks))
     return params
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected_effort_limit"),
+    [
+        ((), math.inf),
+        (("physics=newton_kamino",), math.inf),
+        (("physics=isaacsim_physx",), 3.1),
+        (("physics=physx",), 3.1),
+    ],
+)
+def test_dr_legs_driven_joint_effort_limit_matches_physics_backend(
+    overrides: tuple[str, ...], expected_effort_limit: float
+):
+    """Disable the unstable effort constraint only for the Kamino backend."""
+    env_cfg = parse_env_cfg("IsaacContrib-DrLegs-Walk", overrides=overrides)
+    actual_effort_limit = env_cfg.scene.robot.actuators["driven_joints"].joint_effort_limit
+    assert actual_effort_limit == expected_effort_limit
 
 
 def test_dr_legs_walk_seed_zero_remains_finite():

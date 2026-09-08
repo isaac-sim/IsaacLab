@@ -8,11 +8,13 @@
 The robot must keep its pelvis upright at a target height.
 """
 
+import math
+
 from isaaclab_newton.physics import KaminoPADMMCfg, KaminoPADMMSolverCfg, NewtonCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -27,7 +29,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.contrib.dr_legs.mdp as mdp
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.dr_legs import DR_LEGS_ACTUATED_JOINTS, DR_LEGS_IMPLICIT_PD_CFG
 
@@ -59,7 +61,7 @@ def _kamino_newton_cfg() -> NewtonCfg:
                 primal_tolerance=1.0e-5,
                 dual_tolerance=1.0e-5,
                 compl_tolerance=1.0e-5,
-                rho_0=2.0,
+                rho_0=0.02,
             ),
         ),
         use_cuda_graph=True,
@@ -77,6 +79,19 @@ class DrLegsPhysicsCfg(PresetCfg):
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
 
+def _dr_legs_robot_cfg() -> ArticulationCfg:
+    """Return the task-local DR Legs articulation configuration."""
+    cfg = DR_LEGS_IMPLICIT_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    # Work around Newton issue #4173: finite implicit-PD effort rows can destabilize closed-loop P-ADMM.
+    cfg.actuators["driven_joints"].joint_effort_limit = preset(
+        default=math.inf,
+        newton_kamino=math.inf,
+        isaacsim_physx=3.1,
+        physx=3.1,
+    )
+    return cfg
+
+
 ##
 # Scene definition
 ##
@@ -89,7 +104,7 @@ class HoldPoseSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0), physics_material=_PHYSICS_MATERIAL),
     )
 
-    robot = DR_LEGS_IMPLICIT_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = _dr_legs_robot_cfg()
 
     dome_light = AssetBaseCfg(
         prim_path="/World/DomeLight",
