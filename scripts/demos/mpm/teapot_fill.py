@@ -212,17 +212,20 @@ SURFACE_PATH = "/fluid_surface"
 
 def create_visualizer_cfgs():
     """Create demo-specific visualizer configs for requested backends."""
-    if not any(v in (args_cli.visualizer or []) for v in ("newton", "newton_gl", "newton_rtx")):
+    requested = args_cli.visualizer or []
+    if not any(name in requested for name in ("newton_gl", "newton_rtx")):
         return []
 
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
-    cfg_type = NewtonRTXVisualizerCfg if args_cli.visualizer == ["newton_rtx"] else NewtonGLVisualizerCfg
+    cfg_types = {"newton_gl": NewtonGLVisualizerCfg, "newton_rtx": NewtonRTXVisualizerCfg}
     return [
-        cfg_type(
+        cfg_types[name](
             show_particles=SHOW_FLUID_PARTICLES,
             particle_color=WATER_COLOR,
         )
+        for name in requested
+        if name in cfg_types
     ]
 
 
