@@ -1,0 +1,77 @@
+/*
+ * Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+.demo-command-selection {
+    min-width: 0;
+    color: var(--pst-color-text-base);
+    font-size: 1.05rem;
+    overflow-wrap: anywhere;
+}
+
+.demo-command-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.demo-command-description {
+    min-height: 1.5rem;
+    margin: 0.9rem 0 0;
+    color: var(--environment-muted);
+}
+
+.demo-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.demo-card {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    min-width: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--environment-border);
+    border-radius: 8px;
+    color: var(--pst-color-text-base);
+    background: var(--pst-color-background);
+    text-align: left;
+}
+
+.demo-card:hover,
+.demo-card:focus-visible,
+.demo-card.is-selected {
+    border-color: var(--pst-color-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--pst-color-primary) 22%, transparent);
+}
+
+.demo-card img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    background: #111;
+}
+
+.demo-card span {
+    display: flex;
+    align-items: center;
+    min-height: 3.2rem;
+    padding: 0.7rem 0.8rem;
+    font-weight: 650;
+}
+
+@media (max-width: 640px) {
+    .demo-command-options {
+        grid-template-columns: 1fr;
+    }
+
+    .demo-card-grid {
+        grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+        gap: 0.7rem;
+    }
+}

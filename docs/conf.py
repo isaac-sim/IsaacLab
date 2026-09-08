@@ -327,13 +327,14 @@ html_last_updated_fmt = ""  # to reveal the build date in the pages meta
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = [
     "source/_static/css",
+    "source/_static/demos",
     "source/_static/how-to",
     "source/_static/visualizers",
     "source/_static/tasks/previews",
     "source/_static/benchmarks",
 ]
-html_css_files = ["custom.css", "environment-browser.css"]
-html_js_files = ["environment-browser.js"]
+html_css_files = ["custom.css", "environment-browser.css", "demo-browser.css"]
+html_js_files = ["environment-browser.js", "demo-browser.js"]
 
 html_theme_options = {
     "path_to_docs": "docs/",
