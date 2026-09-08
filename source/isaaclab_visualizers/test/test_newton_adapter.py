@@ -489,6 +489,7 @@ class _Viewer:
         self.logged_state = None
         self.logged_contacts = None
         self.logged_arrows = None
+        self.closed = False
 
     def is_paused(self):
         return False
@@ -510,6 +511,10 @@ class _Viewer:
 
     def end_frame(self):
         pass
+
+    def close(self):
+        # Mirrors ViewerBase.close(), which every real viewer inherits.
+        self.closed = True
 
     def get_frame(self):
         return SimpleNamespace(numpy=lambda: np.zeros((4, 6, 3), dtype=np.uint8))

@@ -356,6 +356,13 @@ def test_se3spacemouse_constructors(mock_environment, mocker):
     assert result.shape == (7,)  # (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, gripper)
 
 
+def test_se3spacemouse_destructor_handles_partial_initialization():
+    """The destructor must tolerate construction failing before the listener thread exists."""
+    spacemouse = Se3SpaceMouse.__new__(Se3SpaceMouse)
+
+    spacemouse.__del__()
+
+
 """
 Test Haply devices.
 """
