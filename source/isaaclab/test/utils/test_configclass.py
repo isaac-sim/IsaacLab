@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import copy
 import os
+import subprocess
+import sys
 from collections.abc import Callable
 from dataclasses import MISSING, asdict, field
 from functools import wraps
@@ -1240,3 +1242,25 @@ def test_checked_apply_rejects_non_dataclass_src():
 
     with pytest.raises(TypeError, match="must be a dataclass"):
         checked_apply(NotADataclass(), object())
+
+
+def test_configclass_is_decorator_after_submodule_import():
+    """``from isaaclab.utils import configclass`` yields the decorator, not the sub-module.
+
+    Importing :mod:`isaaclab.utils.configclass` binds the sub-module onto :mod:`isaaclab.utils` and
+    used to shadow the lazily attached decorator of the same name. A fresh interpreter is required
+    because the shadowing only happens on the very first import of the sub-module.
+    """
+    script = """
+import isaaclab.utils.configclass  # binds the sub-module onto the parent package
+
+from isaaclab.utils import configclass
+
+@configclass
+class DemoCfg:
+    value: int = 1
+
+assert DemoCfg().to_dict() == {"value": 1}
+"""
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
