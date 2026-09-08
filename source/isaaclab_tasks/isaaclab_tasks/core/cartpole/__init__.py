@@ -24,6 +24,7 @@ _RAW_CAMERA_PRESETS = (
     "simple_shading_diffuse_mdl",
     "simple_shading_full_mdl",
 )
+_FEATURE_CAMERA_PRESETS = ("resnet18", "theia_tiny")
 
 ##
 # Register Gym environments -- direct workflow.
@@ -93,10 +94,10 @@ gym.register(
         ),
         "agent_preset_compatibility": {
             "rl_games_cfg_entry_point": _RAW_CAMERA_PRESETS,
-            "rl_games_feature_cfg_entry_point": ("resnet18", "theia_tiny"),
+            "rl_games_feature_cfg_entry_point": _FEATURE_CAMERA_PRESETS,
             "rsl_rl_cfg_entry_point": _RAW_CAMERA_PRESETS,
-            "rsl_rl_feature_cfg_entry_point": ("resnet18", "theia_tiny"),
+            "rsl_rl_feature_cfg_entry_point": _FEATURE_CAMERA_PRESETS,
         },
-        "pretrained_checkpoint_preset_compatibility": {"rsl_rl": ("resnet18", "theia_tiny")},
+        "pretrained_checkpoint_preset_compatibility": {"rsl_rl": _FEATURE_CAMERA_PRESETS},
     },
 )
