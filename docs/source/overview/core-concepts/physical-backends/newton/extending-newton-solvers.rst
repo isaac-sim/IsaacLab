@@ -17,10 +17,8 @@ preset selection, :doc:`index` for the per-solver guides, and
 When a Solver Manager Is Needed
 -------------------------------
 
-Each Newton solver is exposed as a small
-:class:`~isaaclab_newton.physics.NewtonManager` subclass. The simulation context
-only sees a physics manager; the solver configuration decides which subclass is
-active. Write a new subclass when:
+Each Newton solver is exposed as a
+:class:`~isaaclab_newton.physics.NewtonManager` subclass. Write a new one when:
 
 * a Newton solver has no Isaac Lab manager yet;
 * the solver needs its own contact allocation, builder attributes, or reset
@@ -72,9 +70,8 @@ manager subclass is active per simulation.
        coupled setups.
 
 :class:`~isaaclab_newton.physics.NewtonCfg` copies ``solver_cfg.class_type``
-onto its own :attr:`~isaaclab_newton.physics.NewtonCfg.class_type` during
-post-initialization, so task configuration keeps the normal
-``NewtonCfg(solver_cfg=...)`` shape and never names the manager directly.
+onto its own :attr:`~isaaclab_newton.physics.NewtonCfg.class_type`, so task
+configuration never names the manager directly.
 
 
 Lifecycle
@@ -164,9 +161,7 @@ Extension Contract
 ------------------
 
 A subclass must implement ``_build_solver()`` and assign four slots on
-``NewtonManager`` itself, not on ``cls``, so code reading these attributes off
-``NewtonManager`` sees the active values regardless of which subclass is
-running.
+``NewtonManager`` itself, not on ``cls``.
 :meth:`~isaaclab_newton.physics.NewtonManager.initialize_solver` raises
 ``RuntimeError`` if ``_solver`` is still unset. The other three are not
 validated and keep their defaults, so a subclass that forgets them runs with
@@ -225,33 +220,25 @@ Override anything else only when the solver needs it:
 * ``_reset_solver_internals()``: clear solver-owned state for reset worlds.
 * ``_register_builder_attributes()``: register Newton custom particle, shape, or
   body attributes on the builder.
-  :class:`~isaaclab_newton.physics.NewtonMPMManager` registers the per-particle
-  ``mpm:*`` material attributes here.
 * ``_prepare_builder_for_finalize()``: normalize imported or replicated builder
   data immediately before ``finalize()``.
-  :class:`~isaaclab_newton.physics.NewtonMPMManager` clears mass and inertia on
-  kinematic bodies here so implicit MPM treats them as massless colliders.
 * ``_supports_cuda_graph_capture()``: return ``False`` to fall back to eager
   execution.
 * ``_requires_initial_reset_before_graph_capture()``: delay headless capture
   until the first post-reset step.
 * ``_solver_specific_clear()``: release class-level state the subclass owns.
-* ``_check_solver_status()`` and ``_log_solver_debug()``: report solver-specific
-  failures and diagnostics.
+* ``_check_solver_status()`` and ``_log_solver_debug()``: run after stepping.
+
+:class:`~isaaclab_newton.physics.NewtonMPMManager` overrides both builder hooks.
 
 Raise from ``_build_solver()`` on an unsupported configuration rather than
-silently degrading;
-:class:`~isaaclab_contrib.coupling.NewtonCouplerManager` follows this pattern
-and rejects solver configurations it cannot nest.
-
-Keep the manager name prefixed with ``Newton`` and group the solver
-configuration with the other Newton solver configurations.
+silently degrading. Name the manager ``Newton<Solver>Manager``.
 
 
 Coupling Paths
 --------------
 
-Four architectures are available. They differ in what drives the substep loop:
+The four architectures differ in what drives the substep loop:
 
 .. list-table::
    :header-rows: 1
@@ -276,28 +263,19 @@ Four architectures are available. They differ in what drives the substep loop:
      - A subclass constructs several sub-solvers itself and overrides
        ``_step_solver()`` to fix the substep order.
        :class:`~isaaclab_contrib.custom_coupling.newton_manager_cfg.CoupledMJWarpVBDSolverCfg`
-       is the in-tree example: it stores an
-       :class:`~isaaclab_newton.physics.MJWarpSolverCfg` and a
-       :class:`~isaaclab_newton.physics.VBDSolverCfg`, and its manager clears
-       force accumulators, detects contacts once, injects soft-to-rigid
-       reactions into ``body_f`` when ``coupling_mode="two_way"``, then advances
-       MJWarp on its own internal contacts and VBD on the detected ones.
+       is the in-tree example. Its manager clears force accumulators, detects
+       contacts once, injects soft-to-rigid reactions into ``body_f`` when
+       ``coupling_mode="two_way"``, then advances MJWarp on its own internal
+       contacts and VBD on the detected ones.
 
-Write a custom shared-model manager only if you need to control the order in
-which the sub-solvers advance within a substep. It bypasses entry ownership
-resolution, so it cannot reuse the coupler's selectors or validation. The
-coupler paths keep the base manager in charge of state allocation, substep
-iteration, and synchronization; only the coupling policy is configured.
-
-For the trade-offs between proxy and ADMM, and for the configuration fields of
-each, see :ref:`newton-coupled-solvers`.
+A custom shared-model manager bypasses entry ownership resolution, so it cannot
+reuse the coupler's selectors or validation. For the proxy and ADMM trade-offs,
+see :ref:`newton-coupled-solvers`.
 
 
 Related Documentation
 ---------------------
 
-* :ref:`newton-using-vbd`: VBD setup and contact tuning.
-* :ref:`mjwarp-solver-tuning`: MJWarp tuning.
 * :doc:`../../multi_backend_architecture`: adding a whole physics backend.
 * :doc:`/source/api/lab_newton/isaaclab_newton.physics`: manager and solver
   configuration API reference.
