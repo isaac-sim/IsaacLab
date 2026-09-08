@@ -19,17 +19,15 @@ Command Builder
 
    <div class="environment-browser demo-browser" data-demo-browser>
      <section class="environment-command-panel" aria-label="Isaac Lab demo command builder">
-       <div class="environment-command-row environment-command-row-primary">
+       <div class="environment-command-row environment-command-row-primary demo-command-row">
          <span class="environment-command-prefix" aria-hidden="true">uv run</span>
          <strong class="demo-command-selection" data-demo-name>Arms</strong>
-       </div>
-       <div class="environment-command-row environment-command-row-options demo-command-options">
          <label class="environment-selector environment-selector-physics">
            <span>--physics</span>
            <select data-demo-field="physics" aria-label="Physics backend"></select>
          </label>
          <label class="environment-selector environment-selector-renderer">
-           <span>--visualizer</span>
+           <span>--viz</span>
            <select data-demo-field="visualizer" aria-label="Visualizer"></select>
          </label>
        </div>

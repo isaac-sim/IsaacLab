@@ -5,15 +5,30 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+.demo-command-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
 .demo-command-selection {
     min-width: 0;
     color: var(--pst-color-text-base);
     font-size: 1.05rem;
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.demo-command-options {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+.demo-command-row .environment-selector select {
+    min-width: 0;
+}
+
+.demo-command-row .environment-selector-physics select {
+    width: 10.5rem;
+}
+
+.demo-command-row .environment-selector-renderer select {
+    width: 8.5rem;
 }
 
 .demo-command-description {
@@ -66,10 +81,6 @@
 }
 
 @media (max-width: 640px) {
-    .demo-command-options {
-        grid-template-columns: 1fr;
-    }
-
     .demo-card-grid {
         grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
         gap: 0.7rem;

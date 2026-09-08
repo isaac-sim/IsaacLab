@@ -64,7 +64,7 @@
             if (selectedCard.dataset.demoFixedPhysics !== "true") {
                 parts.push("--physics", fields.physics.value);
             }
-            parts.push("--visualizer", fields.visualizer.value);
+            parts.push("--viz", fields.visualizer.value);
             parts.push(...(selectedCard.dataset.demoArgs || "").split(" ").filter(Boolean));
             return parts.join(" ");
         };
