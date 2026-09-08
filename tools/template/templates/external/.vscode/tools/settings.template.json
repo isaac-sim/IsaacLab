@@ -72,8 +72,5 @@
     },
     "[restructuredtext]": {
         "editor.tabSize": 2
-    },
-    // Python extra paths
-    // Note: this is filled up when vscode is set up for the first time
-    "python.analysis.extraPaths": []
+    }
 }
