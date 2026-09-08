@@ -31,7 +31,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
@@ -122,8 +122,21 @@ class MySceneCfg(InteractiveSceneCfg):
     sky_light = AssetBaseCfg(
         prim_path="/World/skyLight",
         spawn=sim_utils.DomeLightCfg(
-            intensity=750.0,
-            texture_file=f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
+            intensity=500.0,
+            color=(1.0, 1.0, 1.0),
+            texture_file=f"{ISAACLAB_NUCLEUS_DIR}/Environments/Skies/default_sky_presets_v1/blue_sky.hdr",
+        ),
+    )
+
+    distant_light = AssetBaseCfg(
+        prim_path="/World/distantLight",
+        spawn=sim_utils.DistantLightCfg(
+            intensity=2000.0,
+            color=(1.0, 1.0, 1.0),
+            angle=0.53,
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            rot=(0.8923991, -0.3696438, 0.2391176, 0.0990458),
         ),
     )
 

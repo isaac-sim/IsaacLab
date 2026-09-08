@@ -221,6 +221,7 @@ Visualizer Overview
           visualizer_cfg = NewtonGLVisualizerCfg(
               eye=(8.0, 8.0, 3.0),
               lookat=(0.0, 0.0, 0.0),
+              background_mode="sky",
               window_width=1920,
               window_height=1080,
               show_joints=False,
@@ -348,6 +349,9 @@ Visualizer Overview
           visualizer_cfg = NewtonRTXVisualizerCfg(
               eye=(8.0, 8.0, 3.0),
               lookat=(0.0, 0.0, 0.0),
+              background_mode="solid",  # use "sky" to show the dome
+              focal_length=18.0,
+              exposure=1.0,
           )
 
       For the full config reference, see the config classes below.
@@ -476,6 +480,9 @@ Visualizer Overview
           visualizer_cfg = KitVisualizerCfg(
               eye=(8.0, 8.0, 3.0),
               lookat=(0.0, 0.0, 0.0),
+              background_mode="solid",  # use "sky" to show the scene dome
+              focal_length=18.0,
+              exposure=1.0,
               window_width=1280,
               window_height=720,
               enable_markers=True,
@@ -748,7 +755,7 @@ To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
 
     sim_cfg = SimulationCfg(
         visualizer_cfgs=[
-            KitVisualizerCfg(eye=(0.0, 0.0, 20.0)),
+            KitVisualizerCfg(eye=(0.0, 0.0, 20.0), focal_length=18.0, exposure=1.0),
             NewtonGLVisualizerCfg(eye=(5.0, 5.0, 5.0), show_joints=True),
         ]
     )
@@ -782,6 +789,49 @@ To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
      - All visualizers disabled; no window, no capture source.
 
 For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
+
+
+Scene Background
+~~~~~~~~~~~~~~~~
+
+Kit, Newton GL, and Newton RTX use a solid sky-blue background by default. The background is
+independent of scene lighting, so a dome light can continue to illuminate the scene and contribute
+reflections without making its texture visible.
+
+Set one shared default to show the native sky for whichever visualizer is selected:
+
+.. code-block:: python
+
+    from isaaclab.visualizers import VisualizerCfg
+
+    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(background_mode="sky")
+
+The same field can be set directly on a concrete visualizer config. ``background_mode="sky"``
+shows the scene's dome in Kit and the OVRTX dome in Newton RTX. The OVRTX dome uses the hosted
+``blue_sky.hdr`` preset by default. The same versioned asset directory also provides
+``epic_sky.hdr``, ``workshop.hdr``, and ``workshop_shifted_up.hdr``. Newton GL does not support HDR
+environment textures; it shows its configurable ``sky_upper_color`` / ``sky_lower_color``
+procedural gradient instead. To select another HDR sky, set ``texture_file`` on the scene's
+:class:`~isaaclab.sim.spawners.lights.DomeLightCfg` for Kit, or set ``dome_texture_file`` on
+:class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg`.
+
+
+Camera Framing and Exposure
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``focal_length`` controls the interactive camera framing in Kit, Newton GL, and Newton RTX.
+Kit and Newton RTX also use the shared ``exposure`` compensation in exposure values (EV), with
+automatic exposure disabled for predictable results. Increasing ``exposure`` by one EV doubles
+the rendered brightness. For example, this applies the same brighter camera default whichever RTX
+visualizer is selected:
+
+.. code-block:: python
+
+    from isaaclab.visualizers import VisualizerCfg
+
+    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(exposure=1.5)
+
+Newton GL has no physical camera exposure model and ignores ``exposure``.
 
 
 Performance

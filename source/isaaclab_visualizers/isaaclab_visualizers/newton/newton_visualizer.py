@@ -53,6 +53,7 @@ from isaaclab.envs.utils.camera_view import (
 )
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers._rtx_camera import apply_rtx_camera_settings
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
@@ -615,6 +616,12 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         *args,
         metadata: dict | None = None,
         update_frequency: int = 1,
+        dome_texture_file: str | None = None,
+        dome_intensity: float = 500.0,
+        dome_rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        distant_light_intensity: float = 2000.0,
+        background_color: tuple[float, float, float] | None = None,
+        exposure: float = 1.0,
         render_settings: dict[str, Any] | None = None,
         **kwargs,
     ):
@@ -624,6 +631,12 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
             *args: Positional arguments forwarded to ``ViewerRTX``.
             metadata: Optional metadata shown in viewer panels.
             update_frequency: Viewer refresh cadence in simulation frames.
+            dome_texture_file: Optional lat-long HDR texture for the default dome light.
+            dome_intensity: Intensity of the default dome light.
+            dome_rotation: XYZ Euler rotation of the default dome light [deg].
+            distant_light_intensity: Intensity of the default distant light.
+            background_color: Optional solid background color RGB [0, 1].
+            exposure: Camera exposure compensation [EV].
             render_settings: Extra RTX attributes to author on the render product. See
                 :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`.
             **kwargs: Keyword arguments forwarded to ``ViewerRTX``.
@@ -646,9 +659,20 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
                     os.environ["LD_LIBRARY_PATH"] = _extra + (os.pathsep + _ld if _ld else "")
                 os.environ.setdefault("OMNI_USD_PLUGINS_BASE_PATH", str(_bin))
 
-        # Assigned before super().__init__(): ViewerRTX reaches
-        # _add_camera_lights_and_render_product() during initialization, and the override reads
-        # this. Copied so a caller's dict cannot mutate the viewer's settings afterwards.
+        # Assigned before super().__init__(): ViewerRTX reaches the light and render-product
+        # authoring hooks during initialization, and the overrides read these values.
+        if dome_texture_file:
+            from isaaclab.utils.assets import retrieve_file_path
+
+            dome_texture_file = retrieve_file_path(dome_texture_file)
+        self._dome_texture_file = dome_texture_file
+        self._dome_intensity = float(dome_intensity)
+        self._dome_rotation = tuple(float(value) for value in dome_rotation)
+        self._distant_light_intensity = float(distant_light_intensity)
+        self._background_color = (
+            tuple(float(value) for value in background_color) if background_color is not None else None
+        )
+        self._exposure = float(exposure)
         self._render_settings = dict(render_settings or {})
 
         super().__init__(*args, **kwargs)
@@ -671,6 +695,24 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
 
+    def _add_default_lights(self) -> None:
+        """Use the configured dome with Newton's default distant light and optional HDR sky."""
+        from pxr import UsdLux
+
+        super()._add_default_lights()
+        dome = UsdLux.DomeLight.Get(self.stage, "/root/_RTXDomeLight")
+        dome.GetIntensityAttr().Set(self._dome_intensity)
+        distant = UsdLux.DistantLight.Get(self.stage, "/root/_RTXDistantLight")
+        distant.GetIntensityAttr().Set(self._distant_light_intensity)
+        if self._dome_texture_file:
+            from pxr import Gf, UsdGeom
+
+            dome.CreateTextureFileAttr().Set(self._dome_texture_file)
+            dome.CreateTextureFormatAttr().Set("latlong")
+            dome_xform = UsdGeom.Xform(dome.GetPrim())
+            dome_xform.ClearXformOpOrder()
+            dome_xform.AddRotateXYZOp().Set(Gf.Vec3f(*self._dome_rotation))
+
     def _add_camera_lights_and_render_product(self) -> None:
         """Author the configured RTX attributes onto the render product.
 
@@ -678,11 +720,25 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         reads that export, so later edits are ignored.
         """
         super()._add_camera_lights_and_render_product()
-        if not self._render_settings:
-            return
-        from pxr import Sdf
+        from pxr import Gf, Sdf
+
+        if not apply_rtx_camera_settings(
+            self.stage,
+            self._camera_prim_path,
+            focal_length=None,
+            exposure=self._exposure,
+        ):
+            logger.warning(
+                "[NewtonViewerRTX] Camera '%s' was not found; exposure was not applied.",
+                self._camera_prim_path,
+            )
 
         prim = self.stage.GetPrimAtPath(self._render_product_path)
+        if self._background_color is not None:
+            prim.CreateAttribute("omni:rtx:background:source:type", Sdf.ValueTypeNames.Token).Set("color")
+            prim.CreateAttribute("omni:rtx:background:source:color", Sdf.ValueTypeNames.Color3f).Set(
+                Gf.Vec3f(*self._background_color)
+            )
         for name, (type_name, value) in self._render_settings.items():
             value_type = getattr(Sdf.ValueTypeNames, type_name, None)
             if value_type is None:
@@ -2000,10 +2056,12 @@ class NewtonGLVisualizer(NewtonVisualizer):
         self._viewer.scaling = 1.0
         self._viewer.particle_color = self.cfg.particle_color
         self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
-        self._viewer.renderer.draw_sky = self.cfg.enable_sky
+        draw_sky = self.cfg.background_mode == "sky"
+        self._viewer.renderer.draw_sky = draw_sky
         self._viewer.renderer.draw_wireframe = self.cfg.enable_wireframe
         # Accept list/tuple/array-like config colors; provide a stable tuple for nanobind conversion.
-        self._viewer.renderer.sky_upper = self._viewer._coerce_color3(self.cfg.sky_upper_color)
+        upper_color = self.cfg.sky_upper_color if draw_sky else self.cfg.background_color
+        self._viewer.renderer.sky_upper = self._viewer._coerce_color3(upper_color)
         self._viewer.renderer.sky_lower = self._viewer._coerce_color3(self.cfg.sky_lower_color)
         self._viewer.renderer._light_color = self._viewer._coerce_color3(self.cfg.light_color)
 
@@ -2133,10 +2191,8 @@ class NewtonRTXVisualizer(NewtonVisualizer):
     The tiled camera panel remains disabled because ``ViewerRTX.log_image`` has no
     display sink.
 
-    .. note::
-        RTX render quality settings (fps, lighting environment, denoiser, etc.)
-        use ``ViewerRTX`` defaults. These will be exposed in a future revision
-        consistently with other RTX-capable renderers.
+    Dome lighting, the distant light, a solid background override, and additional render-product
+    settings are configurable through :class:`NewtonRTXVisualizerCfg`.
     """
 
     def __init__(self, cfg: NewtonRTXVisualizerCfg):
@@ -2153,6 +2209,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         self._disable_viewer_on_step_exception = True
 
     def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerRTX:
+        background_color = self.cfg.background_color if self.cfg.background_mode == "solid" else None
         return NewtonViewerRTX(
             width=self.cfg.window_width,
             height=self.cfg.window_height,
@@ -2161,6 +2218,12 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
             environment=self.cfg.rtx_environment,
+            dome_texture_file=self.cfg.dome_texture_file,
+            dome_intensity=self.cfg.dome_intensity,
+            dome_rotation=self.cfg.dome_rotation,
+            distant_light_intensity=self.cfg.distant_light_intensity,
+            background_color=background_color,
+            exposure=self.cfg.exposure,
             render_settings=self.cfg.render_settings,
         )
 

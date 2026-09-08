@@ -12,10 +12,47 @@ import pytest
 import torch
 from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
+from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 
 from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+
+
+@pytest.mark.parametrize(("mode", "source_type"), [("solid", "color"), ("sky", "domeLight")])
+def test_background_mode_selects_isaac_rtx_source(mode: str, source_type: str) -> None:
+    """Kit should apply the shared background mode only to its render product."""
+    stage = Usd.Stage.CreateInMemory()
+    render_product = stage.DefinePrim("/Render/Viewport", "RenderProduct")
+    visualizer = KitVisualizer(KitVisualizerCfg(background_mode=mode))
+
+    visualizer._apply_render_product_background(stage, render_product.GetPath())
+
+    assert render_product.GetAttribute("omni:rtx:background:source:type").Get() == source_type
+    if mode == "solid":
+        assert render_product.GetAttribute("omni:rtx:background:source:color").Get() == (0.3, 0.55, 0.82)
+    else:
+        assert not render_product.GetAttribute("omni:rtx:background:source:color").IsValid()
+    assert stage.GetRootLayer().GetAttributeAtPath("/Render/Viewport.omni:rtx:background:source:type") is None
+
+
+def test_camera_settings_apply_shared_focal_length_and_exposure() -> None:
+    """Kit should author the shared camera settings without modifying the root layer."""
+    stage = Usd.Stage.CreateInMemory()
+    camera = UsdGeom.Camera.Define(stage, "/OmniverseKit_Persp")
+    visualizer = KitVisualizer(KitVisualizerCfg(focal_length=18.0, exposure=1.5))
+    visualizer._controlled_camera_path = camera.GetPath().pathString
+
+    visualizer._apply_camera_settings(stage)
+
+    assert camera.GetFocalLengthAttr().Get() == 18.0
+    assert camera.GetExposureAttr().Get() == 1.5
+    assert camera.GetExposureFStopAttr().Get() == 5.0
+    assert camera.GetExposureIsoAttr().Get() == 100.0
+    assert camera.GetExposureTimeAttr().Get() == pytest.approx(0.02)
+    assert camera.GetPrim().GetAttribute("omni:rtx:autoExposure:enabled").Get() is False
+    assert "OmniRtxCameraExposureAPI_1" in camera.GetPrim().GetMetadata("apiSchemas").GetAppliedItems()
+    assert stage.GetRootLayer().GetAttributeAtPath("/OmniverseKit_Persp.focalLength") is None
 
 
 @pytest.mark.parametrize(("show_global_view", "expected_partition"), [(True, None), (False, "env_2")])
