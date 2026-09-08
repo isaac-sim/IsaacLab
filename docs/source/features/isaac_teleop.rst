@@ -560,6 +560,15 @@ shortcuts:
    * - ``R``
      - Reset the environment.
 
+.. note::
+
+   Pressing ``R`` both resets the environment **and pauses teleoperation** -- it does not resume
+   automatically. This is intentional: this task's joint-teleop pipeline mirrors the leader arm's
+   raw joint angles onto the follower with no re-anchoring or clutch, so resuming immediately after
+   a reset would snap the follower straight to wherever the physical leader arm currently is,
+   causing a sudden, large joint motion. Before pressing ``B`` to resume, move the physical leader
+   arm to match the follower's reset pose.
+
 Move the physical SO-101 leader arm and the simulated follower will mirror its joint angles in real
 time. To record demonstrations from this task, run ``scripts/tools/record_demos.py`` with the same
 ``--task`` and the plugin running in its second terminal -- see `Data Collection in Sim`_ for the
