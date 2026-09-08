@@ -17,7 +17,7 @@ from pxr import Gf, Usd, UsdGeom
 from isaaclab import cloner
 from isaaclab.physics import PhysicsManager
 
-from isaaclab_ov._clone import CloneRecipe, CloneTransform
+from isaaclab_ov._clone import CloneTransform
 
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
@@ -49,8 +49,7 @@ def _clone_recipes(
     mapping: np.ndarray,
     positions: np.ndarray | None,
     quaternions: np.ndarray | None,
-    isolate_environments: bool = False,
-) -> list[CloneRecipe]:
+) -> list[tuple[str, list[str], list[CloneTransform]]]:
     """Build OvPhysX clone recipes from one flat mapping."""
     if positions is not None and positions.shape != (len(env_ids), 3):
         raise ValueError(f"positions must have shape [num_envs, 3], got {list(positions.shape)}.")
@@ -87,13 +86,11 @@ def _clone_recipes(
 
         targets = []
         target_transforms = []
-        target_env_ids = []
         for env_id, column in zip(active_env_ids, columns):
             env_id = int(env_id)
             if env_id == self_env_id:
                 continue
             targets.append(destinations[row].format(env_id))
-            target_env_ids.append(env_id)
             target_env_world = Gf.Matrix4d(1.0)
             if positions is not None:
                 target_env_world.SetTranslateOnly(Gf.Vec3d(*map(float, positions[column])))
@@ -102,14 +99,7 @@ def _clone_recipes(
                 target_env_world.SetRotateOnly(Gf.Quatd(float(q[3]), Gf.Vec3d(*map(float, q[:3]))))
             target_transforms.append(_matrix_to_clone_transform(source_relative * target_env_world))
         if targets:
-            recipes.append(
-                CloneRecipe(
-                    source,
-                    tuple(targets),
-                    tuple(target_transforms),
-                    tuple(target_env_ids) if isolate_environments else None,
-                )
-            )
+            recipes.append((source, targets, target_transforms))
     return recipes
 
 
@@ -126,13 +116,6 @@ class OvPhysxReplicateContext:
         """
         self._sim = sim_context
         self.stage = sim_context.stage
-        self._isolate_environments = False
-
-    def configure_environment_isolation(self, enabled: bool) -> None:
-        """Select whether runtime clones receive stable clone-plan environment IDs."""
-        if not isinstance(enabled, bool):
-            raise TypeError("enabled must be a bool.")
-        self._isolate_environments = enabled
 
     def replicate(self, plan: ClonePlan) -> None:
         """Publish clone operations from this context's plan rows.
@@ -154,14 +137,9 @@ class OvPhysxReplicateContext:
             mapping=plan.clone_mask[list(rows)],
             positions=plan.positions,
             quaternions=None,
-            isolate_environments=self._isolate_environments,
         )
-        for recipe in recipes:
-            args = (recipe.source, list(recipe.targets), list(recipe.transforms))
-            if recipe.env_ids is None:
-                self._sim.physics_manager._register_clone_transforms(*args)
-            else:
-                self._sim.physics_manager._register_clone_transforms(*args, env_ids=recipe.env_ids)
+        for source, targets, transforms in recipes:
+            self._sim.physics_manager._register_clone_transforms(source, targets, transforms)
 
 
 def ovphysx_replicate(
@@ -200,5 +178,5 @@ def ovphysx_replicate(
     sim = PhysicsManager._sim
     if sim is None:
         raise RuntimeError("OvPhysX replication requires an active SimulationContext.")
-    for recipe in recipes:
-        sim.physics_manager._register_clone_transforms(recipe.source, list(recipe.targets), list(recipe.transforms))
+    for source, targets, transforms in recipes:
+        sim.physics_manager._register_clone_transforms(source, targets, transforms)

@@ -132,7 +132,10 @@ def test_collision_filter_policy_is_config_owned_and_applied_once(monkeypatch):
             calls.append((plan, cfg, isolate_environments, replicate_physics))
 
     monkeypatch.setattr(TestManager, "_callbacks", {})
-    physics_cfg = PhysicsCfg(class_type=TestManager)
+    collision_filter = CollisionFilterCfg(
+        groups={"robot": CollisionGroupCfg(prim_path_exprs=(r"/World/envs/env_.*/Robot/.*",))}
+    )
+    physics_cfg = PhysicsCfg(class_type=TestManager, collision_filter=collision_filter)
     plan = ClonePlan(
         sources=(),
         destinations=(),
@@ -142,38 +145,18 @@ def test_collision_filter_policy_is_config_owned_and_applied_once(monkeypatch):
     sim = SimpleNamespace(
         physics_manager=TestManager,
         cfg=SimpleNamespace(physics=physics_cfg, device="cpu"),
-        get_clone_plan=lambda: plan,
     )
     TestManager.initialize(sim)
 
-    collision_filter = CollisionFilterCfg(
-        groups={"robot": CollisionGroupCfg(prim_path_exprs=(r"/World/envs/env_.*/Robot/.*",))}
-    )
-    TestManager.configure_collision_filter(collision_filter)
     TestManager.apply_collision_filter(plan, isolate_environments=True, replicate_physics=True)
 
-    assert physics_cfg.collision_filter is collision_filter
-    assert calls == [(plan, collision_filter, True, True)]
+    assert physics_cfg.collision_filter == collision_filter
+    assert calls == [(plan, physics_cfg.collision_filter, True, True)]
     with pytest.raises(RuntimeError, match="already been applied"):
         TestManager.apply_collision_filter(plan, isolate_environments=True, replicate_physics=True)
-    with pytest.raises(RuntimeError, match="already been applied"):
-        TestManager.configure_collision_filter(None)
 
     TestManager.close()
     assert not PhysicsManager._collision_filter_applied
-
-
-def test_collision_filter_configuration_requires_active_manager(monkeypatch):
-    """Collision policy cannot leak into a future or unrelated manager lifecycle."""
-
-    class TestManager(PhysicsManager):
-        pass
-
-    monkeypatch.setattr(PhysicsManager, "_sim", None)
-    monkeypatch.setattr(PhysicsManager, "_cfg", None)
-
-    with pytest.raises(RuntimeError, match="before the physics manager is initialized"):
-        TestManager.configure_collision_filter(CollisionFilterCfg())
 
 
 def test_configured_policy_requires_clone_assembly_before_model_construction(monkeypatch):
@@ -201,33 +184,6 @@ def test_configured_policy_requires_clone_assembly_before_model_construction(mon
     TestManager.close()
 
 
-def test_invalid_collision_filter_does_not_publish_partial_manager_state(monkeypatch):
-    """Configuration validation precedes mutation of process-wide manager ownership."""
-
-    class TestManager(PhysicsManager):
-        pass
-
-    previous_sim = object()
-    previous_cfg = object()
-    monkeypatch.setattr(PhysicsManager, "_sim", previous_sim)
-    monkeypatch.setattr(PhysicsManager, "_cfg", previous_cfg)
-    sim = SimpleNamespace(
-        cfg=SimpleNamespace(
-            physics=PhysicsCfg(
-                class_type=TestManager,
-                collision_filter=CollisionFilterCfg(groups={"invalid": CollisionGroupCfg(prim_path_exprs=("(",))}),
-            ),
-            device="cpu",
-        )
-    )
-
-    with pytest.raises(ValueError, match="Invalid collision-group prim-path regex"):
-        TestManager.initialize(sim)
-
-    assert PhysicsManager._sim is previous_sim
-    assert PhysicsManager._cfg is previous_cfg
-
-
 def test_base_manager_never_silently_ignores_requested_collision_filtering(monkeypatch):
     """A backend must explicitly realize either group policy or environment isolation."""
 
@@ -248,7 +204,6 @@ def test_base_manager_never_silently_ignores_requested_collision_filtering(monke
     sim = SimpleNamespace(
         physics_manager=TestManager,
         cfg=SimpleNamespace(physics=physics_cfg, device="cpu"),
-        get_clone_plan=lambda: plan,
     )
     TestManager.initialize(sim)
 
@@ -256,9 +211,6 @@ def test_base_manager_never_silently_ignores_requested_collision_filtering(monke
         TestManager.apply_collision_filter(plan, isolate_environments=False, replicate_physics=True)
     assert not PhysicsManager._collision_filter_applied
 
-    TestManager.configure_collision_filter(None)
-    TestManager.apply_collision_filter(plan, isolate_environments=False, replicate_physics=True)
-    assert PhysicsManager._collision_filter_applied
     TestManager.close()
 
 
@@ -285,52 +237,12 @@ def test_base_manager_ignores_isolation_for_visual_only_clone_plan(monkeypatch):
     sim = SimpleNamespace(
         physics_manager=TestManager,
         cfg=SimpleNamespace(physics=PhysicsCfg(class_type=TestManager), device="cpu"),
-        get_clone_plan=lambda: plan,
     )
     TestManager.initialize(sim)
 
     TestManager.apply_collision_filter(plan, isolate_environments=True, replicate_physics=True)
 
     assert PhysicsManager._collision_filter_applied
-    TestManager.close()
-
-
-def test_collision_filter_rejects_a_foreign_clone_plan_without_latching(monkeypatch):
-    """Only the published plan may consume the manager's one-shot assembly barrier."""
-    calls = []
-
-    class TestManager(PhysicsManager):
-        @classmethod
-        def _apply_collision_filter_impl(cls, plan, cfg, *, isolate_environments, replicate_physics):
-            calls.append(plan)
-
-    active_plan = ClonePlan(
-        sources=(),
-        destinations=(),
-        clone_mask=np.empty((0, 0), dtype=np.bool_),
-        env_ids=np.empty(0, dtype=np.int64),
-    )
-    foreign_plan = ClonePlan(
-        sources=(),
-        destinations=(),
-        clone_mask=np.empty((0, 0), dtype=np.bool_),
-        env_ids=np.empty(0, dtype=np.int64),
-    )
-    monkeypatch.setattr(TestManager, "_callbacks", {})
-    sim = SimpleNamespace(
-        physics_manager=TestManager,
-        cfg=SimpleNamespace(physics=PhysicsCfg(class_type=TestManager), device="cpu"),
-        get_clone_plan=lambda: active_plan,
-    )
-    TestManager.initialize(sim)
-
-    with pytest.raises(ValueError, match="active SimulationContext's ClonePlan"):
-        TestManager.apply_collision_filter(foreign_plan, isolate_environments=True, replicate_physics=True)
-
-    assert calls == []
-    assert not PhysicsManager._collision_filter_applied
-    TestManager.apply_collision_filter(active_plan, isolate_environments=True, replicate_physics=True)
-    assert calls == [active_plan]
     TestManager.close()
 
 

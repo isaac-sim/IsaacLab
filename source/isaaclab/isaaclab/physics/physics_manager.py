@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils._device import set_cuda_device
 
-from .physics_manager_cfg import CollisionFilterCfg
+from .physics_manager_cfg import CollisionFilterCfg, PhysicsCfg
 
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
@@ -367,25 +367,6 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
-    def configure_collision_filter(cls, cfg: CollisionFilterCfg | None) -> None:
-        """Replace the active manager's deferred declarative collision policy.
-
-        The simulation must be initialized and the collision-filter barrier must not have run.
-        The policy remains owned by :class:`PhysicsCfg`; the manager deliberately keeps no second
-        copy of it.
-
-        Args:
-            cfg: Collision policy to apply, or ``None`` to clear the policy.
-        """
-        cls._require_active_manager("configure collision filtering")
-        if PhysicsManager._collision_filter_applied:
-            raise RuntimeError("Collision filtering has already been applied for this simulation.")
-        cfg = cls._validate_collision_filter_cfg(cfg)
-        if not hasattr(PhysicsManager._cfg, "collision_filter"):
-            raise TypeError("The active physics configuration does not support collision_filter.")
-        PhysicsManager._cfg.collision_filter = cfg
-
-    @classmethod
     def apply_collision_filter(
         cls,
         plan: ClonePlan,
@@ -405,17 +386,14 @@ class PhysicsManager(ABC):
             isolate_environments: Whether replicated environments must be mutually isolated.
             replicate_physics: Whether the plan is dispatched through native physics replication.
         """
-        cls._require_active_manager("apply collision filtering")
         if PhysicsManager._collision_filter_applied:
             raise RuntimeError("Collision filtering has already been applied for this simulation.")
-        if PhysicsManager._sim.get_clone_plan() is not plan:
-            raise ValueError("Collision filtering requires the active SimulationContext's ClonePlan.")
         if not isinstance(isolate_environments, bool):
             raise TypeError("isolate_environments must be a bool.")
         if not isinstance(replicate_physics, bool):
             raise TypeError("replicate_physics must be a bool.")
 
-        cfg = cls._validate_collision_filter_cfg(getattr(PhysicsManager._cfg, "collision_filter", None))
+        cfg = getattr(PhysicsManager._cfg, "collision_filter", None)
         cls._apply_collision_filter_impl(
             plan,
             cfg,
@@ -431,12 +409,21 @@ class PhysicsManager(ABC):
         Declarative groups currently require a clone-plan composition root, even for a single
         environment. This guard prevents a flat scene from silently ignoring its physics policy.
         """
-        cls._require_active_manager("validate collision-filter assembly")
-        cfg = cls._validate_collision_filter_cfg(getattr(PhysicsManager._cfg, "collision_filter", None))
+        cfg = getattr(PhysicsManager._cfg, "collision_filter", None)
         if cfg is not None and cfg.groups and not PhysicsManager._collision_filter_applied:
             raise RuntimeError(
                 "PhysicsCfg.collision_filter was configured, but the collision-filter assembly barrier did not run. "
                 "Build the scene through ReplicateSession or call cloner.replicate() before resetting the simulation."
+            )
+
+    @classmethod
+    def _require_pre_barrier_collision_filtering(cls, operation: str) -> None:
+        """Reject a legacy collision-filter mutation after manager-owned assembly."""
+        if PhysicsManager._collision_filter_applied:
+            raise RuntimeError(
+                f"{operation} cannot run after PhysicsManager.apply_collision_filter(). Pass isolate_environments "
+                "to cloner.replicate() or ReplicateSession, and configure PhysicsCfg.collision_filter before "
+                "replication."
             )
 
     @classmethod
@@ -456,27 +443,6 @@ class PhysicsManager(ABC):
             raise NotImplementedError(f"{cls.__name__} does not implement declarative collision filtering.")
 
     @classmethod
-    def _require_active_manager(cls, operation: str) -> None:
-        """Require *cls* to be the initialized manager before mutating lifecycle state."""
-        sim = PhysicsManager._sim
-        if sim is None or PhysicsManager._cfg is None:
-            raise RuntimeError(f"Cannot {operation} before the physics manager is initialized.")
-        active_manager = getattr(sim, "physics_manager", None)
-        manager_path = f"{cls.__module__}:{cls.__qualname__}"
-        if active_manager is not cls and active_manager != manager_path:
-            raise RuntimeError(f"Cannot {operation} through inactive manager {cls.__name__}.")
-
-    @staticmethod
-    def _validate_collision_filter_cfg(cfg: Any) -> CollisionFilterCfg | None:
-        """Validate and return a collision policy without introducing duplicate manager state."""
-        if cfg is None:
-            return None
-        if not isinstance(cfg, CollisionFilterCfg):
-            raise TypeError(f"collision_filter must be a CollisionFilterCfg or None, got {type(cfg).__name__}.")
-        cfg.validate()
-        return cfg
-
-    @classmethod
     @abstractmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the physics manager with simulation context.
@@ -487,7 +453,8 @@ class PhysicsManager(ABC):
             sim_context: Parent simulation context.
         """
         physics_cfg = sim_context.cfg.physics
-        cls._validate_collision_filter_cfg(getattr(physics_cfg, "collision_filter", None))
+        if isinstance(physics_cfg, PhysicsCfg):
+            physics_cfg.validate_config()
 
         # Set on PhysicsManager explicitly so PhysicsManager.get_*() works
         # regardless of which subclass is active (Python class vars are per-class)

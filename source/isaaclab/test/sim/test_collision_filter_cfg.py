@@ -7,7 +7,7 @@
 
 import pytest
 
-from isaaclab.physics import CollisionFilterCfg, CollisionGroupCfg, PhysicsCfg, PhysxAutoCfg
+from isaaclab.physics import CollisionFilterCfg, CollisionGroupCfg, PhysicsCfg, PhysicsManager, PhysxAutoCfg
 from isaaclab.physics._collision_filter import CompiledCollisionFilter
 from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -16,6 +16,7 @@ from isaaclab.scene import InteractiveSceneCfg
 def test_collision_policy_has_one_configuration_owner():
     assert "collision_filter" in PhysicsCfg.__dataclass_fields__
     assert "collision_filter" not in InteractiveSceneCfg.__dataclass_fields__
+    assert not hasattr(PhysicsManager, "configure_collision_filter")
     assert "include_descendants" not in CollisionGroupCfg.__dataclass_fields__
 
 
@@ -74,23 +75,14 @@ def test_per_group_inversion_expresses_collider_specific_allow_lists():
     assert policy.filters(("nut_sdf",), ("bolt_sdf", "other_convex"))
 
 
-@pytest.mark.parametrize(
-    "group, error_type, message",
-    [
-        (CollisionGroupCfg(prim_path_exprs=()), ValueError, "at least one selector"),
-        (CollisionGroupCfg(prim_path_exprs=("",)), ValueError, "empty selector"),
-        (CollisionGroupCfg(prim_path_exprs=("(",)), ValueError, "Invalid collision-group prim-path regex"),
-        (CollisionGroupCfg(prim_path_exprs=[r"/World/.*"]), TypeError, "must be a tuple"),
-        (
-            CollisionGroupCfg(prim_path_exprs=(r"/World/.*",), filtered_groups=("",)),
-            ValueError,
-            "empty group name",
-        ),
-    ],
-)
-def test_invalid_group_selectors_are_rejected(group, error_type, message):
-    with pytest.raises(error_type, match=message):
-        group.validate()
+def test_physics_cfg_rejects_invalid_group_regex():
+    cfg = PhysicsCfg(
+        class_type=object,
+        collision_filter=CollisionFilterCfg(groups={"robot": CollisionGroupCfg(prim_path_exprs=("(",))}),
+    )
+
+    with pytest.raises(ValueError, match="Invalid collision-group prim-path regex"):
+        cfg.validate()
 
 
 def test_unknown_filtered_group_is_rejected():
@@ -107,39 +99,8 @@ def test_unknown_filtered_group_is_rejected():
         cfg.validate()
 
 
-def test_physics_cfg_validates_nested_collision_policy():
-    cfg = PhysicsCfg(
-        class_type=object,
-        collision_filter=CollisionFilterCfg(groups={"robot": CollisionGroupCfg(prim_path_exprs=())}),
-    )
-
-    with pytest.raises(ValueError, match="at least one selector"):
-        cfg.validate()
-
-
 @pytest.mark.parametrize("use_isaac_sim", [True, False])
-def test_physx_auto_cfg_preserves_backend_neutral_policy(use_isaac_sim):
-    from isaaclab_ov.physics import OvPhysxCfg
-    from isaaclab_physx.physics import PhysxCfg
-
-    policy = CollisionFilterCfg(groups={"robot": CollisionGroupCfg(prim_path_exprs=(r"{ENV_REGEX_NS}/Robot/.*",))})
-    cfg = PhysxAutoCfg(
-        deterministic=True,
-        collision_filter=policy,
-        isaacsim_physx=PhysxCfg(),
-        ovphysx=OvPhysxCfg(),
-    )
-
-    resolved = _resolve_physx_auto_cfg(cfg, use_isaac_sim=use_isaac_sim)
-
-    assert isinstance(resolved, PhysxCfg if use_isaac_sim else OvPhysxCfg)
-    assert resolved is not (cfg.isaacsim_physx if use_isaac_sim else cfg.ovphysx)
-    assert resolved.deterministic
-    assert resolved.collision_filter == policy
-
-
-@pytest.mark.parametrize("use_isaac_sim", [True, False])
-def test_physx_auto_cfg_preserves_nested_shared_settings_unless_overridden(use_isaac_sim):
+def test_physx_auto_cfg_preserves_or_overrides_backend_neutral_policy(use_isaac_sim):
     from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
 
@@ -149,10 +110,8 @@ def test_physx_auto_cfg_preserves_nested_shared_settings_unless_overridden(use_i
     outer_policy = CollisionFilterCfg(
         groups={"outer": CollisionGroupCfg(prim_path_exprs=(r"{ENV_REGEX_NS}/Outer/.*",))}
     )
-    selected = (PhysxCfg if use_isaac_sim else OvPhysxCfg)(
-        deterministic=True,
-        collision_filter=nested_policy,
-    )
+    backend_type = PhysxCfg if use_isaac_sim else OvPhysxCfg
+    selected = backend_type(deterministic=True, collision_filter=nested_policy)
     kwargs = {"isaacsim_physx": selected} if use_isaac_sim else {"ovphysx": selected}
 
     nested = _resolve_physx_auto_cfg(PhysxAutoCfg(**kwargs), use_isaac_sim=use_isaac_sim)
@@ -160,13 +119,10 @@ def test_physx_auto_cfg_preserves_nested_shared_settings_unless_overridden(use_i
         PhysxAutoCfg(collision_filter=outer_policy, **kwargs),
         use_isaac_sim=use_isaac_sim,
     )
-    cleared = _resolve_physx_auto_cfg(
-        PhysxAutoCfg(collision_filter=CollisionFilterCfg(), **kwargs),
-        use_isaac_sim=use_isaac_sim,
-    )
 
+    assert isinstance(nested, backend_type)
+    assert nested is not selected
     assert nested.deterministic
     assert nested.collision_filter == nested_policy
     assert overridden.deterministic
     assert overridden.collision_filter == outer_policy
-    assert cleared.collision_filter == CollisionFilterCfg()

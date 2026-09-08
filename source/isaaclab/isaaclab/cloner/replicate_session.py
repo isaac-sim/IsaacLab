@@ -59,33 +59,6 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True, isolate_enviro
         raise TypeError("replicate_physics must be a bool.")
     if not isinstance(isolate_environments, bool):
         raise TypeError("isolate_environments must be a bool.")
-    if plan.env_ids is None:
-        raise ValueError("ClonePlan.env_ids is required for replication.")
-    if (
-        not isinstance(plan.env_ids, np.ndarray)
-        or plan.env_ids.ndim != 1
-        or not np.issubdtype(plan.env_ids.dtype, np.integer)
-    ):
-        raise TypeError("ClonePlan.env_ids must be a one-dimensional NumPy integer array.")
-    if len(plan.sources) != len(plan.destinations):
-        raise ValueError("ClonePlan.sources and ClonePlan.destinations must have equal length.")
-    expected_shape = (len(plan.sources), len(plan.env_ids))
-    if not isinstance(plan.clone_mask, np.ndarray) or plan.clone_mask.dtype != np.bool_:
-        raise TypeError("ClonePlan.clone_mask must be a NumPy boolean array.")
-    if plan.clone_mask.shape != expected_shape:
-        raise ValueError(f"ClonePlan.clone_mask must have shape {expected_shape}, got {plan.clone_mask.shape}.")
-    if plan.positions is not None:
-        if not isinstance(plan.positions, np.ndarray):
-            raise TypeError("ClonePlan.positions must be a NumPy array or None.")
-        if plan.positions.shape != (len(plan.env_ids), 3):
-            raise ValueError(
-                f"ClonePlan.positions must have shape {(len(plan.env_ids), 3)}, got {plan.positions.shape}."
-            )
-    invalid_rows = sorted(
-        {row for rows in plan.context_rows.values() for row in rows if row not in range(len(plan.sources))}
-    )
-    if invalid_rows:
-        raise ValueError(f"ClonePlan.context_rows contains out-of-range rows: {invalid_rows}.")
 
     REPLICATION_QUEUE.clear()
     sim = SimulationContext.instance()

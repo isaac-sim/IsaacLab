@@ -305,21 +305,9 @@ execution contract:
 
 :func:`~isaaclab.cloner.replicate` resolves these types through the
 :class:`~isaaclab.sim.SimulationContext` backend registry, orders them by
-``replicate_priority``, and passes the published plan through one collision-filter
-barrier between stage authoring and native physics replication:
-
-.. code-block:: python
-
-    plan = published_clone_plan
-    for context in stage_contexts:  # replicate_priority < 0
-        context.replicate(plan)
-    simulation.physics_manager.apply_collision_filter(
-        plan,
-        isolate_environments=isolate_environments,
-        replicate_physics=replicate_physics,
-    )
-    for context in physics_contexts:  # replicate_priority >= 0
-        context.replicate(plan)
+``replicate_priority``, and passes the published plan to each one. Negative-priority
+stage contexts run first, then the active physics manager applies collision policy,
+then priority-zero and later native physics contexts construct backend state.
 
 The cfg-first lifecycle publishes before ``construct_prototypes()``. The direct
 single-source workflow remains post-construction and is published by
@@ -356,12 +344,6 @@ or :func:`~isaaclab.cloner.replicate`:
 Shared roots in :attr:`~isaaclab.cloner.ClonePlan.global_paths` remain eligible to
 collide with every environment. Backends that support cross-environment contacts
 accept ``isolate_environments=False`` when those contacts are intentional.
-Environment isolation and explicit collision groups are separate policy inputs,
-but their realization can depend on the replication mode. Newton native cloning
-always assigns environments to separate world partitions, so it rejects
-``isolate_environments=False`` for a multi-environment physics plan. Newton
-collision filtering also requires ``replicate_physics=True`` and rejects USD-only
-replication instead of silently applying an incomplete policy.
 
 Cross-asset groups
 ~~~~~~~~~~~~~~~~~~
@@ -443,28 +425,22 @@ Each entry of ``prim_path_exprs`` is a regular expression evaluated with
 descendant selection: an exact selector needs no flag, while appending ``/.*``
 selects descendants. A trailing ``$`` anchor is accepted but redundant because
 the whole path is already matched. ``{ENV_REGEX_NS}`` expands through the active
-:class:`~isaaclab.cloner.ClonePlan` environment template. Empty or invalid
-expressions and references to unknown groups are rejected.
+:class:`~isaaclab.cloner.ClonePlan` environment template. Invalid expressions and
+references to unknown groups are rejected.
 
 Backend behavior
 ~~~~~~~~~~~~~~~~
 
-* Isaac Sim PhysX realizes environment isolation and explicit groups from the
-  assembled USD collider topology. Authored collision groups and filtered-pair
-  relationships remain deny constraints in the resulting policy.
-* Newton realizes both inputs on native shapes when ``replicate_physics=True``.
-  Every native shape generated from a selected authored collider, including
-  convex-decomposition pieces, receives the same policy. Existing USD
-  ``physics:filteredPairs`` relationships are also preserved. Declarative groups
-  require at least one populated ``NewtonReplicateContext`` row; raw or
-  no-context stage imports do not provide a native assembly path for the policy.
-* OvPhysX realizes environment isolation, but currently rejects explicit
-  ``PhysicsCfg.collision_filter`` groups with a targeted error.
+Isaac Sim PhysX realizes both inputs from assembled USD topology and preserves
+authored collision groups and filtered pairs as additional deny constraints.
+Newton applies policy to every native shape produced from a selected collider and
+leaves importer-supported, source-local USD filtered pairs unchanged. It requires
+``replicate_physics=True`` and a populated ``NewtonReplicateContext``; its world
+partitioning also means a multi-environment native plan cannot disable isolation.
+OvPhysX currently supports environment isolation but rejects explicit groups.
 
-The raw backend replication helpers are standalone, pre-barrier APIs and do not
-read :class:`~isaaclab.physics.PhysicsCfg`. Production workflows should use the
-core :func:`~isaaclab.cloner.replicate` lifecycle so filtering runs exactly once
-after USD assembly and before native physics construction. This is currently
-also required for a configured collision policy in a flat or single-environment
-scene; resetting such a scene without crossing the barrier raises an error
-instead of silently ignoring the policy.
+Raw backend replication helpers do not read :class:`~isaaclab.physics.PhysicsCfg`.
+A configured policy must therefore cross the core :func:`~isaaclab.cloner.replicate`
+barrier, including in a flat or single-environment scene. Reset rejects a policy
+that did not cross that barrier, and the deprecated post-construction collision
+filtering APIs reject calls after it.

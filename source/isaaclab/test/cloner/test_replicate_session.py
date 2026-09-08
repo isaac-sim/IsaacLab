@@ -200,30 +200,3 @@ def test_replicate_validates_options_before_stage_dispatch(monkeypatch, kwargs):
 
     assert calls == []
     assert queued == replicate_session.REPLICATION_QUEUE
-
-
-def test_replicate_validates_plan_shape_before_stage_dispatch(monkeypatch):
-    """A malformed plan cannot leave partially cloned USD topology."""
-    calls = []
-
-    class Early(_Context):
-        replicate_priority = -1
-
-    plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=np.ones((1, 1), dtype=np.bool_),
-        env_ids=np.arange(2, dtype=np.int64),
-        context_rows={Early: (0,)},
-    )
-    simulation = SimpleNamespace(
-        physics_manager=SimpleNamespace(),
-        _backend_registry={Early: Early(calls)},
-        get_clone_plan=lambda: plan,
-    )
-    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
-
-    with pytest.raises(ValueError, match=r"clone_mask must have shape \(1, 2\)"):
-        replicate_session.replicate(plan)
-
-    assert calls == []

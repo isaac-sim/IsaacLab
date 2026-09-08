@@ -56,8 +56,8 @@ def test_legacy_authoring_rejects_post_barrier_mutation_atomically(monkeypatch) 
     assert stage.GetRootLayer().ExportToString() == root_before
 
 
-def test_legacy_scene_filter_warns_even_when_collision_scope_exists(monkeypatch) -> None:
-    """The deprecated scene API warns before its legacy idempotence return."""
+def test_legacy_scene_filter_warns_pre_barrier_and_rejects_post_barrier(monkeypatch) -> None:
+    """The deprecated scene API preserves its early return without bypassing the barrier guard."""
     scene = object.__new__(InteractiveScene)
     scene.stage = _stage()
     UsdGeom.Scope.Define(scene.stage, "/World/collisions")
@@ -66,12 +66,6 @@ def test_legacy_scene_filter_warns_even_when_collision_scope_exists(monkeypatch)
     with pytest.warns(DeprecationWarning, match=r"InteractiveScene\.filter_collisions\(\) is deprecated"):
         scene.filter_collisions()
 
-
-def test_legacy_scene_filter_rejects_after_barrier_before_early_return(monkeypatch) -> None:
-    """An existing legacy scope cannot hide an invalid post-barrier call."""
-    scene = object.__new__(InteractiveScene)
-    scene.stage = _stage()
-    UsdGeom.Scope.Define(scene.stage, "/World/collisions")
     monkeypatch.setattr(PhysicsManager, "_collision_filter_applied", True)
 
     with pytest.raises(RuntimeError, match=r"cannot run after PhysicsManager\.apply_collision_filter"):

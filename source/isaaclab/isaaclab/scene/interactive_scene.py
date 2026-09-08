@@ -296,12 +296,7 @@ class InteractiveScene:
         """
         from isaaclab.physics import PhysicsManager  # noqa: PLC0415
 
-        if PhysicsManager._collision_filter_applied:
-            raise RuntimeError(
-                "InteractiveScene.filter_collisions() cannot run after "
-                "PhysicsManager.apply_collision_filter(). Set InteractiveSceneCfg.filter_collisions before scene "
-                "construction, or pass isolate_environments to cloner.replicate() or ReplicateSession."
-            )
+        PhysicsManager._require_pre_barrier_collision_filtering("InteractiveScene.filter_collisions()")
         warnings.warn(
             "InteractiveScene.filter_collisions() is deprecated; set InteractiveSceneCfg.filter_collisions before "
             "scene construction, or pass isolate_environments to cloner.replicate() or ReplicateSession.",

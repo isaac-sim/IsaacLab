@@ -47,12 +47,7 @@ def filter_collisions(
     """
     from isaaclab.physics import PhysicsManager  # noqa: PLC0415
 
-    if PhysicsManager._collision_filter_applied:
-        raise RuntimeError(
-            "cloner.filter_collisions() cannot run after PhysicsManager.apply_collision_filter(). "
-            "Pass isolate_environments to cloner.replicate() or ReplicateSession, and configure "
-            "PhysicsCfg.collision_filter before replication."
-        )
+    PhysicsManager._require_pre_barrier_collision_filtering("cloner.filter_collisions()")
     _author_collision_groups(stage, physicsscene_path, collision_root_path, prim_paths, global_paths)
 
 

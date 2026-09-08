@@ -136,7 +136,6 @@ def _build_source_builder(
     schema_resolvers: Sequence[Any],
     ignore_paths: Sequence[str] | None,
     load_visual_shapes: bool = True,
-    return_deformable_results: bool = False,
 ) -> tuple[ModelBuilder, dict[str, Any]]:
     """Build one source builder."""
     builder = create_builder()
@@ -148,7 +147,6 @@ def _build_source_builder(
         skip_mesh_approximation=False,
         schema_resolvers=schema_resolvers,
         ignore_paths=ignore_paths,
-        return_deformable_results=return_deformable_results,
     )
     _restore_visible_colliders_without_visual_shapes(
         builder, stage, import_result["path_shape_map"], load_visual_shapes
@@ -268,8 +266,11 @@ def replicate_builder_mapping(
         and num_worlds > 0
         and bool(mapping.all())
         and not per_world_builder_hooks
+        and bool(destinations)
+        and env_ids is not None
     )
     if can_batch:
+        assert destinations is not None and env_ids is not None
         source_builder = source_builders[sources[0]]
 
         # Inject env-root sites into the source so replicate() copies them. Prefixed
@@ -288,29 +289,22 @@ def replicate_builder_mapping(
         source_xform_inv = _invert_xform(xforms_np[0])
         xforms = _compose_world_xforms(positions, quaternions, source_xform_inv)
 
-        if destinations and env_ids is not None:
-            label_groups = _label_groups(source_builder)
-            original_labels = {name: list(labels) for name, labels in label_groups.items()}
-            try:
-                prefix = _rebase_labels(source_builder, sources[0], destinations[0])
-                prefixes = [prefix.format(int(env_id)) for env_id in env_ids]
-                builder.replicate(source_builder, num_worlds, xforms=xforms, label_prefixes=prefixes)
-            finally:
-                for name, labels in original_labels.items():
-                    label_groups[name][:] = labels
-        else:
-            builder.replicate(source_builder, num_worlds, xforms=xforms)
+        label_groups = _label_groups(source_builder)
+        original_labels = {name: list(labels) for name, labels in label_groups.items()}
+        try:
+            prefix = _rebase_labels(source_builder, sources[0], destinations[0])
+            prefixes = [prefix.format(int(env_id)) for env_id in env_ids]
+            builder.replicate(source_builder, num_worlds, xforms=xforms, label_prefixes=prefixes)
+        finally:
+            for name, labels in original_labels.items():
+                label_groups[name][:] = labels
 
         for label, local_indices in site_local_indices.items():
             local_site_map[label] = [
                 [base_shape + world * stride + local for local in local_indices] for world in range(num_worlds)
             ]
 
-        bindings = (
-            rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
-            if destinations and env_ids is not None
-            else []
-        )
+        bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
         shape_offsets = {(0, world): base_shape + world * stride for world in range(num_worlds)}
         return local_site_map, world_xforms, bindings, shape_offsets
 

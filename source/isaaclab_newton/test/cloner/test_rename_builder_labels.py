@@ -307,29 +307,6 @@ class TestReplicateBuilderMapping(unittest.TestCase):
             self.assertAlmostEqual(float(site_pos[1]), 0.0, places=5)
             self.assertEqual(builder.shape_label[world_indices[0]], f"/World/envs/env_{world}/origin")
 
-    def test_homogeneous_mapping_without_destinations_still_batches(self):
-        source_path = "/World/envs/env_0"
-        source = newton.ModelBuilder()
-        body = source.add_body(label=f"{source_path}/body")
-        source.add_shape_box(body, hx=0.1, hy=0.1, hz=0.1, label=f"{source_path}/collider")
-        builder = newton.ModelBuilder()
-        num_worlds = 3
-
-        with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
-            _, _, bindings, _ = replicate_builder_mapping(
-                builder,
-                (source_path,),
-                np.ones((1, num_worlds), dtype=np.bool_),
-                np.zeros((num_worlds, 3), dtype=np.float32),
-                np.tile(np.asarray((0.0, 0.0, 0.0, 1.0), dtype=np.float32), (num_worlds, 1)),
-                {source_path: source},
-            )
-
-        replicate.assert_called_once()
-        self.assertEqual(bindings, [])
-        self.assertEqual(builder.shape_world, list(range(num_worlds)))
-        self.assertEqual(builder.shape_label, [f"{source_path}/collider"] * num_worlds)
-
     def test_inactive_source_rows_are_ignored(self):
         sources = ("/World/envs/env_0/inactive", "/World/envs/env_0/active")
         source_builders = {source: self._source_builder(source) for source in sources}
