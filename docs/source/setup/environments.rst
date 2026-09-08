@@ -31,11 +31,6 @@ Command Builder
            <span>--task</span>
            <select data-environment-field="task" aria-label="Task"></select>
          </label>
-         <div class="environment-scope-switch" role="group" aria-label="Task collection">
-           <button type="button" class="is-active" data-task-scope="core" aria-pressed="true">Core</button>
-           <button type="button" data-task-scope="contrib" aria-pressed="false">Contrib</button>
-           <button type="button" data-task-scope="warp" aria-pressed="false">Warp</button>
-         </div>
        </div>
        <div class="environment-command-row environment-command-row-options">
          <label class="environment-selector environment-selector-physics">

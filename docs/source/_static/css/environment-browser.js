@@ -187,7 +187,7 @@
     const copyButton = builder.querySelector("[data-copy-command]");
     const copyStatus = builder.querySelector("[data-copy-status]");
     const modeButtons = [...builder.querySelectorAll("[data-command-mode]")];
-    const scopeButtons = [...document.querySelectorAll("[data-task-scope]")];
+    const scopeButtons = [...taskBrowser.querySelectorAll("[data-task-scope]")];
     const taskList = taskBrowser.querySelector("[data-task-list]");
     const taskSearch = taskBrowser.querySelector("[data-task-search]");
     const taskCategory = taskBrowser.querySelector("[data-task-category]");
@@ -335,7 +335,6 @@
             [/Reorient-Franka/, "tasks/manipulation/franka_lift.jpg"],
             [/Reorient-KukaAllegro/, "tasks/manipulation/kuka_allegro_reorient.jpg"],
             [/Shadow-Handover/, "tasks/manipulation/shadow_hand_over.jpg"],
-            [/Keyboard-SO101/, "tasks/manipulation/so101_keyboard.jpg"],
             [/AnymalB/, "tasks/locomotion/anymal_b_flat.jpg"],
             [/AnymalC/, "tasks/locomotion/anymal_c_flat.jpg"],
             [/AnymalD/, "tasks/locomotion/anymal_d_flat.jpg"],
@@ -551,8 +550,7 @@
         const refreshCard = () => {
             const activeTask = variants.find((task) => task.task === state.task) || variants[0];
             const isSelected = variants.includes(activeTask) && activeTask.task === state.task;
-            const previewImageName = previewImageFor(activeTask).split("/").pop();
-            image.src = new URL(`../../_images/${previewImageName}`, window.location.href).href;
+            image.src = new URL(`../../_static/${previewImageFor(activeTask)}`, window.location.href).href;
             image.alt = "";
             selectButton.dataset.taskName = activeTask.task;
             selectButton.setAttribute("aria-pressed", String(isSelected));
@@ -593,13 +591,12 @@
             return matchesQuery && matchesCategory;
         };
         const groups = groupTasks(tasksForScope());
-        const visibleGroups = [...groups.values()].filter((variants) => variants.some(matchesFilter));
+        const visibleGroups = [...groups.values()]
+            .map((variants) => variants.filter(matchesFilter))
+            .filter((variants) => variants.length > 0);
 
-        taskList.replaceChildren(...visibleGroups.map((variants) => createTaskCard(variants)));
-        const matchingTaskCount = visibleGroups.reduce(
-            (total, variants) => total + variants.filter(matchesFilter).length,
-            0,
-        );
+        taskList.replaceChildren(...visibleGroups.map(createTaskCard));
+        const matchingTaskCount = visibleGroups.reduce((total, variants) => total + variants.length, 0);
         taskCount.textContent = `${matchingTaskCount} ${matchingTaskCount === 1 ? "task" : "tasks"}`;
         taskEmpty.hidden = visibleGroups.length !== 0;
         taskList.hidden = visibleGroups.length === 0;
@@ -859,7 +856,7 @@
             }
             state.scope = scope;
             for (const scopeButton of scopeButtons) {
-                const isActive = scopeButton.dataset.taskScope === scope;
+                const isActive = scopeButton === button;
                 scopeButton.classList.toggle("is-active", isActive);
                 scopeButton.setAttribute("aria-pressed", String(isActive));
             }
