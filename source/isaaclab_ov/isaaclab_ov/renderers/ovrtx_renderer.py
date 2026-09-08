@@ -80,6 +80,7 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     decode_stable_id_semantic_id_map,
 )
 from isaaclab_ov.renderers.ovrtx_compat import RENDER_VAR_FRAME_KEYS
+from isaaclab_ov.renderers.ovrtx_crash_reporter import enable_crash_upload
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     compute_cable_points_world_kernel,
@@ -367,10 +368,13 @@ class OVRTXRenderer(BaseRenderer):
             texture_streaming_mode=TextureStreamingMode.SYNCHRONOUS,
         )
 
-        # Takes the config because the redirect can be what first loads the ovrtx
+        # Both take the config because either can be what first loads the ovrtx
         # library, and initialization only happens once, so it has to see the
         # same config the renderer below is built with.
         redirect_shader_cache(OVRTX_CONFIG)
+        # Configures the crash reporter here, in the process that renders, because
+        # carb settings do not outlive the process that applies them.
+        enable_crash_upload(OVRTX_CONFIG)
 
         self._renderer = Renderer(OVRTX_CONFIG)
         if not self._renderer:
