@@ -245,6 +245,9 @@ def test_kit_visualizer_newton_physics_logs_warning(caplog):
 
     With cubric the capture succeeds; without it frames may be black.  Either way
     the recorder warns and does not hard-fail.
+
+    The warned-about condition is fixed configuration state, so the message is emitted
+    once per recorder rather than once per captured frame.
     """
     import logging
 
@@ -254,11 +257,13 @@ def test_kit_visualizer_newton_physics_logs_warning(caplog):
 
     recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
     with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
-        recorder._get_frame()
+        for _ in range(5):
+            recorder._get_frame()
 
-    assert any("source='visualizer:newton'" in r.message for r in caplog.records)
-    # The recorder attempts capture rather than short-circuiting.
-    assert kit_viz.render_calls == 1
+    cubric_warnings = [r for r in caplog.records if "source='visualizer:newton'" in r.message]
+    assert len(cubric_warnings) == 1
+    # Capture is still attempted on every frame rather than short-circuiting.
+    assert kit_viz.render_calls == 5
 
 
 def test_visualizer_newton_alias_resolves_newton_gl():
