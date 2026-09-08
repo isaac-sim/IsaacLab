@@ -193,7 +193,12 @@ def _get_visualizer_intent(cfg) -> dict[str, bool]:
     sim = getattr(cfg, "sim", None)
     visualizer_cfgs = getattr(sim, "visualizer_cfgs", None) or getattr(cfg, "visualizer_cfgs", None)
     if visualizer_cfgs is None:
-        return {"has_any_visualizers": False, "has_kit_visualizer": False, "has_kit_streaming_view": False}
+        return {
+            "has_any_visualizers": False,
+            "has_kit_visualizer": False,
+            "has_kit_streaming_view": False,
+            "has_newton_rtx_visualizer": False,
+        }
     cfgs = visualizer_cfgs if isinstance(visualizer_cfgs, list) else [visualizer_cfgs]
     cfgs = [c for c in cfgs if c is not None]
     return {
@@ -202,6 +207,7 @@ def _get_visualizer_intent(cfg) -> dict[str, bool]:
         "has_kit_streaming_view": any(
             getattr(c, "visualizer_type", None) == "kit" and bool(getattr(c, "streaming_view", False)) for c in cfgs
         ),
+        "has_newton_rtx_visualizer": any(getattr(c, "visualizer_type", None) == "newton_rtx" for c in cfgs),
     }
 
 
@@ -378,6 +384,12 @@ def _has_kit_visualizer(config_scan: Scan, launcher_args: argparse.Namespace | d
     return "kit" in visualizer_types or config_scan.visualizer_intent["has_kit_visualizer"]
 
 
+def _has_newton_rtx_visualizer(config_scan: Scan, launcher_args: argparse.Namespace | dict | None) -> bool:
+    """Return whether the run requests the ``newton_rtx`` visualizer through config or CLI."""
+    visualizer_types = _get_visualizer_types(launcher_args)
+    return "newton_rtx" in visualizer_types or config_scan.visualizer_intent["has_newton_rtx_visualizer"]
+
+
 def _get_kit_runtime_sources(config_scan: Scan, launcher_args: argparse.Namespace | dict | None) -> tuple[str, ...]:
     """Return the config and launcher components that require Isaac Sim / Kit."""
     kit_sources = []
@@ -516,6 +528,17 @@ def launch_simulation(
     effective_cfg = config_scan.effective_cfg
     physics_cfg = config_scan.resolved_physics_cfg
     visualizer_types = _get_visualizer_types(launcher_args)
+
+    if _has_newton_rtx_visualizer(config_scan, launcher_args):
+        # Prepare ovrtx (library search paths, USD schema/plugin registration) before any physics
+        # backend (e.g. ovphysx) gets a chance to touch `pxr` and trigger USD's plug registry's
+        # one-shot-per-process initialization. If that happens first, ovrtx's later `import ovrtx`
+        # (inside newton's ViewerRTX, once the newton_rtx visualizer is constructed) is too late to
+        # add its schema paths, and applying OmniRtx*API schemas on the render product logs benign
+        # "FindAppliedAPIPrimDefinition(...) returned nothing" errors.
+        from isaaclab_ov.renderers import prepare_ovrtx_runtime
+
+        prepare_ovrtx_runtime()
 
     kit_sources = _get_kit_runtime_sources(config_scan, launcher_args)
     _validate_runtime(config_scan, kit_sources)

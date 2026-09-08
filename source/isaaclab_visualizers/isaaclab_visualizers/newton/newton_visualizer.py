@@ -628,23 +628,15 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
                 :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`.
             **kwargs: Keyword arguments forwarded to ``ViewerRTX``.
         """
-        # Patch environment so OVRTX's CRenderApiLibLoader can find libovrtx.dylib.so.
-        # libovrtx-dynamic.so's built-in RPATH uses paths from the original deploy layout
-        # which don't match the pip install layout. LD_LIBRARY_PATH (read by glibc at each
-        # dlopen call) and OMNI_USD_PLUGINS_BASE_PATH (read by CRenderApiLibLoader) redirect
-        # the search to the correct location.
-        if sys.platform.startswith("linux"):
-            import importlib.util as _ilu
-            import pathlib as _pl
+        # Fallback for callers that construct this viewer without going through
+        # ``isaaclab.app.sim_launcher.launch_simulation`` (which already calls this before any
+        # physics backend can touch ``pxr``). Patches ovrtx's library search paths and registers
+        # its USD schema/plugin paths with USD's plug registry before ``super().__init__()``
+        # (below) reaches ``ViewerRTX``, which imports ``ovrtx`` and opens a stage referencing
+        # ``OmniRtx*API`` schemas. See :func:`~isaaclab_ov.renderers.prepare_ovrtx_runtime` for why.
+        from isaaclab_ov.renderers import prepare_ovrtx_runtime
 
-            _spec = _ilu.find_spec("ovrtx")
-            if _spec is not None:
-                _bin = _pl.Path(_spec.origin).parent / "bin"
-                _extra = os.pathsep.join([str(_bin / "plugins" / "rtx"), str(_bin / "plugins"), str(_bin)])
-                _ld = os.environ.get("LD_LIBRARY_PATH", "")
-                if str(_bin / "plugins" / "rtx") not in _ld:
-                    os.environ["LD_LIBRARY_PATH"] = _extra + (os.pathsep + _ld if _ld else "")
-                os.environ.setdefault("OMNI_USD_PLUGINS_BASE_PATH", str(_bin))
+        prepare_ovrtx_runtime()
 
         # Assigned before super().__init__(): ViewerRTX reaches
         # _add_camera_lights_and_render_product() during initialization, and the override reads
