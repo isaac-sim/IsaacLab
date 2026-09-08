@@ -50,6 +50,7 @@ def manager_module(monkeypatch):
         "_next_control_ordinal": 2,
         "_warmup_done": False,
         "_requires_full_stage": False,
+        "_clone_environment_isolation": False,
         "_locked_device": None,
         "_active_clone_recipes": [],
         "_pending_clones": [],

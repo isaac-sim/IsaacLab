@@ -37,7 +37,7 @@ from isaaclab.scene_data.deformable_discovery import (
     resolve_deformable_vertex_count,
 )
 
-from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
+from isaaclab_ov._clone import CloneRecipe, CloneTransform, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.stage import create_ovstage
@@ -46,6 +46,8 @@ from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR
 
 if TYPE_CHECKING:
+    from isaaclab.cloner import ClonePlan
+    from isaaclab.physics import CollisionFilterCfg
     from isaaclab.sim.simulation_context import SimulationContext
 
     from .ovphysx_manager_cfg import OvPhysxCfg
@@ -411,20 +413,52 @@ class OvPhysxManager(PhysicsManager):
     _warmup_done: ClassVar[bool] = False
     _next_control_ordinal: ClassVar[int] = 2
     _requires_full_stage: ClassVar[bool] = False
+    _clone_environment_isolation: ClassVar[bool] = False
     # Device mode is process-wide; later contexts must reuse the first selected device.
     _locked_device: ClassVar[str | None] = None
     # Active clone recipes survive the consumable pending queue so a forced
     # re-warmup can rebuild serialized-stage or runtime-only clones.
-    _active_clone_recipes: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
+    _active_clone_recipes: ClassVar[list[CloneRecipe]] = []
     # Consumable snapshot of the active recipes. Full-stage warmup materializes
     # these into serialized USDA; env-0-only warmup replays them with physx.clone().
-    _pending_clones: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
+    _pending_clones: ClassVar[list[CloneRecipe]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
     # Gravity currently applied to the running scene [m/s^2]. Seeded from ``SimulationCfg.gravity``
     # in :meth:`initialize` and refreshed by :meth:`set_gravity`. ``cfg.gravity`` stays the nominal
     # value that randomization terms resample from, so live updates must not be written back to it.
     _gravity: ClassVar[tuple[float, float, float] | None] = None
+
+    @classmethod
+    def _apply_collision_filter_impl(
+        cls,
+        plan: ClonePlan,
+        cfg: CollisionFilterCfg | None,
+        *,
+        isolate_environments: bool,
+        replicate_physics: bool,
+    ) -> None:
+        """Configure clone-world isolation supported by the OVPhysX runtime."""
+        if cfg is not None and cfg.groups:
+            raise NotImplementedError(
+                "OvPhysxManager does not yet support PhysicsCfg.collision_filter; use Isaac Sim PhysX or Newton."
+            )
+        sim = PhysicsManager._sim
+        assert sim is not None
+        context = sim.get_or_create_backend(cls.clone_context_type, sim)
+        cls._clone_environment_isolation = isolate_environments and replicate_physics
+        context.configure_environment_isolation(cls._clone_environment_isolation)
+        if isolate_environments and not replicate_physics:
+            from isaaclab.cloner.collision_filter import filter_collisions  # noqa: PLC0415
+
+            env_ids = () if plan.env_ids is None else tuple(map(int, plan.env_ids))
+            filter_collisions(
+                sim.stage,
+                sim.cfg.physics_prim_path,
+                "/World/collisions",
+                [plan.env_template.format(env_id) for env_id in env_ids],
+                global_paths=list(plan.global_paths),
+            )
 
     @classmethod
     def get_dt(cls) -> float:
@@ -465,20 +499,24 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def _register_clone_transforms(
-        cls, source: str, targets: list[str], target_transforms: list[CloneTransform]
+        cls,
+        source: str,
+        targets: list[str],
+        target_transforms: list[CloneTransform],
+        *,
+        env_ids: tuple[int, ...] | None = None,
     ) -> None:
         """Register final target-root world poses for the current simulation context."""
-        recipe = (source, list(targets), list(target_transforms))
+        if env_ids is not None and len(env_ids) != len(targets):
+            raise ValueError(f"env_ids must contain one ID per clone target, got {len(env_ids)} for {len(targets)}.")
+        recipe = CloneRecipe(source, tuple(targets), tuple(target_transforms), env_ids)
         cls._active_clone_recipes.append(recipe)
         cls._pending_clones.append(recipe)
 
     @classmethod
     def _rearm_pending_clones(cls) -> None:
         """Refresh the consumable clone queue from active context recipes."""
-        cls._pending_clones = [
-            (source, list(targets), list(target_transforms))
-            for source, targets, target_transforms in cls._active_clone_recipes
-        ]
+        cls._pending_clones = list(cls._active_clone_recipes)
 
     _physx_schemas_registered: ClassVar[bool] = False
 
@@ -534,6 +572,7 @@ class OvPhysxManager(PhysicsManager):
         cls._gravity = tuple(sim_context.cfg.gravity)
         cls._warmup_done = False
         cls._requires_full_stage = False
+        cls._clone_environment_isolation = False
         cls._stage_usda = None
         cls._pending_clones = []
         cls._active_clone_recipes = []
@@ -626,6 +665,7 @@ class OvPhysxManager(PhysicsManager):
                 cls._stage_usda = None
                 cls._warmup_done = False
                 cls._requires_full_stage = False
+                cls._clone_environment_isolation = False
                 cls._active_clone_recipes = []
                 cls._pending_clones = []
                 # Drop the SceneDataBackend singleton: its cached bindings and buffers
@@ -855,11 +895,11 @@ class OvPhysxManager(PhysicsManager):
         envs_path = Sdf.Path("/World/envs")
         operations: list[tuple[Sdf.Path, Sdf.Path, bool]] = []
         processed_targets: set[Sdf.Path] = set()
-        for source, targets, _ in pending_clones:
-            source_path = Sdf.Path(source)
+        for recipe in pending_clones:
+            source_path = Sdf.Path(recipe.source)
             if layer.GetPrimAtPath(source_path) is None:
-                raise RuntimeError(f"OvPhysxManager: clone source {source!r} is absent from the full stage.")
-            for target in targets:
+                raise RuntimeError(f"OvPhysxManager: clone source {recipe.source!r} is absent from the full stage.")
+            for target in recipe.targets:
                 target_path = Sdf.Path(target)
                 if target_path in processed_targets:
                     continue
@@ -948,18 +988,22 @@ class OvPhysxManager(PhysicsManager):
         if requires_full_stage:
             return
 
-        for source, targets, target_transforms in pending_clones:
-            if not targets:
+        for recipe in pending_clones:
+            if not recipe.targets:
                 continue
             logger.info(
                 "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
-                source,
-                len(targets),
-                targets[0],
-                targets[-1],
+                recipe.source,
+                len(recipe.targets),
+                recipe.targets[0],
+                recipe.targets[-1],
             )
-            transforms = target_transforms or None
-            op_idx = physx.clone(source, targets, transforms)
+            targets = list(recipe.targets)
+            transforms = list(recipe.transforms) or None
+            if recipe.env_ids is None:
+                op_idx = physx.clone(recipe.source, targets, transforms)
+            else:
+                op_idx = physx.clone(recipe.source, targets, transforms, env_ids=list(recipe.env_ids))
             physx.wait_op(op_idx)
 
     @classmethod
@@ -1104,9 +1148,9 @@ class OvPhysxManager(PhysicsManager):
         except Exception:
             logger.exception("Failed to close OVPhysX during process exit.")
 
-    @staticmethod
+    @classmethod
     def _create_physx_instance(
-        ovphysx: Any, ovphysx_device: str, gpu_index: int, cooked_collider_cache_dir: str | None
+        cls, ovphysx: Any, ovphysx_device: str, gpu_index: int, cooked_collider_cache_dir: str | None
     ) -> Any:
         """Create a PhysX instance through the pinned OVPhysX runtime API.
 
@@ -1122,6 +1166,7 @@ class OvPhysxManager(PhysicsManager):
         """
 
         carbonite_overrides = {
+            "/ovphysx/clone/useEnvIds": cls._clone_environment_isolation,
             "/physics/physxDispatcher": True,
             "/physics/updateToUsd": False,
             "/physics/updateVelocitiesToUsd": False,
