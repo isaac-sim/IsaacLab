@@ -1,6 +1,55 @@
 Changelog
 ---------
 
+3.1.0 (2026-09-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`compute_first_contact` and :meth:`compute_first_air` on the contact sensor silently
+  missing touchdowns and lift-offs once the simulation had run for a few seconds (issue #7283).
+  Their ``abs_tol`` argument now defaults to ``None``, which resolves to half the sensor update
+  interval instead of a fixed ``1e-8``. The old value was around 100x smaller than the float32
+  rounding error of the sensor clock, so most transitions were dropped. Callers that relied on the
+  previous behavior can pass ``abs_tol=1e-8`` explicitly.
+  Both methods now also refresh outdated sensor buffers before comparing, so a sensor with
+  ``history_length=0`` no longer reports the previous step's transitions when it is queried before
+  its data is read.
+
+
+3.0.2 (2026-09-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Projected source-only world frames from clone-plan positions when destination USD environment prims are absent.
+
+
+3.0.1 (2026-09-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added version-selected support for the OVPhysX 0.6 ``warmup()`` and ``destroy()``
+  lifecycle APIs while retaining the released 0.5.11 ``warmup_gpu()`` and
+  ``release()`` path. The public extras remain pinned to ``ovphysx==0.5.11``.
+
+Fixed
+^^^^^
+
+* Fixed fixed tendons being named after the joint carrying the tendon's root rather than after the
+  tendon instance itself, which gave the same tendon a different name on each physics engine and
+  left it unreachable from a shared configuration.
+
+* Fixed every fixed tendon being counted twice, which made ``fixed_tendon_ids=None`` address twice
+  as many tendons as the articulation has and index past the end of every fixed-tendon buffer. The
+  prim's applied schemas were read from both ``GetAppliedSchemas()`` and the ``apiSchemas``
+  metadata, which report the same entries.
+
+
 3.0.0 (2026-09-05)
 ~~~~~~~~~~~~~~~~~~
 

@@ -7,19 +7,11 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
-from isaaclab_tasks.utils import preset
-
 
 @configclass
 class G1RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
-    # Newton needs ~1.7x the PPO iterations to match PhysX on G1. PhysX saturates near iter 3000
-    # (reward ≈ +18, ep_len ≈ 980) and does not meaningfully improve on either metric past that —
-    # reward oscillates +16 to +19 through iter 7500, ep_len stays flat. Newton reaches the same
-    # (reward, ep_len) quality at iter 5000 (+16 / 984). Comparing reward alone is misleading:
-    # ep_len confirms the robot is stable in both cases. The gap is sample-efficiency, not a
-    # ceiling — no physics or reward tuning closes it.
-    max_iterations = preset(default=3000, newton_mjwarp=5000)
+    max_iterations = 5000
     save_interval = 50
     experiment_name = "g1_rough"
     obs_groups = {"actor": ["policy"], "critic": ["policy"]}
