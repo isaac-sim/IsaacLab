@@ -18,7 +18,7 @@ Ask which install path the user is following before prescribing commands. For a 
 | Pip package | `docs/source/setup/installation/index.rst` |
 | Isaac Lab pip package | `docs/source/setup/installation/index.rst` |
 | Binary package | `docs/source/setup/installation/index.rst` |
-| Cloud setup | `docs/source/features/docker_cloud.rst` |
+| Cloud setup | `docs/source/workflows/docker/cloud.rst` |
 | Legacy installer or setup without Isaac Sim | `docs/source/setup/installation/index.rst` |
 | Newton setup | `docs/source/overview/core-concepts/physical-backends/newton/installation.rst` |
 | PhysX setup | `docs/source/overview/core-concepts/physical-backends/physx/installation.rst` |

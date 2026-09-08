@@ -48,7 +48,7 @@ check_docker_version() {
 
     # Else, display a warning for non-tested versions
     else
-        display_warning "Docker version ${docker_version} and Apptainer version ${apptainer_version} are non-tested versions. There could be issues, please try to update them. More info: https://isaac-sim.github.io/IsaacLab/source/deployment/cluster.html"
+        display_warning "Docker version ${docker_version} and Apptainer version ${apptainer_version} are non-tested versions. There could be issues, please try to update them. More info: https://isaac-sim.github.io/IsaacLab/develop/source/workflows/docker/cluster.html"
     fi
 }
 

@@ -56,7 +56,7 @@ Keep this skill synchronized with the unified installation guide, the Docker/Clo
 - [Quickstart](../../../docs/source/setup/quickstart.rst)
 - [Installation](../../../docs/source/setup/installation/index.rst)
 - [XR teleoperation setup](../../../docs/source/how-to/cloudxr_teleoperation.rst)
-- [Docker/Cloud](../../../docs/source/features/docker_cloud.rst)
+- [Docker/Cloud](../../../docs/source/workflows/docker/index.rst)
 - [PhysX installation](../../../docs/source/overview/core-concepts/physical-backends/physx/installation.rst)
 - [Newton installation](../../../docs/source/overview/core-concepts/physical-backends/newton/installation.rst)
 - [Troubleshooting](../../../docs/source/refs/troubleshooting.rst)

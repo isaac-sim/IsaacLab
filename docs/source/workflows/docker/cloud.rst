@@ -1,4 +1,7 @@
-.. rubric:: Cloud Deployment
+.. _docker-cloud-cloud:
+
+Running on cloud workstations
+=============================
 
 Isaac Lab can be run in various cloud infrastructures with the use of
 `Isaac Automator <https://github.com/isaac-sim/IsaacAutomator>`__ (v4).
@@ -11,8 +14,8 @@ Isaac Automator supports a variety of GPU instances and stop/start functionality
 to save on cloud costs, and provides tools to aid the workflow
 (uploading and downloading data, autorun scripts, deployment management, etc.).
 
-
-.. rubric:: System Requirements
+Prerequisites
+-------------
 
 Isaac Automator requires having ``docker`` pre-installed on the system.
 
@@ -21,8 +24,8 @@ Isaac Automator requires having ``docker`` pre-installed on the system.
 * Follow the post-installation steps for Docker on the `Docker post-installation steps`_ page.
   These steps allow you to run Docker without using ``sudo``.
 
-
-.. rubric:: Installing Isaac Automator
+Installing Isaac Automator
+--------------------------
 
 For the most up-to-date and complete installation instructions, please refer to
 the `Isaac Automator README <https://github.com/isaac-sim/IsaacAutomator?tab=readme-ov-file#installation>`__.
@@ -43,10 +46,7 @@ To use Isaac Automator, first clone the repo:
 
          git clone git@github.com:isaac-sim/IsaacAutomator.git
 
-
-.. rubric:: Building the Container
-
-Build the Isaac Automator container:
+Then build the Isaac Automator container, which is tagged ``isaac_automator``:
 
 .. tab-set::
    :sync-group: os
@@ -65,10 +65,8 @@ Build the Isaac Automator container:
 
          docker build --platform linux/x86_64 -t isaac_automator .
 
-This will build the Isaac Automator container and tag it as ``isaac_automator``.
-
-
-.. rubric:: Deploying an Isaac Workstation
+Deploying a workstation
+-----------------------
 
 .. tab-set::
    :sync-group: os
@@ -127,7 +125,8 @@ Key deployment options:
 - ``--from-image`` -- Deploy from a pre-built VM image for faster provisioning
   (AWS only at this time).
 
-.. rubric:: Connecting to the Isaac Workstation
+Connecting to the workstation
+-----------------------------
 
 Deployed Isaac Workstations can be accessed via:
 
@@ -138,8 +137,8 @@ Deployed Isaac Workstations can be accessed via:
 Connection instructions are displayed at the end of the deployment command
 output and saved in ``state/<deployment-name>/info.txt``.
 
-
-.. rubric:: Running Isaac Lab on the Cloud
+Running Isaac Lab on the workstation
+------------------------------------
 
 Isaac Lab is installed from source on the deployed workstation at ``~/IsaacLab``.
 To run Isaac Lab commands, open a terminal on the workstation:
@@ -149,46 +148,34 @@ To run Isaac Lab commands, open a terminal on the workstation:
    ~/IsaacLab/isaaclab.sh train --rl_library rsl_rl \
      --task=Isaac-Cartpole-Direct
 
+Managing the deployment
+-----------------------
 
-.. rubric:: Pausing and Resuming
-
-You can stop and restart instances to save on cloud costs:
+All of the commands below are run from inside the Automator container. Stopping an instance you are
+not using is the main way to control cost.
 
 .. code-block:: bash
 
-   # inside the Automator container:
+   # pause and resume an instance
    ./stop <deployment-name>
    ./start <deployment-name>
 
-Use ``./start <deployment-name> --quick`` to skip full Ansible provisioning
-and only run the autorun script.
-
-
-.. rubric:: Uploading and Downloading Data
-
-.. code-block:: bash
-
-   # upload local uploads/ folder to the instance
+   # upload the local uploads/ folder to the instance
    ./upload <deployment-name>
 
-   # download results from the instance to local results/ folder
+   # download results from the instance into the local results/ folder
    ./download <deployment-name>
 
-
-.. rubric:: Destroying a Deployment
-
-To save costs, destroy deployments when no longer needed:
-
-.. code-block:: bash
-
-   # inside the Automator container:
+   # destroy the deployment when it is no longer needed
    ./destroy <deployment-name>
+
+Use ``./start <deployment-name> --quick`` to skip full Ansible provisioning
+and only run the autorun script.
 
 .. note::
 
    Deployment metadata is stored in the ``state/`` directory. Do not delete this
    directory, as it is required for managing deployments.
-
 
 .. _`Docker Engine website`: https://docs.docker.com/engine/install/
 .. _`Docker post-installation steps`: https://docs.docker.com/engine/install/linux-postinstall/
