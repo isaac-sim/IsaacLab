@@ -42,6 +42,7 @@ def _external_specification(tmp_path: Path, include_ui_extension: bool = False) 
         "external": True,
         "path": str(tmp_path),
         "name": "test_project",
+        "isaaclab_version": "3.0.0",
         "task_name": "place_vial",
         "robot_name": "so101",
         "include_ui_extension": include_ui_extension,
@@ -106,7 +107,7 @@ def test_main_collects_canonical_external_project_choices():
     handler.input_checkbox.side_effect = lambda message, choices: [choices[0]]
     handler.get_choices.side_effect = CLIHandler.get_choices
 
-    source_install = types.SimpleNamespace(__file__="/repo/source/isaaclab/isaaclab/__init__.py")
+    source_install = types.SimpleNamespace(__file__="/repo/source/isaaclab/isaaclab/__init__.py", __version__="3.0.0")
     with (
         mock.patch.object(_MODULE, "CLIHandler", return_value=handler),
         mock.patch.object(_MODULE.importlib, "import_module", return_value=source_install),
@@ -125,6 +126,7 @@ def test_main_collects_canonical_external_project_choices():
     assert specification["task_name"] == "place_vial"
     assert specification["robot_name"] == "so101"
     assert specification["include_ui_extension"] is False
+    assert specification["isaaclab_version"] == "3.0.0"
 
 
 def test_generated_project_matches_canonical_uv_layout(tmp_path):
@@ -142,13 +144,13 @@ def test_generated_project_matches_canonical_uv_layout(tmp_path):
         "requires": ["uv_build>=0.12.6,<0.13"],
         "build-backend": "uv_build",
     }
-    assert project_config["project"]["dependencies"] == ["isaaclab[rsl-rl]"]
+    assert project_config["project"]["dependencies"] == ["isaaclab[rsl-rl]==3.0.0"]
     assert project_config["project"]["entry-points"]["isaaclab.tasks"] == {"test_project": "test_project.tasks"}
     assert project_config["project"]["optional-dependencies"] == {
-        "isaacsim": ["isaaclab[isaacsim]"],
-        "ov": ["isaaclab[ov]"],
-        "ovphysx": ["isaaclab[ovphysx]"],
-        "ovrtx": ["isaaclab[ovrtx]"],
+        "isaacsim": ["isaaclab[isaacsim]==3.0.0"],
+        "ov": ["isaaclab[ov]==3.0.0"],
+        "ovphysx": ["isaaclab[ovphysx]==3.0.0"],
+        "ovrtx": ["isaaclab[ovrtx]==3.0.0"],
     }
     assert project_config["dependency-groups"]["dev"] == [
         "codespell>=2.4",
