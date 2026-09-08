@@ -17,12 +17,23 @@ from newton import ModelBuilder
 
 from pxr import Usd
 
+from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
 from isaaclab.physics import PhysicsManager
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
+from isaaclab_newton.cloner.collision_filter import (
+    ColliderShapeMap,
+    CollisionEndpointShapeMap,
+    NewtonCollisionFilter,
+    collider_shape_map,
+    collision_endpoint_shape_map,
+    defer_importer_filtered_pairs_warnings,
+    merge_collider_shape_maps,
+    snapshot_authored_collision_filter,
+)
 from isaaclab_newton.cloner.newton_clone_utils import (
+    _build_source_builder,
     _restore_visible_colliders_without_visual_shapes,
-    build_source_builders,
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import NewtonCfg, NewtonManager
@@ -30,6 +41,7 @@ from isaaclab_newton.renderers.visual_material import import_builder_visual_mate
 
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
+    from isaaclab.physics import CollisionFilterCfg
     from isaaclab.sim import SimulationContext
 
 
@@ -101,6 +113,8 @@ def _build_newton_builder_from_mapping(
     up_axis: str = "Z",
     load_visual_shapes: bool = True,
     global_paths: tuple[str, ...] = (),
+    collision_filter_cfg: CollisionFilterCfg | None = None,
+    collision_filter_env_template: str = DEFAULT_ENV_TEMPLATE,
 ) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder], list[tuple[str, int]]]:
     """Build a Newton model builder from clone mapping inputs and retain its source builders."""
     if positions is None:
@@ -111,19 +125,43 @@ def _build_newton_builder_from_mapping(
 
     manager_cls = PhysicsManager._sim.physics_manager
     schema_resolvers = manager_cls._get_usd_import_schema_resolvers()
+    import_paths = (PhysicsManager._sim.cfg.physics_prim_path, *global_paths)
+    authored = snapshot_authored_collision_filter(stage, (*import_paths, *sources))
+    has_group_policy = collision_filter_cfg is not None and bool(collision_filter_cfg.groups)
+    collision_filter_enabled = has_group_policy or bool(authored.filtered_pairs)
+    deformable_owner_simulations = dict(authored.deformable_owner_simulations)
 
     builder = manager_cls.create_builder(up_axis=up_axis)
-    import_paths = (PhysicsManager._sim.cfg.physics_prim_path, *global_paths)
     hf_ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
     import_results = []
+    global_shape_maps: list[ColliderShapeMap] = []
+    global_endpoint_maps: list[CollisionEndpointShapeMap] = []
     for root_path in import_paths:
-        import_result = builder.add_usd(
-            stage,
-            root_path=root_path,
-            ignore_paths=hf_ignore_paths,
-            schema_resolvers=schema_resolvers,
-            load_visual_shapes=load_visual_shapes,
-        )
+        shape_start = builder.shape_count
+        with defer_importer_filtered_pairs_warnings(bool(authored.filtered_pairs)):
+            import_result = builder.add_usd(
+                stage,
+                root_path=root_path,
+                ignore_paths=hf_ignore_paths,
+                schema_resolvers=schema_resolvers,
+                load_visual_shapes=load_visual_shapes,
+                return_deformable_results=bool(authored.filtered_pairs),
+            )
+        if collision_filter_enabled:
+            shape_range = range(shape_start, builder.shape_count)
+            collider_shapes = collider_shape_map(builder, import_result["path_shape_map"], shape_range)
+            global_shape_maps.append(collider_shapes)
+            global_endpoint_maps.append(
+                collision_endpoint_shape_map(
+                    builder,
+                    collider_shapes,
+                    import_result["path_body_map"],
+                    shape_range,
+                    authored.articulation_paths,
+                    import_result.get("path_cable_map"),
+                    deformable_owner_simulations,
+                )
+            )
         _restore_visible_colliders_without_visual_shapes(
             builder, stage, import_result["path_shape_map"], load_visual_shapes
         )
@@ -132,6 +170,23 @@ def _build_newton_builder_from_mapping(
     replace_newton_builder_shape_colors(builder, stage)
     if load_visual_shapes:
         import_builder_visual_material_paths(builder, stage)
+
+    global_shapes = {}
+    global_endpoint_shapes = {}
+    if collision_filter_enabled:
+        global_shapes = merge_collider_shape_maps(*global_shape_maps)
+        global_endpoint_shapes = merge_collider_shape_maps(*global_endpoint_maps)
+        mapped_global_shapes = {index for indices in global_shapes.values() for index in indices}
+        global_supplement = {
+            path: tuple(index for index in indices if index not in mapped_global_shapes)
+            for path, indices in collider_shape_map(builder, {}).items()
+        }
+        global_shapes = merge_collider_shape_maps(
+            global_shapes, {path: indices for path, indices in global_supplement.items() if indices}
+        )
+        global_endpoint_shapes = merge_collider_shape_maps(
+            global_endpoint_shapes, {path: indices for path, indices in global_supplement.items() if indices}
+        )
 
     # Deformable prim paths are handled by per_world_builder_hooks, not add_usd.
     # Resolve the regex prim_path patterns to concrete env_0 paths so add_usd
@@ -147,19 +202,57 @@ def _build_newton_builder_from_mapping(
                 if any(pattern.fullmatch(child_path) for pattern in deformable_patterns):
                     deformable_ignore_paths.append(child_path)
 
-    source_builders = build_source_builders(
-        stage,
-        sources,
-        lambda: manager_cls.create_builder(up_axis=up_axis),
-        schema_resolvers,
-        ignore_paths=deformable_ignore_paths or None,
-        load_visual_shapes=load_visual_shapes,
-    )
+    source_builders = {}
+    source_shapes: dict[str, ColliderShapeMap] = {}
+    source_endpoint_shapes: dict[str, CollisionEndpointShapeMap] = {}
+    for source in sources:
+        with defer_importer_filtered_pairs_warnings(bool(authored.filtered_pairs)):
+            source_builder, import_result = _build_source_builder(
+                stage,
+                source,
+                lambda: manager_cls.create_builder(up_axis=up_axis),
+                schema_resolvers,
+                deformable_ignore_paths or None,
+                load_visual_shapes,
+                return_deformable_results=bool(authored.filtered_pairs),
+            )
+        source_builders[source] = source_builder
+        if collision_filter_enabled:
+            collider_shapes = collider_shape_map(source_builder, import_result["path_shape_map"])
+            source_shapes[source] = collider_shapes
+            source_endpoint_shapes[source] = collision_endpoint_shape_map(
+                source_builder,
+                collider_shapes,
+                import_result["path_body_map"],
+                articulation_paths=authored.articulation_paths,
+                path_cable_map=import_result.get("path_cable_map"),
+                deformable_owner_simulations=deformable_owner_simulations,
+            )
+
+    collision_filter = None
+    if collision_filter_enabled:
+        collision_filter = NewtonCollisionFilter(
+            collision_filter_cfg,
+            sources,
+            destinations,
+            env_ids,
+            mapping,
+            collision_filter_env_template,
+            authored,
+        )
+        collision_filter.prepare(
+            builder,
+            global_shapes,
+            source_builders,
+            source_shapes,
+            global_endpoint_shapes,
+            source_endpoint_shapes,
+        )
 
     # Inject registered sites into source builders (and global sites into main builder).
     global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
 
-    local_site_map, world_xforms, fabric_body_bindings = replicate_builder_mapping(
+    local_site_map, world_xforms, fabric_body_bindings, source_shape_offsets = replicate_builder_mapping(
         builder=builder,
         sources=sources,
         mapping=mapping,
@@ -172,6 +265,8 @@ def _build_newton_builder_from_mapping(
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
     )
+    if collision_filter is not None:
+        collision_filter.apply_to_replicated_builder(builder, source_shape_offsets)
 
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
@@ -202,6 +297,8 @@ def _replicate_newton(
     up_axis: str,
     load_visual_shapes: bool,
     global_paths: tuple[str, ...],
+    collision_filter_cfg: CollisionFilterCfg | None = None,
+    collision_filter_env_template: str = DEFAULT_ENV_TEMPLATE,
 ) -> tuple[ModelBuilder, object, dict]:
     """Build one Newton model and publish its plan-derived lookup data."""
     builder, stage_info, site_index_map, world_xforms, source_builders, fabric_body_bindings = (
@@ -216,6 +313,8 @@ def _replicate_newton(
             up_axis=up_axis,
             load_visual_shapes=load_visual_shapes,
             global_paths=global_paths,
+            collision_filter_cfg=collision_filter_cfg,
+            collision_filter_env_template=collision_filter_env_template,
         )
     )
     NewtonManager._cl_site_index_map = site_index_map
@@ -255,6 +354,12 @@ class NewtonReplicateContext:
             up_axis=self.up_axis,
             load_visual_shapes=_renderer_wants_visual_shapes() if load_visual_shapes is None else load_visual_shapes,
             global_paths=plan.global_paths,
+            collision_filter_cfg=(
+                getattr(PhysicsManager._cfg, "collision_filter", None)
+                if NewtonManager._cl_collision_filter_plan is plan
+                else None
+            ),
+            collision_filter_env_template=plan.env_template,
         )
 
 
@@ -298,5 +403,7 @@ def newton_physics_replicate(
         up_axis=up_axis,
         load_visual_shapes=_renderer_wants_visual_shapes() if load_visual_shapes is None else load_visual_shapes,
         global_paths=global_paths,
+        collision_filter_cfg=None,
+        collision_filter_env_template=DEFAULT_ENV_TEMPLATE,
     )
     return builder, stage_info

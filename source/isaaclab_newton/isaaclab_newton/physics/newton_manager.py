@@ -116,6 +116,8 @@ from isaaclab_newton.renderers.visual_material import (
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
+    from isaaclab.cloner import ClonePlan
+    from isaaclab.physics import CollisionFilterCfg
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
@@ -557,6 +559,7 @@ class NewtonManager(PhysicsManager):
     # path. Single-model consumers (e.g. batched Newton IK) finalize a single-env
     # model from these and resolve it via ``query.path_to_source``.
     _cl_protos: dict[str, ModelBuilder] = {}
+    _cl_collision_filter_plan: ClonePlan | None = None
     _deformable_registry: list = []
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
 
@@ -594,6 +597,39 @@ class NewtonManager(PhysicsManager):
             cls._clone_physics_only = not has_kit() or ("kit" not in requested and not cameras_enabled)
 
         cls._scene_data_backend = NewtonSceneDataBackend()
+
+    @classmethod
+    def _apply_collision_filter_impl(
+        cls,
+        plan: ClonePlan,
+        cfg: CollisionFilterCfg | None,
+        *,
+        isolate_environments: bool,
+        replicate_physics: bool,
+    ) -> None:
+        """Bind collision policy to the clone plan consumed by Newton replication."""
+        has_group_policy = cfg is not None and bool(cfg.groups)
+        num_environments = 0 if plan.env_ids is None else len(plan.env_ids)
+        rows = () if cls.clone_context_type is None else plan.context_rows.get(cls.clone_context_type, ())
+        needs_isolation = isolate_environments and num_environments > 1 and bool(rows)
+        if not replicate_physics and (needs_isolation or has_group_policy):
+            raise NotImplementedError(
+                "Newton environment isolation and declarative collision filtering require "
+                "replicate_physics=True; the stage-import path cannot apply clone-plan filtering."
+            )
+        if not replicate_physics:
+            return
+        if (needs_isolation or has_group_policy) and not rows:
+            raise NotImplementedError(
+                "Newton collision filtering requires populated NewtonReplicateContext rows in the ClonePlan."
+            )
+        if not isolate_environments and num_environments > 1 and rows:
+            raise NotImplementedError(
+                "Newton assigns replicated environments to separate shape_world partitions; "
+                "cross-environment collisions cannot be enabled."
+            )
+        if rows:
+            NewtonManager._cl_collision_filter_plan = plan
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -1093,8 +1129,10 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def close(cls) -> None:
         """Clean up Newton physics resources."""
-        super().close()
-        cls.clear()
+        try:
+            super().close()
+        finally:
+            cls.clear()
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend | None:
@@ -1206,6 +1244,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._cl_fabric_body_bindings = None
         NewtonManager._world_xforms = None
         NewtonManager._cl_protos = {}
+        NewtonManager._cl_collision_filter_plan = None
         NewtonManager._pending_extended_state_attributes = set()
         NewtonManager._active_extended_state_attributes = set()
         NewtonManager._pending_extended_contact_attributes = set()
@@ -1905,7 +1944,11 @@ class NewtonManager(PhysicsManager):
                 indices=wp.array(faces, dtype=wp.int32, device=device),
             )
             heightfield, xform = Heightfield.create_from_mesh(wp_mesh, resolution)
-            builder.add_shape_heightfield(heightfield=heightfield, xform=xform)
+            builder.add_shape_heightfield(
+                heightfield=heightfield,
+                xform=xform,
+                label=mesh_prim.GetPath().pathString,
+            )
             logger.info(
                 "Converted terrain collider %s (%d faces) to a %dx%d heightfield.",
                 prim.GetPath().pathString,
@@ -2036,7 +2079,7 @@ class NewtonManager(PhysicsManager):
             positions = np.asarray([pos for pos, _ in poses], dtype=np.float32)
             quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
             mapping = np.ones((1, len(env_paths)), dtype=np.bool_)
-            local_site_map, world_xforms, _ = replicate_builder_mapping(
+            local_site_map, world_xforms, _, _ = replicate_builder_mapping(
                 builder=builder,
                 sources=(proto_path,),
                 mapping=mapping,

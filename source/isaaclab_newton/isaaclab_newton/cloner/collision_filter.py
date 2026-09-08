@@ -8,8 +8,11 @@
 from __future__ import annotations
 
 import re
+import warnings
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
+from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -31,23 +34,99 @@ CollisionEndpointShapeMap = dict[str, tuple[int, ...]]
 """Authored collider or rigid-body endpoint to its directly owned Newton shapes."""
 
 FilteredPathPairs = frozenset[tuple[str, str]]
-"""Canonical USD paths connected by ``physics:filteredPairs``."""
+"""Directed USD source-to-target paths connected by ``physics:filteredPairs``."""
 
 
-def authored_filtered_path_pairs(stage: Usd.Stage) -> FilteredPathPairs:
-    """Snapshot every composed ``physics:filteredPairs`` relationship on *stage*."""
-    from pxr import Usd  # noqa: PLC0415
+@dataclass(frozen=True)
+class AuthoredCollisionFilterSnapshot:
+    """Authored collision metadata needed after Newton partitions the USD import."""
+
+    filtered_pairs: FilteredPathPairs = frozenset()
+    articulation_paths: frozenset[str] = frozenset()
+    deformable_owner_simulations: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    unsupported_endpoint_reasons: tuple[tuple[str, str], ...] = ()
+
+
+def snapshot_authored_collision_filter(stage: Usd.Stage, roots: Iterable[str]) -> AuthoredCollisionFilterSnapshot:
+    """Snapshot collision metadata below clone sources and explicitly imported globals.
+
+    Relationship targets remain unrestricted: only the prim carrying the relationship
+    must be below a selected root. This avoids walking an already expanded destination
+    stage while preserving cross-source and source-to-global relationships.
+    """
+    from pxr import Usd, UsdPhysics  # noqa: PLC0415
 
     pairs = set()
-    for prim in stage.Traverse(Usd.TraverseInstanceProxies()):
-        relationship = prim.GetRelationship("physics:filteredPairs")
-        if not relationship:
+    articulation_paths = set()
+    deformable_body_paths = set()
+    simulation_families: dict[str, str] = {}
+    for root_path in _minimal_stage_roots(roots):
+        root = stage.GetPrimAtPath(root_path)
+        if not root or not root.IsValid():
             continue
-        source = str(prim.GetPath())
-        for target in map(str, relationship.GetTargets()):
-            if source != target:
-                pairs.add((source, target) if source < target else (target, source))
-    return frozenset(pairs)
+        for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
+            path = str(prim.GetPath())
+            relationship = prim.GetRelationship("physics:filteredPairs")
+            if relationship:
+                pairs.update((path, target) for target in map(str, relationship.GetTargets()) if path != target)
+            if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+                articulation_paths.add(path)
+            schemas = prim.GetPrimTypeInfo().GetAppliedAPISchemas()
+            if "PhysicsDeformableBodyAPI" in schemas:
+                deformable_body_paths.add(path)
+            if "PhysicsCurvesDeformableSimAPI" in schemas:
+                simulation_families[path] = "cable"
+            elif "PhysicsSurfaceDeformableSimAPI" in schemas:
+                simulation_families[path] = "cloth"
+            elif "PhysicsVolumeDeformableSimAPI" in schemas:
+                simulation_families[path] = "volume"
+
+    owner_simulations: dict[str, list[str]] = defaultdict(list)
+    for simulation_path in simulation_families:
+        owners = [path for path in deformable_body_paths if _is_at_or_below(simulation_path, path)]
+        if owners:
+            owner_simulations[max(owners, key=len)].append(simulation_path)
+
+    unsupported_reasons = {}
+    for path, family in simulation_families.items():
+        if family != "cable":
+            unsupported_reasons[path] = f"{family} particle deformables cannot be represented by shape filter pairs"
+    for owner, simulations in owner_simulations.items():
+        unsupported = [simulation_families[path] for path in simulations if simulation_families[path] != "cable"]
+        if unsupported:
+            families = ", ".join(sorted(set(unsupported)))
+            unsupported_reasons[owner] = (
+                f"its {families} particle simulation cannot be represented by shape filter pairs"
+            )
+
+    for path in {endpoint for pair in pairs for endpoint in pair}:
+        prim = stage.GetPrimAtPath(path)
+        if not prim or not prim.IsValid():
+            unsupported_reasons[path] = "the path does not exist"
+
+    return AuthoredCollisionFilterSnapshot(
+        filtered_pairs=frozenset(pairs),
+        articulation_paths=frozenset(articulation_paths),
+        deformable_owner_simulations=tuple(
+            (owner, tuple(sorted(simulations))) for owner, simulations in sorted(owner_simulations.items())
+        ),
+        unsupported_endpoint_reasons=tuple(sorted(unsupported_reasons.items())),
+    )
+
+
+@contextmanager
+def defer_importer_filtered_pairs_warnings(enabled: bool):
+    """Suppress partition-local importer diagnostics until final assembly resolves them."""
+    if not enabled:
+        yield
+        return
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r".*: physics:filteredPairs was not imported because .*",
+            category=UserWarning,
+        )
+        yield
 
 
 def collider_shape_map(
@@ -135,8 +214,10 @@ def collision_endpoint_shape_map(
     path_body_map: Mapping[str, int],
     shape_range: range | None = None,
     articulation_paths: Iterable[str] = (),
+    path_cable_map: Mapping[str, tuple[Sequence[int], Sequence[int]]] | None = None,
+    deformable_owner_simulations: Mapping[str, Sequence[str]] | None = None,
 ) -> CollisionEndpointShapeMap:
-    """Map collider, rigid-body, and articulation endpoints to their colliding shapes."""
+    """Map supported authored physics endpoints to their colliding Newton shapes."""
     candidate_indices = set(shape_range if shape_range is not None else range(builder.shape_count))
     articulation_paths = set(articulation_paths)
     result = {path: list(indices) for path, indices in collider_shapes.items()}
@@ -167,6 +248,23 @@ def collision_endpoint_shape_map(
             if shape in candidate_indices and _shape_collides(builder, shape)
         )
         existing = result.setdefault(path, [])
+        seen = set(existing)
+        existing.extend(index for index in owned_shapes if index not in seen)
+    for path, (body_indices, _) in (path_cable_map or {}).items():
+        owned_shapes = (
+            shape
+            for body in body_indices
+            for shape in builder.body_shapes.get(body, ())
+            if shape in candidate_indices and _shape_collides(builder, shape)
+        )
+        existing = result.setdefault(path, [])
+        seen = set(existing)
+        existing.extend(index for index in owned_shapes if index not in seen)
+    for owner, simulations in (deformable_owner_simulations or {}).items():
+        owned_shapes = tuple(shape for simulation in simulations for shape in result.get(simulation, ()))
+        if not owned_shapes:
+            continue
+        existing = result.setdefault(owner, [])
         seen = set(existing)
         existing.extend(index for index in owned_shapes if index not in seen)
     return {path: tuple(indices) for path, indices in result.items()}
@@ -237,6 +335,24 @@ class _CollisionFilterCompiler:
                         pairs.add((min(shape_a, shape_b), max(shape_a, shape_b)))
         return frozenset(pairs)
 
+    def membership_signature(
+        self,
+        collider_shapes: Mapping[str, Sequence[int]],
+        universe: Iterable[int],
+    ) -> tuple[tuple[int, tuple[str, ...]], ...]:
+        """Return the local shape memberships that fully determine policy pairs."""
+        selected = set(universe)
+        memberships_by_shape: dict[int, set[str]] = defaultdict(set)
+        for path, shape_indices in collider_shapes.items():
+            memberships = self._policy.memberships(path)
+            for shape_index in shape_indices:
+                if shape_index in selected:
+                    memberships_by_shape[shape_index].update(memberships)
+        return tuple(
+            (shape, tuple(name for name in self._policy.groups if name in memberships_by_shape[shape]))
+            for shape in sorted(selected)
+        )
+
 
 class NewtonCollisionFilter:
     """Apply a collision policy around Newton's prototype replication seam.
@@ -255,15 +371,20 @@ class NewtonCollisionFilter:
         env_ids: np.ndarray,
         mapping: np.ndarray,
         env_template: str,
-        authored_filtered_pairs: FilteredPathPairs = frozenset(),
+        authored: AuthoredCollisionFilterSnapshot = AuthoredCollisionFilterSnapshot(),
     ):
         self._compiler = None if cfg is None or not cfg.groups else _CollisionFilterCompiler(cfg, env_template)
         self._sources = tuple(sources)
         self._destinations = tuple(destinations)
         self._env_ids = env_ids
         self._mapping = mapping
-        self._authored_filtered_pairs = authored_filtered_pairs
-        self._residual_authored_pairs = authored_filtered_pairs
+        self._env_template = env_template
+        self._prototype_env_roots = frozenset(
+            parts[0] for source in sources if (parts := _environment_path_parts(source, env_template)) is not None
+        )
+        self._authored_filtered_pairs = authored.filtered_pairs
+        self._residual_authored_pairs = authored.filtered_pairs
+        self._unsupported_endpoint_reasons = dict(authored.unsupported_endpoint_reasons)
         self._global_shapes: ColliderShapeMap = {}
         self._global_endpoint_shapes: CollisionEndpointShapeMap = {}
         self._global_shape_indices: frozenset[int] = frozenset()
@@ -271,6 +392,7 @@ class NewtonCollisionFilter:
         self._source_endpoint_shapes: dict[str, CollisionEndpointShapeMap] = {}
         self._source_builders: dict[str, ModelBuilder] = {}
         self._source_existing_pairs: dict[str, frozenset[tuple[int, int]]] = {}
+        self._source_colliding_shape_counts: dict[str, int] = {}
         self._preapplied_rows: set[int] = set()
 
     def prepare(
@@ -289,18 +411,17 @@ class NewtonCollisionFilter:
         self._source_builders = dict(source_builders)
         self._source_shapes = dict(source_shapes)
         self._source_endpoint_shapes = dict(source_endpoint_shapes or source_shapes)
-        preapplied_path_pairs = {
-            pair
-            for pair in self._authored_filtered_pairs
-            if self._global_endpoint_shapes.get(pair[0]) and self._global_endpoint_shapes.get(pair[1])
+        self._source_colliding_shape_counts = {
+            source: len(_colliding_shape_indices(source_builder)) for source, source_builder in source_builders.items()
         }
+        preapplied_path_pairs = set()
 
         global_pairs = (
             frozenset()
-            if self._compiler is None
+            if self._compiler is None or not self._global_shape_indices
             else self._compiler.pairs(global_shapes, universe=self._global_shape_indices)
         )
-        global_pairs |= _shape_pairs_for_path_pairs(self._global_endpoint_shapes, preapplied_path_pairs)
+        global_pairs |= _shape_pairs_for_path_pairs(self._global_endpoint_shapes, self._authored_filtered_pairs)
         _add_unique_pairs(builder, global_pairs, _existing_pairs(builder))
 
         rows_by_source: dict[str, list[int]] = defaultdict(list)
@@ -310,8 +431,11 @@ class NewtonCollisionFilter:
         for source, rows in rows_by_source.items():
             source_builder = source_builders[source]
             existing_pairs = _existing_pairs(source_builder)
-            templates: list[frozenset[tuple[int, int]]] = []
+            first_template = None
+            homogeneous = True
             if self._compiler is not None:
+                template_cache = {}
+                universe = _colliding_shape_indices(source_builder)
                 for row in rows:
                     for column in np.flatnonzero(self._mapping[row]):
                         concrete_shapes = _rebase_collider_paths(
@@ -319,21 +443,26 @@ class NewtonCollisionFilter:
                             source,
                             self._destinations[row].format(int(self._env_ids[column])),
                         )
-                        templates.append(
-                            self._compiler.pairs(
-                                concrete_shapes,
-                                universe=_colliding_shape_indices(source_builder),
-                            )
-                        )
+                        signature = self._compiler.membership_signature(concrete_shapes, universe)
+                        template = template_cache.get(signature)
+                        if template is None:
+                            template = self._compiler.pairs(concrete_shapes, universe=universe)
+                            template_cache[signature] = template
+                        if first_template is None:
+                            first_template = template
+                        elif template != first_template:
+                            homogeneous = False
 
-            if templates and all(template == templates[0] for template in templates[1:]):
-                _add_unique_pairs(source_builder, templates[0], existing_pairs)
+            if first_template is not None and homogeneous:
+                _add_unique_pairs(source_builder, first_template, existing_pairs)
                 self._preapplied_rows.update(rows)
             source_path_pairs = {
                 pair
                 for pair in self._authored_filtered_pairs
-                if self._source_endpoint_shapes[source].get(pair[0])
-                and self._source_endpoint_shapes[source].get(pair[1])
+                if _is_at_or_below(pair[0], source)
+                and _is_at_or_below(pair[1], source)
+                and not any(other != source and _is_at_or_below(other, pair[1]) for other in self._sources)
+                and _path_pair_has_endpoints(self._source_endpoint_shapes[source], pair)
             }
             _add_unique_pairs(
                 source_builder,
@@ -350,7 +479,11 @@ class NewtonCollisionFilter:
         source_shape_offsets: Mapping[tuple[int, int], int],
     ) -> None:
         """Author environment-specific and cross-owner filters after replication."""
+        if self._can_skip_final_policy_expansion(builder):
+            self._warn_authored_pair_diagnostics({})
+            return
         if self._compiler is None and not self._residual_authored_pairs:
+            self._warn_authored_pair_diagnostics({})
             return
 
         final_shapes = dict(self._global_shapes)
@@ -403,7 +536,7 @@ class NewtonCollisionFilter:
                 preapplied_owners=self._preapplied_rows,
             )
         )
-        authored_pairs = self._authored_shape_pairs(final_endpoint_shapes, builder.shape_world)
+        authored_pairs, unresolved_pairs = self._authored_shape_pairs(final_endpoint_shapes, builder.shape_world)
         new_pairs = set()
         for shape_a, shape_b in policy_pairs | authored_pairs:
             if shape_a in self._global_shape_indices and shape_b in self._global_shape_indices:
@@ -416,17 +549,31 @@ class NewtonCollisionFilter:
                 if local_pair in self._source_existing_pairs[self._sources[row]]:
                     continue
             new_pairs.add((shape_a, shape_b))
-        _add_unique_pairs(builder, new_pairs)
+        _add_unique_pairs(builder, new_pairs, _existing_pairs(builder))
+        self._warn_authored_pair_diagnostics(unresolved_pairs)
+
+    def _can_skip_final_policy_expansion(self, builder: ModelBuilder) -> bool:
+        if self._compiler is None or self._residual_authored_pairs or self._global_shape_indices:
+            return False
+        active_rows = {row for row in range(len(self._sources)) if np.any(self._mapping[row])}
+        if len(active_rows) != 1 or not active_rows.issubset(self._preapplied_rows):
+            return False
+        expected_shapes = sum(
+            self._source_colliding_shape_counts[self._sources[row]] * int(np.count_nonzero(self._mapping[row]))
+            for row in active_rows
+        )
+        return expected_shapes == len(_colliding_shape_indices(builder))
 
     def _authored_shape_pairs(
         self,
         collider_shapes: Mapping[str, Sequence[int]],
         shape_worlds: Sequence[int] | None = None,
-    ) -> frozenset[tuple[int, int]]:
+    ) -> tuple[frozenset[tuple[int, int]], dict[tuple[str, str], str]]:
         endpoint_instances = {
             path: self._path_instances(path) for pair in self._residual_authored_pairs for path in pair
         }
-        path_pairs = set()
+        pairs = set()
+        unresolved = {}
         for first, second in self._residual_authored_pairs:
             first_instances = endpoint_instances[first]
             second_instances = endpoint_instances[second]
@@ -436,11 +583,69 @@ class NewtonCollisionFilter:
                 worlds = first_instances
             else:
                 worlds = first_instances.keys() & second_instances.keys()
+            concrete_pairs = []
             for world in worlds:
                 first_paths = first_instances.get(None, first_instances.get(world, ()))
                 second_paths = second_instances.get(None, second_instances.get(world, ()))
-                path_pairs.update((first_path, second_path) for first_path in first_paths for second_path in second_paths)
-        return _shape_pairs_for_path_pairs(collider_shapes, path_pairs, shape_worlds)
+                concrete_pairs.extend(
+                    (first_path, second_path) for first_path in first_paths for second_path in second_paths
+                )
+            if not concrete_pairs:
+                continue
+            relation_pairs = _shape_pairs_for_path_pairs(collider_shapes, concrete_pairs, shape_worlds)
+            pairs.update(relation_pairs)
+            if not relation_pairs and not any(
+                _path_pair_has_endpoints(collider_shapes, pair) for pair in concrete_pairs
+            ):
+                unresolved[(first, second)] = self._unresolved_pair_reason(
+                    first, second, collider_shapes, concrete_pairs
+                )
+        return frozenset(pairs), unresolved
+
+    def _unresolved_pair_reason(
+        self,
+        source: str,
+        target: str,
+        endpoint_shapes: Mapping[str, Sequence[int]],
+        concrete_pairs: Sequence[tuple[str, str]],
+    ) -> str:
+        source_resolved = any(endpoint_shapes.get(concrete_source) for concrete_source, _ in concrete_pairs)
+        if not source_resolved:
+            reason = self._unsupported_endpoint_reasons.get(source)
+            return reason or "the source did not produce a supported collider, rigid body, articulation, or cable"
+        target_resolved = any(
+            _target_shape_indices(endpoint_shapes, concrete_target) for _, concrete_target in concrete_pairs
+        )
+        if not target_resolved:
+            reasons = {
+                reason for path, reason in self._unsupported_endpoint_reasons.items() if _is_at_or_below(path, target)
+            }
+            return next(iter(reasons)) if len(reasons) == 1 else "the target hierarchy produced no supported collider"
+        return "the resolved endpoints have no common collision world"
+
+    def _warn_authored_pair_diagnostics(self, unresolved: Mapping[tuple[str, str], str]) -> None:
+        for source, target in sorted(self._authored_filtered_pairs):
+            unsupported = []
+            if source in self._unsupported_endpoint_reasons:
+                unsupported.append(f"{source}: {self._unsupported_endpoint_reasons[source]}")
+            unsupported.extend(
+                f"{path}: {reason}"
+                for path, reason in self._unsupported_endpoint_reasons.items()
+                if path != source and _is_at_or_below(path, target)
+            )
+            reason = unresolved.get((source, target))
+            if reason is not None:
+                warnings.warn(
+                    f"{source} -> {target}: physics:filteredPairs was not applied by Newton because {reason}.",
+                    stacklevel=3,
+                )
+            elif unsupported:
+                warnings.warn(
+                    f"{source} -> {target}: physics:filteredPairs was only partially applied by Newton; "
+                    + "; ".join(sorted(set(unsupported)))
+                    + ".",
+                    stacklevel=3,
+                )
 
     def _path_instances(self, path: str) -> dict[int | None, tuple[str, ...]]:
         instances: dict[int, set[str]] = defaultdict(set)
@@ -451,9 +656,16 @@ class NewtonCollisionFilter:
                 column = int(column)
                 destination = self._destinations[row].format(int(self._env_ids[column]))
                 instances[column].add(_rebase_path(path, source, destination))
-        if not instances:
-            return {None: (path,)}
-        return {world: tuple(sorted(paths)) for world, paths in instances.items()}
+        if instances:
+            return {world: tuple(sorted(paths)) for world, paths in instances.items()}
+        prototype_root = next((root for root in self._prototype_env_roots if _is_at_or_below(path, root)), None)
+        if prototype_root is not None:
+            suffix = path[len(prototype_root) :]
+            return {
+                column: (self._env_template.format(int(env_id)) + suffix,)
+                for column, env_id in enumerate(self._env_ids)
+            }
+        return {None: (path,)}
 
 
 def _shape_pairs_for_path_pairs(
@@ -461,15 +673,26 @@ def _shape_pairs_for_path_pairs(
     path_pairs: Iterable[tuple[str, str]],
     shape_worlds: Sequence[int] | None = None,
 ) -> frozenset[tuple[int, int]]:
-    """Resolve collider/body endpoints to exact native shape pairs."""
+    """Resolve typed sources against all physics participants below each target."""
     pairs = set()
     for first, second in path_pairs:
         for shape_a in endpoint_shapes.get(first, ()):
-            for shape_b in endpoint_shapes.get(second, ()):
+            for shape_b in _target_shape_indices(endpoint_shapes, second):
                 if shape_a == shape_b or not _same_collision_world(shape_a, shape_b, shape_worlds):
                     continue
                 pairs.add((min(shape_a, shape_b), max(shape_a, shape_b)))
     return frozenset(pairs)
+
+
+def _target_shape_indices(endpoint_shapes: Mapping[str, Sequence[int]], target: str) -> tuple[int, ...]:
+    """Return unique shapes owned by physics endpoints at or below a relationship target."""
+    return tuple(
+        sorted({shape for path, shapes in endpoint_shapes.items() if _is_at_or_below(path, target) for shape in shapes})
+    )
+
+
+def _path_pair_has_endpoints(endpoint_shapes: Mapping[str, Sequence[int]], pair: tuple[str, str]) -> bool:
+    return bool(endpoint_shapes.get(pair[0])) and bool(_target_shape_indices(endpoint_shapes, pair[1]))
 
 
 def _shape_collides(builder: ModelBuilder, index: int) -> bool:
@@ -501,6 +724,26 @@ def _rebase_path(path: str, source: str, destination: str) -> str:
 def _is_at_or_below(path: str, root: str) -> bool:
     root = root.rstrip("/") or "/"
     return path == root or path.startswith(root.rstrip("/") + "/")
+
+
+def _minimal_stage_roots(roots: Iterable[str]) -> tuple[str, ...]:
+    """Drop duplicate and nested roots before traversing authored policy metadata."""
+    selected = []
+    for path in sorted({path.rstrip("/") or "/" for path in roots}, key=lambda value: (value.count("/"), value)):
+        if not any(_is_at_or_below(path, root) for root in selected):
+            selected.append(path)
+    return tuple(selected)
+
+
+def _environment_path_parts(path: str, env_template: str) -> tuple[str, str] | None:
+    """Split a concrete path into the environment root and its descendant suffix."""
+    prefix, marker, suffix = env_template.partition("{}")
+    if not marker:
+        return None
+    match = re.match(re.escape(prefix) + r"[^/]+" + re.escape(suffix), path)
+    if match is None or (match.end() < len(path) and path[match.end()] != "/"):
+        return None
+    return path[: match.end()], path[match.end() :]
 
 
 def _existing_pairs(builder: ModelBuilder) -> frozenset[tuple[int, int]]:

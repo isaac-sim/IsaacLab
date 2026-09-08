@@ -117,7 +117,14 @@ def build_source_builders(
             or ray cast.
     """
     return {
-        source: _build_source_builder(stage, source, create_builder, schema_resolvers, ignore_paths, load_visual_shapes)
+        source: _build_source_builder(
+            stage,
+            source,
+            create_builder,
+            schema_resolvers,
+            ignore_paths,
+            load_visual_shapes,
+        )[0]
         for source in sources
     }
 
@@ -129,7 +136,8 @@ def _build_source_builder(
     schema_resolvers: Sequence[Any],
     ignore_paths: Sequence[str] | None,
     load_visual_shapes: bool = True,
-) -> ModelBuilder:
+    return_deformable_results: bool = False,
+) -> tuple[ModelBuilder, dict[str, Any]]:
     """Build one source builder."""
     builder = create_builder()
     import_result = builder.add_usd(
@@ -140,6 +148,7 @@ def _build_source_builder(
         skip_mesh_approximation=False,
         schema_resolvers=schema_resolvers,
         ignore_paths=ignore_paths,
+        return_deformable_results=return_deformable_results,
     )
     _restore_visible_colliders_without_visual_shapes(
         builder, stage, import_result["path_shape_map"], load_visual_shapes
@@ -148,7 +157,7 @@ def _build_source_builder(
     if load_visual_shapes:
         import_builder_visual_material_paths(builder, stage)
     _name_root_joints_after_their_body(builder)
-    return builder
+    return builder, import_result
 
 
 def _name_root_joints_after_their_body(builder: ModelBuilder) -> None:
@@ -242,8 +251,8 @@ def replicate_builder_mapping(
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
-) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]]]:
-    """Replicate source builders, naming homogeneous copies at their destinations."""
+) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]], dict[tuple[int, int], int]]:
+    """Replicate sources and return each row/world copy's base shape index."""
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
     num_worlds = mapping.shape[1]
@@ -259,8 +268,6 @@ def replicate_builder_mapping(
         and num_worlds > 0
         and bool(mapping.all())
         and not per_world_builder_hooks
-        and bool(destinations)
-        and env_ids is not None
     )
     if can_batch:
         source_builder = source_builders[sources[0]]
@@ -281,23 +288,31 @@ def replicate_builder_mapping(
         source_xform_inv = _invert_xform(xforms_np[0])
         xforms = _compose_world_xforms(positions, quaternions, source_xform_inv)
 
-        label_groups = _label_groups(source_builder)
-        original_labels = {name: list(labels) for name, labels in label_groups.items()}
-        try:
-            prefix = _rebase_labels(source_builder, sources[0], destinations[0])
-            prefixes = [prefix.format(int(env_id)) for env_id in env_ids]
-            builder.replicate(source_builder, num_worlds, xforms=xforms, label_prefixes=prefixes)
-        finally:
-            for name, labels in original_labels.items():
-                label_groups[name][:] = labels
+        if destinations and env_ids is not None:
+            label_groups = _label_groups(source_builder)
+            original_labels = {name: list(labels) for name, labels in label_groups.items()}
+            try:
+                prefix = _rebase_labels(source_builder, sources[0], destinations[0])
+                prefixes = [prefix.format(int(env_id)) for env_id in env_ids]
+                builder.replicate(source_builder, num_worlds, xforms=xforms, label_prefixes=prefixes)
+            finally:
+                for name, labels in original_labels.items():
+                    label_groups[name][:] = labels
+        else:
+            builder.replicate(source_builder, num_worlds, xforms=xforms)
 
         for label, local_indices in site_local_indices.items():
             local_site_map[label] = [
                 [base_shape + world * stride + local for local in local_indices] for world in range(num_worlds)
             ]
 
-        bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
-        return local_site_map, world_xforms, bindings
+        bindings = (
+            rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
+            if destinations and env_ids is not None
+            else []
+        )
+        shape_offsets = {(0, world): base_shape + world * stride for world in range(num_worlds)}
+        return local_site_map, world_xforms, bindings, shape_offsets
 
     source_world_indices = mapping.argmax(axis=1)
 
@@ -318,6 +333,7 @@ def replicate_builder_mapping(
         rows_per_world[col].append(row)
         worlds_per_row.setdefault(row, []).append(col)
     source_xforms: dict[tuple[int, int], np.ndarray] = {}
+    shape_offsets: dict[tuple[int, int], int] = {}
     for row, cols in worlds_per_row.items():
         source_col = int(source_world_indices[row])
         row_xforms = _compose_world_xforms(
@@ -335,6 +351,7 @@ def replicate_builder_mapping(
         for row in rows_per_world[col]:
             source_builder = source_builders[sources[row]]
             offset = builder.shape_count
+            shape_offsets[row, col] = offset
             builder.add_builder(source_builder, xform=source_xforms[row, col])
             for label, source_shape_indices in source_site_indices.get(id(source_builder), {}).items():
                 local_indices = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col]
@@ -344,7 +361,7 @@ def replicate_builder_mapping(
         builder.end_world()
 
     bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping) if destinations else []
-    return local_site_map, world_xforms, bindings
+    return local_site_map, world_xforms, bindings, shape_offsets
 
 
 def rename_builder_labels(
