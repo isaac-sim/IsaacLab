@@ -249,11 +249,12 @@ deformables. See :doc:`mjwarp-solver` for the rigid-solver parameters.
 Use the custom manager for direct shared-model substep ordering. Use proxy
 coupling when deformable contact is localized to selected rigid bodies.
 
-Start from ``coupling_mode="two_way"``. Body-particle reactions can push the arm
-back instead of only moving the deformable, so clipping is easier to avoid than
-with one-way coupling. If the gripper still clips, lower the arm actuator
-stiffness so the arm can respond to those reactions, and for the gripper command
-fully close the fingers and let the actuator maximum effort limit the squeeze.
+Start from ``coupling_mode="two_way"``. With two-way coupling the body-particle
+reaction acts on the arm as well as the deformable, so the gripper is less
+likely to clip through the object than under one-way coupling. If it still
+clips, lower the arm actuator stiffness so the arm can yield to those reactions,
+and command the gripper to close fully, letting the actuator's maximum effort
+limit the squeeze.
 
 
 .. _newton-vbd-proxy-coupling:

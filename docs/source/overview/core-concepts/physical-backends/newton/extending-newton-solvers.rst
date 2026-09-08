@@ -80,8 +80,8 @@ post-initialization, so task configuration keeps the normal
 Lifecycle
 ---------
 
-The public entry points run in this order. Subclass hooks are private and are
-invoked by the base class.
+The public entry points run in this order. Subclass hooks are private; the base
+class invokes them.
 
 .. list-table::
    :header-rows: 1
@@ -91,13 +91,14 @@ invoked by the base class.
      - What happens
      - Subclass hooks
    * - :meth:`~isaaclab_newton.physics.NewtonManager.initialize`
-     - Binds the simulation context, gravity, and the scene data backend.
+     - Stores the simulation context, reads gravity from the simulation
+       configuration, and creates the scene data backend.
      - none
    * - :meth:`~isaaclab_newton.physics.NewtonManager.create_builder`,
        :meth:`~isaaclab_newton.physics.NewtonManager.set_builder`, or
        :meth:`~isaaclab_newton.physics.NewtonManager.instantiate_builder_from_stage`
      - Creates or imports the ``ModelBuilder``.
-     - ``_register_builder_attributes()``, except through ``set_builder()``
+     - ``_register_builder_attributes()`` (not called by ``set_builder()``)
    * - :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation`
      - Finalizes the model, then allocates states, reset masks, and Fabric
        prims.
@@ -110,7 +111,9 @@ invoked by the base class.
      - A hard reset re-runs ``start_simulation()`` and ``initialize_solver()``
        against a re-finalized model; a soft reset reuses the existing model,
        solver, contacts, and graph.
-     - the two rows above, on a hard reset only
+     - ``_register_builder_attributes()``,
+       ``_prepare_builder_for_finalize()``, ``_build_solver()``,
+       ``_initialize_contacts()`` (hard reset only)
    * - :meth:`~isaaclab_newton.physics.NewtonManager.step`
      - Runs one actuator pass plus ``num_substeps`` solver substeps, then
        updates sensors.
@@ -120,7 +123,7 @@ invoked by the base class.
    * - :meth:`~isaaclab_newton.physics.NewtonManager.pre_render`
      - Refreshes kinematics, then writes body, cable, and particle state to
        Fabric for rendering.
-     - ``_reset_solver_internals()``, through ``forward()``
+     - ``_reset_solver_internals()`` (via ``forward()``)
    * - :meth:`~isaaclab_newton.physics.NewtonManager.close` and
        :meth:`~isaaclab_newton.physics.NewtonManager.clear`
      - Releases the solver, model, and all class-level state.
@@ -134,19 +137,19 @@ register Newton custom attributes.
 ``step()`` takes one of two paths, selected by
 :meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`. When every
 actuator is on the graph-safe Newton fast path, actuators and substeps run
-together inside one graph and ``step()`` folds the whole decimation loop in, so
+together inside one graph and ``step()`` runs the whole decimation loop, so
 ``_step_solver()`` runs ``decimation x num_substeps`` times per call. Otherwise
 actuators run eagerly, only the substeps are graphed through
 ``_simulate_physics_only()``, and the environment drives decimation by calling
 ``step()`` repeatedly. Both paths reach ``_step_solver()`` through the same
 substep loop.
 
-CUDA graph capture is not tied to one call. ``initialize_solver()`` captures
+Graph capture happens at one of several points. ``initialize_solver()`` captures
 unless the graph-safe path is active; in that case
 :meth:`~isaaclab_newton.physics.NewtonManager.set_decimation` captures once the
 decimation is known, and the RTX path defers capture to the first ``step()``.
-Every route consults ``_supports_cuda_graph_capture()``; only the non-RTX route
-also consults ``_requires_initial_reset_before_graph_capture()``.
+All routes check ``_supports_cuda_graph_capture()``. The non-RTX route
+additionally checks ``_requires_initial_reset_before_graph_capture()``.
 
 .. warning::
 
@@ -161,12 +164,13 @@ Extension Contract
 ------------------
 
 A subclass must implement ``_build_solver()`` and assign four slots on
-``NewtonManager`` itself, not on ``cls``, so external readers see the canonical
-state regardless of which subclass is active.
+``NewtonManager`` itself, not on ``cls``, so code reading these attributes off
+``NewtonManager`` sees the active values regardless of which subclass is
+running.
 :meth:`~isaaclab_newton.physics.NewtonManager.initialize_solver` raises
-``RuntimeError`` if ``_solver`` is still unset. The other three slots are not
-validated and silently keep their defaults, so a subclass that forgets them runs
-with no collision pipeline and double-buffered states.
+``RuntimeError`` if ``_solver`` is still unset. The other three are not
+validated and keep their defaults, so a subclass that forgets them runs with
+double-buffered states, no collision pipeline, and no visualizer force input.
 
 .. list-table::
    :header-rows: 1
@@ -241,14 +245,13 @@ silently degrading;
 and rejects solver configurations it cannot nest.
 
 Keep the manager name prefixed with ``Newton`` and group the solver
-configuration with the other Newton solver configurations so autocomplete and
-backend discovery stay predictable.
+configuration with the other Newton solver configurations.
 
 
 Coupling Paths
 --------------
 
-Four architectures are available, and they differ in who owns the substep:
+Four architectures are available. They differ in what drives the substep loop:
 
 .. list-table::
    :header-rows: 1
@@ -280,11 +283,11 @@ Four architectures are available, and they differ in who owns the substep:
        reactions into ``body_f`` when ``coupling_mode="two_way"``, then advances
        MJWarp on its own internal contacts and VBD on the detected ones.
 
-Use a custom shared-model manager only when the substep order itself is the
-algorithm. It bypasses entry ownership resolution, so it cannot reuse the
-coupler's selectors or validation. The coupler paths keep the base manager in
-charge of state allocation, substep iteration, and synchronization; only the
-coupling policy is configured.
+Write a custom shared-model manager only if you need to control the order in
+which the sub-solvers advance within a substep. It bypasses entry ownership
+resolution, so it cannot reuse the coupler's selectors or validation. The
+coupler paths keep the base manager in charge of state allocation, substep
+iteration, and synchronization; only the coupling policy is configured.
 
 For the trade-offs between proxy and ADMM, and for the configuration fields of
 each, see :ref:`newton-coupled-solvers`.
