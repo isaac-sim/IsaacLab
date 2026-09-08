@@ -57,9 +57,33 @@ def test_get_pretrained_checkpoint_filename_includes_backends():
     assert filename == "Isaac-Cartpole_newtonmjwarp_rtx_rsl_rl.pt"
 
 
-def test_get_pretrained_checkpoint_filename_preserves_legacy_layout():
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        (("presets=depth",), ("depth",)),
+        (("presets=rgb",), ()),
+        (("physics=newton_mjwarp", "renderer=newton_renderer"), ()),
+    ],
+)
+def test_get_pretrained_checkpoint_preset_names_uses_non_default_domain_presets(overrides, expected):
+    """Test that default aliases and typed backends do not duplicate checkpoint identity fields."""
+    preset_names = pretrained_checkpoint.get_pretrained_checkpoint_preset_names(
+        "Isaac-Cartpole-Camera-Direct", overrides
+    )
+
+    assert preset_names == expected
+
+
+def test_get_pretrained_checkpoint_filename_preserves_legacy_layout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Test that callers omitting both backends retain the legacy filename."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", ["play.py", "presets=depth"])
+    cached_path = Path(".pretrained_checkpoints/rl_games/Isaac-Cartpole/checkpoint.pth")
+    cached_path.parent.mkdir(parents=True)
+    cached_path.touch()
+
     assert pretrained_checkpoint.get_pretrained_checkpoint_filename("rl_games", "Isaac-Cartpole") == "checkpoint.pth"
+    assert pretrained_checkpoint.get_published_pretrained_checkpoint("rl_games", "Isaac-Cartpole") == str(cached_path)
 
 
 def test_get_log_root_path_preserves_legacy_task_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -293,6 +317,27 @@ def test_get_published_pretrained_checkpoint_skips_the_companion_by_default(
     pretrained_checkpoint.get_published_pretrained_checkpoint("rsl_rl", "Isaac-Cartpole", "physx", "none")
 
     assert [r[0] for r in retrieved] == [remote_path]
+
+
+def test_get_published_pretrained_checkpoint_names_the_selected_presets(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """Test that a non-default domain preset qualifies both the published name and the cache directory."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    monkeypatch.setattr("sys.argv", ["play.py", "presets=depth"])
+    stem = "Isaac-Cartpole-Camera-Direct_depth_newtonmjwarp_newton_rl_games"
+    remote_path = f"omniverse://IsaacLab/PretrainedCheckpoints/rl_games/{stem}.pth"
+    retrieved = _install_fake_retrieve(monkeypatch, {remote_path})
+
+    path = pretrained_checkpoint.get_published_pretrained_checkpoint(
+        "rl_games", "Isaac-Cartpole-Camera-Direct", "newtonmjwarp", "newton"
+    )
+
+    expected_download_dir = str(Path(".pretrained_checkpoints") / "rl_games" / stem)
+    assert retrieved == [(remote_path, expected_download_dir)]
+    assert path is not None and Path(path).name == f"{stem}.pth"
 
 
 def test_get_published_pretrained_checkpoint_reports_unpublished_checkpoint(

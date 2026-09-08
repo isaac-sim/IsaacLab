@@ -104,7 +104,7 @@ def _parse_args(argv: list[str]):
 
     add_success_cli_args(parser)
 
-    args_cli, remaining_args = setup_preset_cli(parser, argv)
+    args_cli, remaining_args = setup_preset_cli(parser, argv, agent_library="rl_games")
     validate_distributed_args(parser, args_cli)
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
