@@ -111,6 +111,15 @@ def _author_transform(prim: Usd.Prim, transform, scale=None) -> None:
         xform.AddScaleOp().Set(Gf.Vec3f(float(scale[0]), float(scale[1]), float(scale[2])))
 
 
+def _srgb_to_linear(color) -> tuple[float, float, float]:
+    """Inverse of the sRGB transfer curve (IEC 61966-2-1) the importer applies to ``displayColor``."""
+
+    def channel(c: float) -> float:
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    return tuple(channel(float(c)) for c in color[:3])
+
+
 def _geo_type_name(shape_type: int) -> str:
     """Return the :class:`newton.GeoType` member name for ``shape_type``."""
     try:
@@ -319,10 +328,11 @@ def _author_shape(stage: Usd.Stage, path: str, model: Model, shape_index: int) -
     if not visible:
         UsdGeom.Imageable(prim).CreateVisibilityAttr().Set(UsdGeom.Tokens.invisible)
 
-    color = model.shape_color.numpy()[shape_index]
-    UsdGeom.Gprim(prim).CreateDisplayColorAttr().Set(
-        Vt.Vec3fArray([Gf.Vec3f(float(color[0]), float(color[1]), float(color[2]))])
-    )
+    # Newton keeps ``shape_color`` in sRGB and reads ``displayColor`` as linear, converting on import
+    # (Isaac Lab's import path does the same through ``replace_newton_builder_shape_colors``), so the
+    # inverse is authored for a reimport to land on the same colour.
+    color = _srgb_to_linear(model.shape_color.numpy()[shape_index])
+    UsdGeom.Gprim(prim).CreateDisplayColorAttr().Set(Vt.Vec3fArray([Gf.Vec3f(*color)]))
     # The physics material is authored for every shape, collider or not: Isaac Lab's randomization
     # writes per-shape friction regardless of whether a shape can contact, and the round-trip is
     # judged on the model, not on what the solver would use.

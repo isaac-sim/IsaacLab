@@ -27,6 +27,8 @@ from isaaclab_newton.sim.usd_export import export_model_to_usd, resolve_world_pr
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
+from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+
 # Model array attributes compared between the two imports. Grouped by concern so a failure names
 # the concern rather than a bare attribute list.
 BODY_ATTRS = ("body_mass", "body_inertia", "body_com", "body_q")
@@ -138,9 +140,15 @@ def _author_source_stage(
 
 
 def _load(path: str) -> tuple[newton.Model, dict]:
-    """Import ``path`` into a Newton model, returning the model and the importer's result maps."""
+    """Import ``path`` the way Isaac Lab does, returning the model and the importer's result maps.
+
+    Newton's importer colours a shape only from a bound visual material; Isaac Lab then aligns the
+    builder's colours with the stage's ``primvars:displayColor``, which is where the exporter writes
+    them. Without that step the exported colour would not survive a reimport.
+    """
     builder = newton.ModelBuilder()
     stage_info = builder.add_usd(str(path))
+    replace_newton_builder_shape_colors(builder, Usd.Stage.Open(str(path)))
     return builder.finalize(), stage_info
 
 
