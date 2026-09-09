@@ -599,9 +599,8 @@ class NewtonSiteFrameView(BaseFrameView):
         if self._fabric_sel is None and not self._initialize_fabric_mirror():
             return
 
-        # Bodies sync to Fabric at render cadence, so after a ``render=False`` step the parent matrix
-        # the local derivation below reads still holds the last rendered pose. Syncing first keeps
-        # the two spaces consistent; it is a no-op when no transform changed since the last sync.
+        # Bodies sync to Fabric only at render cadence, so after a ``render=False`` step the local
+        # derivation below would read a parent still at its last rendered pose. No-op when clean.
         NewtonManager.sync_transforms_to_usd()
 
         count = self._fabric_sel.count
@@ -637,14 +636,12 @@ class NewtonSiteFrameView(BaseFrameView):
         )
 
     def _initialize_fabric_mirror(self) -> bool:
-        """Build the Fabric selection backing :meth:`_mirror_to_fabric`.
+        """Build the Fabric selection backing :meth:`_mirror_to_fabric`, returning whether there is
+        anything to mirror (a ``False`` result is sticky).
 
-        Returns whether there is anything to mirror; a ``False`` result is sticky.
-
-        Selects with ``seed_from_usd=False`` because Newton never writes body poses back to USD, so
-        seeding a Newton-driven prim from it would reset the prim to its spawn pose.  Coverage can be
-        partial: Newton clones physics without cloning USD, so a site can be real while its
-        destination prim exists on no stage at all, and those have nothing to draw.
+        Seeding from USD is off because Newton never writes poses back, so it would reset the prim to
+        its spawn pose. Coverage can be partial: Newton clones physics without cloning USD, so a site
+        can be real while its destination prim exists on no stage, and those have nothing to draw.
         """
         if self._mirror_disabled or self._site_prim_paths is None or self._count == 0:
             self._mirror_disabled = True
@@ -658,8 +655,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 skip_missing_prims=True,
             )
         except ImportError:
-            # No Fabric runtime (kitless run, no renderer): the site state is still correct, there is
-            # simply nothing consuming the mirrored transforms.
+            # No Fabric runtime (kitless run): the site state is still correct, nothing consumes it.
             self._mirror_disabled = True
             logger.info("Fabric runtime unavailable; Newton site poses will not be mirrored to prims.")
             return False
@@ -674,10 +670,8 @@ class NewtonSiteFrameView(BaseFrameView):
                 " the rest have no prim on the stage (physics-only clones) and nothing to render."
             )
 
-        # This view only ever writes through the selection.  Beyond access rights, refreshing the
-        # read-write selection is what notifies the renderer that the matrices changed -- writing
-        # through the read-only one still lands the values in Fabric, but the image keeps showing the
-        # old pose.
+        # Refreshing the read-write selection is what notifies the renderer: a write through the
+        # read-only one lands in Fabric, but the image keeps showing the old pose.
         selection.read_write = True
         self._fabric_sel = selection
         self._mirror_site_indices = wp.array(selection.kept_indices, dtype=wp.int32, device=self._device)

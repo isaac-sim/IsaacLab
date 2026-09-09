@@ -18,15 +18,8 @@ logger = logging.getLogger(__name__)
 
 
 def _parent_path(prim_path: str) -> str:
-    """Parent prim path of ``prim_path``.
-
-    Args:
-        prim_path: Absolute prim path, so it always contains a separator.
-
-    Raises:
-        RuntimeError: If the prim is directly under the stage root and thus has no non-pseudoroot
-            parent to read Fabric matrices from.
-    """
+    """Parent prim path of ``prim_path``, which must not be directly under the stage root: a
+    pseudoroot parent carries no Fabric matrices to read."""
     parent = prim_path.rsplit("/", 1)[0]
     if not parent:
         raise RuntimeError(
@@ -123,9 +116,8 @@ class FabricXformSelection:
         self.unique_parent_paths = list(dict.fromkeys(child_parent_paths))
         parent_ordinal = {path: i for i, path in enumerate(self.unique_parent_paths)}
 
-        # Tag children and parents with their per-instance ordinal, and make sure the matrices the
-        # accessors below hand out actually exist. The index attribute doubles as the selection
-        # filter, so a prim that is both a child and a parent here receives both attributes.
+        # Tag children and parents with their ordinal and author the matrices the accessors hand
+        # out. The tag doubles as the selection filter, so a prim in both groups gets both tags.
         for paths, index_attr, is_child in (
             (self._prim_paths, self.child_index_attr, True),
             (self.unique_parent_paths, self._parent_index_attr, False),
@@ -167,9 +159,8 @@ class FabricXformSelection:
         self.sel_rw = self.stage.SelectPrims(require_attrs=[child_tag, world_rw, local_rw], device=device)
         self.sel_parent = self.stage.SelectPrims(require_attrs=[parent_tag, world_ro], device=device)
 
-        # ``_child_parent_map`` holds view-side indices (uint32, like the Fabric ``UInt`` index
-        # attributes); the slot buffers hold Fabric slots and must be int32, the only dtype
-        # ``wp.indexedfabricarray`` accepts for indices.
+        # View-side indices are uint32 to match the Fabric ``UInt`` tags; slot buffers must be
+        # int32, the only index dtype ``wp.indexedfabricarray`` accepts.
         self.view_indices = wp.array(list(range(self.count)), dtype=wp.uint32, device=device)
         self.parent_view_indices = wp.array(list(range(len(self.unique_parent_paths))), dtype=wp.uint32, device=device)
         self._child_parent_map = wp.array(
@@ -259,8 +250,8 @@ class FabricXformSelection:
     def refresh_child_selection(self):
         """Refresh the active child selection and rebuild its slot mapping on device.
 
-        ``PrepareForReuse`` absorbs Fabric bucket changes, and notifies the renderer for the
-        read-write selection -- which is why writers must select it, not just for access rights.
+        ``PrepareForReuse`` absorbs bucket changes and, on the read-write selection, notifies the
+        renderer -- which is why writers must select it.
         """
         selection = self.sel_rw if self.read_write else self.sel_ro
         selection.PrepareForReuse()
