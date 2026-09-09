@@ -5,17 +5,26 @@
 
 """Shared CLI, graph metadata, and recurrent-state helpers for LEAPP policy export."""
 
+# ruff: noqa: E402, I001
+
 from __future__ import annotations
 
 import argparse
+import os
+import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    import torch
-    from leapp import GraphConfigs
+import torch
+from leapp import GraphConfigs
 
-    from isaaclab.envs import DirectRLEnvCfg, ManagerBasedEnvCfg
+# TorchScript must be disabled before importing task or environment modules because
+# ``@torch.jit.script`` compiles at decoration time.
+torch.jit._state.disable()
+
+from isaaclab.app import AppLauncher
+from isaaclab.envs import DirectRLEnvCfg, ManagerBasedEnvCfg
+
+from isaaclab_tasks.utils import setup_preset_cli
 
 
 def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: str) -> None:
@@ -25,7 +34,6 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
         parser: Argument parser to extend.
         agent_default: Default Hydra agent configuration entry point for the backend.
     """
-    from isaaclab.app import AppLauncher
 
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
     parser.add_argument(
@@ -86,29 +94,66 @@ def finalize_export_args(
     agent_library: str | None = None,
 ) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments with preset support and force headless mode."""
-    from isaaclab_tasks.utils import setup_preset_cli
 
     args_cli, hydra_args = setup_preset_cli(parser, argv, agent_library=agent_library)
     args_cli.headless = True
     return args_cli, hydra_args
 
 
-def disable_torchscript_for_export() -> None:
-    """Disable TorchScript compilation so ``@torch.jit.script`` helpers stay traceable.
+def get_checkpoint_path(
+    log_path: str,
+    run_dir: str = ".*",
+    checkpoint: str = ".*",
+    other_dirs: list[str] | None = None,
+    sort_alpha: bool = True,
+    preferred_checkpoint: str | None = None,
+) -> str:
+    """Resolve a model checkpoint from a run directory.
 
-    LEAPP traces the observation and action pipeline in Python. A compiled
-    :class:`torch.jit.ScriptFunction` is opaque to the tracer, so any environment
-    quantity flowing through one (for example the quaternion helpers in
-    ``isaaclab.utils.math``) is folded into the graph as a constant and the exported
-    policy fails validation once that quantity changes.
+    The checkpoint is selected from ``<log_path>/<run_dir>/<*other_dirs>``.
+    Run and checkpoint names may be regular expressions. The latest matching
+    run and naturally sorted checkpoint are returned.
 
-    Call this before importing task or environment modules: :func:`torch.jit.script`
-    compiles at decoration time, so disabling afterwards has no effect on helpers that
-    were already imported.
+    Args:
+        log_path: Log directory containing training runs.
+        run_dir: Regular expression matching a run directory.
+        checkpoint: Regular expression matching checkpoint files.
+        other_dirs: Literal intermediate directories below the run directory.
+        sort_alpha: Sort runs alphabetically instead of by modification time.
+        preferred_checkpoint: Optional checkpoint expression to try first.
+
+    Returns:
+        Path to the selected checkpoint.
+
+    Raises:
+        ValueError: If no matching run or checkpoint exists.
     """
-    import torch
+    try:
+        runs = [
+            os.path.join(log_path, run.name)
+            for run in os.scandir(log_path)
+            if run.is_dir() and re.match(run_dir, run.name)
+        ]
+        runs.sort() if sort_alpha else runs.sort(key=os.path.getmtime)
+        run_path = os.path.join(runs[-1], *other_dirs) if other_dirs is not None else runs[-1]
+    except (IndexError, FileNotFoundError):
+        raise ValueError(f"No runs present in the directory: '{log_path}' match: '{run_dir}'.")
 
-    torch.jit._state.disable()
+    model_checkpoints = []
+    if preferred_checkpoint is not None:
+        model_checkpoints = [name for name in os.listdir(run_path) if re.match(preferred_checkpoint, name)]
+    if not model_checkpoints:
+        model_checkpoints = [name for name in os.listdir(run_path) if re.match(checkpoint, name)]
+    if not model_checkpoints:
+        patterns = f"'{checkpoint}'"
+        if preferred_checkpoint is not None:
+            patterns = f"'{preferred_checkpoint}' nor '{checkpoint}'"
+        raise ValueError(f"No checkpoints in the directory: '{run_path}' match {patterns}.")
+
+    model_checkpoints.sort(
+        key=lambda name: [int(token) if token.isdigit() else token for token in re.split(r"(\d+)", name)]
+    )
+    return os.path.join(run_path, model_checkpoints[-1])
 
 
 def create_graph_configs(env_cfg: ManagerBasedEnvCfg | DirectRLEnvCfg) -> GraphConfigs:
@@ -120,7 +165,6 @@ def create_graph_configs(env_cfg: ManagerBasedEnvCfg | DirectRLEnvCfg) -> GraphC
     Returns:
         Graph metadata containing the policy frequency [Hz].
     """
-    from leapp import GraphConfigs
 
     policy_frequency = 1.0 / (env_cfg.sim.dt * env_cfg.decimation)
     return GraphConfigs(frequency=policy_frequency)
@@ -128,7 +172,6 @@ def create_graph_configs(env_cfg: ManagerBasedEnvCfg | DirectRLEnvCfg) -> GraphC
 
 def is_two_tensor_lstm_state(states: object) -> bool:
     """Return whether *states* looks like an LSTM ``[hidden, cell]`` state."""
-    import torch
 
     return (
         isinstance(states, (list, tuple))

@@ -5,6 +5,8 @@
 
 """Script to export a checkpoint of an RL agent from Stable-Baselines3."""
 
+# ruff: noqa: E402, I001
+
 from __future__ import annotations
 
 import argparse
@@ -14,34 +16,44 @@ import sys
 import time
 from pathlib import Path
 
+import torch
+
+# LEAPP traces Isaac Lab's Python tensor operations, so disable TorchScript before
+# importing task or environment modules that compile decorated helpers.
+torch.jit._state.disable()
+
+import gymnasium as gym
+import leapp
+from leapp import annotate
+from stable_baselines3 import PPO
+from stable_baselines3.common.save_util import load_from_pkl, load_from_zip_file
+
+from isaaclab.app import launch_simulation
+from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.utils.assets import retrieve_file_path
+from isaaclab.utils.leapp import patch_env_for_export
+from isaaclab.utils.leapp.utils import ensure_env_spec_id
+
 from isaaclab_rl.entrypoints.backends.export_common import (
     add_common_export_args,
     create_graph_configs,
-    disable_torchscript_for_export,
     finalize_export_args,
+    get_checkpoint_path,
     state_dict_from_sequence,
     state_sequence_from_registered,
 )
+from isaaclab_rl.entrypoints.common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
+from isaaclab_rl.utils.pretrained_checkpoint import (
+    get_pretrained_checkpoint_backend_names,
+    get_published_pretrained_checkpoint,
+)
 
-_RUNTIME_IMPORTS_LOADED = False
+from isaaclab_tasks.utils.hydra import hydra_task_config
 
-torch = None
-leapp = None
-annotate = None
-gym = None
-PPO = None
-RecurrentPPO = None
-ManagerBasedRLEnv = None
-retrieve_file_path = None
-patch_env_for_export = None
-ensure_env_spec_id = None
-get_pretrained_checkpoint_backend_names = None
-get_published_pretrained_checkpoint = None
-get_checkpoint_path = None
-resolve_checkpoint_selector = None
-load_from_pkl = None
-load_from_zip_file = None
-CHECKPOINT_SELECTORS = None
+try:
+    from sb3_contrib import RecurrentPPO
+except ImportError:
+    RecurrentPPO = None
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
@@ -49,76 +61,6 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
     parser = argparse.ArgumentParser(description="Export an RL agent with Stable-Baselines3.")
     add_common_export_args(parser, agent_default="sb3_cfg_entry_point")
     return finalize_export_args(parser, argv, agent_library="sb3")
-
-
-def _load_runtime_dependencies() -> None:
-    """Import runtime dependencies after Isaac Sim has been launched."""
-    global _RUNTIME_IMPORTS_LOADED
-    global CHECKPOINT_SELECTORS, ManagerBasedRLEnv, PPO, RecurrentPPO, annotate, gym, leapp
-    global ensure_env_spec_id, get_checkpoint_path, get_pretrained_checkpoint_backend_names
-    global get_published_pretrained_checkpoint
-    global load_from_pkl, load_from_zip_file, patch_env_for_export, resolve_checkpoint_selector, retrieve_file_path
-    global torch
-
-    if _RUNTIME_IMPORTS_LOADED:
-        return
-
-    try:
-        import leapp as leapp_module
-    except ImportError as e:
-        raise ImportError("LEAPP package is required for policy export. Install with: pip install leapp") from e
-    annotate_module = getattr(leapp_module, "annotate")
-
-    import gymnasium as gym_module
-    import torch as torch_module
-    from stable_baselines3 import PPO as PPOCls
-    from stable_baselines3.common.save_util import load_from_pkl as load_from_pkl_fn
-    from stable_baselines3.common.save_util import load_from_zip_file as load_from_zip_file_fn
-
-    try:
-        from sb3_contrib import RecurrentPPO as RecurrentPPOCls
-    except ImportError:
-        RecurrentPPOCls = None
-
-    from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
-    from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
-    from isaaclab.utils.leapp import patch_env_for_export as patch_env_for_export_fn
-    from isaaclab.utils.leapp.utils import ensure_env_spec_id as ensure_env_spec_id_fn
-
-    from isaaclab_rl.entrypoints.common import (
-        CHECKPOINT_SELECTORS as CHECKPOINT_SELECTORS_VALUE,
-    )
-    from isaaclab_rl.entrypoints.common import (
-        resolve_checkpoint_selector as resolve_checkpoint_selector_fn,
-    )
-    from isaaclab_rl.utils.pretrained_checkpoint import (
-        get_pretrained_checkpoint_backend_names as get_pretrained_checkpoint_backend_names_fn,
-    )
-    from isaaclab_rl.utils.pretrained_checkpoint import (
-        get_published_pretrained_checkpoint as get_published_pretrained_checkpoint_fn,
-    )
-
-    __import__("isaaclab_tasks")
-    from isaaclab_tasks.utils import get_checkpoint_path as get_checkpoint_path_fn
-
-    torch = torch_module
-    leapp = leapp_module
-    annotate = annotate_module
-    gym = gym_module
-    PPO = PPOCls
-    RecurrentPPO = RecurrentPPOCls
-    ManagerBasedRLEnv = ManagerBasedRLEnvCls
-    retrieve_file_path = retrieve_file_path_fn
-    patch_env_for_export = patch_env_for_export_fn
-    ensure_env_spec_id = ensure_env_spec_id_fn
-    get_pretrained_checkpoint_backend_names = get_pretrained_checkpoint_backend_names_fn
-    get_published_pretrained_checkpoint = get_published_pretrained_checkpoint_fn
-    get_checkpoint_path = get_checkpoint_path_fn
-    resolve_checkpoint_selector = resolve_checkpoint_selector_fn
-    load_from_pkl = load_from_pkl_fn
-    load_from_zip_file = load_from_zip_file_fn
-    CHECKPOINT_SELECTORS = CHECKPOINT_SELECTORS_VALUE
-    _RUNTIME_IMPORTS_LOADED = True
 
 
 def _vec_normalize_path(checkpoint_path: str) -> Path:
@@ -130,6 +72,7 @@ def _vec_normalize_path(checkpoint_path: str) -> Path:
 
 def _normalize_tensor(value, running_stats, vec_normalize):
     """Normalize one observation tensor with saved SB3 running statistics."""
+
     mean = torch.as_tensor(running_stats.mean, device=value.device, dtype=value.dtype)
     variance = torch.as_tensor(running_stats.var, device=value.device, dtype=value.dtype)
     normalized = (value - mean) / torch.sqrt(variance + vec_normalize.epsilon)
@@ -156,6 +99,7 @@ def is_sb3_recurrent_policy(policy) -> bool:
 
 def initialize_sb3_recurrent_state(policy, num_envs: int):
     """Create the actor LSTM hidden and cell state expected by an SB3 recurrent policy."""
+
     shape = policy.lstm_hidden_state_shape
     state_shape = (shape[0], num_envs, shape[2])
     zeros = torch.zeros(state_shape, device=policy.device, dtype=torch.float32)
@@ -164,6 +108,7 @@ def initialize_sb3_recurrent_state(policy, num_envs: int):
 
 def _policy_actions(policy, obs, recurrent_state=None):
     """Run deterministic SB3 policy inference without crossing a NumPy boundary."""
+
     policy.set_training_mode(False)
     if recurrent_state is None:
         if hasattr(policy, "_predict"):
@@ -185,6 +130,7 @@ def _policy_actions(policy, obs, recurrent_state=None):
 
 def _scale_or_clip_actions(policy, actions):
     """Match the Box-action post-processing performed by :meth:`BasePolicy.predict`."""
+
     action_space = policy.action_space
     if not hasattr(action_space, "low") or not hasattr(action_space, "high"):
         return actions
@@ -197,6 +143,7 @@ def _scale_or_clip_actions(policy, actions):
 
 def _load_agent(checkpoint_path: str, device: str):
     """Load PPO or RecurrentPPO according to the policy class stored in the checkpoint."""
+
     try:
         checkpoint_data, _, _ = load_from_zip_file(checkpoint_path, device=device)
     except ModuleNotFoundError as e:
@@ -221,6 +168,7 @@ def _load_agent(checkpoint_path: str, device: str):
 
 def _resolve_checkpoint(args_cli: argparse.Namespace, task_name: str, env_cfg) -> str | None:
     """Resolve the SB3 checkpoint selected by the export arguments."""
+
     if args_cli.checkpoint == "pretrained":
         backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
         return get_published_pretrained_checkpoint("sb3", task_name, *backend_names)
@@ -254,7 +202,6 @@ def export_sb3_agent(
     simulation_app=None,
 ) -> bool:
     """Export a Stable-Baselines3 policy."""
-    _load_runtime_dependencies()
 
     task_name = args_cli.task.split(":")[-1]
     checkpoint_task_name = task_name.replace("-Play", "")
@@ -373,12 +320,6 @@ def export_sb3_agent(
 
 def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -> bool:
     """Resolve Hydra task configuration and export one SB3 policy."""
-    # Must run before the imports below pull in the task modules.
-    disable_torchscript_for_export()
-
-    from isaaclab.app import launch_simulation
-
-    from isaaclab_tasks.utils.hydra import hydra_task_config
 
     original_argv = sys.argv
     sys.argv = [sys.argv[0]] + hydra_args

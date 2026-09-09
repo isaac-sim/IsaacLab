@@ -23,18 +23,31 @@ def _load_export_common_module() -> ModuleType:
 
 
 def _load_backend_export_module(backend: str) -> ModuleType:
-    """Load an installed backend exporter without importing Isaac Sim runtime modules."""
-    module = importlib.import_module(f"isaaclab_rl.entrypoints.backends.export_{backend}")
-
-    if backend in ("rl_games", "skrl"):
-        setattr(module, "is_two_tensor_lstm_state", _load_export_common_module().is_two_tensor_lstm_state)
-    elif backend == "rsl_rl":
-        setattr(module, "torch", torch)
-    return module
+    """Load an exporter when its optional backend package is installed."""
+    pytest.importorskip(backend)
+    return importlib.import_module(f"isaaclab_rl.entrypoints.backends.export_{backend}")
 
 
 class TestSharedRecurrentState:
     """Tests for recurrent-state helpers shared by the export backends."""
+
+    def test_checkpoint_path_naturally_sorts_numbered_files(self, tmp_path):
+        """Select the latest numbered checkpoint without importing the task package."""
+        export_common = _load_export_common_module()
+        checkpoint_dir = tmp_path / "run" / "checkpoints"
+        checkpoint_dir.mkdir(parents=True)
+        (checkpoint_dir / "model_9.pt").touch()
+        expected = checkpoint_dir / "model_10.pt"
+        expected.touch()
+
+        resolved = export_common.get_checkpoint_path(
+            str(tmp_path),
+            run_dir="run",
+            checkpoint=r"model_.*\.pt",
+            other_dirs=["checkpoints"],
+        )
+
+        assert resolved == str(expected)
 
     def test_lstm_state_detection_requires_two_tensors(self):
         """Check that only two-tensor recurrent state is treated as LSTM feedback."""

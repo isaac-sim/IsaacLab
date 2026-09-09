@@ -127,7 +127,6 @@ def _load_export_module():
     """Load the installed LEAPP RSL-RL exporter."""
     from isaaclab_rl.entrypoints.backends import export_rsl_rl as module
 
-    module.torch = torch
     return module
 
 

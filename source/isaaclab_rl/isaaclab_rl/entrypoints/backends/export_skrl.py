@@ -5,6 +5,8 @@
 
 """Script to export a checkpoint if an RL agent from skrl."""
 
+# ruff: noqa: E402, I001
+
 from __future__ import annotations
 
 import argparse
@@ -13,38 +15,44 @@ import os
 import sys
 import time
 
+import torch
+
+# LEAPP traces Isaac Lab's Python tensor operations, so disable TorchScript before
+# importing task or environment modules that compile decorated helpers.
+torch.jit._state.disable()
+
+import gymnasium as gym
+import leapp
+from leapp import annotate
+from packaging import version
+import skrl
+from skrl.utils.runner.torch import Runner
+
+from isaaclab.app import launch_simulation
+from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnv, multi_agent_to_single_agent
+from isaaclab.utils.assets import retrieve_file_path
+from isaaclab.utils.leapp import patch_env_for_export
+from isaaclab.utils.leapp.utils import ensure_env_spec_id
+from isaaclab.utils.seed import configure_seed
+
 from isaaclab_rl.entrypoints.backends.export_common import (
     add_common_export_args,
     create_graph_configs,
-    disable_torchscript_for_export,
     finalize_export_args,
+    get_checkpoint_path,
     is_two_tensor_lstm_state,
     state_dict_from_sequence,
     state_sequence_from_registered,
 )
+from isaaclab_rl.skrl import SkrlVecEnvWrapper
+from isaaclab_rl.utils.pretrained_checkpoint import (
+    get_pretrained_checkpoint_backend_names,
+    get_published_pretrained_checkpoint,
+)
+
+from isaaclab_tasks.utils.hydra import hydra_task_config
 
 SKRL_VERSION = "2.1.0"
-_RUNTIME_IMPORTS_LOADED = False
-
-torch = None
-leapp = None
-annotate = None
-gym = None
-skrl = None
-version = None
-Runner = None
-DirectMARLEnvCfg = None
-ManagerBasedRLEnv = None
-SkrlVecEnvWrapper = None
-configure_seed = None
-multi_agent_to_single_agent = None
-retrieve_file_path = None
-patch_env_for_export = None
-ensure_env_spec_id = None
-get_pretrained_checkpoint_backend_names = None
-get_published_pretrained_checkpoint = None
-get_checkpoint_path = None
-hydra_task_config = None
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
@@ -68,79 +76,6 @@ def _algorithm_from_agent_entry_point(agent_cfg_entry_point: str) -> str:
     if prefix.startswith("skrl_"):
         return prefix[len("skrl_") :].lower()
     return prefix.lower()
-
-
-def _load_runtime_dependencies() -> None:
-    """Import runtime dependencies after Isaac Sim has been launched."""
-    global _RUNTIME_IMPORTS_LOADED
-    global DirectMARLEnvCfg, ManagerBasedRLEnv, Runner, SkrlVecEnvWrapper, annotate, get_checkpoint_path, gym, leapp
-    global ensure_env_spec_id, get_pretrained_checkpoint_backend_names, get_published_pretrained_checkpoint
-    global hydra_task_config, multi_agent_to_single_agent
-    global patch_env_for_export, retrieve_file_path, skrl, torch, version
-    global configure_seed
-
-    if _RUNTIME_IMPORTS_LOADED:
-        return
-
-    try:
-        import leapp as leapp_module
-    except ImportError as e:
-        raise ImportError("LEAPP package is required for policy export. Install with: pip install leapp") from e
-    annotate_module = getattr(leapp_module, "annotate")
-
-    import gymnasium as gym_module
-    import skrl as skrl_module
-    import torch as torch_module
-    from packaging import version as version_module
-    from skrl.utils.runner.torch import Runner as RunnerCls
-
-    from isaaclab.envs import DirectMARLEnvCfg as DirectMARLEnvCfgCls
-    from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
-    from isaaclab.envs import multi_agent_to_single_agent as multi_agent_to_single_agent_fn
-    from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
-    from isaaclab.utils.leapp import patch_env_for_export as patch_env_for_export_fn
-    from isaaclab.utils.leapp.utils import ensure_env_spec_id as ensure_env_spec_id_fn
-    from isaaclab.utils.seed import configure_seed as configure_seed_fn
-
-    from isaaclab_rl.skrl import SkrlVecEnvWrapper as SkrlVecEnvWrapperCls
-    from isaaclab_rl.utils.pretrained_checkpoint import (
-        get_pretrained_checkpoint_backend_names as get_pretrained_checkpoint_backend_names_fn,
-    )
-    from isaaclab_rl.utils.pretrained_checkpoint import (
-        get_published_pretrained_checkpoint as get_published_pretrained_checkpoint_fn,
-    )
-
-    __import__("isaaclab_tasks")
-    from isaaclab_tasks.utils import get_checkpoint_path as get_checkpoint_path_fn
-    from isaaclab_tasks.utils.hydra import hydra_task_config as hydra_task_config_fn
-
-    if version_module.parse(skrl_module.__version__) < version_module.parse(SKRL_VERSION):
-        skrl_module.logger.error(
-            f"Unsupported skrl version: {skrl_module.__version__}. "
-            f"Install supported version using 'pip install skrl>={SKRL_VERSION}'"
-        )
-        raise RuntimeError(f"Unsupported skrl version: {skrl_module.__version__}")
-
-    torch = torch_module
-    leapp = leapp_module
-    annotate = annotate_module
-    gym = gym_module
-    skrl = skrl_module
-    version = version_module
-    Runner = RunnerCls
-    DirectMARLEnvCfg = DirectMARLEnvCfgCls
-    ManagerBasedRLEnv = ManagerBasedRLEnvCls
-    SkrlVecEnvWrapper = SkrlVecEnvWrapperCls
-    configure_seed = configure_seed_fn
-    multi_agent_to_single_agent = multi_agent_to_single_agent_fn
-    retrieve_file_path = retrieve_file_path_fn
-    patch_env_for_export = patch_env_for_export_fn
-    ensure_env_spec_id = ensure_env_spec_id_fn
-    get_pretrained_checkpoint_backend_names = get_pretrained_checkpoint_backend_names_fn
-    get_published_pretrained_checkpoint = get_published_pretrained_checkpoint_fn
-    get_checkpoint_path = get_checkpoint_path_fn
-    hydra_task_config = hydra_task_config_fn
-    _RUNTIME_IMPORTS_LOADED = True
 
 
 def is_skrl_lstm_policy(agent) -> bool:
@@ -181,7 +116,12 @@ def export_skrl_agent(
     simulation_app=None,
 ) -> bool:
     """Export a skrl agent."""
-    _load_runtime_dependencies()
+    if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
+        skrl.logger.error(
+            f"Unsupported skrl version: {skrl.__version__}. "
+            f"Install supported version using 'pip install skrl>={SKRL_VERSION}'"
+        )
+        raise RuntimeError(f"Unsupported skrl version: {skrl.__version__}")
 
     task_name = args_cli.task.split(":")[-1]
     checkpoint_task_name = task_name.replace("-Play", "")
@@ -305,12 +245,6 @@ def export_skrl_agent(
 
 def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -> bool:
     """Resolve Hydra task configuration and export one skrl policy."""
-    # Must run before the imports below pull in the task modules.
-    disable_torchscript_for_export()
-
-    from isaaclab.app import launch_simulation
-
-    from isaaclab_tasks.utils.hydra import hydra_task_config
 
     agent_cfg_entry_point = args_cli.agent
     original_argv = sys.argv
