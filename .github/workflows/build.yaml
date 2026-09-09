@@ -169,6 +169,25 @@ jobs:
         echo "ci_image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}" >> "$GITHUB_OUTPUT"
         echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}"
 
+  test-dockerfile-contract:
+    name: dockerfile-contract
+    # Static analysis of the Dockerfile text: no image, no GPU, no Isaac Sim.
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+      with:
+        enable-cache: true
+
+    - name: Run Dockerfile contract tests
+      shell: bash
+      run: |
+        set -euo pipefail
+        uv run --no-project --no-build --with pytest==9.1.1 \
+          python -m pytest -q docker/test/test_dockerfile_nonroot.py
+
   #region build jobs
   build:
     name: Build Base Docker Image
@@ -182,6 +201,15 @@ jobs:
         fetch-depth: 1
         lfs: true
 
+    # The GPU runners have no uv on PATH; the invariant check below needs it.
+    - name: Set up uv
+      uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+      with:
+        enable-cache: true
+
+    # #6329 aborts the pip install when it strands a prebundled package's __init__.py
+    # (nvbugs 6343978: 14 Isaac Sim extensions fail to load). The images install with
+    # ``uv sync``, which never runs that guard, so assert the same invariant on the image.
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
