@@ -26,20 +26,15 @@ def parent_path(prim_path: str) -> str:
 class FabricXformSelection:
     """Tagged Fabric selections over a set of prims and their parents.
 
-    Reading or writing ``omni:fabric:worldMatrix`` / ``omni:fabric:localMatrix`` from Warp needs three
-    things that are fiddly enough to be worth sharing: the prims have to carry an attribute that a
-    ``SelectPrims`` query can filter on, the selection's ordering has to be mapped back to view order
-    on every access, and the tags have to be removed again when the owner goes away. This class owns
-    all three so that both :class:`~isaaclab_physx.sim.views.FabricFrameView` (which treats Fabric as
-    its source of truth) and :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` (which only
-    pushes Newton state onto it) can share the machinery without sharing their semantics.
+    Shared by :class:`~isaaclab_physx.sim.views.FabricFrameView`, which treats Fabric as its source of
+    truth, and :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`, which only pushes Newton state
+    onto it; :meth:`__init__` takes the flags that separate those two semantics.
 
-    Selections are keyed on a per-instance index attribute, which keeps their size proportional to the
-    view rather than to the stage. Three are kept alive for the instance's lifetime: child read-only,
-    child read-write (:attr:`read_write` selects between them), and parent world read-only.
-
-    The mapping from view index to Fabric slot is rebuilt from live Fabric data on every accessor call
-    rather than cached, so a Fabric bucket reorder can never leave a stale mapping behind.
+    Selections are keyed on a per-instance index attribute, keeping their size proportional to the
+    view rather than to the stage. Three live for the instance's lifetime: child read-only, child
+    read-write (:attr:`read_write` selects between them), and parent world read-only. The view-index
+    to Fabric-slot mapping is rebuilt from live Fabric data on every accessor call rather than cached,
+    so a bucket reorder can never leave a stale mapping behind.
     """
 
     _WORLD_MATRIX_NAME = "omni:fabric:worldMatrix"
@@ -206,12 +201,12 @@ class FabricXformSelection:
 
     @property
     def fabric_hierarchy(self):
-        """The Fabric hierarchy handle, or ``None`` when the bindings are unavailable."""
+        """Fabric hierarchy handle, or ``None`` when the bindings are unavailable."""
         return self._fabric_hierarchy
 
     @property
     def child_index_attr(self) -> str:
-        """Name of the per-instance index attribute authored on the selected prims."""
+        """Per-instance index attribute authored on the selected prims."""
         return self._child_index_attr
 
     @property
@@ -221,7 +216,7 @@ class FabricXformSelection:
 
     @property
     def parent_view_indices(self) -> wp.array:
-        """Dense ``uint32`` parent indices, ``0..len(unique_parent_paths)-1``."""
+        """Dense ``uint32`` parent indices."""
         return self._parent_view_indices
 
     @property
@@ -267,11 +262,7 @@ class FabricXformSelection:
         )
 
     def child_ifas(self) -> tuple[wp.indexedfabricarray, wp.indexedfabricarray]:
-        """Return ``(world, local)`` from a single selection refresh.
-
-        Callers needing both must use this rather than :meth:`world_ifa` and :meth:`local_ifa`, which
-        would refresh the same selection -- and re-run its mapping kernel -- twice.
-        """
+        """Return ``(world, local)`` from one refresh; cheaper than calling both single accessors."""
         selection = self.refresh_child_selection()
         world = wp.fabricarray(selection, self._WORLD_MATRIX_NAME)
         local = wp.fabricarray(selection, self._LOCAL_MATRIX_NAME)
@@ -288,10 +279,7 @@ class FabricXformSelection:
         )
 
     def parent_world_rw_ifa(self) -> wp.indexedfabricarray:
-        """Return parent world matrices for writing, in parent order.
-
-        Uses a one-off read-write selection so the persistent parent selection stays read-only.
-        """
+        """Return writable parent world matrices, via a one-off selection so :attr:`sel_parent` stays read-only."""
         import usdrt
 
         selection = self._stage.SelectPrims(
@@ -339,10 +327,8 @@ class FabricXformSelection:
     def refresh_child_selection(self):
         """Refresh the active child selection and rebuild its slot mapping on device.
 
-        ``PrepareForReuse`` lets the persistent selection absorb Fabric bucket changes (and notifies
-        the renderer for the read-write selection); a single Warp kernel launch over the selection's
-        index attribute then rebuilds the slot buffer so that entry ``i`` is the Fabric-side slot of
-        view prim ``i``.
+        ``PrepareForReuse`` absorbs Fabric bucket changes, and notifies the renderer for the
+        read-write selection -- which is why writers must select it, not just for access rights.
         """
         selection = self._sel_rw if self._read_write else self._sel_ro
         selection.PrepareForReuse()
@@ -356,12 +342,7 @@ class FabricXformSelection:
         return selection
 
     def refresh_parent_selection(self) -> None:
-        """Refresh the parent selection and rebuild the per-child parent-slot mapping.
-
-        Two kernel launches: the first inverts the parent index attribute into per-ordinal Fabric
-        slots, the second gathers those slots per child (children sharing a parent read the same
-        slot).
-        """
+        """Refresh the parent selection and rebuild the per-child parent-slot mapping."""
         num_parents = self._parent_slots_buf.shape[0]
         self._sel_parent.PrepareForReuse()
         self.check_count(self._sel_parent.GetCount(), num_parents, self._parent_index_attr)

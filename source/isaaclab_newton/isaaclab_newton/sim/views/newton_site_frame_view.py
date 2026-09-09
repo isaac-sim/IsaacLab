@@ -294,16 +294,12 @@ class NewtonSiteFrameView(BaseFrameView):
                     self._site_label_scales.append(scale)
                     self._site_label_prim_paths.append(spec_paths)
                 else:
-                    # A lone pattern is the cloned ``.*`` form, whose one label covers every
-                    # environment; explicit per-environment patterns take one path each.
-                    single_pattern = len(body_patterns) == 1
-                    for index, body_pattern in enumerate(body_patterns):
+                    # Only reached before the model exists, where a spec always resolves to one
+                    # pattern -- the cloned ``.*`` form -- whose label covers every environment.
+                    for body_pattern in body_patterns:
                         self._site_labels.append(NewtonManager.cl_register_site(body_pattern, xform))
                         self._site_label_scales.append(scale)
-                        if spec_paths is None:
-                            self._site_label_prim_paths.append(None)
-                        else:
-                            self._site_label_prim_paths.append(spec_paths if single_pattern else (spec_paths[index],))
+                        self._site_label_prim_paths.append(spec_paths)
             self._physics_ready_handle = NewtonManager.register_callback(
                 self._on_physics_ready, PhysicsEvent.PHYSICS_READY, name=f"site_view_{self._prim_path}"
             )

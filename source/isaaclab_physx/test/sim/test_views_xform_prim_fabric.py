@@ -237,13 +237,13 @@ def test_fabric_rebuild_after_topology_change(device, view_factory):
 
     # Simulate topology change: refresh both child selections and the parent
     # selection, mirroring the accessor paths.
-    view._refresh_child_selection()  # RO (steady state)
-    view._is_rw = True
+    view._fabric_sel.refresh_child_selection()  # RO (steady state)
+    view._fabric_sel.read_write = True
     try:
-        view._refresh_child_selection()  # RW (writer scope)
+        view._fabric_sel.refresh_child_selection()  # RW (writer scope)
     finally:
-        view._is_rw = False
-    view._refresh_parent_selection()
+        view._fabric_sel.read_write = False
+    view._fabric_sel.refresh_parent_selection()
 
     # Trigger another write through the rebuilt arrays.
     new = wp.zeros((2, 3), dtype=wp.float32, device=device)
@@ -275,7 +275,7 @@ def test_writer_scope_exception_recovers_state(device, view_factory):
     view.get_world_poses()  # ensure Fabric is initialized
 
     # Snapshot pre-scope tracking state.
-    h = view._fabric_hierarchy
+    h = view._fabric_sel.fabric_hierarchy
     was_tracking_local = h.tracking_local_xform_changes if h is not None else None
     was_tracking_world = h.tracking_world_xform_changes if h is not None else None
 
@@ -292,7 +292,7 @@ def test_writer_scope_exception_recovers_state(device, view_factory):
         assert h.tracking_local_xform_changes == was_tracking_local
         assert h.tracking_world_xform_changes == was_tracking_world
     # _is_rw flipped back.
-    assert view._is_rw is False
+    assert view._fabric_sel.read_write is False
     # World/local mutually consistent: re-reading both spaces succeeds and the
     # world positions reflect the partial write we made before the exception.
     world_pos, _ = view.get_world_poses()
@@ -326,9 +326,9 @@ def test_prepare_for_reuse_detects_topology_change(device, view_factory):
     view = bundle.view
     view.get_world_poses()  # trigger Fabric init
 
-    assert view._sel_ro is not None, "RO selection not initialized"
-    assert view._sel_rw is not None, "RW selection not initialized"
-    for selection in (view._sel_ro, view._sel_rw):
+    assert view._fabric_sel.sel_ro is not None, "RO selection not initialized"
+    assert view._fabric_sel.sel_rw is not None, "RW selection not initialized"
+    for selection in (view._fabric_sel.sel_ro, view._fabric_sel.sel_rw):
         result = selection.PrepareForReuse()
         assert isinstance(result, bool), f"PrepareForReuse should return bool, got {type(result)}"
         assert not result, "PrepareForReuse should return False when no topology change"
@@ -347,14 +347,14 @@ def test_selections_match_only_the_view_prims(device, view_factory):
     view = bundle.view
     view.get_world_poses()  # trigger Fabric init
 
-    for name in ("_sel_ro", "_sel_rw"):
-        count = getattr(view, name).GetCount()
+    for name in ("sel_ro", "sel_rw"):
+        count = getattr(view._fabric_sel, name).GetCount()
         assert count == view.count, (
             f"{name} matched {count} prims but the view manages {view.count}. "
             "The selection is not scoped by the per-view index attribute, so it is "
             "picking up unrelated prims from the stage."
         )
-    parent_count = view._sel_parent.GetCount()
+    parent_count = view._fabric_sel.sel_parent.GetCount()
     assert parent_count == num_envs, f"parent selection matched {parent_count} prims, expected {num_envs}"
 
 
@@ -362,7 +362,7 @@ def _count_prims_with_tag(view, attr: str) -> int:
     """Number of prims on the view's Fabric stage carrying ``attr``."""
     import usdrt  # noqa: PLC0415
 
-    sel = view._stage.SelectPrims(
+    sel = view._fabric_sel.stage.SelectPrims(
         require_attrs=[(usdrt.Sdf.ValueTypeNames.UInt, attr, usdrt.Usd.Access.Read)], device="cpu"
     )
     return sel.GetCount()
@@ -375,7 +375,7 @@ def test_close_removes_index_attributes(device, view_factory):
     view = bundle.view
     view.get_world_poses()  # trigger Fabric init (authors the tags)
 
-    child_attr = view._child_index_attr
+    child_attr = view._fabric_sel.child_index_attr
     assert _count_prims_with_tag(view, child_attr) == view.count
     view.close()
     assert _count_prims_with_tag(view, child_attr) == 0, "close() left index attributes behind"
@@ -401,8 +401,8 @@ def test_garbage_collection_removes_index_attributes_and_warns(device, caplog):
     view = FrameView("/World/Parent_[^/]*/Child", device=device)
     view.get_world_poses()
 
-    child_attr = view._child_index_attr
-    stage = view._stage  # keep a stage handle to count tags after the view dies
+    child_attr = view._fabric_sel.child_index_attr
+    stage = view._fabric_sel.stage  # keep a stage handle to count tags after the view dies
     assert _count_prims_with_tag(view, child_attr) == view.count
 
     with caplog.at_level(logging.WARNING, logger="isaaclab_physx.sim.views.fabric_frame_view"):
@@ -420,7 +420,7 @@ def test_garbage_collection_removes_index_attributes_and_warns(device, caplog):
 
 def _read_fabric_world_matrix_translation(view, prim_index=0):
     """Read cached Fabric worldMatrix directly, without FrameView getter sync."""
-    rt_prim = view._stage.GetPrimAtPath(view.prim_paths[prim_index])
+    rt_prim = view._fabric_sel.stage.GetPrimAtPath(view.prim_paths[prim_index])
     world_attr = rt_prim.GetAttribute(view._WORLD_MATRIX_NAME)
     matrix = world_attr.Get()
     translation = matrix.ExtractTranslation()
@@ -435,7 +435,7 @@ def _read_fabric_world_matrix_scale(view, prim_index=0):
     """Read cached Fabric worldMatrix scale directly, without FrameView getter sync."""
     import usdrt  # noqa: PLC0415
 
-    rt_prim = view._stage.GetPrimAtPath(view.prim_paths[prim_index])
+    rt_prim = view._fabric_sel.stage.GetPrimAtPath(view.prim_paths[prim_index])
     world_attr = rt_prim.GetAttribute(view._WORLD_MATRIX_NAME)
     matrix = world_attr.Get()
     scale = usdrt.Gf.Transform(matrix).GetScale()
@@ -448,7 +448,7 @@ def _read_fabric_world_matrix_scale(view, prim_index=0):
 
 def _read_fabric_local_matrix_translation(view, prim_index=0):
     """Read cached Fabric localMatrix directly, without FrameView getter sync."""
-    rt_prim = view._stage.GetPrimAtPath(view.prim_paths[prim_index])
+    rt_prim = view._fabric_sel.stage.GetPrimAtPath(view.prim_paths[prim_index])
     local_attr = rt_prim.GetAttribute(view._LOCAL_MATRIX_NAME)
     matrix = local_attr.Get()
     translation = matrix.ExtractTranslation()
@@ -1082,7 +1082,7 @@ def test_writer_restores_hierarchy_change_tracking(device, view_factory):
     bundle = view_factory(num_envs=1, device=device)
     view = bundle.view
     view.get_world_poses()
-    h = view._fabric_hierarchy
+    h = view._fabric_sel.fabric_hierarchy
     if h is None:
         pytest.skip("Fabric hierarchy bindings are unavailable in this headless experience")
 

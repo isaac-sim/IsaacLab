@@ -151,7 +151,7 @@ class FabricFrameView(BaseFrameView):
       access, so prims moving between Fabric buckets can never leave a stale
       mapping behind.  If a managed prim disappears (prim or attribute removed)
       the next access raises :class:`RuntimeError` and the view must be
-      recreated.  See ``_refresh_child_selection`` for how this is done.
+      recreated.  See :class:`FabricXformSelection` for how this is done.
 
     Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`; the
     convenience :meth:`set_world_poses` / :meth:`set_local_poses` helpers accept
@@ -265,55 +265,6 @@ class FabricFrameView(BaseFrameView):
     @property
     def prim_paths(self) -> list[str]:
         return self._usd_view.prim_paths
-
-    # ------------------------------------------------------------------
-    # Fabric selection state
-    #
-    # Owned by ``_fabric_sel``; surfaced under the original private names so the
-    # rest of this class -- and the tests that reach into it -- keep working.
-    # ------------------------------------------------------------------
-
-    @property
-    def _is_rw(self) -> bool:
-        """Whether the child accessors resolve to the read-write selection."""
-        return self._fabric_sel is not None and self._fabric_sel.read_write
-
-    @_is_rw.setter
-    def _is_rw(self, value: bool) -> None:
-        if self._fabric_sel is not None:
-            self._fabric_sel.read_write = value
-
-    @property
-    def _stage(self):
-        return None if self._fabric_sel is None else self._fabric_sel.stage
-
-    @property
-    def _fabric_hierarchy(self):
-        return None if self._fabric_sel is None else self._fabric_sel.fabric_hierarchy
-
-    @property
-    def _sel_ro(self):
-        return None if self._fabric_sel is None else self._fabric_sel.sel_ro
-
-    @property
-    def _sel_rw(self):
-        return None if self._fabric_sel is None else self._fabric_sel.sel_rw
-
-    @property
-    def _sel_parent(self):
-        return None if self._fabric_sel is None else self._fabric_sel.sel_parent
-
-    @property
-    def _child_index_attr(self) -> str | None:
-        return None if self._fabric_sel is None else self._fabric_sel.child_index_attr
-
-    @property
-    def _unique_parent_paths(self) -> list[str]:
-        return [] if self._fabric_sel is None else self._fabric_sel.unique_parent_paths
-
-    @property
-    def _view_indices(self):
-        return None if self._fabric_sel is None else self._fabric_sel.view_indices
 
     # ------------------------------------------------------------------
     # Delegated operations (USD-only)
@@ -504,7 +455,7 @@ class FabricFrameView(BaseFrameView):
                 world_ifa,
                 self._get_parent_world_ifa(),
                 local_ifa,
-                self._view_indices,
+                self._fabric_sel.view_indices,
             ],
             device=self._device,
         )
@@ -525,7 +476,7 @@ class FabricFrameView(BaseFrameView):
                 local_ifa,
                 self._get_parent_world_ifa(),
                 world_ifa,
-                self._view_indices,
+                self._fabric_sel.view_indices,
             ],
             device=self._device,
         )
@@ -552,24 +503,12 @@ class FabricFrameView(BaseFrameView):
     def _get_parent_world_ifa(self) -> wp.indexedfabricarray:
         return self._fabric_sel.parent_world_ifa()
 
-    def _check_selection_count(self, found: int, expected: int, index_attr: str) -> None:
-        """Raise if a selection stopped matching exactly the view's tagged prims."""
-        self._fabric_sel.check_count(found, expected, index_attr)
-
-    def _refresh_child_selection(self):
-        """Refresh the active child selection and rebuild its slot mapping on device."""
-        return self._fabric_sel.refresh_child_selection()
-
-    def _refresh_parent_selection(self) -> None:
-        """Refresh the parent selection and rebuild the per-child parent-slot mapping."""
-        self._fabric_sel.refresh_parent_selection()
-
     def _resolve_indices_wp(self, indices: wp.array | None) -> wp.array:
         """Resolve view indices as a Warp uint32 array."""
         if indices is None or indices == slice(None):
-            if self._view_indices is None:
+            if self._fabric_sel is None:
                 raise RuntimeError("Fabric view indices are not initialized.")
-            return self._view_indices
+            return self._fabric_sel.view_indices
         if indices.dtype == wp.uint32:
             return indices
         if indices.dtype == wp.int32:
@@ -612,11 +551,11 @@ class FabricFrameView(BaseFrameView):
         # Seed Fabric matrices from USD authoritatively.  The seed writes, so
         # flip onto the RW selection for its duration; flip back afterwards so
         # steady-state getters use the RO selection.
-        self._is_rw = True
+        self._fabric_sel.read_write = True
         try:
             self._sync_fabric_from_usd_initial()
         finally:
-            self._is_rw = False
+            self._fabric_sel.read_write = False
 
     def _sync_fabric_from_usd_initial(self) -> None:
         """Populate Fabric world+local matrices for children and parents from USD.
@@ -632,20 +571,20 @@ class FabricFrameView(BaseFrameView):
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=self.count,
             inputs=[
-                self._get_local_ifa(),  # caller holds ``_is_rw=True``: init-time write, no scope yet
+                self._get_local_ifa(),  # caller holds ``read_write=True``: init-time write, no scope yet
                 _to_float32_2d(local_pos_ta.warp),
                 _to_float32_2d(local_ori_ta.warp),
                 _to_float32_2d(scales_wp),
                 False,
                 False,
                 False,
-                self._view_indices,
+                self._fabric_sel.view_indices,
             ],
             device=self._device,
         )
 
         # --- Parents (one entry per unique parent path) ---
-        unique_parent_paths = self._unique_parent_paths
+        unique_parent_paths = self._fabric_sel.unique_parent_paths
         if unique_parent_paths:
             from isaaclab.sim.utils import get_current_stage  # noqa: PLC0415
 
@@ -721,12 +660,12 @@ class _FabricWriterMixin:
 
     On enter: pauses ``track_local_xform_changes`` / ``track_world_xform_changes``
     on the Fabric hierarchy (saving prior state) and flips the view's
-    ``_is_rw`` so all get/set helpers resolve to the persistent RW selection
+    ``read_write`` so all get/set helpers resolve to the persistent RW selection
     (both selections are kept alive for the view's lifetime).
 
     On exit (normal or via exception): runs a best-effort opposite-space
     derive + ``wp.synchronize()`` whenever any write happened inside the
-    scope, then flips ``_is_rw`` back to ``False`` (RO selection for
+    scope, then flips ``read_write`` back to ``False`` (RO selection for
     steady-state reads) and restores hierarchy-tracking state.
 
     **Exception safety.** If the scope unwinds because of an exception
@@ -748,7 +687,7 @@ class _FabricWriterMixin:
         if not view._fabric_initialized:
             view._initialize_fabric()
         self._wrote_anything = False
-        h = view._fabric_hierarchy
+        h = view._fabric_sel.fabric_hierarchy
         self._was_tracking_local = h is not None and h.tracking_local_xform_changes
         self._was_tracking_world = h is not None and h.tracking_world_xform_changes
         if h is not None:
@@ -756,7 +695,7 @@ class _FabricWriterMixin:
                 h.track_local_xform_changes(False)
             if self._was_tracking_world:
                 h.track_world_xform_changes(False)
-        view._is_rw = True
+        view._fabric_sel.read_write = True
 
     def _exit_impl(self, exc_type, exc_val, exc_tb) -> None:
         view: FabricFrameView = self._view  # type: ignore[assignment]
@@ -782,8 +721,8 @@ class _FabricWriterMixin:
         finally:
             # Flip back to RO before restoring hierarchy tracking so any
             # subsequent updateWorldXforms tick sees a fully-RO selection.
-            view._is_rw = False
-            h = view._fabric_hierarchy
+            view._fabric_sel.read_write = False
+            h = view._fabric_sel.fabric_hierarchy
             if h is not None:
                 if self._was_tracking_world:
                     h.track_world_xform_changes(True)

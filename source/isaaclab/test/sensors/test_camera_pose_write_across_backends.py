@@ -5,21 +5,14 @@
 
 """Camera pose writes must take effect on every physics backend.
 
-:meth:`Camera.set_world_poses` writes through the sensor's :class:`FrameView`. Under PhysX that view is
-Fabric-backed (:class:`FabricFrameView`), so the RTX renderer -- which reads the USD/Fabric camera prim --
-follows the write. Under Newton the view is a :class:`NewtonSiteFrameView`, whose writes land in Warp
-state and are mirrored onto the camera prim's Fabric transforms when the writer scope exits.
-
-Both tests move a downward-looking camera straight up over a ground plane, which multiplies the distance
-to every visible surface, and check the two observable consequences of the write:
-
-- ``_moves_reported_pose_*`` reads ``camera.data.pos_w`` (deterministic, no renderer involved).
-- ``_moves_render_*`` compares the rendered depth before and after the move.
+Both tests move a downward-looking camera straight up over a ground plane, multiplying the distance to
+every visible surface, and check the two observable consequences: ``camera.data.pos_w`` (no renderer
+involved) and the rendered depth.
 
 The render check is not redundant with the Fabric-level coverage in
 ``isaaclab_newton/test/physics/test_newton_fabric_body_sync.py``. Writing through a read-only Fabric
-selection still lands the new matrix in Fabric -- a test that reads the matrix back passes -- while the
-renderer is never notified and keeps drawing the old pose. Only rendered output distinguishes the two.
+selection still lands the matrix in Fabric -- so a test that reads it back passes -- while the renderer
+is never notified and keeps drawing the old pose. Only rendered output separates the two.
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -67,12 +60,11 @@ class _SceneCfg(InteractiveSceneCfg):
 def _capture_at_heights(physics_cfg, heights_m: tuple[float, ...]) -> list[tuple[torch.Tensor, float]]:
     """Move the camera to each height in turn, returning its ``(pos_w, mean visible depth [m])`` at each.
 
-    The camera looks straight down at the ground plane, so the depth it reports is dominated by its height.
-    It spawns at the first height rather than at the origin, so that a dropped pose write leaves a valid
-    (but unchanged) depth image rather than an empty one.
+    The camera looks straight down, so its reported depth is dominated by its height. It spawns at the
+    first height rather than the origin, so a dropped write leaves an unchanged image, not an empty one.
 
     Args:
-        physics_cfg: The physics backend configuration to build the simulation with.
+        physics_cfg: Physics backend configuration to build the simulation with.
         heights_m: Camera heights [m] above the ground plane to capture at, in order.
     """
     device = "cuda:0"
@@ -122,7 +114,7 @@ def _capture_at_heights(physics_cfg, heights_m: tuple[float, ...]) -> list[tuple
 @pytest.mark.parametrize("physics_cfg", BACKEND_CFGS, ids=BACKEND_IDS)
 def test_camera_pose_write_moves_reported_pose(physics_cfg):
     """``camera.data.pos_w`` follows a ``set_world_poses`` write on every backend."""
-    # Camera heights [m] above the ground plane, and the reported shift below which the write was dropped.
+    # Heights [m], and the reported shift below which the write counts as dropped.
     close_m, far_m = 2.0, 8.0
     pose_shift_threshold_m = 0.5 * (far_m - close_m)
 
@@ -139,9 +131,8 @@ def test_camera_pose_write_moves_reported_pose(physics_cfg):
 @pytest.mark.parametrize("physics_cfg", BACKEND_CFGS, ids=BACKEND_IDS)
 def test_camera_pose_write_moves_render(physics_cfg):
     """The rendered depth follows a ``set_world_poses`` write on every backend."""
-    # Camera heights [m] above the ground plane. The true far-to-close depth ratio is ~4x; 1.5 leaves room
-    # for the ground plane filling different fractions of the frame while still failing hard if the render
-    # does not move at all.
+    # True far-to-close ratio is ~4x; 1.5 tolerates framing differences while still failing hard if the
+    # render does not move at all.
     close_m, far_m = 2.0, 8.0
     depth_ratio_threshold = 1.5
 
