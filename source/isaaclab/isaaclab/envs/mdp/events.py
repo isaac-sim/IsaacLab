@@ -2665,7 +2665,7 @@ class randomize_visual_texture_material(ManagerTermBase):
         # check to make sure replicate_physics is set to False, else raise error
         # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode
         #   and the event manager doesn't check in that case.
-        if env.cfg.scene.clone_cfg.replicate_physics:
+        if env.scene.cloner_cfg.replicate_physics:
             raise RuntimeError(
                 "Unable to randomize visual texture material with scene replication enabled."
                 " For stable USD-level randomization, please disable scene replication"
@@ -2849,7 +2849,7 @@ class randomize_visual_color(ManagerTermBase):
         # check to make sure replicate_physics is set to False, else raise error
         # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode
         #   and the event manager doesn't check in that case.
-        if env.cfg.scene.clone_cfg.replicate_physics:
+        if env.scene.cloner_cfg.replicate_physics:
             raise RuntimeError(
                 "Unable to randomize visual color with scene replication enabled."
                 " For stable USD-level randomization, please disable scene replication"

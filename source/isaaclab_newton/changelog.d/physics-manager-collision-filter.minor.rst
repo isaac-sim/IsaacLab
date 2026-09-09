@@ -1,6 +1,5 @@
 Added
 ^^^^^
 
-* Added Newton realization of declarative collision groups and replicated-environment isolation in
-  its native cloning pipeline, including every generated native shape for a selected authored collider.
-  Requests using USD-only replication now fail explicitly when they require clone-plan filtering.
+* Added Newton realization of collision groups and environment isolation for every native shape generated from a
+  selected collider. USD-only replication fails explicitly when a clone plan requires filtering.

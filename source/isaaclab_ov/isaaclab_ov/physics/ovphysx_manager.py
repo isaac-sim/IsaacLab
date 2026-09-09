@@ -19,6 +19,7 @@ import math
 import os
 import re
 import stat
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
@@ -47,7 +48,7 @@ from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR
 
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
-    from isaaclab.physics import CollisionFilterCfg
+    from isaaclab.physics import CollisionGroupCfg
     from isaaclab.sim.simulation_context import SimulationContext
 
     from .ovphysx_manager_cfg import OvPhysxCfg
@@ -414,6 +415,7 @@ class OvPhysxManager(PhysicsManager):
     _next_control_ordinal: ClassVar[int] = 2
     _requires_full_stage: ClassVar[bool] = False
     _clone_plan: ClassVar[ClonePlan | None] = None
+    _clone_collision_filter_groups: ClassVar[dict[str, CollisionGroupCfg] | None] = None
     _clone_environment_isolation: ClassVar[bool | None] = None
     # Device mode is process-wide; later contexts must reuse the first selected device.
     _locked_device: ClassVar[str | None] = None
@@ -431,30 +433,27 @@ class OvPhysxManager(PhysicsManager):
     _gravity: ClassVar[tuple[float, float, float] | None] = None
 
     @classmethod
-    def _apply_collision_filter_impl(cls, plan: ClonePlan, cfg: CollisionFilterCfg | None) -> None:
-        """Configure clone-world isolation supported by the OVPhysX runtime."""
-        if cfg is not None and cfg.groups:
-            raise NotImplementedError(
-                "OvPhysxManager does not yet support PhysicsCfg.collision_filter; use Isaac Sim PhysX or Newton."
-            )
-        sim = PhysicsManager._sim
-        assert sim is not None
+    def _apply_collision_filter_impl(cls, plan: ClonePlan, groups: dict[str, CollisionGroupCfg] | None) -> None:
+        """Select the native or USD realization of OVPhysX collision policy."""
+        has_group_policy = bool(groups)
         has_multiple_environments = cls._has_multiple_environments(plan)
         # Full-stage serialization also needs the plan to materialize clone roots when collision isolation is off.
-        cls._clone_plan = plan
+        cls._clone_plan = deepcopy(plan)
+        cls._clone_collision_filter_groups = deepcopy(groups) if has_group_policy else None
         use_runtime_ids = (
             plan.isolate_environments
             and plan.replicate_physics
             and cls._runtime_environment_ids_are_sufficient(plan)
             and not cls._requires_full_stage
+            and not has_group_policy
         )
-        if has_multiple_environments and (
-            not plan.replicate_physics or plan.isolate_environments and not use_runtime_ids
+        if (
+            has_group_policy
+            or has_multiple_environments
+            and (not plan.replicate_physics or (plan.isolate_environments and not use_runtime_ids))
         ):
             cls.require_full_stage()
         cls._clone_environment_isolation = use_runtime_ids
-        if plan.isolate_environments and has_multiple_environments and not use_runtime_ids:
-            cls._author_environment_isolation(sim.stage, plan)
 
     @staticmethod
     def _has_multiple_environments(plan: ClonePlan) -> bool:
@@ -592,6 +591,7 @@ class OvPhysxManager(PhysicsManager):
         cls._warmup_done = False
         cls._requires_full_stage = False
         cls._clone_plan = None
+        cls._clone_collision_filter_groups = None
         cls._clone_environment_isolation = None
         cls._stage_usda = None
         cls._pending_clones = []
@@ -686,6 +686,7 @@ class OvPhysxManager(PhysicsManager):
                 cls._warmup_done = False
                 cls._requires_full_stage = False
                 cls._clone_plan = None
+                cls._clone_collision_filter_groups = None
                 cls._clone_environment_isolation = None
                 cls._active_clone_recipes = []
                 cls._pending_clones = []
@@ -886,34 +887,6 @@ class OvPhysxManager(PhysicsManager):
     # ------------------------------------------------------------------
 
     @classmethod
-    def _author_environment_isolation(cls, stage: Any, plan: ClonePlan) -> None:
-        """Author or validate legacy USD groups used by the OVPhysX full-stage fallback."""
-        sim = PhysicsManager._sim
-        if sim is None or plan.env_ids is None:
-            raise RuntimeError("OvPhysxManager: cannot author environment isolation without a clone plan.")
-
-        from pxr import Usd  # noqa: PLC0415
-
-        from isaaclab.physics._usd_collision_groups import (  # noqa: PLC0415
-            _author_environment_isolation_groups,
-            _matches_environment_isolation_groups,
-        )
-
-        env_paths = [plan.env_template.format(int(env_id)) for env_id in plan.env_ids]
-        global_paths = list(plan.global_paths)
-        args = (stage, sim.cfg.physics_prim_path, "/World/collisions", env_paths, global_paths)
-        if _matches_environment_isolation_groups(*args):
-            return
-        if any(prim.IsA(UsdPhysics.CollisionGroup) for prim in stage.Traverse(Usd.TraverseInstanceProxies())):
-            raise NotImplementedError(
-                "OvPhysxManager cannot combine USD environment isolation with authored collision groups; "
-                "use native GPU cloning or remove the authored groups."
-            )
-        if stage.GetPrimAtPath("/World/collisions").IsValid():
-            raise RuntimeError("OvPhysxManager collision-filter namespace is occupied at '/World/collisions'.")
-        _author_environment_isolation_groups(*args)
-
-    @classmethod
     def _materialize_clone_environment_roots(cls, layer: Any) -> None:
         """Create missing plan environment roots before full-stage clone materialization."""
         plan = cls._clone_plan
@@ -931,11 +904,10 @@ class OvPhysxManager(PhysicsManager):
             raise RuntimeError("OvPhysxManager: failed to open the flattened stage for environment materialization.")
         for column, env_id in enumerate(plan.env_ids):
             path = plan.env_template.format(int(env_id))
-            if stage.GetPrimAtPath(path).IsValid():
-                continue
             env = UsdGeom.Xform.Define(stage, path)
-            position = (0.0, 0.0, 0.0) if plan.positions is None else map(float, plan.positions[column])
-            env.AddTranslateOp().Set(Gf.Vec3d(*position))
+            if plan.positions is None or env.GetOrderedXformOps():
+                continue
+            env.AddTranslateOp().Set(Gf.Vec3d(*map(float, plan.positions[column])))
 
     @classmethod
     def _materialize_pending_clones_in_layer(cls, layer: Any) -> int:
@@ -1042,7 +1014,7 @@ class OvPhysxManager(PhysicsManager):
         if cls._requires_full_stage:
             cls._materialize_clone_environment_roots(layer)
             cls._materialize_pending_clones_in_layer(layer)
-            cls._author_full_stage_environment_isolation(layer)
+            cls._author_full_stage_collision_filter(layer)
             logger.info("OvPhysxManager: serialized the full USD stage in memory")
         else:
             removed_count = cls._strip_nonzero_environments(layer)
@@ -1056,17 +1028,26 @@ class OvPhysxManager(PhysicsManager):
         return layer.ExportToString()
 
     @classmethod
-    def _author_full_stage_environment_isolation(cls, layer: Any) -> None:
-        """Author deferred USD isolation after full-stage clone materialization."""
+    def _author_full_stage_collision_filter(cls, layer: Any) -> None:
+        """Author deferred USD collision policy after full-stage clone materialization."""
         plan = cls._clone_plan
-        if plan is None or not plan.isolate_environments or plan.env_ids is None or len(plan.env_ids) < 2:
+        groups = cls._clone_collision_filter_groups
+        has_group_policy = bool(groups)
+        needs_environment_isolation = (
+            plan is not None and plan.isolate_environments and plan.env_ids is not None and len(plan.env_ids) > 1
+        )
+        if plan is None or (not has_group_policy and not needs_environment_isolation):
             return
         from pxr import Usd  # noqa: PLC0415
 
         exported_stage = Usd.Stage.Open(layer)
         if exported_stage is None:
-            raise RuntimeError("OvPhysxManager: failed to open the flattened stage for collision isolation.")
-        cls._author_environment_isolation(exported_stage, plan)
+            raise RuntimeError("OvPhysxManager: failed to open the flattened stage for collision filtering.")
+        from isaaclab.physics._physx_collision_filter import apply_collision_filter  # noqa: PLC0415
+
+        sim = PhysicsManager._sim
+        assert sim is not None
+        apply_collision_filter(exported_stage, sim.cfg.physics_prim_path, plan, groups)
 
     @classmethod
     def _replay_pending_clones(cls, physx: Any, requires_full_stage: bool) -> None:

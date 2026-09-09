@@ -53,6 +53,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=8192,
         env_spacing=0.75,
+        replicate_physics=True,
     )
     # reset
     reset_position_noise = 0.01  # range of position at reset

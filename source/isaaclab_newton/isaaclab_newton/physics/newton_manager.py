@@ -15,6 +15,7 @@ import logging
 import re
 from abc import abstractmethod
 from collections.abc import Callable, Iterable, Sequence
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -117,7 +118,7 @@ if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
     from isaaclab.cloner import ClonePlan
-    from isaaclab.physics import CollisionFilterCfg
+    from isaaclab.physics import CollisionGroupCfg
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
@@ -559,7 +560,7 @@ class NewtonManager(PhysicsManager):
     # path. Single-model consumers (e.g. batched Newton IK) finalize a single-env
     # model from these and resolve it via ``query.path_to_source``.
     _cl_protos: dict[str, ModelBuilder] = {}
-    _cl_collision_filter_cfg: CollisionFilterCfg | None = None
+    _cl_collision_filter_groups: dict[str, CollisionGroupCfg] | None = None
     _deformable_registry: list = []
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
 
@@ -577,6 +578,7 @@ class NewtonManager(PhysicsManager):
 
         cls.clone_context_type = NewtonReplicateContext
         sim_context.get_or_create_backend(NewtonReplicateContext, sim_context)
+        cls._cl_collision_filter_groups = None
 
         # Newton-specific setup: get gravity from SimulationCfg (not physics manager cfg)
         sim = PhysicsManager._sim
@@ -599,9 +601,9 @@ class NewtonManager(PhysicsManager):
         cls._scene_data_backend = NewtonSceneDataBackend()
 
     @classmethod
-    def _apply_collision_filter_impl(cls, plan: ClonePlan, cfg: CollisionFilterCfg | None) -> None:
+    def _apply_collision_filter_impl(cls, plan: ClonePlan, groups: dict[str, CollisionGroupCfg] | None) -> None:
         """Bind resolved collision policy for the pending Newton replication."""
-        has_group_policy = cfg is not None and bool(cfg.groups)
+        has_group_policy = bool(groups)
         num_environments = 0 if plan.env_ids is None else len(plan.env_ids)
         rows = () if cls.clone_context_type is None else plan.context_rows.get(cls.clone_context_type, ())
         needs_isolation = plan.isolate_environments and num_environments > 1 and bool(rows)
@@ -622,7 +624,7 @@ class NewtonManager(PhysicsManager):
                 "cross-environment collisions cannot be enabled."
             )
         if rows:
-            NewtonManager._cl_collision_filter_cfg = cfg
+            NewtonManager._cl_collision_filter_groups = deepcopy(groups)
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -1235,7 +1237,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._cl_fabric_body_bindings = None
         NewtonManager._world_xforms = None
         NewtonManager._cl_protos = {}
-        NewtonManager._cl_collision_filter_cfg = None
+        NewtonManager._cl_collision_filter_groups = None
         NewtonManager._pending_extended_state_attributes = set()
         NewtonManager._active_extended_state_attributes = set()
         NewtonManager._pending_extended_contact_attributes = set()
@@ -1935,11 +1937,7 @@ class NewtonManager(PhysicsManager):
                 indices=wp.array(faces, dtype=wp.int32, device=device),
             )
             heightfield, xform = Heightfield.create_from_mesh(wp_mesh, resolution)
-            builder.add_shape_heightfield(
-                heightfield=heightfield,
-                xform=xform,
-                label=mesh_prim.GetPath().pathString,
-            )
+            builder.add_shape_heightfield(heightfield=heightfield, xform=xform, label=mesh_prim.GetPath().pathString)
             logger.info(
                 "Converted terrain collider %s (%d faces) to a %dx%d heightfield.",
                 prim.GetPath().pathString,

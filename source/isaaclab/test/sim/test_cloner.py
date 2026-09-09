@@ -26,7 +26,6 @@ import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.cloner import (
     REPLICATION_QUEUE,
-    CloneCfg,
     ClonePlan,
     UsdReplicateContext,
     grid_transforms,
@@ -331,7 +330,6 @@ def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
         cfgs=[cube],
         num_clones=4,
         env_spacing=1.0,
-        clone_cfg=CloneCfg(),
         global_paths=("/World/Ground",),
     )
 
@@ -412,8 +410,8 @@ def test_make_clone_plan_heterogeneous_mutates_spawn_paths(sim):
         cfgs=[multi_cfg, plain_cfg],
         num_clones=4,
         env_spacing=1.0,
-        clone_cfg=CloneCfg(clone_strategy=sequential),
         global_paths=("/World/Ground",),
+        clone_strategy=sequential,
     )
 
     assert plan.destinations == (
@@ -434,7 +432,6 @@ def test_make_clone_plan_records_globals_outside_replication_rows(sim):
         cfgs=[],
         num_clones=3,
         env_spacing=1.0,
-        clone_cfg=CloneCfg(),
         global_paths=("/World/global/Robot", "/World/ground"),
     )
 
@@ -457,9 +454,7 @@ def test_clone_plan_from_env_0_populates_cfg_rows_and_global_paths(sim):
 
     src, dest = "/World/envs/env_0", "/World/envs/env_{}"
     pos = grid_transforms(4, 1.0)[0]
-    plan = cloner.clone_plan_from_env_0(
-        src, 4, CloneCfg(clone_template=dest), pos, global_paths=("/World/global/Light",)
-    )
+    plan = cloner.clone_plan_from_env_0(src, dest, 4, pos, global_paths=("/World/global/Light",))
 
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
@@ -483,7 +478,6 @@ def test_replicate_session_clears_queue_when_asset_init_fails(sim):
             cfgs=[],
             num_clones=2,
             env_spacing=1.0,
-            clone_cfg=CloneCfg(),
         ) as session:
             assert sim.get_clone_plan() is session.plan
             leaked_cfg.cloning_contexts = (sentinel_cls,)

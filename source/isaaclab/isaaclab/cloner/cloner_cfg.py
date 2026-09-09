@@ -88,18 +88,25 @@ class CloneCfg:
     physics manager combines it with any collider-level policy during replication.
     """
 
-    def validate_config(self) -> None:
-        """Validate cloner execution settings."""
-        if not callable(self.clone_strategy):
-            raise TypeError("CloneCfg.clone_strategy must be callable.")
-        if not isinstance(self.clone_template, str):
-            raise TypeError("CloneCfg.clone_template must be a string.")
-        if self.clone_template.count("{}") != 1:
-            raise ValueError("CloneCfg.clone_template must contain exactly one '{}' environment-id slot.")
-        if not isinstance(self.replicate_physics, bool):
-            raise TypeError("CloneCfg.replicate_physics must be a bool.")
-        if not isinstance(self.isolate_environments, bool):
-            raise TypeError("CloneCfg.isolate_environments must be a bool.")
+
+def _resolve_clone_cfg(
+    clone_cfg: CloneCfg | None = None,
+    *,
+    clone_strategy: Callable[[np.ndarray, int], np.ndarray] | None = None,
+    clone_template: str | None = None,
+    replicate_physics: bool | None = None,
+) -> CloneCfg:
+    """Return a policy snapshot with legacy inputs folded into it."""
+    if clone_cfg is not None and not isinstance(clone_cfg, CloneCfg):
+        raise TypeError(f"clone_cfg must be a CloneCfg or None, got {type(clone_cfg).__name__}.")
+    resolved = CloneCfg() if clone_cfg is None else clone_cfg.copy()
+    if clone_strategy is not None:
+        resolved.clone_strategy = clone_strategy
+    if clone_template is not None:
+        resolved.clone_template = clone_template
+    if replicate_physics is not None:
+        resolved.replicate_physics = replicate_physics
+    return resolved
 
 
 def add(this: CloneCfg, other: InclusionSet) -> CloneCfg:

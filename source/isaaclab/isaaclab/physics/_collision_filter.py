@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .physics_manager_cfg import CollisionFilterCfg
+from .physics_manager_cfg import CollisionGroupCfg
 
 
 @dataclass(frozen=True)
@@ -23,8 +23,8 @@ class _CompiledGroup:
 class CompiledCollisionFilter:
     """Resolve path membership and symmetric deny-wins group policy."""
 
-    def __init__(self, cfg: CollisionFilterCfg, env_template: str):
-        """Compile *cfg* selectors using the clone plan's environment template."""
+    def __init__(self, groups: dict[str, CollisionGroupCfg], env_template: str):
+        """Compile group selectors using the clone plan's environment template."""
         try:
             env_regex_ns = env_template.format("[^/]+")
         except (IndexError, KeyError, ValueError) as exc:
@@ -38,7 +38,7 @@ class CompiledCollisionFilter:
                 filtered_groups=frozenset(group.filtered_groups),
                 invert_filtered_groups=group.invert_filtered_groups,
             )
-            for name, group in cfg.groups.items()
+            for name, group in groups.items()
         }
 
     def memberships(self, prim_path: str) -> tuple[str, ...]:

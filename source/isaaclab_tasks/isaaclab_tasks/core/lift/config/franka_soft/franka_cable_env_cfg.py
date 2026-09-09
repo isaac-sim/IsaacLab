@@ -330,7 +330,7 @@ class TerminationsCfg:
 class FrankaCableEnvCfg(FrankaSoftEnvCfg):
     """Manager-based RL environment for lifting a 12-segment cable."""
 
-    scene: FrankaCableSceneCfg = FrankaCableSceneCfg(num_envs=8192, env_spacing=2.0)
+    scene: FrankaCableSceneCfg = FrankaCableSceneCfg(num_envs=8192, env_spacing=2.0, replicate_physics=True)
     observations: ObservationsCfg = ObservationsCfg()
     commands: CommandsCfg = CommandsCfg()
     rewards: RewardsCfg = RewardsCfg()
@@ -354,7 +354,7 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
 class FrankaCableCameraEnvCfg(FrankaCableEnvCfg):
     """Visual Franka cable lifting environment."""
 
-    scene: FrankaCableCameraSceneCfg = FrankaCableCameraSceneCfg(num_envs=128, env_spacing=2.0)
+    scene: FrankaCableCameraSceneCfg = FrankaCableCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=True)
     observations: FrankaCableCameraObservationsCfg = FrankaCableCameraObservationsCfg()
 
     def __post_init__(self) -> None:

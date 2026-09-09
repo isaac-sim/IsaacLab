@@ -630,7 +630,6 @@ def test_disabled_fabric_change_notifies_speedup_regression():
     import isaaclab.cloner._fabric_notices as fabric_notices_mod
     import isaaclab.sim as sim_utils
     from isaaclab.assets import RigidObjectCfg
-    from isaaclab.cloner import CloneCfg
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.utils.configclass import configclass
 
@@ -672,9 +671,7 @@ def test_disabled_fabric_change_notifies_speedup_regression():
         try:
             with build_simulation_context(device="cpu", dt=0.01, add_lighting=False) as sim:
                 t0 = time.perf_counter()
-                scene = InteractiveScene(
-                    _SceneCfg(num_envs=4096, env_spacing=4.0, clone_cfg=CloneCfg(replicate_physics=True))
-                )
+                scene = InteractiveScene(_SceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True))
                 scene_dt = time.perf_counter() - t0
                 # Probe before reset so we see whether suspension actually engaged.
                 fabric_notices_mod.get_bindings = original

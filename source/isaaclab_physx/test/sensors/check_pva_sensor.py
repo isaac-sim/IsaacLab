@@ -82,10 +82,11 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> tuple[RigidObj
     lab_cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
     clone_plan = lab_cloner.clone_plan_from_env_0(
         env_fmt.format(0),
+        env_fmt,
         num_envs,
-        lab_cloner.CloneCfg(replicate_physics=False),
         env_origins,
         global_paths=("/World/ground",),
+        clone_cfg=lab_cloner.CloneCfg(replicate_physics=False),
     )
     sim.set_clone_plan(clone_plan)
     # Define the scene

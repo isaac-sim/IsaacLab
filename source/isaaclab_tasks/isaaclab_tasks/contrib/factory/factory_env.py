@@ -98,11 +98,11 @@ class FactoryEnv(DirectRLEnv):
         if self.cfg_task.name == "gear_mesh":
             self._small_gear_asset = Articulation(self.cfg_task.small_gear_cfg)
             self._large_gear_asset = Articulation(self.cfg_task.large_gear_cfg)
-        src = self.scene.cloner_cfg.clone_template.format(0)
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
         global_paths = ("/World/ground",)
         plan = cloner.clone_plan_from_env_0(
-            src, self.scene.num_envs, self.scene.cloner_cfg, pos, global_paths=global_paths
+            src, dest, self.scene.num_envs, pos, global_paths=global_paths, clone_cfg=self.scene.cloner_cfg
         )
         cloner.replicate(plan)
 

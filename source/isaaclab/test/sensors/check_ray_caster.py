@@ -54,7 +54,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.timer import Timer
 
 
-def design_scene(sim: SimulationContext, num_envs: int = 2048) -> lab_cloner.ClonePlan:
+def design_scene(sim: SimulationContext, num_envs: int = 2048):
     """Design the scene."""
     # Create interface to clone the scene
     # Create environment clones using Lab's cloner utilities
@@ -76,17 +76,24 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> lab_cloner.Clo
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg.func("/World/envs/env_0/ball", cfg, translation=(0.0, 0.0, 5.0))
-    # Clone the scene topology and publish its completed layout.
+    # Clone the scene
+    envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
     lab_cloner.usd_replicate(sim.stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
-    clone_plan = lab_cloner.clone_plan_from_env_0(
-        env_fmt.format(0),
-        num_envs,
-        lab_cloner.CloneCfg(replicate_physics=False),
-        env_origins,
-        global_paths=("/World/ground",),
-    )
-    sim.set_clone_plan(clone_plan)
-    return clone_plan
+    # PhysX-only optimization: filter collisions across env clones. Skip on Newton —
+    # PhysxSceneAPI isn't applied there and the cloner helper is PhysX-specific.
+    physics_scene_path = None
+    for prim in sim.stage.Traverse():
+        if "PhysxSceneAPI" in prim.GetAppliedSchemas():
+            physics_scene_path = prim.GetPrimPath().pathString
+            break
+    if physics_scene_path is not None:
+        lab_cloner.filter_collisions(
+            sim.stage,
+            physics_scene_path,
+            "/World/collisions",
+            prim_paths=envs_prim_paths,
+            global_paths=["/World/ground"],
+        )
 
 
 def main():
@@ -99,7 +106,7 @@ def main():
     # Parameters
     num_envs = args_cli.num_envs
     # Design the scene
-    clone_plan = design_scene(sim=sim, num_envs=num_envs)
+    design_scene(sim=sim, num_envs=num_envs)
     # Handler for terrains importing
     terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
         prim_path="/World/ground",
@@ -128,7 +135,6 @@ def main():
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
     )
     balls = RigidObject(cfg=balls_cfg)
-    lab_cloner.replicate(clone_plan)
 
     # Play simulator
     sim.reset()

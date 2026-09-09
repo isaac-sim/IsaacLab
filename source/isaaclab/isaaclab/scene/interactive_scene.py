@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import copy
 import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
@@ -130,7 +129,9 @@ class InteractiveScene:
         robot = Articulation(robot_cfg)
         src = scene.cloner_cfg.clone_template.format(0)
         pos = cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing)[0]
-        plan = cloner.clone_plan_from_env_0(src, scene.num_envs, scene.cloner_cfg, pos)
+        plan = cloner.clone_plan_from_env_0(
+            src, scene.cloner_cfg.clone_template, scene.num_envs, pos, clone_cfg=scene.cloner_cfg
+        )
         cloner.replicate(plan)
 
     .. note::
@@ -167,11 +168,12 @@ class InteractiveScene:
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
         self.stage_id = get_current_stage_id()
+        self.physics_backend = self.sim.physics_manager.__name__.lower()
         requested_viz_types = set(self.sim.resolve_visualizer_types())
         # physics scene path
         self._physics_scene_path = None
         # prepare cloner for environment replication
-        self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
+        self.cloner_cfg = self.cfg.resolve_clone_cfg()
         # the template is authoritative; the regex form is the same namespace spelled for matching
         self._env_fmt = self.cloner_cfg.clone_template
         self.env_prim_paths = [self._env_fmt.format(i) for i in range(self.cfg.num_envs)]

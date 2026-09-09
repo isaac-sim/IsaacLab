@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils._device import set_cuda_device
 
-from .physics_manager_cfg import CollisionFilterCfg, PhysicsCfg
+from .physics_manager_cfg import CollisionGroupCfg, PhysicsCfg
 
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
@@ -385,8 +385,8 @@ class PhysicsManager(ABC):
         if not isinstance(plan.replicate_physics, bool):
             raise TypeError("ClonePlan.replicate_physics must be a bool.")
 
-        cfg = getattr(PhysicsManager._cfg, "collision_filter", None)
-        cls._apply_collision_filter_impl(plan, cfg)
+        groups = getattr(PhysicsManager._cfg, "collision_filter", None)
+        cls._apply_collision_filter_impl(plan, groups)
         PhysicsManager._collision_filter_applied = True
 
     @classmethod
@@ -396,20 +396,20 @@ class PhysicsManager(ABC):
         Declarative groups currently require a clone-plan composition root, even for a single
         environment. This guard prevents a flat scene from silently ignoring its physics policy.
         """
-        cfg = getattr(PhysicsManager._cfg, "collision_filter", None)
-        if cfg is not None and cfg.groups and not PhysicsManager._collision_filter_applied:
+        groups = getattr(PhysicsManager._cfg, "collision_filter", None)
+        if groups and not PhysicsManager._collision_filter_applied:
             raise RuntimeError(
                 "PhysicsCfg.collision_filter was configured, but the collision-filter assembly barrier did not run. "
                 "Build the scene through ReplicateSession or call cloner.replicate() before resetting the simulation."
             )
 
     @classmethod
-    def _apply_collision_filter_impl(cls, plan: ClonePlan, cfg: CollisionFilterCfg | None) -> None:
+    def _apply_collision_filter_impl(cls, plan: ClonePlan, groups: dict[str, CollisionGroupCfg] | None) -> None:
         """Realize collision filtering in the backend without expanding native collider pairs here."""
         context_rows = () if cls.clone_context_type is None else plan.context_rows.get(cls.clone_context_type, ())
         num_environments = 0 if plan.env_ids is None else len(plan.env_ids)
         needs_isolation = plan.isolate_environments and num_environments > 1 and bool(context_rows)
-        if needs_isolation or (cfg is not None and cfg.groups):
+        if needs_isolation or groups:
             raise NotImplementedError(f"{cls.__name__} does not implement declarative collision filtering.")
 
     @classmethod

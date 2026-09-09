@@ -52,9 +52,9 @@ class ShadowHandCameraEnv(ShadowHandDirectEnv):
         self.object: Articulation | RigidObject = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
         self._joint_wrench_sensor = self._create_joint_wrench_sensor()
         self._tiled_camera = Camera(self.cfg.tiled_camera)
-        src = self.scene.cloner_cfg.clone_template.format(0)
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        plan = cloner.clone_plan_from_env_0(src, self.scene.num_envs, self.scene.cloner_cfg, pos)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, clone_cfg=self.scene.cloner_cfg)
         cloner.replicate(plan)
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand

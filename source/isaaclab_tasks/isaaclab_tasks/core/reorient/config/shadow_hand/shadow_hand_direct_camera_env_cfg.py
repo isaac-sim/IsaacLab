@@ -162,7 +162,7 @@ class ShadowHandTiledCameraCfg(PresetCfg):
 @configclass
 class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1225, env_spacing=2.0)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1225, env_spacing=2.0, replicate_physics=True)
 
     # camera — data-type and renderer backend selectable via CLI presets
     tiled_camera: ShadowHandTiledCameraCfg = ShadowHandTiledCameraCfg()

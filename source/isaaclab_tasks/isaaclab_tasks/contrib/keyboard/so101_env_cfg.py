@@ -107,6 +107,7 @@ class SO101SceneCfg(InteractiveSceneCfg):
         prim_path="/World/GroundPlane",
         init_state=AssetBaseCfg.InitialStateCfg(),
         spawn=sim_utils.GroundPlaneCfg(color=(1.0, 1.0, 1.0)),
+        collision_group=-1,
     )
 
     # lights
@@ -303,7 +304,7 @@ class PhysicsCfg(PresetCfg):
 
 @configclass
 class SO101KeyboardEnvCfg(ManagerBasedRLEnvCfg):
-    scene: SO101SceneCfg = SO101SceneCfg(num_envs=4096, env_spacing=1.0)
+    scene: SO101SceneCfg = SO101SceneCfg(num_envs=4096, env_spacing=1.0, replicate_physics=True)
     observations: SO101ObservationsCfg = SO101ObservationsCfg()
     actions: SO101RelJointPosActionCfg = SO101RelJointPosActionCfg()
     commands: CommandsCfg = CommandsCfg()

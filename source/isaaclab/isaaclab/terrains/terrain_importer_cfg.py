@@ -27,6 +27,9 @@ class TerrainImporterCfg:
     Defaults to :class:`isaaclab.terrains.terrain_importer.TerrainImporter`.
     """
 
+    collision_group: int = -1
+    """Deprecated compatibility field. Collision filtering is configured by the physics manager."""
+
     prim_path: str = MISSING
     """The absolute path of the USD terrain prim.
 

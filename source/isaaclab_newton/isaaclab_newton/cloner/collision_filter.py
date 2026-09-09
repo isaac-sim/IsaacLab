@@ -15,7 +15,7 @@ import numpy as np
 from newton import ModelBuilder, ShapeFlags
 
 from isaaclab.cloner import path as clone_path
-from isaaclab.physics import CollisionFilterCfg
+from isaaclab.physics import CollisionGroupCfg
 from isaaclab.physics._collision_filter import CompiledCollisionFilter
 
 _CONVEX_PART_SUFFIX = re.compile(r"^(?P<label>.+)_convex_[1-9][0-9]*$")
@@ -163,14 +163,14 @@ class NewtonCollisionFilter:
 
     def __init__(
         self,
-        cfg: CollisionFilterCfg,
+        groups: dict[str, CollisionGroupCfg],
         sources: Sequence[str],
         destinations: Sequence[str],
         env_ids: np.ndarray,
         mapping: np.ndarray,
         env_template: str,
     ):
-        self._policy = CompiledCollisionFilter(cfg, env_template)
+        self._policy = CompiledCollisionFilter(groups, env_template)
         self._sources = tuple(sources)
         self._destinations = tuple(destinations)
         self._env_ids = env_ids
@@ -179,7 +179,6 @@ class NewtonCollisionFilter:
         self._global_shape_indices: frozenset[int] = frozenset()
         self._source_builders: dict[str, ModelBuilder] = {}
         self._source_shapes: dict[str, ColliderShapeMap] = {}
-        self._source_shape_counts: dict[str, int] = {}
         self._preapplied_rows: set[int] = set()
 
     def prepare(
@@ -194,9 +193,6 @@ class NewtonCollisionFilter:
         self._global_shape_indices = frozenset(_colliding_shape_indices(builder))
         self._source_builders = dict(source_builders)
         self._source_shapes = dict(source_shapes)
-        self._source_shape_counts = {
-            source: len(_colliding_shape_indices(source_builder)) for source, source_builder in source_builders.items()
-        }
         _add_pairs(builder, _collision_filter_pairs(self._policy, global_shapes, self._global_shape_indices))
 
         rows_by_source: dict[str, list[int]] = defaultdict(list)
@@ -205,22 +201,24 @@ class NewtonCollisionFilter:
         for source, rows in rows_by_source.items():
             source_builder = source_builders[source]
             universe = _colliding_shape_indices(source_builder)
-            templates = []
-            cache = {}
-            active_rows = set()
-            for row in rows:
+            templates: set[frozenset[tuple[int, int]]] = set()
+            cache: dict[tuple[tuple[int, tuple[str, ...]], ...], frozenset[tuple[int, int]]] = {}
+            active_rows = {row for row in rows if np.any(self._mapping[row])}
+            for row in active_rows:
                 for column in np.flatnonzero(self._mapping[row]):
-                    active_rows.add(row)
                     destination = self._destinations[row].format(int(self._env_ids[column]))
-                    concrete_shapes = _rebase_collider_paths(source_shapes[source], source, destination)
+                    concrete_shapes = {
+                        _rebase_path(path, source, destination): indices
+                        for path, indices in source_shapes[source].items()
+                    }
                     signature = _membership_signature(self._policy, concrete_shapes, universe)
                     template = cache.get(signature)
                     if template is None:
                         template = _collision_filter_pairs(self._policy, concrete_shapes, universe)
                         cache[signature] = template
-                    templates.append(template)
-            if templates and all(template == templates[0] for template in templates[1:]):
-                _add_pairs(source_builder, templates[0])
+                    templates.add(template)
+            if len(templates) == 1:
+                _add_pairs(source_builder, next(iter(templates)))
                 self._preapplied_rows.update(active_rows)
 
     def apply_to_replicated_builder(
@@ -236,10 +234,11 @@ class NewtonCollisionFilter:
         shape_owners: dict[int, int] = {}
         for row, source in enumerate(self._sources):
             source_builder = self._source_builders[source]
+            source_colliders = _colliding_shape_indices(source_builder)
             for column in np.flatnonzero(self._mapping[row]):
                 column = int(column)
                 offset = source_shape_offsets[row, column]
-                for local_index in _colliding_shape_indices(source_builder):
+                for local_index in source_colliders:
                     shape_owners[offset + local_index] = row
                 destination = self._destinations[row].format(int(self._env_ids[column]))
                 concrete_shapes = {
@@ -277,9 +276,9 @@ class NewtonCollisionFilter:
         active_rows = {row for row in range(len(self._sources)) if np.any(self._mapping[row])}
         if len(active_rows) != 1 or not active_rows.issubset(self._preapplied_rows):
             return False
-        expected = sum(
-            self._source_shape_counts[self._sources[row]] * int(np.count_nonzero(self._mapping[row]))
-            for row in active_rows
+        row = next(iter(active_rows))
+        expected = len(_colliding_shape_indices(self._source_builders[self._sources[row]])) * int(
+            np.count_nonzero(self._mapping[row])
         )
         return expected == len(_colliding_shape_indices(builder))
 
@@ -290,10 +289,6 @@ def _shape_collides(builder: ModelBuilder, index: int) -> bool:
 
 def _colliding_shape_indices(builder: ModelBuilder) -> tuple[int, ...]:
     return tuple(index for index in range(builder.shape_count) if _shape_collides(builder, index))
-
-
-def _rebase_collider_paths(collider_shapes: ColliderShapeMap, source: str, destination: str) -> ColliderShapeMap:
-    return {_rebase_path(path, source, destination): indices for path, indices in collider_shapes.items()}
 
 
 def _rebase_path(path: str, source: str, destination: str) -> str:

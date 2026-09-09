@@ -73,6 +73,7 @@ PLANE_CFG = AssetBaseCfg(
     prim_path="/World/GroundPlane",
     init_state=AssetBaseCfg.InitialStateCfg(),
     spawn=sim_utils.GroundPlaneCfg(),
+    collision_group=-1,
 )
 """Shared ground-plane configuration."""
 

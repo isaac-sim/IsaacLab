@@ -259,11 +259,11 @@ class AssemblyEnv(DirectRLEnv):
         self._robot = Articulation(self.cfg.robot)
         self._fixed_asset = Articulation(self.cfg_task.fixed_asset)
         self._held_asset = RigidObject(self.cfg_task.held_asset)
-        src = self.scene.cloner_cfg.clone_template.format(0)
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
         global_paths = ("/World/ground",)
         plan = cloner.clone_plan_from_env_0(
-            src, self.scene.num_envs, self.scene.cloner_cfg, pos, global_paths=global_paths
+            src, dest, self.scene.num_envs, pos, global_paths=global_paths, clone_cfg=self.scene.cloner_cfg
         )
         cloner.replicate(plan)
 

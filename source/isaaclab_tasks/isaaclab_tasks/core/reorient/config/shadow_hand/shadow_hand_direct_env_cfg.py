@@ -32,6 +32,7 @@ class ShadowHandSceneCfg(InteractiveSceneCfg):
 
     num_envs = 8192
     env_spacing = 0.75
+    replicate_physics = True
 
 
 @configclass

@@ -2013,7 +2013,7 @@ def rendering_test_kuka_visual_material_randomization(
         "newton_renderer": NewtonWarpRendererCfg,
         "ovrtx_renderer": OVRTXRendererCfg,
     }[renderer]()
-    scene_cfg = InteractiveSceneCfg(num_envs=4, env_spacing=3.0)
+    scene_cfg = InteractiveSceneCfg(num_envs=4, env_spacing=3.0, replicate_physics=True)
     scene_cfg.sky_light = AssetBaseCfg(
         prim_path="/World/skyLight", spawn=sim_utils.DomeLightCfg(color=(1.0, 1.0, 1.0), intensity=750.0)
     )
@@ -2408,6 +2408,7 @@ def rendering_test_mpm_particles(
         scene: TestMPMParticleCameraSceneCfg = TestMPMParticleCameraSceneCfg(
             num_envs=4,
             env_spacing=3.0,
+            replicate_physics=True,
             clone_in_fabric=True,
         )
         reset_cycle: bool = True

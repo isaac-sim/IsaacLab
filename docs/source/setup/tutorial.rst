@@ -187,15 +187,9 @@ configuration connects one scene configuration and one configuration for each MD
 .. code-block:: python
    :caption: src/isaaclab_tutorial/tasks/place_vial/config/so101/env_cfg.py
 
-   from isaaclab.cloner import CloneCfg
-
    @configclass
    class SO101VialEnvCfg(ManagerBasedRLEnvCfg):
-       scene = SO101SceneCfg(
-           num_envs=4096,
-           env_spacing=0.9,
-           clone_cfg=CloneCfg(replicate_physics=True),
-       )
+       scene = SO101SceneCfg(num_envs=4096, env_spacing=0.9, replicate_physics=True)
        actions = ActionsCfg()
        observations = ObservationsCfg()
        events = DatasetEventsCfg()
@@ -209,8 +203,8 @@ configuration connects one scene configuration and one configuration for each MD
            self.sim.dt = 1.0 / 120.0
            self.sim.physics = PhysicsCfg()
 
-The 120 Hz simulation and decimation of four give the policy a 30 Hz control rate.
-``CloneCfg.replicate_physics=True`` allows the same scene to scale across thousands of environments.
+The 120 Hz simulation and decimation of four give the policy a 30 Hz control rate. ``replicate_physics=True``
+allows the same scene to scale across thousands of environments.
 
 Scene and control
 ~~~~~~~~~~~~~~~~~

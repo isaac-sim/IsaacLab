@@ -13,9 +13,26 @@ import numpy as np
 import pytest
 
 from isaaclab.cloner import ClonePlan
-from isaaclab.physics import CollisionFilterCfg, CollisionGroupCfg, PhysicsCfg, PhysicsEvent, PhysicsManager
+from isaaclab.physics import CollisionGroupCfg, PhysicsCfg, PhysicsEvent, PhysicsManager
 from isaaclab.renderers import RendererCfg
 from isaaclab.visualizers import VisualizerCfg
+
+
+def _plan(**kwargs):
+    values = dict(
+        sources=(),
+        destinations=(),
+        clone_mask=np.empty((0, 0), dtype=np.bool_),
+        env_ids=np.empty(0, dtype=np.int64),
+    )
+    return ClonePlan(**(values | kwargs))
+
+
+def _initialize_manager(monkeypatch, manager, collision_filter=None):
+    monkeypatch.setattr(manager, "_callbacks", {})
+    cfg = PhysicsCfg(class_type=manager, collision_filter=collision_filter)
+    manager.initialize(SimpleNamespace(physics_manager=manager, cfg=SimpleNamespace(physics=cfg, device="cpu")))
+    return cfg
 
 
 def test_backend_registry_uses_only_backend_type():
@@ -123,7 +140,6 @@ def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch)
 
 
 def test_collision_filter_policy_is_config_owned_and_applied_once(monkeypatch):
-    """The manager defers one backend application without duplicating policy state."""
     calls = []
 
     class TestManager(PhysicsManager):
@@ -131,27 +147,18 @@ def test_collision_filter_policy_is_config_owned_and_applied_once(monkeypatch):
         def _apply_collision_filter_impl(cls, plan, cfg):
             calls.append((plan, cfg, plan.isolate_environments, plan.replicate_physics))
 
-    monkeypatch.setattr(TestManager, "_callbacks", {})
-    collision_filter = CollisionFilterCfg(
-        groups={"robot": CollisionGroupCfg(prim_path_exprs=(r"/World/envs/env_.*/Robot/.*",))}
-    )
-    physics_cfg = PhysicsCfg(class_type=TestManager, collision_filter=collision_filter)
-    plan = ClonePlan(
-        sources=(),
-        destinations=(),
-        clone_mask=np.empty((0, 0), dtype=np.bool_),
-        env_ids=np.empty(0, dtype=np.int64),
-    )
-    sim = SimpleNamespace(
-        physics_manager=TestManager,
-        cfg=SimpleNamespace(physics=physics_cfg, device="cpu"),
-    )
-    TestManager.initialize(sim)
+    groups = {"robot": CollisionGroupCfg(prim_path_exprs=(r"/World/envs/env_.*/Robot/.*",))}
+    physics_cfg = _initialize_manager(monkeypatch, TestManager, groups)
+    plan = _plan()
+
+    with pytest.raises(RuntimeError, match="assembly barrier did not run"):
+        TestManager._require_collision_filter_barrier()
 
     TestManager.apply_collision_filter(plan)
 
-    assert physics_cfg.collision_filter == collision_filter
+    assert physics_cfg.collision_filter == groups
     assert calls == [(plan, physics_cfg.collision_filter, True, True)]
+    TestManager._require_collision_filter_barrier()
     with pytest.raises(RuntimeError, match="already been applied"):
         TestManager.apply_collision_filter(plan)
 
@@ -159,65 +166,20 @@ def test_collision_filter_policy_is_config_owned_and_applied_once(monkeypatch):
     assert not PhysicsManager._collision_filter_applied
 
 
-def test_configured_policy_requires_clone_assembly_before_model_construction(monkeypatch):
-    """A flat scene must not silently skip a configured declarative policy."""
-
-    class TestManager(PhysicsManager):
-        pass
-
-    monkeypatch.setattr(TestManager, "_callbacks", {})
-    physics_cfg = PhysicsCfg(
-        class_type=TestManager,
-        collision_filter=CollisionFilterCfg(groups={"robot": CollisionGroupCfg(prim_path_exprs=(r"/World/Robot/.*",))}),
-    )
-    sim = SimpleNamespace(
-        physics_manager=TestManager,
-        cfg=SimpleNamespace(physics=physics_cfg, device="cpu"),
-    )
-    TestManager.initialize(sim)
-
-    with pytest.raises(RuntimeError, match="assembly barrier did not run"):
-        TestManager._require_collision_filter_barrier()
-
-    monkeypatch.setattr(PhysicsManager, "_collision_filter_applied", True)
-    TestManager._require_collision_filter_barrier()
-    TestManager.close()
-
-
 def test_base_manager_never_silently_ignores_requested_collision_filtering(monkeypatch):
-    """A backend must explicitly realize either group policy or environment isolation."""
-
     class TestManager(PhysicsManager):
         pass
 
-    monkeypatch.setattr(TestManager, "_callbacks", {})
-    physics_cfg = PhysicsCfg(
-        class_type=TestManager,
-        collision_filter=CollisionFilterCfg(groups={"robot": CollisionGroupCfg(prim_path_exprs=(r"/World/Robot/.*",))}),
-    )
-    plan = ClonePlan(
-        sources=(),
-        destinations=(),
-        clone_mask=np.empty((0, 0), dtype=np.bool_),
-        env_ids=np.empty(0, dtype=np.int64),
-        isolate_environments=False,
-    )
-    sim = SimpleNamespace(
-        physics_manager=TestManager,
-        cfg=SimpleNamespace(physics=physics_cfg, device="cpu"),
-    )
-    TestManager.initialize(sim)
+    groups = {"robot": CollisionGroupCfg(prim_path_exprs=(r"/World/Robot/.*",))}
+    _initialize_manager(monkeypatch, TestManager, groups)
 
     with pytest.raises(NotImplementedError, match="does not implement declarative collision filtering"):
-        TestManager.apply_collision_filter(plan)
+        TestManager.apply_collision_filter(_plan(isolate_environments=False))
     assert not PhysicsManager._collision_filter_applied
-
     TestManager.close()
 
 
 def test_base_manager_ignores_isolation_for_visual_only_clone_plan(monkeypatch):
-    """Environment isolation is irrelevant when the active manager owns no plan rows."""
-
     class NativeContext:
         pass
 
@@ -227,20 +189,14 @@ def test_base_manager_ignores_isolation_for_visual_only_clone_plan(monkeypatch):
     class TestManager(PhysicsManager):
         clone_context_type = NativeContext
 
-    monkeypatch.setattr(TestManager, "_callbacks", {})
-    plan = ClonePlan(
+    _initialize_manager(monkeypatch, TestManager)
+    plan = _plan(
         sources=("/World/envs/env_0/Visual",),
         destinations=("/World/envs/env_{}/Visual",),
         clone_mask=np.ones((1, 2), dtype=np.bool_),
         env_ids=np.arange(2, dtype=np.int64),
         context_rows={VisualContext: (0,)},
     )
-    sim = SimpleNamespace(
-        physics_manager=TestManager,
-        cfg=SimpleNamespace(physics=PhysicsCfg(class_type=TestManager), device="cpu"),
-    )
-    TestManager.initialize(sim)
-
     TestManager.apply_collision_filter(plan)
 
     assert PhysicsManager._collision_filter_applied

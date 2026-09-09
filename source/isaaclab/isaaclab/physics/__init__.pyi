@@ -5,7 +5,6 @@
 
 __all__ = [
     "CallbackHandle",
-    "CollisionFilterCfg",
     "CollisionGroupCfg",
     "PhysicsEvent",
     "PhysicsManager",
@@ -14,4 +13,4 @@ __all__ = [
 ]
 
 from .physics_manager import CallbackHandle, PhysicsEvent, PhysicsManager
-from .physics_manager_cfg import CollisionFilterCfg, CollisionGroupCfg, PhysicsCfg, PhysxAutoCfg
+from .physics_manager_cfg import CollisionGroupCfg, PhysicsCfg, PhysxAutoCfg

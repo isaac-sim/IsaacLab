@@ -119,6 +119,7 @@ class SceneCfg(InteractiveSceneCfg):
         prim_path="/World/GroundPlane",
         init_state=AssetBaseCfg.InitialStateCfg(),
         spawn=sim_utils.GroundPlaneCfg(color=(1.0, 1.0, 1.0)),
+        collision_group=-1,
     )
 
     # lights
@@ -522,7 +523,7 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
     """Lift reorientation task definition, also the base definition for derivative Lift task and evaluation task"""
 
     # Scene settings
-    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3)
+    scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

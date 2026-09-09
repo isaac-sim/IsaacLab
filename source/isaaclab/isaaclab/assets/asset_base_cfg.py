@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import Any
+from typing import Any, Literal
 
 from isaaclab.sim import SpawnerCfg
 from isaaclab.utils.configclass import configclass
@@ -75,6 +75,9 @@ class AssetBaseCfg:
 
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the rigid object. Defaults to identity pose."""
+
+    collision_group: Literal[0, -1] = 0
+    """Deprecated compatibility field. Collision filtering is configured by the physics manager."""
 
     debug_vis: bool = False
     """Whether to enable debug visualization for the asset. Defaults to ``False``."""

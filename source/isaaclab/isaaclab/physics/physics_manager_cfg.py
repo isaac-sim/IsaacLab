@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.utils.configclass import configclass
 
@@ -30,7 +30,7 @@ class CollisionGroupCfg:
     named by :attr:`filtered_groups`.
     """
 
-    prim_path_exprs: tuple[str, ...] = cast(tuple[str, ...], MISSING)
+    prim_path_exprs: tuple[str, ...] = MISSING
     """Whole-path regular expressions selecting collider prims in this group."""
 
     filtered_groups: tuple[str, ...] = ()
@@ -41,14 +41,12 @@ class CollisionGroupCfg:
 
     def validate_config(self) -> None:
         """Validate the selector regular expressions."""
-        if not isinstance(self.prim_path_exprs, (list, tuple)):
-            raise TypeError("CollisionGroupCfg.prim_path_exprs must be a list or tuple of strings.")
-        if not all(isinstance(selector, str) for selector in self.prim_path_exprs):
-            raise TypeError("CollisionGroupCfg.prim_path_exprs must contain only strings.")
-        if not isinstance(self.filtered_groups, (list, tuple)):
-            raise TypeError("CollisionGroupCfg.filtered_groups must be a list or tuple of strings.")
-        if not all(isinstance(group_name, str) for group_name in self.filtered_groups):
-            raise TypeError("CollisionGroupCfg.filtered_groups must contain only strings.")
+        for field_name in ("prim_path_exprs", "filtered_groups"):
+            values = getattr(self, field_name)
+            if not isinstance(values, (list, tuple)):
+                raise TypeError(f"CollisionGroupCfg.{field_name} must be a list or tuple of strings.")
+            if not all(isinstance(value, str) for value in values):
+                raise TypeError(f"CollisionGroupCfg.{field_name} must contain only strings.")
         if not isinstance(self.invert_filtered_groups, bool):
             raise TypeError("CollisionGroupCfg.invert_filtered_groups must be a bool.")
         for selector in self.prim_path_exprs:
@@ -56,39 +54,6 @@ class CollisionGroupCfg:
                 re.compile(selector)
             except (re.error, TypeError) as exc:
                 raise ValueError(f"Invalid collision-group prim-path regex {selector!r}: {exc}.") from exc
-
-
-@configclass
-class CollisionFilterCfg:
-    """Backend-neutral declarative collision filtering policy."""
-
-    groups: dict[str, CollisionGroupCfg] = {}
-    """Collision groups keyed by their stable policy names."""
-
-    def validate_config(self) -> None:
-        """Validate selectors and cross-group references."""
-        if not isinstance(self.groups, dict):
-            raise TypeError("CollisionFilterCfg.groups must be a dictionary.")
-        for group_name, group_cfg in self.groups.items():
-            if not isinstance(group_name, str):
-                raise TypeError("CollisionFilterCfg.groups keys must be strings.")
-            if not isinstance(group_cfg, CollisionGroupCfg):
-                raise TypeError(
-                    f"Collision group {group_name!r} must be a CollisionGroupCfg, got {type(group_cfg).__name__}."
-                )
-            group_cfg.validate_config()
-
-        known_groups = set(self.groups)
-        unknown_groups = sorted(
-            {
-                referenced_group
-                for group_cfg in self.groups.values()
-                for referenced_group in group_cfg.filtered_groups
-                if referenced_group not in known_groups
-            }
-        )
-        if unknown_groups:
-            raise ValueError(f"Collision filter references unknown groups: {', '.join(unknown_groups)}.")
 
 
 @configclass
@@ -119,8 +84,8 @@ class PhysicsCfg:
     Deterministic execution can increase memory use and reduce simulation performance.
     """
 
-    collision_filter: CollisionFilterCfg | None = None
-    """Declarative collider policy applied at the clone-plan assembly barrier. Defaults to ``None``.
+    collision_filter: dict[str, CollisionGroupCfg] | None = None
+    """Declarative collision groups keyed by stable policy names. Defaults to ``None``.
 
     Environment isolation is cloning policy and is intentionally not represented here. The active
     physics manager realizes both inputs at the collision-filter application barrier. A workflow
@@ -130,13 +95,25 @@ class PhysicsCfg:
 
     def validate_config(self) -> None:
         """Validate backend-neutral physics configuration."""
-        if self.collision_filter is not None:
-            if not isinstance(self.collision_filter, CollisionFilterCfg):
+        if self.collision_filter is None:
+            return
+        if not isinstance(self.collision_filter, dict):
+            raise TypeError("PhysicsCfg.collision_filter must be a dictionary or None.")
+        for group_name, group_cfg in self.collision_filter.items():
+            if not isinstance(group_name, str):
+                raise TypeError("PhysicsCfg.collision_filter keys must be strings.")
+            if not isinstance(group_cfg, CollisionGroupCfg):
                 raise TypeError(
-                    "PhysicsCfg.collision_filter must be a CollisionFilterCfg or None, got "
-                    f"{type(self.collision_filter).__name__}."
+                    f"Collision group {group_name!r} must be a CollisionGroupCfg, got {type(group_cfg).__name__}."
                 )
-            self.collision_filter.validate_config()
+            group_cfg.validate_config()
+
+        known_groups = set(self.collision_filter)
+        unknown_groups = sorted(
+            {name for group in self.collision_filter.values() for name in group.filtered_groups} - known_groups
+        )
+        if unknown_groups:
+            raise ValueError(f"Collision filter references unknown groups: {', '.join(unknown_groups)}.")
 
 
 @configclass
@@ -175,7 +152,6 @@ def _resolve_physx_auto_cfg(physics_cfg: PhysicsCfg, use_isaac_sim: bool) -> Phy
         raise ValueError(
             f"Invalid PhysxAutoCfg.{field_name}: expected {expected_type.__name__}, got {type(selected).__name__}."
         )
-    assert selected is not None
     return selected.replace(
         deterministic=physics_cfg.deterministic or selected.deterministic,
         collision_filter=(

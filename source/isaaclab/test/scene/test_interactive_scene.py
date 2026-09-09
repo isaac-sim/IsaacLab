@@ -249,7 +249,7 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
         )
         cube_cfg.class_type(cube_cfg)
         positions = grid_positions + np.asarray((0.25, 0.5, 0.75), dtype=np.float32)
-        plan = cloner.clone_plan_from_env_0(env_template.format(0), 4, scene.cloner_cfg, positions)
+        plan = cloner.clone_plan_from_env_0(env_template.format(0), env_template, 4, positions)
         cloner.replicate(plan)
 
         assert sim.get_clone_plan() is plan
@@ -287,9 +287,9 @@ def test_replicate_physics_flag_controls_physx_replicator(device, replicate_phys
 
     make_scene, sim = setup_scene
     scene_cfg = make_scene(num_envs=3)
-    scene_cfg.clone_cfg.replicate_physics = replicate_physics
+    scene_cfg.replicate_physics = replicate_physics
     scene = InteractiveScene(scene_cfg)
-    if not sim.physics_manager.__name__.lower().startswith("physx"):
+    if not scene.physics_backend.startswith("physx"):
         pytest.skip("PhysX replicator flag is only meaningful on a PhysX backend.")
     sim.reset()
 

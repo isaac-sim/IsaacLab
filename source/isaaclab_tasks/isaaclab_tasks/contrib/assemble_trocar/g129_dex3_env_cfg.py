@@ -369,6 +369,7 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
     scene: AssembleTrocarSceneCfg = AssembleTrocarSceneCfg(
         num_envs=1,
         env_spacing=6.0,
+        replicate_physics=True,
     )
     # basic settings
     observations: ObservationsCfg = ObservationsCfg()

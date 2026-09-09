@@ -14,7 +14,6 @@ The following classes are part of the public :mod:`isaaclab.physics` API.
    :nosignatures:
 
    CallbackHandle
-   CollisionFilterCfg
    CollisionGroupCfg
    PhysicsCfg
    PhysicsEvent
@@ -22,9 +21,6 @@ The following classes are part of the public :mod:`isaaclab.physics` API.
    PhysxAutoCfg
 
 .. autoclass:: CallbackHandle
-   :show-inheritance:
-
-.. autoclass:: CollisionFilterCfg
    :show-inheritance:
 
 .. autoclass:: CollisionGroupCfg

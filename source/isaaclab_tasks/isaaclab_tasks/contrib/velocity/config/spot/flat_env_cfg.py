@@ -394,6 +394,7 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
             terrain_type="generator",
             terrain_generator=COBBLESTONE_ROAD_CFG,
             max_init_terrain_level=COBBLESTONE_ROAD_CFG.num_rows - 1,
+            collision_group=-1,
             physics_material=PhysxRigidBodyMaterialCfg(
                 friction_combine_mode="multiply",
                 restitution_combine_mode="multiply",

@@ -199,14 +199,14 @@ def test_generated_project_can_opt_into_ui_extension(tmp_path):
 
 
 def test_direct_templates_leave_collision_isolation_to_cloner():
-    """Generated direct tasks pass CloneCfg without resolving isolation themselves."""
+    """Generated direct tasks pass the cloner policy without owning isolation."""
     for workflow in ("direct_single-agent", "direct_multi-agent"):
         template = (_TEMPLATE_DIR / "templates" / "tasks" / workflow / "env").read_text()
         cfg_template = (_TEMPLATE_DIR / "templates" / "tasks" / workflow / "env_cfg").read_text()
-        assert "src = self.scene.cloner_cfg.clone_template.format(0)" in template
-        assert "src, self.scene.num_envs, self.scene.cloner_cfg, pos" in template
+        assert 'src, dest = "/World/envs/env_0", "/World/envs/env_{}"' in template
+        assert "src, dest, self.scene.num_envs, pos" in template
+        assert "clone_cfg=self.scene.cloner_cfg" in template
         assert "cloner.replicate(plan)" in template
-        assert "dest =" not in template
         assert "replicate_physics=self.scene.cfg.replicate_physics" not in template
         assert "isolate_environments=" not in template
         assert ".filter_collisions(" not in template

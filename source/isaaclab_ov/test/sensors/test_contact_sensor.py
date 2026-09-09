@@ -60,7 +60,6 @@ import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.sim.schemas as schemas  # noqa: E402
 from isaaclab import cloner  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
-from isaaclab.cloner import CloneCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
 from isaaclab.sim.utils.stage import get_current_stage  # noqa: E402
@@ -672,8 +671,8 @@ def test_nested_rigid_body_hierarchy(device, num_envs):
         env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
         _author_nested_chain("/World/envs/env_0/Robot")
 
-        src = "/World/envs/env_0"
-        clone_plan = cloner.clone_plan_from_env_0(src, num_envs, CloneCfg(), env_positions)
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        clone_plan = cloner.clone_plan_from_env_0(src, dest, num_envs, env_positions)
         assert clone_plan.env_ids is not None
         ovphysx_replicate(
             stage,
