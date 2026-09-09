@@ -1542,13 +1542,21 @@ class ArticulationData(BaseArticulationData):
             else:
                 self._sim_bind_root_com_vel_w = root_vel_w[self._instance_index]
         # -- body properties
-        self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", SimulationManager.get_model())[self._instance_index]
-        self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(SimulationManager.get_state_0())[self._instance_index]
+        self._sim_bind_body_com_pos_b = self._root_view.get_attribute("body_com", SimulationManager.get_model())[
+            self._instance_index
+        ]
+        self._sim_bind_body_link_pose_w = self._root_view.get_link_transforms(SimulationManager.get_state_0())[
+            self._instance_index
+        ]
         body_com_vel_w = self._root_view.get_link_velocities(SimulationManager.get_state_0())
         if body_com_vel_w is not None:
             self._sim_bind_body_com_vel_w = body_com_vel_w[self._instance_index]
-        self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[self._instance_index]
-        self._sim_bind_body_inv_mass = self._root_view.get_attribute("body_inv_mass", SimulationManager.get_model())[self._instance_index]
+        self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", SimulationManager.get_model())[
+            self._instance_index
+        ]
+        self._sim_bind_body_inv_mass = self._root_view.get_attribute("body_inv_mass", SimulationManager.get_model())[
+            self._instance_index
+        ]
         self._sim_bind_body_inv_inertia = self._root_view.get_attribute(
             "body_inv_inertia", SimulationManager.get_model()
         )[self._instance_index]
@@ -1556,7 +1564,9 @@ class ArticulationData(BaseArticulationData):
         # giving (N, B) mat33f. Reinterpret as (N, B, 9) float32 via pointer aliasing.
         # Each mat33f element is 9 contiguous float32 values (36 bytes), so the inner stride is 4.
         # The slice may be non-contiguous in the outer dims, so we preserve those strides.
-        _body_inertia_raw = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[self._instance_index]
+        _body_inertia_raw = self._root_view.get_attribute("body_inertia", SimulationManager.get_model())[
+            self._instance_index
+        ]
         self._sim_bind_body_inertia = wp.array(
             ptr=_body_inertia_raw.ptr,
             dtype=wp.float32,
@@ -1565,7 +1575,9 @@ class ArticulationData(BaseArticulationData):
             device=_body_inertia_raw.device,
             copy=False,
         )
-        self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[self._instance_index]
+        self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", SimulationManager.get_state_0())[
+            self._instance_index
+        ]
         try:
             self._sim_bind_body_parent_f = self._root_view.get_attribute(
                 "body_parent_f", SimulationManager.get_state_0()
@@ -1602,11 +1614,19 @@ class ArticulationData(BaseArticulationData):
                 "joint_effort_limit", SimulationManager.get_model()
             )[self._instance_index]
             # -- joint states
-            self._sim_bind_joint_pos = self._root_view.get_dof_positions(SimulationManager.get_state_0())[self._instance_index]
-            self._sim_bind_joint_vel = self._root_view.get_dof_velocities(SimulationManager.get_state_0())[self._instance_index]
+            self._sim_bind_joint_pos = self._root_view.get_dof_positions(SimulationManager.get_state_0())[
+                self._instance_index
+            ]
+            self._sim_bind_joint_vel = self._root_view.get_dof_velocities(SimulationManager.get_state_0())[
+                self._instance_index
+            ]
             # -- joint commands (sent to the simulation)
-            self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", SimulationManager.get_control())[self._instance_index]
-            self._sim_bind_joint_act = self._root_view.get_attribute("joint_act", SimulationManager.get_control())[self._instance_index]
+            self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", SimulationManager.get_control())[
+                self._instance_index
+            ]
+            self._sim_bind_joint_act = self._root_view.get_attribute("joint_act", SimulationManager.get_control())[
+                self._instance_index
+            ]
             self._sim_bind_joint_position_target = self._root_view.get_attribute(
                 "joint_target_q", SimulationManager.get_control()
             )[self._instance_index]
