@@ -47,10 +47,11 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
             stiffness=0.0,
             damping=0.0,
         )
-        # The OSC action term replaces the parent's arm-controller presets, so the parent's ``diffik_abs``
-        # variants would only zero the action-magnitude reward weight here. Resolve the default values and keep
-        # ``diffik_abs`` as a deprecated no-op alias so existing command lines keep working.
+        # The OSC action term replaces the parent's arm-controller presets, so the parent's controller-keyed
+        # variants would only zero the action-magnitude reward weight or attach 6D teleop devices here. Resolve
+        # their defaults and keep ``diffik_abs`` as a deprecated no-op alias so existing command lines keep working.
         self.scene.robot.spawn.rigid_props.disable_gravity = True
+        self.teleop_devices = self.teleop_devices.default
         default_weight = self.rewards.action_magnitude.weight.default
         self.rewards.action_magnitude.weight = preset(
             default=default_weight, diffik_abs=_DeprecatedDiffIKAbsWeight(default_weight)

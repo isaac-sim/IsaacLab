@@ -212,6 +212,7 @@ def test_reach_osc_resolves_controller_preset_values_to_defaults():
     assert not isinstance(cfg.rewards.action_magnitude.weight, PresetCfg)
     assert cfg.rewards.action_magnitude.weight == _load_env_cfg().rewards.action_magnitude.weight
     assert cfg.scene.robot.spawn.rigid_props.disable_gravity is True
+    assert cfg.teleop_devices.devices == {}
     assert enumerate_task_presets(_OSC_TASK)[PresetTarget.DOMAIN] == ["diffik_abs"]
 
 
