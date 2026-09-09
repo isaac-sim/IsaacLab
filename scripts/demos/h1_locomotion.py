@@ -61,6 +61,7 @@ from isaaclab.utils.math import quat_apply
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import (
+    get_pretrained_checkpoint_backend_names,
     get_published_pretrained_checkpoint,
 )
 
@@ -98,7 +99,8 @@ class H1RoughDemo:
         env_cfg.commands.base_velocity.ranges.lin_vel_x = (0.0, 1.0)
         env_cfg.commands.base_velocity.ranges.heading = (-1.0, 1.0)
         # load the trained jit policy
-        checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK, env_cfg=env_cfg)
+        backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+        checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK, *backend_names)
         if checkpoint is None:
             raise FileNotFoundError("No published checkpoint is available for the H1 locomotion demo.")
         # wrap around environment for rsl-rl

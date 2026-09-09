@@ -33,7 +33,6 @@ class _ExtractorCfg:
     """Minimal component config that declares a checkpoint of its own."""
 
     checkpoint: Checkpoint = Checkpoint(name="feature_extractor", run_glob="cnn_*.pth")
-    frozen: Checkpoint = Checkpoint(name="vae", url="omniverse://IsaacLab/Contrib/vae.pt")
 
 
 @configclass
@@ -300,7 +299,6 @@ def test_get_declared_checkpoints_discovers_nested_component_configs():
 
     found = pretrained_checkpoint.get_declared_checkpoints(_EnvCfg(extractor=_ExtractorCfg()))
 
-    # only run artifacts are published beside the policy; URL weights are the component's to fetch
     assert [(c.name, c.run_glob) for c in found] == [("feature_extractor", "cnn_*.pth")]
 
 

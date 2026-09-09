@@ -301,8 +301,6 @@ def get_declared_checkpoints(
 
     Every :class:`~isaaclab.utils.Checkpoint` declared anywhere in the resolved config is found by
     walking it, so a task declares nothing: the component that writes the file owns its name.
-    Checkpoints with a ``url`` are pre-existing weights and are excluded; the component fetches
-    those itself.
 
     Args:
         env_cfg: Resolved environment configuration.
@@ -313,8 +311,7 @@ def get_declared_checkpoints(
     # a declaration can be reachable through several config paths; the name is the identity
     unique: dict[str, Checkpoint] = {}
     for ckpt in _find_cfgs(env_cfg, Checkpoint):
-        if ckpt.is_run_artifact:
-            unique.setdefault(ckpt.name, ckpt)
+        unique.setdefault(ckpt.name, ckpt)
     return list(unique.values())
 
 
@@ -336,7 +333,7 @@ def get_declared_checkpoint_path(checkpoint_path: str, workflow: str, checkpoint
         raise ValueError(f"Unsupported workflow: {workflow!r}")
     stem = checkpoint_path.removesuffix(WORKFLOW_PRETRAINED_CHECKPOINT_EXTENSIONS[workflow])
     # the published copy keeps the extension of the file the component declared
-    extension = os.path.splitext(checkpoint.run_glob or checkpoint.url)[1]
+    extension = os.path.splitext(checkpoint.run_glob)[1]
     return f"{stem}_{checkpoint.name}{extension}"
 
 
