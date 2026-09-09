@@ -294,8 +294,6 @@ class NewtonSiteFrameView(BaseFrameView):
                     self._site_label_scales.append(scale)
                     self._site_label_prim_paths.append(spec_paths)
                 else:
-                    # Only reached before the model exists, where a spec always resolves to one
-                    # pattern -- the cloned ``.*`` form -- whose label covers every environment.
                     for body_pattern in body_patterns:
                         self._site_labels.append(NewtonManager.cl_register_site(body_pattern, xform))
                         self._site_label_scales.append(scale)
@@ -421,9 +419,6 @@ class NewtonSiteFrameView(BaseFrameView):
                                 raise RuntimeError(
                                     f"FrameView destination root '{destination_root}' does not end with '{suffix}'."
                                 )
-                            # The ``.*`` pattern fans out to the cloned body in each environment, so
-                            # the per-environment destination paths still line up with the sites.
-                            # The count check in ``_create_buffers`` catches it if they do not.
                             return (
                                 (destination_root[: -len(suffix)],),
                                 wp.transform(pos, quat),

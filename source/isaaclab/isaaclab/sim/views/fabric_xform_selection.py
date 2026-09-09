@@ -35,6 +35,20 @@ class FabricXformSelection:
     read-write (:attr:`read_write` selects between them), and parent world read-only. The view-index
     to Fabric-slot mapping is rebuilt from live Fabric data on every accessor call rather than cached,
     so a bucket reorder can never leave a stale mapping behind.
+
+    Attributes:
+        count: Number of selected prims.
+        kept_indices: Index into the caller's original path list for each selected prim.
+        unique_parent_paths: Parent prim paths, deduplicated in first-occurrence order.
+        stage: The attached usdrt stage.
+        fabric_hierarchy: Fabric hierarchy handle, or ``None`` when the bindings are unavailable.
+        child_index_attr: Per-instance index attribute authored on the selected prims.
+        view_indices: Dense ``uint32`` view indices, ``0..count-1``.
+        parent_view_indices: Dense ``uint32`` parent indices.
+        sel_ro: Persistent read-only child selection.
+        sel_rw: Persistent read-write child selection.
+        sel_parent: Persistent read-only parent world selection.
+        read_write: Whether the child accessors resolve to :attr:`sel_rw` rather than :attr:`sel_ro`.
     """
 
     _WORLD_MATRIX_NAME = "omni:fabric:worldMatrix"
@@ -84,49 +98,49 @@ class FabricXformSelection:
 
         self._device = device
         self._owner = owner
-        self._read_write = False
+        self.read_write = False
         self._tagged_prims: list[tuple[str, list]] = []
-        self._sel_ro = None
-        self._sel_rw = None
-        self._sel_parent = None
+        self.sel_ro = None
+        self.sel_rw = None
+        self.sel_parent = None
 
-        self._stage = usdrt.Usd.Stage.Attach(get_current_stage_id())
-        fabric_id = self._stage.GetFabricId()
-        self._fabric_hierarchy = (
-            hierarchy.IFabricHierarchy().get_fabric_hierarchy(fabric_id, self._stage.GetStageIdAsStageId())
+        self.stage = usdrt.Usd.Stage.Attach(get_current_stage_id())
+        fabric_id = self.stage.GetFabricId()
+        self.fabric_hierarchy = (
+            hierarchy.IFabricHierarchy().get_fabric_hierarchy(fabric_id, self.stage.GetStageIdAsStageId())
             if hierarchy is not None
             else None
         )
 
         uid = next(FabricXformSelection._uid_counter)
-        self._child_index_attr = f"isaaclab:fabricXform:{uid}:index"
+        self.child_index_attr = f"isaaclab:fabricXform:{uid}:index"
         self._parent_index_attr = f"isaaclab:fabricXform:{uid}:parentIndex"
 
         if skip_missing_prims:
-            self._kept_indices = [i for i, path in enumerate(prim_paths) if self._stage.GetPrimAtPath(path).IsValid()]
-            self._prim_paths = [prim_paths[i] for i in self._kept_indices]
+            self.kept_indices = [i for i, path in enumerate(prim_paths) if self.stage.GetPrimAtPath(path).IsValid()]
+            self._prim_paths = [prim_paths[i] for i in self.kept_indices]
         else:
-            self._kept_indices = list(range(len(prim_paths)))
+            self.kept_indices = list(range(len(prim_paths)))
             self._prim_paths = list(prim_paths)
-        self._count = len(self._prim_paths)
-        if self._count == 0:
-            self._unique_parent_paths = []
+        self.count = len(self._prim_paths)
+        if self.count == 0:
+            self.unique_parent_paths = []
             return
 
         child_parent_paths = [parent_path(path) for path in self._prim_paths]
-        self._unique_parent_paths = list(dict.fromkeys(child_parent_paths))
-        parent_ordinal = {path: i for i, path in enumerate(self._unique_parent_paths)}
+        self.unique_parent_paths = list(dict.fromkeys(child_parent_paths))
+        parent_ordinal = {path: i for i, path in enumerate(self.unique_parent_paths)}
 
         # Tag children and parents with their per-instance ordinal, and make sure the matrices the
         # accessors below hand out actually exist. The index attribute doubles as the selection
         # filter, so a prim that is both a child and a parent here receives both attributes.
         for paths, index_attr, is_child in (
-            (self._prim_paths, self._child_index_attr, True),
-            (self._unique_parent_paths, self._parent_index_attr, False),
+            (self._prim_paths, self.child_index_attr, True),
+            (self.unique_parent_paths, self._parent_index_attr, False),
         ):
             group_prims: list = []
             for i, path in enumerate(paths):
-                rt_prim = self._stage.GetPrimAtPath(path)
+                rt_prim = self.stage.GetPrimAtPath(path)
                 if not rt_prim.IsValid():
                     raise RuntimeError(f"{owner}: prim '{path}' does not exist in the Fabric stage.")
                 rt_xformable = Rt.Xformable(rt_prim)
@@ -151,101 +165,27 @@ class FabricXformSelection:
         uint_type = usdrt.Sdf.ValueTypeNames.UInt
         read = usdrt.Usd.Access.Read
         read_write = usdrt.Usd.Access.ReadWrite
-        child_tag = (uint_type, self._child_index_attr, read)
+        child_tag = (uint_type, self.child_index_attr, read)
         parent_tag = (uint_type, self._parent_index_attr, read)
         world_ro = (matrix, self._WORLD_MATRIX_NAME, read)
         local_ro = (matrix, self._LOCAL_MATRIX_NAME, read)
         world_rw = (matrix, self._WORLD_MATRIX_NAME, read_write)
         local_rw = (matrix, self._LOCAL_MATRIX_NAME, read_write)
-        self._sel_ro = self._stage.SelectPrims(require_attrs=[child_tag, world_ro, local_ro], device=device)
-        self._sel_rw = self._stage.SelectPrims(require_attrs=[child_tag, world_rw, local_rw], device=device)
-        self._sel_parent = self._stage.SelectPrims(require_attrs=[parent_tag, world_ro], device=device)
+        self.sel_ro = self.stage.SelectPrims(require_attrs=[child_tag, world_ro, local_ro], device=device)
+        self.sel_rw = self.stage.SelectPrims(require_attrs=[child_tag, world_rw, local_rw], device=device)
+        self.sel_parent = self.stage.SelectPrims(require_attrs=[parent_tag, world_ro], device=device)
 
         # ``_child_parent_map`` holds view-side indices (uint32, like the Fabric ``UInt`` index
         # attributes); the slot buffers hold Fabric slots and must be int32, the only dtype
         # ``wp.indexedfabricarray`` accepts for indices.
-        self._view_indices = wp.array(list(range(self._count)), dtype=wp.uint32, device=device)
-        self._parent_view_indices = wp.array(
-            list(range(len(self._unique_parent_paths))), dtype=wp.uint32, device=device
-        )
+        self.view_indices = wp.array(list(range(self.count)), dtype=wp.uint32, device=device)
+        self.parent_view_indices = wp.array(list(range(len(self.unique_parent_paths))), dtype=wp.uint32, device=device)
         self._child_parent_map = wp.array(
             [parent_ordinal[path] for path in child_parent_paths], dtype=wp.uint32, device=device
         )
-        self._child_slots_buf = wp.empty((self._count,), dtype=wp.int32, device=device)
-        self._parent_slots_buf = wp.empty((len(self._unique_parent_paths),), dtype=wp.int32, device=device)
-        self._parent_slot_of_child_buf = wp.empty((self._count,), dtype=wp.int32, device=device)
-
-    """
-    Properties.
-    """
-
-    @property
-    def count(self) -> int:
-        """Number of selected prims."""
-        return self._count
-
-    @property
-    def kept_indices(self) -> list[int]:
-        """Index into the caller's original path list for each selected prim."""
-        return self._kept_indices
-
-    @property
-    def unique_parent_paths(self) -> list[str]:
-        """Parent prim paths, deduplicated in first-occurrence order."""
-        return self._unique_parent_paths
-
-    @property
-    def stage(self):
-        """The attached usdrt stage."""
-        return self._stage
-
-    @property
-    def fabric_hierarchy(self):
-        """Fabric hierarchy handle, or ``None`` when the bindings are unavailable."""
-        return self._fabric_hierarchy
-
-    @property
-    def child_index_attr(self) -> str:
-        """Per-instance index attribute authored on the selected prims."""
-        return self._child_index_attr
-
-    @property
-    def view_indices(self) -> wp.array:
-        """Dense ``uint32`` view indices, ``0..count-1``."""
-        return self._view_indices
-
-    @property
-    def parent_view_indices(self) -> wp.array:
-        """Dense ``uint32`` parent indices."""
-        return self._parent_view_indices
-
-    @property
-    def sel_ro(self):
-        """Persistent read-only child selection."""
-        return self._sel_ro
-
-    @property
-    def sel_rw(self):
-        """Persistent read-write child selection."""
-        return self._sel_rw
-
-    @property
-    def sel_parent(self):
-        """Persistent read-only parent world selection."""
-        return self._sel_parent
-
-    @property
-    def read_write(self) -> bool:
-        """Whether the child accessors resolve to the read-write selection."""
-        return self._read_write
-
-    @read_write.setter
-    def read_write(self, value: bool) -> None:
-        self._read_write = bool(value)
-
-    """
-    Operations.
-    """
+        self._child_slots_buf = wp.empty((self.count,), dtype=wp.int32, device=device)
+        self._parent_slots_buf = wp.empty((len(self.unique_parent_paths),), dtype=wp.int32, device=device)
+        self._parent_slot_of_child_buf = wp.empty((self.count,), dtype=wp.int32, device=device)
 
     def world_ifa(self) -> wp.indexedfabricarray:
         """Return the selected prims' world matrices in view order."""
@@ -275,21 +215,21 @@ class FabricXformSelection:
         """Return each selected prim's parent world matrix, in child view order."""
         self.refresh_parent_selection()
         return wp.indexedfabricarray(
-            fa=wp.fabricarray(self._sel_parent, self._WORLD_MATRIX_NAME), indices=self._parent_slot_of_child_buf
+            fa=wp.fabricarray(self.sel_parent, self._WORLD_MATRIX_NAME), indices=self._parent_slot_of_child_buf
         )
 
     def parent_world_rw_ifa(self) -> wp.indexedfabricarray:
         """Return writable parent world matrices, via a one-off selection so :attr:`sel_parent` stays read-only."""
         import usdrt
 
-        selection = self._stage.SelectPrims(
+        selection = self.stage.SelectPrims(
             require_attrs=[
                 (usdrt.Sdf.ValueTypeNames.UInt, self._parent_index_attr, usdrt.Usd.Access.Read),
                 (usdrt.Sdf.ValueTypeNames.Matrix4d, self._WORLD_MATRIX_NAME, usdrt.Usd.Access.ReadWrite),
             ],
             device=self._device,
         )
-        num_parents = len(self._unique_parent_paths)
+        num_parents = len(self.unique_parent_paths)
         self.check_count(selection.GetCount(), num_parents, self._parent_index_attr)
         wp.launch(
             kernel=fabric_utils.map_view_indices_to_fabric_slots,
@@ -330,13 +270,13 @@ class FabricXformSelection:
         ``PrepareForReuse`` absorbs Fabric bucket changes, and notifies the renderer for the
         read-write selection -- which is why writers must select it, not just for access rights.
         """
-        selection = self._sel_rw if self._read_write else self._sel_ro
+        selection = self.sel_rw if self.read_write else self.sel_ro
         selection.PrepareForReuse()
-        self.check_count(selection.GetCount(), self._count, self._child_index_attr)
+        self.check_count(selection.GetCount(), self.count, self.child_index_attr)
         wp.launch(
             kernel=fabric_utils.map_view_indices_to_fabric_slots,
-            dim=self._count,
-            inputs=[wp.fabricarray(selection, self._child_index_attr), self._child_slots_buf],
+            dim=self.count,
+            inputs=[wp.fabricarray(selection, self.child_index_attr), self._child_slots_buf],
             device=self._device,
         )
         return selection
@@ -344,17 +284,17 @@ class FabricXformSelection:
     def refresh_parent_selection(self) -> None:
         """Refresh the parent selection and rebuild the per-child parent-slot mapping."""
         num_parents = self._parent_slots_buf.shape[0]
-        self._sel_parent.PrepareForReuse()
-        self.check_count(self._sel_parent.GetCount(), num_parents, self._parent_index_attr)
+        self.sel_parent.PrepareForReuse()
+        self.check_count(self.sel_parent.GetCount(), num_parents, self._parent_index_attr)
         wp.launch(
             kernel=fabric_utils.map_view_indices_to_fabric_slots,
             dim=num_parents,
-            inputs=[wp.fabricarray(self._sel_parent, self._parent_index_attr), self._parent_slots_buf],
+            inputs=[wp.fabricarray(self.sel_parent, self._parent_index_attr), self._parent_slots_buf],
             device=self._device,
         )
         wp.launch(
             kernel=fabric_utils.gather_fabric_slots,
-            dim=self._count,
+            dim=self.count,
             inputs=[self._parent_slots_buf, self._child_parent_map, self._parent_slot_of_child_buf],
             device=self._device,
         )
