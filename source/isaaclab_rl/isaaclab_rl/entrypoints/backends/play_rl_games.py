@@ -167,43 +167,46 @@ def main():
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
 
-            screen.stage("Loading policy")
-            env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
-
-            vecenv.register(
-                "IsaacRlgWrapper",
-                lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
-            )
-            env_configurations.register(
-                "rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env}
-            )
-
-            agent_cfg["params"]["load_checkpoint"] = True
-            agent_cfg["params"]["load_path"] = resume_path
-            print(f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}")
-
-            agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
-            runner = Runner()
-            # configure_seed must run after Runner() so torch determinism does not disturb its initialization
-            if args_cli.deterministic:
-                configure_seed(env_cfg.seed, torch_deterministic=True)
-            runner.load(agent_cfg)
-            agent: BasePlayer = runner.create_player()
-            agent.restore(resume_path)
-            agent.reset()
-
-            dt = env.unwrapped.step_dt
-
-            screen.close()
-            obs = env.reset()
-            if isinstance(obs, dict):
-                obs = obs["obs"]
-            timestep = 0
-            _ = agent.get_batch_size(obs, 1)
-            if agent.is_rnn:
-                agent.init_rnn()
-            print("[INFO] Policy playback is running, press Ctrl+C to exit...")
+            # Protect everything from here on: an interrupt during wrapper/runner/checkpoint
+            # setup or during env.reset() bypasses env.close() just as easily as one during
+            # the play loop below, if it isn't inside this try/finally too.
             try:
+                screen.stage("Loading policy")
+                env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
+
+                vecenv.register(
+                    "IsaacRlgWrapper",
+                    lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
+                )
+                env_configurations.register(
+                    "rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env}
+                )
+
+                agent_cfg["params"]["load_checkpoint"] = True
+                agent_cfg["params"]["load_path"] = resume_path
+                print(f"[INFO]: Loading model checkpoint from: {agent_cfg['params']['load_path']}")
+
+                agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
+                runner = Runner()
+                # configure_seed must run after Runner() so torch determinism does not disturb its initialization
+                if args_cli.deterministic:
+                    configure_seed(env_cfg.seed, torch_deterministic=True)
+                runner.load(agent_cfg)
+                agent: BasePlayer = runner.create_player()
+                agent.restore(resume_path)
+                agent.reset()
+
+                dt = env.unwrapped.step_dt
+
+                screen.close()
+                obs = env.reset()
+                if isinstance(obs, dict):
+                    obs = obs["obs"]
+                timestep = 0
+                _ = agent.get_batch_size(obs, 1)
+                if agent.is_rnn:
+                    agent.init_rnn()
+                print("[INFO] Policy playback is running, press Ctrl+C to exit...")
                 while True:
                     start_time = time.time()
                     with torch.inference_mode():

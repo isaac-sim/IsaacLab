@@ -183,56 +183,59 @@ def _run(args_cli: argparse.Namespace) -> None:
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
 
-            if args_cli.checkpoint in CHECKPOINT_SELECTORS:
-                resume_path = resolve_checkpoint_selector(
-                    log_root_path,
-                    args_cli.checkpoint,
-                    library="rsl_rl",
-                    task=args_cli.task,
-                    checkpoint_pattern=r"model_.*\.pt",
-                    metadata={"agent": args_cli.agent},
-                )
-            elif args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
-                resume_path = get_checkpoint_path(
-                    os.path.dirname(args_cli.checkpoint),
-                    os.path.basename(args_cli.checkpoint),
-                    agent_cfg.load_checkpoint,
-                )
-            elif args_cli.checkpoint:
-                resume_path = retrieve_file_path(args_cli.checkpoint)
-            elif agent_cfg.algorithm.class_name == "Distillation":
-                raise ValueError("Distillation training requires --checkpoint.")
-
-            env = wrap_training_capture(env, log_dir, args_cli)
-
-            screen.stage("Preparing agent")
-            start_time = time.time()
-            report_activity("Wrapping environment")
-            env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-            report_activity(None)
-
-            report_activity("Building policy")
-            if agent_cfg.class_name == "OnPolicyRunner":
-                runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
-            elif agent_cfg.class_name == "DistillationRunner":
-                runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
-            else:
-                raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-            report_activity(None)
-
-            # configure_seed must run after runner construction so torch determinism does not disturb its initialization
-            if args_cli.deterministic:
-                configure_seed(env_cfg.seed, torch_deterministic=True)
-
-            runner.add_git_repo_to_log(__file__)
-            if args_cli.checkpoint:
-                print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-                runner.load(resume_path)
-
-            dump_train_configs(log_dir, env_cfg, agent_cfg)
-
-            screen.close()
+            # Protect everything from here on: an interrupt during checkpoint resolution,
+            # wrapper/runner setup, or training bypasses env.close() just as easily as one
+            # during runner.learn() below, if it isn't inside this try/finally too.
             try:
+                if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+                    resume_path = resolve_checkpoint_selector(
+                        log_root_path,
+                        args_cli.checkpoint,
+                        library="rsl_rl",
+                        task=args_cli.task,
+                        checkpoint_pattern=r"model_.*\.pt",
+                        metadata={"agent": args_cli.agent},
+                    )
+                elif args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
+                    resume_path = get_checkpoint_path(
+                        os.path.dirname(args_cli.checkpoint),
+                        os.path.basename(args_cli.checkpoint),
+                        agent_cfg.load_checkpoint,
+                    )
+                elif args_cli.checkpoint:
+                    resume_path = retrieve_file_path(args_cli.checkpoint)
+                elif agent_cfg.algorithm.class_name == "Distillation":
+                    raise ValueError("Distillation training requires --checkpoint.")
+
+                env = wrap_training_capture(env, log_dir, args_cli)
+
+                screen.stage("Preparing agent")
+                start_time = time.time()
+                report_activity("Wrapping environment")
+                env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+                report_activity(None)
+
+                report_activity("Building policy")
+                if agent_cfg.class_name == "OnPolicyRunner":
+                    runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+                elif agent_cfg.class_name == "DistillationRunner":
+                    runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+                else:
+                    raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+                report_activity(None)
+
+                # configure_seed must run after runner construction so torch determinism does not disturb its initialization
+                if args_cli.deterministic:
+                    configure_seed(env_cfg.seed, torch_deterministic=True)
+
+                runner.add_git_repo_to_log(__file__)
+                if args_cli.checkpoint:
+                    print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+                    runner.load(resume_path)
+
+                dump_train_configs(log_dir, env_cfg, agent_cfg)
+
+                screen.close()
                 runner.learn(
                     num_learning_iterations=agent_cfg.max_iterations,
                     init_at_random_ep_len=agent_cfg.init_at_random_ep_len,

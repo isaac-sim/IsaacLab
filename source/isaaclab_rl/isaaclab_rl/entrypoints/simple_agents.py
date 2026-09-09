@@ -83,28 +83,16 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         # create environment
         env = gym.make(args_cli.task, cfg=env_cfg)
 
-        # print info (this is vectorized environment)
-        print(f"[INFO]: Gym observation space: {env.observation_space}")
-        print(f"[INFO]: Gym action space: {env.action_space}")
-        # reset environment
-        env.reset()
-        zero_action_policy = _create_zero_action_policy(env) if policy == "zero" else None
-        if policy == "zero":
-            print("[INFO] Zero agent is running, press Ctrl+C to exit...")
-        else:
-            print("[INFO] Random agent is running, press Ctrl+C to exit...")
-        # simulate environment
-        # keep running while any visualizer is open, and until the step budget is exhausted
-        sim = env.unwrapped.sim
-        device = env.unwrapped.device
-        step = 0
         # A raw SIGINT is delivered asynchronously: with multiple GUI-backed visualizers active
         # (e.g. --visualizer newton,kit), Python can just as easily raise KeyboardInterrupt from
-        # inside one of Kit's own internal callback dispatches (its viewport/render event loop)
-        # as from this loop, where nothing here can catch it. Installing a handler that only
-        # flips a flag is safe no matter which frame it fires in, and lets this loop -- the one
-        # place that knows how to shut the simulation down cleanly -- check it at a controlled
-        # point instead of hoping the exception lands somewhere useful.
+        # inside env.reset(), policy construction, one of Kit's own internal callback dispatches
+        # (its viewport/render event loop), or the step loop below -- anywhere after the
+        # environment exists -- as from the step loop itself, where nothing here can catch it.
+        # Installing a handler that only flips a flag is safe no matter which frame it fires in,
+        # and lets this function -- the one place that knows how to shut the simulation down
+        # cleanly -- check it at a controlled point instead of hoping the exception lands
+        # somewhere useful. Install it immediately once ``env`` exists, so an interrupt during
+        # setup can't bypass env.close() any more easily than one during the step loop.
         interrupted = False
 
         def _on_sigint(signum, frame):
@@ -113,6 +101,21 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
 
         previous_handler = signal.signal(signal.SIGINT, _on_sigint)
         try:
+            # print info (this is vectorized environment)
+            print(f"[INFO]: Gym observation space: {env.observation_space}")
+            print(f"[INFO]: Gym action space: {env.action_space}")
+            # reset environment
+            env.reset()
+            zero_action_policy = _create_zero_action_policy(env) if policy == "zero" else None
+            if policy == "zero":
+                print("[INFO] Zero agent is running, press Ctrl+C to exit...")
+            else:
+                print("[INFO] Random agent is running, press Ctrl+C to exit...")
+            # simulate environment
+            # keep running while any visualizer is open, and until the step budget is exhausted
+            sim = env.unwrapped.sim
+            device = env.unwrapped.device
+            step = 0
             while sim.is_headless_or_exist_active_visualizer():
                 if interrupted:
                     break

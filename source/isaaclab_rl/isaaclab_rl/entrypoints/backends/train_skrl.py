@@ -202,27 +202,30 @@ def _run(args_cli: argparse.Namespace) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
             )
-            env = wrap_training_capture(env, log_dir, args_cli)
-
-            screen.stage("Preparing agent")
-            start_time = time.time()
-            report_activity("Wrapping environment")
-            env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
-            report_activity(None)
-            report_activity("Building policy")
-            runner = Runner(env, agent_cfg)
-            report_activity(None)
-
-            # configure_seed must run after Runner() so torch determinism does not disturb its initialization
-            if args_cli.deterministic:
-                configure_seed(env_cfg.seed, torch_deterministic=True)
-
-            if resume_path:
-                print(f"[INFO] Loading model checkpoint from: {resume_path}")
-                runner.agent.load(resume_path)
-
-            screen.close()
+            # Protect everything from here on: an interrupt during wrapper/runner setup or
+            # training bypasses env.close() just as easily as one during runner.run() below,
+            # if it isn't inside this try/finally too.
             try:
+                env = wrap_training_capture(env, log_dir, args_cli)
+
+                screen.stage("Preparing agent")
+                start_time = time.time()
+                report_activity("Wrapping environment")
+                env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
+                report_activity(None)
+                report_activity("Building policy")
+                runner = Runner(env, agent_cfg)
+                report_activity(None)
+
+                # configure_seed must run after Runner() so torch determinism does not disturb its initialization
+                if args_cli.deterministic:
+                    configure_seed(env_cfg.seed, torch_deterministic=True)
+
+                if resume_path:
+                    print(f"[INFO] Loading model checkpoint from: {resume_path}")
+                    runner.agent.load(resume_path)
+
+                screen.close()
                 runner.run()
                 print(f"Training time: {round(time.time() - start_time, 2)} seconds")
 

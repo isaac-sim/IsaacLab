@@ -177,52 +177,55 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
 
-            screen.stage("Loading policy")
-            env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-
-            print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-            if agent_cfg.class_name == "OnPolicyRunner":
-                runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
-            elif agent_cfg.class_name == "DistillationRunner":
-                runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
-            else:
-                raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-            # configure_seed must run after runner construction so torch determinism does not disturb its initialization
-            if args_cli.deterministic:
-                configure_seed(env_cfg.seed, torch_deterministic=True)
-            runner.load(resume_path)
-
-            policy = runner.get_inference_policy(device=env.unwrapped.device)
-
-            export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
-
-            if version.parse(installed_version) >= version.parse("4.0.0"):
-                runner.export_policy_to_jit(path=export_model_dir, filename="policy.pt")
-                runner.export_policy_to_onnx(path=export_model_dir, filename="policy.onnx")
-                policy_nn = None  # Not needed for rsl-rl >= 4.0.0
-            else:
-                if version.parse(installed_version) >= version.parse("2.3.0"):
-                    policy_nn = runner.alg.policy
-                else:
-                    policy_nn = runner.alg.actor_critic
-
-                if hasattr(policy_nn, "actor_obs_normalizer"):
-                    normalizer = policy_nn.actor_obs_normalizer
-                elif hasattr(policy_nn, "student_obs_normalizer"):
-                    normalizer = policy_nn.student_obs_normalizer
-                else:
-                    normalizer = None
-
-                export_policy_as_jit(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.pt")
-                export_policy_as_onnx(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.onnx")
-
-            dt = env.unwrapped.step_dt
-
-            screen.close()
-            obs = env.get_observations()
-            timestep = 0
-            print("[INFO] Policy playback is running, press Ctrl+C to exit...")
+            # Protect everything from here on: an interrupt during wrapper/runner/checkpoint
+            # setup or during env.reset()-equivalent work bypasses env.close() just as easily
+            # as one during the play loop below, if it isn't inside this try/finally too.
             try:
+                screen.stage("Loading policy")
+                env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+
+                print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+                if agent_cfg.class_name == "OnPolicyRunner":
+                    runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+                elif agent_cfg.class_name == "DistillationRunner":
+                    runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+                else:
+                    raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+                # configure_seed must run after runner construction so torch determinism does not disturb its initialization
+                if args_cli.deterministic:
+                    configure_seed(env_cfg.seed, torch_deterministic=True)
+                runner.load(resume_path)
+
+                policy = runner.get_inference_policy(device=env.unwrapped.device)
+
+                export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
+
+                if version.parse(installed_version) >= version.parse("4.0.0"):
+                    runner.export_policy_to_jit(path=export_model_dir, filename="policy.pt")
+                    runner.export_policy_to_onnx(path=export_model_dir, filename="policy.onnx")
+                    policy_nn = None  # Not needed for rsl-rl >= 4.0.0
+                else:
+                    if version.parse(installed_version) >= version.parse("2.3.0"):
+                        policy_nn = runner.alg.policy
+                    else:
+                        policy_nn = runner.alg.actor_critic
+
+                    if hasattr(policy_nn, "actor_obs_normalizer"):
+                        normalizer = policy_nn.actor_obs_normalizer
+                    elif hasattr(policy_nn, "student_obs_normalizer"):
+                        normalizer = policy_nn.student_obs_normalizer
+                    else:
+                        normalizer = None
+
+                    export_policy_as_jit(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.pt")
+                    export_policy_as_onnx(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.onnx")
+
+                dt = env.unwrapped.step_dt
+
+                screen.close()
+                obs = env.get_observations()
+                timestep = 0
+                print("[INFO] Policy playback is running, press Ctrl+C to exit...")
                 while True:
                     start_time = time.time()
                     with torch.inference_mode():

@@ -12,4 +12,10 @@ Fixed
   asynchronously inside one of Kit's own internal callbacks (its viewport/render event loop)
   rather than in the script's own loop; that entrypoint now installs a ``SIGINT`` handler that
   only sets a flag, checked at a controlled point in the loop, instead of relying on where the
-  exception happens to land.
+  exception happens to land. The flag-only handler stays installed through ``env.close()``
+  itself, since restoring it beforehand let a second Ctrl+C during the multi-stage cleanup
+  raise a raw ``KeyboardInterrupt`` that bypassed ``clear_instance``'s per-stage error
+  isolation and could skip whatever visualizers had not closed yet. The protected scope also
+  now starts immediately after each environment is created, covering ``env.reset()`` and
+  wrapper/runner/checkpoint setup, not just the final training or playback loop -- an
+  interrupt during that setup work could bypass ``env.close()`` the same way.

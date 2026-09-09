@@ -215,32 +215,35 @@ def _main():
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
             )
 
+            # Protect everything from here on: an interrupt during wrapper/runner/checkpoint
+            # setup or during env.reset() bypasses env.close() just as easily as one during
+            # the play loop below, if it isn't inside this try/finally too.
             try:
-                dt = env.step_dt
-            except AttributeError:
-                dt = env.unwrapped.step_dt
+                try:
+                    dt = env.step_dt
+                except AttributeError:
+                    dt = env.unwrapped.step_dt
 
-            screen.stage("Loading policy")
-            env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
+                screen.stage("Loading policy")
+                env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
 
-            experiment_cfg["trainer"]["close_environment_at_exit"] = False
-            experiment_cfg["agent"]["experiment"]["write_interval"] = 0
-            experiment_cfg["agent"]["experiment"]["checkpoint_interval"] = 0
-            runner = Runner(env, experiment_cfg)
-            # configure_seed must run after Runner() so torch determinism does not disturb its initialization
-            if args_cli.deterministic:
-                configure_seed(env_cfg.seed, torch_deterministic=True)
+                experiment_cfg["trainer"]["close_environment_at_exit"] = False
+                experiment_cfg["agent"]["experiment"]["write_interval"] = 0
+                experiment_cfg["agent"]["experiment"]["checkpoint_interval"] = 0
+                runner = Runner(env, experiment_cfg)
+                # configure_seed must run after Runner() so torch determinism does not disturb its initialization
+                if args_cli.deterministic:
+                    configure_seed(env_cfg.seed, torch_deterministic=True)
 
-            print(f"[INFO] Loading model checkpoint from: {resume_path}")
-            runner.agent.load(resume_path)
-            runner.agent.enable_training_mode(False, apply_to_models=True)
+                print(f"[INFO] Loading model checkpoint from: {resume_path}")
+                runner.agent.load(resume_path)
+                runner.agent.enable_training_mode(False, apply_to_models=True)
 
-            screen.close()
-            obs, _ = env.reset()
-            states = env.state()
-            timestep = 0
-            print("[INFO] Policy playback is running, press Ctrl+C to exit...")
-            try:
+                screen.close()
+                obs, _ = env.reset()
+                states = env.state()
+                timestep = 0
+                print("[INFO] Policy playback is running, press Ctrl+C to exit...")
                 while True:
                     start_time = time.time()
 
