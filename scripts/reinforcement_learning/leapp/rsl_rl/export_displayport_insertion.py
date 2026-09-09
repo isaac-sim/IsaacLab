@@ -327,7 +327,11 @@ def export_displayport_agent(
         _export.leapp.stop()
         leapp_started = False
         validate = args_cli.validation_steps > 0
-        _export.leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=validate)
+        _export.leapp.compile_graph(
+            visualize=not args_cli.disable_graph_visualization,
+            validate=validate,
+            graph_configs=_export.create_graph_configs(env_cfg),
+        )
     finally:
         if leapp_started:
             with contextlib.suppress(Exception):

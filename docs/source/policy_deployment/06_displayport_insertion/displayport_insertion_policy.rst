@@ -63,7 +63,7 @@ Asset Quality for Insertion Tasks
 
 For any contact-rich insertion task, **the quality of the plug and socket assets matters more than most other sim-to-real knobs**. DisplayPort insertion in particular operates at very small clearances between plug blades and the socket cavity. If the USD collision geometry, mass properties, or joint behavior are wrong, no amount of reward tuning or domain randomization will produce a policy that transfers well to hardware.
 
-The DisplayPort plug and socket assets used by these environments have been iterated extensively and work well for training policies that transfer sim-to-real. Expect considerable upfront effort to reach this quality for a new connector or cable type.
+The DisplayPort plug and socket assets used by these environments are published on the Isaac asset server (under ``Props/Factory/display_port_cable_assets``) and fetched at load time rather than vendored in the repository. They have been iterated extensively and work well for training policies that transfer sim-to-real. Expect considerable upfront effort to reach this quality for a new connector or cable type.
 
 **What to validate before training:**
 
@@ -75,10 +75,12 @@ The DisplayPort plug and socket assets used by these environments have been iter
 
 **The robot asset matters too.** The checks above concern the plug and socket, but the arm's USD must also
 represent *your* robot — particularly its kinematic parameters, which may vary unit to unit. This matters most for
-joint-space training, where the policy commands joints directly. Flexiv's
+joint-space training, where the policy commands joints directly. These environments spawn the stock
+:obj:`~isaaclab_assets.robots.flexiv.FLEXIV_RIZON4S_GRAV_GRIPPER_CFG` asset, which describes a nominal Rizon 4s
+rather than any particular unit. Flexiv's
 `flexiv_calibration <https://github.com/flexivrobotics/flexiv_ros2/tree/release/lyrical-v1.9.3/flexiv_calibration>`__
-workflow exports a calibrated robot description for a specific arm; convert the result to USD and select it with the
-``DP_ROBOT_USD`` environment variable.
+workflow exports a calibrated robot description for a specific arm; convert the result to USD and point the robot
+spawn config at it before training a policy you intend to deploy.
 
 **Practical workflow:**
 
@@ -922,12 +924,14 @@ kinematics.
    as end-effector error during insertion — where the clearances are sub-millimetre. Individual arms differ from
    the nominal CAD model, so the shipped asset will not describe your unit exactly.
 
-   Before training a joint-space policy, confirm the robot USD reflects your arm's measured kinematics. Flexiv
-   publishes a per-robot calibration workflow for exporting an accurate robot description:
+   These environments spawn the stock
+   :obj:`~isaaclab_assets.robots.flexiv.FLEXIV_RIZON4S_GRAV_GRIPPER_CFG` asset, which describes a nominal Rizon 4s
+   rather than any particular unit. Before training a joint-space policy you intend to deploy, replace it with a
+   description of your own arm. Flexiv publishes a per-robot calibration workflow for exporting an accurate robot
+   description:
    `flexiv_calibration <https://github.com/flexivrobotics/flexiv_ros2/tree/release/lyrical-v1.9.3/flexiv_calibration>`__.
-   Follow it to generate the calibrated description for your setup, convert it to USD, and point the environment at
-   it with the ``DP_ROBOT_USD`` environment variable (it overrides the default calibrated asset in
-   ``config/displayport_rizon_4s/joint_pos_env_cfg.py``).
+   Follow it to generate the calibrated description for your setup, convert it to USD, and set ``usd_path`` on the
+   robot spawn config in ``config/displayport_rizon_4s/joint_pos_env_cfg.py``.
 
    Task-space policies are less exposed to this: they are commanded in Cartesian space, so kinematic error affects
    the observed end-effector pose rather than being injected straight into the commanded joint targets. Getting the

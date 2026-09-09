@@ -5,9 +5,9 @@
 
 """Base RL environment for inserting a DisplayPort plug into a socket.
 
-Targets the right-angle DisplayPort plug/socket assets in
-``display_cable_insertion_assets``. Assets load with plain
-:class:`~isaaclab.sim.UsdFileCfg` at ``scale=(1,1,1)``.
+Targets the DisplayPort plug/socket assets published under
+``Props/Factory/display_port_cable_assets`` on the Isaac asset server. Assets load with
+plain :class:`~isaaclab.sim.UsdFileCfg` at ``scale=(1,1,1)``.
 """
 
 import os
@@ -34,7 +34,12 @@ import isaaclab_tasks.contrib.deploy.mdp as mdp
 from isaaclab_tasks.contrib.deploy.mdp.noise_models import ResetSampledConstantNoiseModelCfg
 
 CABLE_INSERTION_DIR = os.path.dirname(os.path.abspath(__file__))
-DISPLAY_ASSETS_DIR = os.path.join(CABLE_INSERTION_DIR, "display_cable_insertion_assets")
+
+# DisplayPort assets are published on the Isaac staging asset server. They are not yet mirrored
+# to the production bucket that ``ISAAC_NUCLEUS_DIR`` resolves to, so the root is pinned here.
+# Switch to ``f"{ISAAC_NUCLEUS_DIR}/Props/Factory/display_port_cable_assets"`` once promoted.
+_DISPLAY_ASSETS_STAGING_ROOT = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac"
+DISPLAY_ASSETS_DIR = f"{_DISPLAY_ASSETS_STAGING_ROOT}/Props/Factory/display_port_cable_assets"
 
 
 def _quat_rotate_vec(q_xyzw, v):
@@ -123,7 +128,7 @@ class DisplayPortPlug(RigidObjectCfg):
 
     prim_path = "{ENV_REGEX_NS}/DisplayPortPlug"
     spawn = sim_utils.UsdFileCfg(
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_plug_fixed_sdf.usd"),
+        usd_path=f"{DISPLAY_ASSETS_DIR}/displayport_plug.usd",
         scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -151,7 +156,7 @@ class DisplayPortSocket(RigidObjectCfg):
 
     prim_path = "{ENV_REGEX_NS}/DisplayPortSocket"
     spawn = sim_utils.UsdFileCfg(
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_socket_fixed_sdf_noprotrusions.usd"),
+        usd_path=f"{DISPLAY_ASSETS_DIR}/displayport_socket_no_protrusions.usd",
         scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(

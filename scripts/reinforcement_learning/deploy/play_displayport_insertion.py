@@ -101,9 +101,10 @@ Pose conventions
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
-import json
 import importlib.metadata as metadata
+import json
 import os
 import re
 import sys
@@ -131,6 +132,8 @@ from isaaclab.utils.assets import retrieve_file_path
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
 
+# local imports
+from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
@@ -142,8 +145,6 @@ from isaaclab_tasks.contrib.deploy.cable_insertion.displayport_insertion_env_cfg
 from isaaclab_tasks.utils import get_checkpoint_path, setup_preset_cli
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
-# local imports
-from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
 from success_utils import SuccessTracker  # isort: skip
 
 _DEFAULT_TASK = "Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0"
@@ -155,9 +156,7 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=_DEFAULT_TASK, help="Registered gym task id.")
-parser.add_argument(
-    "--agent", type=str, default="rsl_rl_cfg_entry_point", help="RL agent configuration entry point."
-)
+parser.add_argument("--agent", type=str, default="rsl_rl_cfg_entry_point", help="RL agent configuration entry point.")
 parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
 parser.add_argument(
     "--use_pretrained_checkpoint", action="store_true", help="Use the published Nucleus pretrained checkpoint."
@@ -271,9 +270,7 @@ parser.add_argument(
     "--log_dir",
     type=str,
     default=None,
-    help=(
-        "Directory for run logs. Default: <checkpoint_or_leapp_dir>/inference_logs/<timestamp>."
-    ),
+    help=("Directory for run logs. Default: <checkpoint_or_leapp_dir>/inference_logs/<timestamp>."),
 )
 parser.add_argument("--no_print", action="store_true", help="Disable per-step terminal printing.")
 parser.add_argument(
@@ -576,10 +573,7 @@ def load_replay_trajectory(path: str | Path, num_arm_joints: int = 7) -> ReplayT
         deltas = _stack(safety_keys[:num_arm_joints])
         targets = measured + deltas
         source = "joint_pos+safety_cmd"
-        print(
-            "[INFO] Replay CSV uses real-style safety_cmd deltas; "
-            "absolute targets = measured_joint + safety_cmd."
-        )
+        print("[INFO] Replay CSV uses real-style safety_cmd deltas; absolute targets = measured_joint + safety_cmd.")
     elif len(act_keys) >= num_arm_joints:
         candidate = _stack(act_keys[:num_arm_joints])
         # Guard against older sim logs where action_* held raw normalized output.
@@ -688,9 +682,7 @@ def load_init_policy_obs(
     if not rows:
         raise ValueError(f"--init_obs_csv is empty: {csv_path}")
     if step >= len(rows):
-        raise ValueError(
-            f"--init_obs_step={step} out of range for {csv_path} ({len(rows)} rows)."
-        )
+        raise ValueError(f"--init_obs_step={step} out of range for {csv_path} ({len(rows)} rows).")
 
     obs_keys = sorted([k for k in header if re.fullmatch(r"obs_\d+", k)], key=_trailing_int)
     if not obs_keys:
@@ -699,9 +691,7 @@ def load_init_policy_obs(
     obs = np.asarray([float(row[k]) for k in obs_keys], dtype=np.float64)
 
     rin_keys = sorted([k for k in header if re.fullmatch(r"rnn_in_\d+", k)], key=_trailing_int)
-    rnn_in = (
-        np.asarray([float(row[k]) for k in rin_keys], dtype=np.float64) if rin_keys else None
-    )
+    rnn_in = np.asarray([float(row[k]) for k in rin_keys], dtype=np.float64) if rin_keys else None
 
     joint_pos = obs[:num_arm_joints].copy() if obs.size >= num_arm_joints else None
     observed_socket_pos = observed_socket_rot = None
@@ -729,8 +719,7 @@ def load_init_policy_obs(
 
     print(
         f"[INFO] Loaded init policy obs from {csv_path} row {step}: "
-        f"obs_dim={obs.size}"
-        + (f", rnn_in_dim={rnn_in.size}" if rnn_in is not None else ", rnn_in=absent")
+        f"obs_dim={obs.size}" + (f", rnn_in_dim={rnn_in.size}" if rnn_in is not None else ", rnn_in=absent")
     )
     return InitPolicyObs(
         path=csv_path,
@@ -778,18 +767,14 @@ def _replace_policy_obs_vector(obs, flat: np.ndarray, num_envs: int, device):
                     "Use a CSV recorded with the same task / observation layout."
                 )
             # TensorDict supports item assignment; fall back to clone+set.
-            try:
+            with contextlib.suppress(Exception):
                 obs = obs.clone()
-            except Exception:
-                pass
             obs["policy"] = tiled.to(device=pol.device if torch.is_tensor(pol) else device)
             return obs
 
     if torch.is_tensor(obs):
         if obs.shape[-1] != flat_t.numel():
-            raise ValueError(
-                f"--init_obs_csv obs dim {flat_t.numel()} != live obs dim {obs.shape[-1]}."
-            )
+            raise ValueError(f"--init_obs_csv obs dim {flat_t.numel()} != live obs dim {obs.shape[-1]}.")
         out = obs.clone()
         out[:] = tiled.to(device=obs.device, dtype=obs.dtype)
         return out
@@ -882,9 +867,7 @@ def resolve_leapp_model_yaml(path: str | Path) -> Path:
         return yaml_files[0]
     if deploy_candidates:
         names = ", ".join(p.name for p in deploy_candidates)
-        raise ValueError(
-            f"Multiple deploy YAML files under {model_path}: {names}. Pass the YAML path explicitly."
-        )
+        raise ValueError(f"Multiple deploy YAML files under {model_path}: {names}. Pass the YAML path explicitly.")
     names = ", ".join(p.name for p in yaml_files)
     raise ValueError(f"Multiple YAML files under {model_path}: {names}. Pass the YAML path explicitly.")
 
@@ -1107,8 +1090,8 @@ class LeappDisplayportPolicy:
         inputs = self._gather_inputs()
 
         # Capture rnn_in from feedback buffers BEFORE inference updates them.
-        rin = self._read_feedback_packed()
-        self.last_rnn_in = None if rin is None else rin.copy()
+        rnn_in_vec = self._read_feedback_packed()
+        self.last_rnn_in = None if rnn_in_vec is None else rnn_in_vec.copy()
 
         with torch.inference_mode():
             self.last_outputs = self.inference.run_policy(inputs)
@@ -1122,9 +1105,7 @@ class LeappDisplayportPolicy:
             # Fall back to the first tensor that looks like an arm command.
             candidates = [k for k in self.last_outputs if k.endswith("/arm_action") or "action" in k.split("/")[-1]]
             if not candidates:
-                raise KeyError(
-                    f"LEAPP outputs missing arm_action. Keys: {list(self.last_outputs.keys())}"
-                )
+                raise KeyError(f"LEAPP outputs missing arm_action. Keys: {list(self.last_outputs.keys())}")
             abs_key = candidates[0]
 
         absolute = self.last_outputs[abs_key]
@@ -1514,8 +1495,8 @@ class InferenceLogger:
             # Legacy path: only post-forward state was provided.
             rnn_out = _pack_rnn_state(lstm_h, lstm_c) if rnn_out is None else rnn_out
         if rnn_in is not None:
-            rin = np.asarray(rnn_in, dtype=np.float64).reshape(-1)
-            print(f"[rnn_in] dim={rin.size} ||rnn_in||={np.linalg.norm(rin):.4f}")
+            rnn_in_vec = np.asarray(rnn_in, dtype=np.float64).reshape(-1)
+            print(f"[rnn_in] dim={rnn_in_vec.size} ||rnn_in||={np.linalg.norm(rnn_in_vec):.4f}")
         if rnn_out is not None:
             rout = np.asarray(rnn_out, dtype=np.float64).reshape(-1)
             print(f"[rnn_out] dim={rout.size} ||rnn_out||={np.linalg.norm(rout):.4f}")
@@ -1670,6 +1651,7 @@ class InferenceLogger:
             writer.writeheader()
             writer.writerows(self.rows)
         print(f"[INFO] Wrote {len(self.rows)} steps to {self.csv_path}")
+
 
 def _disable_randomization(env_cfg):
     """Make resets deterministic for debugging / replay."""
@@ -1851,7 +1833,9 @@ def _write_run_metadata(
 
 
 @hydra_task_config(args_cli.task, args_cli.agent)
-def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
+def main(  # noqa: C901
+    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg
+):
     """Run DisplayPort insertion inference with controllable poses and logging."""
     with launch_simulation(env_cfg, args_cli):
         task_name = args_cli.task.split(":")[-1]
@@ -2064,9 +2048,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                     pending_row = logger.begin_step(
                         obs, actions, step_count, episode_count, rnn_in=rnn_in, rnn_out=rnn_out
                     )
-                    logger.print_step(
-                        obs, actions, step_count, None, rnn_in=rnn_in, rnn_out=rnn_out
-                    )
+                    logger.print_step(obs, actions, step_count, None, rnn_in=rnn_in, rnn_out=rnn_out)
 
                     obs, _, dones, _ = env.step(actions)
                     success_info = success_tracker.update(dones)
