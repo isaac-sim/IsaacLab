@@ -530,14 +530,10 @@ def launch_simulation(
     visualizer_types = _get_visualizer_types(launcher_args)
 
     if _has_newton_rtx_visualizer(config_scan, launcher_args):
-        # Prepare ovrtx (library search paths, USD schema/plugin registration) before any physics
-        # backend (e.g. ovphysx) gets a chance to touch `pxr` and trigger USD's plug registry's
-        # one-shot-per-process initialization. If that happens first, ovrtx's later `import ovrtx`
-        # (inside newton's ViewerRTX, once the newton_rtx visualizer is constructed) is too late to
-        # add its schema paths, and applying OmniRtx*API schemas on the render product logs benign
-        # "FindAppliedAPIPrimDefinition(...) returned nothing" errors. Unguarded: this module already
-        # requires isaaclab_ov at import time (OvPhysxCfg, OVRTXRendererCfg above), so a launch that
-        # reaches here has it installed.
+        # Register ovrtx's USD schema paths before a physics backend (e.g. ovphysx) can touch
+        # `pxr` and trigger its one-shot plug-registry init; otherwise ovrtx's later `import ovrtx`
+        # is too late and logs benign "FindAppliedAPIPrimDefinition(...) returned nothing" errors.
+        # Unguarded: this module already requires isaaclab_ov at import time (above).
         prepare_ovrtx_runtime()
 
     kit_sources = _get_kit_runtime_sources(config_scan, launcher_args)
