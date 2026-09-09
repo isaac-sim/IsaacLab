@@ -3,7 +3,7 @@
    This section is the source of truth for the ``isaaclab-preparing-assets-for-newton`` agent skill
    (`skills/user/prepare-assets-for-newton/ <../../../../../../skills/user/prepare-assets-for-newton/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 Newton Backend
 ==============

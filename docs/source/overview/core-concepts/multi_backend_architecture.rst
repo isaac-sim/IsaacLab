@@ -8,7 +8,7 @@ Multi-Backend Architecture
    (`skills/user/select-backends/ <../../../../skills/user/select-backends/SKILL.md>`__,
    `skills/user/use-presets/ <../../../../skills/user/use-presets/SKILL.md>`__).
    When you change this page, update those skills so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 Isaac Lab 3.0 introduced a multi-backend architecture that enables running simulations with
 different physics backends (PhysX, Newton, and OvPhysX) while maintaining a unified API.
