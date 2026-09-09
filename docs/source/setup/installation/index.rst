@@ -703,12 +703,12 @@ Install the CUDA-enabled PyTorch build appropriate for your system architecture:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
       :sync: linux-x86_64
 
-      .. isaaclab-torch-install:: cu128 pip
+      .. isaaclab-torch-install:: cu128
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
       :sync: windows-x86_64
 
-      .. isaaclab-torch-install:: cu128 pip
+      .. isaaclab-torch-install:: cu128
 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
       :sync: linux-aarch64
@@ -723,7 +723,7 @@ Install the CUDA-enabled PyTorch build appropriate for your system architecture:
             sudo apt install python3.12-dev libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev \
                libxinerama-dev libxrandr-dev
 
-      .. isaaclab-torch-install:: cu130 pip
+      .. isaaclab-torch-install:: cu130
 
       .. note::
 
