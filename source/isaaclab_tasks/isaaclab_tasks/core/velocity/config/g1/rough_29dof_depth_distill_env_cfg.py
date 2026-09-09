@@ -79,8 +79,25 @@ same robot the shipped asset describes. The shipped asset simply does not carry 
 _D435_MOUNT_PITCH_DEG = 47.6
 """How far the camera is pitched down from horizontal [deg], from the same frame.
 
-A forward-facing camera on a walking robot sees sky; the mount points it at the ground the next
-footstep lands on.
+Confirmed against Unitree's own documentation, which gives 42.4 degrees between the head's vertical
+axis and the depth camera's optical axis -- the same 47.6 degrees below horizontal.
+"""
+
+_D435_MOUNT_ROT = (0.4035, 0.0, -0.9150, 0.0)
+"""Camera orientation as a ``world``-convention quaternion (w, x, y, z).
+
+Not derived -- measured. The first version of this config used the ``ros`` convention with the
+quaternion read off the URDF-converted asset's ``d435_link``, and the rendered image had its
+near-to-far axis running horizontally: the camera was effectively looking sideways, and the student
+trained on it learned to ignore the input entirely (zeroing the depth changed ``success_rate`` by
+0.000). Several attempts to fix it by composing rotations failed because ``quat_w_world`` reports
+the world convention while the offset was being given in ``ros``, so every check was reading a
+different frame from the one being set.
+
+What this value is checked against, on a near-flat mesh terrain: 94.1% of pixels return a hit
+(against 68.8% before) and the row means fall monotonically from 2.69 m at the top of the image to
+1.11 m at the bottom (correlation -0.97), which is what a camera aimed at the ground ahead must
+produce. The earlier value gave a flat row profile and all its variation across columns.
 """
 
 _DEPTH_FRAME_STACK = 3
@@ -164,19 +181,9 @@ def _add_chest_camera(cfg) -> None:
     Args:
         cfg: Environment configuration to add the camera to.
     """
-    # ``ros`` convention: +x forward, +y left, +z up. The rotation is a pitch about the camera's own
-    # y axis, so the quaternion is (w, x, y, z) = (cos(a/2), 0, sin(a/2), 0). Verified by rendering
-    # rather than derived: this aim returns 69% valid pixels with depth falling monotonically down
-    # the image (row correlation -0.98), where every alternative tried returned 14% valid or no
-    # vertical structure at all.
-    half = math.radians(_D435_MOUNT_PITCH_DEG) / 2.0
     cfg.scene.depth_camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Robot/torso_link/depth_camera",
-        offset=CameraCfg.OffsetCfg(
-            pos=_D435_MOUNT_POS,
-            rot=(math.cos(half), 0.0, math.sin(half), 0.0),
-            convention="ros",
-        ),
+        offset=CameraCfg.OffsetCfg(pos=_D435_MOUNT_POS, rot=_D435_MOUNT_ROT, convention="world"),
         data_types=["distance_to_image_plane"],
         update_period=0.0,
         # Newton's Warp rasteriser rather than Kit RTX: depth needs no shading, and leaving the

@@ -33,8 +33,6 @@ a permanent crouch still hits a floor, and the floor it eventually meets is the 
 always used.
 """
 
-import torch
-
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils.configclass import configclass
