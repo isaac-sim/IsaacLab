@@ -68,8 +68,16 @@ def main(env_cfg, agent_cfg):
 
     u = env_raw.unwrapped
     groups = agent_cfg.obs_groups["student"]
-    dim_1d = sum(int(u.observation_manager.group_obs_dim[g][0]) for g in groups if len(u.observation_manager.group_obs_dim[g]) == 1)
-    shapes_2d = [tuple(u.observation_manager.group_obs_dim[g]) for g in groups if len(u.observation_manager.group_obs_dim[g]) == 3]
+    dim_1d = sum(
+        int(u.observation_manager.group_obs_dim[g][0])
+        for g in groups
+        if len(u.observation_manager.group_obs_dim[g]) == 1
+    )
+    shapes_2d = [
+        tuple(u.observation_manager.group_obs_dim[g])
+        for g in groups
+        if len(u.observation_manager.group_obs_dim[g]) == 3
+    ]
 
     device = agent_cfg.device
     obs_1d = torch.randn(4, dim_1d, device=device)

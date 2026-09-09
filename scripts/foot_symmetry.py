@@ -36,12 +36,12 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym  # noqa: E402
 import torch  # noqa: E402
-
-import isaaclab_tasks  # noqa: F401, E402
-from isaaclab_tasks.utils.hydra import hydra_task_config  # noqa: E402
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner  # noqa: E402
 
 from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg  # noqa: E402
+
+import isaaclab_tasks  # noqa: F401, E402
+from isaaclab_tasks.utils.hydra import hydra_task_config  # noqa: E402
 
 
 def _t(x):
