@@ -2,7 +2,7 @@
 
    .. tab-item:: Newton Warp
 
-      .. figure:: ../_static/overview/sensors/camera-renderer-newton.webp
+      .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton.webp
          :align: center
          :width: 90%
          :alt: Six material spheres falling onto a table in Newton Warp RGB output.
@@ -14,7 +14,7 @@
 
          .. grid-item::
 
-            .. figure:: ../_static/overview/sensors/camera-renderer-newton-albedo.png
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-albedo.png
                :width: 100%
                :alt: Newton Warp albedo output for six material spheres.
 
@@ -54,7 +54,7 @@
 
    .. tab-item:: OVRTX
 
-      .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx.webp
+      .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx.webp
          :align: center
          :width: 90%
          :alt: Six material spheres falling onto a table in OVRTX RGB output.
@@ -66,7 +66,7 @@
 
          .. grid-item::
 
-            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-albedo.png
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx-albedo.png
                :width: 100%
                :alt: OVRTX albedo output for six material spheres.
 
@@ -123,7 +123,7 @@
 
          .. grid-item::
 
-            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-diffuse-mdl.png
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx-simple-shading-diffuse-mdl.png
                :width: 100%
                :alt: OVRTX diffuse-MDL simple-shading output for six material spheres.
 
@@ -131,7 +131,7 @@
 
          .. grid-item::
 
-            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-full-mdl.png
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx-simple-shading-full-mdl.png
                :width: 100%
                :alt: OVRTX full-MDL simple-shading output for six material spheres.
 
@@ -139,7 +139,7 @@
 
    .. tab-item:: Isaac RTX
 
-      .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx.webp
+      .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
          :align: center
          :width: 90%
          :alt: Six material spheres falling onto a table in Isaac RTX RGB output.
@@ -151,7 +151,7 @@
 
          .. grid-item::
 
-            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-albedo.png
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx-albedo.png
                :width: 100%
                :alt: Isaac RTX albedo output for six material spheres.
 
@@ -208,7 +208,7 @@
 
          .. grid-item::
 
-            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-diffuse-mdl.png
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx-simple-shading-diffuse-mdl.png
                :width: 100%
                :alt: Isaac RTX diffuse-MDL simple-shading output for six material spheres.
 
@@ -216,7 +216,7 @@
 
          .. grid-item::
 
-            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-full-mdl.png
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx-simple-shading-full-mdl.png
                :width: 100%
                :alt: Isaac RTX full-MDL simple-shading output for six material spheres.
 

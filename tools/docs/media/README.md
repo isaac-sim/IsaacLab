@@ -43,3 +43,9 @@ OMNI_KIT_ACCEPT_EULA=Y tools/docs/media/generate_renderer_gallery.sh \
 The generator launches the kit-less renderers separately from Isaac RTX because
 their optional runtime packages cannot share one process. It writes the final
 WebP and PNG assets directly to `docs/source/_static/overview/sensors`.
+
+The animated RGB clips and the albedo, Newton Warp shadow, and MDL
+simple-shading stills are too large to keep in the repository. Upload them to
+`https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/` after
+regenerating; the renderer concept pages reference them by URL and do not track
+them under `_static`.

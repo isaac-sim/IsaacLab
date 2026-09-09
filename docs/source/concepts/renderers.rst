@@ -117,7 +117,7 @@ documentation for the renderer-level settings and limitations.
 
          .. grid-item::
 
-            .. figure:: ../_static/overview/sensors/camera-renderer-newton-shadows-disabled.png
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-shadows-disabled.png
                :width: 100%
                :alt: Newton Warp RGB output with directional-light shadows disabled.
 
@@ -125,7 +125,7 @@ documentation for the renderer-level settings and limitations.
 
          .. grid-item::
 
-            .. figure:: ../_static/overview/sensors/camera-renderer-newton-shadows-enabled.png
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-shadows-enabled.png
                :width: 100%
                :alt: Newton Warp RGB output with directional-light shadows enabled.
 
@@ -164,7 +164,7 @@ documentation for the renderer-level settings and limitations.
 
          .. grid-item::
 
-            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-diffuse-mdl.png
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx-simple-shading-diffuse-mdl.png
                :width: 100%
                :alt: OVRTX textured-diffuse RTX Minimal output.
 
@@ -172,7 +172,7 @@ documentation for the renderer-level settings and limitations.
 
          .. grid-item::
 
-            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-full-mdl.png
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx-simple-shading-full-mdl.png
                :width: 100%
                :alt: OVRTX full-material RTX Minimal output.
 
@@ -215,7 +215,7 @@ documentation for the renderer-level settings and limitations.
 
          .. grid-item::
 
-            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-diffuse-mdl.png
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx-simple-shading-diffuse-mdl.png
                :width: 100%
                :alt: Isaac RTX textured-diffuse RTX Minimal output.
 
@@ -223,7 +223,7 @@ documentation for the renderer-level settings and limitations.
 
          .. grid-item::
 
-            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-full-mdl.png
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx-simple-shading-full-mdl.png
                :width: 100%
                :alt: Isaac RTX full-material RTX Minimal output.
 
@@ -266,7 +266,7 @@ Isaac Sim. See the upstream `OVRTX render modes
 
    .. tab-item:: OVRTX
 
-      .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx.webp
+      .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx.webp
          :align: center
          :width: 90%
          :alt: Six material spheres falling onto a table in OVRTX RGB output.
@@ -283,7 +283,7 @@ Isaac Sim. See the upstream `OVRTX render modes
 
    .. tab-item:: Isaac RTX
 
-      .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx.webp
+      .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
          :align: center
          :width: 90%
          :alt: Six material spheres falling onto a table in Isaac RTX RGB output.
