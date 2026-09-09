@@ -128,8 +128,8 @@ def test_collision_filter_policy_is_config_owned_and_applied_once(monkeypatch):
 
     class TestManager(PhysicsManager):
         @classmethod
-        def _apply_collision_filter_impl(cls, plan, cfg, *, isolate_environments, replicate_physics):
-            calls.append((plan, cfg, isolate_environments, replicate_physics))
+        def _apply_collision_filter_impl(cls, plan, cfg):
+            calls.append((plan, cfg, plan.isolate_environments, plan.replicate_physics))
 
     monkeypatch.setattr(TestManager, "_callbacks", {})
     collision_filter = CollisionFilterCfg(
@@ -148,12 +148,12 @@ def test_collision_filter_policy_is_config_owned_and_applied_once(monkeypatch):
     )
     TestManager.initialize(sim)
 
-    TestManager.apply_collision_filter(plan, isolate_environments=True, replicate_physics=True)
+    TestManager.apply_collision_filter(plan)
 
     assert physics_cfg.collision_filter == collision_filter
     assert calls == [(plan, physics_cfg.collision_filter, True, True)]
     with pytest.raises(RuntimeError, match="already been applied"):
-        TestManager.apply_collision_filter(plan, isolate_environments=True, replicate_physics=True)
+        TestManager.apply_collision_filter(plan)
 
     TestManager.close()
     assert not PhysicsManager._collision_filter_applied
@@ -200,6 +200,7 @@ def test_base_manager_never_silently_ignores_requested_collision_filtering(monke
         destinations=(),
         clone_mask=np.empty((0, 0), dtype=np.bool_),
         env_ids=np.empty(0, dtype=np.int64),
+        isolate_environments=False,
     )
     sim = SimpleNamespace(
         physics_manager=TestManager,
@@ -208,7 +209,7 @@ def test_base_manager_never_silently_ignores_requested_collision_filtering(monke
     TestManager.initialize(sim)
 
     with pytest.raises(NotImplementedError, match="does not implement declarative collision filtering"):
-        TestManager.apply_collision_filter(plan, isolate_environments=False, replicate_physics=True)
+        TestManager.apply_collision_filter(plan)
     assert not PhysicsManager._collision_filter_applied
 
     TestManager.close()
@@ -240,7 +241,7 @@ def test_base_manager_ignores_isolation_for_visual_only_clone_plan(monkeypatch):
     )
     TestManager.initialize(sim)
 
-    TestManager.apply_collision_filter(plan, isolate_environments=True, replicate_physics=True)
+    TestManager.apply_collision_filter(plan)
 
     assert PhysicsManager._collision_filter_applied
     TestManager.close()

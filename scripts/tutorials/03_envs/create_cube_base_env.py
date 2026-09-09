@@ -13,7 +13,7 @@ scene entities.
 
 We also define an event term called 'randomize_scale' that randomizes the scale of
 the cube. This event term has the mode 'prestartup', which means that it is applied on the USD stage
-before the simulation starts. Additionally, the flag 'replicate_physics' is set to False,
+before the simulation starts. Additionally, the flag 'clone_cfg.replicate_physics' is set to False,
 which means that the cube is not replicated across multiple environments but rather each
 environment gets its own cube instance.
 
@@ -55,6 +55,7 @@ import torch
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
+from isaaclab.cloner import CloneCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import ActionTerm, ActionTermCfg, SceneEntityCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -251,7 +252,7 @@ class EventCfg:
     # This event term randomizes the scale of the cube.
     # The mode is set to 'prestartup', which means that the scale is randomize on the USD stage before the
     # simulation starts.
-    # Note: USD-level randomizations require the flag 'replicate_physics' to be set to False.
+    # Note: USD-level randomizations require the flag 'clone_cfg.replicate_physics' to be set to False.
     randomize_scale = EventTerm(
         func=mdp.randomize_rigid_body_scale,
         mode="prestartup",
@@ -263,7 +264,7 @@ class EventCfg:
 
     # This event term randomizes the visual color of the cube.
     # Similar to the scale randomization, this is also a USD-level randomization and requires the flag
-    # 'replicate_physics' to be set to False.
+    # 'clone_cfg.replicate_physics' to be set to False.
     randomize_color = EventTerm(
         func=mdp.randomize_visual_color,
         mode="prestartup",
@@ -286,10 +287,12 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    # The flag 'replicate_physics' is set to False, which means that the cube is not replicated
+    # The flag 'clone_cfg.replicate_physics' is set to False, which means that the cube is not replicated
     # across multiple environments but rather each environment gets its own cube instance.
     # This allows modifying the cube's properties independently for each environment.
-    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=False)
+    scene: MySceneCfg = MySceneCfg(
+        num_envs=args_cli.num_envs, env_spacing=2.5, clone_cfg=CloneCfg(replicate_physics=False)
+    )
 
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()

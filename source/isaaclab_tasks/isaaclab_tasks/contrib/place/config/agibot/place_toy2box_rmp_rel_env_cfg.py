@@ -10,6 +10,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionP
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.cloner import CloneCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
@@ -242,7 +243,9 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the stacking environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=3.0, replicate_physics=False)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(
+        num_envs=4096, env_spacing=3.0, clone_cfg=CloneCfg(replicate_physics=False)
+    )
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

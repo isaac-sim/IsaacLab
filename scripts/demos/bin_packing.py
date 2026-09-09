@@ -398,7 +398,7 @@ def main():
         sim.set_camera_view((4.0, 0.0, 4.0), (0.0, 0.0, 0.0))
 
         # Design scene
-        scene_cfg = BinPackingSceneCfg(num_envs=args_cli.num_envs, env_spacing=1.0, replicate_physics=True)
+        scene_cfg = BinPackingSceneCfg(num_envs=args_cli.num_envs, env_spacing=1.0)
         layouts = [combination.assets for combination in scene_cfg.clone_cfg.clone_combinations]
         print(f"[INFO] Drawn bin layouts (objects per layout): {[len(layout) for layout in layouts]}")
         with Timer("[INFO] Time to create scene: "):

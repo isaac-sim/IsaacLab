@@ -213,7 +213,7 @@ class FrankaEventCfg(lift.EventCfg):
 
 @configclass
 class FrankaMixinCfg:
-    scene: FrankaSceneCfg = FrankaSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
+    scene: FrankaSceneCfg = FrankaSceneCfg(num_envs=4096, env_spacing=3)
     rewards: FrankaReorientRewardCfg = FrankaReorientRewardCfg()
     observations: StateObservationCfg = StateObservationCfg()
     actions: FrankaRelJointPosActionCfg = FrankaRelJointPosActionCfg()

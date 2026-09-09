@@ -147,6 +147,10 @@ fields listed below are that table's columns:
      - Unique prim paths for scene assets shared by every env and therefore not replicated.
    * - ``env_template``
      - Environment-root path template used to expand ``{ENV_REGEX_NS}`` collision selectors.
+   * - ``isolate_environments``
+     - Resolved cloner instruction for filtering contacts between different environments.
+   * - ``replicate_physics``
+     - Resolved cloner instruction for dispatching native physics clone contexts.
    * - ``context_rows``
      - Clone-context types mapped to the rows they consume.
 
@@ -230,7 +234,8 @@ constructs assets at their planned source paths, and exiting dispatches that sam
 
 .. code-block:: python
 
-    with cloner.ReplicateSession(cfgs, num_clones=N, env_spacing=2.0):
+    clone_cfg = cloner.CloneCfg()
+    with cloner.ReplicateSession(cfgs, num_clones=N, env_spacing=2.0, clone_cfg=clone_cfg):
         for cfg in cfgs:
             cfg.class_type(cfg)
 
@@ -271,10 +276,16 @@ subclasses use — they author the env-0 prototype prim by prim in
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         # ... any other assets ...
 
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        src = self.scene.cloner_cfg.clone_template.format(0)
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
         global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
+        plan = cloner.clone_plan_from_env_0(
+            src,
+            self.scene.num_envs,
+            self.scene.cloner_cfg,
+            pos,
+            global_paths=global_paths,
+        )
         cloner.replicate(plan)
 
 Every env receives the same prototype. When envs need to differ, declare their
@@ -327,23 +338,44 @@ collider prims and declare which other groups they can contact. At the barrier
 shown above, each manager translates both inputs into its backend-native
 representation.
 
-:class:`~isaaclab.scene.InteractiveSceneCfg.filter_collisions` controls environment
-isolation for an :class:`~isaaclab.scene.InteractiveScene`. Direct and standalone
-workflows pass the same intent through :class:`~isaaclab.cloner.ReplicateSession`
-or :func:`~isaaclab.cloner.replicate`:
+The cloner generates environment isolation by default, so ordinary workflows do
+not configure or invoke collision filtering:
 
 .. code-block:: python
 
-    with cloner.ReplicateSession(cfgs, num_clones=N, isolate_environments=True):
+    clone_cfg = cloner.CloneCfg()
+    with cloner.ReplicateSession(cfgs, num_clones=N, env_spacing=2.0, clone_cfg=clone_cfg):
         # construct prototype assets
         ...
 
-    # Or, after constructing a ClonePlan directly:
-    cloner.replicate(plan, isolate_environments=True)
-
 Shared roots in :attr:`~isaaclab.cloner.ClonePlan.global_paths` remain eligible to
-collide with every environment. Backends that support cross-environment contacts
-accept ``isolate_environments=False`` when those contacts are intentional.
+collide with every environment. For the uncommon workflow that intentionally
+allows cross-environment contacts, set the cloner-owned option explicitly:
+
+.. code-block:: python
+
+    from isaaclab.cloner import CloneCfg
+
+    clone_cfg = CloneCfg(isolate_environments=False)
+    with cloner.ReplicateSession(cfgs, num_clones=N, env_spacing=2.0, clone_cfg=clone_cfg):
+        ...
+
+``AssetBaseCfg.collision_group`` and ``TerrainImporterCfg.collision_group`` have
+been removed. Shared colliders are inferred from configured prim paths outside
+``CloneCfg.clone_template``, so remove explicit ``collision_group=-1`` and
+``collision_group=0`` arguments. If an environment-scoped collider previously
+used ``-1``, move it to a shared root outside the clone template. When the intent
+is instead to permit cross-environment contacts generally, use
+``CloneCfg(isolate_environments=False)``; this disables isolation for every
+collider, not only that asset.
+
+Both :func:`~isaaclab.cloner.make_clone_plan` and
+:func:`~isaaclab.cloner.clone_plan_from_env_0` require the complete ``CloneCfg``;
+the latter derives its destination from ``CloneCfg.clone_template``. For
+configuration-driven cloning, set ``InteractiveSceneCfg.clone_cfg``. The former top-level
+``InteractiveSceneCfg.filter_collisions`` and
+``InteractiveSceneCfg.replicate_physics`` fields have been removed; configure
+``CloneCfg.isolate_environments`` and ``CloneCfg.replicate_physics`` directly.
 
 Cross-asset groups
 ~~~~~~~~~~~~~~~~~~
@@ -435,12 +467,14 @@ Isaac Sim PhysX realizes both inputs from assembled USD topology and preserves
 authored collision groups and filtered pairs as additional deny constraints.
 Newton applies policy to every native shape produced from a selected collider and
 leaves importer-supported, source-local USD filtered pairs unchanged. It requires
-``replicate_physics=True`` and a populated ``NewtonReplicateContext``; its world
+``CloneCfg.replicate_physics=True`` and a populated ``NewtonReplicateContext``; its world
 partitioning also means a multi-environment native plan cannot disable isolation.
-OvPhysX currently supports environment isolation but rejects explicit groups.
+OvPhysX currently supports environment isolation but rejects explicit groups. Its
+USD fallback also rejects unrelated authored collision groups because combining
+them safely requires the same profile lowering used by Isaac Sim PhysX.
 
 Raw backend replication helpers do not read :class:`~isaaclab.physics.PhysicsCfg`.
 A configured policy must therefore cross the core :func:`~isaaclab.cloner.replicate`
 barrier, including in a flat or single-environment scene. Reset rejects a policy
-that did not cross that barrier, and the deprecated post-construction collision
-filtering APIs reject calls after it.
+that did not cross that barrier. The former post-construction collision-filtering
+APIs have been removed because filtering must run at assembly time.

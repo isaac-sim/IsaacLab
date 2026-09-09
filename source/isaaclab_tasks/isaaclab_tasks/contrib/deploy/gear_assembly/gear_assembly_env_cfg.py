@@ -10,6 +10,7 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.cloner import CloneCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ActionTermCfg as ActionTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -43,7 +44,7 @@ class GearAssemblySceneCfg(InteractiveSceneCfg):
     """Configuration for the scene with a robotic arm."""
 
     # Disable scene replication to allow USD-level randomization
-    replicate_physics = False
+    clone_cfg: CloneCfg = CloneCfg(replicate_physics=False)
 
     # world
     ground = AssetBaseCfg(

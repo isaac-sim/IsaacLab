@@ -12,6 +12,7 @@ import sys
 from types import ModuleType, SimpleNamespace
 
 import pytest
+from isaaclab_ov._clone import CloneRecipe
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
@@ -22,9 +23,12 @@ _CURRENT_LIFECYCLE_ENTRY_POINTS = {"warmup": "warmup", "destroy": "destroy"}
 
 
 @pytest.fixture(autouse=True)
-def _close_test_views():
+def _close_test_views(monkeypatch):
+    from isaaclab_ov.physics import OvPhysxManager
     from isaaclab_ov.sim.views import OvPhysxView
 
+    monkeypatch.setattr(OvPhysxManager, "_clone_plan", None)
+    monkeypatch.setattr(OvPhysxManager, "_clone_environment_isolation", None)
     existing_views = set(OvPhysxView._live_views)
     yield
     for view in OvPhysxView._live_views - existing_views:
@@ -98,7 +102,7 @@ def test_manager_full_stage_never_replays_runtime_clones():
     fake = SimpleNamespace(clone=lambda *args, **kwargs: pytest.fail("clone must not run"))
     previous = OvPhysxManager._pending_clones
     try:
-        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)])]
+        OvPhysxManager._pending_clones = [CloneRecipe("/env_0", ("/env_1",), ((1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0),))]
         OvPhysxManager._replay_pending_clones(fake, requires_full_stage=True)
         assert OvPhysxManager._pending_clones == []
     finally:
@@ -122,10 +126,10 @@ def test_manager_full_stage_materializes_only_missing_heterogeneous_targets():
     previous = OvPhysxManager._pending_clones
     try:
         OvPhysxManager._pending_clones = [
-            (
+            CloneRecipe(
                 "/World/envs/env_0/Object",
-                ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
-                [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0), (4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 1.0)],
+                ("/World/envs/env_1/Object", "/World/envs/env_2/Object"),
+                ((1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0), (4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 1.0)),
             )
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -156,15 +160,15 @@ def test_manager_full_stage_materializes_nested_targets_parent_before_child():
     previous = OvPhysxManager._pending_clones
     try:
         OvPhysxManager._pending_clones = [
-            (
+            CloneRecipe(
                 "/World/envs/env_0/Groceries/Object",
-                ["/World/envs/env_1/Groceries/Object"],
-                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                ("/World/envs/env_1/Groceries/Object",),
+                ((1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0),),
             ),
-            (
+            CloneRecipe(
                 "/World/envs/env_0/Groceries",
-                ["/World/envs/env_1/Groceries"],
-                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                ("/World/envs/env_1/Groceries",),
+                ((1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0),),
             ),
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -195,10 +199,10 @@ def test_manager_full_stage_promotes_generated_nested_ancestors_to_def():
     previous = OvPhysxManager._pending_clones
     try:
         OvPhysxManager._pending_clones = [
-            (
+            CloneRecipe(
                 "/World/envs/env_0/Groceries/Object",
-                ["/World/envs/env_1/Groceries/Object"],
-                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                ("/World/envs/env_1/Groceries/Object",),
+                ((1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0),),
             )
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -234,7 +238,11 @@ def test_manager_full_stage_overlays_existing_ancestor_without_removing_descenda
     previous = OvPhysxManager._pending_clones
     try:
         OvPhysxManager._pending_clones = [
-            ("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"], [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)])
+            CloneRecipe(
+                "/World/envs/env_0/Robot",
+                ("/World/envs/env_1/Robot",),
+                ((1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0),),
+            )
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
         layer = Sdf.Layer.CreateAnonymous("materialized.usda")
@@ -292,10 +300,10 @@ def test_manager_full_stage_materialization_is_atomic_on_invalid_target():
     previous = OvPhysxManager._pending_clones
     try:
         OvPhysxManager._pending_clones = [
-            (
+            CloneRecipe(
                 "/World/envs/env_0/Object",
-                ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
-                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0), (2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                ("/World/envs/env_1/Object", "/World/envs/env_2/Object"),
+                ((1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0), (2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)),
             )
         ]
         with pytest.raises(RuntimeError, match="clone target parent is absent"):
@@ -324,7 +332,7 @@ def test_manager_replays_pending_runtime_clones_without_full_stage_requirement()
     fake = FakePhysX()
     previous = OvPhysxManager._pending_clones
     try:
-        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)])]
+        OvPhysxManager._pending_clones = [CloneRecipe("/env_0", ("/env_1",), ((1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0),))]
         OvPhysxManager._replay_pending_clones(fake, requires_full_stage=False)
         assert fake.calls == [
             ("clone", "/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)]),
@@ -366,10 +374,12 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("device", "gpu_index", "expected_cpu_mode", "expected_active_cuda_gpus"),
-    [("cpu", 0, True, None), ("gpu", 2, False, "2")],
+    ("device", "gpu_index", "isolation_setting", "expected_cpu_mode", "expected_active_cuda_gpus"),
+    [("cpu", 0, None, True, None), ("gpu", 2, True, False, "2")],
 )
-def test_manager_supports_pinned_runtime_api(tmp_path, device, gpu_index, expected_cpu_mode, expected_active_cuda_gpus):
+def test_manager_supports_pinned_runtime_api(
+    monkeypatch, tmp_path, device, gpu_index, isolation_setting, expected_cpu_mode, expected_active_cuda_gpus
+):
     """The pinned OVPhysX wheel keeps its constructor, step, and reset API."""
     from isaaclab_ov.physics import OvPhysxManager
 
@@ -405,6 +415,7 @@ def test_manager_supports_pinned_runtime_api(tmp_path, device, gpu_index, expect
         )
 
     runtime = SimpleNamespace(PhysX=PinnedPhysX, PhysXConfig=pinned_config)
+    monkeypatch.setattr(OvPhysxManager, "_clone_environment_isolation", isolation_setting)
 
     physx = OvPhysxManager._create_physx_instance(runtime, device, gpu_index, cache_dir)
     OvPhysxManager._step_physx(physx, dt=0.02)
@@ -414,6 +425,11 @@ def test_manager_supports_pinned_runtime_api(tmp_path, device, gpu_index, expect
     assert physx.constructor["active_cuda_gpus"] == expected_active_cuda_gpus
     assert physx.constructor["config"].num_threads == 8
     assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
+    overrides = physx.constructor["config"].carbonite_overrides
+    if isolation_setting is None:
+        assert "/ovphysx/clone/useEnvIds" not in overrides
+    else:
+        assert overrides["/ovphysx/clone/useEnvIds"] is isolation_setting
     assert physx.calls == [("step_sync", 0.02), ("reset_stage",), ("wait_op", 23)]
 
 

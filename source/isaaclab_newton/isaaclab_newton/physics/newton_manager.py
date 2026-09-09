@@ -559,7 +559,7 @@ class NewtonManager(PhysicsManager):
     # path. Single-model consumers (e.g. batched Newton IK) finalize a single-env
     # model from these and resolve it via ``query.path_to_source``.
     _cl_protos: dict[str, ModelBuilder] = {}
-    _cl_collision_filter_plan: ClonePlan | None = None
+    _cl_collision_filter_cfg: CollisionFilterCfg | None = None
     _deformable_registry: list = []
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
 
@@ -599,37 +599,30 @@ class NewtonManager(PhysicsManager):
         cls._scene_data_backend = NewtonSceneDataBackend()
 
     @classmethod
-    def _apply_collision_filter_impl(
-        cls,
-        plan: ClonePlan,
-        cfg: CollisionFilterCfg | None,
-        *,
-        isolate_environments: bool,
-        replicate_physics: bool,
-    ) -> None:
-        """Bind collision policy to the clone plan consumed by Newton replication."""
+    def _apply_collision_filter_impl(cls, plan: ClonePlan, cfg: CollisionFilterCfg | None) -> None:
+        """Bind resolved collision policy for the pending Newton replication."""
         has_group_policy = cfg is not None and bool(cfg.groups)
         num_environments = 0 if plan.env_ids is None else len(plan.env_ids)
         rows = () if cls.clone_context_type is None else plan.context_rows.get(cls.clone_context_type, ())
-        needs_isolation = isolate_environments and num_environments > 1 and bool(rows)
-        if not replicate_physics and (needs_isolation or has_group_policy):
+        needs_isolation = plan.isolate_environments and num_environments > 1 and bool(rows)
+        if not plan.replicate_physics and (needs_isolation or has_group_policy):
             raise NotImplementedError(
                 "Newton environment isolation and declarative collision filtering require "
                 "replicate_physics=True; the stage-import path cannot apply clone-plan filtering."
             )
-        if not replicate_physics:
+        if not plan.replicate_physics:
             return
         if (needs_isolation or has_group_policy) and not rows:
             raise NotImplementedError(
                 "Newton collision filtering requires populated NewtonReplicateContext rows in the ClonePlan."
             )
-        if not isolate_environments and num_environments > 1 and rows:
+        if not plan.isolate_environments and num_environments > 1 and rows:
             raise NotImplementedError(
                 "Newton assigns replicated environments to separate shape_world partitions; "
                 "cross-environment collisions cannot be enabled."
             )
         if rows:
-            NewtonManager._cl_collision_filter_plan = plan
+            NewtonManager._cl_collision_filter_cfg = cfg
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -1242,7 +1235,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._cl_fabric_body_bindings = None
         NewtonManager._world_xforms = None
         NewtonManager._cl_protos = {}
-        NewtonManager._cl_collision_filter_plan = None
+        NewtonManager._cl_collision_filter_cfg = None
         NewtonManager._pending_extended_state_attributes = set()
         NewtonManager._active_extended_state_attributes = set()
         NewtonManager._pending_extended_contact_attributes = set()

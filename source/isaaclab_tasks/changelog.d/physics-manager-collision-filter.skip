@@ -1,1 +1,1 @@
-Internal: Forwarded direct-task environment-isolation intent through the cloning API.
+Internal: Migrated direct tasks to cloner-owned, plan-driven environment isolation.

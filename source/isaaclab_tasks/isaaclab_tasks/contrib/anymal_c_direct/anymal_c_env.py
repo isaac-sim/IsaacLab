@@ -73,15 +73,13 @@ class AnymalCEnv(DirectRLEnv):
         self.cfg.terrain.num_envs = self.scene.cfg.num_envs
         self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        src = self.scene.cloner_cfg.clone_template.format(0)
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
         global_paths = (self.cfg.terrain.prim_path,)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(
-            plan,
-            replicate_physics=self.scene.cfg.replicate_physics,
-            isolate_environments=self.scene.cfg.filter_collisions,
+        plan = cloner.clone_plan_from_env_0(
+            src, self.scene.num_envs, self.scene.cloner_cfg, pos, global_paths=global_paths
         )
+        cloner.replicate(plan)
         # add lights
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)

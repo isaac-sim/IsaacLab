@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+import copy
+from collections.abc import Iterable
 from typing import Any
 
 import numpy as np
@@ -15,8 +16,7 @@ import numpy as np
 from isaaclab.sim import SimulationContext
 
 from .clone_plan import ClonePlan, make_clone_plan
-from .cloner_cfg import DEFAULT_ENV_TEMPLATE
-from .cloner_strategies import sequential
+from .cloner_cfg import CloneCfg
 from .usd import UsdReplicateContext
 
 REPLICATION_QUEUE: list[Any] = []
@@ -37,7 +37,7 @@ def queue_replication(cfg: Any) -> None:
         REPLICATION_QUEUE.append(cfg)
 
 
-def replicate(plan: ClonePlan, *, replicate_physics: bool = True, isolate_environments: bool = True) -> None:
+def replicate(plan: ClonePlan) -> None:
     """Publish and dispatch a fully routed clone plan.
 
     Planning derives routing from the input cfgs; dispatch does not rediscover or reshape that mapping.
@@ -47,32 +47,29 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True, isolate_enviro
 
     Args:
         plan: Replication layout to dispatch.
-        replicate_physics: Whether physics replication clones each environment. If False,
-            cloning is USD-only; an asset whose contexts are all physics-based is not cloned.
-        isolate_environments: Whether collision participants in different environments are isolated.
-            Shared assets declared by :attr:`~isaaclab.cloner.ClonePlan.global_paths` remain eligible
-            to collide with every environment. Defaults to True.
     """
     if not isinstance(plan, ClonePlan):
         raise TypeError(f"plan must be a ClonePlan, got {type(plan).__name__}.")
-    if not isinstance(replicate_physics, bool):
-        raise TypeError("replicate_physics must be a bool.")
-    if not isinstance(isolate_environments, bool):
-        raise TypeError("isolate_environments must be a bool.")
-
+    if not isinstance(plan.isolate_environments, bool):
+        raise TypeError("ClonePlan.isolate_environments must be a bool.")
+    if not isinstance(plan.replicate_physics, bool):
+        raise TypeError("ClonePlan.replicate_physics must be a bool.")
     REPLICATION_QUEUE.clear()
     sim = SimulationContext.instance()
     if sim is None:
         raise RuntimeError("Clone-plan replication requires an active SimulationContext.")
     context_types = tuple(
-        context_type for context_type in plan.context_rows if replicate_physics or context_type is UsdReplicateContext
+        context_type
+        for context_type in plan.context_rows
+        if plan.replicate_physics or context_type is UsdReplicateContext
     )
     missing = [context_type for context_type in context_types if context_type not in sim._backend_registry]
     if missing:
         names = ", ".join(f"{context_type.__module__}.{context_type.__qualname__}" for context_type in missing)
         raise RuntimeError(f"Clone contexts must be registered before plan dispatch: {names}.")
 
-    if (active_plan := sim.get_clone_plan()) is None:
+    active_plan = sim.get_clone_plan()
+    if active_plan is None:
         sim.set_clone_plan(plan)
     elif active_plan is not plan:
         raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
@@ -85,11 +82,7 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True, isolate_enviro
     physics_contexts = [context for context in contexts if context.replicate_priority >= 0]
     for context in stage_contexts:
         context.replicate(plan)
-    sim.physics_manager.apply_collision_filter(
-        plan,
-        isolate_environments=isolate_environments,
-        replicate_physics=replicate_physics,
-    )
+    sim.physics_manager.apply_collision_filter(plan)
     for context in physics_contexts:
         context.replicate(plan)
 
@@ -104,7 +97,7 @@ class ReplicateSession:
 
         .. code-block:: python
 
-            with cloner.ReplicateSession(cfgs, num_clones=128, env_spacing=2.0):
+            with cloner.ReplicateSession(cfgs, num_clones=128, env_spacing=2.0, clone_cfg=cloner.CloneCfg()):
                 for cfg in cfgs:
                     cfg.class_type(cfg)
     """
@@ -114,13 +107,10 @@ class ReplicateSession:
         cfgs: Iterable[Any],
         num_clones: int,
         env_spacing: float,
+        clone_cfg: CloneCfg,
         *,
         global_paths: tuple[str, ...] = (),
-        clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
         valid_set: np.ndarray | None = None,
-        replicate_physics: bool = True,
-        isolate_environments: bool = True,
-        env_template: str = DEFAULT_ENV_TEMPLATE,
     ):
         """Capture arguments for :func:`make_clone_plan` and :func:`replicate`.
 
@@ -128,26 +118,23 @@ class ReplicateSession:
             cfgs: Asset cfgs with resolved ``prim_path``.
             num_clones: Number of target envs.
             env_spacing: Grid spacing between env origins [m].
+            clone_cfg: Cloner configuration that owns planning and dispatch policy.
             global_paths: Complete shared-asset roots declared by the composition root. Defaults to none.
-            clone_strategy: Prototype-to-env assignment function.
             valid_set: Optional ``[num_combos, num_groups]`` integer array of valid
                 prototype combinations; ``None`` uses the full cartesian product.
-            replicate_physics: Whether physics replication clones each environment;
-                forwarded to :func:`replicate`.
-            isolate_environments: Whether collision participants in different environments are isolated;
-                forwarded to :func:`replicate`. Defaults to True.
-            env_template: Path template for a replicated env prim, ``{}`` marking the env index.
         """
+        if not isinstance(clone_cfg, CloneCfg):
+            raise TypeError(f"clone_cfg must be a CloneCfg, got {type(clone_cfg).__name__}.")
+        clone_cfg.validate_config()
+        # Planning is deferred until __enter__, so the session owns a stable policy snapshot.
+        clone_cfg = copy.deepcopy(clone_cfg)
         self._cfgs = cfgs
-        self._replicate_physics = replicate_physics
-        self._isolate_environments = isolate_environments
-        self._kwargs = dict(
+        self._kwargs: dict[str, Any] = dict(
             num_clones=num_clones,
             env_spacing=env_spacing,
             global_paths=global_paths,
-            clone_strategy=clone_strategy,
             valid_set=valid_set,
-            env_template=env_template,
+            clone_cfg=clone_cfg,
         )
         self._plan: ClonePlan | None = None
 
@@ -163,11 +150,7 @@ class ReplicateSession:
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         if exc_type is None:
             assert self._plan is not None
-            replicate(
-                self._plan,
-                replicate_physics=self._replicate_physics,
-                isolate_environments=self._isolate_environments,
-            )
+            replicate(self._plan)
         else:
             # Drop cfgs registered before the failure so the next session is clean.
             REPLICATION_QUEUE.clear()

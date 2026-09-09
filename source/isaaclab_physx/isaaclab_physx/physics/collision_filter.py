@@ -68,9 +68,6 @@ def apply_collision_filter(
     physics_scene_path: str,
     plan: ClonePlan,
     cfg: CollisionFilterCfg | None,
-    *,
-    isolate_environments: bool,
-    replicate_physics: bool,
 ) -> None:
     """Realize manager collision policy and environment isolation on a PhysX USD stage.
 
@@ -80,34 +77,21 @@ def apply_collision_filter(
 
     Existing collision groups are read before any override is authored. Groups that contain a
     managed collider are then emptied in the stage root layer, preserving referenced asset layers
-    and :class:`UsdPhysics.PhysicsFilteredPairsAPI` relationships.
+    and :class:`UsdPhysics.PhysicsFilteredPairsAPI` relationships. If such a group is inside an
+    instance, only its enclosing instance root is expanded.
 
     Args:
         stage: Stage containing assembled collider prims.
         physics_scene_path: Path of the active PhysX physics scene.
         plan: Completed clone layout.
         cfg: Optional backend-neutral manager policy.
-        isolate_environments: Whether different planned worlds may collide.
-        replicate_physics: Whether native physics replication will consume the assembled topology.
 
     Raises:
         RuntimeError: If required scene/destination topology is missing or the generated namespace
             is already occupied.
     """
+    isolate_environments = plan.isolate_environments
     has_policy = cfg is not None and bool(cfg.groups)
-    if isolate_environments and not has_policy:
-        if plan.env_ids is None or len(plan.env_ids) < 2:
-            return
-        from isaaclab.cloner.collision_filter import _author_collision_groups  # noqa: PLC0415
-
-        _author_collision_groups(
-            stage,
-            physics_scene_path,
-            "/World/collisions",
-            [plan.env_template.format(int(env_id)) for env_id in plan.env_ids],
-            list(plan.global_paths),
-        )
-        return
     if not isolate_environments and not has_policy:
         return
 
@@ -119,6 +103,26 @@ def apply_collision_filter(
         raise RuntimeError(f"Cannot apply PhysX collision filtering: no physics scene at {physics_scene_path!r}.")
     if stage.GetPrimAtPath(GENERATED_COLLISION_ROOT).IsValid():
         raise RuntimeError(f"PhysX collision-filter namespace already exists at {GENERATED_COLLISION_ROOT!r}.")
+
+    if isolate_environments and not has_policy:
+        if plan.env_ids is None or len(plan.env_ids) < 2:
+            return
+        from isaaclab.physics._usd_collision_groups import (  # noqa: PLC0415
+            _author_environment_isolation_groups,
+            _matches_environment_isolation_groups,
+        )
+
+        env_paths = [plan.env_template.format(int(env_id)) for env_id in plan.env_ids]
+        global_paths = list(plan.global_paths)
+        if _matches_environment_isolation_groups(
+            stage, physics_scene_path, "/World/collisions", env_paths, global_paths
+        ):
+            return
+        if not _authored_groups(stage) and not stage.GetPrimAtPath("/World/collisions").IsValid():
+            _author_environment_isolation_groups(
+                stage, physics_scene_path, "/World/collisions", env_paths, global_paths
+            )
+            return
 
     colliders = _discover_topology(
         stage,
@@ -209,35 +213,55 @@ def _discover_topology(
     }
     if not paths:
         return ()
-    if not isolate_environments:
-        return tuple(_Collider(path, None) for path in sorted(paths))
-
-    env_ids = () if plan.env_ids is None else tuple(map(int, plan.env_ids))
-    missing_roots = [
-        plan.destinations[row].format(env_ids[column])
-        for row in range(len(plan.sources))
-        for column, selected in enumerate(plan.clone_mask[row])
-        if selected
-        if not stage.GetPrimAtPath(plan.destinations[row].format(env_ids[column])).IsValid()
-    ]
-    if missing_roots:
-        preview = ", ".join(repr(path) for path in sorted(set(missing_roots))[:5])
-        extra = " ..." if len(set(missing_roots)) > 5 else ""
-        raise RuntimeError(
-            "PhysX collision filtering requires USD destination collider topology at the manager barrier; "
-            f"missing {preview}{extra}. Ensure UsdReplicateContext runs before collision filtering."
-        )
+    row_count = len(plan.sources)
+    if len(plan.destinations) != row_count:
+        raise ValueError("ClonePlan.sources and ClonePlan.destinations must have equal length.")
+    if plan.env_ids is None:
+        if row_count:
+            raise ValueError("ClonePlan.env_ids is required to compile replicated collision topology.")
+        env_ids: tuple[int, ...] = ()
+    else:
+        env_ids = tuple(map(int, plan.env_ids))
+    expected_shape = (row_count, len(env_ids))
+    if tuple(plan.clone_mask.shape) != expected_shape:
+        raise ValueError(f"ClonePlan.clone_mask must have shape {expected_shape}, got {plan.clone_mask.shape}.")
 
     global_roots = tuple(plan.global_paths)
     environment_matcher = _environment_path_matcher(plan.env_template)
     env_id_set = set(env_ids)
-    worlds = {}
+    worlds: dict[str, int | None] = {}
     for path in paths:
         match = environment_matcher.fullmatch(path)
-        env_id = None if match is None else int(match.group("env"))
-        worlds[path] = env_id if env_id in env_id_set else None
+        matched_world = None if match is None else int(match.group("env"))
+        worlds[path] = matched_world if matched_world in env_id_set else None
 
-    if len(env_ids) > 1:
+    missing: list[str] = []
+    for row, (source, destination) in enumerate(zip(plan.sources, plan.destinations)):
+        source_colliders = [path for path in paths if _is_at_or_below(path, source)]
+        for column, selected in enumerate(plan.clone_mask[row]):
+            if not selected:
+                continue
+            world = env_ids[column]
+            destination_root = destination.format(world)
+            for source_path in source_colliders:
+                target_path = destination_root + source_path[len(source) :]
+                if target_path not in paths:
+                    missing.append(target_path)
+                    continue
+                previous = worlds[target_path]
+                if previous is not None and previous != world:
+                    raise ValueError(f"Collider {target_path!r} is assigned to worlds {previous} and {world}.")
+                worlds[target_path] = world
+
+    if missing:
+        preview = ", ".join(repr(path) for path in sorted(set(missing))[:5])
+        extra = " ..." if len(set(missing)) > 5 else ""
+        raise RuntimeError(
+            "PhysX collision filtering requires USD destination collider topology at the manager barrier;"
+            f" missing {preview}{extra}. Ensure UsdReplicateContext runs before collision filtering."
+        )
+
+    if isolate_environments and len(env_ids) > 1:
         unresolved = sorted(
             path
             for path, world in worlds.items()
@@ -280,6 +304,9 @@ def _manager_memberships(
 def _snapshot_authored_policy(
     stage: Usd.Stage, collider_paths: tuple[str, ...], *, scene_inverted: bool
 ) -> _AuthoredPolicy:
+    groups = _authored_groups(stage)
+    group_memberships = _group_collider_memberships(stage, groups, collider_paths)
+    _deinstance_groups(stage, tuple(group_memberships))
     groups = _authored_groups(stage)
     group_memberships = _group_collider_memberships(stage, groups, collider_paths)
     relevant = tuple(group_memberships)
@@ -338,6 +365,35 @@ def _group_collider_memberships(
         if members:
             result[group_path] = members
     return result
+
+
+def _deinstance_groups(stage: Usd.Stage, group_paths: tuple[str, ...]) -> None:
+    """Expand only instance roots containing collision groups that must be overridden."""
+    from pxr import Usd  # noqa: PLC0415
+
+    root_layer = stage.GetRootLayer()
+    while True:
+        instance_roots = {}
+        for group_path in group_paths:
+            proxy = stage.GetPrimAtPath(group_path)
+            if not proxy.IsInstanceProxy():
+                continue
+            instance_root = proxy.GetParent()
+            while instance_root and (not instance_root.IsInstance() or instance_root.IsInstanceProxy()):
+                instance_root = instance_root.GetParent()
+            if not instance_root:
+                raise RuntimeError(f"Cannot deinstance the enclosing root for collision group {proxy.GetPath()}.")
+            instance_roots[str(instance_root.GetPath())] = group_path
+        if not instance_roots:
+            return
+        with Usd.EditContext(stage, Usd.EditTarget(root_layer)):
+            for instance_root_path, group_path in instance_roots.items():
+                instance_root = stage.GetPrimAtPath(instance_root_path)
+                if not instance_root.SetInstanceable(False):
+                    raise RuntimeError(
+                        f"Cannot deinstance {instance_root_path} for collision group {group_path!r} "
+                        "in the stage root layer."
+                    )
 
 
 def _profiles_allow(

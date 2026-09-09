@@ -8,6 +8,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import CloneCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
@@ -124,7 +125,7 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
 
     # Scene settings
     scene: G1LocomanipulationSDGSceneCfg = G1LocomanipulationSDGSceneCfg(
-        num_envs=1, env_spacing=2.5, replicate_physics=False
+        num_envs=1, env_spacing=2.5, clone_cfg=CloneCfg(replicate_physics=False)
     )
     recorders: LocomanipulationSDGRecorderManagerCfg = LocomanipulationSDGRecorderManagerCfg()
     observations: G1LocomanipulationSDGObservationsCfg = G1LocomanipulationSDGObservationsCfg()

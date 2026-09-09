@@ -5,6 +5,7 @@
 
 """Tests for declarative collision filtering in Newton replication."""
 
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest import mock
 
@@ -326,13 +327,13 @@ def test_newton_manager_enforces_native_collision_filter_boundaries(monkeypatch)
     )
     cfg = CollisionFilterCfg(groups={"selected": CollisionGroupCfg(prim_path_exprs=(r"/World/selected",))})
     monkeypatch.setattr(NewtonManager, "clone_context_type", context_type)
-    monkeypatch.setattr(NewtonManager, "_cl_collision_filter_plan", None)
+    monkeypatch.setattr(NewtonManager, "_cl_collision_filter_cfg", None)
 
-    NewtonManager._apply_collision_filter_impl(rows_plan, cfg, isolate_environments=True, replicate_physics=True)
-    assert NewtonManager._cl_collision_filter_plan is rows_plan
+    NewtonManager._apply_collision_filter_impl(rows_plan, cfg)
+    assert NewtonManager._cl_collision_filter_cfg is cfg
     with pytest.raises(NotImplementedError, match="shape_world partitions"):
-        NewtonManager._apply_collision_filter_impl(rows_plan, None, isolate_environments=False, replicate_physics=True)
+        NewtonManager._apply_collision_filter_impl(replace(rows_plan, isolate_environments=False), None)
     with pytest.raises(NotImplementedError, match="require replicate_physics=True"):
-        NewtonManager._apply_collision_filter_impl(rows_plan, cfg, isolate_environments=True, replicate_physics=False)
+        NewtonManager._apply_collision_filter_impl(replace(rows_plan, replicate_physics=False), cfg)
     with pytest.raises(NotImplementedError, match="populated NewtonReplicateContext rows"):
-        NewtonManager._apply_collision_filter_impl(empty_plan, cfg, isolate_environments=True, replicate_physics=True)
+        NewtonManager._apply_collision_filter_impl(empty_plan, cfg)

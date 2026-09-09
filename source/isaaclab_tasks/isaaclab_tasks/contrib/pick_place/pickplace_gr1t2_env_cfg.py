@@ -585,7 +585,7 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the GR1T2 environment."""
 
     # Scene settings
-    scene: PickPlaceGR1T2SceneCfg = PickPlaceGR1T2SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    scene: PickPlaceGR1T2SceneCfg = PickPlaceGR1T2SceneCfg(num_envs=1, env_spacing=2.5)
     # Basic settings
     observations: PickPlaceGR1T2ObservationsCfg = PickPlaceGR1T2ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

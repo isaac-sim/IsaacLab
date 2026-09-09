@@ -114,7 +114,6 @@ class CabinetSceneCfg(InteractiveSceneCfg):
         prim_path="/World/GroundPlane",
         init_state=AssetBaseCfg.InitialStateCfg(),
         spawn=sim_utils.GroundPlaneCfg(),
-        collision_group=-1,
     )
 
     # lights

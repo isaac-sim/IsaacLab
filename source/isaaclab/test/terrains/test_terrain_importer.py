@@ -342,13 +342,16 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
         )
         mesh_sphere_cfg.func(ball_prim_path, mesh_sphere_cfg, translation=(0.0, 0.0, 0.5))
 
-    # Clone the scene
-    envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_balls)]
+    # Clone the scene topology, then apply the cloner-owned isolation policy.
     lab_cloner.usd_replicate(sim.stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
-    physics_scene_path = sim.cfg.physics_prim_path
-    lab_cloner.filter_collisions(
-        sim.stage, physics_scene_path, "/World/collisions", prim_paths=envs_prim_paths, global_paths=["/World/ground"]
+    clone_plan = lab_cloner.clone_plan_from_env_0(
+        env_fmt.format(0),
+        num_balls,
+        lab_cloner.CloneCfg(replicate_physics=False),
+        env_origins,
+        global_paths=("/World/ground",),
     )
+    lab_cloner.replicate(clone_plan)
 
     # Set ball positions over terrain origins
     # Create a view over all the balls using Isaac Lab's FrameView

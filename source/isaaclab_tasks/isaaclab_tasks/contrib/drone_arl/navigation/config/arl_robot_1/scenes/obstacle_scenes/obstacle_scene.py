@@ -77,7 +77,6 @@ def generate_obstacle_collection(cfg: ObstaclesSceneCfg) -> RigidObjectCollectio
                 collision_props=sim_utils.CollisionPropertiesCfg(),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=tuple(default_center)),
-            collision_group=0,
         )
 
     obstacle_types = list(cfg.obstacle_cfgs.values())
@@ -108,7 +107,6 @@ def generate_obstacle_collection(cfg: ObstaclesSceneCfg) -> RigidObjectCollectio
                 collision_props=sim_utils.CollisionPropertiesCfg(),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=tuple(default_center)),
-            collision_group=0,
         )
 
     return RigidObjectCollectionCfg(rigid_objects=rigid_objects)

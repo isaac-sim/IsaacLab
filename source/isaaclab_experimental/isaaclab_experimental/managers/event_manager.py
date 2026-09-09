@@ -422,13 +422,13 @@ class EventManager(ManagerBase):
             self._resolve_common_term_cfg(term_name, term_cfg, min_argc=2)
 
             # check if mode is pre-startup and scene replication is enabled
-            if term_cfg.mode == "prestartup" and self._env.scene.cfg.replicate_physics:
+            if term_cfg.mode == "prestartup" and self._env.scene.cfg.clone_cfg.replicate_physics:
                 raise RuntimeError(
                     "Scene replication is enabled, which may affect USD-level randomization."
                     " When assets are replicated, their properties are shared across instances,"
                     " potentially leading to unintended behavior."
                     " For stable USD-level randomization, please disable scene replication"
-                    " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
+                    " by setting 'clone_cfg.replicate_physics' to False in 'InteractiveSceneCfg'."
                 )
 
             # for prestartup callable class terms, initialize early (stable behavior)

@@ -114,7 +114,7 @@ def _make_scene_cfg() -> InteractiveSceneCfg:
     add_scene(scene, reach_scene, asset_skip=_skip_global_asset)
     scene.num_envs = 4096
     scene.env_spacing = 2.0
-    scene.replicate_physics = True
+    scene.clone_cfg.replicate_physics = True
     scene.plane = PLANE_CFG.copy()
     scene.light = LIGHT_CFG.copy()
     return scene

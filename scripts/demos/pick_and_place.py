@@ -111,7 +111,7 @@ class PickAndPlaceEnvCfg(DirectRLEnvCfg):
     )
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=12.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=12.0)
 
     # reset logic
     # Initial position of the robot
@@ -226,15 +226,13 @@ class PickAndPlaceEnv(DirectRLEnv):
         self.gripper = SurfaceGripper(self.cfg.gripper)
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        src = self.scene.cloner_cfg.clone_template.format(0)
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
         global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(
-            plan,
-            replicate_physics=self.scene.cfg.replicate_physics,
-            isolate_environments=self.scene.cfg.filter_collisions,
+        plan = cloner.clone_plan_from_env_0(
+            src, self.scene.num_envs, self.scene.cloner_cfg, pos, global_paths=global_paths
         )
+        cloner.replicate(plan)
         # add articulation to scene
         self.scene.articulations["pick_and_place"] = self.pick_and_place
         self.scene.rigid_objects["cube"] = self.cube

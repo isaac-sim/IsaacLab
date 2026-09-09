@@ -315,7 +315,7 @@ def randomize_visual_texture_material(
 
     .. note::
         When randomizing the texture of individual assets, please make sure to set
-        :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
+        :attr:`isaaclab.cloner.CloneCfg.replicate_physics` to False. This ensures that physics
         parser will parse the individual asset properties separately.
     """
     if hasattr(env.cfg, "eval_mode") and (
@@ -334,11 +334,11 @@ def randomize_visual_texture_material(
     # check to make sure replicate_physics is set to False, else raise error
     # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode
     #   and the event manager doesn't check in that case.
-    if env.cfg.scene.replicate_physics:
+    if env.cfg.scene.clone_cfg.replicate_physics:
         raise RuntimeError(
             "Unable to randomize visual texture material with scene replication enabled."
             " For stable USD-level randomization, please disable scene replication"
-            " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
+            " by setting 'clone_cfg.replicate_physics' to False in 'InteractiveSceneCfg'."
         )
 
     # convert from radians to degrees

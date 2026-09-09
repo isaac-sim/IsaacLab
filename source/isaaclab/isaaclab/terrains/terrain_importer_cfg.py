@@ -27,9 +27,6 @@ class TerrainImporterCfg:
     Defaults to :class:`isaaclab.terrains.terrain_importer.TerrainImporter`.
     """
 
-    collision_group: int = -1
-    """The collision group of the terrain. Defaults to -1."""
-
     prim_path: str = MISSING
     """The absolute path of the USD terrain prim.
 

@@ -347,7 +347,6 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
         prim_path="/World/GroundPlane",
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
         spawn=sim_utils.GroundPlaneCfg(),
-        collision_group=-1,
     )
     light = AssetBaseCfg(
         prim_path="/World/Light",
@@ -610,7 +609,6 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     scene: UR10ParticlePushSceneCfg = UR10ParticlePushSceneCfg(
         num_envs=64,
         env_spacing=3.0,
-        replicate_physics=True,
         clone_in_fabric=True,
     )
     sim: SimulationCfg = SimulationCfg(dt=1.0 / 120.0, render_interval=decimation)

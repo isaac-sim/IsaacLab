@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 
 from isaaclab import cloner
-from isaaclab.cloner import ClonePlan
+from isaaclab.cloner import CloneCfg, ClonePlan
 
 ##
 # Path primitives.
@@ -542,9 +542,11 @@ def test_query_agrees_across_duplicate_source_rows():
 
 
 def test_env_0_plan_defaults_to_no_global_paths():
-    plan = cloner.clone_plan_from_env_0("/World/scenes/scene_0", "/World/scenes/scene_{}", 2)
+    plan = cloner.clone_plan_from_env_0("/World/scenes/scene_0", 2, CloneCfg(clone_template="/World/scenes/scene_{}"))
     assert plan.global_paths == ()
     assert plan.env_template == "/World/scenes/scene_{}"
+    assert plan.isolate_environments is True
+    assert plan.replicate_physics is True
 
 
 def test_query_and_path_are_real_modules():

@@ -42,7 +42,6 @@ class HandoverManagerSceneCfg(InteractiveSceneCfg):
 
     num_envs = 2048
     env_spacing = 1.5
-    replicate_physics = True
 
     ground = AssetBaseCfg(
         prim_path="/World/ground",

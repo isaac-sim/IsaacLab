@@ -57,14 +57,10 @@ class CartpoleCameraEnv(CartpoleEnv):
         """Setup the scene with the cartpole and camera (no ground plane, which obstructs the view)."""
         self.cartpole = Articulation(self.cfg.robot_cfg)
         self._tiled_camera = Camera(self.cfg.tiled_camera)
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        src = self.scene.cloner_cfg.clone_template.format(0)
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos)
-        cloner.replicate(
-            plan,
-            replicate_physics=self.scene.cfg.replicate_physics,
-            isolate_environments=self.scene.cfg.filter_collisions,
-        )
+        plan = cloner.clone_plan_from_env_0(src, self.scene.num_envs, self.scene.cloner_cfg, pos)
+        cloner.replicate(plan)
 
         # add articulation and sensors to scene
         self.scene.articulations["cartpole"] = self.cartpole

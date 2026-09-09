@@ -20,7 +20,6 @@ env_creation:
   - "physics.mjwarp_manager:_create_solver"
   - "cloner.*:replicate"
   - "cloner.*:usd_replicate"
-  - "cloner.*:filter_collisions"
   - "cloner.*:attach_end_fn"
   - "utils.string:string_to_callable"
   - "warp.*:kernel"

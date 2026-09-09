@@ -246,7 +246,7 @@ def main():
         sim.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])
 
         # Design scene
-        scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=True)
+        scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
         if args_cli.physics == "newton_mjwarp":
             # Newton views currently require a uniform body layout across worlds.
             scene_cfg.object.spawn.assets_cfg = scene_cfg.object.spawn.assets_cfg[1:2]

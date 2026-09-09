@@ -191,7 +191,7 @@ def test_texture_randomization(device):
         # Set the arguments
         env_cfg = CartpoleEnvCfg()
         env_cfg.scene.num_envs = 16
-        env_cfg.scene.replicate_physics = False
+        env_cfg.scene.clone_cfg.replicate_physics = False
         env_cfg.sim.device = device
 
         # Setup base environment
@@ -224,7 +224,7 @@ def test_texture_randomization_failure_replicate_physics():
         # Set the arguments
         cfg_failure = CartpoleEnvCfg()
         cfg_failure.scene.num_envs = 16
-        cfg_failure.scene.replicate_physics = True
+        cfg_failure.scene.clone_cfg.replicate_physics = True
 
         # Test that creating the environment raises RuntimeError
         with pytest.raises(RuntimeError):

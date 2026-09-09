@@ -41,6 +41,16 @@ class CollisionGroupCfg:
 
     def validate_config(self) -> None:
         """Validate the selector regular expressions."""
+        if not isinstance(self.prim_path_exprs, (list, tuple)):
+            raise TypeError("CollisionGroupCfg.prim_path_exprs must be a list or tuple of strings.")
+        if not all(isinstance(selector, str) for selector in self.prim_path_exprs):
+            raise TypeError("CollisionGroupCfg.prim_path_exprs must contain only strings.")
+        if not isinstance(self.filtered_groups, (list, tuple)):
+            raise TypeError("CollisionGroupCfg.filtered_groups must be a list or tuple of strings.")
+        if not all(isinstance(group_name, str) for group_name in self.filtered_groups):
+            raise TypeError("CollisionGroupCfg.filtered_groups must contain only strings.")
+        if not isinstance(self.invert_filtered_groups, bool):
+            raise TypeError("CollisionGroupCfg.invert_filtered_groups must be a bool.")
         for selector in self.prim_path_exprs:
             try:
                 re.compile(selector)
@@ -57,7 +67,11 @@ class CollisionFilterCfg:
 
     def validate_config(self) -> None:
         """Validate selectors and cross-group references."""
+        if not isinstance(self.groups, dict):
+            raise TypeError("CollisionFilterCfg.groups must be a dictionary.")
         for group_name, group_cfg in self.groups.items():
+            if not isinstance(group_name, str):
+                raise TypeError("CollisionFilterCfg.groups keys must be strings.")
             if not isinstance(group_cfg, CollisionGroupCfg):
                 raise TypeError(
                     f"Collision group {group_name!r} must be a CollisionGroupCfg, got {type(group_cfg).__name__}."

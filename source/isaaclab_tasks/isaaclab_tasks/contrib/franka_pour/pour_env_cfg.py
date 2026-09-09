@@ -537,7 +537,7 @@ class ResetDatasetCurriculumCfg:
 class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
     """Registered Franka Pour task using an externally generated reset dataset."""
 
-    scene: PourSceneCfg = PourSceneCfg(num_envs=2, env_spacing=2.5, replicate_physics=True)
+    scene: PourSceneCfg = PourSceneCfg(num_envs=2, env_spacing=2.5)
     observations: ResetDatasetObservationsCfg = ResetDatasetObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     rewards: ResetDatasetRewardsCfg = ResetDatasetRewardsCfg()

@@ -81,7 +81,7 @@ class KukaAllegroReorientRewardCfg(lift.RewardsCfg):
 
 @configclass
 class KukaAllegroMixinCfg:
-    scene: KukaAllegroSceneCfg = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
+    scene: KukaAllegroSceneCfg = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3)
     rewards: KukaAllegroReorientRewardCfg = KukaAllegroReorientRewardCfg()
     observations: StateObservationCfg = StateObservationCfg()
     actions: KukaAllegroRelJointPosActionCfg = KukaAllegroRelJointPosActionCfg()

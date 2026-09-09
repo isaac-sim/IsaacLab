@@ -89,9 +89,16 @@ def main():
     env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")
-    # Clone the scene
-    envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+    # Clone the scene topology and publish its completed layout.
     lab_cloner.usd_replicate(sim.stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
+    clone_plan = lab_cloner.clone_plan_from_env_0(
+        env_fmt.format(0),
+        num_envs,
+        lab_cloner.CloneCfg(replicate_physics=False),
+        env_origins,
+        global_paths=("/World/defaultGroundPlane",),
+    )
+    sim.set_clone_plan(clone_plan)
     # Design props
     design_scene()
     # Spawn things into the scene
@@ -108,11 +115,7 @@ def main():
         filter_prim_paths_expr=["/World/defaultGroundPlane/GroundPlane/CollisionPlane"],
     )
     contact_sensor = ContactSensor(cfg=contact_sensor_cfg)
-    # filter collisions within each environment instance
-    physics_scene_path = sim.cfg.physics_prim_path
-    lab_cloner.filter_collisions(
-        sim.stage, physics_scene_path, "/World/collisions", envs_prim_paths, global_paths=["/World/defaultGroundPlane"]
-    )
+    lab_cloner.replicate(clone_plan)
 
     # Play the simulator
     sim.reset()

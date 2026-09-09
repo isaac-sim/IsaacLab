@@ -20,6 +20,7 @@ from pxr import Sdf, UsdShade
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, VisualMaterial, VisualMaterialCfg
+from isaaclab.cloner import CloneCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.configclass import configclass
@@ -91,7 +92,11 @@ def Xform "Robot"
     with build_simulation_context(
         device="cuda:0", gravity_enabled=False, add_ground_plane=False, auto_add_lighting=False
     ) as sim:
-        cfg = _VisualMaterialSceneCfg(num_envs=12, env_spacing=1.0, replicate_physics=False, filter_collisions=False)
+        cfg = _VisualMaterialSceneCfg(
+            num_envs=12,
+            env_spacing=1.0,
+            clone_cfg=CloneCfg(isolate_environments=False, replicate_physics=False),
+        )
         for variant in cfg.robot.spawn.assets_cfg:
             variant.usd_path = str(asset_path)
 

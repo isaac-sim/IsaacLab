@@ -28,6 +28,7 @@ from pxr import Sdf
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
+from isaaclab.cloner import CloneCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import ActionTerm, ActionTermCfg, SceneEntityCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -263,8 +264,8 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    # Note: replicate_physics=False is required for prestartup events (scale randomization)
-    scene: MySceneCfg = MySceneCfg(num_envs=10, env_spacing=2.5, replicate_physics=False)
+    # Note: CloneCfg.replicate_physics=False is required for prestartup events (scale randomization)
+    scene: MySceneCfg = MySceneCfg(num_envs=10, env_spacing=2.5, clone_cfg=CloneCfg(replicate_physics=False))
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -344,7 +345,7 @@ def test_scale_randomization_failure_replicate_physics():
     sim_utils.create_new_stage()
     # set the arguments
     cfg_failure = CubeEnvCfg()
-    cfg_failure.scene.replicate_physics = True
+    cfg_failure.scene.clone_cfg.replicate_physics = True
 
     # run the test
     with pytest.raises(RuntimeError):

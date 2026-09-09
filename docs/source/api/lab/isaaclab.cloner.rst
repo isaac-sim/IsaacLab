@@ -32,7 +32,6 @@
       replicate
       queue_replication
       usd_replicate
-      filter_collisions
 
 Clone plan
 ~~~~~~~~~~

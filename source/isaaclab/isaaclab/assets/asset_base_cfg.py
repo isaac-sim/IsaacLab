@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import Any, Literal
+from typing import Any
 
 from isaaclab.sim import SpawnerCfg
 from isaaclab.utils.configclass import configclass
@@ -75,13 +75,6 @@ class AssetBaseCfg:
 
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the rigid object. Defaults to identity pose."""
-
-    collision_group: Literal[0, -1] = 0
-    """Collision group of the asset. Defaults to ``0``.
-
-    * ``-1``: global collision group (collides with all assets in the scene).
-    * ``0``: local collision group (collides with other assets in the same environment).
-    """
 
     debug_vis: bool = False
     """Whether to enable debug visualization for the asset. Defaults to ``False``."""

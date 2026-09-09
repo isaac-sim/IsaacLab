@@ -236,10 +236,9 @@ adding any other optional objects into the scene, such as lights.
 |                                                                              |     spawn_ground_plane(                                                |
 |                                                                              |         prim_path="/World/ground", cfg=GroundPlaneCfg())               |
 |     self.sim = super().create_sim(self.device_id, self.graphics_device_id,   |     # create and apply a clone plan                                    |
-|                                     self.physics_engine, self.sim_params)    |     plan = cloner.clone_plan_from_env_0(..., global_paths=...)         |
-|     self._create_ground_plane()                                              |     cloner.replicate(                                                  |
-|                                                                              |         plan, replicate_physics=self.scene.cfg.replicate_physics,      |
-|                                                                              |         isolate_environments=self.scene.cfg.filter_collisions)         |
+|                                     self.physics_engine, self.sim_params)    |     plan = cloner.clone_plan_from_env_0(...,                           |
+|                                                                              |         self.scene.cloner_cfg, global_paths=...)                       |
+|     self._create_ground_plane()                                              |     cloner.replicate(plan)                                             |
 |     self._create_envs(self.num_envs, self.cfg["env"]['envSpacing'],          |     # add articulation to scene                                        |
 |                         int(np.sqrt(self.num_envs)))                         |     self.scene.articulations["cartpole"] = self.cartpole               |
 |                                                                              |     # add lights                                                       |
@@ -358,21 +357,19 @@ The scene creation process is as follow:
 
 #. Construct a single environment (what the scene would look like if number of environments = 1)
 #. Create a plan with :func:`isaaclab.cloner.clone_plan_from_env_0` and apply it with
-   :func:`isaaclab.cloner.replicate`, passing the environment-isolation intent
+   :func:`isaaclab.cloner.replicate`; cloned environments are isolated by default
 
 
 .. code-block:: python
 
    self.cartpole = Articulation(self.cfg.robot_cfg)
 
-   src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+   src = self.scene.cloner_cfg.clone_template.format(0)
    positions = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-   plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, positions)
-   cloner.replicate(
-       plan,
-       replicate_physics=self.scene.cfg.replicate_physics,
-       isolate_environments=self.scene.cfg.filter_collisions,
+   plan = cloner.clone_plan_from_env_0(
+       src, self.scene.num_envs, self.scene.cloner_cfg, positions
    )
+   cloner.replicate(plan)
 
 
 .. rubric:: Accessing States from Simulation
@@ -578,7 +575,7 @@ and :isaaclab-source:`Cartpole environment <source/isaaclab_tasks/isaaclab_tasks
 |   resetDist: 3.0                                       |     pole_dof_name = "cart_to_pole"                                  |
 |   maxEffort: 400.0                                     |     # scene                                                         |
 |                                                        |     scene: InteractiveSceneCfg = InteractiveSceneCfg(               |
-|   clipObservations: 5.0                                |         num_envs=4096, env_spacing=4.0, replicate_physics=True,     |
+|   clipObservations: 5.0                                |         num_envs=4096, env_spacing=4.0,                             |
 |                                                        |         clone_in_fabric=True)                                       |
 |   clipActions: 1.0                                     |     # env                                                           |
 |                                                        |     decimation = 2                                                  |
@@ -668,17 +665,19 @@ the need to set simulation parameters for actors in the task implementation.
 |     self.up_axis = self.cfg["sim"]["up_axis"]                          |     # add ground plane                                              |
 |                                                                        |     spawn_ground_plane(prim_path="/World/ground",                   |
 |     self.sim = super().create_sim(self.device_id,                      |         cfg=GroundPlaneCfg())                                       |
-|         self.graphics_device_id, self.physics_engine,                  |     src, dest = "/World/envs/env_0", "/World/envs/env_{}"           |
-|         self.sim_params)                                               |     positions = cloner.grid_transforms(                             |
-|     self._create_ground_plane()                                        |         self.scene.num_envs, self.scene.cfg.env_spacing)[0]         |
-|     self._create_envs(self.num_envs,                                   |                                                                     |
-|         self.cfg["env"]['envSpacing'],                                 |     global_paths = ("/World/ground",)                               |
-|         int(np.sqrt(self.num_envs)))                                   |     plan = cloner.clone_plan_from_env_0(                            |
-|                                                                        |         src, dest, self.scene.num_envs, positions,                  |
+|         self.graphics_device_id, self.physics_engine,                  |     src = self.scene.cloner_cfg.clone_template.format(0)            |
+|         self.sim_params)                                               |                                                                     |
+|     self._create_ground_plane()                                        |     positions = cloner.grid_transforms(                             |
+|     self._create_envs(self.num_envs,                                   |         self.scene.num_envs, self.scene.cfg.env_spacing)[0]         |
+|         self.cfg["env"]['envSpacing'],                                 |                                                                     |
+|         int(np.sqrt(self.num_envs)))                                   |     global_paths = ("/World/ground",)                               |
+|                                                                        |     plan = cloner.clone_plan_from_env_0(                            |
+|                                                                        |         src, self.scene.num_envs, self.scene.cloner_cfg, positions, |
 |                                                                        |         global_paths=global_paths)                                  |
-|                                                                        |     cloner.replicate(                                               |
-| def _create_ground_plane(self):                                        |         plan, replicate_physics=self.scene.cfg.replicate_physics,   |
-|     plane_params = gymapi.PlaneParams()                                |         isolate_environments=self.scene.cfg.filter_collisions)      |
+|                                                                        |                                                                     |
+|                                                                        |     cloner.replicate(plan)                                          |
+| def _create_ground_plane(self):                                        |                                                                     |
+|     plane_params = gymapi.PlaneParams()                                |                                                                     |
 |     # set the normal force to be z dimension                           |     self.scene.articulations["cartpole"] = self.cartpole            |
 |     plane_params.normal = (gymapi.Vec3(0.0, 0.0, 1.0)                  |     light_cfg = sim_utils.DistantLightCfg(                          |
 |         if self.up_axis == 'z'                                         |         intensity=2000.0, color=(1.0, 1.0, 1.0))                    |
@@ -690,7 +689,7 @@ the need to set simulation parameters for actors in the task implementation.
 |     lower = (gymapi.Vec3(0.5 * -spacing, -spacing, 0.0)                | scene: InteractiveSceneCfg = InteractiveSceneCfg(                   |
 |         if self.up_axis == 'z'                                         |     num_envs=4096,                                                  |
 |         else gymapi.Vec3(0.5 * -spacing, 0.0, -spacing))               |     env_spacing=4.0,                                                |
-|     upper = gymapi.Vec3(0.5 * spacing, spacing, spacing)               |     replicate_physics=True,                                         |
+|     upper = gymapi.Vec3(0.5 * spacing, spacing, spacing)               |                                                                     |
 |                                                                        |     clone_in_fabric=True,                                           |
 |     asset_root = os.path.join(os.path.dirname(                         | )                                                                   |
 |         os.path.abspath(__file__)), "../../assets")                    |                                                                     |

@@ -450,7 +450,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
     """
 
     # Scene settings
-    scene: LocomanipulationG1SceneCfg = LocomanipulationG1SceneCfg(num_envs=1, env_spacing=2.5, replicate_physics=True)
+    scene: LocomanipulationG1SceneCfg = LocomanipulationG1SceneCfg(num_envs=1, env_spacing=2.5)
     # MDP settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

@@ -52,8 +52,8 @@ class InclusionSet:
 class CloneCfg:
     """Configuration for environment replication.
 
-    Holds the knobs :class:`~isaaclab.scene.InteractiveScene` forwards to
-    :func:`~isaaclab.cloner.make_clone_plan` when building per-env layouts.
+    Holds the cloner-owned settings used to plan and dispatch per-environment layouts. Composition
+    roots pass this object to cloner APIs instead of unpacking individual policy flags.
     """
 
     clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential
@@ -80,6 +80,26 @@ class CloneCfg:
     If False, cloning is USD-only: the physics engine parses the per-env USD prims directly
     instead of replicating env_0's parsed structure. Applied by :func:`~isaaclab.cloner.replicate`.
     """
+
+    isolate_environments: bool = True
+    """Whether colliders in different cloned environments are isolated. Default is True.
+
+    The cloner records this world-level rule in its :class:`~isaaclab.cloner.ClonePlan`; the active
+    physics manager combines it with any collider-level policy during replication.
+    """
+
+    def validate_config(self) -> None:
+        """Validate cloner execution settings."""
+        if not callable(self.clone_strategy):
+            raise TypeError("CloneCfg.clone_strategy must be callable.")
+        if not isinstance(self.clone_template, str):
+            raise TypeError("CloneCfg.clone_template must be a string.")
+        if self.clone_template.count("{}") != 1:
+            raise ValueError("CloneCfg.clone_template must contain exactly one '{}' environment-id slot.")
+        if not isinstance(self.replicate_physics, bool):
+            raise TypeError("CloneCfg.replicate_physics must be a bool.")
+        if not isinstance(self.isolate_environments, bool):
+            raise TypeError("CloneCfg.isolate_environments must be a bool.")
 
 
 def add(this: CloneCfg, other: InclusionSet) -> CloneCfg:

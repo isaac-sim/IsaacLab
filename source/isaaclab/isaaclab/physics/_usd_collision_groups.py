@@ -3,68 +3,30 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PhysX collision-group authoring for clones."""
+"""Internal USD collision-group lowering shared by physics managers."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pxr import Usd
 
 
-def filter_collisions(
+def _author_environment_isolation_groups(
     stage: Usd.Stage,
-    physicsscene_path: str,
+    physics_scene_path: str,
     collision_root_path: str,
-    prim_paths: list[str],
-    global_paths: list[str] = [],
+    prim_paths: Sequence[str],
+    global_paths: Sequence[str] = (),
 ) -> None:
-    """Create inverted collision groups for standalone or pre-barrier PhysX clones.
-
-    Sets PhysX scene attributes and collision groups on the prim at ``physicsscene_path``
-    (no PhysxSchema import). Call only when the physics backend is PhysX; Newton uses
-    its own collision/world handling and does not use USD PhysX collision groups.
-
-    A managed clone lifecycle owns collision filtering after
-    :meth:`isaaclab.physics.PhysicsManager.apply_collision_filter`. At that point this
-    legacy authoring entry point rejects mutations instead of layering a second, potentially
-    conflicting set of collision groups over the backend's compiled policy.
-
-    Creates one PhysicsCollisionGroup per prim under ``collision_root_path``, enabling
-    inverted filtering so clones don't collide across groups. Optionally adds a global
-    group that collides with all.
-
-    Args:
-        stage: USD stage.
-        physicsscene_path: Path to PhysicsScene prim.
-        collision_root_path: Root scope for collision groups.
-        prim_paths: Per-clone prim paths.
-        global_paths: Optional global-collider paths.
-
-    Raises:
-        RuntimeError: If the active physics manager has crossed its collision-filter barrier.
-    """
-    from isaaclab.physics import PhysicsManager  # noqa: PLC0415
-
-    PhysicsManager._require_pre_barrier_collision_filtering("cloner.filter_collisions()")
-    _author_collision_groups(stage, physicsscene_path, collision_root_path, prim_paths, global_paths)
-
-
-def _author_collision_groups(
-    stage: Usd.Stage,
-    physicsscene_path: str,
-    collision_root_path: str,
-    prim_paths: list[str],
-    global_paths: list[str] = [],
-) -> None:
-    """Author legacy PhysX collision groups for a manager-owned or pre-barrier path."""
+    """Author compact inverted collision groups for replicated environments."""
     # Deferred: importing pxr from the kit-less usd-core wheel before Kit boots corrupts Kit's
-    # own USD runtime. Keeping it in the body means resolving the ``cloner.filter_collisions``
-    # attribute stays pxr-free — only calling it, on a live PhysX stage, pulls pxr in.
+    # own USD runtime. Keep it in the manager-invoked function body.
     from pxr import Sdf, Usd, UsdGeom  # noqa: PLC0415
 
-    scene_prim = stage.GetPrimAtPath(physicsscene_path)
+    scene_prim = stage.GetPrimAtPath(physics_scene_path)
     # We invert the collision group filters for more efficient collision filtering across environments
     invert_attr = scene_prim.CreateAttribute("physxScene:invertCollisionGroupFilter", Sdf.ValueTypeNames.Bool)
     invert_attr.Set(True)
@@ -143,3 +105,52 @@ def _author_collision_groups(
             if len(global_paths) > 0:
                 filtered_groups.targetPathList.Append(global_collision_group_path)
                 global_filtered_groups.targetPathList.Append(collision_group_path)
+
+
+def _matches_environment_isolation_groups(
+    stage: Usd.Stage,
+    physics_scene_path: str,
+    collision_root_path: str,
+    prim_paths: Sequence[str],
+    global_paths: Sequence[str] = (),
+) -> bool:
+    """Return whether the stage contains exactly the compact environment groups."""
+    from pxr import Usd, UsdPhysics  # noqa: PLC0415
+
+    scene_prim = stage.GetPrimAtPath(physics_scene_path)
+    inversion = scene_prim.GetAttribute("physxScene:invertCollisionGroupFilter")
+    if not scene_prim.IsValid() or not inversion or inversion.Get() is not True:
+        return False
+
+    root = collision_root_path.rstrip("/")
+    env_groups = [f"{root}/group{i}" for i in range(len(prim_paths))]
+    global_group = f"{root}/global_group"
+    expected_groups = {*env_groups, *([global_group] if global_paths else [])}
+    authored_groups = {
+        str(prim.GetPath()): UsdPhysics.CollisionGroup(prim)
+        for prim in stage.Traverse(Usd.TraverseInstanceProxies())
+        if prim.IsA(UsdPhysics.CollisionGroup)
+    }
+    if set(authored_groups) != expected_groups:
+        return False
+
+    def matches(group_path: str, includes: set[str], filtered_groups: set[str]) -> bool:
+        group = authored_groups[group_path]
+        prim = group.GetPrim()
+        collection = group.GetCollidersCollectionAPI()
+        return (
+            not prim.IsInstanceProxy()
+            and collection.GetExpansionRuleAttr().Get() == "expandPrims"
+            and set(map(str, collection.GetIncludesRel().GetTargets())) == includes
+            and not collection.GetExcludesRel().GetTargets()
+            and not collection.GetIncludeRootAttr().Get()
+            and not collection.GetMembershipExpressionAttr().Get()
+            and set(map(str, group.GetFilteredGroupsRel().GetTargets())) == filtered_groups
+            and not group.GetMergeGroupNameAttr().Get()
+        )
+
+    for group_path, prim_path in zip(env_groups, prim_paths):
+        related = {group_path, *([global_group] if global_paths else [])}
+        if not matches(group_path, {prim_path}, related):
+            return False
+    return not global_paths or matches(global_group, set(global_paths), {global_group, *env_groups})

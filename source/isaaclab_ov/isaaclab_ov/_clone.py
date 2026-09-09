@@ -6,8 +6,19 @@
 """Internal clone payload definitions shared by the OvPhysX cloner and manager."""
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 CloneTransform = tuple[float, float, float, float, float, float, float]
+
+
+@dataclass(frozen=True)
+class CloneRecipe:
+    """One source-to-target runtime clone operation."""
+
+    source: str
+    targets: tuple[str, ...]
+    transforms: tuple[CloneTransform, ...]
+    env_ids: tuple[int, ...] | None = None
 
 
 def clone_transforms_from_positions(positions: Sequence[Sequence[float]]) -> list[CloneTransform]:

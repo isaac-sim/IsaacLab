@@ -367,13 +367,7 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
-    def apply_collision_filter(
-        cls,
-        plan: ClonePlan,
-        *,
-        isolate_environments: bool,
-        replicate_physics: bool,
-    ) -> None:
+    def apply_collision_filter(cls, plan: ClonePlan) -> None:
         """Apply collision policy once, after collider assembly and before physics construction.
 
         This method is the scene-assembly barrier. Callers must invoke it after all negative-priority
@@ -383,23 +377,16 @@ class PhysicsManager(ABC):
 
         Args:
             plan: Completed replication plan describing source and replicated environments.
-            isolate_environments: Whether replicated environments must be mutually isolated.
-            replicate_physics: Whether the plan is dispatched through native physics replication.
         """
         if PhysicsManager._collision_filter_applied:
             raise RuntimeError("Collision filtering has already been applied for this simulation.")
-        if not isinstance(isolate_environments, bool):
-            raise TypeError("isolate_environments must be a bool.")
-        if not isinstance(replicate_physics, bool):
-            raise TypeError("replicate_physics must be a bool.")
+        if not isinstance(plan.isolate_environments, bool):
+            raise TypeError("ClonePlan.isolate_environments must be a bool.")
+        if not isinstance(plan.replicate_physics, bool):
+            raise TypeError("ClonePlan.replicate_physics must be a bool.")
 
         cfg = getattr(PhysicsManager._cfg, "collision_filter", None)
-        cls._apply_collision_filter_impl(
-            plan,
-            cfg,
-            isolate_environments=isolate_environments,
-            replicate_physics=replicate_physics,
-        )
+        cls._apply_collision_filter_impl(plan, cfg)
         PhysicsManager._collision_filter_applied = True
 
     @classmethod
@@ -417,28 +404,11 @@ class PhysicsManager(ABC):
             )
 
     @classmethod
-    def _require_pre_barrier_collision_filtering(cls, operation: str) -> None:
-        """Reject a legacy collision-filter mutation after manager-owned assembly."""
-        if PhysicsManager._collision_filter_applied:
-            raise RuntimeError(
-                f"{operation} cannot run after PhysicsManager.apply_collision_filter(). Pass isolate_environments "
-                "to cloner.replicate() or ReplicateSession, and configure PhysicsCfg.collision_filter before "
-                "replication."
-            )
-
-    @classmethod
-    def _apply_collision_filter_impl(
-        cls,
-        plan: ClonePlan,
-        cfg: CollisionFilterCfg | None,
-        *,
-        isolate_environments: bool,
-        replicate_physics: bool,
-    ) -> None:
+    def _apply_collision_filter_impl(cls, plan: ClonePlan, cfg: CollisionFilterCfg | None) -> None:
         """Realize collision filtering in the backend without expanding native collider pairs here."""
         context_rows = () if cls.clone_context_type is None else plan.context_rows.get(cls.clone_context_type, ())
         num_environments = 0 if plan.env_ids is None else len(plan.env_ids)
-        needs_isolation = isolate_environments and num_environments > 1 and bool(context_rows)
+        needs_isolation = plan.isolate_environments and num_environments > 1 and bool(context_rows)
         if needs_isolation or (cfg is not None and cfg.groups):
             raise NotImplementedError(f"{cls.__name__} does not implement declarative collision filtering.")
 

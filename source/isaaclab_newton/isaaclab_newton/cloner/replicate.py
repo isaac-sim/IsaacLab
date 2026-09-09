@@ -311,11 +311,7 @@ class NewtonReplicateContext:
             up_axis=self.up_axis,
             load_visual_shapes=_renderer_wants_visual_shapes() if load_visual_shapes is None else load_visual_shapes,
             global_paths=plan.global_paths,
-            collision_filter_cfg=(
-                getattr(PhysicsManager._cfg, "collision_filter", None)
-                if NewtonManager._cl_collision_filter_plan is plan
-                else None
-            ),
+            collision_filter_cfg=NewtonManager._cl_collision_filter_cfg,
             collision_filter_env_template=plan.env_template,
         )
 

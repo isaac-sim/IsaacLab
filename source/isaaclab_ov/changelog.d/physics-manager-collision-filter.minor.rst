@@ -1,5 +1,7 @@
 Added
 ^^^^^
 
-* Added manager-owned USD collision groups for replicated-environment isolation and an explicit
-  error for declarative semantic groups, which OVPhysX does not yet support.
+* Added manager-owned replicated-environment isolation, using stable native environment IDs across
+  GPU clone calls and validated USD groups for full-stage fallback. Declarative semantic groups and
+  fallback composition with unrelated authored groups fail explicitly because OVPhysX does not yet
+  support their safe lowering.
