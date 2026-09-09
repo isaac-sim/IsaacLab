@@ -9,6 +9,8 @@ No Kit/GPU required: these only load and resolve the config through the registry
 :mod:`scripts.benchmarks.benchmark_renderer` selects a preset before launching a run.
 """
 
+from types import SimpleNamespace
+
 import gymnasium as gym
 import pytest
 from isaaclab_newton.physics import NewtonCfg
@@ -16,6 +18,7 @@ from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.core.render_benchmark.render_benchmark_env import RenderBenchmarkEnv
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
@@ -91,3 +94,30 @@ def test_camera_resolution_defaults_to_256():
 
     assert cfg.tiled_camera.width == 256
     assert cfg.tiled_camera.height == 256
+
+
+def _fake_env_for_ground_cfg(ground_size: tuple[float, float], env_spacing: float) -> SimpleNamespace:
+    return SimpleNamespace(
+        cfg=SimpleNamespace(
+            ground_size=ground_size, ground_thickness=0.1, ground_color=(0.5, 0.5, 0.5), ground_top_z=0.0
+        ),
+        scene=SimpleNamespace(cfg=SimpleNamespace(env_spacing=env_spacing)),
+    )
+
+
+def test_ground_cfg_clamps_size_to_env_spacing():
+    """An oversized ground tile must be clamped, or cloned environments' grounds overlap."""
+    fake_env = _fake_env_for_ground_cfg(ground_size=(50.0, 50.0), env_spacing=3.0)
+
+    ground_cfg = RenderBenchmarkEnv._ground_cfg(fake_env)
+
+    assert ground_cfg.spawn.size[:2] == (3.0, 3.0)
+
+
+def test_ground_cfg_keeps_size_smaller_than_env_spacing():
+    """A tile already smaller than the env spacing must not be inflated."""
+    fake_env = _fake_env_for_ground_cfg(ground_size=(2.0, 1.5), env_spacing=3.0)
+
+    ground_cfg = RenderBenchmarkEnv._ground_cfg(fake_env)
+
+    assert ground_cfg.spawn.size[:2] == (2.0, 1.5)

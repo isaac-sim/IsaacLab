@@ -94,9 +94,10 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
     moving articulated geometry rather than a static scene. There is no policy: actions are
     ignored, rewards are zero, and the episode only ends on time-out.
 
-    Poses match the canonical ``Isaac-Franka-Cabinet-Direct-v0`` task:
-    the Franka at ``(1.0, 0, 0)`` rotated 180 deg about Y (facing ``-X``, toward the cabinet),
-    the cabinet at ``(0, 0, 0.4)`` rotated 180 deg about Z (opening toward ``-X``).
+    A mirrored layout of the canonical ``Isaac-Franka-Cabinet-Direct-v0`` task, which places the
+    Franka at the origin facing its default ``+X``: here the Franka sits at ``(1.0, 0, 0)`` rotated
+    180 deg about Z (facing ``-X``, toward the cabinet), and the cabinet sits at the origin in its
+    default USD orientation.
     """
 
     decimation: int = 2
@@ -118,7 +119,7 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=FRANKA_PANDA_HIGH_PD_CFG.init_state.replace(
                 pos=(1.0, 0.0, 0.0),
-                rot=(0.0, 0.0, 1.0, 0.0),  # 180 deg about Y
+                rot=(0.0, 0.0, 1.0, 0.0),  # 180 deg about Z, xyzw
             ),
         ),
         # Loaded as an ArticulationCfg rather than a static USD reference so its four joints
@@ -131,7 +132,7 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
             ),
             init_state=ArticulationCfg.InitialStateCfg(
                 pos=(0.0, 0.0, 0.4),
-                rot=(0.0, 0.0, 0.0, 1.0),  # 180 deg about Z
+                rot=(0.0, 0.0, 0.0, 1.0),  # identity: cabinet's default USD orientation
                 joint_pos={
                     "door_left_joint": 0.0,
                     "door_right_joint": 0.0,
@@ -161,7 +162,11 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
     """Height of the ground's top surface [m]."""
 
     ground_size: tuple[float, float] = (50.0, 50.0)
-    """Extent of the per-environment ground cuboid in XY [m]."""
+    """Requested extent of the per-environment ground cuboid in XY [m].
+
+    Clamped to :attr:`scene.env_spacing` when the cuboid is built, so neighboring environments'
+    ground tiles meet at the boundary instead of overlapping.
+    """
 
     ground_thickness: float = 0.1
     """Thickness of the ground cuboid along Z [m]."""

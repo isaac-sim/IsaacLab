@@ -311,17 +311,17 @@ def run_profile(profile: dict, args: argparse.Namespace):
 def _build_arg_parser() -> argparse.ArgumentParser:
     """Build the CLI parser, kept separate from module import so tests can import pure helpers."""
     parser = argparse.ArgumentParser("IsaacLab Benchmark: Sweep Franka Cabinet")
-    parser.add_argument("--num-frames", type=int, default="20", help="Number of frames to render")
-    parser.add_argument("--num-envs", type=int, default="1024", help="Number of environments to render")
+    parser.add_argument("--num_frames", type=int, default="20", help="Number of frames to render")
+    parser.add_argument("--num_envs", type=int, default="1024", help="Number of environments to render")
     parser.add_argument("--resolution", type=int, default="256", help="Render resolution")
     parser.add_argument("--task", default=TASK_NAME, help="Gym task id to profile")
     parser.add_argument(
-        "--keep-warp-cache",
+        "--keep_warp_cache",
         action="store_true",
         help="Reuse the warp kernel cache instead of recompiling per profile",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
-    parser.add_argument("-s", "--save-image", action="store_true", help="Save image for debugging purposes")
+    parser.add_argument("-s", "--save_image", action="store_true", help="Save image for debugging purposes")
     parser.add_argument("--json", action="store_true", help="Write results to stdout as JSON instead of a table")
     parser.add_argument("profile", nargs="*", help="Profiles to run")
     return parser

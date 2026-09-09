@@ -70,8 +70,15 @@ class RenderBenchmarkEnv(DirectRLEnv):
         apples-to-apples: a USD ground plane is invisible to Warp's renderer, which only knows
         about simulation meshes, so the two renderers would otherwise disagree on primary-ray
         misses and shadow-ray counts.
+
+        The tile is clamped to the env spacing so neighboring clones tile edge-to-edge instead of
+        overlapping. An oversized tile would leave every environment's camera looking at several
+        redundant, coplanar ground meshes -- extra geometry that neither backend needs to resolve
+        in the real scene, and whose BVH/intersection cost grows with the environment count.
         """
-        size_x, size_y = self.cfg.ground_size
+        spacing = self.scene.cfg.env_spacing
+        size_x = min(self.cfg.ground_size[0], spacing)
+        size_y = min(self.cfg.ground_size[1], spacing)
         thickness = self.cfg.ground_thickness
         return RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Ground",
