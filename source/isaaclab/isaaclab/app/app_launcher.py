@@ -327,6 +327,13 @@ class AppLauncher:
         # Integrate env-vars and input keyword args into simulation app config
         self._config_resolution(launcher_args)
 
+        # PyTorch may already have been imported while constructing simulation configs. Drain
+        # its deferred CUDA capability checks before Kit changes the set of CUDA devices that
+        # correspond to Vulkan-capable GPUs. Otherwise a queued check for a device that Kit
+        # filters out fails during the post-Kit ``set_device`` call (for example, device=1 with
+        # two CUDA GPUs but only GPU 0 attached to the display).
+        self._initialize_preloaded_torch_cuda()
+
         # Create SimulationApp, passing the resolved self._config to it for initialization
         self._create_app()
         self._set_deferred_cuda_device()
@@ -1147,6 +1154,21 @@ class AppLauncher:
         self.device = device
 
         logger.info("Using device: %s", device)
+
+    def _initialize_preloaded_torch_cuda(self) -> None:
+        """Initialize CUDA before Kit when another import has already loaded PyTorch.
+
+        Importing PyTorch schedules capability checks for every CUDA device it can see. Kit may
+        subsequently restrict CUDA to the GPUs that its Vulkan backend can use, leaving those
+        queued checks with stale device indices. Do not import PyTorch here: when it has not
+        already been loaded, the normal post-Kit initialization path remains preferable.
+        """
+        if self._deferred_cuda_device_id is None:
+            return
+
+        torch = sys.modules.get("torch")
+        if torch is not None and not torch.cuda.is_initialized():
+            torch.cuda.init()
 
     def _set_deferred_cuda_device(self) -> None:
         """Set the current CUDA device after Kit startup."""
