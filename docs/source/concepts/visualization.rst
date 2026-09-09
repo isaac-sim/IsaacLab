@@ -62,13 +62,13 @@ This page covers:
    <div class="viz-hero-stack">
    <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
      <div class="viz-hero-wrap viz-crop-newton-gl">
-       <video autoplay loop muted playsinline preload="auto">
+       <video muted playsinline preload="auto" class="viz-hero-sync">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_gl.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Newton GL</div>
      </div>
      <div class="viz-hero-wrap viz-crop-viser">
-       <video autoplay loop muted playsinline preload="auto">
+       <video muted playsinline preload="auto" class="viz-hero-sync">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_viser.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Viser</div>
@@ -76,19 +76,19 @@ This page covers:
    </div>
    <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
      <div class="viz-hero-wrap viz-crop-newton-rtx">
-       <video autoplay loop muted playsinline preload="auto" class="viz-hero-speedup">
+       <video muted playsinline preload="auto" class="viz-hero-speedup viz-hero-sync">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_rtx.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Newton RTX</div>
      </div>
      <div class="viz-hero-wrap viz-crop-kit">
-       <video autoplay loop muted playsinline preload="auto" class="viz-crop-x8 viz-hero-speedup">
+       <video muted playsinline preload="auto" class="viz-crop-x8 viz-hero-speedup viz-hero-sync">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_kit.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Kit</div>
      </div>
      <div class="viz-hero-wrap viz-crop-rerun">
-       <video autoplay loop muted playsinline preload="auto">
+       <video muted playsinline preload="auto" class="viz-hero-sync">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_rerun.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Rerun</div>
@@ -97,10 +97,32 @@ This page covers:
    </div>
 
    <script>
+   // The 5 clips already start in phase at file time 0 (capture_visualizer.py step_offset
+   // synchronizes Kit/Newton RTX's start to Newton GL/Rerun/Viser's), so instead of the autoplay
+   // attribute (which starts each element independently, whenever its own data happens to be
+   // ready) wait for every clip to be ready, then call play() on all of them in the same tick,
+   // and reset that sync point on every loop restart.
+   var heroVideos = Array.from(document.querySelectorAll(".viz-hero-sync"));
    // Kit/Newton RTX are encoded 10% slower than the other 3 (output_speed_factor in
-   // capture_visualizer.py); undo that so all 5 independently-looping clips stay in phase.
+   // capture_visualizer.py); undo that so all 5 stay in phase as they play.
    document.querySelectorAll(".viz-hero-speedup").forEach(function (v) {
      v.playbackRate = 1 / 0.9;
+   });
+   heroVideos.forEach(function (v) {
+     v.addEventListener("ended", function () {
+       heroVideos.forEach(function (o) { o.currentTime = 0; });
+       heroVideos.forEach(function (o) { o.play(); });
+     });
+   });
+   Promise.all(
+     heroVideos.map(function (v) {
+       return v.readyState >= 3
+         ? Promise.resolve()
+         : new Promise(function (resolve) { v.addEventListener("canplay", resolve, { once: true }); });
+     })
+   ).then(function () {
+     heroVideos.forEach(function (v) { v.currentTime = 0; });
+     heroVideos.forEach(function (v) { v.play(); });
    });
    </script>
 
