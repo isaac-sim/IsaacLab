@@ -452,16 +452,22 @@ def record_windowed(
 _HERO_TASK = "Isaac-Velocity-Flat-AnymalD"
 
 # Streaming/tiled follow-camera (Kit): same offset/target as the tiled-camera tutorial
-# (scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py), zoomed in further.
+# (scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py), zoomed in further, then
+# pulled back another 25% (matching the 1/0.8 pull-back below) since Kit's streaming-camera FOV
+# renders the robot noticeably larger than Newton GL/RTX at the same eye distance.
 _HERO_STREAMING_TARGET_PRIM = "/World/envs/*/Robot/base"
-_HERO_STREAMING_EYE = (1.98, 1.98, 1.8)
-# Per-step follow-camera (Kit windowed, Newton GL): same offset as the streaming clip.
-_HERO_FOLLOW_EYE_OFFSET = _HERO_STREAMING_EYE
+_HERO_KIT_EYE_OFFSET = (2.48, 2.48, 2.25)
+# Per-step follow-camera (Newton GL only -- Kit uses _HERO_KIT_EYE_OFFSET for both its headless
+# streaming-view and windowed capture paths, since its streaming-camera FOV needs a different
+# distance than Newton GL to frame the same apparent robot size).
+_HERO_FOLLOW_EYE_OFFSET = (1.98, 1.98, 1.8)
 # Newton RTX/Rerun/Viser framed closer than Kit/Newton GL: their panels leave more empty
 # space around the robot at the shared offset above. Newton RTX framed a bit further back
-# than Rerun/Viser, whose tighter framing looked too tight for RTX at the same offset.
-_HERO_RTX_FOLLOW_EYE_OFFSET = (1.4, 1.4, 1.28)
-_HERO_BROWSER_FOLLOW_EYE_OFFSET = (1.0, 1.0, 0.91)
+# than Rerun/Viser, whose tighter framing looked too tight for RTX at the same offset. Newton
+# RTX and Rerun are then pulled back another 25% (~1/0.8) to shrink their apparent robot size by
+# ~20%, matching Newton GL/Viser -- Kit gets the same treatment via _HERO_KIT_EYE_OFFSET above.
+_HERO_RTX_FOLLOW_EYE_OFFSET = (1.75, 1.75, 1.6)
+_HERO_BROWSER_FOLLOW_EYE_OFFSET = (1.25, 1.25, 1.14)
 _HERO_VISER_FOLLOW_EYE_OFFSET = (0.8, 0.8, 0.73)
 # Narrows Newton GL/RTX's FOV to match Kit's streaming-camera framing at this eye distance;
 # no effect on Rerun (no FOV field) or Viser (already matches at the default 12mm).
@@ -613,7 +619,7 @@ def _hero_make_kit_visualizer_cfg() -> VisualizerCfg:
             streaming_view=True,
             streaming_envs=1,
             streaming_cam_target_prim_path=_HERO_STREAMING_TARGET_PRIM,
-            streaming_cam_eye=_HERO_STREAMING_EYE,
+            streaming_cam_eye=_HERO_KIT_EYE_OFFSET,
             enable_markers=True,
         )
     # Windowed capture records the "Viewport" tab, not "Streaming View", so it follows via
@@ -623,7 +629,7 @@ def _hero_make_kit_visualizer_cfg() -> VisualizerCfg:
         window_width=_HERO_WINDOW_WIDTH,
         window_height=_HERO_WINDOW_HEIGHT,
         streaming_view=False,
-        eye=_HERO_FOLLOW_EYE_OFFSET,
+        eye=_HERO_KIT_EYE_OFFSET,
         lookat=(0.0, 0.0, 0.0),
         enable_markers=True,
     )
@@ -1323,13 +1329,13 @@ def _main_hero(seed: int = 42) -> None:
                 "-i",
                 str(newton_gl_raw),
                 "-filter:v",
-                # Crops the raw 960x600 capture down to the exact window the docs page displays
-                # (matching the .viz-crop-newton-gl framing in visualization.rst), instead of
-                # relying on a CSS overflow:hidden wrap to hide the rest. Baking the crop into
-                # the clip itself means the native <video controls> bar -- anchored to the
-                # <video> element's own box, which used to be much taller than the visible
-                # window -- has no extra offscreen area to reappear in on hover.
-                f"setpts=PTS/{newton_gl_speedup},crop=960:452:0:98",
+                # Matches the crop=iw:ih-20:0:10 the other 4 hero clips already get in
+                # _hero_record_visualizer()/_run_combined_capture() -- a small fixed trim, not
+                # the full robot-framing zoom (that lives in the .viz-crop-newton-gl CSS rule in
+                # visualization.rst). Without even this much, Newton GL's raw capture is 20px
+                # taller than the rest, and its native <video controls> bar has extra offscreen
+                # room in the CSS wrap to reappear in on hover.
+                f"setpts=PTS/{newton_gl_speedup},crop=iw:ih-20:0:10",
                 "-c:v",
                 "libx264",
                 "-preset",

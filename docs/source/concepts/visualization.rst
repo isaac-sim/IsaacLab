@@ -35,15 +35,19 @@ This page covers:
    /* Per-tile crop windows, sized and positioned from the source clips so the robot renders at
       the same size and position across all 5 hero tiles. object-position stays centered; each
       video's own (taller) height sets the zoom and its negative margin-top picks which slice
-      of the 265px-tall wrap is shown. Newton GL's crop is baked into the clip itself (see
-      _main_hero() in tools/docs/media/visualizers/capture_visualizer.py), so it needs no extra
-      crop here; Kit/Newton RTX have clean captures and are shown uncropped (full native
-      960x580). Rerun and Viser each bake in their own UI chrome (a "3D View"/physics-backend
-      bar for Rerun, an info panel for Viser) that the crop has to clear, which caps how far they
-      can zoom out -- both are cropped to their maximum safe zoom (just past the chrome) rather
-      than a fixed ratio, so their info panels stay fully out of frame. */
+      of the 265px-tall wrap is shown. These values are tuned against the *currently hosted*
+      clips, not against what capture_visualizer.py's own crop constants would produce --
+      _main_hero() only bakes in a small fixed trim (mainly to clear each visualizer's own UI
+      chrome), the actual zoom/framing lives here in CSS. If the hero clips are ever
+      regenerated and republished, re-check these values against the new source dimensions.
+      Kit/Newton RTX have clean captures with room to zoom out further; Rerun and Viser each
+      bake in their own UI chrome (a "3D View"/physics-backend bar for Rerun, an info panel for
+      Viser) that the crop has to clear, which caps how far they can zoom out -- both are
+      cropped to their maximum safe zoom (just past the chrome) so their panels stay fully out
+      of frame. */
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:265px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; height:265px; margin-top:0; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:480px; margin-top:-105px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:314px; margin-top:-49px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:288px; margin-top:-12px; }
    .viz-grid-record { justify-content:center; align-items:flex-start; }
@@ -84,17 +88,17 @@ This page covers:
        </video>
        <div class="viz-label">Newton RTX</div>
      </div>
-     <div class="viz-hero-wrap viz-crop-rerun">
-       <video autoplay loop muted playsinline controls preload="auto">
-         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_rerun.mp4" type="video/mp4">
-       </video>
-       <div class="viz-label">Rerun</div>
-     </div>
      <div class="viz-hero-wrap viz-crop-kit">
        <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-x8">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_kit.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Kit</div>
+     </div>
+     <div class="viz-hero-wrap viz-crop-rerun">
+       <video autoplay loop muted playsinline controls preload="auto">
+         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_rerun.mp4" type="video/mp4">
+       </video>
+       <div class="viz-label">Rerun</div>
      </div>
    </div>
    </div>
