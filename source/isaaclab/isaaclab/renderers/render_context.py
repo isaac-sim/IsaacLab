@@ -23,18 +23,19 @@ from .renderer_cfg import RendererCfg
 logger = logging.getLogger(__name__)
 
 RENDER_PROFILE_SCOPE = "IsaacLab::Renderer::render"
-"""Name of the NVTX range bracketing :meth:`BaseRenderer.render`, emitted when render profiling is on.
+"""Name of the timed scope bracketing :meth:`BaseRenderer.render`, emitted when render profiling is on.
 
-Every backend renders through the same call, so a profile can compare them under one range name
-instead of one internal name per backend.
+Every backend renders through the same call, so a profile can compare them under one scope name
+instead of one internal name per backend. ``wp.ScopedTimer`` prints one ``"<name> took X.XX ms"``
+line per call, which ``scripts/benchmarks/benchmark_renderer.py`` parses back out of the run log.
 """
 
 _RENDER_PROFILE_ENABLED = os.environ.get("ISAACLAB_RENDER_PROFILE", "0") != "0"
-"""Whether to emit :data:`RENDER_PROFILE_SCOPE`, read once from ``ISAACLAB_RENDER_PROFILE``.
+"""Whether to time and print :data:`RENDER_PROFILE_SCOPE`, read once from ``ISAACLAB_RENDER_PROFILE``.
 
-Off by default because the range synchronizes the device on entry and exit. That is what lets the
-range measure completed device work rather than submitted work, but it also removes CPU/GPU
-overlap, so an enabled run is a profiling aid and not a throughput measurement.
+Off by default because the timer synchronizes the device on entry and exit. That is what lets it
+measure completed device work rather than submitted work, but it also removes CPU/GPU overlap, so
+an enabled run is a profiling aid and not a throughput measurement.
 """
 
 
@@ -360,14 +361,13 @@ class RenderContext:
 
         Only the render itself is bracketed by :data:`RENDER_PROFILE_SCOPE`, so a profile
         attributes neither the scene-state sync before it nor the output readback after it to
-        rendering. See :data:`_RENDER_PROFILE_ENABLED` for how to turn the range on.
+        rendering. See :data:`_RENDER_PROFILE_ENABLED` for how to turn the timer on.
         """
         self.update_scene_state(physics_step_count)
         with wp.ScopedTimer(
             RENDER_PROFILE_SCOPE,
             active=_RENDER_PROFILE_ENABLED,
-            print=False,
-            use_nvtx=True,
+            print=True,
             synchronize=True,
         ):
             renderer.render(render_data)

@@ -9,13 +9,12 @@
 #
 
 import argparse
-import contextlib
 import fnmatch
 import json
 import os
+import re
 import shutil
 import site
-import sqlite3
 import statistics
 import subprocess
 import sys
@@ -65,7 +64,6 @@ FRAME_PADDING = 5
 
 # Resolved from this file rather than the working directory, so the script runs from anywhere.
 SCRIPT_DIR = Path(__file__).resolve().parent
-NSYS_TRACE_CONFIG = SCRIPT_DIR / "nsys_trace.json"
 RUNTIME_SCRIPT = SCRIPT_DIR / "runtime.py"
 OUTPUT_PATH = str(SCRIPT_DIR.parent.parent / "benchmarks")
 
@@ -73,11 +71,14 @@ OVRTX_RENDERER = "ovrtx_renderer"
 NEWTON_RENDERER = "newton_renderer"
 
 RENDER_SCOPE = "IsaacLab::Renderer::render"
-"""Backend-agnostic NVTX range around ``BaseRenderer.render``, enabled by ``ISAACLAB_RENDER_PROFILE``.
+"""Backend-agnostic timer name around ``BaseRenderer.render``, enabled by ``ISAACLAB_RENDER_PROFILE``.
 
 See :data:`isaaclab.renderers.render_context.RENDER_PROFILE_SCOPE`. It brackets the render alone,
-excluding the scene-state sync before it and the output readback after it.
+excluding the scene-state sync before it and the output readback after it. ``wp.ScopedTimer`` prints
+one ``"<name> took X.XX ms"`` line per call, which :func:`parse_log` regexes out of the run's log.
 """
+
+RENDER_SCOPE_PATTERN = re.compile(rf"{re.escape(RENDER_SCOPE)} took ([\d.]+) ms")
 
 log_stream = sys.stdout
 """Destination for progress and diagnostics. ``--json`` points it at stderr so stdout holds only JSON."""
@@ -107,7 +108,7 @@ def build_record(profile: dict, results: dict | None, num_envs: int, resolution:
 
     Args:
         profile: Profile entry from :data:`PROFILES`.
-        results: Timing statistics from :func:`parse_profile`, or ``None`` if the run failed.
+        results: Timing statistics from :func:`parse_log`, or ``None`` if the run failed.
         num_envs: Number of environments the profile rendered.
         resolution: Width and height of each environment's tile [px].
 
@@ -128,56 +129,28 @@ def build_record(profile: dict, results: dict | None, num_envs: int, resolution:
     )
 
 
-def nvtx_ranges(cursor: sqlite3.Connection, name: str) -> list[tuple[int, int]]:
-    """Fetch every NVTX range labelled ``name``, ordered by start time.
+def parse_log(filename: str, num_frames: int):
+    """Summarize per-frame render times [ms] from a run's captured log.
 
-    A range carries its label inline or through ``StringIds`` depending on whether the emitter
-    registered the string, so both are matched.
-
-    Args:
-        cursor: Connection to an exported nsys SQLite report.
-        name: Exact range label to match.
-
-    Returns:
-        ``(start, end)`` pairs in nanoseconds.
-    """
-    return cursor.execute(
-        """
-        SELECT n.start, n.end FROM NVTX_EVENTS n
-        LEFT JOIN StringIds s ON s.id = n.textId
-        WHERE COALESCE(s.value, n.text) = ?
-        ORDER BY n.start
-        """,
-        (name,),
-    ).fetchall()
-
-
-def parse_profile(filename: str, num_frames: int):
-    """Summarize per-frame render times [ms] from an exported nsys report.
-
-    Every backend is measured the same way: the wall time of :data:`RENDER_SCOPE`. The range
-    synchronizes the device on both ends, so it covers completed rather than merely submitted work
-    — including for the RTX backends, whose Vulkan render is consumed by warp extraction kernels
-    inside the range.
+    Every backend is measured the same way: the wall time of :data:`RENDER_SCOPE`, printed once per
+    render by ``wp.ScopedTimer`` when ``ISAACLAB_RENDER_PROFILE`` is set. The timer synchronizes the
+    device on both ends, so it covers completed rather than merely submitted work — including for
+    the RTX backends, whose Vulkan render is consumed by warp extraction kernels inside the scope.
 
     Args:
-        filename: Path to the nsys SQLite export.
+        filename: Path to the captured run log.
         num_frames: Number of frames to measure, after skipping :data:`FRAME_PADDING` warm-up frames.
 
     Returns:
-        Timing statistics, or ``None`` if the report holds no usable frames.
+        Timing statistics, or ``None`` if the log holds no usable frames.
     """
-    with contextlib.closing(sqlite3.connect(filename)) as cursor:
-        frames = nvtx_ranges(cursor, RENDER_SCOPE)
+    with open(filename) as file:
+        frames = [float(match.group(1)) for line in file if (match := RENDER_SCOPE_PATTERN.search(line))]
 
     if not frames:
-        log(f"No '{RENDER_SCOPE}' ranges in {filename}; was ISAACLAB_RENDER_PROFILE set for this run?")
+        log(f"No '{RENDER_SCOPE}' timings in {filename}; was ISAACLAB_RENDER_PROFILE set for this run?")
         return None
-    out = [
-        (end - start) / 1e6
-        for i, (start, end) in enumerate(frames)
-        if FRAME_PADDING < i + 1 <= (num_frames + FRAME_PADDING)
-    ]
+    out = frames[FRAME_PADDING : FRAME_PADDING + num_frames]
 
     if out:
         return {
@@ -192,20 +165,18 @@ def parse_profile(filename: str, num_frames: int):
 
 
 def run_profile(profile: dict, args: argparse.Namespace):
-    """Profile one entry of :data:`PROFILES` under nsys and summarize its render times.
+    """Run one entry of :data:`PROFILES` and summarize its render times from the captured log.
 
     Args:
         profile: Profile entry naming the preset and its backend settings.
         args: Parsed command-line arguments.
 
     Returns:
-        Timing statistics from :func:`parse_profile`, or ``False`` if the run or the export failed.
+        Timing statistics from :func:`parse_log`, or ``False`` if the run failed.
     """
     warp_cache_path = os.path.join(OUTPUT_PATH, "warp-cache")
 
     env = {
-        "NVTX_PROFILE_PYTHON": "1",
-        "NVTX_PROFILE_INCLUDE": "isaaclab,newton,warp,rsl_rl",
         "NEWTON_USE_CUDA_GRAPH": "0",
         "ISAACLAB_RENDER_PROFILE": "1",
         "BENCHMARK_SAVE_IMAGE": "1" if args.save_image else "0",
@@ -221,7 +192,6 @@ def run_profile(profile: dict, args: argparse.Namespace):
     profile_name: str = profile["name"]
     preset: str = profile["preset"]
     renderer: str = preset.split(",")[0]
-    trace: str = "nvtx"
 
     if renderer == OVRTX_RENDERER:
         env["LD_PRELOAD"] = os.path.join(
@@ -231,30 +201,15 @@ def run_profile(profile: dict, args: argparse.Namespace):
         env["OMNI_KIT_ACCEPT_EULA"] = "YES"
         env["OVRTX_rtx_post_tonemap_op"] = "0"
         env["OVRTX_rtx_minimal_useMinimalPipeline"] = "1" if profile["settings"]["min-pipe"] else "0"
-        env["OVRTX_app_profilerBackend"] = "nvtx"
-        env["OVRTX_app_profileFromStart"] = "true"
-        env["OVRTX_app_profilerMask"] = "1"
 
     if renderer == NEWTON_RENDERER:
-        trace = "nvtx,cuda"
         env["NEWTON_BVH_SCENE"] = profile["settings"]["tlas"]
         env["NEWTON_BVH_GEOMETRY"] = profile["settings"]["blas"]
 
     os.makedirs(OUTPUT_PATH, exist_ok=True)
-    profile_filename = os.path.join(OUTPUT_PATH, profile_name + ".nsys-rep")
-    log_filename = os.path.join(OUTPUT_PATH, profile["name"] + ".log")
+    log_filename = os.path.join(OUTPUT_PATH, profile_name + ".log")
 
     cmd = [
-        "nsys",
-        "profile",
-        "--output",
-        profile_filename,
-        "--force-overwrite",
-        "true",
-        "--trace",
-        trace,
-        "--python-functions-trace",
-        str(NSYS_TRACE_CONFIG),
         sys.executable,
         str(RUNTIME_SCRIPT),
         "--task",
@@ -286,26 +241,7 @@ def run_profile(profile: dict, args: argparse.Namespace):
             log(f"Failed with exit code {process.returncode}, see {log_filename} for details.")
             return False
 
-    # A failed export leaves the previous run's .sqlite in place, which would then be parsed and
-    # reported as if it were this run's.
-    export = subprocess.run(
-        [
-            "nsys",
-            "stats",
-            "--force-export",
-            "true",
-            "--report",
-            "cuda_kern_exec_sum",
-            "--format",
-            "csv",
-            profile_filename,
-        ],
-        stdout=subprocess.PIPE,
-    )
-    if export.returncode != 0:
-        log(f"'nsys stats' failed with exit code {export.returncode} for {profile_filename}.")
-        return False
-    return parse_profile(profile_filename.replace(".nsys-rep", ".sqlite"), args.num_frames)
+    return parse_log(log_filename, args.num_frames)
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:

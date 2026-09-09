@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, cast
 
 import pytest
@@ -209,11 +210,10 @@ def test_render_into_camera_calls_update_render_read_order():
 
 
 def test_render_into_camera_call_order_unaffected_by_render_profile_flag(monkeypatch):
-    """Enabling ``ISAACLAB_RENDER_PROFILE`` only wraps the render call in an NVTX range.
+    """Enabling ``ISAACLAB_RENDER_PROFILE`` only wraps the render call in a printed timer.
 
     The wrapping must not change the call order or drop the render call itself.
     """
-    pytest.importorskip("nvtx")
     monkeypatch.setattr(render_context, "_RENDER_PROFILE_ENABLED", True)
 
     ctx = RenderContext()
@@ -225,6 +225,20 @@ def test_render_into_camera_call_order_unaffected_by_render_profile_flag(monkeyp
     ctx.render_into_camera(cast(BaseRenderer, fake), object(), CameraData(), physics_step_count=1)
 
     assert events == ["ut", "geo", "render", "read"]
+
+
+def test_render_into_camera_prints_timing_line_when_render_profile_enabled(monkeypatch, capsys):
+    """The printed line must match the format ``scripts/benchmarks/benchmark_renderer.py`` parses."""
+    monkeypatch.setattr(render_context, "_RENDER_PROFILE_ENABLED", True)
+
+    ctx = RenderContext()
+    cfg = IsaacRtxRendererCfg()
+    fake = _FakeBackend()
+    _set_entries(ctx, (cfg, fake))
+
+    ctx.render_into_camera(cast(BaseRenderer, fake), object(), CameraData(), physics_step_count=1)
+
+    assert re.search(rf"{re.escape(render_context.RENDER_PROFILE_SCOPE)} took [\d.]+ ms", capsys.readouterr().out)
 
 
 def test_reset_stage_prepare_flag_allows_second_prepare_stage():

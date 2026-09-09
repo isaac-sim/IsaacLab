@@ -5,14 +5,12 @@
 
 """Unit tests for the pure helpers in ``scripts/benchmarks/benchmark_renderer.py``.
 
-The script drives ``nsys`` and a rendering backend end-to-end, so those paths are not covered
-here. These tests exercise the record-building, NVTX-parsing, and CLI-parsing logic that does not
-require a GPU or profiling tools.
+The script drives a rendering backend end-to-end, so that path is not covered here. These tests
+exercise the record-building, log-parsing, and CLI-parsing logic that does not require a GPU.
 """
 
 import importlib.util
 import json
-import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -37,7 +35,7 @@ def benchmark_renderer():
 
 
 def test_render_scope_matches_render_context(benchmark_renderer):
-    """The script's NVTX scope name must match the one the renderer emits, or nothing is parsed."""
+    """The script's timer name must match the one the renderer prints, or nothing is parsed."""
     from isaaclab.renderers.render_context import RENDER_PROFILE_SCOPE
 
     assert benchmark_renderer.RENDER_SCOPE == RENDER_PROFILE_SCOPE
@@ -76,50 +74,30 @@ def test_build_record_failed(benchmark_renderer):
     }
 
 
-def _write_nvtx_report(path: Path, ranges: list[tuple[int, int]], use_string_ids: bool) -> None:
-    """Write a minimal nsys-export-shaped SQLite database with the given NVTX ranges."""
-    with sqlite3.connect(path) as connection:
-        connection.execute("CREATE TABLE StringIds (id INTEGER PRIMARY KEY, value TEXT)")
-        if use_string_ids:
-            connection.execute("INSERT INTO StringIds VALUES (1, ?)", (benchmark_renderer_scope,))
-            connection.execute("CREATE TABLE NVTX_EVENTS (start INTEGER, end INTEGER, text TEXT, textId INTEGER)")
-            for start, end in ranges:
-                connection.execute("INSERT INTO NVTX_EVENTS VALUES (?, ?, NULL, 1)", (start, end))
-        else:
-            connection.execute("CREATE TABLE NVTX_EVENTS (start INTEGER, end INTEGER, text TEXT, textId INTEGER)")
-            for start, end in ranges:
-                connection.execute(
-                    "INSERT INTO NVTX_EVENTS VALUES (?, ?, ?, NULL)", (start, end, benchmark_renderer_scope)
-                )
-        connection.commit()
+_RENDER_SCOPE = "IsaacLab::Renderer::render"
 
 
-benchmark_renderer_scope = "IsaacLab::Renderer::render"
+def _write_log(path: Path, timings_ms: list[float]) -> None:
+    """Write a synthetic run log with one ``wp.ScopedTimer`` print line per timing.
+
+    Interleaves unrelated lines to mimic real subprocess output (warp init banner, other timers),
+    so the parser is exercised against noise rather than a file with only matching lines.
+    """
+    lines = ["Warp 1.17.0 initialized:", "SomeOtherScope took 0.10 ms"]
+    for value in timings_ms:
+        lines.append(f"{_RENDER_SCOPE} took {value:.2f} ms")
+    path.write_text("\n".join(lines) + "\n")
 
 
-@pytest.mark.parametrize("use_string_ids", [True, False])
-def test_nvtx_ranges_matches_inline_and_interned_labels(benchmark_renderer, tmp_path, use_string_ids):
-    """A range's label may live inline in ``text`` or be interned via ``StringIds``; both resolve."""
-    db_path = tmp_path / "report.sqlite"
-    _write_nvtx_report(db_path, [(0, 10), (20, 25)], use_string_ids)
-
-    with sqlite3.connect(db_path) as connection:
-        ranges = benchmark_renderer.nvtx_ranges(connection, benchmark_renderer_scope)
-
-    assert ranges == [(0, 10), (20, 25)]
-
-
-def test_parse_profile_skips_padding_and_keeps_num_frames(benchmark_renderer, tmp_path):
-    """Only the ``num_frames`` ranges after :data:`FRAME_PADDING` warm-up frames are summarized."""
-    db_path = tmp_path / "report.sqlite"
+def test_parse_log_skips_padding_and_keeps_num_frames(benchmark_renderer, tmp_path):
+    """Only the ``num_frames`` timings after :data:`FRAME_PADDING` warm-up frames are summarized."""
+    log_path = tmp_path / "profile.log"
     padding = benchmark_renderer.FRAME_PADDING
-    # padding warm-up frames of 1ms each, then 3 measured frames of 2ms each, then 1 extra frame that must be dropped.
-    ranges = [(i * 1_000_000, i * 1_000_000 + 1_000_000) for i in range(padding)]
-    measured_start = padding * 1_000_000
-    ranges += [(measured_start + i * 2_000_000, measured_start + i * 2_000_000 + 2_000_000) for i in range(4)]
-    _write_nvtx_report(db_path, ranges, use_string_ids=False)
+    # padding warm-up frames of 1ms each, then 4 measured frames of 2ms each (only 3 are kept).
+    timings = [1.0] * padding + [2.0] * 4
+    _write_log(log_path, timings)
 
-    results = benchmark_renderer.parse_profile(str(db_path), num_frames=3)
+    results = benchmark_renderer.parse_log(str(log_path), num_frames=3)
 
     assert results["size"] == 3
     assert results["median"] == pytest.approx(2.0)
@@ -127,12 +105,12 @@ def test_parse_profile_skips_padding_and_keeps_num_frames(benchmark_renderer, tm
     assert results["max"] == pytest.approx(2.0)
 
 
-def test_parse_profile_returns_none_without_matching_ranges(benchmark_renderer, tmp_path):
-    """A report with no ``RENDER_SCOPE`` ranges means profiling was never enabled for that run."""
-    db_path = tmp_path / "report.sqlite"
-    _write_nvtx_report(db_path, [], use_string_ids=False)
+def test_parse_log_returns_none_without_matching_lines(benchmark_renderer, tmp_path):
+    """A log with no ``RENDER_SCOPE`` timings means profiling was never enabled for that run."""
+    log_path = tmp_path / "profile.log"
+    _write_log(log_path, [])
 
-    assert benchmark_renderer.parse_profile(str(db_path), num_frames=3) is None
+    assert benchmark_renderer.parse_log(str(log_path), num_frames=3) is None
 
 
 def _run_cli(args: list[str]) -> subprocess.CompletedProcess:
