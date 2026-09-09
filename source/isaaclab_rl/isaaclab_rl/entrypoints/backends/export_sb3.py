@@ -59,7 +59,7 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
     """Parse export arguments and return remaining Hydra overrides."""
     parser = argparse.ArgumentParser(description="Export an RL agent with Stable-Baselines3.")
     add_common_export_args(parser, agent_default="sb3_cfg_entry_point")
-    return finalize_export_args(parser, argv, agent_library="sb3")
+    return finalize_export_args(parser, argv)
 
 
 def _vec_normalize_path(checkpoint_path: str) -> Path:

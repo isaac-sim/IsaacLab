@@ -43,7 +43,7 @@ from isaaclab_rl.entrypoints.backends.export_common import (
     state_dict_from_sequence,
     state_sequence_from_registered,
 )
-from isaaclab_rl.skrl import SkrlVecEnvWrapper
+from isaaclab_rl.skrl import SkrlVecEnvWrapper, resolve_skrl_algorithm
 from isaaclab_rl.utils.pretrained_checkpoint import (
     get_pretrained_checkpoint_backend_names,
     get_published_pretrained_checkpoint,
@@ -59,22 +59,6 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
     parser = argparse.ArgumentParser(description="Export an RL agent with skrl.")
     add_common_export_args(parser, agent_default="skrl_cfg_entry_point")
     return finalize_export_args(parser, argv)
-
-
-def _algorithm_from_agent_entry_point(agent_cfg_entry_point: str) -> str:
-    """Derive the skrl algorithm tag used in training run directory names.
-
-    Isaac Lab stores PPO under ``skrl_cfg_entry_point`` and other algorithms under
-    ``skrl_<algorithm>_cfg_entry_point``. Training run directories are named with the
-    algorithm tag (e.g. ``*_ppo_torch``), so export needs that tag when auto-finding
-    checkpoints.
-    """
-    prefix = agent_cfg_entry_point.split("_cfg")[0]
-    if prefix == "skrl":
-        return "ppo"
-    if prefix.startswith("skrl_"):
-        return prefix[len("skrl_") :].lower()
-    return prefix.lower()
 
 
 def is_skrl_lstm_policy(agent) -> bool:
@@ -128,7 +112,7 @@ def export_skrl_agent(
 
     task_name = args_cli.task.split(":")[-1]
     checkpoint_task_name = task_name.replace("-Play", "")
-    algorithm = _algorithm_from_agent_entry_point(args_cli.agent)
+    algorithm = resolve_skrl_algorithm(experiment_cfg)
 
     env_cfg.scene.num_envs = 1
     cli_device = getattr(args_cli, "device", None)

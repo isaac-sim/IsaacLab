@@ -88,14 +88,11 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
 
 
 def finalize_export_args(
-    parser: argparse.ArgumentParser,
-    argv: list[str] | None = None,
-    *,
-    agent_library: str | None = None,
+    parser: argparse.ArgumentParser, argv: list[str] | None = None
 ) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments with preset support and force headless mode."""
 
-    args_cli, hydra_args = setup_preset_cli(parser, argv, agent_library=agent_library)
+    args_cli, hydra_args = setup_preset_cli(parser, argv)
     args_cli.headless = True
     return args_cli, hydra_args
 
