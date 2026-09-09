@@ -93,6 +93,7 @@ Table of Contents
    source/setup/environments
    source/setup/quickstart
    source/setup/tutorial
+   source/setup/demos
    source/migration/migrating_to_isaaclab_3-0
 
 
@@ -126,7 +127,6 @@ Table of Contents
 
    source/overview/core-concepts/index
    source/overview/imitation-learning/index
-   source/overview/showroom
 
 
 .. toctree::
@@ -149,6 +149,7 @@ Table of Contents
    :maxdepth: 2
    :caption: Developer Tools
 
+   source/developer-tools/editor_setup
    source/developer-tools/template_generator
    source/developer-tools/benchmarking/index
 

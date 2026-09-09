@@ -306,6 +306,47 @@ URL; the default port is ``8080``, configurable through
 ``viser`` extra.
 
 
+Livestreaming and WebRTC
+------------------------
+
+``NVST_R_BUSY`` / ``NVST_R_INTERNAL_ERROR`` on ``LIVESTREAM=1`` or ``LIVESTREAM=2``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:class:`~isaaclab.app.AppLauncher` pins TCP port ``49100`` for WebRTC signaling whenever
+``LIVESTREAM=1`` (public network) or ``LIVESTREAM=2`` (private network) is set. If a
+previous livestream process is still bound to that port, the new session fails to start
+with:
+
+.. code:: text
+
+   [Error] [omni.kit.livestream.webrtc.plugin] NVST Error: NVST_R_BUSY
+
+or, less commonly, ``NVST_R_INTERNAL_ERROR`` while binding the signaling socket. Identify
+the process holding port 49100, confirm it is safe to stop, then terminate it and relaunch:
+
+.. tab-set::
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ss -tlnp | grep 49100    # or: lsof -i :49100
+         kill $(lsof -ti tcp:49100)       # SIGTERM first
+         kill -9 $(lsof -ti tcp:49100)    # only if it is still running
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: powershell
+
+         netstat -ano | findstr ":49100"
+         taskkill /PID <pid> /F
+
+On Windows, ``netstat`` prints the owning PID as the last column of the matching line;
+substitute it for ``<pid>``.
+
+
 Distributed training
 --------------------
 
