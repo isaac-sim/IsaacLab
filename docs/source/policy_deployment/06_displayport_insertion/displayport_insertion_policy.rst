@@ -828,7 +828,7 @@ Launch full training in headless mode with video recording:
           ./isaaclab.sh train --rl_library rsl_rl \
               --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \
               --num_envs 256 \
-              --headless \
+              --viz none \
               --video --video_length 200 --video_interval 76800
 
    .. tab-item:: Task space
@@ -838,7 +838,7 @@ Launch full training in headless mode with video recording:
           ./isaaclab.sh train --rl_library rsl_rl \
               --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0 \
               --num_envs 256 \
-              --headless \
+              --viz none \
               --video --video_length 200 --video_interval 76800
 
 **Multi-GPU (distributed) training** — for example on a cluster / OSMO workflow (substitute either task id):
@@ -849,7 +849,7 @@ Launch full training in headless mode with video recording:
         scripts/reinforcement_learning/train.py --rl_library rsl_rl \
         --task <TASK_ID> \
         --num_envs <NUM_ENVS> \
-        --headless --distributed \
+        --viz none --distributed \
         agent.max_iterations=<MAX_ITERS> \
         --video --video_length 200 --video_interval 25600
 
@@ -861,7 +861,8 @@ not intend to deploy.
 
 - ``--rl_library rsl_rl``: Selects the RSL-RL backend (required by the unified trainer)
 - ``--num_envs 256``: Runs 256 parallel environments
-- ``--headless``: Disables the interactive viewer for throughput
+- ``--viz none``: Disables all visualizers for throughput (the unified entry point has no ``--headless`` flag;
+  pass ``--viz kit`` or ``--viz newton`` to enable a viewer)
 - ``--video_length 200``: One episode per video (``episode_length_s / (sim.dt * decimation)`` ≈ 200 steps)
 - ``--video_interval 76800``: Records a video every 76,800 environment steps (~every 150 iterations with 512 steps/env)
 - ``--distributed``: Required when launching under ``torch.distributed.run``
@@ -1151,7 +1152,7 @@ CUDA Out of Memory
        ./isaaclab.sh train --rl_library rsl_rl \
            --task <TASK_ID> \
            --num_envs 128 \
-           --headless
+           --viz none
 
 2. Reduce plug/socket ``solver_position_iteration_count`` in ``displayport_insertion_env_cfg.py`` (trade-off: more penetration)
 
