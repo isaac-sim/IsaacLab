@@ -335,7 +335,9 @@ def get_declared_checkpoint_path(checkpoint_path: str, workflow: str, checkpoint
     if workflow not in WORKFLOW_PRETRAINED_CHECKPOINT_EXTENSIONS:
         raise ValueError(f"Unsupported workflow: {workflow!r}")
     stem = checkpoint_path.removesuffix(WORKFLOW_PRETRAINED_CHECKPOINT_EXTENSIONS[workflow])
-    return f"{stem}_{checkpoint.name}{checkpoint.extension}"
+    # the published copy keeps the extension of the file the component declared
+    extension = os.path.splitext(checkpoint.run_glob or checkpoint.url)[1]
+    return f"{stem}_{checkpoint.name}{extension}"
 
 
 def get_published_pretrained_checkpoint(

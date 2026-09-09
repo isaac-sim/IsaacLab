@@ -7,31 +7,29 @@
 
 import glob
 import os
-from dataclasses import MISSING
+from dataclasses import MISSING, dataclass
 
 from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.configclass import configclass
 
 
-@configclass
+@dataclass
 class Checkpoint:
     """Weights a component loads at runtime, declared on the component's own config.
 
     Exactly one of :attr:`run_glob` and :attr:`url` is set:
 
-    * ``run_glob`` -- this training run writes the file (a vision feature extractor trained with
-      the policy). It is collected and published beside the policy checkpoint as
-      ``<policy stem>_<name><extension>`` and fetched with it.
-    * ``url`` -- the weights already exist (a frozen encoder, a low-level policy). They are only
-      fetched, never published by the checkpoint tooling.
+    * ``run_glob`` -- this training run writes the file, such as a vision feature extractor
+      trained alongside the policy.
+    * ``url`` -- the weights already exist, such as a frozen encoder or a low-level policy.
 
-    The checkpoint tooling discovers declarations by walking the resolved environment config, so a
-    task declares nothing; the component that writes or consumes the file owns its name. Whoever
-    fetches a published copy records it in :attr:`local_path`, and :meth:`resolve` returns it.
+    :meth:`resolve` returns the file to load, so a component never encodes where its weights come
+    from. Tooling that copies weights elsewhere records the copy in :attr:`local_path`, which
+    :meth:`resolve` prefers; :mod:`isaaclab_rl.utils.pretrained_checkpoint` does this for the
+    checkpoints published beside a policy.
     """
 
     name: str = MISSING
-    """Identity of the file, used to publish it beside the policy checkpoint."""
+    """Identity of these weights among the declarations a task's components make."""
 
     run_glob: str | None = None
     """Glob, relative to the training run directory, matching the file this run writes."""
@@ -40,7 +38,7 @@ class Checkpoint:
     """Published location of pre-existing weights."""
 
     local_path: str | None = None
-    """Local copy to load, set by the tooling that fetched it. Takes precedence in :meth:`resolve`."""
+    """A copy already placed locally. Takes precedence in :meth:`resolve`."""
 
     def __post_init__(self) -> None:
         if (self.run_glob is None) == (self.url is None):
@@ -53,11 +51,6 @@ class Checkpoint:
     def is_run_artifact(self) -> bool:
         """Whether this run produces the file, as opposed to fetching a published one."""
         return self.run_glob is not None
-
-    @property
-    def extension(self) -> str:
-        """File extension, taken from whichever of :attr:`run_glob` or :attr:`url` is set."""
-        return os.path.splitext(self.run_glob or self.url)[1]
 
     def find_in(self, run_dir: str) -> str | None:
         """Return the newest file in a training run matching :attr:`run_glob`, or ``None``.

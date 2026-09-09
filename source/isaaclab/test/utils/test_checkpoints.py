@@ -57,9 +57,3 @@ def test_url_weights_are_fetched_into_the_cache(monkeypatch):
 
     assert path == "/cache/vae.pt"
     assert calls == [("omniverse://IsaacLab/Contrib/vae.pt", "/cache")]
-
-
-def test_extension_follows_the_declared_source():
-    """The published extension is whatever the component actually writes or fetches."""
-    assert Checkpoint(name="a", run_glob="enc_*.safetensors").extension == ".safetensors"
-    assert Checkpoint(name="b", url="omniverse://x/vae.pt").extension == ".pt"
