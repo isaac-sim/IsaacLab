@@ -279,7 +279,7 @@ def create_scene_cfg():
         # the MPM model view.
         ground = AssetBaseCfg(
             prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(size=(12.0, 12.0), color=(0.32, 0.34, 0.38)),
+            spawn=sim_utils.GroundPlaneCfg(),
         )
 
         # The co-located hidden kinematic slab belongs only to the MPM entry.
