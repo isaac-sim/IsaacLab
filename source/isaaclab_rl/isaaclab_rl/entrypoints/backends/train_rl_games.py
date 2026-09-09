@@ -242,6 +242,7 @@ def run(argv: list[str]) -> None:
                 else:
                     runner.run({"train": True, "play": False, "sigma": train_sigma})
                 print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-                env.close()
             except KeyboardInterrupt:
                 pass
+            finally:
+                env.close()

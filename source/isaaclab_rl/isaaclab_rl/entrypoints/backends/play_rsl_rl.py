@@ -245,10 +245,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                     sleep_time = dt - (time.time() - start_time)
                     if args_cli.real_time and sleep_time > 0:
                         time.sleep(sleep_time)
-
-                env.close()
             except KeyboardInterrupt:
                 pass
+            finally:
+                env.close()
 
 
 if __name__ == "__main__":

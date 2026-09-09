@@ -238,6 +238,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                     init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
                 )
                 print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-                env.close()
             except KeyboardInterrupt:
                 pass
+            finally:
+                env.close()

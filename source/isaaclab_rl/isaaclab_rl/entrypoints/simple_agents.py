@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import signal
 import sys
 from collections.abc import Callable
 from typing import Any, Literal
@@ -97,21 +98,40 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         sim = env.unwrapped.sim
         device = env.unwrapped.device
         step = 0
-        while sim.is_headless_or_exist_active_visualizer():
-            if args_cli.max_steps is not None and step >= args_cli.max_steps:
-                break
-            step += 1
-            # run everything in inference mode
-            with torch.inference_mode():
-                if policy == "zero":
-                    actions = zero_action_policy()
-                else:
-                    # sample actions from -1 to 1
-                    actions = 2 * torch.rand(env.action_space.shape, device=device) - 1
-                # apply actions
-                env.step(actions)
-        # close the simulator
-        env.close()
+        # A raw SIGINT is delivered asynchronously: with multiple GUI-backed visualizers active
+        # (e.g. --visualizer newton,kit), Python can just as easily raise KeyboardInterrupt from
+        # inside one of Kit's own internal callback dispatches (its viewport/render event loop)
+        # as from this loop, where nothing here can catch it. Installing a handler that only
+        # flips a flag is safe no matter which frame it fires in, and lets this loop -- the one
+        # place that knows how to shut the simulation down cleanly -- check it at a controlled
+        # point instead of hoping the exception lands somewhere useful.
+        interrupted = False
+
+        def _on_sigint(signum, frame):
+            nonlocal interrupted
+            interrupted = True
+
+        previous_handler = signal.signal(signal.SIGINT, _on_sigint)
+        try:
+            while sim.is_headless_or_exist_active_visualizer():
+                if interrupted:
+                    break
+                if args_cli.max_steps is not None and step >= args_cli.max_steps:
+                    break
+                step += 1
+                # run everything in inference mode
+                with torch.inference_mode():
+                    if policy == "zero":
+                        actions = zero_action_policy()
+                    else:
+                        # sample actions from -1 to 1
+                        actions = 2 * torch.rand(env.action_space.shape, device=device) - 1
+                    # apply actions
+                    env.step(actions)
+        finally:
+            signal.signal(signal.SIGINT, previous_handler)
+            # close the simulator
+            env.close()
 
 
 def _create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
