@@ -5,6 +5,9 @@
 
 import warnings
 
+from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
 from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.controllers.operational_space_cfg import OperationalSpaceControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
@@ -47,10 +50,15 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
             stiffness=0.0,
             damping=0.0,
         )
+        for rigid_props in self.scene.robot.spawn.rigid_props:
+            if isinstance(rigid_props, PhysxRigidBodyCfg):
+                rigid_props.disable_gravity = True
+            elif isinstance(rigid_props, MujocoRigidBodyCfg):
+                rigid_props.gravcomp = 1.0
+
         # The OSC action term replaces the parent's arm-controller presets, so the parent's controller-keyed
         # variants would only zero the action-magnitude reward weight or attach 6D teleop devices here. Resolve
         # their defaults and keep ``diffik_abs`` as a deprecated no-op alias so existing command lines keep working.
-        self.scene.robot.spawn.rigid_props.disable_gravity = True
         self.teleop_devices = self.teleop_devices.default
         default_weight = self.rewards.action_magnitude.weight.default
         self.rewards.action_magnitude.weight = preset(
