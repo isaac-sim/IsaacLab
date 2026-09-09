@@ -25,7 +25,7 @@ This page covers:
    .viz-grid > div { flex:1 1 0; min-width:0; }
    .viz-grid video, .viz-grid img { display:block; width:100%; border-radius:0 !important; padding:0 !important; background:none !important; }
    .viz-grid-stretch video, .viz-grid-stretch img { height:260px; object-fit:cover; }
-   .viz-grid-stretch.viz-grid-hero-tiles video { height:286px; }
+   .viz-grid-stretch.viz-grid-hero-tiles video { height:315px; }
    .viz-grid-fit { justify-content:center; }
    .viz-grid-fit > div { flex:0 0 auto; }
    .viz-grid-fit video, .viz-grid-fit img { width:auto; height:488px; }
@@ -35,17 +35,17 @@ This page covers:
    /* Per-tile crop windows, sized and positioned from the source clips so the robot renders at
       the same size and position across all 5 hero tiles. object-position stays centered; each
       video's own (taller) height sets the zoom and its negative margin-top picks which slice
-      of the 241px-tall wrap is shown. Newton RTX/Rerun/Kit/Viser are pinned against their clip's
+      of the 265px-tall wrap is shown. Newton RTX/Rerun/Kit/Viser are pinned against their clip's
       frame edge or UI chrome, so they're a few percent larger than a plain center crop; Newton
       GL was shrunk to match. Viser's clip also shows a sliver of a baked-in info panel at this
       zoom level -- a known trade-off. */
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:241px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:265px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:402px; margin-top:-97px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:273px; margin-top:-32px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-rtx video { height:267px; margin-top:-26px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:287px; margin-top:-36px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-kit video { height:274px; margin-top:-33px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:425px; margin-top:-97px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:288px; margin-top:-23px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-rtx video { height:282px; margin-top:-17px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:303px; margin-top:-27px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-kit video { height:289px; margin-top:-24px; }
    .viz-grid-record { justify-content:center; align-items:flex-start; }
    .viz-grid-record > div { flex:0 0 auto; }
    .viz-grid-record video { display:block; width:auto; height:300px; }
@@ -536,11 +536,11 @@ Visualization markers draw debug geometry over the scene via
 
    <div class="viz-grid viz-grid-stretch">
      <div>
-       <img src="../../_static/markers_anymal_d.jpg" alt="Velocity arrow marker on an AnymalD robot">
+       <img src="../../_static/visualizers/markers_anymal_d.jpg" alt="Velocity arrow marker on an AnymalD robot">
        <p class="viz-cap">Large green/blue arrow markers showing target and base velocity for an AnymalD robot</p>
      </div>
      <div>
-       <img src="../../_static/markers_franka.jpg" alt="Joint arrow markers on a Franka arm and contact sensor markers on a cube" class="viz-crop-top">
+       <img src="../../_static/visualizers/markers_franka.jpg" alt="Joint arrow markers on a Franka arm and contact sensor markers on a cube" class="viz-crop-top">
        <p class="viz-cap">Arrow markers on the Franka arm's joints, with contact sensor markers on the cube</p>
      </div>
    </div>

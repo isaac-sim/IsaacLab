@@ -1323,7 +1323,12 @@ def _main_hero(seed: int = 42) -> None:
                 "-i",
                 str(newton_gl_raw),
                 "-filter:v",
-                f"setpts=PTS/{newton_gl_speedup}",
+                # Matches the crop=iw:ih-20:0:10 the other 4 hero clips already get in
+                # _hero_record_visualizer()/_run_combined_capture(). Without it, Newton GL's
+                # raw 960x600 capture is 20px taller than the rest, and the CSS crop window on
+                # the docs page (tuned for a 960x580 source) doesn't clip its native <video
+                # controls> bar out of the visible frame the way it does for the others.
+                f"setpts=PTS/{newton_gl_speedup},crop=iw:ih-20:0:10",
                 "-c:v",
                 "libx264",
                 "-preset",
