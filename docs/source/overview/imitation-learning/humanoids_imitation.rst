@@ -547,7 +547,7 @@ To create a comprehensive locomanipulation dataset that combines both manipulati
 
    .. code:: bash
 
-      huggingface-cli download nvidia/g1_locomanip_dataset --repo-type dataset --local-dir ./datasets/g1_locomanip_hf
+      hf download nvidia/g1_locomanip_dataset --repo-type dataset --local-dir ./datasets/g1_locomanip_hf
       unzip ./datasets/g1_locomanip_hf/*.zip -d ./datasets/
 
    The archive extracts to ``./datasets/g1_simple_high_var_lerobot/``.
@@ -723,7 +723,7 @@ See the GR00T N1.5 repository documentation for additional training options.
 
    .. code:: bash
 
-      huggingface-cli download nvidia/g1_locomanip_finetune --local-dir ./checkpoints/g1_locomanip_finetune_hf
+      hf download nvidia/g1_locomanip_finetune --local-dir ./checkpoints/g1_locomanip_finetune_hf
       unzip ./checkpoints/g1_locomanip_finetune_hf/*.zip -d ./checkpoints/
 
    The archive extracts to ``./checkpoints/g1_locomanip_finetune_20260129_231610/``.
