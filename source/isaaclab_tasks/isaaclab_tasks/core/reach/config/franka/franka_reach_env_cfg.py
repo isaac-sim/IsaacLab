@@ -21,8 +21,8 @@ from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils import configclass
 from isaaclab.sim.schemas import UsdPhysicsCollisionCfg
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
 from isaaclab_tasks.utils import PresetCfg, preset

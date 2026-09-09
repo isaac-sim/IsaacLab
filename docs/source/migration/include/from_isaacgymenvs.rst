@@ -10,7 +10,7 @@ Migration from Isaac Gym and IsaacGymEnvs
    This section is the source of truth for the ``isaaclab-migrating-from-isaac-gym`` agent skill
    (`skills/user/migrate-from-isaac-gym/ <../../../skills/user/migrate-from-isaac-gym/SKILL.md>`__).
    When you change this section, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 
 `IsaacGymEnvs`_ was a reinforcement learning framework designed for the `Isaac Gym Preview Release`_.

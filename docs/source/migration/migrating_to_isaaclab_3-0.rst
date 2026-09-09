@@ -37,7 +37,7 @@ your project does not use that feature.
    This part of the page is the source of truth for the ``isaaclab-migrating-2x-to-3x`` agent skill
    (`skills/user/migrate-2x-to-3x/ <../../../skills/user/migrate-2x-to-3x/SKILL.md>`__).
    When you change it, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 
 Installation
