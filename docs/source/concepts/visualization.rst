@@ -40,14 +40,18 @@ This page covers:
       _main_hero() only bakes in a small fixed trim (mainly to clear each visualizer's own UI
       chrome), the actual zoom/framing lives here in CSS. If the hero clips are ever
       regenerated and republished, re-check these values against the new source dimensions.
-      Kit/Newton RTX have clean captures with room to zoom out further; Rerun and Viser each
-      bake in their own UI chrome (a "3D View"/physics-backend bar for Rerun, an info panel for
-      Viser) that the crop has to clear, which caps how far they can zoom out -- both are
-      cropped to their maximum safe zoom (just past the chrome) so their panels stay fully out
-      of frame. */
+      height/margin-top are chosen so margin-top + height == the 265px wrap exactly (i.e. the
+      video's own bottom edge lines up with the wrap's bottom edge, cropping only off the top) --
+      the native <video controls> bar is anchored to the video element's own box, so this keeps
+      it inside the visible/interactive area instead of clipped off by overflow:hidden. Kit and
+      Newton RTX have clean captures with room to zoom out further; Rerun and Viser each bake in
+      their own UI chrome (a "3D View"/physics-backend bar for Rerun, an info panel for Viser)
+      that the crop has to clear, which caps how far they can zoom out -- both are already
+      cropped to their maximum safe zoom (just past the chrome), with zero room left before their
+      panels would reappear. */
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:265px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; height:265px; margin-top:0; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:480px; margin-top:-105px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:360px; margin-top:-95px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:314px; margin-top:-49px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:288px; margin-top:-12px; }
    .viz-grid-record { justify-content:center; align-items:flex-start; }
