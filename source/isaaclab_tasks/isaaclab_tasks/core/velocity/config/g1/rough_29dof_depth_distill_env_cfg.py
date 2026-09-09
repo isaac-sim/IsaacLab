@@ -49,6 +49,7 @@ from .rough_29dof_distill_env_cfg import (
     G129DofRoughAirTime100DistillObservationsCfg,
 )
 from .rough_29dof_dr_env_cfg import _HISTORY_LENGTH, _HISTORY_TERMS
+from .rough_29dof_posture_env_cfg import G129DofRoughHipL2AirTime100EnvCfg
 from .rough_29dof_power_env_cfg import G129DofRoughWaist1Power2HipPitchLightEnvCfg
 
 _DEPTH_WIDTH = 64
@@ -237,3 +238,40 @@ class G129DofRoughAirTime100DepthDistillClEnvCfg(G129DofRoughWaist1Power2HipPitc
         self.observations.teacher.enable_corruption = False
 
         _add_chest_camera(self)
+
+
+def _wire_depth_student(cfg) -> None:
+    """Give ``cfg`` the deployable student group, an uncorrupted teacher group and the camera.
+
+    Args:
+        cfg: Environment configuration to wire, modified in place.
+    """
+    cfg.observations.policy.base_lin_vel = None
+    cfg.observations.policy.height_scan = None
+    for term in _HISTORY_TERMS:
+        obs_term = getattr(cfg.observations.policy, term)
+        obs_term.history_length = _HISTORY_LENGTH
+        obs_term.flatten_history_dim = True
+    cfg.observations.teacher.enable_corruption = False
+    _add_chest_camera(cfg)
+
+
+@configclass
+class G129DofRoughAirTime100DepthDistillW100EnvCfg(G129DofRoughHipL2AirTime100EnvCfg):
+    """The depth student under w100's own environment.
+
+    The first run of this line distilled w100 inside the Robust-Waist environment -- domain
+    randomization, the stronger push and self-collision -- none of which w100 was trained with. The
+    student fitted those actions to a behaviour-cloning loss of 0.024 and still reached only 0.476
+    against the teacher's 0.993, because what it was copying was w100 being asked about a robot and
+    a disturbance it had never met. Here the physics is w100's, so the teacher is answering
+    questions it can answer.
+    """
+
+    observations: G129DofRoughAirTime100DepthDistillObservationsCfg = (
+        G129DofRoughAirTime100DepthDistillObservationsCfg()
+    )
+
+    def __post_init__(self):
+        super().__post_init__()
+        _wire_depth_student(self)
