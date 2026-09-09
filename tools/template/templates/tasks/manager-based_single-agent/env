@@ -37,8 +37,14 @@ class {{ task.classname }}Env(ManagerBasedRLEnv):
         policy_observations = observations["policy"].reshape(self.num_envs, -1)
         self.amp_observation_buffer[:, 0] = policy_observations
         reset_env_ids = (terminated | truncated).nonzero(as_tuple=False).squeeze(-1)
-        self.amp_observation_buffer[reset_env_ids] = policy_observations[reset_env_ids].unsqueeze(1)
-        extras["amp_obs"] = self.amp_observation_buffer.view(-1, self.amp_observation_size)
+        if len(reset_env_ids) > 0:
+            final_policy_observations = extras["final_obs"]["policy"].reshape(self.num_envs, -1)
+            self.amp_observation_buffer[reset_env_ids, 0] = final_policy_observations[reset_env_ids]
+            amp_observations = self.amp_observation_buffer.view(-1, self.amp_observation_size).clone()
+            self.amp_observation_buffer[reset_env_ids] = policy_observations[reset_env_ids].unsqueeze(1)
+        else:
+            amp_observations = self.amp_observation_buffer.view(-1, self.amp_observation_size)
+        extras["amp_obs"] = amp_observations
         return observations, rewards, terminated, truncated, extras
 
     def collect_reference_motions(self, num_samples: int, current_times: np.ndarray | None = None) -> torch.Tensor:

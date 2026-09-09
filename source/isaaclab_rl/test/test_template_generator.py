@@ -12,11 +12,13 @@ import pkgutil
 import subprocess
 import sys
 import textwrap
+import types
 from pathlib import Path
 
 import gymnasium as gym
 import pytest
 import tomllib
+import torch
 
 from isaaclab.utils import editor as editor_utils
 
@@ -203,12 +205,62 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
 
         if workflow_name == "manager-based":
             env_source = (task_dir / f"{env_filename}.py").read_text()
-            assert "class " + task_class + "Env(ManagerBasedRLEnv):" in env_source
+            env_cfg_source = (task_dir / f"{env_cfg_filename}.py").read_text()
             assert "self.amp_observation_space = spaces.Box" in env_source
-            assert 'extras["amp_obs"]' in env_source
             assert "def collect_reference_motions(" in env_source
+            assert "compute_final_obs = True" in env_cfg_source
 
         _unregister(task_id)
+
+
+def test_generated_manager_amp_environment_preserves_terminal_observations():
+    """AMP transitions must end with the terminal observation before same-step autoreset."""
+    env_source = generator.jinja_env.get_template("tasks/manager-based_single-agent/env").render(
+        task={"classname": "Test", "env_cfg_filename": "test_env_cfg"}
+    )
+    module = ast.parse(env_source)
+    env_class_node = next(node for node in module.body if isinstance(node, ast.ClassDef))
+
+    class FakeManagerBasedRLEnv:
+        def step(self, action):
+            return self.step_return
+
+    namespace = {
+        "ManagerBasedRLEnv": FakeManagerBasedRLEnv,
+        "torch": torch,
+    }
+    future_import = next(
+        node for node in module.body if isinstance(node, ast.ImportFrom) and node.module == "__future__"
+    )
+    exec(
+        compile(ast.Module(body=[future_import, env_class_node], type_ignores=[]), "<generated-env>", "exec"),
+        namespace,
+    )
+    env_class = namespace["TestEnv"]
+    env = object.__new__(env_class)
+    env.cfg = types.SimpleNamespace(num_amp_observations=2)
+    env.num_envs = 2
+    env.amp_observation_size = 4
+    env.amp_observation_buffer = torch.tensor([[[1.0, 10.0], [0.0, 9.0]], [[2.0, 20.0], [0.0, 19.0]]])
+    observations = {"policy": torch.tensor([[100.0, 1000.0], [4.0, 40.0]])}
+    extras = {"final_obs": {"policy": torch.tensor([[3.0, 30.0], [4.0, 40.0]])}}
+    env.step_return = (
+        observations,
+        torch.zeros(2),
+        torch.tensor([True, False]),
+        torch.tensor([False, False]),
+        extras,
+    )
+
+    _, _, _, _, returned_extras = env.step(torch.zeros((2, 1)))
+
+    torch.testing.assert_close(
+        returned_extras["amp_obs"], torch.tensor([[3.0, 30.0, 1.0, 10.0], [4.0, 40.0, 2.0, 20.0]])
+    )
+    torch.testing.assert_close(
+        env.amp_observation_buffer,
+        torch.tensor([[[100.0, 1000.0], [100.0, 1000.0]], [[4.0, 40.0], [2.0, 20.0]]]),
+    )
 
 
 @pytest.mark.parametrize("external", [False, True])

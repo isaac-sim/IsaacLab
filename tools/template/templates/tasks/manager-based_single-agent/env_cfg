@@ -205,6 +205,7 @@ class {{ task.classname }}EnvCfg(ManagerBasedRLEnvCfg):
 {% if task.amp_selected %}
 
     # AMP settings
+    compute_final_obs = True
     num_amp_observations = 2
 {% endif %}
 
