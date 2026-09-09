@@ -129,9 +129,16 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
                     # apply actions
                     env.step(actions)
         finally:
-            signal.signal(signal.SIGINT, previous_handler)
-            # close the simulator
-            env.close()
+            # Keep the flag-only handler installed through cleanup: a second Ctrl+C during
+            # env.close()'s multi-stage teardown would otherwise raise a raw KeyboardInterrupt,
+            # which is not a subclass of Exception, so it is not caught by the individual
+            # try/except wrapping each cleanup stage in SimulationContext.clear_instance() --
+            # it would abort that loop and skip whatever visualizers hadn't closed yet.
+            try:
+                # close the simulator
+                env.close()
+            finally:
+                signal.signal(signal.SIGINT, previous_handler)
 
 
 def _create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
