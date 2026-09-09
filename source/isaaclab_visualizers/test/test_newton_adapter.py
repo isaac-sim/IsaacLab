@@ -951,11 +951,18 @@ def test_newton_rtx_visualizer_streaming_view_enabled():
     assert visualizer_off._uses_streaming_view() is False
 
 
-def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch):
-    """OVRTX is kitless and must fail fast instead of crashing the render thread on first step()."""
+@pytest.mark.parametrize("backend", ["physx", "isaacsim_physx"])
+def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch, backend):
+    """OVRTX is kitless and must fail fast instead of crashing the render thread on first step().
+
+    "physx" is what FactoryBase._get_backend() reports at runtime (covers both an explicit
+    ``physics=isaacsim_physx`` and the ``physics=physx`` auto selector once resolved to Kit);
+    "isaacsim_physx" is checked too in case a future/alternate backend-name source reports the
+    explicit selector string instead.
+    """
     from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
-    monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: "physx"))
+    monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: backend))
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
