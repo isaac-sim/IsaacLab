@@ -5,6 +5,7 @@
 
 __all__ = [
     "BaseFrameView",
+    "FabricXformSelection",
     "UsdFrameView",
     "FrameView",
     "FrameViewSpaceWriterBase",
@@ -15,6 +16,7 @@ __all__ = [
 ]
 
 from .base_frame_view import BaseFrameView
+from .fabric_xform_selection import FabricXformSelection
 from .usd_frame_view import UsdFrameView
 from .frame_view import FrameView
 from .xform_space_writer import FrameViewSpaceWriterBase, FrameViewWorldSpaceWriter, FrameViewLocalSpaceWriter

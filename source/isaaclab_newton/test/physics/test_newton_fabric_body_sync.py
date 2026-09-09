@@ -474,3 +474,138 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
             assert not torch.allclose(after_reset_points, reset_points, rtol=0.0, atol=1.0e-5)
         finally:
             sim.register_interactive_scene(None)
+
+
+"""FrameView (non-physics frame) synchronization.
+
+A :class:`~isaaclab.sim.views.FrameView` prim -- a camera, a marker, a sensor mount -- is not a Newton
+body, so ``sync_transforms_to_usd`` does not write it.  Under PhysX the same frames are backed by
+:class:`~isaaclab_physx.sim.views.FabricFrameView`, which writes ``omni:fabric:worldMatrix`` directly,
+so Kit/RTX follows them.  These tests pin the Newton side of that contract at the same boundary the
+body tests use: the Fabric world matrix actually consumed by the renderer.
+
+Frames parented to a Newton body already track it without any site-specific sync: the body's synced
+world matrix forward-propagates onto its non-rigid-body descendants during the hierarchy pass.  The
+gap these tests cover is the frame's *own* write, which had no path to Fabric at all.
+"""
+
+FRAME_LOCAL_OFFSET = (0.0, 0.0, 0.35)
+
+
+def _make_frame_view(prim_path: str, device: str):
+    """Build the backend FrameView for an existing non-physics prim."""
+    from isaaclab.sim.views import FrameView
+
+    return FrameView(prim_path, device=device)
+
+
+def _write_frame_world_position(view, position: torch.Tensor) -> None:
+    """Write a world-space position (identity rotation) through the view's world-space writer."""
+    positions = wp.from_torch(position.reshape(1, 3).contiguous(), dtype=wp.vec3f)
+    orientations = wp.from_torch(
+        torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=position.device), dtype=wp.vec4f
+    )
+    with view.xform_world_space_writer() as writer:
+        writer.set_poses(positions, orientations)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+def test_frame_view_pose_write_reaches_fabric():
+    """A world-attached FrameView pose write must reach the transform Kit/RTX renders.
+
+    Regression for camera poses set via ``Camera.set_world_poses`` under Newton: the write lands in
+    the Newton site's local transform, ``get_world_poses`` reflects it, but nothing mirrors it onto
+    the prim, so the renderer keeps drawing the frame at its spawn pose.
+    """
+    device = "cuda:0"
+    frame_path = "/World/Frame"
+    spawn_position = torch.tensor([0.0, 0.0, 2.0])
+    target_position = torch.tensor([1.0, -0.5, 8.0])
+
+    sim_cfg = SimulationCfg(
+        device=device,
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(_RenderSceneCfg(num_envs=1, env_spacing=2.0))
+        sim.register_interactive_scene(scene)
+        try:
+            sim_utils.create_prim(frame_path, "Xform", translation=tuple(spawn_position.tolist()))
+            view = _make_frame_view(frame_path, device)
+
+            sim.reset()
+            scene.reset()
+            sim.render()
+            wp.synchronize_device(device)
+
+            torch.testing.assert_close(_fabric_position(frame_path), spawn_position, rtol=0.0, atol=1.0e-4)
+
+            _write_frame_world_position(view, target_position.to(device))
+            sim.render()
+            wp.synchronize_device(device)
+
+            # The view's own report and the rendered transform must agree; only the latter regresses.
+            reported = wp.to_torch(view.get_world_poses()[0].warp).cpu()[0]
+            torch.testing.assert_close(reported, target_position, rtol=0.0, atol=1.0e-4)
+            torch.testing.assert_close(_fabric_position(frame_path), target_position, rtol=0.0, atol=1.0e-4)
+        finally:
+            sim.register_interactive_scene(None)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+def test_frame_view_pose_write_on_body_child_survives_body_motion():
+    """A pose write on a body-attached frame must render, and the frame must still track the body.
+
+    Writing a world pose has to update the frame's transform *relative to its body*, not pin it in
+    world space.  A fix that only stamps the world matrix renders correctly once and is then either
+    overwritten by the next hierarchy pass or frozen away from the body.
+    """
+    device = "cuda:0"
+    body_path = "/World/envs/env_0/Cube"
+    frame_path = f"{body_path}/Frame"
+
+    sim_cfg = SimulationCfg(
+        device=device,
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(_RenderSceneCfg(num_envs=1, env_spacing=2.0))
+        sim.register_interactive_scene(scene)
+        try:
+            sim_utils.create_prim(frame_path, "Xform", translation=FRAME_LOCAL_OFFSET)
+            view = _make_frame_view(frame_path, device)
+
+            sim.reset()
+            scene.reset()
+            sim.render()
+            wp.synchronize_device(device)
+
+            # Cube spawns at (0, 0, 1); place the frame 0.5 m to its +X side.
+            body_start = torch.tensor([0.0, 0.0, 1.0])
+            written_position = body_start + torch.tensor([0.5, 0.0, 0.0])
+            _write_frame_world_position(view, written_position.to(device))
+            sim.render()
+            wp.synchronize_device(device)
+
+            torch.testing.assert_close(_fabric_position(frame_path), written_position, rtol=0.0, atol=1.0e-4)
+
+            # Move the body; the frame must carry the written offset with it.
+            target_pose = torch.tensor([[1.5, -0.75, 2.0, 0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device)
+            scene["cube"].write_root_link_pose_to_sim_index(root_pose=target_pose)
+            sim.render()
+            wp.synchronize_device(device)
+
+            expected = target_pose[0, :3].cpu() + (written_position - body_start)
+            reported = wp.to_torch(view.get_world_poses()[0].warp).cpu()[0]
+            torch.testing.assert_close(reported, expected, rtol=0.0, atol=1.0e-4)
+            torch.testing.assert_close(_fabric_position(frame_path), expected, rtol=0.0, atol=1.0e-4)
+        finally:
+            sim.register_interactive_scene(None)
