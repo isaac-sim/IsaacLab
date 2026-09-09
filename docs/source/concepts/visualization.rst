@@ -33,27 +33,25 @@ This page covers:
    .viz-grid-stretch video.viz-crop-x8 { width:calc(100% + 16px); margin-left:-8px; }
    .viz-grid-stretch img.viz-crop-top { object-position:center 25%; }
    /* Per-tile crop windows, sized and positioned from the source clips so the robot renders at
-      the same size and position across all 5 hero tiles. object-position stays centered; each
-      video's own (taller) height sets the zoom and its negative margin-top picks which slice
-      of the 265px-tall wrap is shown. These values are tuned against the *currently hosted*
-      clips, not against what capture_visualizer.py's own crop constants would produce --
-      _main_hero() only bakes in a small fixed trim (mainly to clear each visualizer's own UI
-      chrome), the actual zoom/framing lives here in CSS. If the hero clips are ever
-      regenerated and republished, re-check these values against the new source dimensions.
-      height/margin-top are chosen so margin-top + height == the 265px wrap exactly (i.e. the
-      video's own bottom edge lines up with the wrap's bottom edge, cropping only off the top) --
-      the native <video controls> bar is anchored to the video element's own box, so this keeps
-      it inside the visible/interactive area instead of clipped off by overflow:hidden. Kit and
-      Newton RTX have clean captures with room to zoom out further; Rerun and Viser each bake in
-      their own UI chrome (a "3D View"/physics-backend bar for Rerun, an info panel for Viser)
-      that the crop has to clear, which caps how far they can zoom out -- both are already
-      cropped to their maximum safe zoom (just past the chrome), with zero room left before their
-      panels would reappear. */
+      a matched size within each row (top row: Newton GL/Viser; bottom row: Newton RTX/Rerun/
+      Kit). object-position stays centered; each video's own (taller) height sets the zoom and
+      its negative margin-top picks which slice of the 265px-tall wrap is shown. These values
+      are tuned against the *currently hosted* clips, not against what capture_visualizer.py's
+      own crop constants would produce -- _main_hero() only bakes in a small fixed trim (mainly
+      to clear each visualizer's own UI chrome), the actual zoom/framing lives here in CSS. If
+      the hero clips are ever regenerated and republished, re-check these values against the new
+      source dimensions. The 5 hero videos have no `controls` attribute (see the markup below),
+      so nothing here needs to keep a controls bar in the visible area -- Newton GL/Kit/Newton
+      RTX are clean captures with plenty of room to crop; Rerun and Viser each bake in their own
+      UI chrome (a "3D View"/physics-backend bar for Rerun, an info panel for Viser) that the
+      crop has to clear, which caps how far *out* they can zoom -- Viser is already at that
+      maximum-zoom-out limit; Rerun still has room and is zoomed in further here to match the
+      bottom row's size, well clear of its chrome on both edges. */
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:265px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; height:265px; margin-top:0; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:360px; margin-top:-95px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:480px; margin-top:-105px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:314px; margin-top:-49px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:288px; margin-top:-12px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:370px; margin-top:-59px; }
    .viz-grid-record { justify-content:center; align-items:flex-start; }
    .viz-grid-record > div { flex:0 0 auto; }
    .viz-grid-record video { display:block; width:auto; height:300px; }
