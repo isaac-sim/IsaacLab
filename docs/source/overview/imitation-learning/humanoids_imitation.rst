@@ -657,8 +657,8 @@ pre-built wheels for both x86_64 and aarch64 systems, including DGX Spark.
 
 .. important::
 
-   GR00T N1.5 requires the NumPy and Pydantic versions installed above. When launching the
-   rollout from the Isaac Lab checkout, use ``uv run --no-sync`` as shown below. A regular
+   GR00T N1.5 requires the NumPy and Pydantic versions installed above. When running the
+   commands below from the Isaac Lab checkout, use ``uv run --no-sync`` as shown. A regular
    ``uv run`` synchronizes the Isaac Lab workspace and can replace GR00T's versions, causing
    ``AttributeError: _ARRAY_API not found`` from PyArrow or ``InvalidSchemaError`` from
    Numpydantic.
@@ -687,7 +687,7 @@ GR00T N1.5 expects data in LeRobot format. From the **IsaacLab** repository root
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py <input_dir> <output_path>
+   uv run --no-sync python scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py <input_dir> <output_path>
 
 Example — move the SDG output into its own directory first so the converter only sees SDG files:
 
@@ -695,7 +695,7 @@ Example — move the SDG output into its own directory first so the converter on
 
    mkdir -p ./datasets/locomanip_sdg
    mv ./datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 ./datasets/locomanip_sdg/
-   uv run python scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py ./datasets/locomanip_sdg ./datasets/datasets_train_200_lerobot
+   uv run --no-sync python scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py ./datasets/locomanip_sdg ./datasets/datasets_train_200_lerobot
 
 Finetune the policy
 """""""""""""""""""
