@@ -121,8 +121,6 @@ class ArticulationData(BaseArticulationData):
         self._fk_timestamp: float = 0.0
         self._is_primed: bool = False
         self._read_launch_cache = _WarpLaunchCache(device)
-        self._joint_dof_signs = wp.ones(self.num_joints, dtype=wp.int32, device=device)
-        self._has_reversed_joints = False
         # pinned-host staging buffers for CPU-only bindings (keyed by tensor_type)
         self._cpu_staging_buffers: dict[int, wp.array] = {}
 
@@ -1067,7 +1065,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_jacobian_w.timestamp < self._sim_timestamp:
             has_body_ordering = self.has_body_ordering
             has_joint_ordering = self.has_joint_ordering
-            if has_body_ordering or has_joint_ordering or self._has_reversed_joints:
+            if has_body_ordering or has_joint_ordering:
                 self._binding_read(TT.JACOBIAN, self._body_com_jacobian_w_backend)
                 self._read_launch_cache.launch(
                     "body_com_jacobian_w",
@@ -1077,7 +1075,7 @@ class ArticulationData(BaseArticulationData):
                         self._body_com_jacobian_w_backend,
                         self._jacobian_body_user_to_backend,
                         self._jacobian_joint_user_to_backend,
-                        self._joint_dof_signs,
+                        None,
                         self._num_base_dofs,
                         has_body_ordering,
                         has_joint_ordering,
@@ -1112,7 +1110,7 @@ class ArticulationData(BaseArticulationData):
         """Refresh a generalized dynamics buffer and gather its joint axes when needed."""
         if buffer.timestamp >= self._sim_timestamp:
             return
-        if self.has_joint_ordering or self._has_reversed_joints:
+        if self.has_joint_ordering:
             self._binding_read(tensor_type, backend_buffer)
             self._read_launch_cache.launch(
                 (id(buffer), "generalized_dynamics"),
@@ -1121,7 +1119,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[
                     backend_buffer,
                     self._jacobian_joint_user_to_backend,
-                    self._joint_dof_signs,
+                    None,
                     self._num_base_dofs,
                     self.has_joint_ordering,
                 ],
