@@ -648,11 +648,16 @@ Then, from the **Isaac-GR00T** directory, install GR00T N1.5 and its dependencie
    uv pip install -e .
    uv pip install wheel
    MAX_JOBS=4 uv pip install --no-build-isolation flash-attn==2.7.1.post4
-   MAX_JOBS=4 uv pip install --no-build-isolation 'git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9'
+   PYTORCH3D_NO_EXTENSION=1 uv pip install --no-build-isolation \
+       'git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9'
    uv pip install diffusers decord2 zmq
 
 The ``decord2`` distribution retains the ``decord`` Python import used by GR00T and provides
 pre-built wheels for both x86_64 and aarch64 systems, including DGX Spark.
+
+The compiled PyTorch3D extension is intentionally disabled here because GR00T N1.5 uses only
+``pytorch3d.transforms``. This avoids compiling unused CUDA renderers and supports systems where
+the extension cannot be linked, including aarch64 Blackwell systems.
 
 .. note::
 
