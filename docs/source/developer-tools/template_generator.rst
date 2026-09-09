@@ -70,9 +70,14 @@ installed Isaac Lab package:
 The command uses the dependencies from the active Isaac Lab environment. It
 does not invoke ``pip`` or install another set of template dependencies, so it
 also works in the pip-less virtual environments created by ``uv``.
-The generated ``pyproject.toml`` pins Isaac Lab and its optional extras to that
-environment's exact Isaac Lab version so ``uv sync`` cannot silently resolve an
-older release.
+When invoked from an installed wheel, the generated ``pyproject.toml`` pins
+Isaac Lab and its optional extras to that exact version so ``uv sync`` cannot
+silently resolve an older release. When invoked from a source checkout, it
+instead records editable paths to that checkout and its workspace packages.
+This lets development and release branches work before their version is
+published while preserving the code that generated the project.
+The source paths are relative to the generated project; regenerate the project
+or update ``[tool.uv.sources]`` if either directory moves.
 
 The short form is equivalent:
 
@@ -200,7 +205,9 @@ default is a headless task package and does not include these files.
 
 Run commands from the project root so ``uv`` can find the package and task entry
 point. Commit ``pyproject.toml`` and ``uv.lock`` to give collaborators the same
-dependency resolution.
+dependency resolution. For a project linked to a source checkout, collaborators
+must also place that checkout at the recorded relative path or update the source
+entries.
 
 Develop the generated task
 --------------------------
