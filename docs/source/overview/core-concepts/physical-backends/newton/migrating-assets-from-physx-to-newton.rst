@@ -8,7 +8,7 @@ Migrating Assets from PhysX to Newton with MJWarp
    <https://github.com/isaac-sim/IsaacLab/blob/develop/skills/user/prepare-assets-for-newton/SKILL.md>`__).
    When you
    change this page, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
    After the asset and task run under both backends, follow
    :doc:`/source/how-to/transfer_policies_between_physx_and_newton` and its
