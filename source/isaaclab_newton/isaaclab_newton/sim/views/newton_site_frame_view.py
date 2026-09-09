@@ -437,14 +437,11 @@ class NewtonSiteFrameView(BaseFrameView):
                         raise RuntimeError(f"FrameView source body '{body_path}' is not under '{source_root}'.")
                     if use_clone_body_pattern:
                         body_patterns = (destination_template.format(".*") + suffix,)
-                        spec_paths = dest_paths
                     else:
                         body_patterns = tuple(destination_template.format(env_id) + suffix for env_id in env_ids)
-                        spec_paths = dest_paths
                 else:
                     body_patterns = (body_path,)
-                    spec_paths = dest_paths
-                return body_patterns, wp.transform(pos, quat), scale, False, env_ids, spec_paths
+                return body_patterns, wp.transform(pos, quat), scale, False, env_ids, dest_paths
             body_prim = body_prim.GetParent()
 
         ref_path = source_root
