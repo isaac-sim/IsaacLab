@@ -202,6 +202,11 @@ class {{ task.classname }}EnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
+{% if task.amp_selected %}
+
+    # AMP settings
+    num_amp_observations = 2
+{% endif %}
 
     # Post initialization
     def __post_init__(self) -> None:

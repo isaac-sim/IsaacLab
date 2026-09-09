@@ -187,10 +187,7 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
         env_filename = "env" if external else f"{task_folder}_env"
         env_cfg_filename = "env_cfg" if external else f"{task_folder}_env_cfg"
 
-        if workflow_name == "direct":
-            assert spec.entry_point == f"{module_name}.{env_filename}:{task_class}Env"
-        else:
-            assert spec.entry_point == "isaaclab.envs:ManagerBasedRLEnv"
+        assert spec.entry_point == f"{module_name}.{env_filename}:{task_class}Env"
 
         assert spec.kwargs["env_cfg_entry_point"] == f"{module_name}.{env_cfg_filename}:{task_class}EnvCfg"
         assert spec.kwargs["rl_games_cfg_entry_point"] == f"{agents_module}:rl_games_ppo_cfg.yaml"
@@ -203,6 +200,13 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
         assert spec.kwargs["skrl_cfg_entry_point"] == f"{agents_module}:skrl_ppo_cfg.yaml"
         assert spec.kwargs["sb3_cfg_entry_point"] == f"{agents_module}:sb3_ppo_cfg.yaml"
         assert "skrl_ppo_cfg_entry_point" not in spec.kwargs
+
+        if workflow_name == "manager-based":
+            env_source = (task_dir / f"{env_filename}.py").read_text()
+            assert "class " + task_class + "Env(ManagerBasedRLEnv):" in env_source
+            assert "self.amp_observation_space = spaces.Box" in env_source
+            assert 'extras["amp_obs"]' in env_source
+            assert "def collect_reference_motions(" in env_source
 
         _unregister(task_id)
 

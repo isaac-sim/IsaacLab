@@ -1,0 +1,47 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import numpy as np
+import torch
+from gymnasium import spaces
+
+from isaaclab.envs import ManagerBasedRLEnv
+
+from .{{ task.env_cfg_filename }} import {{ task.classname }}EnvCfg
+
+
+class {{ task.classname }}Env(ManagerBasedRLEnv):
+    """Manager-based cart-pole environment with the interface required by skrl AMP."""
+
+    cfg: {{ task.classname }}EnvCfg
+
+    def __init__(self, cfg: {{ task.classname }}EnvCfg, render_mode: str | None = None, **kwargs):
+        super().__init__(cfg, render_mode, **kwargs)
+
+        observation_size = spaces.flatdim(self.single_observation_space["policy"])
+        self.amp_observation_size = self.cfg.num_amp_observations * observation_size
+        self.amp_observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.amp_observation_size,))
+        self.amp_observation_buffer = torch.zeros(
+            (self.num_envs, self.cfg.num_amp_observations, observation_size), device=self.device
+        )
+
+    def step(self, action: torch.Tensor):
+        observations, rewards, terminated, truncated, extras = super().step(action)
+
+        for index in reversed(range(self.cfg.num_amp_observations - 1)):
+            self.amp_observation_buffer[:, index + 1] = self.amp_observation_buffer[:, index]
+        policy_observations = observations["policy"].reshape(self.num_envs, -1)
+        self.amp_observation_buffer[:, 0] = policy_observations
+        reset_env_ids = (terminated | truncated).nonzero(as_tuple=False).squeeze(-1)
+        self.amp_observation_buffer[reset_env_ids] = policy_observations[reset_env_ids].unsqueeze(1)
+        extras["amp_obs"] = self.amp_observation_buffer.view(-1, self.amp_observation_size)
+        return observations, rewards, terminated, truncated, extras
+
+    def collect_reference_motions(self, num_samples: int, current_times: np.ndarray | None = None) -> torch.Tensor:
+        # This placeholder should be replaced with reference motions for the specific task.
+        # See the Humanoid-AMP task's implementation for a complete example.
+        return torch.zeros((num_samples, self.amp_observation_size), device=self.device)
