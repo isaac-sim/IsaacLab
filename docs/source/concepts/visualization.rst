@@ -73,13 +73,13 @@ This page covers:
    <div class="viz-hero-stack">
    <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
      <div class="viz-hero-wrap viz-crop-newton-gl">
-       <video autoplay loop muted playsinline controls preload="auto">
+       <video autoplay loop muted playsinline preload="auto">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_gl.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Newton GL</div>
      </div>
      <div class="viz-hero-wrap viz-crop-viser">
-       <video autoplay loop muted playsinline controls preload="auto">
+       <video autoplay loop muted playsinline preload="auto">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_viser.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Viser</div>
@@ -87,19 +87,19 @@ This page covers:
    </div>
    <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
      <div class="viz-hero-wrap viz-crop-newton-rtx">
-       <video autoplay loop muted playsinline controls preload="auto">
+       <video autoplay loop muted playsinline preload="auto">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_rtx.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Newton RTX</div>
      </div>
      <div class="viz-hero-wrap viz-crop-kit">
-       <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-x8">
+       <video autoplay loop muted playsinline preload="auto" class="viz-crop-x8">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_kit.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Kit</div>
      </div>
      <div class="viz-hero-wrap viz-crop-rerun">
-       <video autoplay loop muted playsinline controls preload="auto">
+       <video autoplay loop muted playsinline preload="auto">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_rerun.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Rerun</div>
