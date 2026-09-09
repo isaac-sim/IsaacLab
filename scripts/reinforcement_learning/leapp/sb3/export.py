@@ -34,6 +34,7 @@ load_from_zip_file = None
 CHECKPOINT_SELECTORS = None
 state_dict_from_sequence = None
 state_sequence_from_registered = None
+create_graph_configs = None
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
@@ -45,7 +46,7 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
 
     parser = argparse.ArgumentParser(description="Export an RL agent with Stable-Baselines3.")
     add_common_export_args(parser, agent_default="sb3_cfg_entry_point")
-    return finalize_export_args(parser, argv, agent_library="sb3")
+    return finalize_export_args(parser, argv)
 
 
 def _load_runtime_dependencies() -> None:
@@ -56,6 +57,7 @@ def _load_runtime_dependencies() -> None:
     global get_published_pretrained_checkpoint
     global load_from_pkl, load_from_zip_file, patch_env_for_export, resolve_checkpoint_selector, retrieve_file_path
     global state_dict_from_sequence, state_sequence_from_registered, torch
+    global create_graph_configs
 
     if _RUNTIME_IMPORTS_LOADED:
         return
@@ -99,6 +101,7 @@ def _load_runtime_dependencies() -> None:
     if leapp_scripts_dir not in sys.path:
         sys.path.insert(0, leapp_scripts_dir)
     from export_utils import (  # isort: skip
+        create_graph_configs as create_graph_configs_fn,
         state_dict_from_sequence as state_dict_from_sequence_fn,
         state_sequence_from_registered as state_sequence_from_registered_fn,
     )
@@ -121,6 +124,7 @@ def _load_runtime_dependencies() -> None:
     CHECKPOINT_SELECTORS = CHECKPOINT_SELECTORS_VALUE
     state_dict_from_sequence = state_dict_from_sequence_fn
     state_sequence_from_registered = state_sequence_from_registered_fn
+    create_graph_configs = create_graph_configs_fn
     _RUNTIME_IMPORTS_LOADED = True
 
 
@@ -357,7 +361,11 @@ def export_sb3_agent(
         leapp.stop()
         leapp_started = False
         validate = args_cli.validation_steps > 0
-        leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=validate)
+        leapp.compile_graph(
+            visualize=not args_cli.disable_graph_visualization,
+            validate=validate,
+            graph_configs=create_graph_configs(env_cfg),
+        )
     finally:
         torch.distributions.Distribution.set_default_validate_args(previous_validate_args)
         if leapp_started:

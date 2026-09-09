@@ -38,6 +38,7 @@ from isaaclab_rl.entrypoints.common import (
     show_run_summary,
     startup_screen,
 )
+from isaaclab_rl.skrl import resolve_skrl_agent_cfg_entry_point, resolve_skrl_algorithm
 from isaaclab_rl.utils.pretrained_checkpoint import (
     get_published_pretrained_checkpoint,
 )
@@ -79,10 +80,7 @@ parser.add_argument(
     "--agent",
     type=str,
     default=None,
-    help=(
-        "Name of the RL agent configuration entry point. Defaults to None, in which case the argument "
-        "--algorithm is used to determine the default agent configuration entry point."
-    ),
+    help="Agent configuration entry point (default: the task's canonical SKRL configuration).",
 )
 parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, latest/best, or pretrained.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
@@ -96,9 +94,9 @@ parser.add_argument(
 parser.add_argument(
     "--algorithm",
     type=str,
-    default="PPO",
+    default=None,
     choices=["AMP", "PPO", "IPPO", "MAPPO"],
-    help="The RL algorithm used for training the skrl agent.",
+    help="Optional algorithm selector; with --agent, the resolved agent.class must match.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
@@ -109,7 +107,7 @@ parser.add_argument(
 )
 add_launcher_args(parser)
 add_frontend_args(parser)
-args_cli, hydra_args = setup_preset_cli(parser, agent_library="skrl")
+args_cli, hydra_args = setup_preset_cli(parser)
 args_cli.task = resolve_play_task_name(args_cli.task)
 
 if args_cli.video:
@@ -125,12 +123,7 @@ if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
     )
     exit()
 
-if args_cli.agent is None:
-    algorithm = args_cli.algorithm.lower()
-    agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm in ["ppo"] else f"skrl_{algorithm}_cfg_entry_point"
-else:
-    agent_cfg_entry_point = args_cli.agent
-    algorithm = agent_cfg_entry_point.split("_cfg")[0].split("skrl_")[-1].lower()
+agent_cfg_entry_point = resolve_skrl_agent_cfg_entry_point(args_cli.agent, args_cli.algorithm)
 
 
 def main():
@@ -149,6 +142,7 @@ def _main():
     env_cfg, experiment_cfg = resolve_task_config(
         args_cli.task, agent_cfg_entry_point, play_mode=not args_cli.train_env_cfg
     )
+    algorithm = resolve_skrl_algorithm(experiment_cfg, args_cli.algorithm)
     pre_launch_video_config(env_cfg, args_cli=args_cli)
     with startup_screen(args_cli, num_stages=3) as screen:
         show_run_summary(screen, args_cli, env_cfg, library="skrl", action="play")
