@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import inspect
-import weakref
 from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -125,9 +124,11 @@ class CommandTerm(ManagerTermBase):
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
-        if self._debug_vis_handle:
-            self._debug_vis_handle.unsubscribe()
-            self._debug_vis_handle = None
+        env = getattr(self, "_env", None)
+        sim = getattr(env, "sim", None)
+        registry = getattr(sim, "vis_marker_registry", None)
+        if registry is not None:
+            registry.clear_debug_vis_callback(self)
 
     """
     Properties
@@ -172,25 +173,12 @@ class CommandTerm(ManagerTermBase):
         self._set_debug_vis_impl(debug_vis)
         # toggle debug visualization handles
         if debug_vis:
-            # only enable debug_vis if omniverse is available
-            from isaaclab.sim.simulation_context import SimulationContext
-
-            sim_context = SimulationContext.instance()
-            if not sim_context.has_omniverse_visualizer():
-                return False
             # create a subscriber for the post update event if it doesn't exist
             if self._debug_vis_handle is None:
-                import omni.kit.app
-
-                app_interface = omni.kit.app.get_app_interface()
-                self._debug_vis_handle = app_interface.get_post_update_event_stream().create_subscription_to_pop(
-                    lambda event, obj=weakref.proxy(self): obj._debug_vis_callback(event)
-                )
+                self._debug_vis_handle = self._env.sim.vis_marker_registry.add_debug_vis_callback(self)
         else:
             # remove the subscriber if it exists
-            if self._debug_vis_handle is not None:
-                self._debug_vis_handle.unsubscribe()
-                self._debug_vis_handle = None
+            self._env.sim.vis_marker_registry.clear_debug_vis_callback(self)
         # return success
         return True
 

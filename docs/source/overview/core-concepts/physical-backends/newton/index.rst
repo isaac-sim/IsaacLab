@@ -35,8 +35,9 @@ the following solver pages:
 
 * :doc:`mjwarp-solver` — the primary, validated solver path.
 * :doc:`kamino-solver` — beta support on selected classic tasks.
-* :doc:`using-vbd-solver`: experimental VBD solver for cloth and soft bodies,
-  with MJWarp and VBD proxy coupling through :mod:`isaaclab_contrib.coupling`.
+* :doc:`using-vbd-solver`: VBD solver for cloth and soft bodies. Standalone VBD
+  is available through :mod:`isaaclab_newton.physics`; MJWarp and VBD proxy and
+  ADMM coupling is available through :mod:`isaaclab_contrib.coupling`.
 * :doc:`using-mpm`: experimental implicit MPM for particle materials, including
   rigid-MPM proxy coupling.
 

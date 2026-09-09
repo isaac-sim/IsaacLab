@@ -54,6 +54,7 @@ _EXPECTED_READ_ONLY_NAMES = frozenset(
         "articulation_body_inv_mass",
         "articulation_body_inv_inertia",
         "articulation_dof_projected_joint_force",
+        "articulation_dof_drive_type",
         "articulation_link_incoming_joint_force",
         "articulation_mass_center_world",
         "articulation_mass_center_local",
@@ -67,6 +68,48 @@ _EXPECTED_READ_ONLY_NAMES = frozenset(
         "deformable_collision_element_indices",
         "surface_deformable_rest_position",
         "surface_deformable_sim_element_indices",
+    }
+)
+
+# CPU-resident on a GPU sim. Each name was measured, not assumed: with DirectGPU
+# (``suppressReadback=True``) the residency of every tensor type was determined by counting
+# CUDA memcpys around a binding read into a host buffer and into a device buffer.
+_EXPECTED_CPU_ONLY_NAMES = frozenset(
+    {
+        "articulation_body_com_pose",
+        "articulation_body_disable_gravity",
+        "articulation_body_inertia",
+        "articulation_body_inv_inertia",
+        "articulation_body_inv_mass",
+        "articulation_body_mass",
+        "articulation_contact_offset",
+        "articulation_dof_armature",
+        "articulation_dof_damping",
+        "articulation_dof_drive_model",
+        "articulation_dof_drive_type",
+        "articulation_dof_friction_properties",
+        "articulation_dof_limit",
+        "articulation_dof_max_force",
+        "articulation_dof_max_velocity",
+        "articulation_dof_stiffness",
+        "articulation_rest_offset",
+        "articulation_shape_friction_and_restitution",
+        "deformable_material_bending_damping",
+        "deformable_material_bending_stiffness",
+        "deformable_material_dynamic_friction",
+        "deformable_material_elasticity_damping",
+        "deformable_material_poissons_ratio",
+        "deformable_material_thickness",
+        "deformable_material_youngs_modulus",
+        "rigid_body_com_pose",
+        "rigid_body_contact_offset",
+        "rigid_body_disable_gravity",
+        "rigid_body_inertia",
+        "rigid_body_inv_inertia",
+        "rigid_body_inv_mass",
+        "rigid_body_mass",
+        "rigid_body_rest_offset",
+        "rigid_body_shape_friction_and_restitution",
     }
 )
 
@@ -201,18 +244,25 @@ def test_read_only_names_are_valid_vocabulary():
 def test_read_only_and_cpu_only_classification():
     assert is_read_only("articulation_jacobian")
     assert is_read_only("rigid_body_acceleration")
+    assert is_read_only("articulation_dof_drive_type")
     assert not is_read_only("articulation_dof_stiffness")
     assert is_cpu_only("articulation_dof_stiffness")
     assert is_cpu_only("rigid_body_mass")
+    assert is_cpu_only("rigid_body_disable_gravity")
+    assert is_cpu_only("articulation_dof_drive_type")
     assert not is_cpu_only("rigid_body_pose")
 
 
 def test_cpu_only_names_match_canonical_set():
-    # The view derives its CPU-only set from tensor_types so the two cannot drift.
+    # Comparing the view's derived set against the canonical one cannot fail, since the
+    # former is built from the latter. The expected inventory is what gives this test
+    # teeth: it is measured residency, so it also rejects a set that is merely incomplete.
     from isaaclab_ov.sim.views import ovphysx_view as mod
     from isaaclab_ov.tensor_types import _CPU_ONLY_TYPES
 
-    assert frozenset(tt.name.lower() for tt in _CPU_ONLY_TYPES) == mod._CPU_ONLY_NAMES
+    assert frozenset(tt.name.lower() for tt in _CPU_ONLY_TYPES) == _EXPECTED_CPU_ONLY_NAMES
+    assert mod._CPU_ONLY_NAMES == _EXPECTED_CPU_ONLY_NAMES
+    assert set(attribute_vocabulary()) >= mod._CPU_ONLY_NAMES
 
 
 # -----------------------------------------------------------------------------
@@ -748,6 +798,23 @@ def test_get_attribute_cpu_only_property_returns_cpu_buffer_on_gpu_sim():
     # though the sim device is a GPU. (CPU allocation -> runs without a GPU.)
     view = _make_view(n=3, device="cuda:0")
     buf = view.get_attribute("rigid_body_mass")
+    assert str(buf.device) == "cpu"
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        name
+        for name in ("articulation_shape_friction_and_restitution", "rigid_body_shape_friction_and_restitution")
+        if hasattr(TensorType, name.upper())
+    ],
+)
+def test_shape_material_property_returns_cpu_buffer_on_gpu_sim(name: str):
+    """Shape material properties must use their CPU-native bindings on GPU simulations."""
+    view = _make_view(n=3, device="cuda:0")
+
+    buf = view.get_attribute(name)
+
     assert str(buf.device) == "cpu"
 
 

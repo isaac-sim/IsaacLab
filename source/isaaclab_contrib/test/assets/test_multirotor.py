@@ -284,7 +284,7 @@ def generate_multirotor(
     # or simulator not available) fall back to the simulator-free stub so
     # tests can still run and validate behavior without IsaacSim.
     try:
-        multirotor = Multirotor(multirotor_cfg.replace(prim_path="/World/Env_.*/Robot"))
+        multirotor = Multirotor(multirotor_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
         return multirotor, translations
     except Exception:
         # Determine a reasonable number of thrusters for the stub from the

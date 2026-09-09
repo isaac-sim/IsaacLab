@@ -157,7 +157,7 @@ def generate_cubes_scene(
     # Create rigid object.  OVPhysX matches prim paths via fnmatch globs (not regex),
     # so use ``Table_*`` rather than the PhysX ``Table_.*`` form.
     cube_object_cfg = RigidObjectCfg(
-        prim_path="/World/Table_*/Object",
+        prim_path="/World/Table_[^/]+/Object",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )
@@ -654,11 +654,11 @@ def test_rigid_body_set_material_properties(num_cubes, device):
         # Play sim
         sim.reset()
 
-        # Random material per shape: (static_friction, dynamic_friction, restitution), on the sim device.
+        # Random material per shape: (static_friction, dynamic_friction, restitution), on the CPU.
         num_shapes = _num_shapes(cube_object)
-        static_friction = torch.empty(num_cubes, num_shapes, 1, device=device).uniform_(0.4, 0.8)
-        dynamic_friction = torch.empty(num_cubes, num_shapes, 1, device=device).uniform_(0.4, 0.8)
-        restitution = torch.empty(num_cubes, num_shapes, 1, device=device).uniform_(0.0, 0.2)
+        static_friction = torch.empty(num_cubes, num_shapes, 1, device="cpu").uniform_(0.4, 0.8)
+        dynamic_friction = torch.empty(num_cubes, num_shapes, 1, device="cpu").uniform_(0.4, 0.8)
+        restitution = torch.empty(num_cubes, num_shapes, 1, device="cpu").uniform_(0.0, 0.2)
         materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
 
         # Add friction/restitution to the cubes through the view.
@@ -684,7 +684,7 @@ def test_set_material_properties_via_view(num_cubes, device):
 
         # Generate random material properties: (static_friction, dynamic_friction, restitution).
         num_shapes = _num_shapes(cube_object)
-        materials = torch.empty(num_cubes, num_shapes, 3, device=device).uniform_(0.0, 1.0)
+        materials = torch.empty(num_cubes, num_shapes, 3, device="cpu").uniform_(0.0, 1.0)
         materials[..., 1] = torch.min(materials[..., 0], materials[..., 1])  # dynamic <= static
 
         # Set material properties through the view, simulate, then read back.
@@ -716,7 +716,7 @@ def test_rigid_body_no_friction(num_cubes, device):
         # Set the cubes' friction (and restitution) to zero. This test isolates friction, so a zero
         # restitution keeps the resting contact clean instead of letting the cube bounce vertically.
         num_shapes = _num_shapes(cube_object)
-        cube_materials = torch.zeros(num_cubes, num_shapes, 3, device=device)
+        cube_materials = torch.zeros(num_cubes, num_shapes, 3, device="cpu")
         _write_shape_material(cube_object, cube_materials)
 
         # Let the cube settle onto the plane so the initial ground-penetration transient (a small
@@ -765,7 +765,7 @@ def test_rigid_body_with_static_friction(num_cubes, device):
 
         # Set the cubes' static (and, per the PhysX bug, dynamic) friction to mu, restitution zero.
         num_shapes = _num_shapes(cube_object)
-        cube_materials = torch.zeros(num_cubes, num_shapes, 3, device=device)
+        cube_materials = torch.zeros(num_cubes, num_shapes, 3, device="cpu")
         cube_materials[..., 0] = mu
         cube_materials[..., 1] = mu
         _write_shape_material(cube_object, cube_materials)
@@ -842,7 +842,7 @@ def test_rigid_body_with_restitution(num_cubes, device):
 
             # Frictionless cubes with the matching restitution.
             num_shapes = _num_shapes(cube_object)
-            cube_materials = torch.zeros(num_cubes, num_shapes, 3, device=device)
+            cube_materials = torch.zeros(num_cubes, num_shapes, 3, device="cpu")
             cube_materials[..., 2] = restitution_coefficient
             _write_shape_material(cube_object, cube_materials)
 
@@ -1253,19 +1253,20 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
             torch.testing.assert_close(root_com_vel_w[:, 3:], root_link_vel_w[:, 3:])
 
 
-def test_warmup_attach_stage_not_called_for_cpu():
-    """Regression test: ``physx.warmup_gpu()`` must not be called for CPU.
+def test_warmup_attach_stage_not_called_for_cpu(monkeypatch):
+    """Keep IsaacLab's explicit warmup on its GPU-only compatibility path.
 
-    OVPhysX-equivalent of PhysX's ``test_warmup_attach_stage_not_called_for_cpu``:
-    PhysX guards :meth:`attach_stage` with ``if is_gpu:`` so the CPU MBP
-    broadphase is not double-initialised.  The OVPhysX manager has the same
-    structural guard around :meth:`OvPhysxManager._physx.warmup_gpu`: it is
-    only invoked when ``ovphysx_device == "gpu"``.
+    OVPhysX 0.5 exposes only ``warmup_gpu()``, while OVPhysX 0.6 also supports
+    CPU through ``warmup()``. IsaacLab preserves its existing explicit GPU-only
+    scheduling path for compatibility with both generations. OVPhysX 0.5 needs
+    no explicit CPU warmup; on 0.6, the first tensor read performs lazy warmup.
+    The manager therefore does not invoke the compatibility helper on CPU.
 
-    We monkey-patch ``OvPhysxManager._physx`` with a :class:`MagicMock`
-    wrapping the live PhysX object so that ``warmup_gpu`` becomes a spy while
-    other calls continue to forward, then assert ``warmup_gpu.call_count == 0``
-    after a CPU-mode :meth:`sim.reset`.
+    After the first reset constructs the runtime, we replace
+    :meth:`OvPhysxManager._warmup_physx` with a :class:`MagicMock`, force the
+    manager to load the stage again, and assert the helper was not called.
+    Watching the compatibility helper keeps this regression test independent
+    of which warmup entry point the installed OVPhysX generation exposes.
 
     The test always runs CPU regardless of session parametrization, so it is
     skipped when the session-locked device is anything other than CPU.  The
@@ -1283,26 +1284,17 @@ def test_warmup_attach_stage_not_called_for_cpu():
         # Allocate a single rigid body so the manager has something to load.
         generate_cubes_scene(num_cubes=1, height=1.0, device="cpu")
 
-        # First reset constructs (or reuses) the real ovphysx.PhysX so we have
-        # a live instance to wrap.  The PhysX object is a C++ binding, so we
-        # cannot patch attributes directly — replace the class-level reference
-        # with a MagicMock(wraps=...) that forwards every call.
+        # First reset constructs (or reuses) the real ovphysx.PhysX instance.
         sim.reset()
-        original_physx = OvPhysxManager._physx
-        assert original_physx is not None, "PhysX should be constructed after sim.reset()"
-        spy = MagicMock(wraps=original_physx)
-        OvPhysxManager._physx = spy
+        assert OvPhysxManager._physx is not None, "PhysX should be constructed after sim.reset()"
+
+        warmup_spy = MagicMock()
+        monkeypatch.setattr(OvPhysxManager, "_warmup_physx", warmup_spy)
         # Force _warmup_and_load to run again on the next reset so the spy
-        # observes the warmup_gpu (or non-call) decision; close() resets
+        # observes the explicit-warmup (or non-call) decision; close() resets
         # _warmup_done back to False but we just called sim.reset() above.
         OvPhysxManager._warmup_done = False
-        try:
-            sim.reset()
-        finally:
-            OvPhysxManager._physx = original_physx
+        sim.reset()
 
-        assert spy.warmup_gpu.call_count == 0, (
-            f"warmup_gpu() was called {spy.warmup_gpu.call_count} time(s) during CPU warmup. "
-            "OvPhysxManager._warmup_and_load() must guard warmup_gpu() with "
-            "ovphysx_device == 'gpu' so the CPU pipeline is not mis-initialised."
-        )
+        assert OvPhysxManager._warmup_done is True
+        warmup_spy.assert_not_called()

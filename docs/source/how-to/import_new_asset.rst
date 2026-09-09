@@ -44,16 +44,17 @@ Standalone URDF/MJCF importers
 ------------------------------
 
 The URDF and MJCF converter scripts run without Isaac Sim. The standalone
-``isaacsim-asset-isolated`` wheel is a base dependency, so no extra install step is needed.
+importers are optional; install them with the ``isaaclab[importers]`` command in
+:ref:`installation-importers-extra` before running these scripts.
 Optionally pass ``--viz newton`` (or ``rerun`` / ``viser``) to preview the converted asset in a
 kit-less Isaac Lab visualizer:
 
 .. code-block:: bash
 
-   uv run python scripts/tools/convert_urdf.py \
+   uv run --extra importers python scripts/tools/convert_urdf.py \
      path/to/robot.urdf path/to/output_dir --merge_joints
 
-   uv run python scripts/tools/convert_mjcf.py \
+   uv run --extra importers python scripts/tools/convert_mjcf.py \
      path/to/model.xml path/to/output.usd --merge_mesh
 
 If Isaac Sim is installed in the same environment, Isaac Lab uses the Isaac Sim importer

@@ -130,7 +130,7 @@ class AssemblyEnvCfg(DirectRLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=128, env_spacing=2.0)
 
     robot = ArticulationCfg(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ASSET_DIR}/franka_mimic.usd",
             # usd_path=f'{ASSET_DIR}/automate_franka.usd',
@@ -175,8 +175,8 @@ class AssemblyEnvCfg(DirectRLEnvCfg):
                 damping=0.0,
                 friction=0.0,
                 armature=0.0,
-                effort_limit=87,
-                velocity_limit=124.6,
+                joint_effort_limit=87,
+                joint_velocity_limit=124.6,
             ),
             "panda_arm2": ImplicitActuatorCfg(
                 joint_names_expr=["panda_joint[5-7]"],
@@ -184,13 +184,13 @@ class AssemblyEnvCfg(DirectRLEnvCfg):
                 damping=0.0,
                 friction=0.0,
                 armature=0.0,
-                effort_limit=12,
-                velocity_limit=149.5,
+                joint_effort_limit=12,
+                joint_velocity_limit=149.5,
             ),
             "panda_hand": ImplicitActuatorCfg(
                 joint_names_expr=["panda_finger_joint[1-2]"],
-                effort_limit=40.0,
-                velocity_limit=0.04,
+                joint_effort_limit=40.0,
+                joint_velocity_limit=0.04,
                 stiffness=7500.0,
                 damping=173.0,
                 friction=0.1,
@@ -199,5 +199,5 @@ class AssemblyEnvCfg(DirectRLEnvCfg):
         },
     )
     # contact_sensor: ContactSensorCfg = ContactSensorCfg(
-    #     prim_path="/World/envs/env_.*/Robot/.*", update_period=0.0, history_length=1, debug_vis=True
+    #     prim_path="{ENV_REGEX_NS}/Robot/[^/]*", update_period=0.0, history_length=1, debug_vis=True
     # )

@@ -97,7 +97,7 @@ class ArlNavigationSceneCfg(InteractiveSceneCfg):
     )
 
     contact_forces = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/.*",
+        prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
         update_period=0.0,
         history_length=10,
         debug_vis=False,

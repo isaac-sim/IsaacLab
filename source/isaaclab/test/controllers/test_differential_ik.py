@@ -12,6 +12,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import numpy as np
 import pytest
 import torch
 
@@ -56,8 +57,8 @@ def sim():
     # Create environment clones using Isaac Lab's cloner utilities
     env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
-    env_origins, _ = cloner.grid_transforms(num_envs, spacing=2.0, device=sim.device)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = cloner.grid_transforms(num_envs, spacing=2.0)
     # create source prim
     stage.DefinePrim(env_prim_paths[0], "Xform")
     # clone the env xform
@@ -83,7 +84,7 @@ def test_franka_ik_pose_abs(sim):
     sim_context, num_envs, ee_pose_b_des_set = sim
 
     # Create robot instance
-    robot_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot = Articulation(cfg=robot_cfg)
 
     # Create IK controller
@@ -101,7 +102,7 @@ def test_ur10_ik_pose_abs(sim):
     sim_context, num_envs, ee_pose_b_des_set = sim
 
     # Create robot instance
-    robot_cfg = UR10_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     robot_cfg.spawn.rigid_props.disable_gravity = True
     robot = Articulation(cfg=robot_cfg)
 

@@ -7,7 +7,7 @@
 
 .. deprecated:: 4.6.0
     :class:`TiledCamera` is deprecated. :class:`~isaaclab.sensors.camera.Camera` now includes
-    TiledCamera's vectorized rendering optimizations via the same :class:`~isaaclab.renderers.Renderer`
+    TiledCamera's vectorized rendering optimizations via the same :class:`~isaaclab.renderers.BaseRenderer`
     abstraction. Use :class:`~isaaclab.sensors.camera.Camera` with
     :class:`~isaaclab.sensors.camera.CameraCfg` (or :class:`~isaaclab.sensors.camera.TiledCameraCfg`)
     directly.
@@ -26,14 +26,14 @@ class TiledCamera(Camera):
 
     .. deprecated:: 4.6.0
         Use :class:`Camera` directly — it now includes TiledCamera's vectorized rendering
-        optimizations via the same Renderer abstraction.
+        optimizations via the same renderer interface.
     """
 
     def __init__(self, cfg: TiledCameraCfg):
         warnings.warn(
             "TiledCamera is deprecated and will be removed in a future release. "
             "Use Camera directly — it now includes TiledCamera's vectorized rendering "
-            "optimizations via the same Renderer abstraction.",
+            "optimizations via the same renderer interface.",
             DeprecationWarning,
             stacklevel=2,
         )

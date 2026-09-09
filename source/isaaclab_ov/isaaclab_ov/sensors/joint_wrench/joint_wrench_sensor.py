@@ -18,7 +18,7 @@ import warp as wp
 from pxr import Usd, UsdPhysics
 
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
-from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
+from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims, path_expr_to_glob
 
 import isaaclab_ov.tensor_types as TT
 from isaaclab_ov.physics import OvPhysxManager
@@ -134,7 +134,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         # Resolve the articulation root and translate to an fnmatch glob.
         root_prim_path_expr = self._resolve_articulation_root_prim_path()
         pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_prim_path_expr)
-        pattern = re.sub(r"\.\*", "*", pattern)
+        pattern = path_expr_to_glob(pattern)
 
         self._root_view = OvPhysxView(physx_instance, pattern=pattern, device=self._device)
         self._wrench_binding = self._root_view.binding_for(TT.LINK_INCOMING_JOINT_FORCE)

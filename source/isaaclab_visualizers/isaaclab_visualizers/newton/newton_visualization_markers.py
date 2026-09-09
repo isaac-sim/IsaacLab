@@ -104,8 +104,10 @@ class NewtonVisualizationMarkers:
         orientations: torch.Tensor | None,
         scales: torch.Tensor | None,
         marker_indices: torch.Tensor | None,
+        environment_ids: torch.Tensor | None = None,
     ) -> None:
         """Update marker state consumed by Newton-family visualizers."""
+        del environment_ids
         if translations is not None:
             self.translations = translations.detach()
             self.count = translations.shape[0]

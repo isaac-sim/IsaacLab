@@ -27,7 +27,9 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser):
     )
     arg_group.add_argument("--run_name", type=str, default=None, help="Run name suffix to the log directory.")
     # -- load arguments
-    arg_group.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
+    arg_group.add_argument(
+        "--checkpoint", type=str, default=None, help="Checkpoint path, latest/best, or pretrained for play."
+    )
     # -- logger arguments
     arg_group.add_argument(
         "--logger", type=str, default=None, choices={"wandb", "tensorboard", "neptune"}, help="Logger module to use."

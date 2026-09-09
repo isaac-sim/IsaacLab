@@ -56,8 +56,8 @@ def split(template: str) -> tuple[str, str]:
 def match(path_expr: str, template: str) -> TemplateMatch | None:
     """Match ``path_expr`` against a destination template, capturing the instance slot.
 
-    The ``"{}"`` slot matches one path segment's worth of text, whether a concrete id (``3``)
-    or a wildcard (``.*``). Recovering that text is the only way to tell which instance a
+    The ``"{}"`` slot matches one path segment's worth of text: a concrete id (``3``) or a
+    wildcard standing for one segment (``.*``, ``[^/]+``). Recovering that text is the only way to tell which instance a
     concrete clone path belongs to without slicing the string by hand.
 
     Args:
@@ -73,7 +73,10 @@ def match(path_expr: str, template: str) -> TemplateMatch | None:
         TemplateMatch(instance='3', suffix='/base')
     """
     prefix, template_suffix = split(template)
-    pattern = re.compile(re.escape(prefix) + r"([^/]+)" + re.escape(template_suffix))
+    # the slot holds one segment's worth of text: a concrete id, or a wildcard standing for one.
+    # A segment-safe wildcard is written as a character class, whose text contains a '/' that is
+    # not a separator, so it is matched as a class rather than by the one-segment alternative.
+    pattern = re.compile(re.escape(prefix) + r"(\[\^?[^]]*\][*+?]?|[^/]+)" + re.escape(template_suffix))
     matched = pattern.match(path_expr)
     if matched is None:
         return None

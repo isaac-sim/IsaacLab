@@ -26,6 +26,7 @@ from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
     ObservationsCfg,
     StackEnvCfg,
+    raise_if_surface_gripper_on_gpu,
     raise_if_surface_gripper_on_newton,
 )
 
@@ -348,10 +349,14 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
     def validate_config(self):
         # The right-arm suction cup uses a PhysX-only surface gripper.
         raise_if_surface_gripper_on_newton(self)
+        raise_if_surface_gripper_on_gpu(self)
 
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+
+        # Surface grippers currently require CPU simulation.
+        self.sim.device = "cpu"
 
         # Move to area below right hand (invert y-axis)
         left, right = self.events.randomize_cube_positions.params["pose_range"]["y"]

@@ -111,8 +111,8 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        # sim
-        self.sim.physics.newton_mjwarp.num_substeps = 2
+        # physics
+        self.sim.physics.newton_mjwarp.solver_cfg.njmax = 300
         # scene
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"

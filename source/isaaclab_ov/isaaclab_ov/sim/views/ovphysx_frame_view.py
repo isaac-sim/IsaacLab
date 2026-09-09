@@ -276,7 +276,7 @@ class OvPhysxFrameView(BaseFrameView):
     Body world poses are read each step via an OVPhysX ``RIGID_BODY_POSE`` tensor
     binding -- the same data path the contact sensor uses -- and **not** via the
     scene data provider's Newton model. This keeps the view usable in scenes
-    that do not declare ``requires_newton_model=True``.
+    that do not declare the ``NEWTON_MODEL`` scene-data requirement.
 
     World poses are computed on GPU as ``body_q[body_index] * site_local`` via
     a Warp kernel, with the world-attached branch returning ``site_local``
@@ -313,7 +313,23 @@ class OvPhysxFrameView(BaseFrameView):
 
         stage = sim_utils.get_current_stage() if stage is None else stage
         self._stage = stage
-        self._prims: list[Usd.Prim] = sim_utils.find_matching_prims(prim_path, stage=stage)
+        sim = sim_utils.SimulationContext.instance()
+        plan = sim.get_clone_plan() if sim is not None else None
+        self._clone_plan = plan
+        source_matches = tuple(cloner.query.iter_sources(plan, prim_path)) if plan is not None else ()
+        self._source_records = []
+        self._prims: list[Usd.Prim] = []
+        for source_root, destination_template, source_path, env_ids in source_matches:
+            source_pattern = re.compile(source_path)
+            source_prims = sim_utils.get_all_matching_child_prims(
+                source_root,
+                lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None,
+                stage=stage,
+            )
+            self._prims.extend(source_prims)
+            self._source_records.extend((source_root, destination_template, prim, env_ids) for prim in source_prims)
+        if not source_matches:
+            self._prims = sim_utils.find_matching_prims(prim_path, stage=stage)
         if not self._prims:
             raise ValueError(f"OvPhysxFrameView: pattern {prim_path!r} matched zero prims.")
 
@@ -351,17 +367,9 @@ class OvPhysxFrameView(BaseFrameView):
     def _initialize_impl(self, physx: Any) -> None:
         """Resolve prims to rigid-body ancestors and create a RIGID_BODY_POSE tensor binding.
 
-        Site discovery handles two scene-construction modes:
-
-        * **``clone_usd=True``** (Newton-style cloning): every env has its own
-          USD prims; ``find_matching_prims`` returns one prim per env, and the
-          binding row count matches.
-        * **``clone_usd=False``** (OVPhysX default): only ``env_0`` has authored
-          USD prims; ``env_1..N`` are physics-layer clones (no USD twin). The
-          RIGID_BODY_POSE binding still exposes one row per env. In that case
-          the binding is the source of truth for the site count, and per-env
-          site paths are synthesized from the env_0 template prim's path with
-          ``env_0`` replaced by the row's env_id.
+        With a ClonePlan, site discovery reads only its authored source prims, whether or not
+        destination USD prims exist. The RIGID_BODY_POSE binding is the source of truth for the
+        site count, and per-env site paths are synthesized from the source prim paths.
         """
         from isaaclab_ov import tensor_types as TT  # noqa: PLC0415
         from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView  # noqa: PLC0415
@@ -432,8 +440,7 @@ class OvPhysxFrameView(BaseFrameView):
             binding_paths = []
 
         world_sites = self._expand_world_sites_from_clone_plan(xform_cache) if not binding_paths else []
-        # 5. Detect clone_usd=False expansion: binding row count > number of matched USD prims.
-        #    Replace per-prim arrays with one entry per binding row, all derived from the env_0 template.
+        # 5. Expand source prim data to one entry per binding row.
         if binding_paths and len(binding_paths) > len(self._prims):
             template_ancestor = per_prim_ancestor[0]
             template_site_local = per_prim_site_local[0]
@@ -510,47 +517,45 @@ class OvPhysxFrameView(BaseFrameView):
     def _expand_world_sites_from_clone_plan(
         self, xform_cache: UsdGeom.XformCache
     ) -> list[tuple[int, Usd.Prim, list[float], list[float], str]]:
-        """Return row-ordered source prims and projected poses for source-only world sites."""
-        sim = sim_utils.SimulationContext.instance()
-        plan = sim.get_clone_plan() if sim is not None else None
-        matches = tuple(cloner.query.iter_sources(plan, self._prim_path)) if plan is not None else ()
-        if sum(len(env_ids) for _, _, _, env_ids in matches) <= len(self._prims):
+        """Return plan-ordered source prims and projected poses for source-only world sites."""
+        if sum(len(env_ids) for _, _, _, env_ids in self._source_records) <= len(self._prims):
             return []
+        plan = self._clone_plan
+        if plan is None:
+            raise RuntimeError("OvPhysxFrameView requires a clone plan for source-only world sites.")
+        plan_env_ids = range(plan.clone_mask.shape[1]) if plan.env_ids is None else plan.env_ids
+        column_by_env_id = {int(env_id): column for column, env_id in enumerate(plan_env_ids)}
 
         records: list[tuple[int, Usd.Prim, list[float], list[float], str]] = []
-        for source_root, destination_template, source_path, env_ids in matches:
-            source_prim = self._stage.GetPrimAtPath(source_path)
-            if not source_prim.IsValid():
-                source_prim = sim_utils.find_first_matching_prim(source_path, self._stage)
-            if source_prim is None or not source_prim.IsValid():
-                raise RuntimeError(f"OvPhysxFrameView could not resolve source prim {source_path!r}.")
-
+        for source_root, destination_template, source_prim, env_ids in self._source_records:
             source_prim_path = source_prim.GetPath().pathString
             suffix = cloner.path.relative_to(source_prim_path, source_root)
             if suffix is None:
                 raise RuntimeError(f"OvPhysxFrameView source prim {source_prim_path!r} is not under {source_root!r}.")
             source_world = xform_cache.GetLocalToWorldTransform(source_prim)
             source_parent_world = xform_cache.GetLocalToWorldTransform(source_prim.GetParent())
+            source_match = cloner.path.match(source_root, destination_template)
+            source_anchor_world = Gf.Matrix4d(1.0)
+            if source_match is not None:
+                template_prefix, _ = cloner.path.split(destination_template)
+                source_anchor_path = template_prefix + source_match.instance
+                source_anchor = self._stage.GetPrimAtPath(source_anchor_path)
+                if not source_anchor.IsValid():
+                    raise RuntimeError(f"OvPhysxFrameView source anchor {source_anchor_path!r} is not on the stage.")
+                source_anchor_world = xform_cache.GetLocalToWorldTransform(source_anchor)
+            source_inverse = source_anchor_world.GetInverse()
 
             for env_id in env_ids:
+                env_id = int(env_id)
                 destination_root = destination_template.format(env_id)
-                source_anchor_path, destination_anchor_path = source_root, destination_root
-                destination_anchor = self._stage.GetPrimAtPath(destination_anchor_path)
-                while not destination_anchor.IsValid() and destination_anchor_path != "/":
-                    source_anchor_path = source_anchor_path.rsplit("/", 1)[0] or "/"
-                    destination_anchor_path = destination_anchor_path.rsplit("/", 1)[0] or "/"
-                    destination_anchor = self._stage.GetPrimAtPath(destination_anchor_path)
-
-                source_anchor = self._stage.GetPrimAtPath(source_anchor_path)
-                if not source_anchor.IsValid() or not destination_anchor.IsValid():
-                    raise RuntimeError(f"OvPhysxFrameView could not project {source_prim_path!r} into env {env_id}.")
-                source_inverse = xform_cache.GetLocalToWorldTransform(source_anchor).GetInverse()
-                destination_world = xform_cache.GetLocalToWorldTransform(destination_anchor)
+                destination_world = Gf.Matrix4d(1.0)
+                if plan.positions is not None:
+                    destination_world.SetTranslateOnly(Gf.Vec3d(*map(float, plan.positions[column_by_env_id[env_id]])))
                 site_world = _gf_matrix_to_xform7(source_world * source_inverse * destination_world)
                 parent_world = _gf_matrix_to_xform7(source_parent_world * source_inverse * destination_world)
                 records.append((env_id, source_prim, site_world, parent_world, destination_root + suffix))
 
-        records.sort(key=lambda record: record[0])
+        records.sort(key=lambda record: column_by_env_id[record[0]])
         return records
 
     def _resolve_rigid_body_ancestor(

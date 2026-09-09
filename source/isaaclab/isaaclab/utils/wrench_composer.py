@@ -549,9 +549,9 @@ class WrenchComposer:
     ):
         """Reset the wrench composer buffers.
 
-        With no arguments, zeros all seven buffers (5 input + 2 output) and clears all flags.
-        With ``env_ids`` or ``env_mask``, performs a partial reset on the specified environments
-        using the reset kernels.
+        With no selection or ``env_ids=slice(None)``, zeros all seven buffers (5 input + 2 output) and clears all
+        flags. Other ``env_ids`` or ``env_mask`` values perform a partial reset on the specified environments using
+        the reset kernels.
 
         .. caution:: If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
 
@@ -559,7 +559,8 @@ class WrenchComposer:
             env_ids: Environment indices. Defaults to None (all environments).
             env_mask: Environment mask. Defaults to None (all environments).
         """
-        if env_ids is None and env_mask is None:
+        full_reset = env_mask is None and (env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)))
+        if full_reset:
             # Full reset: zero all 7 buffers
             self._global_force_w.zero_()
             self._global_torque_w.zero_()
@@ -589,9 +590,7 @@ class WrenchComposer:
             self._dirty = True
         else:
             # Partial reset via index
-            if env_ids is None or env_ids == slice(None):
-                env_ids = self._ALL_ENV_INDICES
-            elif isinstance(env_ids, list):
+            if isinstance(env_ids, list):
                 env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
 
             wp.launch(

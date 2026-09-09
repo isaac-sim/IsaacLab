@@ -9,15 +9,18 @@
 
     NewtonManager
     NewtonCfg
+    NewtonSoftContactCfg
     NewtonCollisionPipelineCfg
     NewtonFeatherstoneManager
     NewtonKaminoManager
     NewtonMPMManager
     NewtonMJWarpManager
+    NewtonVBDManager
     NewtonShapeCfg
     NewtonSolverCfg
     NewtonXPBDManager
     MJWarpSolverCfg
+    VBDSolverCfg
     XPBDSolverCfg
     FeatherstoneSolverCfg
     KaminoCollisionDetectorCfg
@@ -50,12 +53,22 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
+.. autoclass:: NewtonSoftContactCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
 .. autoclass:: NewtonSolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
 
 .. autoclass:: MJWarpSolverCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: VBDSolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
@@ -139,6 +152,11 @@ Solver Managers
 ---------------
 
 .. autoclass:: NewtonMJWarpManager
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
+.. autoclass:: NewtonVBDManager
   :members:
   :inherited-members:
   :show-inheritance:

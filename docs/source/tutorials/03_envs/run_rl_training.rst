@@ -92,7 +92,7 @@ Rendering can still be active for sensor/camera data capture when enabled by the
 
       .. code-block:: bash
 
-        uv run isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64
+        uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
@@ -115,7 +115,7 @@ in the workflow and pass ``--video`` to record the agent behavior.
 
       .. code-block:: bash
 
-        uv run --extra video isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --video
+        uv run --extra sb3,video isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --video
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -145,7 +145,7 @@ training command as follows:
 
       .. code-block:: bash
 
-        uv run isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --viz kit
+        uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64 --viz kit
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -192,7 +192,7 @@ Once the training is complete, you can visualize the trained agent by executing 
       .. code:: bash
 
          # execute from the root directory of the repository
-         uv run isaaclab play --rl_library sb3 --task Isaac-Cartpole --num_envs 32 --viz kit
+         uv run --extra sb3 isaaclab play --rl_library sb3 --task Isaac-Cartpole --num_envs 32 --viz kit
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 

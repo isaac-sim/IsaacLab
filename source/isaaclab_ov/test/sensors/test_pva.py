@@ -93,8 +93,8 @@ def _spawn_balls(num_envs: int, height: float = 0.5) -> RigidObject:
     Returns the :class:`RigidObject` whose binding pattern matches all spawned
     instances. The :class:`RigidObject` does the per-env spawning itself when
     ``spawn`` is set; we only have to create the env Xform containers first
-    (handled by :func:`_spawn_envs`). Note the ovphysx pattern uses an
-    fnmatch glob (``env_*``), not a regex.
+    (handled by :func:`_spawn_envs`). The prim path is a regex; the ovphysx
+    binding pattern underneath it is an fnmatch glob.
     """
     spawn_cfg = sim_utils.SphereCfg(
         radius=0.25,
@@ -104,7 +104,7 @@ def _spawn_balls(num_envs: int, height: float = 0.5) -> RigidObject:
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg = RigidObjectCfg(
-        prim_path="/World/env_*/ball",
+        prim_path="/World/env_[^/]+/ball",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
     )
@@ -121,7 +121,7 @@ def _spawn_cubes(num_envs: int, height: float = 0.5) -> RigidObject:
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg = RigidObjectCfg(
-        prim_path="/World/env_*/cube",
+        prim_path="/World/env_[^/]+/cube",
         spawn=spawn_cfg,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -2.0, height)),
     )
@@ -232,8 +232,8 @@ def test_constant_velocity(sim_ctx, device):
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
     cubes = _spawn_cubes(NUM_ENVS)
-    pva_ball = _make_pva("/World/env_*/ball")
-    pva_cube = _make_pva("/World/env_*/cube")
+    pva_ball = _make_pva("/World/env_[^/]+/ball")
+    pva_cube = _make_pva("/World/env_[^/]+/cube")
     sim_ctx.reset()
 
     prev_lin_acc_ball = torch.zeros((NUM_ENVS, 3), dtype=torch.float32, device=device)
@@ -315,30 +315,30 @@ def test_constant_velocity(sim_ctx, device):
 
 @pytest.mark.parametrize("device", _DEVICES)
 def test_constant_acceleration(sim_ctx, device):
-    """Test the PVA sensor with a constant acceleration.
+    """A constant applied force yields the solver acceleration F/m on top of free fall.
 
-    The PVA linear acceleration is a coordinate acceleration (no gravity bias),
-    so it should equal the imposed dv/dt rotated into the body frame.
+    The PVA linear acceleration is a coordinate acceleration (no gravity bias), so the
+    vertical component stays at the free-fall ``-g`` (the kitless scene has no ground).
     """
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
-    pva_ball = _make_pva("/World/env_*/ball")
+    pva_ball = _make_pva("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
+    force = 0.25  # [N] on a 0.5 kg ball -> 0.5 m/s^2
+    expected_acc = force / 0.5
+    forces = torch.zeros((NUM_ENVS, 1, 3), dtype=torch.float32, device=device)
+    forces[..., 0] = force
 
-    for idx in range(100):
-        # set acceleration via increasing velocity per step
-        velocity = torch.tensor([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device).repeat(
-            NUM_ENVS, 1
-        ) * (idx + 1)
-        balls.write_root_velocity_to_sim_index(root_velocity=velocity)
+    for idx in range(10):
+        balls.set_external_force_and_torque(forces, torch.zeros_like(forces))
         balls.write_data_to_sim()
         sim_ctx.step()
         balls.update(dt)
         pva_ball.update(dt, force_recompute=True)
 
-        # skip first step where initial velocity is zero
+        # skip first step where the solver has not integrated the force yet
         if idx < 1:
             continue
 
@@ -347,7 +347,7 @@ def test_constant_acceleration(sim_ctx, device):
             pva_ball.data.lin_acc_b.torch,
             math_utils.quat_apply_inverse(
                 balls.data.root_quat_w.torch,
-                torch.tensor([[0.1, 0.0, 0.0]], dtype=torch.float32, device=device).repeat(NUM_ENVS, 1) / dt,
+                torch.tensor([[expected_acc, 0.0, -9.81]], dtype=torch.float32, device=device).repeat(NUM_ENVS, 1),
             ),
             rtol=1e-4,
             atol=1e-4,
@@ -378,9 +378,9 @@ def test_offset_calculation(sim_ctx, device):
     _spawn_envs(NUM_ENVS)
     cubes = _spawn_cubes(NUM_ENVS)
     _add_pva_mount_xforms(NUM_ENVS)
-    pva_child = _make_pva("/World/env_*/cube/pva_mount")
+    pva_child = _make_pva("/World/env_[^/]+/cube/pva_mount")
     pva_direct = _make_pva(
-        "/World/env_*/cube",
+        "/World/env_[^/]+/cube",
         offset=PvaCfg.OffsetCfg(pos=MOUNT_POS_OFFSET, rot=MOUNT_ROT_OFFSET),
     )
     sim_ctx.reset()
@@ -455,7 +455,7 @@ def test_env_ids_propagation(sim_ctx, device):
     """Test that ``env_ids`` argument propagates through update and reset methods."""
     _spawn_envs(NUM_ENVS)
     cubes = _spawn_cubes(NUM_ENVS)
-    pva_cube = _make_pva("/World/env_*/cube")
+    pva_cube = _make_pva("/World/env_[^/]+/cube")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -495,12 +495,12 @@ def test_sensor_initialization(sim_ctx, device):
     """Test that the OVPhysX PVA sensor initializes correctly."""
     _spawn_envs(NUM_ENVS)
     _spawn_balls(NUM_ENVS)
-    pva_ball = _make_pva("/World/env_*/ball")
+    pva_ball = _make_pva("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     assert pva_ball.num_instances == NUM_ENVS
     # Inspect the raw warp buffers directly — accessing ``pva.data`` triggers a
-    # lazy FD-acceleration recompute that needs ``_dt`` (set by ``update``).
+    # lazy recompute that needs ``_dt`` (set by ``update``).
     for name, expected_dtype in [
         ("_pose_w", wp.transformf),
         ("_pos_w", wp.vec3f),
@@ -527,7 +527,7 @@ def test_pose_w_packing(sim_ctx, device):
     """
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
-    pva_ball = _make_pva("/World/env_*/ball")
+    pva_ball = _make_pva("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -556,7 +556,7 @@ def test_projected_gravity_at_rest(sim_ctx, device):
     """
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
-    pva_ball = _make_pva("/World/env_*/ball")
+    pva_ball = _make_pva("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -583,7 +583,7 @@ def test_freefall_lin_acc(sim_ctx, device):
     """
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS, height=5.0)
-    pva_ball = _make_pva("/World/env_*/ball")
+    pva_ball = _make_pva("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -615,7 +615,7 @@ def test_reset(sim_ctx, device):
     """
     _spawn_envs(NUM_ENVS)
     balls = _spawn_balls(NUM_ENVS)
-    pva_ball = _make_pva("/World/env_*/ball")
+    pva_ball = _make_pva("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -656,14 +656,6 @@ def test_reset(sim_ctx, device):
     expected_pg[:, 2] = -1.0
     torch.testing.assert_close(pg, expected_pg)
 
-    # previous-velocity buffers cleared
-    torch.testing.assert_close(
-        wp.to_torch(pva_ball._prev_lin_vel_w), torch.zeros_like(wp.to_torch(pva_ball._prev_lin_vel_w))
-    )
-    torch.testing.assert_close(
-        wp.to_torch(pva_ball._prev_ang_vel_w), torch.zeros_like(wp.to_torch(pva_ball._prev_ang_vel_w))
-    )
-
 
 @pytest.mark.parametrize("device", _DEVICES)
 def test_no_stale_data_after_scene_reset(sim_ctx, device):
@@ -675,9 +667,7 @@ def test_no_stale_data_after_scene_reset(sim_ctx, device):
 
     sensor: Pva = scene["pva_cube"]
 
-    # Drive the native rigid-body velocity buffer non-zero. Freefall can make
-    # acceleration assertions depend on the exact step, so assert the cached
-    # finite-difference state instead.
+    # Drive the native rigid-body velocity buffer non-zero so a stale refetch would be visible.
     cube: RigidObject = scene["cube"]
     nonzero_vel = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device)
     cube.write_root_velocity_to_sim_index(root_velocity=nonzero_vel)
@@ -685,7 +675,7 @@ def test_no_stale_data_after_scene_reset(sim_ctx, device):
     sim_ctx.step()
     scene.update(dt=sim_ctx.get_physics_dt())
 
-    assert torch.any(wp.to_torch(sensor._prev_lin_vel_w) != 0), "expected non-zero cached velocity before reset"
+    assert torch.any(sensor.data.lin_vel_b.torch != 0), "expected non-zero sensor velocity before reset"
 
     # Reset without another physics step. The public accessor must keep reset outputs
     # instead of lazy-refetching stale native velocity.
@@ -719,8 +709,8 @@ def test_indirect_attachment_usd(sim_ctx, device):
     sub_rot = (0.5, 0.5, 0.5, 0.5)
     for i in range(NUM_ENVS):
         sim_utils.create_prim(f"/World/env_{i}/ball/pva_sub", "Xform", translation=sub_pos, orientation=sub_rot)
-    pva_indirect = _make_pva("/World/env_*/ball/pva_sub")
-    pva_direct = _make_pva("/World/env_*/ball", offset=PvaCfg.OffsetCfg(pos=sub_pos, rot=sub_rot))
+    pva_indirect = _make_pva("/World/env_[^/]+/ball/pva_sub")
+    pva_direct = _make_pva("/World/env_[^/]+/ball", offset=PvaCfg.OffsetCfg(pos=sub_pos, rot=sub_rot))
     sim_ctx.reset()
 
     torch.testing.assert_close(
@@ -818,14 +808,14 @@ def test_sensor_print(sim_ctx, device):
     """Test ``__str__`` is implemented and exposes the prim path and binding pattern."""
     _spawn_envs(NUM_ENVS)
     _spawn_balls(NUM_ENVS)
-    pva_ball = _make_pva("/World/env_*/ball")
+    pva_ball = _make_pva("/World/env_[^/]+/ball")
     sim_ctx.reset()
 
     s = str(pva_ball)
     print(s)
-    assert "Pva sensor @ '/World/env_*/ball'" in s
+    assert "Pva sensor @ '/World/env_[^/]+/ball'" in s
     assert "binding pattern" in s
-    assert "/World/env_*/ball" in s
+    assert "/World/env_[^/]+/ball" in s
     assert "number of sensors : 2" in s
 
 

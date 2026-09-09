@@ -114,24 +114,18 @@ def test_script_scope_rejects_empty_selection():
         select_script_scope(SPECS, "missing")
 
 
-def test_showroom_documents_options_for_each_mentioned_demo():
-    """Every demo showcased in the showroom must list its supported launch options."""
-
-    def documented_values(entry: str, label: str) -> set[str]:
-        match = re.search(rf"(?ms)^   \*\*{label}:\*\*[ \t]*(.+?)(?=\n\n|\Z)", entry)
-        assert match is not None, f"showroom entry does not list {label.lower()} options"
-        return set(re.findall(r"``([^`]+)``", match.group(1)))
-
-    showroom = (script_cases.ROOT / "docs/source/overview/showroom.rst").read_text(encoding="utf-8")
-    entries = re.findall(r"(?ms)^-  .*?(?=^-  |\Z)", showroom)
+def test_demo_browser_documents_options_for_each_demo():
+    """Every demo card must expose its supported launch options to the command builder."""
+    demos_page = (script_cases.ROOT / "docs/source/setup/demos.rst").read_text(encoding="utf-8")
+    cards = re.findall(r'(?s)<button[^>]+data-demo-path="[^"]+"[^>]*>', demos_page)
     documented_entries = {}
-    for entry in entries:
-        paths = set(re.findall(r"scripts/demos/[A-Za-z0-9_./-]+\.py", entry))
-        assert len(paths) <= 1, f"showroom entry references multiple demos: {paths}"
-        if paths:
-            documented_entries[paths.pop()] = entry
+    for card in cards:
+        attributes = dict(re.findall(r'data-demo-([\w-]+)="([^"]*)"', card))
+        path = attributes.pop("path")
+        assert path not in documented_entries, f"demo browser contains a duplicate card for {path}"
+        documented_entries[path] = attributes
 
-    referenced_paths = set(re.findall(r"scripts/demos/[A-Za-z0-9_./-]+\.py", showroom))
+    referenced_paths = set(re.findall(r"scripts/demos/[A-Za-z0-9_./-]+\.py", demos_page))
     assert documented_entries.keys() == referenced_paths
 
     demo_specs = {
@@ -144,18 +138,10 @@ def test_showroom_documents_options_for_each_mentioned_demo():
         entry = documented_entries[path]
         expected_physics = {backend for _, backend in spec.physics_backends}
         expected_visualizers = set(spec.visualizers)
-        assert documented_values(entry, "Physics") == expected_physics, f"{path} documents incorrect physics options"
-        assert documented_values(entry, "Visualizer") == expected_visualizers, (
+        assert set(entry["physics"].split(",")) == expected_physics, f"{path} documents incorrect physics options"
+        assert set(entry["visualizers"].split(",")) == expected_visualizers, (
             f"{path} documents incorrect visualizer options"
         )
-
-        selectable_renderers = {backend for option, backend in spec.rendering_backends if option is not None}
-        if selectable_renderers:
-            assert documented_values(entry, "Renderer") == selectable_renderers, (
-                f"{path} documents incorrect renderer options"
-            )
-        else:
-            assert "**Renderer:**" not in entry, f"{path} advertises a renderer option that it does not expose"
 
 
 def test_commands_respect_script_launcher_capabilities():
@@ -232,14 +218,35 @@ def test_commands_respect_script_launcher_capabilities():
         if case.spec.relative_path == "scripts/tutorials/04_sensors/run_ray_caster_camera.py"
         and case.visualizer == "none"
     )
-    assert "--enable_cameras" in ray_camera_case.command()
+    assert "--enable_cameras" not in ray_camera_case.command()
+
+    usd_camera_case = next(
+        case
+        for case in build_cases(SPECS)
+        if case.spec.relative_path == "scripts/tutorials/04_sensors/run_usd_camera.py" and case.visualizer == "none"
+    )
+    assert "--enable_cameras" not in usd_camera_case.command()
+
+
+def test_hands_demo_uses_asset_owned_shadow_hand_configs():
+    """The generic hands demo must not inherit task-specific spawn policy."""
+    path = script_cases.ROOT / "scripts/demos/hands.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    imports = {
+        (node.module, alias.name) for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) for alias in node.names
+    }
+
+    assert not {module for module, _ in imports if module and module.startswith("isaaclab_tasks")}
+    assert {
+        ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_PHYSX_CFG"),
+        ("isaaclab_assets.robots.shadow_hand", "SHADOW_HAND_NEWTON_CFG"),
+    } <= imports
 
 
 @pytest.mark.parametrize(
     "relative_path",
     [
         "scripts/demos/sensors/cameras.py",
-        "scripts/demos/sensors/contact_sensor.py",
         "scripts/demos/sensors/frame_transformer_sensor.py",
         "scripts/demos/sensors/imu_sensor.py",
         "scripts/demos/sensors/multi_mesh_raycaster_camera.py",
@@ -252,6 +259,12 @@ def test_physx_only_sensor_demos_accept_explicit_physics_selector(relative_path)
     """PhysX-only sensor demos must accept their documented backend explicitly."""
     spec = next(spec for spec in SPECS if spec.relative_path == relative_path)
     assert spec.physics_backends == (("--physics", "isaacsim_physx"),)
+
+
+def test_contact_sensor_demo_accepts_physx_and_newton_selectors():
+    """The contact sensor demo exposes both PhysX and Newton MJWarp."""
+    spec = next(spec for spec in SPECS if spec.relative_path == "scripts/demos/sensors/contact_sensor.py")
+    assert spec.physics_backends == (("--physics", "isaacsim_physx"), ("--physics", "newton_mjwarp"))
 
 
 def test_cable_demo_accepts_explicit_newton_vbd_selector():
@@ -279,8 +292,8 @@ def test_multi_mesh_raycaster_uses_cli_visualizer_defaults():
     assert visualizer_cfg_values[0].value is None
 
 
-def test_h1_locomotion_uses_published_legacy_checkpoint_and_rejects_missing_policy():
-    """The H1 demo must use its published legacy policy without passing None to RSL-RL."""
+def test_h1_locomotion_uses_backend_aware_checkpoint_and_rejects_missing_policy():
+    """The H1 demo must select its backend-aware policy without passing None to RSL-RL."""
     path = script_cases.ROOT / "scripts/demos/h1_locomotion.py"
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 
@@ -292,7 +305,18 @@ def test_h1_locomotion_uses_published_legacy_checkpoint_and_rejects_missing_poli
         and isinstance((target := node.targets[0]), ast.Name)
         and isinstance(node.value, ast.Constant)
     }
-    assert constants["LEGACY_CHECKPOINT_TASK"] == "Isaac-Velocity-Rough-H1-v0"
+    assert constants["TASK"] == "Isaac-Velocity-Rough-H1"
+
+    backend_assignments = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "backend_names" for target in node.targets)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+        and node.value.func.id == "get_pretrained_checkpoint_backend_names"
+    ]
+    assert backend_assignments
 
     checkpoint_calls = [
         node
@@ -302,7 +326,14 @@ def test_h1_locomotion_uses_published_legacy_checkpoint_and_rejects_missing_poli
         and node.func.id == "get_published_pretrained_checkpoint"
     ]
     assert any(
-        len(call.args) == 2 and isinstance(call.args[1], ast.Name) and call.args[1].id == "LEGACY_CHECKPOINT_TASK"
+        len(call.args) == 3
+        and isinstance(call.args[0], ast.Name)
+        and call.args[0].id == "RL_LIBRARY"
+        and isinstance(call.args[1], ast.Name)
+        and call.args[1].id == "TASK"
+        and isinstance(call.args[2], ast.Starred)
+        and isinstance(call.args[2].value, ast.Name)
+        and call.args[2].value.id == "backend_names"
         for call in checkpoint_calls
     )
     assert any(

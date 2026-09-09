@@ -22,6 +22,7 @@ import isaaclab.cli.commands.install as install_cmd
 from isaaclab.cli.commands.install import (
     _PREBUNDLE_REPOINT_PACKAGES,
     _ensure_cuda_torch,
+    _install_isaacsim,
     _maybe_uninstall_prebundled_torch,
     _repoint_prebundle_packages,
     _torch_first_on_sys_path_is_prebundle,
@@ -70,6 +71,29 @@ def _make_site_packages(
         for sub in subs:
             (site_pkgs / pkg / sub).mkdir(parents=True, exist_ok=True)
     return site_pkgs
+
+
+def test_kernel_only_install_adds_extras_at_installed_version():
+    with (
+        mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value="python"),
+        mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=["uv", "pip"]),
+        mock.patch(
+            "isaaclab.cli.commands.install.run_command",
+            side_effect=[_cp(0, "1.2.3+local"), _cp(1), _cp(0)],
+        ) as mock_run,
+    ):
+        _install_isaacsim()
+
+    assert mock_run.call_args.args[0] == [
+        "uv",
+        "pip",
+        "install",
+        "isaacsim[all,extscache]==1.2.3+local",
+        "--extra-index-url",
+        install_cmd.NVIDIA_INDEX_URL,
+        "--index-strategy",
+        "unsafe-best-match",
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -229,7 +253,12 @@ class TestInstallSubmodulesTargetedDependencyUpgrades:
                 ["isaacteleop", "IsaacTeleop"],
             )
 
-        mock_run.assert_called_once_with(pip_cmd + ["install", "--upgrade", req])
+        mock_run.assert_called_once_with(
+            pip_cmd + ["install", "--upgrade", req],
+            check=True,
+            retry_attempts=3,
+            retry_delay_seconds=3.0,
+        )
 
     def test_skips_when_toml_has_no_upgrade_dependencies(self, tmp_path):
         """Extensions without pip upgrade opt-ins do not trigger metadata probes."""
@@ -900,6 +929,25 @@ class TestRePointPrebundlePackages:
 
         for pb in (pb1, pb2):
             assert (pb / "torch").is_symlink(), f"torch in {pb} should be repointed"
+
+    def test_repoints_package_inside_expanded_extra_bundle(self, tmp_path):
+        """Expanded extras bundles must not retain file links into a replaced package."""
+        isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["newton"])
+        shared_init = prebundle / "newton" / "legacy" / "__init__.py"
+        shared_init.parent.mkdir()
+        shared_init.write_text("")
+        bundled_newton = prebundle / "newton[sim]" / "newton-wheel" / "newton"
+        bundled_init = bundled_newton / "legacy" / "__init__.py"
+        bundled_init.parent.mkdir(parents=True)
+        bundled_init.symlink_to(shared_init)
+        site_pkgs = _make_site_packages(tmp_path / "env", ["newton"])
+
+        with self._patch(isaacsim_path, site_pkgs, str(tmp_path / "env" / "bin" / "python")):
+            _repoint_prebundle_packages()
+
+        assert (prebundle / "newton").resolve() == (site_pkgs / "newton").resolve()
+        assert bundled_newton.is_symlink()
+        assert bundled_newton.resolve() == (site_pkgs / "newton").resolve()
 
     # ---- Windows: copy instead of symlink -----------------------------------
 

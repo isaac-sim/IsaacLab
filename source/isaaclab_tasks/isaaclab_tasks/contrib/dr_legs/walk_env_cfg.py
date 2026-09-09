@@ -46,13 +46,13 @@ class DrLegsContactSensorCfg(PresetCfg):
     """Backend-specific foot contact sensor configuration."""
 
     default = NewtonContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/foot_.*",
+        prim_path="{ENV_REGEX_NS}/Robot/foot_[^/]*",
         history_length=3,
         track_air_time=True,
     )
     newton_kamino = default
     physx = PhysXContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/foot_.*",
+        prim_path="{ENV_REGEX_NS}/Robot/foot_[^/]*",
         history_length=3,
         track_air_time=True,
     )

@@ -19,7 +19,7 @@ metrics. Limit recursive spawner overrides to assets whose colliders should all 
 
 ## Velocity Limit Is Exceeded
 
-Treat `velocity_limit` as rated speed and `velocity_limit_sim` as a solver request. Because MJWarp enforces neither, add the required observation or termination check and tune effort, damping, armature, action scaling, rate limits, or controller clipping.
+Treat `velocity_limit` as rated speed and `joint_velocity_limit` as a solver request. Because MJWarp enforces neither, add the required observation or termination check and tune effort, damping, armature, action scaling, rate limits, or controller clipping.
 
 ## Zero-Gravity Spin-Up
 

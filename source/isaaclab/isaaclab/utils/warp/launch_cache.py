@@ -32,5 +32,9 @@ class _WarpLaunchCache:
             self._commands[key] = command
         command.launch()
 
-    def clear(self) -> None:
-        self._commands.clear()
+    def clear(self, key: object | None = None) -> None:
+        """Remove one recorded launch or every recorded launch."""
+        if key is None:
+            self._commands.clear()
+        else:
+            self._commands.pop(key, None)

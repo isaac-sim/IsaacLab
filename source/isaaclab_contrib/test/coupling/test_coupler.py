@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 
+import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
 from isaaclab_newton.physics import (
@@ -24,12 +25,17 @@ from isaaclab_newton.physics import (
     KaminoPADMMSolverCfg,
     MJWarpSolverCfg,
     MPMSolverCfg,
+    NewtonCfg,
     NewtonCollisionPipelineCfg,
+    NewtonVBDManager,
+    VBDSolverCfg,
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import ShapeFlags
+from newton import ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
+
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab_contrib.coupling import (
     CouplerAdmmCfg,
@@ -40,8 +46,6 @@ from isaaclab_contrib.coupling import (
     NewtonCouplerManager,
     coupler,
 )
-from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
-from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 
 
 @dataclass
@@ -168,7 +172,6 @@ def test_config_validation_requires_newton_solver_config():
     ("solver_cfg", "entry_kwargs", "error_type", "match"),
     [
         (CouplerProxyCfg(), {}, ValueError, "nested CouplerCfg"),
-        (VBDSolverCfg(model_cfg=NewtonModelCfg()), {}, ValueError, "model parameters are global"),
         (KaminoPADMMSolverCfg(), {}, NotImplementedError, "FK/reset lifecycle"),
         (
             MPMSolverCfg(project_outside_colliders=True),
@@ -197,7 +200,7 @@ def test_config_validation_requires_concrete_nested_factory():
 def test_string_selector_resolves_full_body_labels_and_descendants():
     assert NewtonCouplerManager._resolve_entities_to_body_ids(
         _FakeModel(),
-        ["/World/envs/env_.*/Robot"],
+        ["/World/envs/env_[^/]+/Robot"],
         "entry 'rigid'",
     ) == [0, 1]
 
@@ -215,7 +218,7 @@ def test_raw_body_label_selector_reports_no_matches():
     with pytest.raises(ValueError, match="matched no Newton bodies"):
         NewtonCouplerManager._resolve_entities_to_body_ids(
             _FakeModel(),
-            ["/World/envs/env_.*/Missing"],
+            ["/World/envs/env_[^/]+/Missing"],
             "entry 'missing'",
         )
 
@@ -234,7 +237,7 @@ def test_proxy_resolution_writes_body_ids_into_config_in_place():
     """Resolution replaces the proxy's selectors with body ids and is idempotent."""
     model = _FakeModel()
     proxy = CouplerProxyMappingCfg(
-        source="rigid", destination="soft", bodies=[r"/World/envs/env_.*/Robot"], particles=[1, 1]
+        source="rigid", destination="soft", bodies=[r"/World/envs/env_[^/]+/Robot"], particles=[1, 1]
     )
 
     resolved = NewtonCouplerManager._resolve_proxy(model, proxy)
@@ -253,12 +256,12 @@ def test_three_named_entries_partition_bodies_joints_shapes_and_particles():
         CouplerEntryCfg(
             name="rigid",
             solver_cfg=XPBDSolverCfg(),
-            bodies=[r"/World/envs/env_.*/Robot"],
+            bodies=[r"/World/envs/env_[^/]+/Robot"],
         ),
         CouplerEntryCfg(
             name="object",
             solver_cfg=XPBDSolverCfg(),
-            bodies=["/World/envs/env_.*/Object"],
+            bodies=["/World/envs/env_[^/]+/Object"],
             all_particles=True,
         ),
         CouplerEntryCfg(
@@ -280,8 +283,8 @@ def test_three_named_entries_partition_bodies_joints_shapes_and_particles():
     assert resolved[2].bodies == []
     assert resolved[2].joints == []
     assert resolved[2].shapes == [3]
-    assert entries[0].bodies == [r"/World/envs/env_.*/Robot"]
-    assert entries[1].bodies == ["/World/envs/env_.*/Object"]
+    assert entries[0].bodies == [r"/World/envs/env_[^/]+/Robot"]
+    assert entries[1].bodies == ["/World/envs/env_[^/]+/Object"]
 
 
 def test_cross_entry_joint_is_left_unowned_for_admm_attachment():
@@ -292,12 +295,12 @@ def test_cross_entry_joint_is_left_unowned_for_admm_attachment():
         CouplerEntryCfg(
             name="robot",
             solver_cfg=XPBDSolverCfg(),
-            bodies=[r"/World/envs/env_.*/Robot"],
+            bodies=[r"/World/envs/env_[^/]+/Robot"],
         ),
         CouplerEntryCfg(
             name="object",
             solver_cfg=XPBDSolverCfg(),
-            bodies=[r"/World/envs/env_.*/Object"],
+            bodies=[r"/World/envs/env_[^/]+/Object"],
             all_particles=True,
             include_static_shapes=True,
         ),
@@ -352,7 +355,7 @@ def test_shape_label_patterns_and_static_shape_selection_are_additive():
         CouplerEntryCfg(
             name="special",
             solver_cfg=XPBDSolverCfg(),
-            bodies=[r"/World/envs/env_.*/Robot/base"],
+            bodies=[r"/World/envs/env_[^/]+/Robot/base"],
             include_body_shapes=False,
             include_static_shapes=True,
             shape_label_patterns=[r".*/Object/object_collision"],
@@ -369,7 +372,7 @@ def test_proxy_resolution_keeps_only_collidable_selected_bodies():
     )
     proxy = NewtonCouplerManager._resolve_proxy(
         model,
-        CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[r"/World/envs/env_.*/Robot"]),
+        CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[r"/World/envs/env_[^/]+/Robot"]),
     )
     assert proxy.bodies == [0]
 
@@ -401,7 +404,7 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
             CouplerProxyMappingCfg(
                 source="rigid",
                 destination="soft",
-                bodies=["/World/envs/env_.*/Robot/base"],
+                bodies=["/World/envs/env_[^/]+/Robot/base"],
                 mode="staggered",
                 mass_scale=0.25,
                 collide_interval=4,
@@ -578,6 +581,69 @@ def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):
     NewtonCouplerManager._prepare_builder_for_finalize(builder)
 
     assert events == [("register", builder), ("finalize", builder)]
+
+
+def test_nested_solvers_register_their_builder_attributes(monkeypatch):
+    """A coupled model declares the schemas consumed by each configured child solver."""
+    builder = ModelBuilder()
+    solver_cfg = CouplerProxyCfg(
+        entries=[
+            CouplerEntryCfg(name="rigid", solver_cfg=MJWarpSolverCfg()),
+            CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg()),
+        ]
+    )
+    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
+
+    NewtonCouplerManager._register_builder_attributes(builder)
+
+    assert builder.has_custom_attribute("mujoco:condim")
+    assert builder.has_custom_attribute("mpm:young_modulus")
+
+
+@pytest.mark.parametrize(
+    ("entry_solver_cfg", "expected_friction", "expected_damping"),
+    [
+        pytest.param(MJWarpSolverCfg(), 0.11, 0.23, id="mjwarp"),
+        pytest.param(XPBDSolverCfg(), 0.0, 0.0, id="xpbd"),
+    ],
+)
+def test_nested_solver_scopes_mujoco_joint_properties(
+    monkeypatch, entry_solver_cfg, expected_friction, expected_damping
+):
+    """A coupler imports MuJoCo properties only when a nested solver consumes them."""
+    solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=entry_solver_cfg)])
+    monkeypatch.setattr(coupler.PhysicsManager, "_cfg", NewtonCfg(solver_cfg=solver_cfg))
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    root_path = "/World/robot"
+    root = UsdGeom.Cube.Define(stage, root_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    child_path = f"{root_path}/child"
+    child = UsdGeom.Cube.Define(stage, child_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(child)
+    joint = UsdPhysics.RevoluteJoint.Define(stage, f"{child_path}/joint")
+    joint.CreateAxisAttr().Set("Z")
+    joint.CreateBody0Rel().SetTargets([root_path])
+    joint.CreateBody1Rel().SetTargets([child_path])
+    joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
+    joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
+
+    monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda: stage)
+    monkeypatch.setattr(newton_manager_module, "_restore_visible_colliders_without_visual_shapes", lambda *args: None)
+    monkeypatch.setattr(newton_manager_module, "replace_newton_builder_shape_colors", lambda *args: None)
+    monkeypatch.setattr(newton_manager_module, "import_builder_visual_material_paths", lambda *args: None)
+    monkeypatch.setattr(NewtonManager, "_builder", None)
+    monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
+    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [])
+
+    NewtonCouplerManager.instantiate_builder_from_stage()
+    builder = NewtonManager._builder
+    model = builder.finalize(device="cpu")
+
+    assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)
+    assert model.joint_damping.numpy()[-1] == pytest.approx(expected_damping)
 
 
 def test_contact_initialization_prepares_coupled_solver_buffers(monkeypatch):

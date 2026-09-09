@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 import sys
 import time
 
+from isaaclab.benchmark.entrypoints.training import _resolve_training_checkpoint_path
+
 from isaaclab_rl.entrypoints import common as _common
 
 
@@ -201,7 +203,7 @@ def _parse_args(argv: list[str]):
     add_success_cli_args(parser, include_check_success=False)
     add_launcher_args(parser)
 
-    args_cli, remaining_args = setup_preset_cli(parser, argv)
+    args_cli, remaining_args = setup_preset_cli(parser, argv, agent_library="skrl")
     validate_distributed_args(parser, args_cli)
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
@@ -326,7 +328,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                     },
                 )
 
-            cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
+            cfg = capture.run_config_from_env_cfg(env_cfg)
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
 
@@ -349,7 +351,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                             "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
                         },
                         {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
-                        {"name": "presets", "data": ",".join(cfg.presets)},
                         {"name": "world_size", "data": distributed.world_size},
                     ]
                 },
@@ -477,7 +478,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 resources=resources,
                 learning=learning,
                 success_rate=success_rate,
-                checkpoint_path=None,
+                checkpoint_path=_resolve_training_checkpoint_path(log_dir, "skrl"),
                 video_path=os.path.join(log_dir, "videos") if args_cli.video else None,
                 extra=(
                     distributed.bundle_metadata(workload_scope="global", num_envs_per_rank=env.unwrapped.num_envs)

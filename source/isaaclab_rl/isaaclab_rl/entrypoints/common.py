@@ -16,7 +16,7 @@ import re
 import runpy
 import sys
 import warnings
-from collections.abc import Callable, Container, Iterator
+from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,17 +28,14 @@ import torch
 from PIL import Image
 
 from isaaclab.app import AppLauncher, LoadingScreen, scan
-from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.io import dump_yaml
 
-# Preset selectors whose values name a preset, and the preset names that resolved
-# configs map back to when their class or ``renderer_type`` differs from the name.
-_PRESET_SELECTORS = frozenset({"presets", "physics", "renderer"})
-_PHYSICS_PRESET_NAMES = {"PhysxCfg": "isaacsim_physx", "OvPhysxCfg": "ovphysx", "PhysxAutoCfg": "physx"}
-_RENDERER_PRESET_NAMES = {"isaac_rtx": "isaacsim_rtx", "newton_warp": "newton_renderer", "auto_rtx": "rtx"}
+_PHYSICS_BACKEND_NAMES = {"PhysxCfg": "isaacsim_physx", "OvPhysxCfg": "ovphysx", "PhysxAutoCfg": "physx"}
+_RENDERER_BACKEND_NAMES = {"isaac_rtx": "isaacsim_rtx", "newton_warp": "newton_renderer", "auto_rtx": "rtx"}
 
 RUN_MANIFEST_FILENAME = "run.json"
 RUN_MANIFEST_VERSION = 1
@@ -295,13 +292,19 @@ def resolve_play_task_name(task: str | None) -> str | None:
     return f"{namespace}:{train_name}" if namespace else train_name
 
 
-def resolve_play_checkpoint(checkpoint: str | None, framework: str, task: str) -> str:
+def resolve_play_checkpoint(
+    checkpoint: str | None,
+    framework: str,
+    task: str,
+    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg | None = None,
+) -> str:
     """Resolve an explicit or published checkpoint for a play workflow.
 
     Args:
         checkpoint: Local or Nucleus checkpoint path.
         framework: RL library name.
         task: Gym task id; namespaces and a trailing ``-Play`` are ignored for published lookups.
+        env_cfg: Resolved environment config used to identify the active backends.
 
     Returns:
         Local checkpoint path.
@@ -314,11 +317,15 @@ def resolve_play_checkpoint(checkpoint: str | None, framework: str, task: str) -
 
         return retrieve_file_path(checkpoint)
 
-    from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+    from isaaclab_rl.utils.pretrained_checkpoint import (
+        get_pretrained_checkpoint_backend_names,
+        get_published_pretrained_checkpoint,
+    )
 
     logger.warning("No --checkpoint given; using the published checkpoint for %s / %s.", framework, task)
     published_task = task.split(":")[-1].replace("-Play", "")
-    path = get_published_pretrained_checkpoint(framework, published_task)
+    backend_names = get_pretrained_checkpoint_backend_names(env_cfg) if env_cfg is not None else ()
+    path = get_published_pretrained_checkpoint(framework, published_task, *backend_names)
     if path is None:
         raise FileNotFoundError(
             f"No checkpoint available for framework {framework!r} and task {task!r}; pass --checkpoint"
@@ -345,7 +352,7 @@ def add_frontend_args(parser: argparse.ArgumentParser) -> None:
             "Runtime that constructs the environment. 'torch' uses the registered stable environment via"
             " gym.make. 'warp' (experimental) adapts a manager-based task config onto the Warp runtime, or"
             " dispatches a direct task to its registered Warp environment; requires isaaclab_experimental"
-            " and `presets=newton_mjwarp`."
+            " and `physics=newton_mjwarp`."
         ),
     )
 
@@ -483,6 +490,65 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any, *, apply_dev
         device = getattr(args_cli, "device", None)
         env_cfg.sim.device = device if device is not None else env_cfg.sim.device
 
+    # --deterministic is an AppLauncher flag, so it only reaches carb settings on its own.
+    # Record the request on the resolved physics config; each backend translates and validates
+    # it when the simulation starts.
+    request_determinism(args_cli, env_cfg)
+
+
+def request_determinism(args_cli: argparse.Namespace, env_cfg: Any) -> None:
+    """Record a ``--deterministic`` request on the config tree and on Warp's global.
+
+    Call this before the environment is created: Warp reads its setting at module build time
+    and the scene BVH is built while the environment is constructed.
+
+    Args:
+        args_cli: Parsed command-line arguments.
+        env_cfg: Isaac Lab environment config.
+    """
+    if not getattr(args_cli, "deterministic", False):
+        return
+    physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    if physics_cfg is not None:
+        physics_cfg.deterministic = True
+    request_warp_determinism(physics_cfg)
+
+
+def request_warp_determinism(physics_cfg: Any) -> None:
+    """Ask Warp for deterministic atomics process-wide, matching the configured guarantee.
+
+    Newton's solvers take a ``deterministic`` argument and apply it as a per-module option, so a
+    solver-level request already covers the physics kernels. Its sensor and geometry modules take
+    no such argument and fall back to ``warp.config.deterministic``, which defaults to
+    ``NOT_GUARANTEED``. One of them, the BVH shape compaction in ``newton._src.geometry.bvh``,
+    claims output slots with ``wp.atomic_add``, so the enabled-shape order -- and with it the
+    order of the primitives the scene BVH is built over -- varies between processes. Ray queries
+    then break ties differently and a tiled camera renders a handful of pixels differently from
+    identical simulation state, which is enough to make an image-observation policy diverge.
+
+    A backend that names a stronger guarantee gets it here too: the strings accepted by
+    :attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode` are the
+    ``warp.DeterministicMode`` members lowercased, so ``"gpu_to_gpu"`` selects
+    ``GPU_TO_GPU`` rather than being weakened to ``RUN_TO_RUN``. Warp reads the setting at module
+    build time, so it must land before the first kernel launch; :func:`apply_env_overrides` runs
+    before the environment is created.
+
+    The modes are ordered by strength, and this only ever raises the setting. Reading the current
+    value cannot tell a deliberate choice from the shipped default, so rather than guess at intent
+    it never weakens a guarantee already in place -- whoever set it, they wanted at least that much.
+
+    Args:
+        physics_cfg: Resolved physics config, or ``None`` when the config tree carries none.
+    """
+    import warp as wp
+
+    requested = getattr(physics_cfg, "deterministic_mode", None)
+    mode = getattr(wp.DeterministicMode, requested.upper(), None) if isinstance(requested, str) else None
+    if mode is None or mode == wp.DeterministicMode.NOT_GUARANTEED:
+        mode = wp.DeterministicMode.RUN_TO_RUN
+    if wp.config.deterministic < mode:
+        wp.config.deterministic = mode
+
 
 def validate_distributed_device(args_cli: argparse.Namespace) -> None:
     """Reject unsupported CPU distributed training configuration.
@@ -545,33 +611,29 @@ def show_run_summary(
 ) -> None:
     """Print a summary of the backends and scale a run is about to use.
 
-    Every row names the backend that will run, alongside the choice the run stopped at.
-    A backend reached through a family the command line named -- ``physics=physx`` and
-    ``renderer=rtx`` name a family that launch resolves -- is shown as
-    ``<family> (<resolved>)``, and a backend the run named neither directly nor by
-    family is shown as ``default (<resolved>)``.
+    Every row names the backend that will run. An automatic launcher choice is
+    shown as ``<automatic> (<concrete>)``.
 
-    Resolving those selectors mutates *env_cfg* in place, exactly as the following
-    :func:`~isaaclab.app.launch_simulation` call would; call this after every other
-    pre-launch config change, in particular :func:`pre_launch_video_config`.
+    Resolving automatic backend configurations mutates *env_cfg* in place, exactly
+    as the following :func:`~isaaclab.app.launch_simulation` call would; call this
+    after every other pre-launch config change, in particular :func:`pre_launch_video_config`.
 
     Args:
         screen: Loading screen that owns the console.
         args_cli: Parsed command-line arguments.
-        env_cfg: Isaac Lab environment config, with its presets already resolved.
+        env_cfg: Concrete Isaac Lab environment config.
         library: Reinforcement learning library running the workflow.
         action: Workflow name, either ``"train"`` or ``"play"``.
     """
-    selected = _selected_preset_names()
     device = getattr(args_cli, "device", None) or env_cfg.sim.device
     num_envs = getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs
 
     # Names read before the scan resolves the automatic selectors, so a row can report
     # the family the run asked for next to the backend that family resolved to
-    requested_physics = _physics_name(env_cfg.sim.physics)
+    requested_physics = _physics_backend_name(env_cfg.sim.physics)
     requested_renderer = _renderer_name(env_cfg)
     scan(env_cfg, args_cli)
-    physics = _physics_name(env_cfg.sim.physics)
+    physics = _physics_backend_name(env_cfg.sim.physics)
     renderer = _renderer_name(env_cfg)
 
     screen.summary(
@@ -580,13 +642,12 @@ def show_run_summary(
             "Task": args_cli.task,
             "Workflow": _workflow_name(env_cfg),
             "RL library": library,
-            "Physics": _label(requested_physics, physics, selected=selected),
+            "Physics": _backend_label(requested_physics, physics),
             "Renderer": (
                 "n/a (no camera sensors)"
                 if renderer is None
-                else _label(requested_renderer or renderer, renderer, selected=selected)
+                else _backend_label(requested_renderer or renderer, renderer)
             ),
-            "Presets": _additional_preset_names({requested_physics, physics, requested_renderer, renderer}),
             "Visualizer": _visualizer_name(args_cli, env_cfg),
             "Device": str(device),
             "Environments": str(num_envs),
@@ -594,68 +655,18 @@ def show_run_summary(
     )
 
 
-def _label(requested: str, resolved: str, *, selected: set[str] = frozenset()) -> str:
-    """Name the backend a row reports, and where the run stopped choosing it.
+def _backend_label(requested: str, concrete: str) -> str:
+    """Name a concrete backend and its automatic selector when they differ.
 
     Args:
-        requested: Preset name the config carried before launch resolved its automatic
-            selectors, which names a backend family when it differs from *resolved*.
-        resolved: Preset name of the backend that will run.
-        selected: Preset names the command line asked for.
+        requested: Backend name before launcher-owned automatic selection.
+        concrete: Concrete backend that will run.
 
     Returns:
-        The resolved name when the run asked for that backend, ``<family> (<resolved>)``
-        when it asked for the family the backend was picked from, and
-        ``default (<resolved>)`` when it asked for neither.
+        The concrete name, or ``<automatic> (<concrete>)`` when the launcher
+        selected a concrete backend from an automatic configuration.
     """
-    if resolved in selected:
-        return resolved
-    if requested in selected:
-        return f"{requested} ({resolved})"
-    return f"default ({resolved})"
-
-
-def _selected_preset_names() -> set[str]:
-    """Return the preset names the command line asked for.
-
-    Reads the same ``sys.argv`` the preset resolver consumes (see
-    :func:`~isaaclab_tasks.utils.hydra.register_task`), so the summary marks a
-    backend as chosen exactly when a ``physics=`` / ``renderer=`` / ``presets=``
-    token or a Hydra path override named it.
-    """
-    names: set[str] = set()
-    for token in sys.argv[1:]:
-        key, separator, value = token.partition("=")
-        if separator and (key.lstrip("-") in _PRESET_SELECTORS or key.startswith(("env.", "agent."))):
-            names.update(part.strip() for part in value.split(",") if part.strip())
-    return names
-
-
-def _additional_preset_names(shown: Container[str | None]) -> str:
-    """Return the presets the command line asked for that no other row names.
-
-    Domain presets such as ``presets=cube`` do not surface anywhere else in the
-    summary, so they are listed here. A preset a row already reports is left out,
-    whether it names the backend that will run or the family the row resolved it
-    from -- ``renderer=rtx`` is reported by an ``rtx (ovrtx)`` renderer row.
-
-    Args:
-        shown: Preset names reported by the physics and renderer rows, including
-            the families those rows resolved from.
-
-    Returns:
-        The remaining preset names in command-line order, comma separated, or
-        ``"none"`` when the run named no other preset.
-    """
-    names: list[str] = []
-    for token in sys.argv[1:]:
-        key, separator, value = token.partition("=")
-        if not separator or key.lstrip("-") not in _PRESET_SELECTORS:
-            continue
-        for part in (part.strip() for part in value.split(",")):
-            if part and part not in shown and part not in names:
-                names.append(part)
-    return ", ".join(names) if names else "none"
+    return concrete if requested == concrete else f"{requested} ({concrete})"
 
 
 def _workflow_name(env_cfg: Any) -> str:
@@ -665,11 +676,11 @@ def _workflow_name(env_cfg: Any) -> str:
     return "direct (multi-agent)" if isinstance(env_cfg, DirectMARLEnvCfg) else "direct"
 
 
-def _physics_name(physics_cfg: Any) -> str:
-    """Return the preset name of a resolved physics config."""
+def _physics_backend_name(physics_cfg: Any) -> str:
+    """Return the backend name of a concrete physics config."""
     class_name = type(physics_cfg).__name__
-    if class_name in _PHYSICS_PRESET_NAMES:
-        return _PHYSICS_PRESET_NAMES[class_name]
+    if class_name in _PHYSICS_BACKEND_NAMES:
+        return _PHYSICS_BACKEND_NAMES[class_name]
     solver_cfg = getattr(physics_cfg, "solver_cfg", None)
     backend = class_name.removesuffix("Cfg").lower()
     if solver_cfg is None:
@@ -678,7 +689,7 @@ def _physics_name(physics_cfg: Any) -> str:
 
 
 def _renderer_name(env_cfg: Any) -> str | None:
-    """Return the preset name of the renderer used by the first camera sensor of *env_cfg*.
+    """Return the backend name of the renderer used by the first camera sensor of *env_cfg*.
 
     Only configs whose class declares ``renderer_cfg`` are read. Probing every
     attribute with :func:`getattr` instead would resolve lazily evaluated config
@@ -693,7 +704,7 @@ def _renderer_name(env_cfg: Any) -> str | None:
             renderer_cfg = value.renderer_cfg
             if isinstance(renderer_cfg, RendererCfg):
                 renderer_type = renderer_cfg.renderer_type
-                return _RENDERER_PRESET_NAMES.get(renderer_type, renderer_type)
+                return _RENDERER_BACKEND_NAMES.get(renderer_type, renderer_type)
     return None
 
 
@@ -831,7 +842,14 @@ def pre_launch_video_config(env_cfg: Any, log_dir: str | None = None, args_cli: 
         pass
 
 
-def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespace, *, subdir: str = "train") -> None:
+def apply_video_recording(
+    env_cfg: Any,
+    log_dir: str,
+    args_cli: argparse.Namespace,
+    *,
+    subdir: str = "train",
+    checkpoint_path: str | None = None,
+) -> None:
     """Configure internal video recording on the environment config.
 
     Enables recording by ensuring ``env_cfg.video_recorders`` is non-empty, then applies
@@ -857,6 +875,8 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
         args_cli: Parsed command-line arguments.
         subdir: Sub-directory name appended to ``<log_dir>/videos/`` for the fallback output
             path.  Use ``"train"`` for training runs and ``"play"`` for evaluation.
+        checkpoint_path: Checkpoint loaded by a play run.  When set to a ``model_<N>.pt``
+            path with a numeric id, the checkpoint stem is appended to play video names.
     """
     if not getattr(args_cli, "video", False):
         return
@@ -939,7 +959,7 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
                     f"  ]\n\n"
                     "Frames can also be captured from a scene camera sensor without any visualizer:\n"
                     "  VideoRecorderCfg(source='sensor:<name>')   # add to env_cfg.video_recorders\n\n"
-                    "See: https://isaac-sim.github.io/IsaacLab/main/source/how-to/record_video.html"
+                    "See: https://isaac-sim.github.io/IsaacLab/main/source/features/record_video.html"
                 )
 
             # Use the first capture-capable visualizer as the recording source.
@@ -998,6 +1018,8 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
             cfg.video_length = video_length
         if video_interval is not None:
             cfg.video_interval = video_interval
+        if subdir == "play" and (label := _checkpoint_video_label(checkpoint_path)) is not None:
+            cfg.output_filename_prefix = _checkpoint_video_prefix(cfg.output_filename_prefix, label)
 
     print("[INFO] Video recording enabled.")
     for cfg in env_cfg.video_recorders:
@@ -1010,6 +1032,22 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
             },
             nesting=4,
         )
+
+
+def _checkpoint_video_label(checkpoint_path: str | None) -> str | None:
+    if checkpoint_path is None:
+        return None
+
+    path = Path(checkpoint_path)
+    if re.fullmatch(r"model_\d+", path.stem) is None or path.suffix != ".pt":
+        return None
+    return path.stem
+
+
+def _checkpoint_video_prefix(prefix: str, label: str) -> str:
+    if prefix == label or prefix.endswith(f"_{label}"):
+        return prefix
+    return f"{prefix}_{label}"
 
 
 def wrap_record_video(env, log_dir: str, args_cli: argparse.Namespace):

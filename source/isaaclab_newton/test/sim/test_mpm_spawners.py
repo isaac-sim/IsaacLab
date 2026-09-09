@@ -149,7 +149,7 @@ def test_mpm_config_imports_do_not_load_pxr():
         from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg, MPMPointsCfg
 
         MPMObjectCfg(
-            prim_path="/World/envs/env_.*/Sand",
+            prim_path="{ENV_REGEX_NS}/Sand",
             spawn=MPMGridCfg(
                 lower=(0.0, 0.0, 0.0),
                 upper=(0.1, 0.1, 0.1),

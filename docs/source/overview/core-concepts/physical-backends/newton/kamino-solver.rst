@@ -51,9 +51,9 @@ Then run the same task with the Kamino preset if it is available:
 
 At the time of writing, the ``newton_kamino`` preset is defined for
 ``Isaac-Cartpole-Direct``, ``Isaac-Ant-Direct``, ``Isaac-Cartpole``,
-``Isaac-Ant``, and several locomotion tasks. Passing ``physics=newton_kamino`` to
-another task does not automatically enable Kamino; the task must define and validate
-its own ``newton_kamino`` preset.
+``Isaac-Pendulum-MARL-Direct``, ``Isaac-Ant``, and several locomotion tasks. Passing
+``physics=newton_kamino`` to another task does not automatically enable Kamino;
+the task must define and validate its own ``newton_kamino`` preset.
 
 
 Add a Kamino Physics Preset

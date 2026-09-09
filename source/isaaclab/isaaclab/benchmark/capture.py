@@ -12,24 +12,21 @@ raw measurements and metadata to the typed schema dataclasses
 :class:`~isaaclab.benchmark.schema.Resources`.
 
 Import-time dependencies stay light: no torch, isaacsim, or RL-library
-imports. Preset metadata is imported lazily when run_config_from_presets()
-needs it. The benchmark object is accepted at call time; its recorder classes
+imports. The benchmark object is accepted at call time; its recorder classes
 are never imported here.
 """
 
 from __future__ import annotations
 
 import socket
-from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Any, get_args
+from typing import Any
 
 from isaaclab.benchmark.schema import (
     GpuDeviceInfo,
     GpuResources,
     Hardware,
     MeanStd,
-    PhysicsBackend,
     Resources,
     RunConfig,
     Versions,
@@ -97,7 +94,7 @@ def synth_run_id(
     Args:
         framework: RL framework name, or ``None`` for non-learning runs
             (substituted with ``"runtime"``).
-        physics_backend: Physics backend preset string.
+        physics_backend: Physics backend name.
         task: Gym task id.
         seed: Environment/agent seed.
         stamp: Timestamp string (e.g. ``"20260612-150000"``).
@@ -231,42 +228,15 @@ def capture_hardware(bm: Any) -> Hardware:
     )
 
 
-def _preset_target_metadata() -> tuple[str, str, str, dict[str, str]]:
-    """Return preset selector labels and physics aliases from the preset CLI layer."""
-    from isaaclab_tasks.utils.preset_target import PresetTarget
-
-    return (
-        PresetTarget.PHYSICS.value,
-        PresetTarget.RENDERER.value,
-        PresetTarget.DOMAIN.value,
-        dict(PresetTarget.PHYSICS.legacy_aliases),
-    )
-
-
-def _physics_backend_names() -> set[str]:
-    """Return physics backend names accepted by the benchmark schema."""
-    return set(get_args(PhysicsBackend))
-
-
-def _rendering_backend_by_preset() -> dict[str, str]:
-    """Return renderer preset names mapped to benchmark rendering backend names."""
-    try:
-        from isaaclab_tasks.utils.hydra import _preset_fields
-        from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
-    except ImportError:
-        return {}
-
-    return {
-        name: name.removesuffix("_renderer") for name in _preset_fields(MultiBackendRendererCfg()) if name != "default"
-    }
-
-
-def _backend_defaults_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
-    """Return active backend names from a resolved environment configuration."""
+def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
+    """Return active backend names from a concrete environment configuration."""
     physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    physics_type = type(physics_cfg)
     physics_descriptor = (
-        f"{type(physics_cfg).__module__}.{type(physics_cfg).__name__} {getattr(physics_cfg, 'class_type', '')}"
-    ).lower()
+        "physx"
+        if physics_cfg is None
+        else f"{physics_type.__module__}.{physics_type.__name__} {getattr(physics_cfg, 'class_type', '')}".lower()
+    )
     physics = next(
         (
             name
@@ -308,91 +278,26 @@ def _backend_defaults_from_env_cfg(env_cfg: object) -> tuple[str | None, str | N
     return physics, rendering
 
 
-def _expand_preset_tokens(tokens: Sequence[str]) -> list[tuple[str | None, str]]:
-    """Expand Hydra-style preset tokens into ``(selector, value)`` pairs."""
-    physics_label, renderer_label, domain_label, _ = _preset_target_metadata()
-    expanded: list[tuple[str | None, str]] = []
-    for token in tokens:
-        selector, has_value, raw_value = token.partition("=")
-        if not has_value:
-            value = token.strip()
-            if value:
-                expanded.append((None, value))
-            continue
-
-        selector = selector.strip()
-        if selector == domain_label:
-            expanded.extend((selector, value) for value in (v.strip() for v in raw_value.split(",")) if value)
-        elif selector in (physics_label, renderer_label):
-            value = raw_value.strip()
-            if value:
-                expanded.append((selector, value))
-        else:
-            value = token.strip()
-            if value:
-                expanded.append((None, value))
-    return expanded
-
-
-def run_config_from_presets(tokens: Sequence[str], *, env_cfg: object | None = None) -> RunConfig:
-    """Build a :class:`~isaaclab.benchmark.RunConfig` from presets and resolved task config.
-
-    Picks backend defaults from ``env_cfg`` when provided, then applies recognised
-    preset tokens. Without a resolved config, physics defaults to ``"physx"`` and
-    rendering to ``"none"``. Accepts bare preset names as well as Hydra-style
-    ``physics=...``, ``renderer=...``, and ``presets=...`` tokens.
+def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
+    """Build a :class:`~isaaclab.benchmark.RunConfig` from a concrete task config.
 
     Args:
-        tokens: Active preset tokens (e.g. ``["newton_mjwarp", "rgb"]``).
-        env_cfg: Optional resolved task environment configuration. Its active physics
-            and renderer configurations take precedence over token inference.
+        env_cfg: Concrete task environment configuration.
 
     Returns:
         Populated :class:`~isaaclab.benchmark.RunConfig`.
+
+    Raises:
+        ValueError: If the config does not contain a supported concrete physics backend.
     """
-    if not tokens and env_cfg is None:
-        return RunConfig(physics_backend="physx", rendering_backend="none", presets=[])
-
-    physics = "physx"
-    rendering = "none"
-    expanded_tokens = _expand_preset_tokens(tokens)
-    physics_label, renderer_label, _, physics_aliases = _preset_target_metadata()
-    physics_backends = _physics_backend_names()
-    rendering_backends: dict[str, str] | None = None
-
-    def rendering_backend_for(preset_name: str) -> str | None:
-        nonlocal rendering_backends
-        if rendering_backends is None:
-            rendering_backends = _rendering_backend_by_preset()
-        if preset_name in rendering_backends:
-            return rendering_backends[preset_name]
-        if preset_name.endswith("_renderer"):
-            return preset_name.removesuffix("_renderer")
-        return None
-
-    for selector, token in expanded_tokens:
-        if selector == physics_label:
-            physics = physics_aliases.get(token, token)
-        elif selector == renderer_label:
-            rendering = rendering_backend_for(token) or token
-        else:
-            canonical = physics_aliases.get(token, token)
-            if canonical in physics_backends:
-                physics = canonical
-            elif token.endswith("_renderer"):
-                renderer = rendering_backend_for(token)
-                if renderer is not None:
-                    rendering = renderer
-
-    if env_cfg is not None:
-        active_physics, active_rendering = _backend_defaults_from_env_cfg(env_cfg)
-        physics = active_physics or physics
-        rendering = active_rendering or rendering
+    physics, rendering = _backends_from_env_cfg(env_cfg)
+    if physics is None:
+        physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+        raise ValueError(f"Unsupported concrete physics config: {type(physics_cfg).__name__}.")
 
     return RunConfig(
         physics_backend=physics,
-        rendering_backend=rendering,
-        presets=[token for _, token in expanded_tokens],
+        rendering_backend=rendering or "none",
     )
 
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -15,13 +15,16 @@ from . import agents
 gym.register(
     id="{{ task.id }}",
 {% if task.workflow.name == "direct" %}
-    entry_point=f"{__name__}.{{ task.filename }}_env:{{ task.classname }}Env",
+    entry_point=f"{__name__}.{{ task.env_filename }}:{{ task.classname }}Env",
 {% else %}
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
 {% endif %}
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.{{ task.filename }}_env_cfg:{{ task.classname }}EnvCfg",
+        "env_cfg_entry_point": f"{__name__}.{{ task.env_cfg_filename }}:{{ task.classname }}EnvCfg",
+{% if rl_libraries | length == 1 %}
+        "default_agent": "{{ rl_libraries[0].name }}",
+{% endif %}
 {# RL libraries configurations #}
 {% for rl_library in rl_libraries %}
   {% for algorithm in rl_library.algorithms %}

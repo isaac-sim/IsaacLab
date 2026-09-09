@@ -5,10 +5,17 @@
 
 """Configuration for Isaac RTX (Replicator) Renderer."""
 
-from typing import Any, Literal
+from __future__ import annotations
+
+from dataclasses import field
+from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
+
+if TYPE_CHECKING:
+    from .isaac_rtx_renderer import IsaacRtxRenderer
 
 
 @configclass
@@ -86,6 +93,15 @@ class IsaacRtxRendererGlobalSettingsCfg:
     view_tile_limit: int | None = None
     """Maximum number of view tiles."""
 
+    show_all_partitions_by_default: bool | None = None
+    """Optionally show partitioned content in cameras without a partition token.
+
+    ``None`` preserves the launch-time setting. :class:`~isaaclab.app.AppLauncher`
+    enables the all-environment spectator view before RTX startup when the Kit
+    viewport is enabled or Kit visualization, recording, livestreaming, or XR is
+    requested. Environments must be spatially separated when this setting is enabled.
+    """
+
     carb_settings: dict[str, Any] | None = None
     """Raw carb settings applied after named fields."""
 
@@ -99,11 +115,22 @@ class IsaacRtxRendererCfg(RendererCfg):
     pipeline.
     """
 
+    class_type: type[IsaacRtxRenderer] | str = "{DIR}.isaac_rtx_renderer:IsaacRtxRenderer"
+    """Renderer implementation class."""
+
     renderer_type: str = "isaac_rtx"
     """Type identifier for Isaac RTX renderer."""
 
     global_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
     """Global Kit/RTX quality settings applied before RTX Hydra attach."""
+
+    enable_scene_partitioning: bool = field(default_factory=isaac_rtx_per_env_scene_partition_enabled)
+    """Enable per-environment scene-partition authoring.
+
+    Enabled by default. Assigning this field explicitly overrides the construction
+    default. The legacy ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION``
+    environment variable still supplies that default when set.
+    """
 
     semantic_filter: str | list[str] = "*:*"
     """A string or a list specifying a semantic filter predicate. Defaults to ``"*:*"``.

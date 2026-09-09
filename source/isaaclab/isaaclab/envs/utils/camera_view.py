@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import math
 import random
+import re
 from typing import Any
 
 import numpy as np
@@ -72,6 +73,9 @@ def resolve_mono_env_index(num_envs: int) -> list[int]:
     return [0] if num_envs > 0 else []
 
 
+_ENV_SLOT_WILDCARD = re.compile(r"env_(?:\[\^/\][*+]|\.\*)")
+
+
 def env_path_from_template(path_template: str, env_id: int) -> str:
     """Resolve common env wildcard/template spellings to a concrete env path."""
     path = path_template
@@ -80,9 +84,9 @@ def env_path_from_template(path_template: str, env_id: int) -> str:
     if "{}" in path:
         return path.format(env_id)
     path = path.replace("/World/envs/*", f"/World/envs/env_{env_id}")
-    path = path.replace("/World/envs/env_.*", f"/World/envs/env_{env_id}")
-    path = path.replace("/World/envs/env_.*/", f"/World/envs/env_{env_id}/")
-    return path
+    # the env slot is a segment wildcard; match every spelling rather than one, so a namespace
+    # written with a different quantifier still resolves to a concrete env.
+    return _ENV_SLOT_WILDCARD.sub(f"env_{env_id}", path)
 
 
 def _camera_concrete_paths(camera: Camera) -> list[str]:
@@ -382,7 +386,7 @@ def create_visualizer_camera(
             attr = cam_prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token)
         attr.Set(path.split("/")[-2])
     cfg = CameraCfg(
-        prim_path=f"/World/envs/env_.*/{camera_name}",
+        prim_path=f"/World/envs/env_[^/]+/{camera_name}",
         update_period=0.0,
         height=int(height),
         width=int(width),

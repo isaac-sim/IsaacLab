@@ -96,7 +96,7 @@ def generate_cubes_scene(
         )
     # Create deformable object
     cube_object_cfg = DeformableObjectCfg(
-        prim_path="/World/Table_.*/Object",
+        prim_path="/World/Table_[^/]*/Object",
         spawn=spawn_cfg,
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height), rot=initial_rot),
     )

@@ -414,7 +414,7 @@ class DeformableObject(BaseDeformableObject):
             )
 
         root_pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_path_expr)
-        root_pattern = re.sub(r"\.\*", "*", root_pattern)
+        root_pattern = sim_utils.path_expr_to_glob(root_pattern)
         try:
             self._root_physx_view = OvPhysxDeformableBodyView(
                 physx_instance,
@@ -440,7 +440,7 @@ class DeformableObject(BaseDeformableObject):
                 else material_path
             )
             material_pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", material_path_expr)
-            material_pattern = re.sub(r"\.\*", "*", material_pattern)
+            material_pattern = sim_utils.path_expr_to_glob(material_pattern)
             material_tensor_types = [
                 TT.DEFORMABLE_MATERIAL_DYNAMIC_FRICTION,
                 TT.DEFORMABLE_MATERIAL_YOUNGS_MODULUS,

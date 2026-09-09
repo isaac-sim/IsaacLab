@@ -80,7 +80,8 @@ _pinned_versions = _read_pinned_versions()
 isaacsim_version = _pinned_versions["isaacsim"]
 torch_version = _pinned_versions["torch"]
 torchvision_version = _pinned_versions["torchvision"]
-ovrtx_spec = _pinned_versions["ovrtx"]
+ovrtx_version = _pinned_versions["ovrtx"]
+ovrtx_spec = f"=={ovrtx_version}" if ovrtx_version[0].isdigit() else ovrtx_version
 ovphysx_version = _pinned_versions["ovphysx"]
 
 # Short version strings used in external documentation URLs and badges.
@@ -210,7 +211,7 @@ exclude_patterns = [
     "licenses/*",
     "plans",
     # Include-only fragments (pulled in via ``.. include::``; not standalone pages).
-    "source/setup/installation/include/*",
+    "source/migration/include/*",
 ]
 
 # Mock out modules that are not available on RTD
@@ -324,9 +325,16 @@ html_last_updated_fmt = ""  # to reveal the build date in the pages meta
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["source/_static/css"]
-html_css_files = ["custom.css", "environment-browser.css"]
-html_js_files = ["environment-browser.js"]
+html_static_path = ["source/_static"]
+html_css_files = [
+    "css/custom.css",
+    "css/environment-browser.css",
+    "css/demo-browser.css",
+]
+html_js_files = [
+    "css/environment-browser.js",
+    "css/demo-browser.js",
+]
 
 html_theme_options = {
     "path_to_docs": "docs/",

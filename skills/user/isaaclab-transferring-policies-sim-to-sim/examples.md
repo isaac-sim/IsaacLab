@@ -8,6 +8,10 @@ Keep one MDP for the registered task, resolve and audit each backend's `PresetCf
 
 Use the same contract and control settings, reproduce NN with the explicit checkpoint, and run NP in PhysX. Keep the training and inference task IDs from the how-to.
 
+## PhysX-Trained ANYmal D Or G1 To MJWarp
+
+Both robots branch, so PhysX and MJWarp expose different joint and body axes. Add `env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx` to the Newton replay so the checkpoint's PhysX column semantics are preserved, and use `mjwarp` on both fields for the reverse direction. Only after the axes agree are remaining differences attributable to contacts, friction, and actuator response.
+
 ## Duplicate PhysX Finger Drive
 
 If one logical gripper command produces more effort in PhysX, check whether both fingers received nonzero stiffness and damping. Drive `panda_finger_joint1`; make `panda_finger_joint2` passive while retaining it for the mimic constraint.

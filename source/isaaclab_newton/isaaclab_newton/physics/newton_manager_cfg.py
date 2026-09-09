@@ -54,6 +54,28 @@ class NewtonSolverCfg:
 
 
 @configclass
+class NewtonSoftContactCfg:
+    """Global soft-contact parameters applied to the finalized Newton model."""
+
+    soft_contact_ke: float = 1.0e3
+    """Body-particle and particle self-contact stiffness [N/m].
+
+    Effective body-particle stiffness is ``0.5 * (soft_contact_ke + shape_ke)``,
+    where ``shape_ke`` is the rigid shape's material stiffness.
+    """
+
+    soft_contact_kd: float = 10.0
+    """Body-particle contact damping [N*s/m]."""
+
+    soft_contact_mu: float = 0.5
+    """Body-particle contact friction coefficient [dimensionless].
+
+    Effective body-particle friction is ``sqrt(soft_contact_mu * shape_mu)``,
+    where ``shape_mu`` is the rigid shape's material friction coefficient.
+    """
+
+
+@configclass
 class NewtonShapeCfg:
     """Default per-shape collision properties applied to all shapes in a Newton scene.
 
@@ -158,6 +180,12 @@ class NewtonCfg(PhysicsCfg):
     solver_cfg: NewtonSolverCfg | None = None
     """Solver configuration. If None (default), MJWarpSolverCfg is used by default."""
 
+    soft_contact_cfg: NewtonSoftContactCfg | None = None
+    """Global soft-contact parameters applied after model finalization.
+
+    If ``None``, Newton model defaults are preserved.
+    """
+
     collision_cfg: NewtonCollisionPipelineCfg | None = None
     """Newton collision pipeline configuration.
 
@@ -168,6 +196,7 @@ class NewtonCfg(PhysicsCfg):
     - :class:`KaminoPADMMSolverCfg` or :class:`KaminoDVISolverCfg` with
       ``use_collision_detector=False``,
     - :class:`XPBDSolverCfg` (always),
+    - :class:`VBDSolverCfg` (always),
     - :class:`FeatherstoneSolverCfg` (always).
 
     :class:`~isaaclab_newton.physics.MPMSolverCfg` does not use this pipeline;
@@ -247,6 +276,7 @@ class NewtonCfg(PhysicsCfg):
             from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 
             self.solver_cfg = MJWarpSolverCfg()
+
         self.class_type = self.solver_cfg.class_type
 
         # Mid-tick re-collide is silently disabled when collision_decimation >= num_substeps.

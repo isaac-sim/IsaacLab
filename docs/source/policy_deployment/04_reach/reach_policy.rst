@@ -199,8 +199,8 @@ Each robot has specific actuator configurations and workspace definitions.
                 # Joints 1-2: Higher torque (123 Nm), lower speed
                 "shoulder": ImplicitActuatorCfg(
                     joint_names_expr=["joint[1-2]"],
-                    effort_limit_sim=123.0,
-                    velocity_limit_sim=2.094,  # 120 deg/s
+                    joint_effort_limit=123.0,
+                    joint_velocity_limit=2.094,  # 120 deg/s
                     stiffness=6000.0,
                     damping=108.5,
                     friction=0.0,
@@ -209,8 +209,8 @@ Each robot has specific actuator configurations and workspace definitions.
                 # Joints 3-4: Medium torque (64 Nm), medium speed
                 "elbow": ImplicitActuatorCfg(
                     joint_names_expr=["joint[3-4]"],
-                    effort_limit_sim=64.0,
-                    velocity_limit_sim=2.443,  # 140 deg/s
+                    joint_effort_limit=64.0,
+                    joint_velocity_limit=2.443,  # 140 deg/s
                     stiffness=4200.0,
                     damping=90.7,
                     friction=0.0,
@@ -219,8 +219,8 @@ Each robot has specific actuator configurations and workspace definitions.
                 # Joints 5-7: Lower torque (39 Nm), higher speed
                 "wrist": ImplicitActuatorCfg(
                     joint_names_expr=["joint[5-7]"],
-                    effort_limit_sim=39.0,
-                    velocity_limit_sim=4.887,  # 280 deg/s
+                    joint_effort_limit=39.0,
+                    joint_velocity_limit=4.887,  # 280 deg/s
                     stiffness=1500.0,
                     damping=54.2,
                     friction=0.0,

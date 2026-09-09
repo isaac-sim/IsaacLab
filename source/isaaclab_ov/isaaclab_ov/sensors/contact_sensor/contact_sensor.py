@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 
 from isaaclab.sensors.contact_sensor import BaseContactSensor
-from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source, split_path_expr
 from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_ov.tensor_types as TT
@@ -194,7 +194,8 @@ class ContactSensor(BaseContactSensor):
         # library is loaded by ``omni.physx``.  The unfiltered API matches what
         # the underlying USD apiSchemas listOp actually carries (verified against
         # :class:`pxr.Sdf.PrimSpec.GetInfo("apiSchemas")`).
-        parent_expr, leaf_pattern = self.cfg.prim_path.rsplit("/", 1)
+        *parent_segments, leaf_pattern = split_path_expr(self.cfg.prim_path)
+        parent_expr = "/".join(parent_segments)
         name_pattern = re.compile(leaf_pattern)
 
         def has_contact_report(prim) -> bool:
@@ -218,11 +219,11 @@ class ContactSensor(BaseContactSensor):
         # hierarchies (child links authored under their parent link prim), where the bodies do
         # not share a parent. IsaacLab path forms map to ovphysx fnmatch globs the same way
         # Articulation does.
-        sensor_patterns = [re.sub(r"\.\*", "*", re.sub(r"\{ENV_REGEX_NS\}", "*", expr)) for _, expr in body_matches]
+        sensor_patterns = [path_expr_to_glob(re.sub(r"\{ENV_REGEX_NS\}", "*", expr)) for _, expr in body_matches]
 
         # Build filter patterns (flat: len = n_sensors * filters_per_sensor).
         filter_globs = [
-            re.sub(r"\.\*", "*", re.sub(r"\{ENV_REGEX_NS\}", "*", expr)) for expr in self.cfg.filter_prim_paths_expr
+            path_expr_to_glob(re.sub(r"\{ENV_REGEX_NS\}", "*", expr)) for expr in self.cfg.filter_prim_paths_expr
         ]
         filters_per_sensor = len(filter_globs)
         if filters_per_sensor > 0:
@@ -366,10 +367,10 @@ class ContactSensor(BaseContactSensor):
                 self._timestamp_last_update,
             ],
             outputs=[
-                self._data._net_forces_w,
-                self._data._net_forces_w_history,
-                self._data._force_matrix_w,
-                self._data._force_matrix_w_history,
+                self._data._net_normal_forces_w,
+                self._data._net_normal_forces_w_history,
+                self._data._normal_force_matrix_w,
+                self._data._normal_force_matrix_w_history,
                 self._data._current_air_time,
                 self._data._current_contact_time,
                 self._data._last_air_time,
@@ -405,27 +406,32 @@ class ContactSensor(BaseContactSensor):
                 self._history_length,
                 self._num_filter_shapes,
                 env_mask,
-                self._data._net_forces_w,
-                self._data._net_forces_w_history,
-                self._data._force_matrix_w,
+                self._data._net_normal_forces_w,
+                self._data._net_normal_forces_w_history,
+                self._data._normal_force_matrix_w,
+                self._data._normal_force_matrix_w_history,
             ],
             outputs=[
                 self._data._current_air_time,
                 self._data._last_air_time,
                 self._data._current_contact_time,
                 self._data._last_contact_time,
-                self._data._friction_forces_w,
+                self._data._friction_force_matrix_w,
+                self._data._friction_force_matrix_w_history,
                 self._data._contact_pos_w,
             ],
             device=self._device,
         )
 
-    def compute_first_contact(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
+    def compute_first_contact(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
         """Boolean mask (as float) of bodies that established contact within ``dt`` [s].
+
+        Outdated sensor buffers are refreshed before the comparison.
 
         Args:
             dt: Time window since contact establishment [s].
-            abs_tol: Absolute tolerance for the comparison [s].
+            abs_tol: Absolute tolerance for the comparison [s]. Defaults to None, in which case
+                half the sensor update interval is used.
 
         Returns:
             Boolean tensor (1.0/0.0) of shape ``(num_envs, num_sensors)``.
@@ -438,21 +444,27 @@ class ContactSensor(BaseContactSensor):
                 "The contact sensor is not configured to track contact time."
                 " Please enable 'track_air_time' in the sensor configuration."
             )
+        tol = self._resolve_first_transition_tolerance(abs_tol)
+        # refresh lazily updated buffers so the timers reflect the current physics step
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_contact_time],
+            inputs=[float(dt + tol), self._data._current_contact_time],
             outputs=[self._data._first_transition],
             device=self._device,
         )
         return self._data._first_transition_ta
 
-    def compute_first_air(self, dt: float, abs_tol: float = 1.0e-8) -> ProxyArray:
+    def compute_first_air(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
         """Boolean mask (as float) of bodies that broke contact within ``dt`` [s].
+
+        Outdated sensor buffers are refreshed before the comparison.
 
         Args:
             dt: Time window since contact break [s].
-            abs_tol: Absolute tolerance for the comparison [s].
+            abs_tol: Absolute tolerance for the comparison [s]. Defaults to None, in which case
+                half the sensor update interval is used.
 
         Returns:
             Boolean tensor (1.0/0.0) of shape ``(num_envs, num_sensors)``.
@@ -465,10 +477,13 @@ class ContactSensor(BaseContactSensor):
                 "The contact sensor is not configured to track air time."
                 " Please enable 'track_air_time' in the sensor configuration."
             )
+        tol = self._resolve_first_transition_tolerance(abs_tol)
+        # refresh lazily updated buffers so the timers reflect the current physics step
+        self._update_outdated_buffers()
         wp.launch(
             compute_first_transition_kernel,
             dim=(self._num_envs, self._num_sensors),
-            inputs=[float(dt + abs_tol), self._data._current_air_time],
+            inputs=[float(dt + tol), self._data._current_air_time],
             outputs=[self._data._first_transition],
             device=self._device,
         )

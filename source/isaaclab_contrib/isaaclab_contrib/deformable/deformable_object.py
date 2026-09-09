@@ -40,7 +40,7 @@ class DeformableRegistryEntry:
     """Entry in the deformable body registry.
 
     Registered by :class:`DeformableObject` during ``__init__``, consumed by
-    ``newton_physics_replicate`` inside the per-world ``begin_world``/``end_world`` loop.
+    the Newton clone context inside the per-world ``begin_world``/``end_world`` loop.
     After replication, ``particle_offsets`` and ``particles_per_body`` are filled in
     so the asset can bind to the correct particle ranges.
     """
@@ -65,7 +65,7 @@ class DeformableRegistryEntry:
     k_mu: float = 1e5
     k_lambda: float = 1e5
     k_damp: float = 0.0
-    # Filled by newton_physics_replicate:
+    # Filled by the Newton clone context:
     particle_offsets: list[int] = field(default_factory=list)
     particles_per_body: int = 0
 
@@ -80,8 +80,8 @@ def add_deformable_entry_to_builder(
     builder,
     entry: DeformableRegistryEntry,
     env_idx: int,
-    env_position: list[float],
-    env_rotation: list[float] | tuple[float, float, float, float],
+    env_position: np.ndarray,
+    env_rotation: np.ndarray,
 ) -> None:
     """Add a deformable registry entry to a Newton ``ModelBuilder`` for one environment.
 
@@ -173,8 +173,8 @@ def add_deformable_entry_to_builder(
 def add_registered_deformables_to_builder(
     builder,
     world_idx: int,
-    env_position: list[float],
-    env_rotation: list[float] | tuple[float, float, float, float],
+    env_position: np.ndarray,
+    env_rotation: np.ndarray,
 ) -> None:
     """Add all registered deformable entries to one Newton builder world."""
     for entry in SimulationManager._deformable_registry:
@@ -203,8 +203,9 @@ def setup_registered_deformable_fabric_sync(manager_cls: type[SimulationManager]
     synced_any = False
     for entry in manager_cls._deformable_registry:
         for inst_idx, offset in enumerate(entry.particle_offsets):
-            resolved_vis = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.vis_mesh_prim_path)
-            resolved_vis = re.sub(r"\.\*", str(inst_idx), resolved_vis)
+            resolved_vis = re.sub(r"(?<=[Ee]nv_)(?:\[\^/\][*+]|\.\*)", str(inst_idx), entry.vis_mesh_prim_path)
+            # any wildcard left over stands for the instance too, in whichever way it is spelled
+            resolved_vis = re.sub(r"\[\^/\][*+]|\.\*", str(inst_idx), resolved_vis)
             vis_prim = stage.GetPrimAtPath(resolved_vis)
 
             if not vis_prim or not vis_prim.IsValid():
@@ -868,7 +869,7 @@ class DeformableObject(BaseDeformableObject):
         if self._num_instances == 0:
             raise RuntimeError(
                 f"No deformable body instances found for '{self.cfg.prim_path}'. "
-                "Ensure newton_physics_replicate or MODEL_INIT processed the registry."
+                "Ensure clone-plan replication or MODEL_INIT processed the registry."
             )
 
         logger.info("Newton deformable object initialized at: %s", self.cfg.prim_path)

@@ -107,7 +107,7 @@ def view_factory(request):
             sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=CHILD_OFFSET, stage=stage)
 
         sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-        view = FrameView("/World/Parent_.*/Child", device=device)
+        view = FrameView("/World/Parent_[^/]*/Child", device=device)
         # close() is idempotent, so this is safe even for tests that close (or
         # tear down) themselves; it keeps views from being reaped by garbage
         # collection, which would log the missing-close() warning per test.
@@ -133,6 +133,36 @@ def view_factory(request):
 # ------------------------------------------------------------------
 # Fabric-specific tests (not in shared contract)
 # ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_float_scale_initializes_fabric(device):
+    """A legal float3 scale initializes Fabric without changing the FP32 view contract."""
+    _skip_if_unavailable(device)
+
+    stage = sim_utils.get_current_stage()
+    prim = stage.DefinePrim("/World/SiteGuide", "Sphere")
+    xformable = UsdGeom.Xformable(prim)
+    xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Vec3f(0.1, -0.2, 0.3))
+    xformable.AddOrientOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Quatf(1.0, Gf.Vec3f(0.0)))
+    xformable.AddScaleOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Vec3f(0.01, 0.02, 0.03))
+
+    sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
+    view = FrameView("/World/SiteGuide", device=device)
+    try:
+        assert isinstance(prim.GetAttribute("xformOp:scale").Get(), Gf.Vec3f)
+
+        world_positions, _ = view.get_world_poses()
+        expected_position = torch.tensor([[0.1, -0.2, 0.3]], dtype=torch.float32, device=device)
+        torch.testing.assert_close(world_positions.torch, expected_position, atol=1e-6, rtol=0)
+
+        expected_scale = torch.tensor([[0.01, 0.02, 0.03]], dtype=torch.float32, device=device)
+        scales = view.get_local_scales()
+        assert scales.warp.dtype == wp.float32
+        assert scales.torch.dtype == torch.float32
+        torch.testing.assert_close(scales.torch, expected_scale, atol=1e-6, rtol=0)
+    finally:
+        view.close()
 
 
 @wp.kernel
@@ -368,7 +398,7 @@ def test_garbage_collection_removes_index_attributes_and_warns(device, caplog):
         sim_utils.create_prim(f"/World/Parent_{i}", "Xform", translation=PARENT_POS, stage=stage_usd)
         sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=CHILD_OFFSET, stage=stage_usd)
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-    view = FrameView("/World/Parent_.*/Child", device=device)
+    view = FrameView("/World/Parent_[^/]*/Child", device=device)
     view.get_world_poses()
 
     child_attr = view._child_index_attr
@@ -549,7 +579,7 @@ def _build_rotated_parent_view(device: str) -> "FrameView":
     )
     sim_utils.create_prim("/World/Parent_0/Child", "Camera", translation=(0.0, 0.0, 0.0), stage=stage)
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-    view = FrameView("/World/Parent_.*/Child", device=device)
+    view = FrameView("/World/Parent_[^/]*/Child", device=device)
     view.get_world_poses()  # force Fabric init and USD→Fabric seed
     return view
 
@@ -630,7 +660,7 @@ def test_initial_seed_with_scaled_parent(device):
         stage=stage,
     )
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-    view = FrameView("/World/Parent_.*/Child", device=device)
+    view = FrameView("/World/Parent_[^/]*/Child", device=device)
 
     world_pos, _ = view.get_world_poses()
     torch.testing.assert_close(
@@ -674,8 +704,8 @@ def test_multi_view_writer_isolation(device):
     sim_utils.create_prim("/World/EnvB_0/ChildB", "Camera", translation=(0.2, 0.0, 0.0), stage=stage)
 
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-    view_a = FrameView("/World/EnvA_.*/ChildA", device=device)
-    view_b = FrameView("/World/EnvB_.*/ChildB", device=device)
+    view_a = FrameView("/World/EnvA_[^/]*/ChildA", device=device)
+    view_b = FrameView("/World/EnvB_[^/]*/ChildB", device=device)
 
     expected_a0 = torch.tensor([[0.1, 0.0, 1.0]], dtype=torch.float32, device=device)
     expected_b0 = torch.tensor([[0.2, 0.0, 2.0]], dtype=torch.float32, device=device)
@@ -829,7 +859,7 @@ def _build_two_child_view(device: str) -> "FrameView":
         )
         sim_utils.create_prim(f"/World/Parent_{i}/Child", "Camera", translation=(0.0, 0.0, 0.0), stage=stage)
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
-    view = FrameView("/World/Parent_.*/Child", device=device)
+    view = FrameView("/World/Parent_[^/]*/Child", device=device)
     view.get_world_poses()  # force init
     return view
 

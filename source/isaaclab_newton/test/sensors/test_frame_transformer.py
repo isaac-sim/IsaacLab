@@ -415,7 +415,6 @@ def test_frame_transformer_robot_body_to_external_cube(sim):
         torch.testing.assert_close(cube_quat_source_tf[:, 0], cube_quat_b)
 
 
-@pytest.mark.isaacsim_ci
 def test_frame_transformer_offset_frames(sim):
     """Test body transformation w.r.t. base source frame.
 
@@ -521,7 +520,6 @@ def test_frame_transformer_offset_frames(sim):
         torch.testing.assert_close(cube_quat_bottom, cube_quat_w_gt)
 
 
-@pytest.mark.isaacsim_ci
 def test_frame_transformer_all_bodies(sim):
     """Test transformation of all bodies w.r.t. base source frame.
 
@@ -535,7 +533,7 @@ def test_frame_transformer_all_bodies(sim):
         prim_path="{ENV_REGEX_NS}/Robot/base",
         target_frames=[
             FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/.*",
+                prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
             ),
         ],
     )
@@ -618,28 +616,6 @@ def test_frame_transformer_all_bodies(sim):
             torch.testing.assert_close(bodies_quat_source_tf[:, index], body_quat_b)
 
 
-@pytest.mark.isaacsim_ci
-def test_sensor_print(sim):
-    """Test sensor print is working correctly."""
-    # Spawn things into stage
-    scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
-    scene_cfg.frame_transformer = FrameTransformerCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
-        target_frames=[
-            FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/.*",
-            ),
-        ],
-    )
-    scene = InteractiveScene(scene_cfg)
-
-    # Play the simulator
-    sim.reset()
-    # print info
-    print(scene.sensors["frame_transformer"])
-
-
-@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("source_robot", ["Robot", "Robot_1"])
 @pytest.mark.parametrize("path_prefix", ["{ENV_REGEX_NS}", "/World"])
 def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):

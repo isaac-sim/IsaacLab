@@ -44,6 +44,7 @@ simulation_app = app_launcher.app
 
 import random
 
+import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
@@ -64,8 +65,8 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     # Create interface to clone the scene
     # Create environment clones using Lab's cloner utilities
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
-    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=10.0, device=sim.device)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=10.0)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")
     # Define the scene
@@ -109,7 +110,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
         lab_cloner.ClonePlan(
             sources=(env_fmt.format(0),),
             destinations=(env_fmt,),
-            clone_mask=torch.ones((1, num_envs), dtype=torch.bool, device=sim.device),
+            clone_mask=np.ones((1, num_envs), dtype=np.bool_),
         )
     )
     # PhysX-only optimization: filter collisions across env clones. Skip on Newton —
@@ -156,11 +157,11 @@ def main():
     ]
     if args_cli.num_objects != 0:
         mesh_targets.append(
-            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="/World/envs/env_.*/object_.*", track_mesh_transforms=True)
+            MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/object_[^/]*", track_mesh_transforms=True)
         )
     # Create a ray-caster sensor
     ray_caster_cfg = MultiMeshRayCasterCfg(
-        prim_path="/World/envs/env_.*/ball",
+        prim_path="{ENV_REGEX_NS}/ball",
         mesh_prim_paths=mesh_targets,
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(1.6, 1.0)),
         ray_alignment="yaw",
@@ -169,7 +170,7 @@ def main():
     ray_caster = MultiMeshRayCaster(cfg=ray_caster_cfg)
     # Create a view over all the balls
     balls_cfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/ball",
+        prim_path="{ENV_REGEX_NS}/ball",
         spawn=None,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
     )

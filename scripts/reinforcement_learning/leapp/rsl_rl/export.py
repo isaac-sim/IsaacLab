@@ -37,9 +37,11 @@ retrieve_file_path = None
 patch_env_for_export = None
 ensure_env_spec_id = None
 get_published_pretrained_checkpoint = None
+get_pretrained_checkpoint_backend_names = None
 get_checkpoint_path = None
 hydra_task_config = None
 installed_version = None
+create_graph_configs = None
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
@@ -66,9 +68,11 @@ def _load_runtime_dependencies() -> None:
     global _RUNTIME_IMPORTS_LOADED
     global annotate, leapp, torch
     global DistillationRunner, ManagerBasedRLEnv, OnPolicyRunner, RslRlVecEnvWrapper, get_checkpoint_path, gym
-    global ensure_env_spec_id, get_published_pretrained_checkpoint, handle_deprecated_rsl_rl_cfg, hydra_task_config
+    global ensure_env_spec_id, get_pretrained_checkpoint_backend_names, get_published_pretrained_checkpoint
+    global handle_deprecated_rsl_rl_cfg, hydra_task_config
     global installed_version
     global patch_env_for_export, retrieve_file_path
+    global create_graph_configs
 
     if _RUNTIME_IMPORTS_LOADED:
         return
@@ -93,12 +97,20 @@ def _load_runtime_dependencies() -> None:
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper as RslRlVecEnvWrapperCls
     from isaaclab_rl.rsl_rl import handle_deprecated_rsl_rl_cfg as handle_deprecated_rsl_rl_cfg_fn
     from isaaclab_rl.utils.pretrained_checkpoint import (
+        get_pretrained_checkpoint_backend_names as get_pretrained_checkpoint_backend_names_fn,
+    )
+    from isaaclab_rl.utils.pretrained_checkpoint import (
         get_published_pretrained_checkpoint as get_published_pretrained_checkpoint_fn,
     )
 
     __import__("isaaclab_tasks")
     from isaaclab_tasks.utils import get_checkpoint_path as get_checkpoint_path_fn
     from isaaclab_tasks.utils.hydra import hydra_task_config as hydra_task_config_fn
+
+    _leapp_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _leapp_scripts_dir not in sys.path:
+        sys.path.insert(0, _leapp_scripts_dir)
+    from export_utils import create_graph_configs as create_graph_configs_fn
 
     installed_version = metadata.version("rsl-rl-lib")
     if packaging_version_module.parse(installed_version) < packaging_version_module.parse(RSL_RL_MIN_VERSION):
@@ -119,9 +131,11 @@ def _load_runtime_dependencies() -> None:
     retrieve_file_path = retrieve_file_path_fn
     patch_env_for_export = patch_env_for_export_fn
     ensure_env_spec_id = ensure_env_spec_id_fn
+    get_pretrained_checkpoint_backend_names = get_pretrained_checkpoint_backend_names_fn
     get_published_pretrained_checkpoint = get_published_pretrained_checkpoint_fn
     get_checkpoint_path = get_checkpoint_path_fn
     hydra_task_config = hydra_task_config_fn
+    create_graph_configs = create_graph_configs_fn
     _RUNTIME_IMPORTS_LOADED = True
 
 
@@ -232,7 +246,8 @@ def export_rsl_rl_agent(
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
     if args_cli.checkpoint == "pretrained":
-        resume_path = get_published_pretrained_checkpoint("rsl_rl", checkpoint_task_name)
+        backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+        resume_path = get_published_pretrained_checkpoint("rsl_rl", checkpoint_task_name, *backend_names)
         if not resume_path:
             print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
             return False
@@ -263,6 +278,7 @@ def export_rsl_rl_agent(
         graph_name = args_cli.export_task_name if args_cli.export_task_name is not None else task_name
 
         if isinstance(env.unwrapped, ManagerBasedRLEnv):
+            export_method = "onnx-dynamo" if args_cli.export_method is None else args_cli.export_method
             # Patch only the observation groups consumed by the actor policy.
             # This filters out the critic and teacher observation groups.
             obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
@@ -272,8 +288,13 @@ def export_rsl_rl_agent(
                 required_obs_groups = {"policy"}
             patch_env_for_export(
                 env,
-                export_method=args_cli.export_method,
+                export_method=export_method,
                 required_obs_groups=required_obs_groups,
+            )
+        elif args_cli.export_method is not None:
+            raise ValueError(
+                "--export_method is only supported for manager-based environments. For direct environments, "
+                "set export_with directly in the annotate.output_tensors() call instead."
             )
 
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
@@ -332,7 +353,11 @@ def export_rsl_rl_agent(
         leapp.stop()
         leapp_started = False
         validate = args_cli.validation_steps > 0
-        leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=validate)
+        leapp.compile_graph(
+            visualize=not args_cli.disable_graph_visualization,
+            validate=validate,
+            graph_configs=create_graph_configs(env_cfg),
+        )
     finally:
         if leapp_started:
             with contextlib.suppress(Exception):

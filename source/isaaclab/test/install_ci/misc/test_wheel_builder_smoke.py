@@ -5,18 +5,20 @@
 
 """
 Setup:
-    - bash tools/wheel_builder/build.sh
+    - uv build --wheel tools/wheel_builder --out-dir tools/wheel_builder/build/dist
     - ./isaaclab.sh -u
     - uv pip install <wheel>[sb3,skrl,rsl-rl]
 Tests:
     - import isaaclab -> verify importable
     - from isaaclab import __version__ -> verify version matches wheel filename
+    - inspect the wheel and isaaclab.__path__ -> verify the core package has a flat layout
     - from isaaclab import _deprioritize_prebundle_paths -> verify wheel exports path sanitizer
     - from isaaclab.app import AppLauncher -> verify importable
     - from isaaclab.envs import VideoRecorderCfg -> verify importable
     - from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG -> verify importable
     - from isaaclab.scene import InteractiveSceneCfg -> verify importable
     - python -m isaaclab --help -> verify CLI functional
+    - verify project-generator resources are installed
     - import pinocchio -> verify importable
     - python -c "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)"
         -> verify the RL extras omit tetrahedralization dependencies
@@ -26,6 +28,7 @@ from __future__ import annotations
 
 import glob
 import shutil
+import zipfile
 
 import pytest
 from utils import UV_Mixin, run_cmd
@@ -33,12 +36,7 @@ from utils import UV_Mixin, run_cmd
 
 @pytest.mark.smoke
 class Test_Wheel_Builder_Smoke(UV_Mixin):
-    """Test building the isaaclab wheel and installing it in a uv environment.
-
-    The extras are named individually rather than using the aggregate ``all``: this is a
-    fast smoke test of the built wheel, and ``all`` would pull Isaac Sim and both OV
-    backends in. ``test_uv_pip_install_isaaclab_all_trains_cartpole`` covers ``[all]``.
-    """
+    """Test building and installing the Isaac Lab wheel with selected RL extras."""
 
     _wheel: str = ""
     _extras: str = "[sb3,skrl,rsl-rl]"
@@ -53,13 +51,20 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         """Build the wheel and install it in a uv environment once for all tests."""
 
         cls = self.__class__
-        build_script = isaaclab_root / "tools" / "wheel_builder" / "build.sh"
-        dist_dir = isaaclab_root / "tools" / "wheel_builder" / "build" / "dist"
+        builder_dir = isaaclab_root / "tools" / "wheel_builder"
+        dist_dir = builder_dir / "build" / "dist"
+        shutil.rmtree(dist_dir, ignore_errors=True)
+        dist_dir.mkdir(parents=True)
 
-        # Build the wheel (capture output silently to avoid spamming the test log with 10k+
+        # Build through the PEP 517 entry point used by Git-source consumers. Capture output
+        # silently to avoid spamming the test log with 10k+
         # setuptools/pip lines; the captured output is included in the assertion if it fails).
-        result = run_cmd(["bash", str(build_script)], cwd=isaaclab_root, stream=False)
-        assert result.returncode == 0, f"build.sh failed:\n{result.stdout}\n{result.stderr}"
+        result = run_cmd(
+            ["uv", "build", "--wheel", str(builder_dir), "--out-dir", str(dist_dir)],
+            cwd=isaaclab_root,
+            stream=False,
+        )
+        assert result.returncode == 0, f"PEP 517 wheel build failed:\n{result.stdout}\n{result.stderr}"
 
         # Find the built wheel
         wheels = glob.glob(str(dist_dir / "isaaclab-*.whl"))
@@ -95,6 +100,27 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         assert imported_version == expected_version, (
             f"isaaclab.__version__ mismatch: expected {expected_version}, got {imported_version}"
         )
+
+    def test_isaaclab_package_has_flat_layout(self):
+        """Verify core modules are installed directly under the top-level package."""
+        with zipfile.ZipFile(self._wheel) as wheel:
+            names = set(wheel.namelist())
+
+        assert "isaaclab/app/__init__.py" in names
+        assert "isaaclab/apps/isaaclab.python.kit" in names
+        nested_prefix = "isaaclab/source/isaaclab/isaaclab/"
+        assert not any(name.startswith(nested_prefix) for name in names)
+
+        result = self.run_in_uv_env(
+            [
+                "python",
+                "-c",
+                "import isaaclab; "
+                "from pathlib import Path; "
+                "assert list(isaaclab.__path__) == [str(Path(isaaclab.__file__).parent)]",
+            ]
+        )
+        assert result.returncode == 0, f"isaaclab has multiple package roots:\n{result.stdout}\n{result.stderr}"
 
     # from isaaclab import _deprioritize_prebundle_paths
     def test_isaaclab_prebundle_path_sanitizer_exported(self):
@@ -133,6 +159,18 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         """Verify the isaaclab CLI is functional."""
         result = self.run_in_uv_env(["python", "-m", "isaaclab", "--help"])
         assert result.returncode == 0, f"isaaclab CLI help failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_project_generator_is_bundled(self):
+        """Verify the installed CLI includes the project generator."""
+        result = self.run_in_uv_env(
+            [
+                "python",
+                "-c",
+                "from isaaclab.cli.utils import ISAACLAB_ROOT; "
+                "assert (ISAACLAB_ROOT / 'tools/template/cli.py').is_file()",
+            ]
+        )
+        assert result.returncode == 0, f"project generator is missing from the wheel:\n{result.stderr}"
 
     # import pinocchio as pin; print(pin.__version__)
     def test_pinocchio_importable(self):

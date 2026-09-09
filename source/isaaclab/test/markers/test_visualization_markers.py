@@ -85,21 +85,50 @@ def test_instantiation(sim):
 
 
 @pytest.mark.parametrize(
-    ("is_rendering", "visualizers", "expected_backends"),
+    ("has_gui", "rtx_sensors", "xr_enabled", "has_offscreen_render", "visualizers", "expected_backends"),
     [
-        (True, [], ["kit"]),
-        (False, [], []),
-        (False, [KitVisualizer(KitVisualizerCfg())], ["kit"]),
-        (False, [newton_visualizer.NewtonVisualizer(NewtonGLVisualizerCfg())], ["newton"]),
-        (False, [rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())], ["newton"]),
-        (False, [viser_visualizer.ViserVisualizer(ViserVisualizerCfg())], ["newton"]),
+        (True, False, False, False, [], ["kit"]),
+        (False, True, False, False, [], ["kit"]),
+        (False, False, True, False, [], ["kit"]),
+        (False, False, False, True, [], ["kit"]),
+        (False, False, False, False, [], []),
+        (False, False, False, False, [KitVisualizer(KitVisualizerCfg())], ["kit"]),
+        (False, False, False, False, [newton_visualizer.NewtonVisualizer(NewtonGLVisualizerCfg())], ["newton"]),
+        (False, False, False, False, [rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())], ["newton"]),
+        (False, False, False, False, [viser_visualizer.ViserVisualizer(ViserVisualizerCfg())], ["newton"]),
     ],
 )
-def test_marker_backend_selection(monkeypatch, is_rendering: bool, visualizers: list, expected_backends: list[str]):
-    """Marker backend selection follows rendering state and active visualizer type."""
+def test_marker_backend_selection(
+    monkeypatch,
+    has_gui: bool,
+    rtx_sensors: bool,
+    xr_enabled: bool,
+    has_offscreen_render: bool,
+    visualizers: list,
+    expected_backends: list[str],
+):
+    """Marker backend selection follows rendering state and active visualizer type.
+
+    Regression coverage for a bug where a non-Kit-pumping visualizer (e.g. ``newton_gl``) alone
+    would still spin up the Kit/USD marker backend (because it also makes ``sim.is_rendering``
+    true), leaving raw USD marker writes undigested by Fabric. That desynced the point-instancer
+    prototype table and crashed the next PhysX GPU step. The ``newton_gl``-only case below
+    (``rtx_sensors``/``xr_enabled``/``has_gui``/``has_offscreen_render`` all False) must select
+    only the ``newton`` backend, never ``kit``.
+    """
     marker = object.__new__(VisualizationMarkers)
     marker._backends = []
-    fake_sim = type("FakeSim", (), {"is_rendering": is_rendering, "visualizers": visualizers})()
+    settings = {"/isaaclab/render/rtx_sensors": rtx_sensors, "/isaaclab/xr/enabled": xr_enabled}
+    fake_sim = type(
+        "FakeSim",
+        (),
+        {
+            "has_gui": has_gui,
+            "has_offscreen_render": has_offscreen_render,
+            "visualizers": visualizers,
+            "get_setting": lambda self, key: settings.get(key, False),
+        },
+    )()
 
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", staticmethod(lambda: fake_sim))
     monkeypatch.setattr(VisualizationMarkers, "_ensure_kit_backend", lambda self: self._backends.append("kit"))
@@ -145,6 +174,132 @@ def test_rendering_context_authors_visible_usd_point_instancer(sim):
     assert UsdGeom.Imageable(instancer_prim).GetVisibilityAttr().Get() != UsdGeom.Tokens.invisible
     assert len(instancer.GetPositionsAttr().Get()) == 2
     assert list(instancer.GetProtoIndicesAttr().Get()) == [0, 1]
+
+
+def test_environment_ids_author_point_instance_scene_partitions(sim):
+    """Per-instance environment IDs should author vertex-interpolated scene-partition tokens."""
+    from pxr import Sdf, UsdGeom
+
+    sim._has_offscreen_render = True
+    stage = sim_utils.get_current_stage()
+    for env_id in range(2):
+        env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
+        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
+
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/partitioned_marker",
+        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    )
+    test_marker = VisualizationMarkers(config)
+    test_marker.visualize(
+        translations=torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device),
+        environment_ids=torch.tensor([1, 0], device=sim.device),
+    )
+
+    instancer_prim = stage.GetPrimAtPath(test_marker.prim_path)
+    primvar = UsdGeom.PrimvarsAPI(instancer_prim).GetPrimvar("omni:scenePartition")
+    assert primvar
+    assert primvar.GetTypeName() == Sdf.ValueTypeNames.TokenArray
+    assert primvar.GetInterpolation() == UsdGeom.Tokens.vertex
+    assert list(primvar.Get()) == ["env_1", "env_0"]
+
+
+def test_unchanged_environment_ids_do_not_rebuild_scene_partitions(sim, monkeypatch):
+    """Unchanged environment IDs should not rebuild partition tokens on every call.
+
+    Marker ownership is static in most tasks, but ``visualize`` runs every frame. Rebuilding the
+    token array anyway costs a device synchronization and one string per marker per frame.
+    """
+    from pxr import Sdf, UsdGeom, Vt
+
+    sim._has_offscreen_render = True
+    stage = sim_utils.get_current_stage()
+    for env_id in range(2):
+        env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
+        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
+
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/cached_partition_marker",
+        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    )
+    test_marker = VisualizationMarkers(config)
+    translations = torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device)
+    environment_ids = torch.tensor([1, 0], device=sim.device)
+    test_marker.visualize(translations=translations, environment_ids=environment_ids)
+
+    rebuilt_token_arrays = []
+    original_token_array = Vt.TokenArray
+
+    def _counting_token_array(*args, **kwargs):
+        rebuilt_token_arrays.append(args)
+        return original_token_array(*args, **kwargs)
+
+    monkeypatch.setattr(Vt, "TokenArray", _counting_token_array)
+    # Markers move every frame while their environment ownership stays fixed.
+    test_marker.visualize(translations=translations + 0.1, environment_ids=environment_ids)
+
+    assert rebuilt_token_arrays == []
+    primvar = UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(test_marker.prim_path)).GetPrimvar("omni:scenePartition")
+    assert list(primvar.Get()) == ["env_1", "env_0"]
+
+
+def test_changed_environment_ids_reauthor_scene_partitions(sim):
+    """New environment IDs should still update the authored partition tokens."""
+    from pxr import Sdf, UsdGeom
+
+    sim._has_offscreen_render = True
+    stage = sim_utils.get_current_stage()
+    for env_id in range(2):
+        env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
+        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
+
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/updated_partition_marker",
+        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    )
+    test_marker = VisualizationMarkers(config)
+    translations = torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device)
+    test_marker.visualize(translations=translations, environment_ids=torch.tensor([1, 0], device=sim.device))
+    test_marker.visualize(translations=translations, environment_ids=torch.tensor([0, 1], device=sim.device))
+
+    primvar = UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(test_marker.prim_path)).GetPrimvar("omni:scenePartition")
+    assert list(primvar.Get()) == ["env_0", "env_1"]
+
+
+def test_environment_ids_require_active_scene_partitions(sim):
+    """Environment IDs should not partition markers when renderer stage preparation is inactive."""
+    from pxr import UsdGeom
+
+    sim._has_offscreen_render = True
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/unpartitioned_marker",
+        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    )
+    test_marker = VisualizationMarkers(config)
+    test_marker.visualize(
+        translations=torch.tensor([[0.0, 0.0, 0.0]], device=sim.device),
+        environment_ids=torch.tensor([0], device=sim.device),
+    )
+
+    instancer_prim = sim_utils.get_current_stage().GetPrimAtPath(test_marker.prim_path)
+    primvar = UsdGeom.PrimvarsAPI(instancer_prim).GetPrimvar("omni:scenePartition")
+    assert not primvar or not primvar.GetAttr().HasAuthoredValueOpinion()
+
+
+def test_environment_ids_must_match_marker_count(sim):
+    """Each marker instance should require one environment ID."""
+    sim._has_offscreen_render = True
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/mismatched_partition_marker",
+        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    )
+    test_marker = VisualizationMarkers(config)
+
+    with pytest.raises(ValueError, match="one index per marker"):
+        test_marker.visualize(
+            translations=torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device),
+            environment_ids=torch.tensor([0], device=sim.device),
+        )
 
 
 def test_first_visualize_defaults_to_first_prototype_when_count_matches_prototypes(sim):

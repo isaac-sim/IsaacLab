@@ -10,6 +10,9 @@ This script demonstrates how to run the RL environment for the cartpole balancin
 
     uv run python scripts/tutorials/03_envs/run_cartpole_rl_env.py --num_envs 32
 
+Trailing ``key=value`` arguments (e.g. ``physics=isaacsim_physx``) are forwarded as Hydra-style
+overrides to the task configuration; see :func:`~isaaclab_tasks.utils.parse_env_cfg`.
+
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -26,8 +29,8 @@ parser.add_argument("--num_envs", type=int, default=16, help="Number of environm
 AppLauncher.add_app_launcher_args(parser)
 # tutorials should open Kit visualizer by default
 parser.set_defaults(visualizer=["kit"])
-# parse the arguments
-args_cli = parser.parse_args()
+# parse the arguments, forwarding unrecognized ones as Hydra-style task config overrides
+args_cli, hydra_overrides = parser.parse_known_args()
 
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
@@ -39,15 +42,15 @@ import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
 
-from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
+from isaaclab_tasks.utils import parse_env_cfg
 
 
 def main():
     """Main function."""
     # create environment configuration
-    env_cfg = CartpoleEnvCfg()
-    env_cfg.scene.num_envs = args_cli.num_envs
-    env_cfg.sim.device = args_cli.device
+    env_cfg = parse_env_cfg(
+        "Isaac-Cartpole", device=args_cli.device, num_envs=args_cli.num_envs, overrides=hydra_overrides
+    )
     # setup RL environment
     env = ManagerBasedRLEnv(cfg=env_cfg)
 

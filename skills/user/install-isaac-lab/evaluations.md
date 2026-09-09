@@ -1,5 +1,14 @@
 # Installing Isaac Lab Evaluations
 
+## Contents
+
+- [Scenario 1: Express Install On Ubuntu 22.04](#scenario-1-express-install-on-ubuntu-2204)
+- [Scenario 2: Older Distro Routed To Downloaded Isaac Sim](#scenario-2-older-distro-routed-to-downloaded-isaac-sim)
+- [Scenario 3: Stated Preferences Override Auto-Pick](#scenario-3-stated-preferences-override-auto-pick)
+- [Scenario 4: Preflight Blocker Stops The Flow](#scenario-4-preflight-blocker-stops-the-flow)
+- [Scenario 5: Windows 11 Guided Fallback](#scenario-5-windows-11-guided-fallback)
+- [Scenario 6: China Asset Region Profile During Installation](#scenario-6-china-asset-region-profile-during-installation)
+
 ## Scenario 1: Express Install On Ubuntu 22.04
 
 Query: "Install Isaac Lab."
@@ -7,7 +16,7 @@ Query: "Install Isaac Lab."
 Expected behavior:
 
 - Runs the read-only preflight detection commands before anything else; no interview questions about use case, env manager, or method.
-- Reads the minimums from `docs/source/setup/installation/index.rst` "System requirements", routes to the automatic uv path (`installation-method-uv`), then reads that section's included `uv_run_details.inc` and uses its commands verbatim.
+- Reads the minimums from `docs/source/setup/installation/index.rst` "System requirements", routes to the automatic uv path (`installation-method-uv`), then reads that section and uses its commands verbatim.
 - Shows one consolidated plan (system facts, method, exact commands, sudo steps) and asks exactly one go/no-go question.
 - Executes all steps unattended after yes, logs to `~/.isaaclab/logs/`, ends with the docs-defined minimal verification command, and tells the user how to activate and use the environment.
 
@@ -83,3 +92,26 @@ Known failure modes:
 - Prescribes bash commands on Windows or paraphrases them into cmd form.
 - Skips the long-path support step documented for Windows.
 - Applies the Linux express unattended flow where the docs require Windows-specific handling.
+
+## Scenario 6: China Asset Region Profile During Installation
+
+Query: "Install Isaac Lab for a workstation in mainland China."
+
+Expected behavior:
+
+- Runs the normal preflight and chooses the install method from current system requirements rather than changing the
+  package source solely because of location.
+- Reads the Asset Region Profiles section in `index.rst`, includes the documented China profile setting in the single consolidated plan,
+  and handles an existing `ISAACSIM_ASSET_ROOT` according to its documented precedence.
+- Runs the normal verification with the profile selected, while stating that this does not prove every mirrored asset
+  is available.
+- Finds every required full relative path in the current availability manifest before recommending an asset-bearing
+  example, treats a missing row as not mirrored, and uses only entries marked `available`.
+- Does not use geolocation, persist shell configuration without permission, or expose hard-coded storage endpoints.
+
+Known failure modes:
+
+- Changes package indexes or install methods merely because the workstation is in China.
+- Duplicates a release-specific manifest URL, bucket name, or service endpoint in the skill.
+- Ignores `ISAACSIM_ASSET_ROOT`, causing the selected profile not to take effect.
+- Treats a successful empty-scene launch as proof that all China assets are available.

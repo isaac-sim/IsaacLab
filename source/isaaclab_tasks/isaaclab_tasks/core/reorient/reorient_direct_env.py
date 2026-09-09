@@ -28,7 +28,7 @@ from isaaclab.utils.math import (
     unscale_transform,
 )
 
-from isaaclab_tasks.core.utils import (
+from isaaclab_tasks.core.reorient.utils import (
     EpisodeErrorRecorder,
     randomize_rotation,
     sample_joint_positions_within_limits,
@@ -124,6 +124,7 @@ class ReorientDirectEnv(DirectRLEnv):
             raise ValueError(
                 f"Expected {len(cfg.actuated_joint_names)} actuated joints, found {len(self.actuated_dof_indices)}."
             )
+
         self.finger_bodies, fingertip_body_names = self.hand.find_bodies(self.cfg.fingertip_body_names)
         if len(self.finger_bodies) != len(self.cfg.fingertip_body_names):
             raise ValueError(
@@ -184,9 +185,10 @@ class ReorientDirectEnv(DirectRLEnv):
         # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
-        cloner.replicate(plan, stage=self.scene.stage)
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
+        global_paths = ("/World/ground",)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
+        cloner.replicate(plan)
         # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions(global_prim_paths=["/World/ground"])
@@ -207,8 +209,11 @@ class ReorientDirectEnv(DirectRLEnv):
         self.actions = actions.clone()
 
     def _apply_action(self) -> None:
+        # Joint actions come first, matching the manager task's action-term order. A hand whose
+        # motors also pull tendons consumes the remaining columns in its own subclass.
+        num_joint_actions = len(self.actuated_dof_indices)
         self.cur_targets[:, self.actuated_dof_indices] = unscale_transform(
-            self.actions,
+            self.actions[:, :num_joint_actions],
             self.hand_dof_lower_limits[:, self.actuated_dof_indices],
             self.hand_dof_upper_limits[:, self.actuated_dof_indices],
         )
@@ -389,7 +394,11 @@ class ReorientDirectEnv(DirectRLEnv):
         # update goal pose and markers
         self.goal_rot[env_ids] = new_rot
         goal_pos = self.goal_pos + self.scene.env_origins
-        self.goal_markers.visualize(goal_pos, self.goal_rot)
+        self.goal_markers.visualize(
+            goal_pos,
+            self.goal_rot,
+            environment_ids=self.scene._ALL_INDICES,
+        )
 
         self.reset_goal_buf[env_ids] = 0
 

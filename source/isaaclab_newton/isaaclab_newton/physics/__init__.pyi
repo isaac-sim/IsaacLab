@@ -25,7 +25,10 @@ __all__ = [
     "NewtonManager",
     "NewtonMJWarpManager",
     "NewtonShapeCfg",
+    "NewtonSoftContactCfg",
     "NewtonSolverCfg",
+    "NewtonVBDManager",
+    "VBDSolverCfg",
     "NewtonXPBDManager",
     "XPBDSolverCfg",
 ]
@@ -53,7 +56,10 @@ from .newton_manager import NewtonManager
 from .newton_manager_cfg import (
     NewtonCfg,
     NewtonShapeCfg,
+    NewtonSoftContactCfg,
     NewtonSolverCfg,
 )
+from .vbd_manager import NewtonVBDManager
+from .vbd_manager_cfg import VBDSolverCfg
 from .xpbd_manager import NewtonXPBDManager
 from .xpbd_manager_cfg import XPBDSolverCfg

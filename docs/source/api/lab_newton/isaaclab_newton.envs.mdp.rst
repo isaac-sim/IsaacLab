@@ -3,6 +3,12 @@ isaaclab_newton.envs.mdp
 
 .. automodule:: isaaclab_newton.envs.mdp
 
+Events
+------
+
+.. automodule:: isaaclab_newton.envs.mdp.events
+    :members:
+
 Classes
 -------
 

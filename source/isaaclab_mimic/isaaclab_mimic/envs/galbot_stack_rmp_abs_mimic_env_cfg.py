@@ -31,7 +31,6 @@ class RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg(RmpFlowGalbotLeftArmCub
         self.datagen_config.generation_select_src_per_subtask = True
         self.datagen_config.generation_transform_first_robot_pose = False
         self.datagen_config.generation_interpolate_from_last_target_pose = True
-        self.datagen_config.max_num_failures = 25
         self.datagen_config.seed = 1
 
         # The following are the subtask configurations for the stack task.
@@ -157,7 +156,6 @@ class RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg(RmpFlowGalbotRightArmC
         self.datagen_config.generation_select_src_per_subtask = True
         self.datagen_config.generation_transform_first_robot_pose = False
         self.datagen_config.generation_interpolate_from_last_target_pose = True
-        self.datagen_config.max_num_failures = 25
         self.datagen_config.seed = 1
 
         # The following are the subtask configurations for the stack task.

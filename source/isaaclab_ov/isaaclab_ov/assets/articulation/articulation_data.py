@@ -441,64 +441,6 @@ class ArticulationData(BaseArticulationData):
         self._default_joint_vel.assign(value)
 
     """
-    Joint commands -- Set into simulation.
-    """
-
-    @property
-    def joint_pos_target(self) -> ProxyArray:
-        """Joint position targets commanded by the user [m or rad, depending on joint type].
-
-        Shape is (num_instances, num_joints), dtype = wp.float32.
-        """
-        if self._joint_pos_target_ta is None:
-            self._joint_pos_target_ta = ProxyArray(self._joint_pos_target)
-        return self._joint_pos_target_ta
-
-    @property
-    def joint_vel_target(self) -> ProxyArray:
-        """Joint velocity targets commanded by the user [m/s or rad/s, depending on joint type].
-
-        Shape is (num_instances, num_joints), dtype = wp.float32.
-        """
-        if self._joint_vel_target_ta is None:
-            self._joint_vel_target_ta = ProxyArray(self._joint_vel_target)
-        return self._joint_vel_target_ta
-
-    @property
-    def joint_effort_target(self) -> ProxyArray:
-        """Joint effort targets commanded by the user [N or N*m, depending on joint type].
-
-        Shape is (num_instances, num_joints), dtype = wp.float32.
-        """
-        if self._joint_effort_target_ta is None:
-            self._joint_effort_target_ta = ProxyArray(self._joint_effort_target)
-        return self._joint_effort_target_ta
-
-    """
-    Joint commands -- Explicit actuators.
-    """
-
-    @property
-    def computed_torque(self) -> ProxyArray:
-        """Joint torques computed from the actuator model (before clipping) [N*m].
-
-        Shape is (num_instances, num_joints), dtype = wp.float32.
-        """
-        if self._computed_torque_ta is None:
-            self._computed_torque_ta = ProxyArray(self._computed_torque)
-        return self._computed_torque_ta
-
-    @property
-    def applied_torque(self) -> ProxyArray:
-        """Joint torques applied from the actuator model (after clipping) [N*m].
-
-        Shape is (num_instances, num_joints), dtype = wp.float32.
-        """
-        if self._applied_torque_ta is None:
-            self._applied_torque_ta = ProxyArray(self._applied_torque)
-        return self._applied_torque_ta
-
-    """
     Joint properties
     """
 
@@ -650,26 +592,6 @@ class ArticulationData(BaseArticulationData):
         if self._soft_joint_pos_limits_ta is None:
             self._soft_joint_pos_limits_ta = ProxyArray(self._soft_joint_pos_limits)
         return self._soft_joint_pos_limits_ta
-
-    @property
-    def soft_joint_vel_limits(self) -> ProxyArray:
-        """Soft joint velocity limits for all joints [m/s or rad/s, depending on joint type].
-
-        Shape is (num_instances, num_joints), dtype = wp.float32.
-        """
-        if self._soft_joint_vel_limits_ta is None:
-            self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
-        return self._soft_joint_vel_limits_ta
-
-    @property
-    def gear_ratio(self) -> ProxyArray:
-        """Gear ratio for relating motor torques to applied joint torques.
-
-        Shape is (num_instances, num_joints), dtype = wp.float32.
-        """
-        if self._gear_ratio_ta is None:
-            self._gear_ratio_ta = ProxyArray(self._gear_ratio)
-        return self._gear_ratio_ta
 
     """
     Fixed tendon properties.
@@ -1818,12 +1740,8 @@ class ArticulationData(BaseArticulationData):
         # -- Soft limits / custom joint properties
         self._soft_joint_pos_limits = wp.zeros((N, D), dtype=wp.vec2f, device=dev)
         self._soft_joint_vel_limits = wp.zeros((N, D), dtype=wp.float32, device=dev)
-        self._gear_ratio = wp.ones((N, D), dtype=wp.float32, device=dev)
 
-        # -- Command buffers
-        self._joint_pos_target = wp.zeros((N, D), dtype=wp.float32, device=dev)
-        self._joint_vel_target = wp.zeros((N, D), dtype=wp.float32, device=dev)
-        self._joint_effort_target = wp.zeros((N, D), dtype=wp.float32, device=dev)
+        # -- Actuator telemetry buffers
         self._computed_torque = wp.zeros((N, D), dtype=wp.float32, device=dev)
         self._applied_torque = wp.zeros((N, D), dtype=wp.float32, device=dev)
 
@@ -1862,6 +1780,8 @@ class ArticulationData(BaseArticulationData):
         self._fixed_tendon_offset = TimestampedBuffer((N, T_fix), dev, wp.float32)
         # Legacy alias kept for any internal callers that used the old vec2f buffer.
         self._fixed_tendon_pos_limits = TimestampedBuffer((N, T_fix), dev, wp.vec2f)
+        # scratch for the tendon target setters: rest_length - target before the masked/indexed write
+        self._fixed_tendon_offset_scratch = wp.zeros((N, T_fix), dtype=wp.float32, device=dev)
         self._spatial_tendon_stiffness = TimestampedBuffer((N, T_spa), dev, wp.float32)
         self._spatial_tendon_damping = TimestampedBuffer((N, T_spa), dev, wp.float32)
         self._spatial_tendon_limit_stiffness = TimestampedBuffer((N, T_spa), dev, wp.float32)
@@ -2276,7 +2196,6 @@ class ArticulationData(BaseArticulationData):
         # Joint properties (custom)
         self._soft_joint_pos_limits_ta: ProxyArray | None = None
         self._soft_joint_vel_limits_ta: ProxyArray | None = None
-        self._gear_ratio_ta: ProxyArray | None = None
         # Fixed tendon properties
         self._fixed_tendon_stiffness_ta: ProxyArray | None = None
         self._fixed_tendon_damping_ta: ProxyArray | None = None

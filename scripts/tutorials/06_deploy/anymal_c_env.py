@@ -65,9 +65,10 @@ class AnymalCEnv(DirectRLEnv):
         self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos)
-        cloner.replicate(plan, stage=self.scene.stage)
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
+        global_paths = (self.cfg.terrain.prim_path,)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
+        cloner.replicate(plan)
         # PhysX replication requires explicit collision filtering between environments.
         if "physx" in self.scene.physics_backend:
             self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
@@ -140,7 +141,7 @@ class AnymalCEnv(DirectRLEnv):
         yaw_rate_error_mapped = torch.exp(-yaw_rate_error / 0.25)
         z_vel_error = torch.square(self._robot.data.root_lin_vel_b.torch[:, 2])
         ang_vel_error = torch.sum(torch.square(self._robot.data.root_ang_vel_b.torch[:, :2]), dim=1)
-        joint_torques = torch.sum(torch.square(self._robot.data.applied_torque.torch), dim=1)
+        joint_torques = torch.sum(torch.square(self._robot.actuators.applied_effort.torch), dim=1)
         joint_accel = torch.sum(torch.square(self._robot.data.joint_acc.torch), dim=1)
         action_rate = torch.sum(torch.square(self._actions - self._previous_actions), dim=1)
         first_contact = self._contact_sensor.compute_first_contact(self.step_dt).torch[:, self._feet_ids]
@@ -148,7 +149,7 @@ class AnymalCEnv(DirectRLEnv):
         air_time = torch.sum((last_air_time - 0.5) * first_contact, dim=1) * (
             torch.linalg.norm(self._commands[:, :2], dim=1) > 0.1
         )
-        net_contact_forces = self._contact_sensor.data.net_forces_w_history.torch
+        net_contact_forces = self._contact_sensor.data.net_normal_forces_w_history.torch
         is_contact = (
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._undesired_contact_body_ids], dim=-1), dim=1)[0]
             > 1.0
@@ -175,7 +176,7 @@ class AnymalCEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         time_out = self.episode_length_buf >= self.max_episode_length - 1
-        net_contact_forces = self._contact_sensor.data.net_forces_w_history.torch
+        net_contact_forces = self._contact_sensor.data.net_normal_forces_w_history.torch
         died = torch.any(
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._base_id], dim=-1), dim=1)[0] > 1.0, dim=1
         )

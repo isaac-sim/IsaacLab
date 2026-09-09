@@ -18,7 +18,7 @@ from pxr import UsdGeom
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
 from isaaclab.cloner import queue_replication
 from isaaclab.physics import PhysicsEvent
-from isaaclab.sim.utils.queries import has_deformable_curve_api, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -196,7 +196,7 @@ class CableObject(BaseCableObject):
         articulation_path_expr = f"{curve_path_expr}_articulation"
         self._root_view = ArticulationView(
             model,
-            articulation_path_expr.replace(".*", "*"),
+            path_expr_to_glob(articulation_path_expr),
             verbose=False,
         )
         topology_error = "CableObject requires one standalone, unwelded cable articulation per simulation world."

@@ -53,12 +53,14 @@ def create_test_articulation(
         soft_joint_pos_limit_factor=1.0,
         actuators={},
     )
+    object.__setattr__(articulation, "_sim_cfg", None)
     object.__setattr__(articulation, "_initialize_handle", None)
     object.__setattr__(articulation, "_invalidate_initialize_handle", None)
     object.__setattr__(articulation, "_prim_deletion_handle", None)
     object.__setattr__(articulation, "_debug_vis_handle", None)
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
+    object.__setattr__(articulation, "_sim_cfg", None)
     object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
     object.__setattr__(articulation, "_num_instances", num_instances)
     object.__setattr__(articulation, "_num_bodies", num_bodies)
@@ -74,9 +76,16 @@ def create_test_articulation(
     data = ArticulationData(mock_view, device)
     data._apply_ordering_maps_after_resolve()
     object.__setattr__(articulation, "_data", data)
-    object.__setattr__(articulation, "actuators", {})
     object.__setattr__(articulation, "_has_implicit_actuators", False)
     articulation._create_buffers()
+
+    from isaaclab.actuators import ActuatorCollection
+
+    from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl
+
+    control = OvPhysxActuatorControl(articulation)
+    object.__setattr__(articulation, "actuators", ActuatorCollection({}, control))
+    data.bind_actuator_collection(articulation.actuators)
 
     return articulation, mock_view
 

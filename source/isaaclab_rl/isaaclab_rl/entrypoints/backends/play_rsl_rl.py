@@ -29,6 +29,7 @@ from isaaclab_rl.entrypoints.common import (
     apply_video_recording,
     create_isaaclab_env,
     pre_launch_video_config,
+    request_determinism,
     resolve_checkpoint_selector,
     resolve_play_task_name,
     show_run_summary,
@@ -41,7 +42,10 @@ from isaaclab_rl.rsl_rl import (
     export_policy_as_onnx,
     handle_deprecated_rsl_rl_cfg,
 )
-from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+from isaaclab_rl.utils.pretrained_checkpoint import (
+    get_pretrained_checkpoint_backend_names,
+    get_published_pretrained_checkpoint,
+)
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
@@ -123,6 +127,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
             agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
             env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+            # Warp reads its determinism mode at module build time, so request it before the env exists.
+            request_determinism(args_cli, env_cfg)
 
             agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
 
@@ -134,7 +140,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             log_root_path = os.path.abspath(log_root_path)
             print(f"[INFO] Loading experiment from directory: {log_root_path}")
             if args_cli.checkpoint == "pretrained":
-                resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name)
+                backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
+                resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name, *backend_names)
                 if not resume_path:
                     return
             elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
@@ -160,7 +167,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             log_dir = os.path.dirname(resume_path)
 
             env_cfg.log_dir = log_dir
-            apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
+            apply_video_recording(env_cfg, log_dir, args_cli, subdir="play", checkpoint_path=resume_path)
 
             screen.stage("Creating environment")
             env = create_isaaclab_env(
@@ -214,6 +221,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             screen.close()
             obs = env.get_observations()
             timestep = 0
+            print("[INFO] Policy playback is running, press Ctrl+C to exit...")
             try:
                 while True:
                     start_time = time.time()
@@ -230,7 +238,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                         video_stop = args_cli.video_length
                         if video_stop is None:
                             recorders = getattr(env_cfg, "video_recorders", [])
-                            video_stop = recorders[0].video_length if recorders else None
+                            video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
                         if video_stop is not None and timestep >= video_stop:
                             break
 

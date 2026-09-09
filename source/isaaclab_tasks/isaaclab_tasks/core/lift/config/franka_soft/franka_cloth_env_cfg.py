@@ -7,7 +7,13 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
+from isaaclab_newton.physics import (
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonSoftContactCfg,
+    VBDSolverCfg,
+)
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -25,7 +31,6 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
-from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -60,7 +65,7 @@ class PhysicsCfg(PresetCfg):
                         ls_iterations=20,
                         integrator="implicitfast",
                     ),
-                    bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Support(Neg|Pos)Y"],
+                    bodies=[r"/World/envs/env_[^/]+/Robot", r"/World/envs/env_[^/]+/Support(Neg|Pos)Y"],
                 ),
                 CouplerEntryCfg(
                     name="soft",
@@ -74,9 +79,9 @@ class PhysicsCfg(PresetCfg):
                     source="rigid",
                     destination="soft",
                     bodies=[
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_hand",
-                        r"/World/envs/env_.*/Robot/Geometry/.*panda_(left|right)finger",
-                        r"/World/envs/env_.*/Support(Neg|Pos)Y",
+                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_hand",
+                        r"/World/envs/env_[^/]+/Robot/Geometry/.*panda_(left|right)finger",
+                        r"/World/envs/env_[^/]+/Support(Neg|Pos)Y",
                     ],
                     collide_interval=1,
                     collision_pipeline=NewtonCollisionPipelineCfg(
@@ -85,7 +90,11 @@ class PhysicsCfg(PresetCfg):
                 )
             ],
             iterations=1,
-            model_cfg=NewtonModelCfg(soft_contact_ke=8e3, soft_contact_mu=10.0),
+        ),
+        soft_contact_cfg=NewtonSoftContactCfg(
+            soft_contact_ke=8.0e3,
+            soft_contact_kd=1.0e-2,
+            soft_contact_mu=10.0,
         ),
         num_substeps=2,
     )
@@ -116,7 +125,7 @@ class DeformableCfg(PresetCfg):
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.102), rot=(0.70710678, 0.0, 0.0, 0.70710678)),
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
-            resolution=(8, 8),
+            edge_refinement=8,
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
@@ -136,7 +145,7 @@ class DeformableCfg(PresetCfg):
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.102), rot=(0.70710678, 0.0, 0.0, 0.70710678)),
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
-            resolution=(8, 8),
+            edge_refinement=8,
             deformable_props=PhysxDeformableBodyPropertiesCfg(),
             collision_props=[PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01)],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
@@ -175,6 +184,14 @@ class FrankaClothSceneCfg(_FrankaSoftSceneCfg):
         spawn=SUPPORT_SPAWN_CFG,
     )
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+
+        # increase franka gripper stiffness
+        self.robot.actuators["panda_hand"].joint_effort_limit = 500.0
+        self.robot.actuators["panda_hand"].stiffness = 2000.0
+        self.robot.actuators["panda_hand"].damping = 100.0
+
 
 @configclass
 class FrankaClothScenePresetCfg(PresetCfg):
@@ -184,7 +201,7 @@ class FrankaClothScenePresetCfg(PresetCfg):
         num_envs=2048, env_spacing=2.0, replicate_physics=True
     )
 
-    # PhysX does not support replicating physics for deformable objects
+    # Isaac Sim PhysX does not support replicating physics for deformable objects
     physx: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
     isaacsim_physx = physx
 

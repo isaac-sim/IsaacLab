@@ -3,47 +3,22 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
-from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
-
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.physics import PhysxAutoCfg
-from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
-
-from isaaclab_tasks.utils import PresetCfg
 
 from .rough_env_cfg import G1RoughEnvCfg
 
 
 @configclass
-class PhysicsCfg(PresetCfg):
-    isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    ovphysx = OvPhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
-    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
-    newton_mjwarp = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            njmax=95,
-            nconmax=10,
-            cone="pyramidal",
-            impratio=1.0,
-            integrator="implicitfast",
-        ),
-        num_substeps=1,
-        debug_mode=False,
-    )
-    newton_kamino = NewtonCfg(solver_cfg=KaminoPADMMSolverCfg(max_contacts_per_world=64))
-    default = isaacsim_physx
-
-
-@configclass
 class G1FlatEnvCfg(G1RoughEnvCfg):
-    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
-
     def __post_init__(self):
         super().__post_init__()
 
+        # physics
+        newton_mjwarp = self.sim.physics.newton_mjwarp
+        newton_mjwarp.solver_cfg.njmax = 95
+        newton_mjwarp.solver_cfg.nconmax = 10
+        self.sim.physics.default = newton_mjwarp
         # scene
         self.scene.terrain.terrain_type = "plane"
         self.scene.terrain.terrain_generator = None
