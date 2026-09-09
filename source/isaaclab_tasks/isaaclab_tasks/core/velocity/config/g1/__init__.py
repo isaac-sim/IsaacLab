@@ -545,6 +545,50 @@ gym.register(
 
 
 gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-AirTime100-MjlabGait",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.rough_29dof_mjlab_env_cfg:G129DofRoughMjlabGaitEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+    },
+)
+
+
+gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-AirTime100-MjlabScale",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.rough_29dof_mjlab_env_cfg:G129DofRoughMjlabScaleEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+    },
+)
+
+
+gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-AirTime100-MjlabGaitScale",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.rough_29dof_mjlab_env_cfg:G129DofRoughMjlabGaitScaleEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+    },
+)
+
+
+gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-AirTime100-MjlabPosture",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.rough_29dof_mjlab_env_cfg:G129DofRoughMjlabPostureEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+    },
+)
+
+
+gym.register(
     id="Isaac-Velocity-Rough-G1-29Dof-AirTime100-Stepping",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
