@@ -478,15 +478,9 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
 
 """FrameView (non-physics frame) synchronization.
 
-A :class:`~isaaclab.sim.views.FrameView` prim -- a camera, a marker, a sensor mount -- is not a Newton
-body, so ``sync_transforms_to_usd`` does not write it.  Under PhysX the same frames are backed by
-:class:`~isaaclab_physx.sim.views.FabricFrameView`, which writes ``omni:fabric:worldMatrix`` directly,
-so Kit/RTX follows them.  These tests pin the Newton side of that contract at the same boundary the
-body tests use: the Fabric world matrix actually consumed by the renderer.
-
-Frames parented to a Newton body already track it without any site-specific sync: the body's synced
-world matrix forward-propagates onto its non-rigid-body descendants during the hierarchy pass.  The
-gap these tests cover is the frame's *own* write, which had no path to Fabric at all.
+A :class:`~isaaclab.sim.views.FrameView` prim is not a Newton body, so its *own* pose writes had no
+path to Fabric (frames parented to a body already track it via the hierarchy pass). These tests check
+the same boundary as the body tests: the Fabric world matrix the renderer consumes.
 """
 
 FRAME_LOCAL_OFFSET = (0.0, 0.0, 0.35)

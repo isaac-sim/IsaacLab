@@ -592,18 +592,12 @@ class NewtonSiteFrameView(BaseFrameView):
     def _mirror_to_fabric(self) -> None:
         """Stamp the current site world poses onto the Fabric transforms the renderer reads.
 
-        Called when a transform writer scope exits.  Newton keeps site poses in Warp state that the
-        RTX renderer never sees, so without this a write moves the frame everywhere except on screen.
-
-        Both matrices are written: the world one because that is what the renderer reads, and the
-        local one because Newton's body sync ends in a Fabric hierarchy pass that forward-propagates
-        ``parent * local`` onto non-rigid-body prims -- writing world alone would be overwritten on
-        the next render for any frame parented under a body.
-
-        Scale is deliberately left alone.  Site scales are authored per-prim and local, whereas the
-        world matrix carries the accumulated parent scale; passing an empty scale input makes the
-        composition kernel preserve whatever the matrix already holds, matching how Newton's body
-        sync treats authored USD scale.
+        Called when a transform writer scope exits; Newton keeps site poses in Warp state the RTX
+        renderer never sees. The local matrix is written too because Newton's body sync ends in a
+        Fabric hierarchy pass that forward-propagates ``parent * local``, which would otherwise
+        overwrite the world matrix for frames parented under a body. Scale is left untouched: the
+        empty scale input makes the composition kernel preserve the matrix's existing (accumulated
+        parent) scale, matching how the body sync treats authored USD scale.
         """
         if self._fabric_sel is None and not self._initialize_fabric_mirror():
             return

@@ -17,10 +17,24 @@ from isaaclab.utils.warp import fabric as fabric_utils
 logger = logging.getLogger(__name__)
 
 
-def parent_path(prim_path: str) -> str:
-    """Return the parent prim path, or ``"/"`` for a root-level prim."""
+def _parent_path(prim_path: str) -> str:
+    """Parent prim path of ``prim_path``.
+
+    Args:
+        prim_path: Absolute prim path, so it always contains a separator.
+
+    Raises:
+        RuntimeError: If the prim is directly under the stage root and thus has no non-pseudoroot
+            parent to read Fabric matrices from.
+    """
     parent = prim_path.rsplit("/", 1)[0]
-    return parent if parent else "/"
+    if not parent:
+        raise RuntimeError(
+            f"Child prim '{prim_path}' is at the stage root and has no parent prim. "
+            "A Fabric xform selection requires every prim to have a non-pseudoroot parent "
+            "with Fabric world+local matrices."
+        )
+    return parent
 
 
 class FabricXformSelection:
@@ -127,7 +141,7 @@ class FabricXformSelection:
             self.unique_parent_paths = []
             return
 
-        child_parent_paths = [parent_path(path) for path in self._prim_paths]
+        child_parent_paths = [_parent_path(path) for path in self._prim_paths]
         self.unique_parent_paths = list(dict.fromkeys(child_parent_paths))
         parent_ordinal = {path: i for i, path in enumerate(self.unique_parent_paths)}
 
