@@ -15,17 +15,6 @@ import gymnasium as gym
 
 from . import agents
 
-_RAW_CAMERA_PRESETS = (
-    "albedo",
-    "depth",
-    "rgb",
-    "semantic_segmentation",
-    "simple_shading_constant_diffuse",
-    "simple_shading_diffuse_mdl",
-    "simple_shading_full_mdl",
-)
-_FEATURE_CAMERA_PRESETS = ("resnet18", "theia_tiny")
-
 ##
 # Register Gym environments -- direct workflow.
 ##
@@ -85,19 +74,9 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_manager_camera_env_cfg:CartpoleCameraEnvCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
-        "rl_games_feature_cfg_entry_point": f"{agents.__name__}:rl_games_manager_feature_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraPPORunnerCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_cfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraPPORunnerPresetsCfg",
         "default_agent": "rsl_rl",
-        "rsl_rl_feature_cfg_entry_point": (
-            f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraFeaturePPORunnerCfg"
-        ),
-        "agent_preset_compatibility": {
-            "rl_games_cfg_entry_point": _RAW_CAMERA_PRESETS,
-            "rl_games_feature_cfg_entry_point": _FEATURE_CAMERA_PRESETS,
-            "rsl_rl_cfg_entry_point": _RAW_CAMERA_PRESETS,
-            "rsl_rl_feature_cfg_entry_point": _FEATURE_CAMERA_PRESETS,
-        },
-        "pretrained_checkpoint_preset_compatibility": {"rsl_rl": _FEATURE_CAMERA_PRESETS},
+        "pretrained_checkpoint_preset_compatibility": {"rsl_rl": ("resnet18", "theia_tiny")},
     },
 )

@@ -78,7 +78,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="Use a slower SB3 wrapper but keep all the extra training info.",
     )
     add_launcher_args(parser)
-    args_cli, hydra_args = setup_preset_cli(parser, argv, agent_library="sb3")
+    args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
     set_hydra_args(hydra_args)
     return args_cli
