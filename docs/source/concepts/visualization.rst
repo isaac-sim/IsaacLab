@@ -377,10 +377,11 @@ Visualizer Overview
 
       .. warning::
 
-         Newton RTX (OVRTX) is a kitless renderer and cannot be used in the same process as the Kit
-         visualizer or PhysX. This rules out ``presets=ovphysx`` and ``presets=isaacsim_physx``; use
-         ``presets=newton_mjwarp,ovrtx`` with ``--viz newton_rtx``, or switch to ``--viz newton_gl``,
-         ``--viz viser``, ``--viz rerun``, or ``--viz kit`` with a Kit-compatible physics backend.
+         Newton RTX (OVRTX) is a kitless renderer and cannot be used in the same process as Kit
+         (``presets=isaacsim_physx``). ``presets=ovphysx`` is itself kitless and works fine with
+         Newton RTX. Use ``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with
+         ``--viz newton_rtx``, or switch to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``,
+         or ``--viz kit`` with a Kit-compatible physics backend.
 
    .. tab-item:: Rerun
 
@@ -880,13 +881,14 @@ the other backends. Rerun uses fixed built-in viewer shading with no scene-drive
 Use ``--viz newton_gl``, ``--viz rerun``, or ``--viz viser`` with those presets, or omit
 ``--viz`` for headless execution.
 
-**Newton RTX: incompatible with Kit-based physics backends**
+**Newton RTX: incompatible with Kit**
 
 ``--viz newton_rtx`` raises a ``RuntimeError`` at startup if the active physics backend is
-``physx`` or ``ovphysx`` (e.g. ``presets=isaacsim_physx`` or ``presets=ovphysx``), since OVRTX is
-a kitless renderer and cannot share a process with Kit/PhysX. Use ``presets=newton_mjwarp,ovrtx``
-with ``--viz newton_rtx``, or switch to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``, or
-``--viz kit`` with a Kit-compatible physics backend.
+``physx`` (i.e. ``presets=isaacsim_physx``), since OVRTX is a kitless renderer and cannot share
+a process with Kit. ``presets=ovphysx`` is itself kitless and remains supported. Use
+``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with ``--viz newton_rtx``, or switch
+to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``, or ``--viz kit`` with a Kit-compatible
+physics backend.
 
 **Rerun: large environment performance**
 
