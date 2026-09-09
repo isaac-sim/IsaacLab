@@ -3039,8 +3039,14 @@ class NewtonManager(PhysicsManager):
                 cls._scene_data = SceneDataFormat.Transform()
 
             # Invalidate stale mapping when the model's body count changed (e.g. tiled → viewport
-            # test within the same process where _model was rebuilt from a different stage).
-            if cls._scene_data_mapping is not None and cls._scene_data_mapping.shape[0] != cls._model.body_count:
+            # test within the same process where _model was rebuilt from a different stage), or
+            # when the sim device changed (e.g. a --device cpu run following a --device cuda run
+            # within the same process): scene_data_provider.get_transforms launches its conversion
+            # kernel on scene_data_provider.device, which must match this mapping's own device.
+            if cls._scene_data_mapping is not None and (
+                cls._scene_data_mapping.shape[0] != cls._model.body_count
+                or str(cls._scene_data_mapping.device) != str(PhysicsManager._device)
+            ):
                 cls._scene_data_mapping = None
 
             if cls._scene_data_mapping is None:

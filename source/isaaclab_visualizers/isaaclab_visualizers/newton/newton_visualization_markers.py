@@ -65,7 +65,7 @@ class NewtonVisualizationMarkers:
         self.scales: torch.Tensor | None = None
         self.marker_indices: torch.Tensor | None = None
         self.count = len(cfg.markers)
-        self._registered_meshes: set[tuple[int, str]] = set()
+        self._registered_meshes: set[tuple[int, str, str]] = set()
         self._warned_unsupported: set[str] = set()
         self._marker_specs: dict[str, _NewtonMarkerSpec] = {
             name: _infer_newton_marker_cfg(marker_cfg) for name, marker_cfg in cfg.markers.items()
@@ -163,6 +163,13 @@ class NewtonVisualizationMarkers:
         if translations is None:
             return
 
+        # These arrays are always uploaded from CPU numpy data (``.cpu().numpy()`` below), so
+        # without an explicit ``device=`` Warp would allocate them on its process-global default
+        # device (``cuda:0`` whenever a CUDA device is present) instead of the marker/viewer
+        # device -- silently mismatching every other array the viewer holds under ``--device cpu``.
+        # Invariant for the whole call (marker state does not change mid-loop), so resolved once.
+        device = str(self.infer_device())
+
         for proto_index, (name, marker_cfg) in enumerate(self.cfg.markers.items()):
             newton_cfg = self._marker_specs[name]
             batch_name = f"{self.group_id}/{name}"
@@ -205,7 +212,7 @@ class NewtonVisualizationMarkers:
 
             if newton_cfg.renderer == "mesh":
                 mesh_name = f"{self.group_id}/meshes/{name}"
-                self._ensure_mesh_registered(viewer, mesh_name, newton_cfg)
+                self._ensure_mesh_registered(viewer, mesh_name, newton_cfg, device)
                 color = newton_cfg.color or _extract_color(marker_cfg)
                 colors = selected_translations.new_tensor(color).expand(selected_count, -1)
                 # ViewerGL gates texture sampling with material.w. Rerun and Viser ignore this flag.
@@ -215,10 +222,10 @@ class NewtonVisualizationMarkers:
                 viewer.log_instances(
                     batch_name,
                     mesh_name,
-                    wp.array(xforms.astype(np.float32), dtype=wp.transform),
-                    wp.array(selected_scales.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
-                    wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
-                    wp.array(materials.detach().cpu().numpy().astype(np.float32), dtype=wp.vec4),
+                    wp.array(xforms.astype(np.float32), dtype=wp.transform, device=device),
+                    wp.array(selected_scales.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
+                    wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
+                    wp.array(materials.detach().cpu().numpy().astype(np.float32), dtype=wp.vec4, device=device),
                     hidden=False,
                 )
             elif newton_cfg.renderer == "frame":
@@ -226,9 +233,9 @@ class NewtonVisualizationMarkers:
                 width = max(float(selected_scales.mean().item()) * 0.05, 0.0025)
                 viewer.log_lines(
                     batch_name,
-                    wp.array(starts.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
-                    wp.array(ends.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
-                    wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
+                    wp.array(starts.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
+                    wp.array(ends.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
+                    wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
                     width=width,
                     hidden=False,
                 )
@@ -237,16 +244,21 @@ class NewtonVisualizationMarkers:
         batch_name = f"{self.group_id}/{name}"
         if newton_cfg.renderer == "mesh" and newton_cfg.mesh_type is not None:
             mesh_name = f"{self.group_id}/meshes/{name}"
-            self._ensure_mesh_registered(viewer, mesh_name, newton_cfg)
+            self._ensure_mesh_registered(viewer, mesh_name, newton_cfg, str(self.infer_device()))
             viewer.log_instances(batch_name, mesh_name, None, None, None, None, hidden=True)
         elif newton_cfg.renderer == "frame":
             viewer.log_lines(batch_name, None, None, None, hidden=True)
 
-    def _ensure_mesh_registered(self, viewer: ViewerBase, mesh_name: str, newton_cfg: _NewtonMarkerSpec) -> None:
+    def _ensure_mesh_registered(
+        self, viewer: ViewerBase, mesh_name: str, newton_cfg: _NewtonMarkerSpec, device: str
+    ) -> None:
         # The marker backend is shared by all Newton-family visualizers. Mesh
         # registration is viewer-local, so the same marker mesh must be logged
-        # once per viewer (for example, once for Rerun and once for Viser).
-        registered_key = (id(viewer), mesh_name)
+        # once per viewer (for example, once for Rerun and once for Viser). Keying by device too
+        # means a registration made while ``infer_device()`` still had no marker state to go on
+        # (falls back to "cpu") is redone once the real device is known, instead of permanently
+        # caching the mesh on the wrong device.
+        registered_key = (id(viewer), mesh_name, device)
         if registered_key in self._registered_meshes or newton_cfg.mesh_type is None:
             return
         mesh = _create_mesh(newton_cfg)
@@ -254,12 +266,14 @@ class NewtonVisualizationMarkers:
         uvs_arr = mesh.uvs
         viewer.log_mesh(
             mesh_name,
-            wp.array(mesh.vertices.astype(np.float32), dtype=wp.vec3),
-            wp.array(mesh.indices.astype(np.int32), dtype=wp.int32),
-            normals=wp.array(normals_arr.astype(np.float32), dtype=wp.vec3)
+            wp.array(mesh.vertices.astype(np.float32), dtype=wp.vec3, device=device),
+            wp.array(mesh.indices.astype(np.int32), dtype=wp.int32, device=device),
+            normals=wp.array(normals_arr.astype(np.float32), dtype=wp.vec3, device=device)
             if normals_arr is not None and normals_arr.size
             else None,
-            uvs=wp.array(uvs_arr.astype(np.float32), dtype=wp.vec2) if uvs_arr is not None and uvs_arr.size else None,
+            uvs=wp.array(uvs_arr.astype(np.float32), dtype=wp.vec2, device=device)
+            if uvs_arr is not None and uvs_arr.size
+            else None,
             texture=newton_cfg.texture,
             hidden=True,
         )

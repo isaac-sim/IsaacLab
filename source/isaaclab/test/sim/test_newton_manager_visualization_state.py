@@ -604,6 +604,66 @@ def test_update_visualization_state_copies_identity_mapped_transforms(monkeypatc
     np.testing.assert_allclose(destination.numpy(), source_transforms.numpy())
 
 
+@pytest.mark.skipif(__import__("warp").get_cuda_device_count() == 0, reason="requires a CUDA device")
+def test_update_visualization_state_invalidates_stale_mapping_on_device_change(monkeypatch):
+    """A cached ``_scene_data_mapping`` from a different sim device must be rebuilt, not reused.
+
+    Regression test: ``get_transforms`` launches its conversion kernel on
+    ``scene_data_provider.device``, so a same-shape mapping array left over from a previous run on
+    a different ``--device`` within the same process (e.g. a ``--device cpu`` run following a
+    ``--device cuda`` one) would otherwise mismatch that launch and crash with an illegal memory
+    access.
+    """
+    import warp as wp
+    from isaaclab_newton.physics import NewtonManager
+
+    from isaaclab.physics import PhysicsManager
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
+
+    _reset_newton_manager_state()
+    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, provider=None: False))
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
+
+    # Backend order is reversed relative to the model's body-label order, so create_mapping
+    # returns a real (non-identity) array rather than None -- exercising the mapping path this
+    # invalidation logic guards, not the identity-mapping passthrough.
+    body_label_order = ["/World/envs/env_0/Object", "/World/envs/env_1/Object"]
+    backend_order = list(reversed(body_label_order))
+    source_transforms = wp.array(
+        [
+            [4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 1.0],  # env_1, backend order index 0
+            [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0],  # env_0, backend order index 1
+        ],
+        dtype=wp.transformf,
+        device="cpu",
+    )
+    source_data = SceneDataFormat.Transform()
+    source_data.transforms = source_transforms
+    provider_impl = SceneDataProvider(
+        SimpleNamespace(transforms=source_data, transform_paths=backend_order, transform_count=len(backend_order))
+    )
+    provider = SimpleNamespace(
+        usd_stage=None,
+        create_mapping=provider_impl.create_mapping,
+        get_transforms=provider_impl.get_transforms,
+        point_count=0,
+    )
+
+    destination = wp.zeros(len(body_label_order), dtype=wp.transformf, device="cpu")
+    NewtonManager._model = SimpleNamespace(body_label=body_label_order, body_count=len(body_label_order))
+    NewtonManager._state_0 = SimpleNamespace(body_q=destination, particle_q=None)
+    # Same shape as the fresh mapping this call would build, but stale from a run on "cuda:0".
+    NewtonManager._scene_data_mapping = wp.array([1, 0], dtype=wp.int32, device="cuda:0")
+
+    NewtonManager.update_visualization_state(provider)
+
+    assert NewtonManager._scene_data_mapping is not None
+    assert str(NewtonManager._scene_data_mapping.device) == "cpu"
+    # env_0 (body-label slot 0) gets backend index 1's transform; env_1 (slot 1) gets index 0's.
+    np.testing.assert_allclose(destination.numpy()[0][:3], [1.0, 2.0, 3.0])
+    np.testing.assert_allclose(destination.numpy()[1][:3], [4.0, 5.0, 6.0])
+
+
 def test_update_visualization_state_syncs_shadow_particle_q(monkeypatch):
     """PhysX/OVPhysX shadow sync copies backend points into ``state.particle_q``.
 

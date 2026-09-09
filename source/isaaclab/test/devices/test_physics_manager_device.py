@@ -7,6 +7,8 @@
 
 from types import SimpleNamespace
 
+import warp as wp
+
 from isaaclab.physics import PhysicsManager
 from isaaclab.physics import physics_manager as physics_manager_module
 
@@ -44,3 +46,24 @@ def test_initialize_does_not_synchronize_cpu_device(monkeypatch):
     PhysicsManager.initialize(sim_context)
 
     assert devices == []
+
+
+def test_initialize_synchronizes_warp_default_device_for_cpu(monkeypatch):
+    """CPU simulation must still set Warp's process-global default device to "cpu".
+
+    Regression test: without this, any Warp array/kernel call elsewhere in the codebase that
+    omits an explicit ``device=`` silently defaults to Warp's own default (``cuda:0`` whenever a
+    CUDA device is present in the process), mismatching CPU-resident sim state and crashing with
+    an illegal memory access.
+    """
+    devices = []
+    monkeypatch.setattr(physics_manager_module, "set_cuda_device", lambda device: devices.append(("cuda", device)))
+    monkeypatch.setattr(wp, "set_device", lambda device: devices.append(("warp_default", device)))
+    monkeypatch.setattr(PhysicsManager, "_sim", None)
+    monkeypatch.setattr(PhysicsManager, "_cfg", None)
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0")
+    sim_context = SimpleNamespace(cfg=SimpleNamespace(physics=object(), device="cpu"))
+
+    PhysicsManager.initialize(sim_context)
+
+    assert devices == [("warp_default", "cpu")]

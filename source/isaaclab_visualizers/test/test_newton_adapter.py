@@ -770,7 +770,7 @@ def test_ensure_mesh_registered_handles_none_normals_and_uvs(monkeypatch):
     fake_self = SimpleNamespace(_registered_meshes=set())
     spec = _NewtonMarkerSpec(renderer="mesh", mesh_type="usd", preloaded_mesh=fake_mesh)
 
-    NewtonVisualizationMarkers._ensure_mesh_registered(fake_self, _LoggingViewer(), "/test/mesh", spec)
+    NewtonVisualizationMarkers._ensure_mesh_registered(fake_self, _LoggingViewer(), "/test/mesh", spec, "cpu")
 
     assert len(log_calls) == 1
     assert log_calls[0]["normals"] is None
