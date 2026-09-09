@@ -51,7 +51,7 @@ This page covers:
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; height:265px; margin-top:0; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:480px; margin-top:-105px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:314px; margin-top:-49px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:345px; margin-top:-46px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:293px; margin-top:-19px; }
    .viz-grid-record { justify-content:center; align-items:flex-start; }
    .viz-grid-record > div { flex:0 0 auto; }
    .viz-grid-record video { display:block; width:auto; height:300px; }
