@@ -884,7 +884,7 @@ Use ``--viz newton_gl``, ``--viz rerun``, or ``--viz viser`` with those presets,
 **Newton RTX: incompatible with Kit**
 
 ``--viz newton_rtx`` raises a ``RuntimeError`` at startup if the active physics backend is
-``physx`` (i.e. ``presets=isaacsim_physx``), since OVRTX is a kitless renderer and cannot share
+``isaacsim_physx`` (i.e. ``presets=isaacsim_physx``), since OVRTX is a kitless renderer and cannot share
 a process with Kit. ``presets=ovphysx`` is itself kitless and remains supported. Use
 ``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with ``--viz newton_rtx``, or switch
 to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``, or ``--viz kit`` with a Kit-compatible
