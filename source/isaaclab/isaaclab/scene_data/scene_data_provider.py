@@ -35,20 +35,22 @@ REQUIRES_STAGE_AND_MODEL: dict[str, tuple[bool, bool]] = {
 }
 
 
-def _struct_device(struct: Any) -> wp.Device:
-    """Return the Warp device of the first populated array field on a :class:`SceneDataFormat` struct.
+def _publication_device(data: Any) -> wp.Device:
+    """Return the common device of a populated scene-data publication."""
+    arrays = tuple(array for name in data._cls.vars if (array := getattr(data, name)) is not None)
+    if not arrays:
+        raise ValueError(f"{data._cls.__name__} contains no published arrays.")
+    device = arrays[0].device
+    if any(array.device != device for array in arrays[1:]):
+        raise ValueError(f"{data._cls.__name__} arrays must share one device.")
+    return device
 
-    Falls back to ``"cpu"`` only when every field is ``None``, since there is then no data to infer
-    a device from. ``"cpu"`` (rather than Warp's process-global default, which is ``cuda:0``
-    whenever a CUDA device is present) is the fail-safe choice here: it can only make an allocation
-    conservatively slower, never reintroduce the illegal-memory-access class of bug this device
-    inference exists to avoid.
-    """
-    for field_name in struct._cls.vars:
-        array = getattr(struct, field_name)
-        if array is not None:
-            return array.device
-    return wp.get_device("cpu")
+
+def _init_output(output: Any, count: int, device: wp.Device) -> None:
+    """Allocate missing output fields on the source publication device."""
+    for field_name, field_value in output._cls.vars.items():
+        if getattr(output, field_name) is None:
+            setattr(output, field_name, wp.empty(count, dtype=field_value.type.dtype, device=device))
 
 
 class SceneDataProvider:
@@ -100,17 +102,6 @@ class SceneDataProvider:
     def transform_count(self) -> int:
         """Number of transforms available from the sim backend."""
         return self.backend.transform_count
-
-    @property
-    def device(self) -> wp.Device:
-        """Warp device the sim backend's transform data lives on.
-
-        Every array this provider allocates internally (conversion outputs, index
-        mappings) must land on this device rather than Warp's process-global default,
-        which is ``cuda:0`` whenever a CUDA device is present -- independent of which
-        device the sim backend (and thus ``--device``) actually configured.
-        """
-        return _struct_device(self.backend.transforms)
 
     @property
     def usd_stage(self) -> Usd.Stage | None:
@@ -199,7 +190,7 @@ class SceneDataProvider:
                 for field_name in input._cls.vars:
                     setattr(output, field_name, getattr(input, field_name))
             else:
-                self.init_output(output)
+                _init_output(output, self.transform_count, _publication_device(input))
                 for field_name in input._cls.vars:
                     wp.copy(getattr(output, field_name), getattr(input, field_name))
             return True
@@ -207,13 +198,14 @@ class SceneDataProvider:
         conversion_kernel_name = f"convert_{input._cls.__name__}_to_{output._cls.__name__}"
 
         if conversion_kernel := getattr(ConversionKernels, conversion_kernel_name, None):
-            self.init_output(output)
+            device = _publication_device(input)
+            _init_output(output, self.transform_count, device)
             wp.launch(
                 kernel=conversion_kernel,
                 dim=self.transform_count,
                 inputs=[input, mapping],
                 outputs=[output],
-                device=self.device,
+                device=device,
             )
             return True
 
@@ -235,11 +227,8 @@ class SceneDataProvider:
             output: A :class:`SceneDataFormat` struct whose ``None``-valued fields
                 will be replaced with empty arrays of length :attr:`transform_count`.
         """
-        for field_name, field_value in output._cls.vars.items():
-            if getattr(output, field_name) is None:
-                setattr(
-                    output, field_name, wp.empty(self.transform_count, dtype=field_value.type.dtype, device=self.device)
-                )
+        input = self.backend.transforms
+        _init_output(output, self.transform_count, _publication_device(input))
 
     def create_mapping(self, paths: list[str | None]) -> wp.array(dtype=wp.int32) | None:
         """Create an index mapping from sim backend transforms to desired output ordering.
@@ -267,7 +256,8 @@ class SceneDataProvider:
                     path_to_out[out_path] = out_idx
             mapping = [path_to_out.get(path, -1) for path in input_paths]
             if not np.array_equal(mapping, np.arange(len(input_paths))):
-                return wp.array(mapping, dtype=wp.int32, device=self.device)
+                input = self.backend.transforms
+                return wp.array(mapping, dtype=wp.int32, device=_publication_device(input))
         return None
 
     def create_geometry_mapping(
@@ -310,7 +300,8 @@ class SceneDataProvider:
 
         if identity and all(value >= 0 for value in mapping):
             return None
-        return wp.array(mapping, dtype=wp.int32, device=self.device)
+        points = self.backend.points
+        return wp.array(mapping, dtype=wp.int32, device=_publication_device(points))
 
     def get_points(
         self,

@@ -2939,6 +2939,7 @@ class NewtonManager(PhysicsManager):
         builder, (shadow_entities, registry_groups) = build_visualization_builder_from_stage_envs(
             stage, env_paths, clone_plan, up_axis=up_axis, device=str(PhysicsManager._device or "cpu")
         )
+        NewtonManager._scene_data_mapping = None
         NewtonManager._shadow_deformable_entities = shadow_entities
         NewtonManager._scene_data_geometry_mapping = None
         NewtonManager._mapped_sim_particle_offsets = None
@@ -3039,17 +3040,8 @@ class NewtonManager(PhysicsManager):
                 cls._scene_data = SceneDataFormat.Transform()
 
             # Invalidate stale mapping when the model's body count changed (e.g. tiled → viewport
-            # test within the same process where _model was rebuilt from a different stage), or
-            # when the sim device changed (e.g. a --device cpu run following a --device cuda run
-            # within the same process): scene_data_provider.get_transforms launches its conversion
-            # kernel on scene_data_provider.device, which must match this mapping's own device.
-            # Compared as resolved wp.Device objects, not raw strings: PhysicsManager._device may
-            # be the unqualified "cuda" while the mapping's own device always reports as "cuda:0",
-            # which would otherwise always mismatch and defeat the cache every call.
-            if cls._scene_data_mapping is not None and (
-                cls._scene_data_mapping.shape[0] != cls._model.body_count
-                or cls._scene_data_mapping.device != wp.get_device(PhysicsManager._device)
-            ):
+            # test within the same process where _model was rebuilt from a different stage).
+            if cls._scene_data_mapping is not None and cls._scene_data_mapping.shape[0] != cls._model.body_count:
                 cls._scene_data_mapping = None
 
             if cls._scene_data_mapping is None:

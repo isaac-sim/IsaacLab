@@ -572,6 +572,8 @@ def test_newton_marker_mesh_registration_is_per_viewer(monkeypatch: pytest.Monke
         uvs = np.zeros((0, 2), dtype=np.float32)
 
     class _FakeViewer:
+        device = "cpu"
+
         def __init__(self):
             self.meshes = []
 
@@ -585,51 +587,12 @@ def test_newton_marker_mesh_registration_is_per_viewer(monkeypatch: pytest.Monke
     viewer_a = _FakeViewer()
     viewer_b = _FakeViewer()
 
-    marker._ensure_mesh_registered(viewer_a, "/Visuals/marker/meshes/arrow", spec, "cpu")
-    marker._ensure_mesh_registered(viewer_a, "/Visuals/marker/meshes/arrow", spec, "cpu")
-    marker._ensure_mesh_registered(viewer_b, "/Visuals/marker/meshes/arrow", spec, "cpu")
+    marker._ensure_mesh_registered(viewer_a, "/Visuals/marker/meshes/arrow", spec)
+    marker._ensure_mesh_registered(viewer_a, "/Visuals/marker/meshes/arrow", spec)
+    marker._ensure_mesh_registered(viewer_b, "/Visuals/marker/meshes/arrow", spec)
 
     assert len(viewer_a.meshes) == 1
     assert len(viewer_b.meshes) == 1
-
-
-def test_newton_marker_mesh_registration_re_registers_on_device_change(monkeypatch: pytest.MonkeyPatch):
-    """A mesh registered while ``infer_device()`` still fell back to "cpu" (no marker state set
-    yet) must be re-registered once the real device is known, instead of permanently caching the
-    mesh on the wrong device -- see :meth:`NewtonVisualizationMarkers._ensure_mesh_registered`.
-    """
-    marker = object.__new__(newton_markers.NewtonVisualizationMarkers)
-    marker._registered_meshes = set()
-
-    class _FakeMesh:
-        vertices = np.zeros((1, 3), dtype=np.float32)
-        indices = np.zeros((3,), dtype=np.int32)
-        normals = np.zeros((0, 3), dtype=np.float32)
-        uvs = np.zeros((0, 2), dtype=np.float32)
-
-    class _FakeViewer:
-        def __init__(self):
-            self.meshes = []
-
-        def log_mesh(self, name, vertices, indices, **kwargs):
-            self.meshes.append((name, vertices, indices, kwargs))
-
-    monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: _FakeMesh())
-    monkeypatch.setattr(newton_markers.wp, "array", lambda value, dtype=None, device=None: device)
-
-    spec = newton_markers._NewtonMarkerSpec(renderer="mesh", mesh_type="box", mesh_params={"size": (1.0, 1.0, 1.0)})
-    viewer = _FakeViewer()
-
-    # A hide/visibility call before any real marker state exists falls back to "cpu".
-    marker._ensure_mesh_registered(viewer, "/Visuals/marker/meshes/arrow", spec, "cpu")
-    # Real marker state later resolves to "cuda:0"; the mesh must be re-registered there too.
-    marker._ensure_mesh_registered(viewer, "/Visuals/marker/meshes/arrow", spec, "cuda:0")
-    # A repeat call on the same (now-current) device must not register a third time.
-    marker._ensure_mesh_registered(viewer, "/Visuals/marker/meshes/arrow", spec, "cuda:0")
-
-    assert len(viewer.meshes) == 2
-    assert viewer.meshes[0][2] == "cpu"  # indices arg, faked to return its device kwarg
-    assert viewer.meshes[1][2] == "cuda:0"
 
 
 class _FakeNewtonMarkerMesh:
@@ -655,6 +618,7 @@ _NEWTON_MARKER_SPECS = {
 class _FakeNewtonMarkerViewer:
     def __init__(self, world_offsets):
         self.world_offsets = world_offsets
+        self.device = world_offsets.device
         self.meshes = []
         self.instances = []
         self.lines = []
@@ -756,6 +720,26 @@ def test_newton_marker_render_filters_visible_envs(monkeypatch: pytest.MonkeyPat
     assert len(viewer.instances) == 1
     assert viewer.instances[0]["hidden"] is False
     assert viewer.instances[0]["xforms"][:, 0].tolist() == [2.0, 3.0, 6.0, 7.0]
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA marker state")
+def test_newton_marker_render_uses_viewer_device(monkeypatch: pytest.MonkeyPatch):
+    world_offsets = wp.zeros(4, dtype=wp.vec3, device="cpu")
+    monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: _FakeNewtonMarkerMesh())
+    marker = _make_newton_marker_for_render(
+        marker_names=["arrow"],
+        translations=torch.zeros((4, 3), device="cuda:0"),
+        marker_indices=torch.zeros(4, dtype=torch.int32, device="cuda:0"),
+    )
+    marker.orientations = marker.orientations.to("cuda:0")
+    marker.scales = marker.scales.to("cuda:0")
+    viewer = _FakeNewtonMarkerViewer(world_offsets)
+
+    marker.render(viewer, visible_env_ids=None, num_envs=4)
+
+    call = viewer.instances[0]
+    assert all(call[key].device == viewer.device for key in ("xforms", "scales", "colors", "materials"))
+    assert all(viewer.meshes[0][index].device == viewer.device for index in (1, 2))
 
 
 @pytest.mark.parametrize(

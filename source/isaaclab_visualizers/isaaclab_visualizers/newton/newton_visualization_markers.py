@@ -65,7 +65,7 @@ class NewtonVisualizationMarkers:
         self.scales: torch.Tensor | None = None
         self.marker_indices: torch.Tensor | None = None
         self.count = len(cfg.markers)
-        self._registered_meshes: set[tuple[int, str, str]] = set()
+        self._registered_meshes: set[tuple[int, str]] = set()
         self._warned_unsupported: set[str] = set()
         self._marker_specs: dict[str, _NewtonMarkerSpec] = {
             name: _infer_newton_marker_cfg(marker_cfg) for name, marker_cfg in cfg.markers.items()
@@ -163,12 +163,7 @@ class NewtonVisualizationMarkers:
         if translations is None:
             return
 
-        # These arrays are always uploaded from CPU numpy data (``.cpu().numpy()`` below), so
-        # without an explicit ``device=`` Warp would allocate them on its process-global default
-        # device (``cuda:0`` whenever a CUDA device is present) instead of the marker/viewer
-        # device -- silently mismatching every other array the viewer holds under ``--device cpu``.
-        # Invariant for the whole call (marker state does not change mid-loop), so resolved once.
-        device = str(self.infer_device())
+        device = viewer.device
 
         for proto_index, (name, marker_cfg) in enumerate(self.cfg.markers.items()):
             newton_cfg = self._marker_specs[name]
@@ -212,7 +207,7 @@ class NewtonVisualizationMarkers:
 
             if newton_cfg.renderer == "mesh":
                 mesh_name = f"{self.group_id}/meshes/{name}"
-                self._ensure_mesh_registered(viewer, mesh_name, newton_cfg, device)
+                self._ensure_mesh_registered(viewer, mesh_name, newton_cfg)
                 color = newton_cfg.color or _extract_color(marker_cfg)
                 colors = selected_translations.new_tensor(color).expand(selected_count, -1)
                 # ViewerGL gates texture sampling with material.w. Rerun and Viser ignore this flag.
@@ -244,26 +239,22 @@ class NewtonVisualizationMarkers:
         batch_name = f"{self.group_id}/{name}"
         if newton_cfg.renderer == "mesh" and newton_cfg.mesh_type is not None:
             mesh_name = f"{self.group_id}/meshes/{name}"
-            self._ensure_mesh_registered(viewer, mesh_name, newton_cfg, str(self.infer_device()))
+            self._ensure_mesh_registered(viewer, mesh_name, newton_cfg)
             viewer.log_instances(batch_name, mesh_name, None, None, None, None, hidden=True)
         elif newton_cfg.renderer == "frame":
             viewer.log_lines(batch_name, None, None, None, hidden=True)
 
-    def _ensure_mesh_registered(
-        self, viewer: ViewerBase, mesh_name: str, newton_cfg: _NewtonMarkerSpec, device: str
-    ) -> None:
+    def _ensure_mesh_registered(self, viewer: ViewerBase, mesh_name: str, newton_cfg: _NewtonMarkerSpec) -> None:
         # The marker backend is shared by all Newton-family visualizers. Mesh
         # registration is viewer-local, so the same marker mesh must be logged
-        # once per viewer (for example, once for Rerun and once for Viser). Keying by device too
-        # means a registration made while ``infer_device()`` still had no marker state to go on
-        # (falls back to "cpu") is redone once the real device is known, instead of permanently
-        # caching the mesh on the wrong device.
-        registered_key = (id(viewer), mesh_name, device)
+        # once per viewer (for example, once for Rerun and once for Viser).
+        registered_key = (id(viewer), mesh_name)
         if registered_key in self._registered_meshes or newton_cfg.mesh_type is None:
             return
         mesh = _create_mesh(newton_cfg)
         normals_arr = mesh.normals
         uvs_arr = mesh.uvs
+        device = viewer.device
         viewer.log_mesh(
             mesh_name,
             wp.array(mesh.vertices.astype(np.float32), dtype=wp.vec3, device=device),

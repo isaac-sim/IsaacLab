@@ -15,7 +15,6 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils._device import set_cuda_device
 
 if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataBackend
@@ -378,22 +377,6 @@ class PhysicsManager(ABC):
         PhysicsManager._cfg = sim_context.cfg.physics
         PhysicsManager._device = sim_context.cfg.device
         PhysicsManager._sim_time = 0.0
-
-        # Synchronize the process-wide CUDA device before backend-specific
-        # initialization allocates state. PyTorch must select the device before
-        # Warp so that both runtimes retain the same primary CUDA context.
-        if "cuda" in PhysicsManager._device:
-            set_cuda_device(PhysicsManager._device)
-        else:
-            # Warp's process-global default device is "cuda:0" whenever a CUDA device is
-            # present, independent of the sim's configured device. Without this, any Warp
-            # array/kernel launch that omits an explicit device= (throughout the codebase, not
-            # just the sim backends) silently lands on the CUDA default instead of "cpu",
-            # mismatching this run's CPU-resident sim state and crashing with an illegal
-            # memory access.
-            import warp as wp
-
-            wp.set_device(PhysicsManager._device)
 
         # The OVD Recorder (omni.physx.pvd) only records PhysX simulations. On other backends the
         # recording would silently never start, so the process would run until manually killed
