@@ -125,6 +125,33 @@ Passing ``presets=newton_mjwarp`` to these tasks is rejected, because the preset
 selected a Newton backend on them; it only stripped a center-of-mass randomization from a
 PhysX run. Use the default PhysX configuration for Digit-based environments.
 
+.. _known-issues-reversed-joints-newton:
+
+Reversed-joint assets are rejected by Newton's importer (e.g. Agibot A2D)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** ``physics=newton_mjwarp``, ``physics=newton_kamino``, and any Newton-backed
+visualizer (``--visualizer newton``, ``newton_gl``, ``newton_rtx``, ``rerun``, ``viser``) even
+when the active physics backend is PhysX — those visualizers build a Newton shadow model from
+the same USD importer to render the scene.
+
+Some robot assets author a joint's parent body as ``physics:body1`` and the child as
+``physics:body0`` — the reverse of USD Physics convention. PhysX tolerates this, but Newton's
+``parse_usd`` importer does not and raises ``Reversed joints are not supported`` deep in scene
+creation. The Agibot A2D gripper support-link revolute joints are affected, on both contrib
+tasks that use that robot:
+
+* ``IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow``
+* ``IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow``
+
+These tasks fail fast with an actionable ``ValueError`` before either import path
+initializes, rather than surfacing the raw Newton error. Use ``physics=isaacsim_physx`` with
+``--visualizer kit``, or ``--visualizer none`` for headless execution, to work around it. This
+is a fail-fast guard, not a functional fix — a corrected asset is expected to make Newton and
+Newton-backed visualizers work again for these tasks. Remove the guard in
+:func:`~isaaclab_tasks.contrib.place.config.agibot.place_toy2box_rmp_rel_env_cfg.raise_if_reversed_joints_on_newton`
+once that lands.
+
 
 Renderers
 ---------
