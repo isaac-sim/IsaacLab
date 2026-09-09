@@ -10,7 +10,6 @@ from __future__ import annotations
 import warnings
 from typing import TYPE_CHECKING, Any
 
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
@@ -34,14 +33,6 @@ class NewtonVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "newton_gl"
 
     def __post_init__(self) -> None:
-        if self.enable_sky is not None:
-            warnings.warn(
-                "'enable_sky' is deprecated; use background_mode='sky' or background_mode='solid' instead.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-            self.background_mode = "sky" if self.enable_sky else "solid"
-            self.enable_sky = None
         super().__post_init__()
         if type(self) is NewtonVisualizerCfg:
             warnings.warn(
@@ -104,8 +95,8 @@ class NewtonVisualizerCfg(VisualizerCfg):
     enable_shadows: bool = True
     """Enable shadow rendering."""
 
-    enable_sky: bool | None = None
-    """Deprecated. Use :attr:`~isaaclab.visualizers.VisualizerCfg.background_mode` instead."""
+    enable_sky: bool = True
+    """Enable procedural sky rendering when ``background_color`` is ``None``."""
 
     enable_wireframe: bool = False
     """Enable wireframe rendering."""
@@ -154,6 +145,9 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     Selects Newton's OVRTX backend — photorealistic rendering using the same
     ``begin_frame / log_state / end_frame`` step interface as the GL backend.
 
+    .. note::
+        Lighting environment and denoiser settings use ``ViewerRTX`` defaults.
+
     ``render_rgb_array()`` captures the path-traced LDR framebuffer at
     :attr:`window_width` by :attr:`window_height`. The tiled camera panel remains
     unsupported because ``ViewerRTX.log_image`` has no display sink.
@@ -166,33 +160,13 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     """Visualizer selector identifier. Do not change."""
 
     rtx_environment: str = "default"
-    """OVRTX lighting environment.  One of ``"default"`` (HDR dome),
+    """OVRTX lighting environment.  One of ``"default"`` (dome + distant light),
     ``"studio"`` (three-point rig for cleaner highlights), or ``"none"``."""
 
-    dome_texture_file: str | None = f"{ISAACLAB_NUCLEUS_DIR}/Environments/Skies/default_sky_presets_v1/blue_sky.hdr"
-    """Lat-long HDR texture for the default OVRTX dome light.
-
-    The default is the Isaac Lab ``blue_sky`` asset. Set this field to ``None`` for an untextured
-    dome, or provide another local or remote HDR texture.
-    """
-
-    dome_intensity: float = 500.0
-    """Intensity of the default OVRTX dome light."""
-
-    dome_rotation: tuple[float, float, float] = (0.0, 0.0, 90.0)
-    """XYZ Euler rotation of the default OVRTX dome light [deg].
-
-    The default uses only a Z-axis yaw, which preserves the horizontal horizon in lat-long HDRs.
-    """
-
-    render_settings: dict[str, Any] = {
-        "omni:rtx:rt:reflections:enabled": ("Bool", True),
-        "omni:rtx:rt:reflections:maxBounces": ("Int", 2),
-    }
+    render_settings: dict[str, Any] = dict()
     """RTX attributes to author on the OVRTX render product, as ``{name: (usd_type_name, value)}``.
 
     ``usd_type_name`` names an ``Sdf.ValueTypeNames`` member, as a string so the config stays
-    copyable. Reflections and two reflection bounces are enabled by default so glossy surfaces
-    reflect scene geometry. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path
-    tracer's quality convergence loop, which ``ViewerRTX`` otherwise disables to keep interactive
-    latency down."""
+    copyable. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's
+    quality convergence loop, which ``ViewerRTX`` otherwise disables to keep interactive latency
+    down."""

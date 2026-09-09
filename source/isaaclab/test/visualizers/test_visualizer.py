@@ -54,9 +54,16 @@ def test_visualizer_construction_has_no_factory_api():
 def test_visualizer_cfg_streaming_view_is_opt_in():
     cfg = VisualizerCfg()
     assert cfg.focal_length == 12.0
-    assert cfg.exposure == 1.0
+    assert cfg.background_color == (0.3, 0.55, 0.82)
     assert cfg.streaming_view is False
     assert cfg.streaming_envs == 32
+
+
+def test_visualizer_cfg_validates_background_color():
+    assert VisualizerCfg(background_color=None).background_color is None
+    assert VisualizerCfg(background_color=[0, 0.5, 1]).background_color == (0.0, 0.5, 1.0)
+    with pytest.raises(ValueError, match="three normalized RGB values"):
+        VisualizerCfg(background_color=(0.0, 0.5, 1.1))
 
 
 def test_streaming_cfg_fields_on_visualizer_cfg():

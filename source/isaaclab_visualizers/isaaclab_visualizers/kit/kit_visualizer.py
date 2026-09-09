@@ -39,7 +39,6 @@ from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matr
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
-from isaaclab_visualizers._rtx_camera import apply_rtx_camera_settings
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
 from .kit_visualizer_cfg import KitVisualizerCfg
@@ -162,7 +161,6 @@ class KitVisualizer(BaseVisualizer):
 
         self._ensure_simulation_app()
         self._setup_viewport()
-        self._apply_camera_settings(usd_stage)
         if self._viewport_api is not None:
             self._apply_render_product_background(usd_stage, self._viewport_api.render_product_path)
 
@@ -183,9 +181,7 @@ class KitVisualizer(BaseVisualizer):
             rows=[
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
-                ("focal_length", self.cfg.focal_length),
-                ("exposure", self.cfg.exposure),
-                ("background_mode", self.cfg.background_mode),
+                ("background_color", self.cfg.background_color),
                 ("streaming_view", self.cfg.streaming_view),
                 ("streaming_gt_types", list(self.cfg.streaming_gt_types)),
                 ("max_visible_envs", self.cfg.max_visible_envs),
@@ -583,7 +579,9 @@ class KitVisualizer(BaseVisualizer):
             pass
 
     def _apply_render_product_background(self, stage: Usd.Stage, render_product_path: str | Sdf.Path) -> None:
-        """Apply the configured background to one Isaac RTX render product."""
+        """Apply the configured solid background to an Isaac RTX render product."""
+        if self.cfg.background_color is None:
+            return
         render_product = stage.GetPrimAtPath(render_product_path)
         if not render_product.IsValid():
             logger.warning(
@@ -592,26 +590,11 @@ class KitVisualizer(BaseVisualizer):
             )
             return
 
-        source_type = "color" if self.cfg.background_mode == "solid" else "domeLight"
         with Usd.EditContext(stage, stage.GetSessionLayer()), Sdf.ChangeBlock():
-            render_product.CreateAttribute("omni:rtx:background:source:type", Sdf.ValueTypeNames.Token).Set(source_type)
-            if self.cfg.background_mode == "solid":
-                render_product.CreateAttribute("omni:rtx:background:source:color", Sdf.ValueTypeNames.Float3).Set(
-                    self.cfg.background_color
-                )
-
-    def _apply_camera_settings(self, stage: Usd.Stage) -> None:
-        """Apply shared lens and exposure settings to the controlled viewport camera."""
-        camera_path = self._controlled_camera_path or _DEFAULT_VIEWPORT_CAMERA_PATH
-        with Usd.EditContext(stage, stage.GetSessionLayer()):
-            applied = apply_rtx_camera_settings(
-                stage,
-                camera_path,
-                focal_length=self.cfg.focal_length,
-                exposure=self.cfg.exposure,
+            render_product.CreateAttribute("omni:rtx:background:source:type", Sdf.ValueTypeNames.Token).Set("color")
+            render_product.CreateAttribute("omni:rtx:background:source:color", Sdf.ValueTypeNames.Float3).Set(
+                Gf.Vec3f(*self.cfg.background_color)
             )
-        if not applied:
-            logger.warning("[KitVisualizer] Camera '%s' was not found; camera settings were not applied.", camera_path)
 
     def _setup_viewport(self) -> None:
         """Create/resolve viewport and configure initial camera."""

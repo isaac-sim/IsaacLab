@@ -3,7 +3,7 @@ Changed
 
 * Updated the default ground plane to a metric off-white and grey checker with NVIDIA-green landmarks every 2 m,
   with its roughness map authored for renderers that support PBR textures.
-* Added shared solid-color and sky background settings, plus RTX camera exposure, to ``VisualizerCfg``.
+* Added the shared ``VisualizerCfg.background_color`` setting with a solid sky-blue default.
 
 Fixed
 ^^^^^

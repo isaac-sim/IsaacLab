@@ -22,7 +22,7 @@ from isaaclab_visualizers.newton import (
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
 from isaaclab_visualizers.newton import newton_visualizer as newton_visualizer_module
-from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, NewtonViewerRTX, _eye_lookat_to_pitch_yaw
+from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL, _eye_lookat_to_pitch_yaw
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
     apply_viewer_visible_worlds,
@@ -30,8 +30,6 @@ from isaaclab_visualizers.newton_adapter import (
     log_geo_with_expanded_plane_scale,
     resolve_visible_env_indices,
 )
-
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 
 def test_expand_infinite_plane_scale_expands_non_positive_extents():
@@ -792,54 +790,34 @@ def test_newton_visualizer_cfg_distinct_types():
     # shared fields present on both
     assert NewtonGLVisualizerCfg().show_particles is False
     assert NewtonRTXVisualizerCfg().show_particles is False
-    assert NewtonGLVisualizerCfg().background_mode == "solid"
+    assert NewtonGLVisualizerCfg().background_color == (0.3, 0.55, 0.82)
     assert NewtonRTXVisualizerCfg().background_color == (0.3, 0.55, 0.82)
-    assert NewtonRTXVisualizerCfg().dome_texture_file == (
-        f"{ISAACLAB_NUCLEUS_DIR}/Environments/Skies/default_sky_presets_v1/blue_sky.hdr"
-    )
-    assert NewtonRTXVisualizerCfg().dome_rotation == (0.0, 0.0, 90.0)
+    with pytest.raises(ValueError, match="three normalized RGB values"):
+        NewtonGLVisualizerCfg(background_color=(0.0, -0.1, 1.0))
 
 
-def test_newton_rtx_default_environment_uses_only_dome_light():
-    from pxr import Usd, UsdLux
-
-    viewer = object.__new__(NewtonViewerRTX)
-    viewer.stage = Usd.Stage.CreateInMemory()
-    viewer._dome_texture_file = None
-    viewer._dome_intensity = 500.0
-    viewer._dome_rotation = (0.0, 0.0, 90.0)
-
-    viewer._add_default_lights()
-
-    dome = UsdLux.DomeLight.Get(viewer.stage, "/root/_RTXDomeLight")
-    assert dome
-    assert dome.GetIntensityAttr().Get() == 500.0
-    assert not viewer.stage.GetPrimAtPath("/root/_RTXDistantLight").IsValid()
-
-
-@pytest.mark.parametrize(("mode", "draw_sky"), [("solid", False), ("sky", True)])
-def test_newton_gl_background_mode_selects_native_sky(mode: str, draw_sky: bool):
-    cfg = NewtonGLVisualizerCfg(background_mode=mode)
+@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
+def test_newton_gl_background_color(color: tuple[float, float, float] | None) -> None:
+    cfg = NewtonGLVisualizerCfg(background_color=color)
     visualizer = NewtonGLVisualizer(cfg)
     visualizer._viewer = SimpleNamespace(
         renderer=SimpleNamespace(),
-        _coerce_color3=lambda color: tuple(color),
+        _coerce_color3=lambda value: tuple(value),
     )
 
     visualizer._apply_viewer_post_init()
 
-    assert visualizer._viewer.renderer.draw_sky is draw_sky
-    expected_upper = cfg.sky_upper_color if draw_sky else cfg.background_color
+    assert visualizer._viewer.renderer.draw_sky == (color is None)
+    expected_upper = cfg.sky_upper_color if color is None else color
+    expected_lower = cfg.sky_lower_color if color is None else color
     assert visualizer._viewer.renderer.sky_upper == expected_upper
+    assert visualizer._viewer.renderer.sky_lower == expected_lower
 
 
-@pytest.mark.parametrize(
-    ("mode", "expected_color"),
-    [("solid", (0.3, 0.55, 0.82)), ("sky", None)],
-)
-def test_newton_rtx_background_mode_selects_solid_override(
-    monkeypatch: pytest.MonkeyPatch, mode: str, expected_color: tuple[float, float, float] | None
-):
+@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
+def test_newton_rtx_receives_background_color(
+    monkeypatch: pytest.MonkeyPatch, color: tuple[float, float, float] | None
+) -> None:
     kwargs = {}
     monkeypatch.setattr(
         newton_visualizer_module,
@@ -847,10 +825,9 @@ def test_newton_rtx_background_mode_selects_solid_override(
         lambda **viewer_kwargs: kwargs.update(viewer_kwargs) or object(),
     )
 
-    NewtonRTXVisualizer(NewtonRTXVisualizerCfg(background_mode=mode, exposure=1.5))._create_viewer(False, {})
+    NewtonRTXVisualizer(NewtonRTXVisualizerCfg(background_color=color))._create_viewer(False, {})
 
-    assert kwargs["background_color"] == expected_color
-    assert kwargs["exposure"] == 1.5
+    assert kwargs["background_color"] == color
 
 
 def test_eye_lookat_to_pitch_yaw_horizontal():
