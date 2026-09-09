@@ -5,6 +5,9 @@
 
 name: Docs
 
+permissions:
+  contents: read
+
 on:
   # Pushes and PRs still build current-docs (build-latest-docs). The expensive
   # multi-version deploy is owned by the nightly cron on the repository default
@@ -30,6 +33,16 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  test-publisher:
+    name: Test Docs Publisher
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - run: uv run --no-project python -m unittest discover -s .github/scripts -p 'test_docs_preview.py' -v
+
   doc-build-type:
     name: Detect Doc Build Type
     runs-on: ubuntu-latest
@@ -129,27 +142,10 @@ jobs:
         sed "s|url=\./[^\"]*/index.html|url=./$DOCS_DEFAULT_REF/index.html|" \
           _redirect/index.html > _build/index.html
 
-    - name: Upload GitHub Pages artifact
-      uses: actions/upload-pages-artifact@v4
+    # The trusted publisher combines this build with all open PR previews.
+    - name: Upload release docs artifact
+      uses: actions/upload-artifact@v7
       with:
+        name: docs-release-html
         path: ./docs/_build
-
-  deploy-docs:
-    name: Deploy Docs
-    runs-on: ubuntu-latest
-    needs: [doc-build-type, build-multi-docs]
-    # deploy only on "deploy" branches
-    if: needs.doc-build-type.outputs.trigger-deploy == 'true'
-
-    permissions:
-      pages: write
-      id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-    - name: Deploy GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v4
+        if-no-files-found: error
