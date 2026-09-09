@@ -12,8 +12,6 @@ from types import SimpleNamespace
 import gymnasium as gym
 import pytest
 
-from isaaclab.utils import Checkpoint
-
 from isaaclab_tasks.utils.hydra import collect_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
@@ -28,6 +26,8 @@ from scripts.tools.train_and_publish_checkpoints import (
     collect_pretrained_checkpoint,
     publish_pretrained_checkpoint,
 )
+
+_FE = ("feature_extractor", "cnn_*.pth")
 
 
 def test_cartpole_feature_presets_are_in_pretrained_checkpoint_matrix() -> None:
@@ -191,7 +191,7 @@ def test_publish_refuses_a_bundle_whose_declared_checkpoint_is_missing(
         task_name="Isaac-Test",
         physics_backend="newtonmjwarp",
         render_backend="none",
-        declared_checkpoints=(Checkpoint(name="feature_extractor", run_glob="cnn_*.pth"),),
+        companions=(_FE,),
     )
     collected_path = tmp_path / "rsl_rl" / "Isaac-Test_newtonmjwarp_none_rsl_rl.pt"
     collected_path.parent.mkdir()

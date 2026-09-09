@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import glob
 import os
 
 import torch
@@ -10,7 +11,6 @@ import torch.nn as nn
 import torchvision
 
 from isaaclab.sensors import save_images_to_file
-from isaaclab.utils import Checkpoint
 from isaaclab.utils.configclass import configclass
 
 # Number of output channels for each supported camera data type.
@@ -122,8 +122,11 @@ class FeatureExtractorNetwork(nn.Module):
 class FeatureExtractorCfg:
     """Configuration for the feature extractor model."""
 
-    checkpoint: Checkpoint = Checkpoint(name="feature_extractor", run_glob="cnn_*.pth")
-    """The trained CNN, published beside the policy checkpoint. The glob must match what :meth:`step` saves."""
+    checkpoint_name: str = "feature_extractor"
+    """Identity of the CNN in the published checkpoint set. Must match the task's ``companion_checkpoints``."""
+
+    checkpoint_glob: str = "cnn_*.pth"
+    """Glob of the file :meth:`step` saves, matched in the log directory when loading."""
 
     train: bool = True
     """If True, the feature extractor model is trained during the rollout process. Default is True."""
@@ -203,7 +206,7 @@ class FeatureExtractor:
             os.makedirs(self.log_dir)
 
         if self.cfg.load_checkpoint:
-            checkpoint = self.cfg.checkpoint.resolve(self.log_dir)
+            checkpoint = self._resolve_checkpoint()
             print(f"[INFO]: Loading feature extractor checkpoint from {checkpoint}")
             self.feature_extractor.load_state_dict(torch.load(checkpoint, weights_only=True))
 
@@ -213,6 +216,22 @@ class FeatureExtractor:
             self.feature_extractor.train()
         else:
             self.feature_extractor.eval()
+
+    def _resolve_checkpoint(self) -> str:
+        """Return the CNN weights to load from :attr:`log_dir`.
+
+        Playback points the log directory at the pretrained-checkpoint cache, where the published
+        copy carries the policy stem; a training run writes the native name instead. The two never
+        share a directory, so ``or`` picks whichever convention is present.
+        """
+        published = glob.glob(os.path.join(self.log_dir, f"*_{self.cfg.checkpoint_name}.pth"))
+        candidates = published or glob.glob(os.path.join(self.log_dir, self.cfg.checkpoint_glob))
+        if not candidates:
+            raise FileNotFoundError(
+                f"No {self.cfg.checkpoint_name!r} checkpoint was found in '{self.log_dir}'."
+                " Train the task to produce one."
+            )
+        return max(candidates, key=os.path.getmtime)
 
     def _preprocess_images(self, camera_output: dict[str, torch.Tensor]) -> torch.Tensor:
         """Preprocesses and concatenates camera images into a single tensor.

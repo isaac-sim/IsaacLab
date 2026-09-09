@@ -1,9 +1,7 @@
 Fixed
 ^^^^^
 
-* Fixed ``ValueError: max() iterable argument is empty`` when playing the Shadow Hand camera tasks with no
-  feature-extractor checkpoint in the log directory. The missing checkpoint is now reported together with the
-  directory that was searched.
-
-* Fixed the feature-extractor checkpoint path being resolved against the log directory twice, which raised
-  ``FileNotFoundError`` whenever the log directory was relative.
+* Fixed ``play --checkpoint pretrained`` on the Shadow Hand camera tasks, which raised
+  ``ValueError: max() iterable argument is empty`` because the vision CNN the policy was trained with
+  was never published. Both tasks now declare it through ``companion_checkpoints``, so it is published
+  beside the policy and fetched with it, and a missing checkpoint reports the directory that was searched.
