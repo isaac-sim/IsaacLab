@@ -9,6 +9,8 @@ import pytest
 import torch
 from gymnasium.envs.registration import registry
 from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
+from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 
@@ -33,6 +35,9 @@ def _without_controller_dependent_cfg(cfg):
     cfg_dict = cfg.to_dict()
     cfg_dict.pop("actions")
     cfg_dict.pop("teleop_devices")
+    for rigid_props in cfg_dict["scene"]["robot"]["spawn"]["rigid_props"]:
+        rigid_props.pop("disable_gravity", None)
+        rigid_props.pop("gravcomp", None)
     return cfg_dict
 
 
@@ -113,6 +118,25 @@ def test_reach_relative_ik_presets_configure_six_dof_native_teleop_devices(actio
     cfg.validate()
     assert set(cfg.teleop_devices.devices) == {"keyboard", "gamepad", "spacemouse"}
     assert all(not device_cfg.gripper_term for device_cfg in cfg.teleop_devices.devices.values())
+
+
+def test_reach_diffik_physx_configures_teleop_physics():
+    cfg = _load_env_cfg("diffik", "isaacsim_physx")
+    rigid_props = cfg.scene.robot.spawn.rigid_props
+
+    physx_props = next(props for props in rigid_props if isinstance(props, PhysxRigidBodyCfg))
+    assert physx_props.disable_gravity
+    assert physx_props.max_depenetration_velocity == pytest.approx(5.0)
+    assert cfg.scene.robot.spawn.make_uninstanceable
+    assert cfg.scene.robot.spawn.collision_props["/Geometry/.*_c.*"][0].collision_enabled
+
+
+def test_reach_newton_ik_configures_gravity_compensation():
+    cfg = _load_env_cfg("newton_ik", "newton_mjwarp")
+    rigid_props = cfg.scene.robot.spawn.rigid_props
+
+    mujoco_props = next(props for props in rigid_props if isinstance(props, MujocoRigidBodyCfg))
+    assert mujoco_props.gravcomp == pytest.approx(1.0)
 
 
 def test_reach_newton_ik_uses_native_se3_command_convention():
