@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+20.1.2 (2026-09-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Reduced direct locomotion step and reset overhead by staging actions once per environment step,
+  avoiding duplicate articulation resets, redundant state copies, and separate joint-state writes.
+* Added preset-specific RSL-RL checkpoint discovery for the ResNet18 and Theia-Tiny Cartpole camera policies.
+* Fixed the SO-101 joint-teleop cube-stack task often failing to auto-reset after a completed
+  stack. The success termination accepted the gripper as open only within 0.2 rad of
+  ``SO101_GRIPPER_OPEN``, which is the top 0.2 rad of the jaw's 1.92 rad range, so a leader arm
+  whose calibrated full-open reading fell short never triggered success. The tolerance is now
+  0.5 rad, which still requires more opening than releasing a cube needs.
+* Defaulted the SO-101 cube-stacking tasks to the PhysX backend, so the gripper no longer
+  penetrates the cubes and grasps hold. ``IsaacContrib-Stack-Cube-SO101-v0``,
+  ``IsaacContrib-Stack-Cube-SO101-IK-Abs-v0``, and
+  ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0`` previously resolved to Newton MJWarp, whose
+  gripper contact response is still being tuned for this robot. Pass ``physics=newton_mjwarp``
+  to select the previous backend.
+
+
 20.1.1 (2026-09-08)
 ~~~~~~~~~~~~~~~~~~~
 

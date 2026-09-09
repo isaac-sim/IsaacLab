@@ -433,153 +433,36 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
         assert phrase in flat, f"Missing phrase: {phrase!r}"
 
 
-def test_agent_help_lists_cartpole_camera_preset_pairings(monkeypatch, capsys):
-    """Task help lists registered agents beside their compatible presets."""
-    import isaaclab_tasks  # noqa: F401
+def test_preset_cli_has_no_agent_selection_surface():
+    """Keep the preset CLI bounded to parsing and preset help."""
+    import inspect
+    from pathlib import Path
 
-    monkeypatch.setattr("sys.argv", ["train.py", "--task", "Isaac-Cartpole-Camera", "--help"])
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+    import isaaclab_tasks.utils.preset_cli as preset_cli
 
-    parser = argparse.ArgumentParser(prog="train.py")
-    parser.add_argument("--task")
-    parser.add_argument("--agent", default="rl_games_cfg_entry_point")
-    with pytest.raises(SystemExit):
-        setup_preset_cli(parser, agent_library="rl_games")
+    assert tuple(inspect.signature(preset_cli.setup_preset_cli).parameters) == ("parser", "argv")
+    forbidden_symbols = (
+        "_AGENT_UNSET",
+        "_AgentDescriptionBuilder",
+        "_agent_passed_explicitly",
+        "_auto_select_agent",
+        "_enumerate_agents",
+    )
+    assert not [name for name in forbidden_symbols if hasattr(preset_cli, name)]
 
-    output = capsys.readouterr().out
-    assert "rl_games_cfg_entry_point (default)" in output
-    assert "compatible presets: albedo, depth, rgb" in output
-    assert "rl_games_feature_cfg_entry_point" in output
-    assert "compatible presets: resnet18, theia_tiny" in output
-
-
-def test_agent_help_lists_agents_without_preset_constraints(monkeypatch, capsys):
-    """Alternate agents remain discoverable when presets do not constrain them."""
-    import isaaclab_tasks  # noqa: F401
-
-    monkeypatch.setattr("sys.argv", ["train.py", "--task", "Isaac-Cartpole", "--help"])
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
-
-    parser = argparse.ArgumentParser(prog="train.py")
-    parser.add_argument("--task")
-    parser.add_argument("--agent", default="rsl_rl_cfg_entry_point")
-    with pytest.raises(SystemExit):
-        setup_preset_cli(parser, agent_library="rsl_rl")
-
-    output = capsys.readouterr().out
-    assert "rsl_rl_cfg_entry_point (default)" in output
-    assert "rsl_rl_with_symmetry_cfg_entry_point" in output
-    assert "Preset selection does not constrain --agent for this task." in output
+    repo_root = Path(__file__).resolve().parents[4]
+    paths = [*repo_root.glob("source/*/**/*.py"), *repo_root.glob("scripts/**/*.py")]
+    forbidden_kwarg = "agent_" + "library="
+    offenders = [
+        path for path in paths if "setup_preset_cli" in path.read_text() and forbidden_kwarg in path.read_text()
+    ]
+    assert not offenders
 
 
-@pytest.mark.parametrize(
-    "task_name,agent_library",
-    [
-        ("Isaac-Cartpole-Camera", "rl_games"),
-        ("Isaac-Cartpole-Camera", "rsl_rl"),
-        ("IsaacContrib-Cartpole-Showcase-Direct", "skrl"),
-        ("IsaacContrib-Cartpole-Camera-Showcase-Direct", "skrl"),
-    ],
-)
-def test_agent_preset_pairings_reference_registered_agents_and_presets(task_name, agent_library):
-    """Task-owned help metadata stays aligned with live agent and preset registrations."""
-    import isaaclab_tasks  # noqa: F401
-    from isaaclab_tasks.utils.preset_cli import _enumerate_agents, _enumerate_variants
-    from isaaclab_tasks.utils.preset_target import PresetTarget
+def test_task_registrations_have_no_preset_to_agent_maps():
+    """A shared preset name must compose config roots without a registry-side pairing table."""
+    from pathlib import Path
 
-    agents, compatibility = _enumerate_agents(task_name, agent_library)
-    domain_presets = _enumerate_variants(task_name)[PresetTarget.DOMAIN]
-
-    assert compatibility
-    assert set(compatibility) <= set(agents)
-    assert {preset for presets in compatibility.values() for preset in presets} <= domain_presets
-
-
-# ---------------------------------------------------------------------------
-# _auto_select_agent: preset → agent entry point wiring
-# ---------------------------------------------------------------------------
-
-
-def test_setup_preset_cli_auto_selects_agent_for_showcase_task(monkeypatch):
-    """setup_preset_cli wires the preset to the right entry point end-to-end."""
-    import isaaclab_tasks  # noqa: F401
-
-    monkeypatch.setattr("sys.argv", ["train.py", "--task", "IsaacContrib-Cartpole-Showcase-Direct"])
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
-
-    parser = argparse.ArgumentParser(prog="train.py", add_help=False)
-    parser.add_argument("--task", default=None)
-    parser.add_argument("--agent", default=None)
-
-    argv = ["--task", "IsaacContrib-Cartpole-Showcase-Direct", "presets=box_discrete"]
-    args, _ = setup_preset_cli(parser, argv, agent_library="skrl")
-    assert args.agent == "skrl_box_discrete_cfg_entry_point"
-
-
-def test_setup_preset_cli_auto_selects_agent_when_default_absent(monkeypatch):
-    """setup_preset_cli selects the sole entry point when the default is not registered.
-
-    AMP tasks only register ``skrl_amp_cfg_entry_point`` (no ``skrl_cfg_entry_point``).
-    Without this auto-select the benchmark command defaults to ``--algorithm PPO``,
-    resolves ``skrl_cfg_entry_point``, and crashes because it is not registered.
-    """
-    import isaaclab_tasks  # noqa: F401
-
-    monkeypatch.setattr("sys.argv", ["train.py", "--task", "IsaacContrib-Humanoid-AMP-Walk-Direct"])
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
-
-    parser = argparse.ArgumentParser(prog="train.py", add_help=False)
-    parser.add_argument("--task", default=None)
-    parser.add_argument("--agent", default=None)
-
-    argv = ["--task", "IsaacContrib-Humanoid-AMP-Walk-Direct"]
-    args, _ = setup_preset_cli(parser, argv, agent_library="skrl")
-    assert args.agent == "skrl_amp_cfg_entry_point"
-
-
-def _make_agent_parser(default: str) -> argparse.ArgumentParser:
-    """Mimic an entrypoint parser that gives ``--agent`` a non-``None`` default."""
-    parser = _make_parser()
-    parser.add_argument("--agent", type=str, default=default)
-    return parser
-
-
-def test_setup_preset_cli_auto_selects_agent_over_non_none_default(monkeypatch):
-    """A feature preset overrides the entrypoint's canonical ``--agent`` default.
-
-    ``rsl_rl``/``rl_games``/``sb3`` entrypoints register ``--agent`` with a
-    non-``None`` default, so auto-selection has to distinguish that default from
-    a user-typed value. Without that distinction ``presets=resnet18`` keeps the
-    raw-camera entry point and the runner fails to construct.
-    """
-    import isaaclab_tasks  # noqa: F401
-
-    monkeypatch.setattr("sys.argv", ["train.py", "--task", "Isaac-Cartpole-Camera"])
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
-
-    parser = _make_agent_parser("rsl_rl_cfg_entry_point")
-    argv = ["--task", "Isaac-Cartpole-Camera", "presets=resnet18"]
-    args, _ = setup_preset_cli(parser, argv, agent_library="rsl_rl")
-    assert args.agent == "rsl_rl_feature_cfg_entry_point"
-
-
-@pytest.mark.parametrize(
-    "agent_tokens",
-    [["--agent", "rsl_rl_cfg_entry_point"], ["--agent=rsl_rl_cfg_entry_point"], ["--age", "rsl_rl_cfg_entry_point"]],
-    ids=["separate", "equals", "abbreviated"],
-)
-def test_setup_preset_cli_keeps_explicit_agent_over_preset(monkeypatch, agent_tokens):
-    """An explicitly typed ``--agent`` wins over preset-based auto-selection.
-
-    Covers every spelling argparse accepts for the flag, since explicitness is
-    determined by re-parsing rather than by scanning argv for a literal token.
-    """
-    import isaaclab_tasks  # noqa: F401
-
-    monkeypatch.setattr("sys.argv", ["train.py", "--task", "Isaac-Cartpole-Camera"])
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
-
-    parser = _make_agent_parser("rsl_rl_cfg_entry_point")
-    argv = ["--task", "Isaac-Cartpole-Camera", *agent_tokens, "presets=resnet18"]
-    args, _ = setup_preset_cli(parser, argv, agent_library="rsl_rl")
-    assert args.agent == "rsl_rl_cfg_entry_point"
+    task_root = Path(__file__).resolve().parents[2] / "isaaclab_tasks"
+    offenders = [path for path in task_root.rglob("*.py") if "agent_preset_compatibility" in path.read_text()]
+    assert not offenders

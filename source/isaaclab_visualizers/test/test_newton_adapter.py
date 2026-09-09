@@ -766,6 +766,8 @@ def test_ensure_mesh_registered_handles_none_normals_and_uvs(monkeypatch):
     log_calls = []
 
     class _LoggingViewer:
+        device = "cpu"
+
         def log_mesh(self, name, vertices, indices, normals=None, uvs=None, texture=None, hidden=True):
             log_calls.append({"normals": normals, "uvs": uvs})
 
@@ -1010,6 +1012,37 @@ def test_newton_rtx_visualizer_streaming_view_enabled():
 
     visualizer_off = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(streaming_view=False))
     assert visualizer_off._uses_streaming_view() is False
+
+
+@pytest.mark.parametrize("backend", ["physx", "isaacsim_physx"])
+def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch, backend):
+    """OVRTX is kitless and must fail fast instead of crashing the render thread on first step().
+
+    "physx" is what FactoryBase._get_backend() reports at runtime (covers both an explicit
+    ``physics=isaacsim_physx`` and the ``physics=physx`` auto selector once resolved to Kit);
+    "isaacsim_physx" is checked too in case a future/alternate backend-name source reports the
+    explicit selector string instead.
+    """
+    from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
+    monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: backend))
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
+
+    with pytest.raises(RuntimeError, match="Newton RTX"):
+        visualizer.initialize(Mock())
+
+
+def test_newton_rtx_visualizer_allows_ovphysx_backend(monkeypatch):
+    """ovphysx is itself kitless, so it must not trip the Kit-only guard (unlike physx)."""
+    from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
+    monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: "ovphysx"))
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
+
+    # No RuntimeError from the guard; falls through to the next line, which needs a real
+    # SimulationContext and fails differently -- proving the guard did not fire for ovphysx.
+    with pytest.raises(AttributeError):
+        visualizer.initialize(Mock())
 
 
 def test_newton_rtx_visualizer_setup_streaming_view_creates_owned_camera(monkeypatch):

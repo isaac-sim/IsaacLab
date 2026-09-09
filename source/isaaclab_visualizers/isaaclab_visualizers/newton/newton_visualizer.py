@@ -1077,6 +1077,22 @@ class NewtonVisualizer(BaseVisualizer):
             return
 
         scene_data_provider = self._set_scene_data_provider(scene_data_provider)
+        if isinstance(self, NewtonRTXVisualizer) and self.physics_backend in ("physx", "isaacsim_physx"):
+            # OVRTX is a kitless renderer and cannot share a process with Kit. "physx" is the
+            # runtime name FactoryBase._get_backend() reports for the resolved PhysxManager
+            # (covers both an explicit `physics=isaacsim_physx` and the `physics=physx` auto
+            # selector once it resolves to Kit); "isaacsim_physx" is checked too in case a
+            # future/alternate backend-name source reports the explicit selector string
+            # instead. ovphysx is itself kitless, so it is not affected. Left unchecked,
+            # OVRTX's native loader crashes inside the render thread on first step() instead
+            # of failing here, which hangs the process instead of exiting.
+            raise RuntimeError(
+                f"[{type(self).__name__}] Newton RTX (OVRTX) cannot be used with physics backend"
+                f" {self.physics_backend!r}. It is a kitless renderer and cannot run in the same process as Kit"
+                " (isaacsim_physx). Use `presets=newton_mjwarp,ovrtx` or `presets=ovphysx,ovrtx` with"
+                " `--viz newton_rtx`, or switch to `--viz newton_gl`, `--viz viser`, `--viz rerun`, or"
+                " `--viz kit` with a Kit-compatible physics backend."
+            )
         newton_backend_active = self.physics_backend == "newton"
         physics_manager = SimulationContext.instance().physics_manager
         picking_supported = newton_backend_active and bool(
