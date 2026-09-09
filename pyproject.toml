@@ -119,7 +119,7 @@ tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 
 importers = [
-    "isaacsim-asset-isolated>=6.1,<6.2",
+    "isaacsim-asset-isolated==6.1.0.0",
     "tinyobjloader==2.0.0rc13",
 ]
 

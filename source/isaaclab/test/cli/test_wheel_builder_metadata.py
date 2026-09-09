@@ -114,10 +114,10 @@ def test_wheel_builder_keeps_standalone_importers_explicit(source_checkout_root:
     generated = _generate_wheel_pyproject(source_checkout_root, tmp_path)
     project = generated["project"]
 
-    assert "isaacsim-asset-isolated>=6.1,<6.2" not in project["dependencies"]
+    assert "isaacsim-asset-isolated==6.1.0.0" not in project["dependencies"]
     assert "tinyobjloader==2.0.0rc13" not in project["dependencies"]
     assert project["optional-dependencies"]["importers"] == [
-        "isaacsim-asset-isolated>=6.1,<6.2",
+        "isaacsim-asset-isolated==6.1.0.0",
         "tinyobjloader==2.0.0rc13",
     ]
 

@@ -57,9 +57,9 @@ def test_standalone_importers_are_opt_in(source_checkout_root: Path):
         pyproject = tomllib.load(f)
 
     project = pyproject["project"]
-    assert "isaacsim-asset-isolated>=6.1,<6.2" not in project["dependencies"]
+    assert "isaacsim-asset-isolated==6.1.0.0" not in project["dependencies"]
     assert "tinyobjloader==2.0.0rc13" not in project["dependencies"]
     assert project["optional-dependencies"]["importers"] == [
-        "isaacsim-asset-isolated>=6.1,<6.2",
+        "isaacsim-asset-isolated==6.1.0.0",
         "tinyobjloader==2.0.0rc13",
     ]
