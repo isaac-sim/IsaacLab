@@ -391,6 +391,20 @@
         }
     };
 
+    const incompatibleBackends = () => (
+        (fields.physics.value === "ovphysx" && fields.renderer.value === "isaacsim_rtx")
+        || (fields.physics.value === "isaacsim_physx" && fields.renderer.value === "ovrtx")
+    );
+
+    const updateCommand = () => {
+        const incompatible = incompatibleBackends();
+        commandOutput.textContent = currentCommand();
+        commandOutput.closest(".environment-command-output").classList.toggle("is-disabled", incompatible);
+        builder.querySelector("[data-backend-warning]").hidden = !incompatible;
+        copyButton.disabled = incompatible;
+        copyStatus.textContent = "";
+    };
+
     const currentCommand = () => {
         const extras = [];
         if (fields.physics.value === "ovphysx" && fields.renderer.value === "ovrtx") {
@@ -489,7 +503,7 @@
         fields.task.value = state.task;
         updateTaskControls();
         updateModeControls();
-        commandOutput.textContent = currentCommand();
+        updateCommand();
         updatePreview();
         for (const card of taskList.querySelectorAll(".environment-task-card")) {
             taskCardRefreshers.get(card)?.();
@@ -819,7 +833,7 @@
     for (const field of [fields.rl, fields.physics, fields.renderer, fields.presets, fields.checkpoint]) {
         field.addEventListener("change", () => {
             updateModeControls();
-            commandOutput.textContent = currentCommand();
+            updateCommand();
             updatePreview();
         });
     }
@@ -835,7 +849,7 @@
                 modeButton.setAttribute("aria-pressed", String(isActive));
             }
             updateModeControls();
-            commandOutput.textContent = currentCommand();
+            updateCommand();
             updatePreview();
         });
     }
@@ -872,7 +886,7 @@
             modeButton.classList.toggle("is-active", isActive);
             modeButton.setAttribute("aria-pressed", String(isActive));
         }
-        commandOutput.textContent = currentCommand();
+        updateCommand();
         updatePreview();
     });
     for (const button of benchmarks?.querySelectorAll("[data-benchmark-workload]") || []) {
@@ -887,6 +901,9 @@
         });
     }
     copyButton.addEventListener("click", async () => {
+        if (incompatibleBackends()) {
+            return;
+        }
         const command = currentCommand();
         try {
             await navigator.clipboard.writeText(command);
