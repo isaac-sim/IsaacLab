@@ -38,25 +38,26 @@ This page covers:
       one 241px height, so both hero rows are the same height. Each video's own CSS height is
       taller than 241px and shifted up by margin-top so overflow:hidden crops the rest; the
       pair effectively selects a [top, top+241/scale] px window of the source clip, where
-      scale = video height / native height. Source clips are 960x580 (600 for Newton GL),
-      robot sized ~15% smaller (linear) again on top of the prior pass. Newton GL: source
-      window y:118-497 (scale 0.64, video 382px, margin -75px) -- centered exactly on the
-      robot. Newton RTX: window clamps to the full source frame y:0-580 (scale 0.42, video
-      241px, margin 0px) -- already at max zoom-out for this clip's resolution/framing, so its
-      robot is marginally larger than the other four. Rerun: window clamps against its "3D
-      View"/"Physics" UI chrome to y:20-560 (scale 0.45, video 259px, margin -9px) -- also
-      near its zoom-out limit, robot marginally larger like Newton RTX. Viser: window clamps
-      against the frame top to y:12-580 (scale 0.42, video 246px, margin -5px); the clamp
-      re-exposes the "Isaac Lab" info panel baked into the top-right of this clip, previously
-      cropped out -- a known trade-off of this zoom level. Kit: window y:15-580 (scale 0.43,
-      video 247px, margin -6px). */
+      scale = video height / native height. Source clips are 960x580 (600 for Newton GL). The
+      robot sits 5% higher in the tile than a straight center crop: for Newton RTX/Rerun/Kit/
+      Viser this window was already pinned against the source frame edge or UI chrome, so
+      shifting it up required shrinking it by the same 5% (robot ~5% larger for these 4 than a
+      plain center crop would give); Newton GL's window was shrunk by the same amount so all 5
+      stay equal in size. Newton GL: source window y:145-505 (scale 0.67, video 402px, margin
+      -97px). Newton RTX: window clamps to the full source frame, anchored at the bottom edge,
+      y:57-580 (scale 0.46, video 267px, margin -26px). Rerun: window clamps against its "3D
+      View"/"Physics" UI chrome, y:73-560 (scale 0.49, video 287px, margin -36px). Viser:
+      window clamps against the frame bottom, y:67-580 (scale 0.47, video 273px, margin -32px);
+      still re-exposes a sliver of the "Isaac Lab" info panel baked into the top-right of this
+      clip, a known trade-off of this zoom level. Kit: window clamps against the frame bottom,
+      y:69-580 (scale 0.47, video 274px, margin -33px). */
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:241px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:382px; margin-top:-75px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:246px; margin-top:-5px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-rtx video { height:241px; margin-top:0; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:259px; margin-top:-9px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-kit video { height:247px; margin-top:-6px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:402px; margin-top:-97px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:273px; margin-top:-32px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-rtx video { height:267px; margin-top:-26px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:287px; margin-top:-36px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-kit video { height:274px; margin-top:-33px; }
    .viz-grid-record { justify-content:center; align-items:flex-start; }
    .viz-grid-record > div { flex:0 0 auto; }
    .viz-grid-record video { display:block; width:auto; height:300px; }
