@@ -44,6 +44,7 @@ from .rough_29dof_dr_env_cfg import (
     G129DofRoughAirTime100DREnvCfg,
     _add_waist_l2,
 )
+from .rough_29dof_power_env_cfg import G129DofRoughWaist1Power2EnvCfg
 
 
 @configclass
@@ -120,4 +121,39 @@ class G129DofRoughAirTime100DistillEnvCfg(G129DofRoughAirTime100RobustWaistEnvCf
         # The teacher's group is the stock policy group, left exactly as the teacher trained on it,
         # except for the corruption: the teacher was trained on the noisy stream, but here it is an
         # oracle being copied, and its noise would only inject variance into the student's targets.
+        self.observations.teacher.enable_corruption = False
+
+
+@configclass
+class G129DofRoughWaist1Power2BlindDistillEnvCfg(G129DofRoughWaist1Power2EnvCfg):
+    """Distil ``cw`` into a proprioception-only student.
+
+    ``cw`` -- randomization, the stronger push, waist L2 at -1.0 and the leg power penalty at
+    -5e-4 -- is the arm that walks evenly (airborne-share ratio 1.02 against t1's 0.47) and it is
+    the gait asked for on the robot. Like every actor in this line it reads 328 values, 190 of which
+    the robot cannot produce: ``height_scan`` (187) needs a terrain map and ``base_lin_vel`` (3) a
+    base-velocity estimator. Distillation is the only way that gait reaches ``g1_deploy``.
+
+    The environment is ``cw``'s, unchanged, because a student distilled in a different environment
+    from its teacher learns the wrong thing while reporting a low behaviour loss -- measured on this
+    line at 0.024 loss and 0.476 success, against 0.930 once the environments matched. What changes
+    is only the observation: the teacher group is ``cw``'s own input, and the student group is what
+    ``g1_deploy``'s ``core.observe`` can build, with five frames of proprioception standing in for
+    the terrain it cannot see.
+
+    Note that ``cw`` is not the ``s3_robust`` teacher: self-collision is off here, since the arm was
+    never trained with it.
+    """
+
+    observations: G129DofRoughAirTime100DistillObservationsCfg = G129DofRoughAirTime100DistillObservationsCfg()
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.observations.policy.base_lin_vel = None
+        self.observations.policy.height_scan = None
+        for term in _HISTORY_TERMS:
+            obs_term = getattr(self.observations.policy, term)
+            obs_term.history_length = _HISTORY_LENGTH
+            obs_term.flatten_history_dim = True
         self.observations.teacher.enable_corruption = False

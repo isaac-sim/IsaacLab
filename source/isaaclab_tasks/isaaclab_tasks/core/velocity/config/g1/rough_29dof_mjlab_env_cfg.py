@@ -33,9 +33,8 @@ different form (``|v|`` rather than ``v^2``, ungated), and adding a second would
 import torch
 
 from isaaclab.assets import Articulation
-from isaaclab.managers import ManagerTermBase
+from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.managers import RewardTermCfg as RewTerm
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor, RayCaster, RayCasterCfg, patterns
 from isaaclab.utils.configclass import configclass
 
