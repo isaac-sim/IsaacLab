@@ -149,6 +149,7 @@ Table of Contents
    :maxdepth: 2
    :caption: Developer Tools
 
+   source/developer-tools/editor_setup
    source/developer-tools/template_generator
    source/developer-tools/benchmarking/index
 

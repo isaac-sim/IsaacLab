@@ -8,10 +8,10 @@
             "label": "setup_python_env",
             "type": "shell",
             "linux": {
-                "command": "${workspaceFolder}/isaaclab.sh -p ${workspaceFolder}/.vscode/tools/setup_vscode.py"
+                "command": "uv run isaaclab --editor"
             },
             "windows": {
-                "command": "${workspaceFolder}/isaaclab.bat -p ${workspaceFolder}/.vscode/tools/setup_vscode.py"
+                "command": "uv run isaaclab --editor"
             }
         },
         {

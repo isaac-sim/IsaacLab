@@ -204,6 +204,68 @@ def test_environment_ids_author_point_instance_scene_partitions(sim):
     assert list(primvar.Get()) == ["env_1", "env_0"]
 
 
+def test_unchanged_environment_ids_do_not_rebuild_scene_partitions(sim, monkeypatch):
+    """Unchanged environment IDs should not rebuild partition tokens on every call.
+
+    Marker ownership is static in most tasks, but ``visualize`` runs every frame. Rebuilding the
+    token array anyway costs a device synchronization and one string per marker per frame.
+    """
+    from pxr import Sdf, UsdGeom, Vt
+
+    sim._has_offscreen_render = True
+    stage = sim_utils.get_current_stage()
+    for env_id in range(2):
+        env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
+        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
+
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/cached_partition_marker",
+        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    )
+    test_marker = VisualizationMarkers(config)
+    translations = torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device)
+    environment_ids = torch.tensor([1, 0], device=sim.device)
+    test_marker.visualize(translations=translations, environment_ids=environment_ids)
+
+    rebuilt_token_arrays = []
+    original_token_array = Vt.TokenArray
+
+    def _counting_token_array(*args, **kwargs):
+        rebuilt_token_arrays.append(args)
+        return original_token_array(*args, **kwargs)
+
+    monkeypatch.setattr(Vt, "TokenArray", _counting_token_array)
+    # Markers move every frame while their environment ownership stays fixed.
+    test_marker.visualize(translations=translations + 0.1, environment_ids=environment_ids)
+
+    assert rebuilt_token_arrays == []
+    primvar = UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(test_marker.prim_path)).GetPrimvar("omni:scenePartition")
+    assert list(primvar.Get()) == ["env_1", "env_0"]
+
+
+def test_changed_environment_ids_reauthor_scene_partitions(sim):
+    """New environment IDs should still update the authored partition tokens."""
+    from pxr import Sdf, UsdGeom
+
+    sim._has_offscreen_render = True
+    stage = sim_utils.get_current_stage()
+    for env_id in range(2):
+        env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
+        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
+
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/updated_partition_marker",
+        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    )
+    test_marker = VisualizationMarkers(config)
+    translations = torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device)
+    test_marker.visualize(translations=translations, environment_ids=torch.tensor([1, 0], device=sim.device))
+    test_marker.visualize(translations=translations, environment_ids=torch.tensor([0, 1], device=sim.device))
+
+    primvar = UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(test_marker.prim_path)).GetPrimvar("omni:scenePartition")
+    assert list(primvar.Get()) == ["env_0", "env_1"]
+
+
 def test_environment_ids_require_active_scene_partitions(sim):
     """Environment IDs should not partition markers when renderer stage preparation is inactive."""
     from pxr import UsdGeom
