@@ -32,25 +32,13 @@ This page covers:
    .viz-grid-stretch video.viz-no-crop { object-fit:contain; background:#000; }
    .viz-grid-stretch video.viz-crop-x8 { width:calc(100% + 16px); margin-left:-8px; }
    .viz-grid-stretch img.viz-crop-top { object-position:center 25%; }
-   /* Per-tile crop windows, measured from the source clips so the robot appears the same size
-      and vertically centered across all 5 hero tiles (object-position stays default center/
-      center; only the wrap height + video height/margin-top do the cropping). All wraps share
-      one 241px height, so both hero rows are the same height. Each video's own CSS height is
-      taller than 241px and shifted up by margin-top so overflow:hidden crops the rest; the
-      pair effectively selects a [top, top+241/scale] px window of the source clip, where
-      scale = video height / native height. Source clips are 960x580 (600 for Newton GL). The
-      robot sits 5% higher in the tile than a straight center crop: for Newton RTX/Rerun/Kit/
-      Viser this window was already pinned against the source frame edge or UI chrome, so
-      shifting it up required shrinking it by the same 5% (robot ~5% larger for these 4 than a
-      plain center crop would give); Newton GL's window was shrunk by the same amount so all 5
-      stay equal in size. Newton GL: source window y:145-505 (scale 0.67, video 402px, margin
-      -97px). Newton RTX: window clamps to the full source frame, anchored at the bottom edge,
-      y:57-580 (scale 0.46, video 267px, margin -26px). Rerun: window clamps against its "3D
-      View"/"Physics" UI chrome, y:73-560 (scale 0.49, video 287px, margin -36px). Viser:
-      window clamps against the frame bottom, y:67-580 (scale 0.47, video 273px, margin -32px);
-      still re-exposes a sliver of the "Isaac Lab" info panel baked into the top-right of this
-      clip, a known trade-off of this zoom level. Kit: window clamps against the frame bottom,
-      y:69-580 (scale 0.47, video 274px, margin -33px). */
+   /* Per-tile crop windows, sized and positioned from the source clips so the robot renders at
+      the same size and position across all 5 hero tiles. object-position stays centered; each
+      video's own (taller) height sets the zoom and its negative margin-top picks which slice
+      of the 241px-tall wrap is shown. Newton RTX/Rerun/Kit/Viser are pinned against their clip's
+      frame edge or UI chrome, so they're a few percent larger than a plain center crop; Newton
+      GL was shrunk to match. Viser's clip also shows a sliver of a baked-in info panel at this
+      zoom level -- a known trade-off. */
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:241px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:402px; margin-top:-97px; }
