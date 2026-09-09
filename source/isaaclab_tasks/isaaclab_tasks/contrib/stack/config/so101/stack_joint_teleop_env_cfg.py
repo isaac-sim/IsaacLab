@@ -32,6 +32,9 @@ _SO101_JOINTS = _SO101_ARM_JOINTS + ["gripper"]
 # plugin (or any pusher emitting the same schema) advertises.
 _SO101_LEADER_COLLECTION_ID = "so101_leader"
 
+# Tolerance [rad] below ``SO101_GRIPPER_OPEN`` that still counts as releasing the cube.
+_SUCCESS_GRIPPER_ATOL = 0.5
+
 
 def _build_so101_joint_teleop_pipeline():
     """Build an IsaacTeleop joint-space pipeline driven by the SO-101 leader arm.
@@ -159,14 +162,15 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
             xr_cfg=self.xr,
         )
 
-        # Relax the gripper-open check in the success termination. The default atol=0.0001 rad
-        # (100 µrad) is reachable when the gripper target is set to exactly SO101_GRIPPER_OPEN
-        # via an affine mapping (as in the IK-Abs env). In joint teleop the leader arm's raw
-        # encoder angle is mirrored 1:1, so the follower gripper may not reach the exact open
-        # value within 100 µrad due to calibration offsets or soft-limit ceilings. Using
-        # gripper_threshold (0.2 rad) as the tolerance matches the threshold already used by
-        # observations to classify the gripper as open vs. closed.
+        # Widen the gripper-open check in the success termination. In joint teleop the follower jaw
+        # mirrors the leader's raw encoder 1:1 and is capped by its own joint limit (1.7453 rad), so
+        # a 0.2 rad tolerance accepts only the top 0.2 rad of a 1.92 rad range and a leader whose
+        # calibrated full-open reading falls short never trips success. 0.5 rad still demands more
+        # opening than freeing a cube needs: the jaw opens by ``2 * L * sin(q / 2)``, so a 0.0477 m
+        # cube is released by q >= 1.245 for any lever arm ``L >= 0.043 m`` (the jaw spans ~0.093 m).
+        # Deliberately not ``gripper_threshold``, which ``object_grasped`` uses to annotate the
+        # grasp subtasks for every SO-101 stack env.
         self.terminations.success = DoneTerm(
             func=mdp.cubes_stacked,
-            params={"atol": self.gripper_threshold, "rtol": 0.0},
+            params={"atol": _SUCCESS_GRIPPER_ATOL, "rtol": 0.0},
         )
