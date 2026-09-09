@@ -64,12 +64,6 @@ WORKFLOW_EXPERIMENT_NAME_VARIABLE = {
 }
 """Maps workflow to the agent variable name that determines the logging directory logs/{workflow}/{variable}"""
 
-_SHADOW_HAND_CAMERA_TASKS = {
-    "Isaac-Reorient-Cube-Shadow-Camera",
-    "Isaac-Reorient-Cube-Shadow-Camera-Direct",
-}
-_SHADOW_HAND_FEATURE_EXTRACTOR_SUFFIX = "_feature_extractor.pth"
-
 
 def has_pretrained_checkpoints_asset_root_dir() -> bool:
     """Returns True if and only if the asset root directory is configured in the app kit file."""
@@ -348,12 +342,6 @@ def get_published_pretrained_checkpoint(
     download_dir = os.path.join(".pretrained_checkpoints", workflow)
     if physics_backend is None:
         download_dir = os.path.join(download_dir, task_name)
-    needs_shadow_hand_feature_extractor = (
-        workflow == "rsl_rl" and physics_backend is not None and task_name in _SHADOW_HAND_CAMERA_TASKS
-    )
-    if needs_shadow_hand_feature_extractor:
-        # Keep this task-specific companion isolated until checkpoint bundles provide an exact member path.
-        download_dir = os.path.join(download_dir, os.path.splitext(filename)[0])
     resume_path = os.path.join(download_dir, filename)
 
     if not os.path.exists(resume_path):
@@ -391,30 +379,6 @@ def get_published_pretrained_checkpoint(
             ) from exc
     else:
         print("Using pre-fetched pre-trained checkpoint")
-
-    if needs_shadow_hand_feature_extractor:
-        feature_extractor_path = f"{os.path.splitext(ov_path)[0]}{_SHADOW_HAND_FEATURE_EXTRACTOR_SUFFIX}"
-        print(f"Fetching Shadow Hand feature-extractor checkpoint : {feature_extractor_path}")
-        try:
-            retrieve_file_path(feature_extractor_path, download_dir)
-        except FileNotFoundError:
-            print(
-                "The Shadow Hand feature-extractor checkpoint is currently unavailable for this task.\n"
-                f"  The asset server does not provide '{feature_extractor_path}'.\n"
-                "  Re-publish the checkpoint pair before using --checkpoint pretrained."
-            )
-            return None
-        except Exception as exc:
-            hint = ""
-            if isinstance(exc, OSError):
-                hint = (
-                    " Check that the cache directory is writable and that the disk is not full;"
-                    " a directory left behind by a container run is owned by root."
-                )
-            raise RuntimeError(
-                f"Failed to download the Shadow Hand feature-extractor checkpoint '{feature_extractor_path}' into"
-                f" '{os.path.abspath(download_dir)}': {type(exc).__name__}: {exc}.{hint}"
-            ) from exc
     return resume_path
 
 

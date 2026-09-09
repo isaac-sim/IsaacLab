@@ -144,6 +144,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name, *backend_names)
                 if not resume_path:
                     return
+                feature_extractor_cfg = getattr(env_cfg, "feature_extractor", None)
+                if hasattr(feature_extractor_cfg, "pretrained_policy_checkpoint"):
+                    feature_extractor_cfg.pretrained_policy_checkpoint = resume_path
             elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
                 resume_path = resolve_checkpoint_selector(
                     log_root_path,

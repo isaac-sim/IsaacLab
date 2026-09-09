@@ -5,12 +5,14 @@
 
 import glob
 import os
+import posixpath
 
 import torch
 import torch.nn as nn
 import torchvision
 
 from isaaclab.sensors import save_images_to_file
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path, unmirror_file_path
 from isaaclab.utils.configclass import configclass
 
 # Number of output channels for each supported camera data type.
@@ -35,6 +37,9 @@ _IMAGENET_NORM_TYPES: frozenset[str] = frozenset(
         "simple_shading_full_mdl",
     }
 )
+
+_PRETRAINED_CHECKPOINT_DIR = "PretrainedCheckpoints/rsl_rl"
+_PRETRAINED_CHECKPOINT_SUFFIX = "_feature_extractor.pth"
 
 
 def _conv_out(size: int, kernel: int, stride: int, padding: int = 0) -> int:
@@ -128,6 +133,14 @@ class FeatureExtractorCfg:
     load_checkpoint: bool = False
     """If True, the feature extractor model is loaded from a checkpoint. Default is False."""
 
+    pretrained_policy_checkpoint: str | None = None
+    """Published policy checkpoint paired with the feature-extractor checkpoint.
+
+    When set, :class:`FeatureExtractor` derives the companion checkpoint name from this
+    policy path and downloads it before loading. Default is None, which loads the latest
+    local ``*.pth`` checkpoint from the log directory.
+    """
+
     write_image_to_file: bool = False
     """If True, the images from the camera sensor are written to file. Default is False."""
 
@@ -200,9 +213,7 @@ class FeatureExtractor:
             os.makedirs(self.log_dir)
 
         if self.cfg.load_checkpoint:
-            list_of_files = glob.glob(self.log_dir + "/*.pth")
-            latest_file = max(list_of_files, key=os.path.getctime)
-            checkpoint = os.path.join(self.log_dir, latest_file)
+            checkpoint = self._resolve_checkpoint_path()
             print(f"[INFO]: Loading feature extractor checkpoint from {checkpoint}")
             self.feature_extractor.load_state_dict(torch.load(checkpoint, weights_only=True))
 
@@ -323,3 +334,23 @@ class FeatureExtractor:
         else:
             predicted_pose = self.feature_extractor(img_input)
             return None, predicted_pose
+
+    def _resolve_checkpoint_path(self) -> str:
+        """Resolve the local feature-extractor checkpoint to load."""
+        if self.cfg.pretrained_policy_checkpoint is not None:
+            policy_checkpoint = self.cfg.pretrained_policy_checkpoint
+            published_policy_checkpoint = unmirror_file_path(policy_checkpoint)
+            if not published_policy_checkpoint:
+                published_policy_checkpoint = posixpath.join(
+                    ISAACLAB_NUCLEUS_DIR,
+                    _PRETRAINED_CHECKPOINT_DIR,
+                    os.path.basename(policy_checkpoint),
+                )
+            published_checkpoint = (
+                f"{posixpath.splitext(published_policy_checkpoint)[0]}{_PRETRAINED_CHECKPOINT_SUFFIX}"
+            )
+            print(f"[INFO]: Fetching pretrained feature extractor checkpoint from {published_checkpoint}")
+            return retrieve_file_path(published_checkpoint)
+
+        list_of_files = glob.glob(os.path.join(self.log_dir, "*.pth"))
+        return max(list_of_files, key=os.path.getctime)

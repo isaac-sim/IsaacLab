@@ -15,9 +15,13 @@ Two test suites are provided:
    :class:`ShadowHandTiledCameraCfg` and
    :class:`~isaaclab_tasks.utils.renderer_cfg.RendererPresetCfg` resolves to the expected
    concrete config class and data types, using the real config classes.
+
+3. **Checkpoint tests** — verify that published policies resolve to their matching
+   feature-extractor checkpoints.
 """
 
 import types
+from pathlib import Path
 
 import pytest
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
@@ -26,6 +30,8 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab.renderers import RendererCfg
 from isaaclab.sensors import CameraCfg
 
+from isaaclab_tasks.core.reorient.config.shadow_hand import feature_extractor as feature_extractor_module
+from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor, FeatureExtractorCfg
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
     ShadowHandCameraEnvCfg,
 )
@@ -243,3 +249,57 @@ def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_pre
             cfg.validate_config()
     else:
         cfg.validate_config()
+
+
+@pytest.mark.parametrize(
+    "policy_filename",
+    [
+        "Isaac-Reorient-Cube-Shadow-Camera_physx_rtx_rsl_rl.pt",
+        "Isaac-Reorient-Cube-Shadow-Camera_newtonmjwarp_newton_rsl_rl.pt",
+        "Isaac-Reorient-Cube-Shadow-Camera-Direct_physx_rtx_rsl_rl.pt",
+        "Isaac-Reorient-Cube-Shadow-Camera-Direct_newtonmjwarp_newton_rsl_rl.pt",
+    ],
+)
+def test_feature_extractor_fetches_checkpoint_paired_with_published_policy(
+    policy_filename: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The feature extractor must fetch the companion published beside the selected policy."""
+    retrieved_paths: list[str] = []
+    loaded_checkpoints: list[str] = []
+    checkpoint_path = tmp_path / "feature_extractor.pth"
+    checkpoint_path.touch()
+
+    class _FeatureExtractorNetwork:
+        def to(self, device: str) -> None:
+            pass
+
+        def load_state_dict(self, checkpoint) -> None:
+            loaded_checkpoints.append(checkpoint)
+
+        def eval(self) -> None:
+            pass
+
+    def _retrieve_file_path(path: str) -> str:
+        retrieved_paths.append(path)
+        return str(checkpoint_path)
+
+    monkeypatch.setattr(feature_extractor_module, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    monkeypatch.setattr(feature_extractor_module, "unmirror_file_path", lambda path: "")
+    monkeypatch.setattr(feature_extractor_module, "retrieve_file_path", _retrieve_file_path)
+    monkeypatch.setattr(
+        feature_extractor_module, "FeatureExtractorNetwork", lambda **kwargs: _FeatureExtractorNetwork()
+    )
+    monkeypatch.setattr(feature_extractor_module.torch, "load", lambda path, weights_only: "feature extractor weights")
+    cfg = FeatureExtractorCfg(
+        train=False,
+        load_checkpoint=True,
+        pretrained_policy_checkpoint=str(tmp_path / policy_filename),
+    )
+
+    FeatureExtractor(cfg, "cpu", ["rgb"], str(tmp_path / "logs"))
+
+    checkpoint_filename = policy_filename.removesuffix(".pt") + "_feature_extractor.pth"
+    assert retrieved_paths == [f"omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/{checkpoint_filename}"]
+    assert loaded_checkpoints == ["feature extractor weights"]

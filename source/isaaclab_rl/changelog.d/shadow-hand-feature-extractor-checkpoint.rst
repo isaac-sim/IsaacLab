@@ -1,5 +1,4 @@
 Fixed
 ^^^^^
 
-* Fixed published pretrained playback for the Shadow Hand camera tasks by collecting, publishing, and fetching the
-  required feature-extractor CNN beside each RSL-RL policy checkpoint.
+* Fixed published RSL-RL playback to identify the selected policy for task-owned feature-extractor checkpoint loading.
