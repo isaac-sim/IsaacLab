@@ -144,6 +144,16 @@ def test_reach_ik_presets_configure_gravity_control(action_preset, physics_prese
     assert mujoco_props.gravcomp == gravcomp
 
 
+def test_reach_osc_configures_backend_native_gravity_control():
+    cfg = _load_reach_env_cfg("Isaac-Reach-Franka-OSC")
+    rigid_props = cfg.scene.robot.spawn.rigid_props
+
+    physx_props = next(props for props in rigid_props if isinstance(props, PhysxRigidBodyCfg))
+    mujoco_props = next(props for props in rigid_props if isinstance(props, MujocoRigidBodyCfg))
+    assert physx_props.disable_gravity
+    assert mujoco_props.gravcomp == pytest.approx(1.0)
+
+
 def test_reach_franka_enables_link_collision_meshes_for_physx():
     cfg = _load_env_cfg("isaacsim_physx")
     collision_props = cfg.scene.robot.spawn.collision_props
