@@ -54,10 +54,13 @@ cuRobo provides the motion planning capabilities for SkillGen. This installation
    export PATH="$CUDA_HOME/bin:$PATH" && \
    export LD_LIBRARY_PATH="$CUDA_HOME/lib:$LD_LIBRARY_PATH" && \
    export TORCH_CUDA_ARCH_LIST="8.0+PTX" && \
+   export CC=/usr/bin/gcc CXX=/usr/bin/g++ CUDAHOSTCXX=/usr/bin/g++ && \
    pip install -e "git+https://github.com/NVlabs/curobo.git@ebb71702f3f70e767f40fd8e050674af0288abe8#egg=nvidia-curobo" --no-build-isolation
 
 .. note::
    * The commit hash ``ebb71702f3f70e767f40fd8e050674af0288abe8`` is tested with Isaac Lab - using other versions may cause compatibility issues. This commit has the support for quad face mesh triangulation, required for cuRobo to parse usds as collision objects.
+
+   * The ``CC``/``CXX``/``CUDAHOSTCXX`` exports force the build to use the system compiler. Installing ``cuda-toolkit`` through Conda also pulls a Conda GCC toolchain (currently GCC 14) into the environment, which CUDA 12.8's ``nvcc`` does not support (it requires GCC < 14). The default system GCC on supported Ubuntu versions (GCC 11 on 22.04, GCC 13 on 24.04) is compatible.
 
    * cuRobo is installed from source and is editable installed. This means that the cuRobo source code will be cloned in the current directory under ``src/nvidia-curobo``. Users can choose their working directory to install cuRobo.
 

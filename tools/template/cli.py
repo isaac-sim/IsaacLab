@@ -296,6 +296,7 @@ def main() -> None:
         "external": is_external_project,
         "path": project_path,
         "name": project_name,
+        "isaaclab_version": lab_module.__version__,
         "task_name": task_name,
         "robot_name": robot_name,
         "include_ui_extension": include_ui_extension,

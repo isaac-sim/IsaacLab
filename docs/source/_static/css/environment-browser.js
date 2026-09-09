@@ -17,7 +17,7 @@
             ["Isaac-Cartpole-Direct", "rl_games,rsl_rl,skrl,sb3", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/cartpole.jpg", true],
             ["Isaac-Cartpole", "rl_games,rsl_rl,skrl,sb3", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/cartpole.jpg", true],
             ["Isaac-Cartpole-Camera-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo,depth,rgb,semantic_segmentation,simple_shading_constant_diffuse,simple_shading_diffuse_mdl,simple_shading_full_mdl", {}, "tasks/classic/cartpole.jpg", false, {"*": ["rgb"], "rl_games": ["depth"]}],
-            ["Isaac-Cartpole-Camera", "rl_games,rsl_rl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo,depth,resnet18,rgb,semantic_segmentation,simple_shading_constant_diffuse,simple_shading_diffuse_mdl,simple_shading_full_mdl,theia_tiny", {"rl_games_cfg_entry_point": ["albedo", "depth", "rgb", "semantic_segmentation", "simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"], "rl_games_feature_cfg_entry_point": ["resnet18", "theia_tiny"], "rsl_rl_cfg_entry_point": ["albedo", "depth", "rgb", "semantic_segmentation", "simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"], "rsl_rl_feature_cfg_entry_point": ["resnet18", "theia_tiny"]}, "tasks/classic/cartpole.jpg", false, {"*": ["rgb"]}],
+            ["Isaac-Cartpole-Camera", "rl_games,rsl_rl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo,depth,resnet18,rgb,semantic_segmentation,simple_shading_constant_diffuse,simple_shading_diffuse_mdl,simple_shading_full_mdl,theia_tiny", {"rl_games_cfg_entry_point": ["albedo", "depth", "rgb", "semantic_segmentation", "simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"], "rl_games_feature_cfg_entry_point": ["resnet18", "theia_tiny"], "rsl_rl_cfg_entry_point": ["albedo", "depth", "rgb", "semantic_segmentation", "simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"], "rsl_rl_feature_cfg_entry_point": ["resnet18", "theia_tiny"]}, "tasks/classic/cartpole.jpg", false, {"*": ["rgb"], "rsl_rl": ["resnet18", "theia_tiny"]}],
             ["Isaac-Fourbar-Pole-Swingup", "rsl_rl", "newton_kamino", "", "", {}, "tasks/classic/fourbar_pole.jpg"],
             ["Isaac-Humanoid-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/humanoid.jpg", true],
             ["Isaac-Humanoid", "rl_games,rsl_rl,skrl,sb3", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/humanoid.jpg", true],
@@ -187,12 +187,13 @@
     const copyButton = builder.querySelector("[data-copy-command]");
     const copyStatus = builder.querySelector("[data-copy-status]");
     const modeButtons = [...builder.querySelectorAll("[data-command-mode]")];
-    const scopeButtons = [...builder.querySelectorAll("[data-task-scope]")];
+    const scopeButtons = [...taskBrowser.querySelectorAll("[data-task-scope]")];
     const taskList = taskBrowser.querySelector("[data-task-list]");
     const taskSearch = taskBrowser.querySelector("[data-task-search]");
     const taskCategory = taskBrowser.querySelector("[data-task-category]");
     const taskCount = taskBrowser.querySelector("[data-task-count]");
     const taskEmpty = taskBrowser.querySelector("[data-task-empty]");
+    const taskCardRefreshers = new WeakMap();
     const state = {
         mode: "train",
         scope: "core",
@@ -210,6 +211,89 @@
             return "manipulation";
         }
         return "classic";
+    };
+
+    // Direct/camera variants of the same task are folded into a single card; this only strips
+    // exact trailing suffixes, so unrelated tasks that merely contain "Camera"/"Direct" elsewhere
+    // in their name are never merged.
+    const variantOrder = ["manager", "direct", "camera", "direct-camera"];
+    const variantLabels = {manager: "Manager", direct: "Direct", camera: "Camera", "direct-camera": "Direct-Camera"};
+    const variantOf = (task) => {
+        if (task.endsWith("-Camera-Direct")) {
+            return "direct-camera";
+        }
+        if (task.endsWith("-Direct")) {
+            return "direct";
+        }
+        if (task.endsWith("-Camera")) {
+            return "camera";
+        }
+        return "manager";
+    };
+    const baseTaskName = (task) => task
+        .replace(/-Camera-Direct$/, "")
+        .replace(/-Direct$/, "")
+        .replace(/-Camera$/, "");
+
+    const groupTasks = (taskList) => {
+        const groups = new Map();
+        for (const task of taskList) {
+            const base = baseTaskName(task.task);
+            if (!groups.has(base)) {
+                groups.set(base, []);
+            }
+            groups.get(base).push(task);
+        }
+        for (const variants of groups.values()) {
+            variants.sort((left, right) => (
+                variantOrder.indexOf(variantOf(left.task)) - variantOrder.indexOf(variantOf(right.task))
+            ));
+        }
+        return groups;
+    };
+
+    // Keep capability labels compact on the cards while retaining the full names in tooltips and
+    // accessible labels.
+    const capabilitySymbolSets = [
+        ["physics", [
+            ["isaacsim_physx", "physx", "Isaac Sim PhysX"],
+            ["newton_kamino", "kamino", "Newton Kamino"],
+            ["newton_mjwarp", "mjwarp", "Newton MJWarp"],
+            ["newton_mjwarp_vbd_proxy", "mjwarp vbd", "Newton MJWarp VBD proxy"],
+            ["ovphysx", "ovphysx", "OV PhysX"],
+        ]],
+        ["renderer", [
+            ["isaacsim_rtx", "rtx", "Isaac Sim RTX"],
+            ["newton_renderer", "renderer", "Newton renderer"],
+            ["ovrtx", "ovrtx", "OV RTX"],
+        ]],
+        ["rl", [
+            ["rl_games", "rl_games", "RL Games"],
+            ["rsl_rl", "rsl_rl", "RSL-RL"],
+            ["skrl", "skrl", "skrl"],
+            ["sb3", "sb3", "Stable-Baselines3"],
+            ["rlinf", "rlinf", "RLinf"],
+        ]],
+    ];
+
+    const buildCapabilitySymbols = (task) => {
+        const values = {physics: task.physics, renderer: task.renderer, rl: task.rl};
+        const icons = {physics: "fa-gears", renderer: "fa-eye", rl: "fa-chart-line"};
+        return capabilitySymbolSets.flatMap(([type, symbols]) => symbols
+            .filter(([value]) => values[type].includes(value))
+            .map(([, shortLabel, fullLabel]) => {
+                const symbol = document.createElement("span");
+                symbol.className = `environment-task-symbol environment-task-symbol-${type}`;
+                symbol.title = fullLabel;
+                symbol.setAttribute("aria-label", fullLabel);
+                const icon = document.createElement("i");
+                icon.className = `fa-solid ${icons[type]}`;
+                icon.setAttribute("aria-hidden", "true");
+                const label = document.createElement("span");
+                label.textContent = shortLabel;
+                symbol.replaceChildren(icon, label);
+                return symbol;
+            }));
     };
 
     const preferredValue = (values, preferred) => preferred.find((value) => values.includes(value)) || values[0] || "";
@@ -251,7 +335,6 @@
             [/Reorient-Franka/, "tasks/manipulation/franka_lift.jpg"],
             [/Reorient-KukaAllegro/, "tasks/manipulation/kuka_allegro_reorient.jpg"],
             [/Shadow-Handover/, "tasks/manipulation/shadow_hand_over.jpg"],
-            [/Keyboard-SO101/, "tasks/manipulation/so101_keyboard.jpg"],
             [/AnymalB/, "tasks/locomotion/anymal_b_flat.jpg"],
             [/AnymalC/, "tasks/locomotion/anymal_c_flat.jpg"],
             [/AnymalD/, "tasks/locomotion/anymal_d_flat.jpg"],
@@ -415,6 +498,9 @@
         updateModeControls();
         commandOutput.textContent = currentCommand();
         updatePreview();
+        for (const card of taskList.querySelectorAll(".environment-task-card")) {
+            taskCardRefreshers.get(card)?.();
+        }
         for (const row of taskList.querySelectorAll("[data-task-name]")) {
             const isSelected = row.dataset.taskName === state.task;
             row.classList.toggle("is-selected", isSelected);
@@ -422,44 +508,98 @@
         }
     };
 
+    const createTaskCard = (variants) => {
+        const card = document.createElement("div");
+        card.className = "environment-task-card";
+
+        const selectButton = document.createElement("button");
+        selectButton.type = "button";
+        selectButton.className = "environment-task-card-select";
+
+        const image = document.createElement("img");
+        image.alt = "";
+        image.loading = "lazy";
+
+        const content = document.createElement("span");
+        content.className = "environment-task-card-content";
+        const nameEl = document.createElement("span");
+        nameEl.className = "environment-task-name";
+        const symbolsEl = document.createElement("span");
+        symbolsEl.className = "environment-task-symbols";
+        content.append(nameEl);
+        selectButton.append(image, content);
+
+        const variantsRow = document.createElement("div");
+        variantsRow.className = "environment-task-variants";
+        variantsRow.setAttribute("role", "group");
+        variantsRow.setAttribute("aria-label", "Task variant");
+        for (const variantTask of variants) {
+            const variantButton = document.createElement("button");
+            variantButton.type = "button";
+            variantButton.textContent = variantLabels[variantOf(variantTask.task)];
+            variantButton.dataset.taskName = variantTask.task;
+            variantButton.addEventListener("click", (event) => {
+                event.stopPropagation();
+                state.task = variantTask.task;
+                refreshCard();
+                updateSelection();
+            });
+            variantsRow.append(variantButton);
+        }
+
+        const refreshCard = () => {
+            const activeTask = variants.find((task) => task.task === state.task) || variants[0];
+            const isSelected = variants.includes(activeTask) && activeTask.task === state.task;
+            image.src = new URL(`../../_static/${previewImageFor(activeTask)}`, window.location.href).href;
+            image.alt = "";
+            selectButton.dataset.taskName = activeTask.task;
+            selectButton.setAttribute("aria-pressed", String(isSelected));
+            nameEl.textContent = activeTask.task;
+            symbolsEl.replaceChildren(...buildCapabilitySymbols(activeTask));
+            card.classList.toggle("is-selected", isSelected);
+            for (const button of variantsRow.querySelectorAll("[data-task-name]")) {
+                const isActiveVariant = button.dataset.taskName === state.task;
+                button.classList.toggle("is-selected", isActiveVariant);
+                button.setAttribute("aria-pressed", String(isActiveVariant));
+            }
+        };
+
+        selectButton.addEventListener("click", () => {
+            state.task = selectButton.dataset.taskName;
+            updateSelection();
+        });
+
+        taskCardRefreshers.set(card, refreshCard);
+        refreshCard();
+        card.append(selectButton, variantsRow, symbolsEl);
+        return card;
+    };
+
     const renderTasks = () => {
         const query = taskSearch.value.trim().toLowerCase();
         const category = taskCategory.value;
-        const visibleTasks = tasksForScope().filter((task) => {
-            const matchesQuery = task.task.toLowerCase().includes(query);
+        const matchesFilter = (task) => {
+            const searchableValues = [
+                task.task,
+                ...(task.physics.length ? task.physics : ["Default"]),
+                ...(task.renderer.length ? task.renderer : ["Default"]),
+                ...(task.rl.length ? task.rl : ["Not supported"]),
+            ];
+            const matchesQuery = searchableValues.some((value) => value.toLowerCase().includes(query));
             const matchesCategory = category === "all"
                 || categoryFor(task.task) === category;
             return matchesQuery && matchesCategory;
-        });
-        taskList.replaceChildren(...visibleTasks.map((task) => {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = "environment-task-row";
-            button.dataset.taskName = task.task;
-            const isSelected = task.task === state.task;
-            button.classList.toggle("is-selected", isSelected);
-            button.setAttribute("aria-pressed", String(isSelected));
-            button.innerHTML = `<span class="environment-task-name"></span><span class="environment-task-meta"></span>`;
-            button.querySelector(".environment-task-name").textContent = task.task;
-            const meta = button.querySelector(".environment-task-meta");
-            const workflow = task.task.includes("Direct") ? "Direct" : "Manager based";
-            const rlSupport = task.rl.length
-                ? `${task.rl.length} RL ${task.rl.length === 1 ? "library" : "libraries"}`
-                : "RL not supported";
-            meta.replaceChildren(...[workflow, rlSupport].map((label) => {
-                const badge = document.createElement("span");
-                badge.textContent = label;
-                return badge;
-            }));
-            button.addEventListener("click", () => {
-                state.task = task.task;
-                updateSelection();
-            });
-            return button;
-        }));
-        taskCount.textContent = `${visibleTasks.length} ${visibleTasks.length === 1 ? "task" : "tasks"}`;
-        taskEmpty.hidden = visibleTasks.length !== 0;
-        taskList.hidden = visibleTasks.length === 0;
+        };
+        const groups = groupTasks(tasksForScope());
+        const visibleGroups = [...groups.values()]
+            .map((variants) => variants.filter(matchesFilter))
+            .filter((variants) => variants.length > 0);
+
+        taskList.replaceChildren(...visibleGroups.map(createTaskCard));
+        const matchingTaskCount = visibleGroups.reduce((total, variants) => total + variants.length, 0);
+        taskCount.textContent = `${matchingTaskCount} ${matchingTaskCount === 1 ? "task" : "tasks"}`;
+        taskEmpty.hidden = visibleGroups.length !== 0;
+        taskList.hidden = visibleGroups.length === 0;
     };
 
     const initializeTasks = () => {
