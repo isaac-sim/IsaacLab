@@ -196,16 +196,14 @@ class FabricFrameView(BaseFrameView):
 
         self._fabric_initialized = False
 
-        # Prim tagging, the three persistent selections, and the view->fabric slot mapping all live
-        # in the shared helper, authored once in ``_initialize_fabric``.  The private names the rest
-        # of this class (and its tests) use are exposed as properties that read through to it.
+        # Prim tagging, the persistent selections, and the view->fabric slot mapping all live in the
+        # shared helper, authored once in ``_initialize_fabric``.
         self._fabric_sel: FabricXformSelection | None = None
 
         # Sentinel passed to compose/decompose kernels for unused slots.
         self._fabric_empty_2d_array_sentinel: wp.array | None = None
 
-        # Makes ``close()`` idempotent and lets ``__del__`` warn when cleanup had to happen via
-        # garbage collection.
+        # Keeps ``close()`` idempotent and lets ``__del__`` warn when it had to do the cleanup.
         self._is_closed: bool = False
 
     def close(self) -> None:
@@ -526,9 +524,6 @@ class FabricFrameView(BaseFrameView):
             list(self.prim_paths),
             self._device,
             owner=type(self).__name__,
-            # Fabric is this view's source of truth, so its matrices must start out populated:
-            # without the seed they are identity on a stage that has not been rendered yet, and the
-            # getters below would read those back.
             seed_from_usd=True,
         )
 

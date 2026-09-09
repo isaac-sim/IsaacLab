@@ -38,39 +38,19 @@ def _parent_path(prim_path: str) -> str:
 
 
 class FabricXformSelection:
-    """Tagged Fabric selections over a set of prims and their parents.
+    """Tagged Fabric selections over a set of prims and their parents, shared by the backend views.
 
-    Shared by :class:`~isaaclab_physx.sim.views.FabricFrameView`, which treats Fabric as its source of
-    truth, and :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`, which only pushes Newton state
-    onto it; :meth:`__init__` takes the flags that separate those two semantics.
-
-    Selections are keyed on a per-instance index attribute, keeping their size proportional to the
-    view rather than to the stage. Three live for the instance's lifetime: child read-only, child
-    read-write (:attr:`read_write` selects between them), and parent world read-only. The view-index
-    to Fabric-slot mapping is rebuilt from live Fabric data on every accessor call rather than cached,
-    so a bucket reorder can never leave a stale mapping behind.
-
-    Attributes:
-        count: Number of selected prims.
-        kept_indices: Index into the caller's original path list for each selected prim.
-        unique_parent_paths: Parent prim paths, deduplicated in first-occurrence order.
-        stage: The attached usdrt stage.
-        fabric_hierarchy: Fabric hierarchy handle, or ``None`` when the bindings are unavailable.
-        child_index_attr: Per-instance index attribute authored on the selected prims.
-        view_indices: Dense ``uint32`` view indices, ``0..count-1``.
-        parent_view_indices: Dense ``uint32`` parent indices.
-        sel_ro: Persistent read-only child selection.
-        sel_rw: Persistent read-write child selection.
-        sel_parent: Persistent read-only parent world selection.
-        read_write: Whether the child accessors resolve to :attr:`sel_rw` rather than :attr:`sel_ro`.
+    Three selections -- child read-only, child read-write, and parent world -- live for the
+    instance's lifetime, keyed on a per-instance index attribute so their size follows the view
+    rather than the stage. Accessors rebuild the view-index to Fabric-slot mapping from live Fabric
+    data, so a bucket reorder can never leave it stale.
     """
 
     _WORLD_MATRIX_NAME = "omni:fabric:worldMatrix"
     _LOCAL_MATRIX_NAME = "omni:fabric:localMatrix"
 
-    # Process-wide uid source for the per-instance attribute names. A monotonic counter (NOT
-    # ``id(self)``) guarantees a name is never reused after an instance is garbage-collected, so a
-    # dead instance's leftover attributes can never satisfy a live one's selection.
+    # Uid source for the attribute names; monotonic (not ``id(self)``) so a dead instance's leftover
+    # attributes can never satisfy a live one's selection.
     _uid_counter = itertools.count()
 
     def __init__(
@@ -88,14 +68,12 @@ class FabricXformSelection:
             prim_paths: Prim paths to select, in the owner's view order.
             device: Warp device for the index and slot buffers.
             owner: Owning class name, used in error messages and the attribute namespace.
-            seed_from_usd: Whether to author and seed both matrices on every prim from USD. Use this
-                when Fabric is the owner's source of truth and must start out populated. When
-                ``False``, only genuinely absent attributes are created and seeded, and parents never
-                receive a local matrix -- seeding a prim whose transform another system already
-                drives would reset it, and authoring a local matrix on one lets the Fabric hierarchy
-                pass overwrite that system's world matrix with ``parent * local``.
+            seed_from_usd: Whether to seed both matrices on every prim from USD, for an owner whose
+                source of truth is Fabric. ``False`` seeds only absent attributes and gives parents
+                no local matrix, so a transform another system drives is neither reset nor
+                overwritten by the hierarchy pass.
             skip_missing_prims: Whether prims absent from the Fabric stage are dropped instead of
-                raising. Drops are reported through :attr:`kept_indices`.
+                raising, as reported by :attr:`kept_indices`.
 
         Raises:
             RuntimeError: If a required prim is missing from the Fabric stage.

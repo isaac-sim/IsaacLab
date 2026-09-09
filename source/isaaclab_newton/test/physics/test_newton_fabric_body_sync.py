@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 from isaaclab.app import AppLauncher
 
 # Launch Isaac Sim before importing Newton modules so USD schema bindings are initialized.
@@ -483,14 +485,36 @@ path to Fabric (frames parented to a body already track it via the hierarchy pas
 the same boundary as the body tests: the Fabric world matrix the renderer consumes.
 """
 
-FRAME_LOCAL_OFFSET = (0.0, 0.0, 0.35)
 
-
-def _make_frame_view(prim_path: str, device: str):
-    """Build the backend FrameView for an existing non-physics prim."""
+@contextlib.contextmanager
+def _frame_scene(frame_path: str, translation, device: str = "cuda:0"):
+    """Yield a reset render scene with a FrameView over a freshly created Xform at ``frame_path``."""
     from isaaclab.sim.views import FrameView
 
-    return FrameView(prim_path, device=device)
+    sim_cfg = SimulationCfg(
+        device=device,
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        scene = InteractiveScene(_RenderSceneCfg(num_envs=1, env_spacing=2.0))
+        sim.register_interactive_scene(scene)
+        try:
+            sim_utils.create_prim(frame_path, "Xform", translation=translation)
+            view = FrameView(frame_path, device=device)
+            sim.reset()
+            scene.reset()
+            _render(sim, device)
+            yield sim, scene, view
+        finally:
+            sim.register_interactive_scene(None)
+
+
+def _render(sim, device: str = "cuda:0") -> None:
+    """Render and wait for the write to land in Fabric."""
+    sim.render()
+    wp.synchronize_device(device)
 
 
 def _write_frame_world_position(view, position: torch.Tensor) -> None:
@@ -503,51 +527,33 @@ def _write_frame_world_position(view, position: torch.Tensor) -> None:
         writer.set_poses(positions, orientations)
 
 
+def _assert_position(actual: torch.Tensor, expected: torch.Tensor) -> None:
+    torch.testing.assert_close(actual, expected, rtol=0.0, atol=1.0e-4)
+
+
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
 def test_frame_view_pose_write_reaches_fabric():
     """A world-attached FrameView pose write must reach the transform Kit/RTX renders.
 
     Regression for camera poses set via ``Camera.set_world_poses`` under Newton: the write lands in
-    the Newton site's local transform, ``get_world_poses`` reflects it, but nothing mirrors it onto
-    the prim, so the renderer keeps drawing the frame at its spawn pose.
+    the Newton site's local transform and ``get_world_poses`` reflects it, but nothing mirrors it
+    onto the prim, so the renderer keeps drawing the frame at its spawn pose.
     """
     device = "cuda:0"
     frame_path = "/World/Frame"
     spawn_position = torch.tensor([0.0, 0.0, 2.0])
     target_position = torch.tensor([1.0, -0.5, 8.0])
 
-    sim_cfg = SimulationCfg(
-        device=device,
-        gravity=(0.0, 0.0, 0.0),
-        physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
-    )
+    with _frame_scene(frame_path, tuple(spawn_position.tolist()), device) as (sim, _, view):
+        _assert_position(_fabric_position(frame_path), spawn_position)
 
-    with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(_RenderSceneCfg(num_envs=1, env_spacing=2.0))
-        sim.register_interactive_scene(scene)
-        try:
-            sim_utils.create_prim(frame_path, "Xform", translation=tuple(spawn_position.tolist()))
-            view = _make_frame_view(frame_path, device)
+        _write_frame_world_position(view, target_position.to(device))
+        _render(sim, device)
 
-            sim.reset()
-            scene.reset()
-            sim.render()
-            wp.synchronize_device(device)
-
-            torch.testing.assert_close(_fabric_position(frame_path), spawn_position, rtol=0.0, atol=1.0e-4)
-
-            _write_frame_world_position(view, target_position.to(device))
-            sim.render()
-            wp.synchronize_device(device)
-
-            # The view's own report and the rendered transform must agree; only the latter regresses.
-            reported = wp.to_torch(view.get_world_poses()[0].warp).cpu()[0]
-            torch.testing.assert_close(reported, target_position, rtol=0.0, atol=1.0e-4)
-            torch.testing.assert_close(_fabric_position(frame_path), target_position, rtol=0.0, atol=1.0e-4)
-        finally:
-            sim.register_interactive_scene(None)
+        # The view's own report and the rendered transform must agree; only the latter regresses.
+        _assert_position(wp.to_torch(view.get_world_poses()[0].warp).cpu()[0], target_position)
+        _assert_position(_fabric_position(frame_path), target_position)
 
 
 @pytest.mark.isaacsim_ci
@@ -563,43 +569,20 @@ def test_frame_view_pose_write_on_body_child_survives_body_motion():
     body_path = "/World/envs/env_0/Cube"
     frame_path = f"{body_path}/Frame"
 
-    sim_cfg = SimulationCfg(
-        device=device,
-        gravity=(0.0, 0.0, 0.0),
-        physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
-    )
+    with _frame_scene(frame_path, (0.0, 0.0, 0.35), device) as (sim, scene, view):
+        # Cube spawns at (0, 0, 1); place the frame 0.5 m to its +X side.
+        body_start = torch.tensor([0.0, 0.0, 1.0])
+        written_position = body_start + torch.tensor([0.5, 0.0, 0.0])
+        _write_frame_world_position(view, written_position.to(device))
+        _render(sim, device)
 
-    with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(_RenderSceneCfg(num_envs=1, env_spacing=2.0))
-        sim.register_interactive_scene(scene)
-        try:
-            sim_utils.create_prim(frame_path, "Xform", translation=FRAME_LOCAL_OFFSET)
-            view = _make_frame_view(frame_path, device)
+        _assert_position(_fabric_position(frame_path), written_position)
 
-            sim.reset()
-            scene.reset()
-            sim.render()
-            wp.synchronize_device(device)
+        # Move the body; the frame must carry the written offset with it.
+        target_pose = torch.tensor([[1.5, -0.75, 2.0, 0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device)
+        scene["cube"].write_root_link_pose_to_sim_index(root_pose=target_pose)
+        _render(sim, device)
 
-            # Cube spawns at (0, 0, 1); place the frame 0.5 m to its +X side.
-            body_start = torch.tensor([0.0, 0.0, 1.0])
-            written_position = body_start + torch.tensor([0.5, 0.0, 0.0])
-            _write_frame_world_position(view, written_position.to(device))
-            sim.render()
-            wp.synchronize_device(device)
-
-            torch.testing.assert_close(_fabric_position(frame_path), written_position, rtol=0.0, atol=1.0e-4)
-
-            # Move the body; the frame must carry the written offset with it.
-            target_pose = torch.tensor([[1.5, -0.75, 2.0, 0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device)
-            scene["cube"].write_root_link_pose_to_sim_index(root_pose=target_pose)
-            sim.render()
-            wp.synchronize_device(device)
-
-            expected = target_pose[0, :3].cpu() + (written_position - body_start)
-            reported = wp.to_torch(view.get_world_poses()[0].warp).cpu()[0]
-            torch.testing.assert_close(reported, expected, rtol=0.0, atol=1.0e-4)
-            torch.testing.assert_close(_fabric_position(frame_path), expected, rtol=0.0, atol=1.0e-4)
-        finally:
-            sim.register_interactive_scene(None)
+        expected = target_pose[0, :3].cpu() + (written_position - body_start)
+        _assert_position(wp.to_torch(view.get_world_poses()[0].warp).cpu()[0], expected)
+        _assert_position(_fabric_position(frame_path), expected)

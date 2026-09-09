@@ -43,8 +43,8 @@ def _has_regex_tokens(pattern: str) -> bool:
 
 
 # One resolved site registration: (body_patterns, local transform, xform scale, per_world, env_ids,
-# destination prim paths).  The prim paths are ordered to match the sites this spec expands into, and
-# are ``None`` when the expansion is a regex over bodies whose destination paths are not yet known.
+# destination prim paths).  The prim paths follow this spec's expansion order, and are ``None`` when
+# that expansion is a regex over bodies whose destination paths are not yet known.
 _SiteSpec = tuple[
     tuple[str, ...] | None,
     wp.transform,
@@ -58,10 +58,8 @@ _SiteSpec = tuple[
 def _destination_prim_paths(
     prim_path: str, source_root: str | None, destination_template: str | None, env_ids: tuple[int, ...] | None
 ) -> tuple[str, ...]:
-    """Map a clone source prim to its per-environment destination paths.
-
-    Returns the prim's own path unchanged when it is not part of a clone plan row.
-    """
+    """Map a clone source prim to its per-environment destination paths, or to itself when it is not
+    part of a clone plan row."""
     if source_root is None or destination_template is None or env_ids is None:
         return (prim_path,)
     suffix = prim_path if source_root == "/" else prim_path[len(source_root) :]
@@ -261,8 +259,7 @@ class NewtonSiteFrameView(BaseFrameView):
         self._site_specs = self._resolve_site_specs(stage, validate_xform_ops)
         self._site_labels: list[str] = []
         self._site_label_scales: list[tuple[float, float, float]] = []
-        # Destination prim paths per site label, ordered to match the sites the label expands into.
-        # ``None`` for a label whose expansion is not statically known; see :meth:`_mirror_to_fabric`.
+        # Destination prim paths per label, in expansion order; ``None`` when that is not yet known.
         self._site_label_prim_paths: list[tuple[str, ...] | None] = []
         self._site_prim_paths: list[str] | None = None
         # Fabric mirror state, built on the first write (see :meth:`_mirror_to_fabric`).

@@ -5,17 +5,11 @@
 
 """Camera pose writes must take effect on every physics backend.
 
-Both tests move a downward-looking camera straight up over a ground plane, multiplying the distance to
-every visible surface, and check the two observable consequences: ``camera.data.pos_w`` (no renderer
-involved) and the rendered depth.
-
-The render check is not redundant with the Fabric-level coverage in
-``isaaclab_newton/test/physics/test_newton_fabric_body_sync.py``. Writing through a read-only Fabric
-selection still lands the matrix in Fabric -- so a test that reads it back passes -- while the renderer
-is never notified and keeps drawing the old pose. Only rendered output separates the two.
+A downward-looking camera moves up over a ground plane; both consequences are checked --
+``camera.data.pos_w`` and the rendered depth. The render half is not covered by
+``isaaclab_newton/test/physics/test_newton_fabric_body_sync.py``: a write can land in Fabric, and
+read back fine, while the renderer is never notified.
 """
-
-"""Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
 
@@ -58,14 +52,10 @@ class _SceneCfg(InteractiveSceneCfg):
 
 
 def _capture_at_heights(physics_cfg, heights_m: tuple[float, ...]) -> list[tuple[torch.Tensor, float]]:
-    """Move the camera to each height in turn, returning its ``(pos_w, mean visible depth [m])`` at each.
+    """Move the camera to each height [m] in turn, returning its ``(pos_w, mean visible depth [m])``.
 
-    The camera looks straight down, so its reported depth is dominated by its height. It spawns at the
-    first height rather than the origin, so a dropped write leaves an unchanged image, not an empty one.
-
-    Args:
-        physics_cfg: Physics backend configuration to build the simulation with.
-        heights_m: Camera heights [m] above the ground plane to capture at, in order.
+    The camera spawns at the first height rather than the origin, so a dropped write leaves an
+    unchanged image, not an empty one.
     """
     device = "cuda:0"
     # Physics steps taken after each pose write so the renderer produces a frame at the new pose.
@@ -112,32 +102,16 @@ def _capture_at_heights(physics_cfg, heights_m: tuple[float, ...]) -> list[tuple
 
 
 @pytest.mark.parametrize("physics_cfg", BACKEND_CFGS, ids=BACKEND_IDS)
-def test_camera_pose_write_moves_reported_pose(physics_cfg):
-    """``camera.data.pos_w`` follows a ``set_world_poses`` write on every backend."""
-    # Heights [m], and the reported shift below which the write counts as dropped.
+def test_camera_pose_write_moves_reported_pose_and_render(physics_cfg):
+    """``camera.data.pos_w`` and the rendered depth both follow a ``set_world_poses`` write."""
     close_m, far_m = 2.0, 8.0
-    pose_shift_threshold_m = 0.5 * (far_m - close_m)
+    # True far-to-close depth ratio is ~4x; 1.5 tolerates framing differences but not a frozen render.
+    depth_ratio_threshold = 1.5
 
-    (pos_close, _), (pos_far, _) = _capture_at_heights(physics_cfg, (close_m, far_m))
+    (pos_close, depth_close_m), (pos_far, depth_far_m) = _capture_at_heights(physics_cfg, (close_m, far_m))
 
     np.testing.assert_allclose(pos_close.numpy(), [[0.0, 0.0, close_m]], atol=1e-3)
     np.testing.assert_allclose(pos_far.numpy(), [[0.0, 0.0, far_m]], atol=1e-3)
-    shift = (pos_far - pos_close).norm(dim=-1).max().item()
-    assert shift > pose_shift_threshold_m, (
-        f"Expected camera.data.pos_w to follow the pose write (> {pose_shift_threshold_m} m); got {shift:.4f} m."
-    )
-
-
-@pytest.mark.parametrize("physics_cfg", BACKEND_CFGS, ids=BACKEND_IDS)
-def test_camera_pose_write_moves_render(physics_cfg):
-    """The rendered depth follows a ``set_world_poses`` write on every backend."""
-    # True far-to-close ratio is ~4x; 1.5 tolerates framing differences while still failing hard if the
-    # render does not move at all.
-    close_m, far_m = 2.0, 8.0
-    depth_ratio_threshold = 1.5
-
-    (_, depth_close_m), (_, depth_far_m) = _capture_at_heights(physics_cfg, (close_m, far_m))
-
     ratio = depth_far_m / depth_close_m
     assert ratio > depth_ratio_threshold, (
         f"Far depth ({depth_far_m:.2f} m) should be > {depth_ratio_threshold}x close depth"
