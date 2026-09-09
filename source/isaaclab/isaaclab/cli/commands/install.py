@@ -1359,3 +1359,9 @@ def command_install(install_type: str = "all") -> None:
     # Update editor settings unless we're in Docker.
     if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):
         command_editor([], project_dir=ISAACLAB_ROOT)
+
+    # Best-effort: install desktop icons for the Newton viewer windows (Linux graphical
+    # sessions only; no-op elsewhere, including Docker/CI/Windows).
+    from ...utils.desktop_icons import install_desktop_icons
+
+    install_desktop_icons()
