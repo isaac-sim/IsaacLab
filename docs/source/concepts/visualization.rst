@@ -32,21 +32,12 @@ This page covers:
    .viz-grid-stretch video.viz-no-crop { object-fit:contain; background:#000; }
    .viz-grid-stretch video.viz-crop-x8 { width:calc(100% + 16px); margin-left:-8px; }
    .viz-grid-stretch img.viz-crop-top { object-position:center 25%; }
-   /* Per-tile crop windows, sized and positioned from the source clips so the robot renders at
-      a matched size within each row (top row: Newton GL/Viser; bottom row: Newton RTX/Rerun/
-      Kit). object-position stays centered; each video's own (taller) height sets the zoom and
-      its negative margin-top picks which slice of the 265px-tall wrap is shown. These values
-      are tuned against the *currently hosted* clips, not against what capture_visualizer.py's
-      own crop constants would produce -- _main_hero() only bakes in a small fixed trim (mainly
-      to clear each visualizer's own UI chrome), the actual zoom/framing lives here in CSS. If
-      the hero clips are ever regenerated and republished, re-check these values against the new
-      source dimensions. The 5 hero videos have no `controls` attribute (see the markup below),
-      so nothing here needs to keep a controls bar in the visible area -- Newton GL/Kit/Newton
-      RTX are clean captures with plenty of room to crop; Rerun and Viser each bake in their own
-      UI chrome (a "3D View"/physics-backend bar for Rerun, an info panel for Viser) that the
-      crop has to clear, which caps how far *out* they can zoom -- Viser is already at that
-      maximum-zoom-out limit; Rerun still has room and is zoomed in further here to match the
-      bottom row's size, well clear of its chrome on both edges. */
+   /* Per-tile crop windows: each video's (taller) height sets the zoom and its negative
+      margin-top picks which slice of the 265px wrap is shown, matching robot size within each
+      row. Tuned against the currently hosted clips, not capture_visualizer.py's own (much
+      smaller) fixed trim -- re-check if the clips are ever regenerated. Rerun/Viser cap how far
+      they can zoom out before their own baked-in UI chrome reappears; Viser is already at that
+      limit. */
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:265px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; height:265px; margin-top:0; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:480px; margin-top:-105px; }
@@ -106,11 +97,8 @@ This page covers:
    </div>
 
    <script>
-   // Kit/Newton RTX's clips are encoded 10% slower than the other 3 (see _hero_record_visualizer
-   // in tools/docs/media/visualizers/capture_visualizer.py) and loop independently, so without
-   // compensation they drift out of rotational phase with Newton GL/Viser/Rerun as each clip
-   // loops. Playing them back at 1/0.9 undoes that baked-in slowdown so all 5 finish a loop
-   // (and stay in phase) at the same wall-clock rate.
+   // Kit/Newton RTX are encoded 10% slower than the other 3 (output_speed_factor in
+   // capture_visualizer.py); undo that so all 5 independently-looping clips stay in phase.
    document.querySelectorAll(".viz-hero-speedup").forEach(function (v) {
      v.playbackRate = 1 / 0.9;
    });
