@@ -40,11 +40,11 @@ This page covers:
       crop here; Kit/Newton RTX have clean captures and are shown uncropped (full native
       960x580). Rerun and Viser each bake in their own UI chrome (a "3D View"/physics-backend
       bar for Rerun, an info panel for Viser) that the crop has to clear, which caps how far they
-      can zoom out -- Viser in particular still shows a sliver of its panel at this zoom level, a
-      known trade-off. */
+      can zoom out -- both are cropped to their maximum safe zoom (just past the chrome) rather
+      than a fixed ratio, so their info panels stay fully out of frame. */
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:265px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; height:265px; margin-top:0; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:300px; margin-top:-35px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:314px; margin-top:-49px; }
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:288px; margin-top:-12px; }
    .viz-grid-record { justify-content:center; align-items:flex-start; }
    .viz-grid-record > div { flex:0 0 auto; }
@@ -896,6 +896,14 @@ The Rerun web viewer may slow down or crash with many environments. Reduce load 
       .. code-block:: bash
 
           ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun --num_envs 512
+
+**Rerun: blank page until the first payload loads**
+
+The Rerun browser tab opens blank and stays that way for several seconds (up to ~10s,
+depending on scene size) before the scene and live plots appear. This is expected -- it's the
+time for the web viewer to connect to the local Rerun server and receive its first batch of
+logged data -- but the page gives no loading indicator in the meantime, so it can look stuck.
+No action is needed; wait for the first frame to arrive.
 
 **Newton GL: CUDA/OpenGL interoperability warnings**
 
