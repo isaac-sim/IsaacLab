@@ -1,0 +1,261 @@
+/*
+ * Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+.guide-browser-toolbar {
+    position: sticky;
+    top: 4rem;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1.25rem 0 1.5rem;
+    padding: 0.75rem;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--pst-color-background) 94%, transparent);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--pst-color-shadow) 18%, transparent);
+    backdrop-filter: blur(12px);
+}
+
+.guide-search {
+    position: relative;
+    flex: 1 1 24rem;
+    min-width: 12rem;
+    height: 2.5rem;
+    margin: 0;
+}
+
+.guide-search i {
+    position: absolute;
+    top: 50%;
+    left: 0.8rem;
+    z-index: 1;
+    color: var(--pst-color-text-muted);
+    pointer-events: none;
+    transform: translateY(-50%);
+}
+
+.guide-search input {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0.45rem 0.8rem 0.45rem 2.35rem;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 6px;
+    color: var(--pst-color-text-base);
+    background: var(--pst-color-background);
+}
+
+.guide-search input:focus {
+    border-color: var(--pst-color-primary);
+    outline: 2px solid color-mix(in srgb, var(--pst-color-primary) 25%, transparent);
+    outline-offset: 0;
+}
+
+.guide-type-switch {
+    display: inline-flex;
+    flex: 0 0 auto;
+    overflow: hidden;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 6px;
+}
+
+.guide-type-switch button {
+    min-height: 2.5rem;
+    padding: 0.4rem 0.75rem;
+    border: 0;
+    border-right: 1px solid var(--pst-color-border);
+    border-radius: 0;
+    color: var(--pst-color-text-muted);
+    background: var(--pst-color-background);
+    font-weight: 600;
+}
+
+.guide-type-switch button:last-child {
+    border-right: 0;
+}
+
+.guide-type-switch button:hover,
+.guide-type-switch button:focus-visible {
+    color: var(--pst-color-primary);
+}
+
+.guide-type-switch button.is-active {
+    color: #1f3300;
+    background: #76b900;
+}
+
+.guide-result-count {
+    flex: 0 0 auto;
+    min-width: 5.25rem;
+    color: var(--pst-color-text-muted);
+    font-size: 0.85rem;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.guide-group {
+    margin: 0 0 1.5rem;
+}
+
+.guide-group > .rubric {
+    margin: 0 0 0.5rem;
+    color: var(--pst-color-text-base);
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.guide-entry {
+    position: relative;
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    column-gap: 0.8rem;
+    align-items: center;
+    min-height: 4.5rem;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--pst-color-border);
+    border-bottom: 0;
+    background: var(--pst-color-background);
+}
+
+.guide-entry:first-of-type {
+    border-radius: 8px 8px 0 0;
+}
+
+.guide-entry.is-first-visible {
+    border-radius: 8px 8px 0 0;
+}
+
+.guide-entry:last-child {
+    border-bottom: 1px solid var(--pst-color-border);
+    border-radius: 0 0 8px 8px;
+}
+
+.guide-entry.is-last-visible {
+    border-bottom: 1px solid var(--pst-color-border);
+    border-radius: 0 0 8px 8px;
+}
+
+.guide-entry.is-first-visible.is-last-visible {
+    border-radius: 8px;
+}
+
+.guide-entry:only-of-type {
+    border-bottom: 1px solid var(--pst-color-border);
+    border-radius: 8px;
+}
+
+.guide-entry:hover,
+.guide-entry:focus-within {
+    border-color: var(--pst-color-primary);
+    background: color-mix(in srgb, var(--pst-color-primary) 7%, var(--pst-color-background));
+    box-shadow: inset 3px 0 var(--pst-color-primary);
+}
+
+.guide-entry::before {
+    display: grid;
+    grid-row: 1 / 3;
+    grid-column: 1;
+    place-items: center;
+    width: 4.25rem;
+    height: 2.25rem;
+    border-radius: 6px;
+    color: var(--pst-color-primary);
+    background: color-mix(in srgb, var(--pst-color-primary) 10%, var(--pst-color-background));
+    font-size: 0.75rem;
+    font-weight: 700;
+    content: "How-to";
+}
+
+.guide-entry.guide-tutorial::before {
+    content: "Tutorial";
+}
+
+.guide-entry::after {
+    grid-row: 1 / 3;
+    grid-column: 3;
+    width: 0.45rem;
+    height: 0.45rem;
+    margin-right: 0.2rem;
+    border-top: 2px solid var(--pst-color-text-muted);
+    border-right: 2px solid var(--pst-color-text-muted);
+    content: "";
+    transform: rotate(45deg);
+}
+
+.guide-entry > p {
+    grid-column: 2;
+    margin: 0;
+}
+
+.guide-entry > p:first-of-type {
+    align-self: end;
+    font-weight: 650;
+}
+
+.guide-entry > p:last-of-type {
+    align-self: start;
+    color: var(--pst-color-text-muted);
+    font-size: 0.88rem;
+}
+
+.guide-entry a {
+    color: var(--pst-color-text-base);
+    text-decoration: none;
+}
+
+.guide-entry a::after {
+    position: absolute;
+    inset: 0;
+    content: "";
+}
+
+.guide-entry[hidden],
+.guide-group[hidden],
+.guide-empty-state[hidden] {
+    display: none;
+}
+
+.guide-empty-state {
+    margin: 2rem 0;
+    padding: 1.25rem;
+    border: 1px dashed var(--pst-color-border);
+    border-radius: 8px;
+    color: var(--pst-color-text-muted);
+    text-align: center;
+}
+
+@media (max-width: 760px) {
+    .guide-browser-toolbar {
+        position: static;
+        flex-wrap: wrap;
+    }
+
+    .guide-search {
+        flex-basis: 100%;
+    }
+
+    .guide-type-switch {
+        flex: 1 1 auto;
+    }
+
+    .guide-type-switch button {
+        flex: 1 1 0;
+    }
+
+    .guide-entry {
+        grid-template-columns: 4.5rem minmax(0, 1fr);
+    }
+
+    .guide-entry::after {
+        display: none;
+    }
+}

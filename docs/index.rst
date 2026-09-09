@@ -110,11 +110,10 @@ Table of Contents
 
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Getting Started
+   :maxdepth: 1
+   :caption: Guides
    :titlesonly:
 
-   source/tutorials/index
    source/how-to/index
    source/overview/developer-guide/index
 
