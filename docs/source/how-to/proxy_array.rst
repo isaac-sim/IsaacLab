@@ -1,3 +1,5 @@
+:orphan:
+
 .. _how-to-torch-array:
 
 Working with ProxyArray
