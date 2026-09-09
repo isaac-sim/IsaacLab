@@ -276,12 +276,21 @@ class _ParticleVisualPrim:
 def _or_reset_masks_from_mask(
     env_mask: wp.array(dtype=wp.bool),
     articulation_ids: wp.array2d(dtype=int),
+    is_flat_builder: int,
     world_mask: wp.array(dtype=wp.bool),
     fk_mask: wp.array(dtype=wp.bool),
 ):
-    """OR env_mask into world_mask and set corresponding articulation bits in fk_mask."""
+    """OR env_mask into world_mask and set corresponding articulation bits in fk_mask.
+
+    ``articulation_ids`` maps ``(world, arti)`` to a model articulation index. The replicated
+    builder gives one world per environment (``world == env_id``, any ``arti`` count); the flat
+    (non-replicated) builder collapses every environment into a single world 0, with the
+    environment index carried by ``arti`` instead. ``is_flat_builder`` (``world_count == 1``,
+    resolved once at launch time) selects which axis is the environment index into ``env_mask``.
+    """
     world, arti = wp.tid()
-    if env_mask[world]:
+    env_id = wp.where(is_flat_builder, arti, world)
+    if env_mask[env_id]:
         world_mask[world] = True
         fk_mask[articulation_ids[world, arti]] = True
 
@@ -290,14 +299,20 @@ def _or_reset_masks_from_mask(
 def _scatter_reset_masks_from_ids(
     env_ids: wp.array(dtype=Any),
     articulation_ids: wp.array2d(dtype=int),
+    is_flat_builder: int,
     world_mask: wp.array(dtype=wp.bool),
     fk_mask: wp.array(dtype=wp.bool),
 ):
-    """Scatter-set world_mask and fk_mask from sparse env_ids."""
+    """Scatter-set world_mask and fk_mask from sparse env_ids.
+
+    See :func:`_or_reset_masks_from_mask` for the flat-vs-replicated ``(world, arti)`` convention
+    that ``is_flat_builder`` resolves.
+    """
     i, arti = wp.tid()
-    world = wp.int32(env_ids[i])
-    world_mask[world] = True
+    env_id = wp.int32(env_ids[i])
+    world = wp.where(is_flat_builder, 0, env_id)
     fk_mask[articulation_ids[world, arti]] = True
+    world_mask[world] = True
 
 
 _SCATTER_RESET_MASKS_FROM_IDS_DISPATCHER = IndexKernelDispatcher(_scatter_reset_masks_from_ids, ("env_ids",))
@@ -309,17 +324,29 @@ def _scatter_reset_masks_from_ids_kernel(env_ids: wp.array | torch.Tensor) -> wp
 
 
 @wp.kernel(enable_backward=False)
-def _or_world_reset_mask_from_mask(env_mask: wp.array(dtype=wp.bool), world_mask: wp.array(dtype=wp.bool)):
-    """Mark masked worlds for solver reset without requesting FK."""
-    world = wp.tid()
-    if env_mask[world]:
-        world_mask[world] = True
+def _or_world_reset_mask_from_mask(
+    env_mask: wp.array(dtype=wp.bool), is_flat_builder: int, world_mask: wp.array(dtype=wp.bool)
+):
+    """Mark masked worlds for solver reset without requesting FK.
+
+    In the flat (non-replicated) builder every environment shares world 0, so any dirtied
+    environment marks that single world; see :func:`_or_reset_masks_from_mask`.
+    """
+    env_id = wp.tid()
+    if env_mask[env_id]:
+        world_mask[wp.where(is_flat_builder, 0, env_id)] = True
 
 
 @wp.kernel(enable_backward=False)
-def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=wp.int32), world_mask: wp.array(dtype=wp.bool)):
-    """Mark selected worlds for solver reset without requesting FK."""
-    world_mask[env_ids[wp.tid()]] = True
+def _scatter_world_reset_mask_from_ids(
+    env_ids: wp.array(dtype=wp.int32), is_flat_builder: int, world_mask: wp.array(dtype=wp.bool)
+):
+    """Mark selected worlds for solver reset without requesting FK.
+
+    See :func:`_or_world_reset_mask_from_mask` for the flat-builder collapse to world 0.
+    """
+    env_id = env_ids[wp.tid()]
+    world_mask[wp.where(is_flat_builder, 0, env_id)] = True
 
 
 class NewtonSceneDataBackend(SceneDataBackend):
@@ -1480,18 +1507,20 @@ class NewtonManager(PhysicsManager):
             return
 
         if articulation_ids is not None and env_mask is not None:
+            is_flat_builder = int(articulation_ids.shape[0] == 1 and articulation_ids.shape[1] > 1)
             wp.launch(
                 _or_reset_masks_from_mask,
                 dim=articulation_ids.shape,
-                inputs=[env_mask, articulation_ids],
+                inputs=[env_mask, articulation_ids, is_flat_builder],
                 outputs=[NewtonManager._world_reset_mask, NewtonManager._fk_reset_mask],
                 device=PhysicsManager._device,
             )
         elif articulation_ids is not None and env_ids is not None:
+            is_flat_builder = int(articulation_ids.shape[0] == 1 and articulation_ids.shape[1] > 1)
             wp.launch(
                 _scatter_reset_masks_from_ids_kernel(env_ids),
                 dim=(env_ids.shape[0], articulation_ids.shape[1]),
-                inputs=[env_ids, articulation_ids],
+                inputs=[env_ids, articulation_ids, is_flat_builder],
                 outputs=[NewtonManager._world_reset_mask, NewtonManager._fk_reset_mask],
                 device=PhysicsManager._device,
             )
@@ -1515,11 +1544,12 @@ class NewtonManager(PhysicsManager):
         cls._mark_transforms_dirty()
         if cls._world_reset_mask is None:
             return
+        is_flat_builder = int(cls._world_reset_mask.shape[0] == 1 and (cls._num_envs or 0) > 1)
         if env_mask is not None:
             wp.launch(
                 _or_world_reset_mask_from_mask,
                 dim=env_mask.shape[0],
-                inputs=[env_mask],
+                inputs=[env_mask, is_flat_builder],
                 outputs=[NewtonManager._world_reset_mask],
                 device=PhysicsManager._device,
             )
@@ -1527,7 +1557,7 @@ class NewtonManager(PhysicsManager):
             wp.launch(
                 _scatter_world_reset_mask_from_ids,
                 dim=env_ids.shape[0],
-                inputs=[env_ids],
+                inputs=[env_ids, is_flat_builder],
                 outputs=[NewtonManager._world_reset_mask],
                 device=PhysicsManager._device,
             )
