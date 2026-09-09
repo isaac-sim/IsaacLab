@@ -8,6 +8,7 @@
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.reach.config.franka import franka_reach_env_cfg
+from isaaclab_tasks.utils import resolve_presets
 
 
 @configclass
@@ -16,9 +17,4 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        self.sim.physics = self.sim.physics.isaacsim_physx
-        self.scene.robot.spawn.rigid_props.disable_gravity = (
-            self.scene.robot.spawn.rigid_props.disable_gravity.diffik_abs
-        )
-        self.rewards.action_magnitude.weight = self.rewards.action_magnitude.weight.diffik_abs
-        self.actions.arm_action = self.actions.arm_action.diffik_abs
+        resolve_presets(self, selected=("diffik_abs", "isaacsim_physx"))

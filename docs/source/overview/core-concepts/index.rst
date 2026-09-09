@@ -9,6 +9,7 @@ This section we introduce core concepts in Isaac Lab.
 
   multi_backend_architecture
   physical-backends/index
+  deformables
   schema_cfgs
   schema_fragments
   task_workflows
