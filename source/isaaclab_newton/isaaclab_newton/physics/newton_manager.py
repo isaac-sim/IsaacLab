@@ -1414,7 +1414,13 @@ class NewtonManager(PhysicsManager):
         Populates :attr:`_cl_site_index_map` with the unified per-world structure:
 
         - Global sites (``body_pattern is None``): ``(shape_idx, None)``
-        - Local and world sites: ``(None, [[idx, ...]])`` — one sublist for the single world.
+        - Local sites: ``(None, [[idx, ...], ...])`` — one sublist per environment, keyed off the
+          ``env_<N>`` path segment of the matched body label. The flat builder holds every
+          environment's bodies in a single (non-replicated) model, so a body-pattern match spans
+          all environments at once and must be split back into per-environment sites; consumers
+          such as :meth:`NewtonRaycastSensor._resolve_site_indices` index this list by environment.
+        - World sites (``per_world=True``): ``(None, [[idx]])`` — one shared site, same for every
+          environment.
         """
         builder = cls._builder
         body_labels = list(builder.body_label)
@@ -1436,14 +1442,24 @@ class NewtonManager(PhysicsManager):
                         f"in the flat builder. Available body labels: {body_labels}."
                     ) from e
 
-                site_indices: list[int] = []
-                for body_idx in matched_indices:
-                    site_label = f"{builder.body_label[body_idx]}/{label}"
+                # group matches by their env_<N> path segment: the flat builder concatenates every
+                # environment's bodies into one model, so a per-env pattern like
+                # ".*/env_[^/]+/Robot/base" matches once per environment here.
+                sites_by_env: dict[int, list[int]] = {}
+                for body_idx, body_name in zip(matched_indices, matched_names):
+                    site_label = f"{body_name}/{label}"
                     site_idx = builder.add_site(body=body_idx, xform=xform, label=site_label)
-                    site_indices.append(site_idx)
+                    env_match = re.search(r"/env_(\d+)(?:/|$)", body_name)
+                    if env_match is None:
+                        raise ValueError(
+                            f"Site '{label}' with body_pattern '{body_pattern}' matched body '{body_name}', "
+                            "which has no 'env_<N>' path segment. The flat (non-replicated) builder needs "
+                            "each match tied to an environment index to build a per-environment site map."
+                        )
+                    sites_by_env.setdefault(int(env_match.group(1)), []).append(site_idx)
 
-                # Single world (no replication): one-element outer list
-                cls._cl_site_index_map[label] = (None, [site_indices])
+                num_envs = max(sites_by_env) + 1
+                cls._cl_site_index_map[label] = (None, [sites_by_env.get(i, []) for i in range(num_envs)])
 
         cls._cl_pending_sites.clear()
 
