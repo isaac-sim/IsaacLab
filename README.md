@@ -4,7 +4,7 @@
 
 # Isaac Lab 3.0.0 Beta 2
 
-[![IsaacSim](https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg)](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
+[![IsaacSim](https://img.shields.io/badge/IsaacSim-6.1.0-silver.svg)](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://docs.python.org/3/whatsnew/3.12.html)
 [![Linux platform](https://img.shields.io/badge/platform-linux--64-orange.svg)](https://releases.ubuntu.com/22.04/)
 [![Windows platform](https://img.shields.io/badge/platform-windows--64-orange.svg)](https://www.microsoft.com/en-us/)
@@ -14,14 +14,8 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-yellow.svg)](https://opensource.org/license/apache-2-0)
 
 
-This branch is a development branch for Isaac Sim 6.0, which is currently only available through the Isaac Sim [GitHub repo](https://github.com/isaac-sim/IsaacSim).
-For installation, please refer to the Isaac Sim GitHub repo to build the latest Isaac Sim branch, and follow the binary installation method in the
-Isaac Lab documentation for Isaac Lab installation.
-
-> [!WARNING]
-> A recent breaking change on the Isaac Lab `develop` branch is not compatible with the `develop` branch of Isaac Sim on GitHub.
-> To run Isaac Lab with Isaac Sim's GitHub `develop` branch, use Isaac Lab commit [`f0234a82e432e2a0b0f0a26ca3c5b59e527ddaaa`](https://github.com/isaac-sim/IsaacLab/commit/f0234a82e432e2a0b0f0a26ca3c5b59e527ddaaa) or an earlier commit.
-> Alternatively, use the Isaac Lab [`v3.0.0-beta`](https://github.com/isaac-sim/IsaacLab/tree/v3.0.0-beta) tag.
+This branch targets Isaac Sim 6.1. For installation instructions, see the
+[Isaac Lab documentation](https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/index.html).
 
 Note that this branch is currently under active development and may experience breaking changes or error messages.
 Performance issues and regressions may also be observed in some use cases.
@@ -77,7 +71,7 @@ dependency versions for Isaac Sim.
 | Isaac Lab Version             | Isaac Sim Version         |
 | ----------------------------- | ------------------------- |
 | `release/3.0.0-beta2` branch  | Isaac Sim 6.0             |
-| `develop` branch              | Isaac Sim 6.0             |
+| `develop` branch              | Isaac Sim 6.1             |
 | `main` branch                 | Isaac Sim 4.5 / 5.0 / 5.1 |
 | `v3.0.0*`                     | Isaac Sim 6.0             |
 | `v2.3.X`                      | Isaac Sim 4.5 / 5.0 / 5.1 |

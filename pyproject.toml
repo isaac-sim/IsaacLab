@@ -418,10 +418,6 @@ override-dependencies = [
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",
-    # Keep these packages compatible across the supported Isaac Sim and development stacks.
-    "typing-extensions>=4.15.0",
-    "websockets>=14.0,<17.0.0",
-    "coverage>=7.6.1",
     # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
     # stricter than the code needs, so widening lets them resolve together at 26.0.
     "packaging>=20,<27",

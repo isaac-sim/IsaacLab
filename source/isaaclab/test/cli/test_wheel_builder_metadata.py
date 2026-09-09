@@ -192,11 +192,3 @@ def test_wheel_builder_uv_overrides_match_root_pyproject(source_checkout_root: P
     assert generated_overrides == root["tool"]["uv"]["override-dependencies"]
     assert published_overrides == generated_overrides
     assert install_ci_overrides == generated_overrides
-
-
-def test_wheel_builder_uv_overrides_relax_isaacsim_exact_pins(source_checkout_root: Path, tmp_path):
-    """The wheel resolver must relax Isaac Sim 6.0's exact pins so the extras co-resolve."""
-    overrides = _generate_uv_overrides(source_checkout_root, tmp_path)
-
-    for spec in ("typing-extensions>=4.15.0", "websockets>=14.0,<17.0.0", "coverage>=7.6.1"):
-        assert spec in overrides
