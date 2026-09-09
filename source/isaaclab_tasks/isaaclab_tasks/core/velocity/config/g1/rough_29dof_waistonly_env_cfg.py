@@ -37,3 +37,44 @@ class G129DofRoughAirTime100WaistOnlyEnvCfg(G129DofRoughHipL2AirTime100EnvCfg):
     def __post_init__(self):
         super().__post_init__()
         _add_waist_l2(self, _WAIST_L2_WEIGHTS["t1"])
+
+
+@configclass
+class G129DofRoughAirTime100WaistWarmupEnvCfg(G129DofRoughAirTime100WaistOnlyEnvCfg):
+    """The waist-only arm with the base-height termination withheld for the first 500 iterations.
+
+    Waist L2 alone covers three of the four cells: PhysX mesh 3/3 at 0.99, Newton mesh 2/3 at 0.996
+    and 0.962, and posture within a degree of w100's on both. The cell it does not cover is Newton
+    heightfield, where all three seeds ended at 0.000 -- against 2/3 for w100 without the term.
+
+    Those failures are the shape this line has produced all along: nothing goes non-finite, episode
+    length sits near the cap, and the robot is alive without walking, with the terrain curriculum
+    stuck near level 1 and a base-height termination rate an order of magnitude above the runs that
+    work. The curriculum promotes on distance walked, so a policy that keeps being cut short never
+    earns harder terrain. Withholding the termination while the policy cannot stand yet took the
+    seed that failed outright on plain w100 to the best score of its sweep (0.000 -> 0.964).
+
+    Combining them is therefore aimed at the failure actually observed rather than at the score.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        from isaaclab.managers import SceneEntityCfg  # noqa: PLC0415
+        from isaaclab.managers import TerminationTermCfg as DoneTerm  # noqa: PLC0415
+
+        from .rough_29dof_env_cfg import MINIMUM_PELVIS_HEIGHT  # noqa: PLC0415
+        from .rough_29dof_warmup_env_cfg import (  # noqa: PLC0415
+            _WARMUP_STEPS,
+            pelvis_below_terrain_clearance_after_warmup,
+        )
+
+        self.terminations.base_height = DoneTerm(
+            func=pelvis_below_terrain_clearance_after_warmup,
+            params={
+                "minimum_height": MINIMUM_PELVIS_HEIGHT,
+                "warmup_steps": _WARMUP_STEPS,
+                "asset_cfg": SceneEntityCfg("robot"),
+                "sensor_cfg": SceneEntityCfg("height_scanner"),
+            },
+        )
