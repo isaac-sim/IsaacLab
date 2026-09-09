@@ -39,7 +39,7 @@ The following sensors are backend-agnostic (implemented in ``isaaclab`` core)
 and work transparently with PhysX:
 
 * Ray Caster
-* Camera — see :doc:`../../sensors/camera`
+* Camera — see :doc:`/source/concepts/sensors/camera`
 
 
 Rendering

@@ -22,3 +22,24 @@ compatible completed run, set `RL_PROGRESS_CHECKPOINT_DIR` to a run directory co
 
 The generators require `uv`, `ffmpeg`, a CUDA-capable GPU, and the optional
 runtime packages installed by their `uv run --extra` commands.
+
+## Renderer gallery
+
+The renderer gallery compares Newton Warp, OVRTX, and Isaac RTX camera outputs.
+It uses the published Nucleus stage by default when regenerating all RGB
+animations and still output modes:
+
+```bash
+OMNI_KIT_ACCEPT_EULA=Y tools/docs/media/generate_renderer_gallery.sh
+```
+
+Pass a local path or another Nucleus URI to override the default stage:
+
+```bash
+OMNI_KIT_ACCEPT_EULA=Y tools/docs/media/generate_renderer_gallery.sh \
+    /path/to/renderer-gallery-scene.usda
+```
+
+The generator launches the kit-less renderers separately from Isaac RTX because
+their optional runtime packages cannot share one process. It writes the final
+WebP and PNG assets directly to `docs/source/_static/overview/sensors`.
