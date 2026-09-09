@@ -29,7 +29,7 @@ dispatch target:
 .. code-block:: python
 
     from isaaclab_newton.physics import NewtonManager, NewtonSolverCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
 
     @configclass

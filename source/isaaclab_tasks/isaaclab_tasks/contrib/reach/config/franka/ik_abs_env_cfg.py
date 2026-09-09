@@ -5,7 +5,7 @@
 
 """Deprecated compatibility configuration for absolute DiffIK Franka Reach."""
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.reach.config.franka import franka_reach_env_cfg
 

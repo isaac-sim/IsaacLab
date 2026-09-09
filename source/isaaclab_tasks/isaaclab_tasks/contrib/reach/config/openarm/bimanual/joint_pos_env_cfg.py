@@ -8,7 +8,7 @@
 ##
 
 import isaaclab.envs.mdp as mdp
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.reach.config.openarm.bimanual.reach_openarm_bi_env_cfg import ReachEnvCfg
 

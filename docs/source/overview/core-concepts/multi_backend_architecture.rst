@@ -175,7 +175,7 @@ variant. The example below shows only the physics-related fields:
     from isaaclab.envs import DirectRLEnvCfg
     from isaaclab.physics import PhysxAutoCfg
     from isaaclab.sim import SimulationCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
     from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
@@ -420,7 +420,7 @@ transforms in a Warp-native format that renderers and visualizers consume direct
 
     # isaaclab_mybackend/physics/mybackend_manager_cfg.py
     from isaaclab.physics import PhysicsCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     @configclass
     class MyBackendCfg(PhysicsCfg):
