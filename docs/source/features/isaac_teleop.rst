@@ -850,6 +850,8 @@ follows.
        controller to overtune and the arm to drift. Move the
        end-effector close to and just above the cube, stop, then
        close the suction cup.
+
+       **CPU simulation only:** pass ``--device cpu`` for teleoperation.
      - Keyboard, SpaceMouse
      - **Arm:** end-effector pose via RMPFlow.
        **Suction:** ``K`` on keyboard, left button on SpaceMouse.
@@ -865,10 +867,14 @@ follows.
      - **Arm:** right-arm end-effector pose via RMPFlow.
        **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
    * - ``IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel``
+
+       **CPU simulation only:** pass ``--device cpu`` for teleoperation.
      - Keyboard, SpaceMouse
      - **Arm:** relative IK end-effector control.
        **Suction:** ``K`` on keyboard, left button on SpaceMouse.
    * - ``IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel``
+
+       **CPU simulation only:** pass ``--device cpu`` for teleoperation.
      - Keyboard, SpaceMouse
      - Same as long-suction UR10 above with a shorter suction cup.
    * - ``Isaac-Reach-Franka`` with ``physics=isaacsim_physx presets=diffik``
