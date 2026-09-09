@@ -1343,10 +1343,14 @@ cameras. The manager publishes each new RGBA frame after rendering, while
 :class:`~isaaclab_teleop.XrCameraFeedLayoutCfg` places the panels manually or in horizontal,
 vertical, and grid layouts. The following registered tasks enable PiP by default:
 
-* ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
+* ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``
 * ``IsaacContrib-PickPlace-GR1T2-Abs``
 * ``IsaacContrib-NutPour-GR1T2-Pink-IK-Abs``
 * ``IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs``
+
+The G1 PiP is enabled on the fixed-base task, where the robot cannot locomote away from its starting
+pose. The G1 locomanipulation task retains the same camera as a recorded policy observation but does
+not create a PiP panel by default.
 
 ``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an IsaacTeleop-enabled
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
@@ -1374,7 +1378,7 @@ recorded view follows robot motion:
        --xr --device cpu
 
    uv run --extra teleop,isaacsim isaaclab teleop run \
-       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+       --task IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs \
        --xr --device cpu
 
 XR camera PiP currently supports exactly one environment. When a task has enabled PiP feeds,

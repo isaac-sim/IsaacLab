@@ -7,7 +7,6 @@ from isaaclab_teleop import (
     ControllerHapticFeedbackCfg,
     IsaacTeleopCfg,
     XrAnchorRotationMode,
-    XrCameraFeedCfg,
     XrCfg,
 )
 
@@ -486,15 +485,6 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
             pipeline_builder=_build_g1_locomanipulation_pipeline,
             sim_device=self.sim.device,
             xr_cfg=self.xr,
-            xr_camera_feeds=[
-                XrCameraFeedCfg(
-                    camera_name="robot_pov_cam",
-                    enable_dlss_ray_reconstruction=True,
-                    dlss_exec_mode="quality",
-                    offset_m=(0.0, -0.15),
-                    max_update_hz=0.0,
-                )
-            ],
         )
         self.image_obs_list = ["robot_pov_cam"]
 

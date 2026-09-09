@@ -7,6 +7,9 @@ import pytest
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
+from isaaclab_tasks.contrib.locomanip_pick_place.fixed_base_upper_body_ik_g1_env_cfg import (
+    FixedBaseUpperBodyIKG1EnvCfg,
+)
 from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import LocomanipulationG1EnvCfg
 from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import PickPlaceGR1T2EnvCfg
 from isaaclab_tasks.utils.hydra import resolve_presets
@@ -17,7 +20,7 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
     ("env_cfg_type", "camera_prim_path"),
     [
         (PickPlaceGR1T2EnvCfg, "{ENV_REGEX_NS}/Robot/base_link/RobotPOVCam"),
-        (LocomanipulationG1EnvCfg, "{ENV_REGEX_NS}/Robot/torso_link/head_link/RobotHeadCam"),
+        (FixedBaseUpperBodyIKG1EnvCfg, "{ENV_REGEX_NS}/Robot/torso_link/head_link/RobotHeadCam"),
     ],
 )
 def test_xr_camera_reference_tasks_select_recorded_camera(env_cfg_type, camera_prim_path):
@@ -33,9 +36,9 @@ def test_xr_camera_reference_tasks_select_recorded_camera(env_cfg_type, camera_p
     assert cfg.num_rerenders_on_reset == 3
 
 
-def test_g1_xr_camera_uses_calibration_and_viewer_start_panel():
-    """G1 uses its calibrated head camera and the GR1T2-style panel placement."""
-    cfg = LocomanipulationG1EnvCfg()
+def test_fixed_base_g1_xr_camera_uses_calibration_and_viewer_start_panel():
+    """Fixed-base G1 uses its calibrated head camera and the GR1T2-style panel placement."""
+    cfg = FixedBaseUpperBodyIKG1EnvCfg()
     camera_cfg = cfg.scene.robot_pov_cam
     feed_cfg = cfg.isaac_teleop.xr_camera_feeds[0]
 
@@ -51,7 +54,17 @@ def test_g1_xr_camera_uses_calibration_and_viewer_start_panel():
     assert feed_cfg.offset_m == (0.0, -0.15)
 
 
-@pytest.mark.parametrize("env_cfg_type", [PickPlaceGR1T2EnvCfg, LocomanipulationG1EnvCfg])
+def test_locomanipulation_g1_does_not_enable_xr_camera_pip():
+    """Locomanipulation retains its recorded camera without presenting it in XR."""
+    cfg = LocomanipulationG1EnvCfg()
+
+    assert cfg.isaac_teleop.xr_camera_feeds == []
+    assert hasattr(cfg.scene, "robot_pov_cam")
+    assert hasattr(cfg.observations.policy, "robot_pov_cam")
+    assert cfg.image_obs_list == ["robot_pov_cam"]
+
+
+@pytest.mark.parametrize("env_cfg_type", [PickPlaceGR1T2EnvCfg, FixedBaseUpperBodyIKG1EnvCfg])
 def test_xr_camera_reference_renderer_resolves_for_supported_backends(env_cfg_type):
     """Reference cameras retain Isaac RTX defaults and OVRTX compatibility."""
     default = resolve_presets(env_cfg_type().scene.robot_pov_cam.renderer_cfg)
