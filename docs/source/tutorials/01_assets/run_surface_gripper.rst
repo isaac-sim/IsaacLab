@@ -1,3 +1,5 @@
+:orphan:
+
 .. _tutorial-interact-surface-gripper:
 
 Interacting with a surface gripper

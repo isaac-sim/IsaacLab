@@ -59,39 +59,6 @@
     outline-offset: 0;
 }
 
-.guide-type-switch {
-    display: inline-flex;
-    flex: 0 0 auto;
-    overflow: hidden;
-    border: 1px solid var(--pst-color-border);
-    border-radius: 6px;
-}
-
-.guide-type-switch button {
-    min-height: 2.5rem;
-    padding: 0.4rem 0.75rem;
-    border: 0;
-    border-right: 1px solid var(--pst-color-border);
-    border-radius: 0;
-    color: var(--pst-color-text-muted);
-    background: var(--pst-color-background);
-    font-weight: 600;
-}
-
-.guide-type-switch button:last-child {
-    border-right: 0;
-}
-
-.guide-type-switch button:hover,
-.guide-type-switch button:focus-visible {
-    color: var(--pst-color-primary);
-}
-
-.guide-type-switch button.is-active {
-    color: #1f3300;
-    background: #76b900;
-}
-
 .guide-result-count {
     flex: 0 0 auto;
     min-width: 5.25rem;
@@ -115,12 +82,12 @@
 .guide-entry {
     position: relative;
     display: grid;
-    grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     grid-template-rows: auto auto;
     column-gap: 0.8rem;
     align-items: center;
     min-height: 4.5rem;
-    padding: 0.7rem 0.9rem;
+    padding: 0.8rem 1.25rem !important;
     border: 1px solid var(--pst-color-border);
     border-bottom: 0;
     background: var(--pst-color-background);
@@ -160,28 +127,9 @@
     box-shadow: inset 3px 0 var(--pst-color-primary);
 }
 
-.guide-entry::before {
-    display: grid;
-    grid-row: 1 / 3;
-    grid-column: 1;
-    place-items: center;
-    width: 4.25rem;
-    height: 2.25rem;
-    border-radius: 6px;
-    color: var(--pst-color-primary);
-    background: color-mix(in srgb, var(--pst-color-primary) 10%, var(--pst-color-background));
-    font-size: 0.75rem;
-    font-weight: 700;
-    content: "How-to";
-}
-
-.guide-entry.guide-tutorial::before {
-    content: "Tutorial";
-}
-
 .guide-entry::after {
     grid-row: 1 / 3;
-    grid-column: 3;
+    grid-column: 2;
     width: 0.45rem;
     height: 0.45rem;
     margin-right: 0.2rem;
@@ -192,7 +140,7 @@
 }
 
 .guide-entry > p {
-    grid-column: 2;
+    grid-column: 1;
     margin: 0;
 }
 
@@ -233,6 +181,80 @@
     text-align: center;
 }
 
+.guide-viewer {
+    overflow: hidden;
+    margin: 1.25rem 0;
+    scroll-margin-top: 4.5rem;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 10px;
+    background: var(--pst-color-background);
+    box-shadow: 0 12px 36px color-mix(in srgb, var(--pst-color-shadow) 20%, transparent);
+}
+
+.guide-viewer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--pst-color-border);
+    background: color-mix(in srgb, var(--pst-color-background) 94%, transparent);
+    backdrop-filter: blur(12px);
+}
+
+.guide-viewer-content {
+    padding: 1.5rem;
+}
+
+.guide-back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0.45rem 0.8rem;
+    border: 1px solid var(--pst-color-primary);
+    border-radius: 6px;
+    color: #1f3300;
+    background: #76b900;
+    font-weight: 650;
+}
+
+.guide-back-button:hover,
+.guide-back-button:focus-visible {
+    background: color-mix(in srgb, #76b900 82%, white);
+}
+
+.guide-open-page {
+    font-size: 0.88rem;
+    white-space: nowrap;
+}
+
+.guide-loading {
+    min-height: 12rem;
+    margin: 0;
+    padding: 5rem 1rem;
+    color: var(--pst-color-text-muted);
+    text-align: center;
+}
+
+.guide-frame {
+    display: block;
+    width: 100%;
+    min-height: 20rem;
+    border: 0;
+    background: transparent;
+}
+
+.guide-browser-intro[hidden],
+.guide-browser-toolbar[hidden],
+.guide-list[hidden],
+.guide-browser-note[hidden],
+.guide-viewer[hidden],
+.guide-frame[hidden],
+.guide-loading[hidden] {
+    display: none;
+}
+
 @media (max-width: 760px) {
     .guide-browser-toolbar {
         position: static;
@@ -243,19 +265,15 @@
         flex-basis: 100%;
     }
 
-    .guide-type-switch {
-        flex: 1 1 auto;
-    }
-
-    .guide-type-switch button {
-        flex: 1 1 0;
-    }
-
     .guide-entry {
-        grid-template-columns: 4.5rem minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .guide-entry::after {
         display: none;
+    }
+
+    .guide-viewer-content {
+        padding: 1rem;
     }
 }
