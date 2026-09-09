@@ -62,10 +62,10 @@ and current optional extras. Do not combine OvPhysX with a Kit runtime in the
 same process.
 
 For the general PhysX--Newton policy validation workflow, see
-:doc:`/source/how-to/transfer_policies_between_physx_and_newton`. When a
+:doc:`/source/concepts/transfer_policies_between_physx_and_newton`. When a
 checkpoint's joint or body ordering differs from the target backend, use the
 :doc:`articulation ordering guide
-</source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer>`.
+</source/concepts/joint_and_body_ordering>`.
 
 
 .. _physics-backends-physx:
@@ -102,17 +102,17 @@ fixed solver. Configure the backend with
 such as :class:`~isaaclab_newton.physics.MJWarpSolverCfg`.
 
 Task and component coverage is narrower and task-specific. Check task
-``--help`` and :doc:`the environment catalog </source/overview/environments>`
+``--help`` and :doc:`the environment catalog </source/setup/environments>`
 for current presets, the generated configuration APIs for available symbols,
 and the specialist guides below for solver-specific workflows and limitations.
 
-Start with :doc:`/source/how-to/prepare_asset_for_newton`, then use
-:doc:`/source/how-to/solver_tuning/tune_mjwarp` for the primary validated solver path or
-:doc:`/source/how-to/solver_tuning/tune_kamino` for the beta Kamino path. Experimental
+Start with :doc:`/source/concepts/prepare_asset_for_newton`, then use
+:doc:`/source/concepts/solver-tuning/tune_mjwarp` for the primary validated solver path or
+:doc:`/source/concepts/solver-tuning/tune_kamino` for the beta Kamino path. Experimental
 specialist guides cover :ref:`newton-using-vbd`, :ref:`newton-using-mpm`,
 :ref:`newton-using-cables`, :ref:`warp-environments`, and
 :ref:`warp-env-migration`. Backend developers can also read
-:doc:`/source/overview/core-concepts/physical-backends/newton/newton-manager-abstraction`.
+:doc:`/source/developer-tools/extending_newton_solvers`.
 
 
 .. _physics-backends-ovphysx:
@@ -128,14 +128,14 @@ for those fields.
 
 Feature coverage is still evolving. See the
 :doc:`OvPhysX specialist page
-</source/overview/core-concepts/physical-backends/ovphysx/index>` for current
+</source/concepts/ovphysx>` for current
 limitations and runtime constraints.
 
 
 Find supported tasks and APIs
 -----------------------------
 
-Backend support is task-specific. Use :doc:`/source/overview/environments` to
+Backend support is task-specific. Use :doc:`/source/setup/environments` to
 browse registered environments and presets, or ask a task for its current
 choices:
 
@@ -146,7 +146,7 @@ choices:
 
 The help output is the source of truth for that task's ``physics=`` choices.
 For native solver data and views, see
-:doc:`/source/how-to/native_physics_api/index`. For field-level configuration,
+:doc:`/source/concepts/native-physics-api/index`. For field-level configuration,
 follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
 :class:`~isaaclab_newton.physics.NewtonCfg`, its solver configurations, and
 :class:`~isaaclab_ov.physics.OvPhysxCfg`.
@@ -155,4 +155,9 @@ follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
 .. toctree::
    :hidden:
 
-   /source/overview/core-concepts/physical-backends/ovphysx/index
+   /source/concepts/joint_and_body_ordering
+   /source/concepts/ovphysx
+   /source/concepts/using_mpm
+   /source/concepts/using_cables
+   /source/concepts/warp_environments
+   /source/concepts/warp_environment_migration

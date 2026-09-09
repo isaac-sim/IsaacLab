@@ -193,4 +193,4 @@ Command Builder
 
 The H1 locomotion and pick-and-place demos require interactive keyboard or mouse input. Haply teleoperation requires
 Inverse3 and VerseGrip devices and a running Haply WebSocket service. Cables are a Newton-only asset; see
-:doc:`../overview/core-concepts/physical-backends/newton/using-cables` for details.
+:doc:`../concepts/using_cables` for details.

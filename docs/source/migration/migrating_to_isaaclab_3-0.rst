@@ -144,7 +144,7 @@ Tasks can expose alternatives such as ``physics=physx``, ``physics=ovphysx``, or
 
 For a comprehensive overview of the factory pattern and backend selection,
 see :doc:`/source/concepts/backend_architecture`. To add a new backend, see
-:doc:`/source/overview/developer-guide/add_physics_backend`.
+:doc:`/source/developer-tools/add_physics_backend`.
 
 
 .. rubric:: New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
@@ -1206,7 +1206,7 @@ The concrete ``root_view`` type is backend-specific. The
 ``get_material_properties()`` call above reads each rigid shape's static friction,
 dynamic friction, and restitution through the PhysX Tensor API; Newton selections
 and OvPhysX bindings use different access methods. See
-:doc:`/source/how-to/native_physics_api/index`
+:doc:`/source/concepts/native-physics-api/index`
 before using ``root_view`` in backend-portable code.
 
 

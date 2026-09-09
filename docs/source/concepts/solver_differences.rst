@@ -23,8 +23,8 @@ experimental backend with its own limitations; it is not another solver mode
 of the PhysX backend discussed here.
 
 Use this page to understand the model differences. For the controls and a
-measured tuning procedure, use :doc:`/source/how-to/solver_tuning/tune_mjwarp` or
-:doc:`/source/how-to/solver_tuning/tune_kamino`; the generated solver configuration APIs
+measured tuning procedure, use :doc:`/source/concepts/solver-tuning/tune_mjwarp` or
+:doc:`/source/concepts/solver-tuning/tune_kamino`; the generated solver configuration APIs
 are the reference for exact fields and defaults.
 
 Why solver settings do not translate directly
@@ -127,7 +127,7 @@ path or Kamino uses its internal collision detector.
 MJWarp provides outer iterations, line-search iterations, and a residual
 tolerance. Kamino's P-ADMM and DVI modes have different iteration and
 convergence controls. PhysX has its own position and velocity iteration
-model. Consult the generated APIs and the focused how-to pages for current
+model. Consult the generated APIs and the focused tuning guides for current
 controls instead of copying another solver's defaults.
 
 **Porting implication.** Compare a fixed reproduction at the intended policy

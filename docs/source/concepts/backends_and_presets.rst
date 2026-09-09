@@ -15,7 +15,7 @@ Backends and Presets
    (`skills/user/select-backends/ <../../../skills/user/select-backends/SKILL.md>`__,
    `skills/user/use-presets/ <../../../skills/user/use-presets/SKILL.md>`__).
    When you change this page, update those skills so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 An Isaac Lab environment describes the robot, scene, sensors, and task. A
 **backend** supplies the physics or rendering implementation that brings that

@@ -94,8 +94,8 @@ to a :class:`torch.Tensor` view. Use those accessors when an API specifically
 requires one representation. Passing a ``ProxyArray`` to ``wp.to_torch()`` is
 supported only by a deprecated compatibility shim; new code should use
 ``proxy_array.torch``. Backend-native and internal storage may still use raw
-Warp arrays. See :ref:`working-with-simulation-data` for usage and buffer
-lifetime guidance.
+Warp arrays. See :doc:`/source/how-to/proxy_array` for usage and buffer lifetime
+guidance.
 
 Portable renderer and scene-data interfaces
 -------------------------------------------
@@ -117,7 +117,7 @@ converts and remaps that data for backend-independent consumers:
 
 This boundary lets renderers and visualizers consume a common Warp-native data
 path without knowing which physics engine owns the state. See
-:doc:`/source/overview/core-concepts/scene_data_providers` for the complete
+:doc:`/source/concepts/scene_data_providers` for the complete
 data-flow model.
 
 Native engine access boundary
@@ -126,7 +126,7 @@ Native engine access boundary
 The portable interfaces define the stable API boundary. Advanced code can use
 each engine's native low-level data API, but those APIs intentionally keep their
 own ownership and synchronization semantics. See
-:doc:`/source/how-to/native_physics_api/index`
+:doc:`/source/concepts/native-physics-api/index`
 for PhysX typed views, Newton live model/state arrays and generic selections,
 and OvPhysX tensor bindings.
 

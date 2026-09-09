@@ -8,7 +8,7 @@
 Tune MJWarp
 ===========
 
-This how-to tunes the MuJoCo-Warp (MJWarp) solver after an asset and task can
+This guide tunes the MuJoCo-Warp (MJWarp) solver after an asset and task can
 be constructed by the Newton backend. The generated API documentation for
 :class:`~isaaclab_newton.physics.NewtonCfg` and
 :class:`~isaaclab_newton.physics.MJWarpSolverCfg` is authoritative for every
@@ -17,7 +17,7 @@ configuration field and its current default.
 Prerequisites
 -------------
 
-First follow :doc:`/source/how-to/prepare_asset_for_newton` and reproduce one failure with a
+First follow :doc:`/source/concepts/prepare_asset_for_newton` and reproduce one failure with a
 fixed initial state, seed, and action sequence. Before changing solver
 settings, check the mechanical model, collision geometry, reset overlap,
 actuator limits, and unsupported features. A solver setting cannot correct an

@@ -47,7 +47,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with the unified installation guide, the Docker/Cloud feature guide, quick installation docs, backend installation docs, and `docs/source/refs/troubleshooting.rst`. Setup guidance changes often, so keep this skill as a router to official docs and minimal verification steps.
+Keep this skill synchronized with the unified installation guide, the Docker/Cloud feature guide, quick installation docs, the physics-backends concept, and `docs/source/refs/troubleshooting.rst`. Setup guidance changes often, so keep this skill as a router to official docs and minimal verification steps.
 
 ## References
 
@@ -57,6 +57,5 @@ Keep this skill synchronized with the unified installation guide, the Docker/Clo
 - [Installation](../../../docs/source/setup/installation/index.rst)
 - [XR teleoperation setup](../../../docs/source/how-to/cloudxr_teleoperation.rst)
 - [Docker/Cloud](../../../docs/source/features/docker_cloud.rst)
-- [PhysX installation](../../../docs/source/overview/core-concepts/physical-backends/physx/installation.rst)
-- [Newton installation](../../../docs/source/overview/core-concepts/physical-backends/newton/installation.rst)
+- [Physics backends](../../../docs/source/concepts/physics_backends.rst)
 - [Troubleshooting](../../../docs/source/refs/troubleshooting.rst)

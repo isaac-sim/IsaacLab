@@ -115,54 +115,6 @@ These guides explain how to interface with reinforcement learning environments i
     run_state_machines
 
 
-Transferring Policies Between Physics Backends
------------------------------------------------
-
-This guide explains how to validate and evaluate policies trained in PhysX and deployed in Newton,
-and policies trained in Newton and deployed in PhysX.
-
-.. toctree::
-    :maxdepth: 1
-
-    transfer_policies_between_physx_and_newton
-
-
-Working with Physics Backends
------------------------------
-
-These guides help prepare assets and tasks for the supported physics backends.
-
-.. toctree::
-    :maxdepth: 1
-
-    prepare_asset_for_newton
-    /source/how-to/native_physics_api/index
-
-For experimental Newton solver and Warp-environment workflows, see
-:ref:`newton-using-vbd`, :ref:`newton-using-mpm`, :ref:`newton-using-cables`,
-:ref:`warp-environments`, and :ref:`warp-env-migration`.
-
-.. toctree::
-    :hidden:
-
-    /source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer
-    /source/overview/core-concepts/physical-backends/newton/using-vbd-solver
-    /source/overview/core-concepts/physical-backends/newton/using-mpm
-    /source/overview/core-concepts/physical-backends/newton/using-cables
-    /source/overview/core-concepts/physical-backends/newton/warp-environments
-    /source/overview/core-concepts/physical-backends/newton/warp-env-migration
-
-Solver Tuning
--------------
-
-These guides diagnose and tune solver-specific behavior after backend, task,
-and asset validation.
-
-.. toctree::
-   :maxdepth: 1
-
-   solver_tuning/index
-
 Recording an Animation and Video
 --------------------------------
 

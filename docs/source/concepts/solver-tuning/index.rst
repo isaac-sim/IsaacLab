@@ -19,3 +19,4 @@ and defaults remain in the generated API reference.
    tune_physx
    tune_mjwarp
    tune_kamino
+   tune_vbd

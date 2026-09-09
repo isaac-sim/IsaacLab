@@ -3,7 +3,7 @@ Transfer Policies Between PhysX and Newton
 
 .. seealso::
 
-   This how-to is the source of truth for the
+   This guide is the source of truth for the
    ``isaaclab-transferring-policies-sim-to-sim`` agent skill
    (`skill source
    <../../../skills/user/isaaclab-transferring-policies-sim-to-sim/SKILL.md>`__).
@@ -11,7 +11,7 @@ Transfer Policies Between PhysX and Newton
    :doc:`/source/developer-tools/agent_skills`.
 
    First make every robot and object MJWarp-clean by following
-   :doc:`/source/how-to/prepare_asset_for_newton`
+   :doc:`/source/concepts/prepare_asset_for_newton`
    and the ``isaaclab-preparing-assets-for-newton``
    `skill
    <https://github.com/isaac-sim/IsaacLab/blob/develop/skills/user/prepare-assets-for-newton/SKILL.md>`__.
@@ -108,7 +108,7 @@ playback, set **both** ``joint_ordering`` and ``body_ordering`` to the backend u
 ``physics=`` still selects the target backend. The task table below lists which tasks need the
 overrides and which do not.
 
-See :doc:`/source/overview/core-concepts/physical-backends/joint_and_body_ordering` for the full
+See :doc:`/source/concepts/joint_and_body_ordering` for the full
 ordering contract, accepted values, and troubleshooting.
 
 A scrambled axis has a distinctive signature: a locomotion policy falls within a few dozen steps
@@ -323,6 +323,6 @@ See also
 
 * :doc:`/source/concepts/reinforcement_learning`
 * :doc:`/source/features/hydra`
-* :doc:`/source/overview/core-concepts/physical-backends/joint_and_body_ordering`
-* :doc:`/source/overview/core-concepts/physical-backends/newton/mjwarp-solver`
-* :doc:`/source/overview/core-concepts/physical-backends/newton/supported-features`
+* :doc:`/source/concepts/joint_and_body_ordering`
+* :doc:`/source/concepts/solver-tuning/tune_mjwarp`
+* :ref:`physics-backends-newton`
