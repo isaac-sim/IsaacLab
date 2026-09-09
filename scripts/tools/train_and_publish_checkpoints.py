@@ -57,6 +57,7 @@ from __future__ import annotations
 import argparse
 import csv
 import fnmatch
+import glob
 import json
 import os
 import posixpath
@@ -102,6 +103,12 @@ from isaaclab_tasks.utils.preset_target import PresetTarget
 
 _TRAINING_COMPLETE_FILENAME = ".pretrained_checkpoint_training_complete"
 _CORE_WORKFLOWS = ("rl_games", "rsl_rl", "skrl")
+_SHADOW_HAND_CAMERA_TASKS = {
+    "Isaac-Reorient-Cube-Shadow-Camera",
+    "Isaac-Reorient-Cube-Shadow-Camera-Direct",
+}
+_SHADOW_HAND_FEATURE_EXTRACTOR_GLOB = "cnn_*.pth"
+_SHADOW_HAND_FEATURE_EXTRACTOR_SUFFIX = "_feature_extractor.pth"
 
 
 @dataclass(frozen=True)
@@ -543,6 +550,11 @@ def collect_pretrained_checkpoint(job: CheckpointJob, output_dir: str, dry_run: 
     destination = _get_collected_checkpoint_path(job, output_dir)
     if dry_run:
         print(f"Would collect the completed checkpoint -> {destination}")
+        if _requires_shadow_hand_feature_extractor(job):
+            print(
+                "Would collect the Shadow Hand feature-extractor checkpoint -> "
+                f"{_get_shadow_hand_feature_extractor_path(destination)}"
+            )
         return destination
 
     source_path = get_pretrained_checkpoint_path(
@@ -556,9 +568,24 @@ def collect_pretrained_checkpoint(job: CheckpointJob, output_dir: str, dry_run: 
         print(f"No completed checkpoint to collect for {job.job_id}")
         return None
 
-    print(f"Collecting {source_path} -> {destination}")
+    copies = [(source_path, destination)]
+    if _requires_shadow_hand_feature_extractor(job):
+        feature_extractor_paths = glob.glob(
+            os.path.join(os.path.dirname(source_path), _SHADOW_HAND_FEATURE_EXTRACTOR_GLOB)
+        )
+        if not feature_extractor_paths:
+            print(
+                f"No Shadow Hand feature-extractor checkpoint matched"
+                f" {_SHADOW_HAND_FEATURE_EXTRACTOR_GLOB!r} for {job.job_id}"
+            )
+            return None
+        feature_extractor_source = max(feature_extractor_paths, key=os.path.getctime)
+        copies.append((feature_extractor_source, _get_shadow_hand_feature_extractor_path(destination)))
+
     os.makedirs(os.path.dirname(destination), exist_ok=True)
-    shutil.copy2(source_path, destination)
+    for source, target in copies:
+        print(f"Collecting {source} -> {target}")
+        shutil.copy2(source, target)
     return destination
 
 
@@ -670,17 +697,29 @@ def publish_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) 
             preset_names=job.preset_names,
         )
         publish_path = posixpath.join(args.publish_root.rstrip("/"), job.workflow, filename)
-    print(f"Publishing {local_path} -> {publish_path}")
+    uploads = [(local_path, publish_path)]
+    if _requires_shadow_hand_feature_extractor(job):
+        local_feature_extractor = _get_shadow_hand_feature_extractor_path(local_path)
+        if not os.path.isfile(local_feature_extractor):
+            print(
+                f"Not publishing {job.job_id}; its Shadow Hand feature-extractor checkpoint was not collected.",
+                file=sys.stderr,
+            )
+            return False
+        uploads.append((local_feature_extractor, _get_shadow_hand_feature_extractor_path(publish_path)))
+    for source, destination in uploads:
+        print(f"Publishing {source} -> {destination}")
     if args.dry_run:
         return True
 
     import omni.client
     from omni.client._omniclient import CopyBehavior
 
-    result = omni.client.copy_file(local_path, publish_path, CopyBehavior.OVERWRITE)
-    if result != omni.client.Result.OK:
-        print(f"Publishing failed for {job.job_id}: {result}", file=sys.stderr)
-        return False
+    for source, destination in uploads:
+        result = omni.client.copy_file(source, destination, CopyBehavior.OVERWRITE)
+        if result != omni.client.Result.OK:
+            print(f"Publishing {source} failed for {job.job_id}: {result}", file=sys.stderr)
+            return False
     return True
 
 
@@ -734,6 +773,16 @@ def _get_collected_checkpoint_path(job: CheckpointJob, output_dir: str) -> str:
     if job.physics_backend is None:
         path_parts.append(job.task_name)
     return os.path.abspath(os.path.join(*path_parts, filename))
+
+
+def _requires_shadow_hand_feature_extractor(job: CheckpointJob) -> bool:
+    """Return whether a job produces the Shadow Hand camera CNN."""
+    return job.workflow == "rsl_rl" and job.task_name in _SHADOW_HAND_CAMERA_TASKS
+
+
+def _get_shadow_hand_feature_extractor_path(policy_path: str) -> str:
+    """Return the feature-extractor path published beside a Shadow Hand camera policy."""
+    return f"{os.path.splitext(policy_path)[0]}{_SHADOW_HAND_FEATURE_EXTRACTOR_SUFFIX}"
 
 
 def main(argv: list[str] | None = None) -> int:
