@@ -1333,8 +1333,7 @@ def _main_hero(seed: int = 42) -> None:
                 # _hero_record_visualizer()/_run_combined_capture() -- a small fixed trim, not
                 # the full robot-framing zoom (that lives in the .viz-crop-newton-gl CSS rule in
                 # visualization.rst). Without even this much, Newton GL's raw capture is 20px
-                # taller than the rest, and its native <video controls> bar has extra offscreen
-                # room in the CSS wrap to reappear in on hover.
+                # taller than the rest, throwing off that CSS crop's framing.
                 f"setpts=PTS/{newton_gl_speedup},crop=iw:ih-20:0:10",
                 "-c:v",
                 "libx264",
