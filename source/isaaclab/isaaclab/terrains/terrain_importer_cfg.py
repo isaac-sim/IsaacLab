@@ -28,7 +28,7 @@ class TerrainImporterCfg:
     """
 
     collision_group: int = -1
-    """The collision group of the terrain. Defaults to -1."""
+    """Deprecated compatibility field. Collision filtering is configured by the physics manager."""
 
     prim_path: str = MISSING
     """The absolute path of the USD terrain prim.

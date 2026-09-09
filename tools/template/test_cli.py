@@ -243,6 +243,23 @@ def test_generated_project_can_opt_into_ui_extension(tmp_path):
     assert (project_dir / "src" / "test_project" / "ui_extension_example.py").is_file()
 
 
+def test_direct_templates_leave_collision_isolation_to_cloner():
+    """Generated direct tasks pass the cloner policy without owning isolation."""
+    for workflow in ("direct_single-agent", "direct_multi-agent"):
+        template = (_TEMPLATE_DIR / "templates" / "tasks" / workflow / "env").read_text()
+        cfg_template = (_TEMPLATE_DIR / "templates" / "tasks" / workflow / "env_cfg").read_text()
+        assert 'src, dest = "/World/envs/env_0", "/World/envs/env_{}"' in template
+        assert "src, dest, self.scene.num_envs, pos" in template
+        assert "clone_cfg=self.scene.cloner_cfg" in template
+        assert "cloner.replicate(plan)" in template
+        assert "replicate_physics=self.scene.cfg.replicate_physics" not in template
+        assert "isolate_environments=" not in template
+        assert ".filter_collisions(" not in template
+        assert "from isaaclab.cloner import CloneCfg" not in cfg_template
+        assert "replicate_physics=" not in cfg_template
+        assert "filter_collisions=" not in cfg_template
+
+
 def test_internal_task_keeps_repository_layout(tmp_path):
     """Aligning external projects must not change internal task filenames or layout."""
     specification = {

@@ -16,7 +16,10 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from isaaclab.sim.utils.stage import get_current_stage
 
+from .physics_manager_cfg import CollisionGroupCfg, PhysicsCfg
+
 if TYPE_CHECKING:
+    from isaaclab.cloner import ClonePlan
     from isaaclab.scene_data import SceneDataBackend
     from isaaclab.sim.simulation_context import SimulationContext
 
@@ -85,6 +88,7 @@ class PhysicsManager(ABC):
     _sim_time: ClassVar[float] = 0.0
     _callbacks: ClassVar[dict[int, tuple[Any, Callable, int, str | None, Any]]] = {}
     _callback_id: ClassVar[int] = 0
+    _collision_filter_applied: ClassVar[bool] = False
     views: ClassVar[dict[tuple[type, str], Any]] = {}
     clone_context_type: ClassVar[type[object] | None] = None
 
@@ -362,6 +366,52 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
+    def apply_collision_filter(cls, plan: ClonePlan) -> None:
+        """Apply collision policy once, after collider assembly and before physics construction.
+
+        This method is the scene-assembly barrier. Callers must invoke it after all negative-priority
+        (priority < 0) contexts have contributed colliders and before priority-zero or later physics
+        contexts construct backend state. Environment isolation is a cloner-owned instruction;
+        explicit group policy comes from the active :class:`PhysicsCfg`.
+
+        Args:
+            plan: Completed replication plan describing source and replicated environments.
+        """
+        if PhysicsManager._collision_filter_applied:
+            raise RuntimeError("Collision filtering has already been applied for this simulation.")
+        if not isinstance(plan.isolate_environments, bool):
+            raise TypeError("ClonePlan.isolate_environments must be a bool.")
+        if not isinstance(plan.replicate_physics, bool):
+            raise TypeError("ClonePlan.replicate_physics must be a bool.")
+
+        groups = getattr(PhysicsManager._cfg, "collision_filter", None)
+        cls._apply_collision_filter_impl(plan, groups)
+        PhysicsManager._collision_filter_applied = True
+
+    @classmethod
+    def _require_collision_filter_barrier(cls) -> None:
+        """Reject model construction when a configured collision policy was not assembled.
+
+        Declarative groups currently require a clone-plan composition root, even for a single
+        environment. This guard prevents a flat scene from silently ignoring its physics policy.
+        """
+        groups = getattr(PhysicsManager._cfg, "collision_filter", None)
+        if groups and not PhysicsManager._collision_filter_applied:
+            raise RuntimeError(
+                "PhysicsCfg.collision_filter was configured, but the collision-filter assembly barrier did not run. "
+                "Build the scene through ReplicateSession or call cloner.replicate() before resetting the simulation."
+            )
+
+    @classmethod
+    def _apply_collision_filter_impl(cls, plan: ClonePlan, groups: dict[str, CollisionGroupCfg] | None) -> None:
+        """Realize collision filtering in the backend without expanding native collider pairs here."""
+        context_rows = () if cls.clone_context_type is None else plan.context_rows.get(cls.clone_context_type, ())
+        num_environments = 0 if plan.env_ids is None else len(plan.env_ids)
+        needs_isolation = plan.isolate_environments and num_environments > 1 and bool(context_rows)
+        if needs_isolation or groups:
+            raise NotImplementedError(f"{cls.__name__} does not implement declarative collision filtering.")
+
+    @classmethod
     @abstractmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the physics manager with simulation context.
@@ -371,12 +421,17 @@ class PhysicsManager(ABC):
         Args:
             sim_context: Parent simulation context.
         """
+        physics_cfg = sim_context.cfg.physics
+        if isinstance(physics_cfg, PhysicsCfg):
+            physics_cfg.validate_config()
+
         # Set on PhysicsManager explicitly so PhysicsManager.get_*() works
         # regardless of which subclass is active (Python class vars are per-class)
         PhysicsManager._sim = sim_context
-        PhysicsManager._cfg = sim_context.cfg.physics
+        PhysicsManager._cfg = physics_cfg
         PhysicsManager._device = sim_context.cfg.device
         PhysicsManager._sim_time = 0.0
+        PhysicsManager._collision_filter_applied = False
 
         # The OVD Recorder (omni.physx.pvd) only records PhysX simulations. On other backends the
         # recording would silently never start, so the process would run until manually killed
@@ -483,6 +538,7 @@ class PhysicsManager(ABC):
                 PhysicsManager._sim = None
                 PhysicsManager._cfg = None
                 PhysicsManager._sim_time = 0.0
+                PhysicsManager._collision_filter_applied = False
 
         if callback_errors:
             raise RuntimeError(

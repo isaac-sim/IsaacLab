@@ -57,7 +57,7 @@ from isaaclab.utils.timer import Timer
 logger = logging.getLogger(__name__)
 
 
-def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
+def design_scene(sim: SimulationContext, num_envs: int = 2048) -> tuple[RigidObject, lab_cloner.ClonePlan]:
     """Design the scene."""
     # Handler for terrains importing
     terrain_importer_cfg = terrain_gen.TerrainImporterCfg(
@@ -76,11 +76,19 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
     env_fmt = "/World/envs/env_{}"
     env_ids = np.arange(num_envs, dtype=np.int64)
     env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=2.0)
-    envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
     # create source prim
-    stage.DefinePrim(envs_prim_paths[0], "Xform")
+    stage.DefinePrim(env_fmt.format(0), "Xform")
     # clone the env xform
     lab_cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
+    clone_plan = lab_cloner.clone_plan_from_env_0(
+        env_fmt.format(0),
+        env_fmt,
+        num_envs,
+        env_origins,
+        global_paths=("/World/ground",),
+        clone_cfg=lab_cloner.CloneCfg(replicate_physics=False),
+    )
+    sim.set_clone_plan(clone_plan)
     # Define the scene
     # -- Light
     cfg = sim_utils.DistantLightCfg(intensity=2000)
@@ -98,22 +106,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5.0)),
     )
     balls = RigidObject(cfg)
-    # Clone the scene
-    # obtain the current physics scene
-    physics_scene_prim_path = None
-    for prim in stage.Traverse():
-        if "PhysxSceneAPI" in prim.GetAppliedSchemas():
-            physics_scene_prim_path = prim.GetPrimPath()
-            logging.info(f"Physics scene prim path: {physics_scene_prim_path}")
-            break
-    # filter collisions within each environment instance
-    lab_cloner.filter_collisions(
-        stage,
-        physics_scene_prim_path,
-        "/World/collisions",
-        envs_prim_paths,
-    )
-    return balls
+    return balls, clone_plan
 
 
 def main():
@@ -127,7 +120,7 @@ def main():
     # Parameters
     num_envs = args_cli.num_envs
     # Design the scene
-    balls = design_scene(sim=sim, num_envs=num_envs)
+    balls, clone_plan = design_scene(sim=sim, num_envs=num_envs)
 
     # Create a pva sensor
     pva_cfg = PvaCfg(
@@ -137,6 +130,7 @@ def main():
     # increase scale of the arrows for better visualization
     pva_cfg.visualizer_cfg.markers["arrow"].scale = (1.0, 0.2, 0.2)
     pva = Pva(cfg=pva_cfg)
+    lab_cloner.replicate(clone_plan)
 
     # Play simulator and init the Pva
     sim.reset()

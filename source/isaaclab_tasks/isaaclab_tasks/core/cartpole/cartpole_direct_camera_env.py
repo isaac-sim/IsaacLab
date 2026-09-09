@@ -59,12 +59,8 @@ class CartpoleCameraEnv(CartpoleEnv):
         self._tiled_camera = Camera(self.cfg.tiled_camera)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos)
+        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, clone_cfg=self.scene.cloner_cfg)
         cloner.replicate(plan)
-
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[])
 
         # add articulation and sensors to scene
         self.scene.articulations["cartpole"] = self.cartpole

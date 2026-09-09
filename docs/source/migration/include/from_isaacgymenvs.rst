@@ -356,8 +356,7 @@ The scene creation process is as follow:
 
 #. Construct a single environment (what the scene would look like if number of environments = 1)
 #. Create a plan with :func:`isaaclab.cloner.clone_plan_from_env_0` and apply it with
-   :func:`isaaclab.cloner.replicate`
-#. Call ``filter_collisions()`` for PhysX environments when collision filtering is required
+   :func:`isaaclab.cloner.replicate`; cloned environments are isolated by default
 
 
 .. code-block:: python
@@ -366,11 +365,10 @@ The scene creation process is as follow:
 
    src, dest = "/World/envs/env_0", "/World/envs/env_{}"
    positions = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-   plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, positions)
+   plan = cloner.clone_plan_from_env_0(
+       src, dest, self.scene.num_envs, positions, clone_cfg=self.scene.cloner_cfg
+   )
    cloner.replicate(plan)
-
-   if "physx" in self.scene.physics_backend:
-       self.scene.filter_collisions(global_prim_paths=[])
 
 
 .. rubric:: Accessing States from Simulation
@@ -673,10 +671,11 @@ the need to set simulation parameters for actors in the task implementation.
 |         self.cfg["env"]['envSpacing'],                                 |     global_paths = ("/World/ground",)                               |
 |         int(np.sqrt(self.num_envs)))                                   |     plan = cloner.clone_plan_from_env_0(                            |
 |                                                                        |         src, dest, self.scene.num_envs, positions,                  |
-|                                                                        |         global_paths=global_paths)                                  |
+|                                                                        |         global_paths=global_paths,                                  |
+|                                                                        |         clone_cfg=self.scene.cloner_cfg)                            |
 |                                                                        |     cloner.replicate(plan)                                          |
-| def _create_ground_plane(self):                                        |     if "physx" in self.scene.physics_backend:                       |
-|     plane_params = gymapi.PlaneParams()                                |         self.scene.filter_collisions(global_prim_paths=[])          |
+| def _create_ground_plane(self):                                        |                                                                     |
+|     plane_params = gymapi.PlaneParams()                                |                                                                     |
 |     # set the normal force to be z dimension                           |     self.scene.articulations["cartpole"] = self.cartpole            |
 |     plane_params.normal = (gymapi.Vec3(0.0, 0.0, 1.0)                  |     light_cfg = sim_utils.DistantLightCfg(                          |
 |         if self.up_axis == 'z'                                         |         intensity=2000.0, color=(1.0, 1.0, 1.0))                    |

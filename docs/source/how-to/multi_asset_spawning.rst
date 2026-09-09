@@ -107,10 +107,10 @@ Clone planning and physics replication
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :class:`~scene.InteractiveScene` represents multi-asset variants as clone-plan prototypes. It can therefore keep
-:attr:`~scene.InteractiveSceneCfg.replicate_physics` enabled and replicate each prototype only to its assigned
+:attr:`~cloner.CloneCfg.replicate_physics` enabled and replicate each prototype only to its assigned
 environments. Do not disable physics replication merely because a scene uses a multi-asset spawner. Reserve
-``replicate_physics=False`` for per-environment stage differences that cannot be represented as clone variants; that
-mode is not supported by the Newton backend.
+``clone_cfg.replicate_physics=False`` for per-environment stage differences that cannot be represented as clone variants;
+that mode is not supported by the Newton backend.
 
 The demo keeps physics replication enabled. For Newton, it also narrows the standalone object and articulation to one
 variant because their batched Newton views currently require a uniform body layout across worlds:

@@ -32,8 +32,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.utils.string import string_to_callable
 from isaaclab.utils.version import has_kit
 
-from .cloner_cfg import DEFAULT_ENV_TEMPLATE, InclusionSet
-from .cloner_strategies import sequential
+from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, _resolve_clone_cfg
 from .path import match
 from .usd import UsdReplicateContext
 
@@ -69,6 +68,19 @@ class ClonePlan:
 
     global_paths: tuple[str, ...] = ()
     """Unique prim paths for scene assets shared by every environment."""
+
+    env_template: str = DEFAULT_ENV_TEMPLATE
+    """Path template for an environment root, where ``{}`` marks the environment id.
+
+    Physics managers use this cloner-owned layout value to expand ``{ENV_REGEX_NS}``
+    selectors without assuming the default environment namespace.
+    """
+
+    isolate_environments: bool = True
+    """Whether the cloner's generated world filter isolates different environments."""
+
+    replicate_physics: bool = True
+    """Whether physics clone contexts participate when this plan is dispatched."""
 
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z") -> tuple[np.ndarray, np.ndarray]:
@@ -245,15 +257,17 @@ def make_clone_plan(
     num_clones: int,
     env_spacing: float,
     global_paths: tuple[str, ...] = (),
-    clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
+    clone_strategy: Callable[[np.ndarray, int], np.ndarray] | None = None,
     valid_set: np.ndarray | None = None,
-    env_template: str = DEFAULT_ENV_TEMPLATE,
+    env_template: str | None = None,
+    *,
+    clone_cfg: CloneCfg | None = None,
 ) -> ClonePlan:
     """Build a :class:`ClonePlan` from asset cfgs.
 
     Iterates ``cfgs``, identifies env-scoped cfgs with a spawn, expands
     :class:`~isaaclab.sim.MultiAssetSpawnerCfg` / :class:`~isaaclab.sim.MultiUsdFileCfg`
-    into per-variant prototype rows, runs ``clone_strategy`` to assign prototypes to
+    into per-variant prototype rows, runs ``clone_cfg.clone_strategy`` to assign prototypes to
     envs, and returns a self-contained :class:`ClonePlan` with ``cfg_rows`` populated.
 
     Each input cfg's ``spawn_path`` / ``spawn_paths`` is mutated so the subsequent
@@ -266,17 +280,22 @@ def make_clone_plan(
         num_clones: Number of target envs.
         env_spacing: Distance between neighboring grid env origins [m].
         global_paths: Complete shared-asset roots declared by the scene composition root. Defaults to none.
-        clone_strategy: Function that assigns prototype combinations to envs. Defaults
-            to :func:`~isaaclab.cloner.sequential`.
+        clone_strategy: Compatibility input for :attr:`CloneCfg.clone_strategy`.
         valid_set: Optional ``[num_combos, num_groups]`` integer array of valid prototype
             combinations. ``None`` (default) uses the full cartesian product of every
             group's prototype indices.
+        env_template: Compatibility input for :attr:`CloneCfg.clone_template`.
+        clone_cfg: Optional cloner configuration. A default :class:`CloneCfg` is used when omitted.
 
     Returns:
         A :class:`ClonePlan` whose ``sources``/``destinations``/``clone_mask`` describe
         the flat prototype-to-env mapping, whose ``cfg_rows`` maps each replicated cfg
         to the rows it owns, and whose ``global_paths`` names shared scene assets.
     """
+
+    clone_cfg = _resolve_clone_cfg(clone_cfg, clone_strategy=clone_strategy, clone_template=env_template)
+    clone_strategy = clone_cfg.clone_strategy
+    env_template = clone_cfg.clone_template
 
     def set_spawn_paths(spawn_cfg: Any, paths: list[str | None]) -> None:
         if isinstance(spawn_cfg, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
@@ -310,10 +329,13 @@ def make_clone_plan(
             sources=(),
             destinations=(),
             clone_mask=empty_mask,
+            env_template=env_template,
             env_ids=env_ids,
             positions=positions,
             cfg_rows={},
             global_paths=global_paths,
+            isolate_environments=clone_cfg.isolate_environments,
+            replicate_physics=clone_cfg.replicate_physics,
         )
 
     # 3) Homogeneous (every cfg is single-variant): emit the simpler env-root plan.
@@ -326,11 +348,14 @@ def make_clone_plan(
             sources=(env_template.format(0),),
             destinations=(env_template,),
             clone_mask=clone_mask,
+            env_template=env_template,
             env_ids=env_ids,
             positions=positions,
             cfg_rows=cfg_rows,
             context_rows=_context_rows(cfgs, cfg_rows, {0}),
             global_paths=global_paths,
+            isolate_environments=clone_cfg.isolate_environments,
+            replicate_physics=clone_cfg.replicate_physics,
         )
 
     # 4) Heterogeneous: enumerate prototype combos, build per-row mask, mutate spawn paths.
@@ -399,11 +424,14 @@ def make_clone_plan(
         sources=tuple(sources_list),
         destinations=tuple(destinations_list),
         clone_mask=clone_mask,
+        env_template=env_template,
         env_ids=env_ids,
         positions=positions,
         cfg_rows=cfg_rows,
         context_rows=_context_rows(cfgs, cfg_rows, populated_rows),
         global_paths=global_paths,
+        isolate_environments=clone_cfg.isolate_environments,
+        replicate_physics=clone_cfg.replicate_physics,
     )
 
 
@@ -413,27 +441,33 @@ def clone_plan_from_env_0(
     num_clones: int,
     positions: np.ndarray | None = None,
     global_paths: tuple[str, ...] = (),
+    *,
+    clone_cfg: CloneCfg | None = None,
 ) -> ClonePlan:
     """Build a single-source clone plan that targets every env from one source row.
 
     Auto-populates :attr:`ClonePlan.cfg_rows` from :data:`~isaaclab.cloner.REPLICATION_QUEUE`,
     including only cfgs whose ``prim_path`` falls under the env-root prefix of
-    ``destination``. ``global_paths`` is the complete declaration of shared assets; it is
+    the resolved clone template. ``global_paths`` is the complete declaration of shared assets; it is
     never inferred from the stage or replication queue. Must be called *after* all asset
     constructors have run, so their cfgs are already registered in the queue; otherwise
     those assets will be skipped by the subsequent :func:`~isaaclab.cloner.replicate` call.
 
     Args:
         source: Source prim path (typically ``/World/envs/env_0``).
-        destination: Destination template with ``"{}"`` for the env id.
+        destination: Destination template with ``"{}"`` for the environment id.
         num_clones: Number of target envs.
         positions: Optional per-env world positions [m], shape ``[num_clones, 3]``.
         global_paths: Complete shared-asset roots for the hand-built scene. Defaults to none.
+        clone_cfg: Optional cloner configuration. A default :class:`CloneCfg` is used when omitted.
 
     Returns:
         A :class:`ClonePlan` with a single source row covering every env.
+
     """
     from .replicate_session import REPLICATION_QUEUE  # noqa: PLC0415
+
+    clone_cfg = _resolve_clone_cfg(clone_cfg, clone_template=destination)
 
     queued = tuple(REPLICATION_QUEUE)
     cfg_rows = {id(cfg): (0,) for cfg in queued if match(cfg.prim_path, destination) is not None}
@@ -442,9 +476,12 @@ def clone_plan_from_env_0(
         sources=(source,),
         destinations=(destination,),
         clone_mask=clone_mask,
+        env_template=destination,
         env_ids=np.arange(num_clones, dtype=np.int64),
         positions=positions,
         cfg_rows=cfg_rows,
         context_rows=_context_rows(queued, cfg_rows, {0}),
         global_paths=global_paths,
+        isolate_environments=clone_cfg.isolate_environments,
+        replicate_physics=clone_cfg.replicate_physics,
     )

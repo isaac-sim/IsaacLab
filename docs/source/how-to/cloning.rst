@@ -147,6 +147,12 @@ fields listed below are that table's columns:
      - Optional per-env world positions [m], shape ``[num_envs, 3]``.
    * - ``global_paths``
      - Unique prim paths for scene assets shared by every env and therefore not replicated.
+   * - ``env_template``
+     - Environment-root path template used to expand ``{ENV_REGEX_NS}`` collision selectors.
+   * - ``isolate_environments``
+     - Resolved cloner instruction for filtering contacts between different environments.
+   * - ``replicate_physics``
+     - Resolved cloner instruction for dispatching native physics clone contexts.
    * - ``context_rows``
      - Clone-context types mapped to the rows they consume.
 
@@ -230,7 +236,7 @@ constructs assets at their planned source paths, and exiting dispatches that sam
 
 .. code-block:: python
 
-    with cloner.ReplicateSession(cfgs, num_clones=N, env_spacing=2.0):
+    with cloner.ReplicateSession(cfgs, num_clones=N, env_spacing=2.0, clone_cfg=cloner.CloneCfg()):
         for cfg in cfgs:
             cfg.class_type(cfg)
 
@@ -271,10 +277,13 @@ subclasses use — they author the env-0 prototype prim by prim in
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         # ... any other assets ...
 
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        dest = self.scene.cloner_cfg.clone_template
+        src = dest.format(0)
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
         global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
+        plan = cloner.clone_plan_from_env_0(
+            src, dest, self.scene.num_envs, pos, global_paths=global_paths, clone_cfg=self.scene.cloner_cfg
+        )
         cloner.replicate(plan)
 
 Every env receives the same prototype. When envs need to differ, declare their
@@ -301,17 +310,14 @@ execution contract:
 
     UsdReplicateContext      # replicates USD prim subtrees
     PhysxReplicateContext    # replicates PhysX rigid bodies and articulations
+    OvPhysxReplicateContext  # publishes OVPhysX clone recipes
     NewtonReplicateContext   # replicates Newton bodies in its parallel pipeline
 
 :func:`~isaaclab.cloner.replicate` resolves these types through the
 :class:`~isaaclab.sim.SimulationContext` backend registry, orders them by
-``replicate_priority``, and passes the published plan to each one:
-
-.. code-block:: python
-
-    plan = published_clone_plan
-    for context_type in plan.context_rows:
-        simulation_backends[context_type].replicate(plan)
+``replicate_priority``, and passes the published plan to each one. Negative-priority
+stage contexts run first, then the active physics manager applies collision policy,
+then priority-zero and later native physics contexts construct backend state.
 
 The cfg-first lifecycle publishes before ``construct_prototypes()``. The direct
 single-source workflow remains post-construction and is published by
@@ -319,29 +325,109 @@ single-source workflow remains post-construction and is published by
 each maintained lifecycle passes that exact object to every backend.
 
 USD runs before native physics contexts so the destination topology exists when
-they consume it. No fallback context is constructed during dispatch.
+they consume it.
 
 Collision Filtering
 -------------------
 
-PhysX models per-env isolation through collision groups, so PhysX scenes need a
-filtering pass after cloning to keep envs from colliding with each other while
-still letting them collide with global prims (terrain, ground planes, lights).
-
-:class:`~isaaclab.scene.InteractiveScene` runs that pass automatically when
-``filter_collisions=True`` and the backend is PhysX. For direct PhysX pipelines,
-call :func:`~isaaclab.cloner.filter_collisions` after the replicate:
+Collision filtering combines cloner-owned *environment isolation* with a
+physics-manager-owned *collider policy*. At the assembly barrier above, each
+manager translates both inputs into its native representation. Isolation is on
+by default and leaves :attr:`~isaaclab.cloner.ClonePlan.global_paths` eligible to
+contact every environment. To allow cross-environment contacts, set:
 
 .. code-block:: python
 
-    from isaaclab.cloner import filter_collisions
+    clone_cfg = cloner.CloneCfg(isolate_environments=False)
 
-    filter_collisions(
-        stage=stage,
-        physicsscene_path="/physicsScene",
-        collision_root_path="/World/collisions",
-        prim_paths=[f"/World/envs/env_{i}" for i in range(num_envs)],
-        global_paths=["/World/ground"],
-    )
+``InteractiveScene`` treats configured paths outside ``CloneCfg.clone_template`` as shared;
+direct workflows declare them in ``ClonePlan.global_paths``.
+``AssetBaseCfg.collision_group`` and ``TerrainImporterCfg.collision_group`` remain
+accepted as deprecated, inert compatibility fields; move a collider that used
+``collision_group=-1`` to a shared root. ``InteractiveSceneCfg.replicate_physics``
+also remains accepted but deprecated; configure ``InteractiveSceneCfg.clone_cfg``
+instead. Legacy per-option inputs to
+:func:`~isaaclab.cloner.make_clone_plan` and
+:func:`~isaaclab.cloner.clone_plan_from_env_0` also remain accepted.
 
-Newton isolates envs through its world system and does not need this pass.
+Cross-asset groups
+~~~~~~~~~~~~~~~~~~
+
+Put an explicit collider policy on the active backend's
+:class:`~isaaclab.physics.PhysicsCfg`. In this example, robot--object and
+object--support contacts remain enabled, while robot--support contacts are
+disabled:
+
+.. code-block:: python
+
+    from isaaclab.physics import CollisionGroupCfg
+
+    physics_cfg.collision_filter = {
+        "robot": CollisionGroupCfg(
+            prim_path_exprs=(r"{ENV_REGEX_NS}/Robot/colliders/.*",),
+            filtered_groups=("supports",),
+        ),
+        "objects": CollisionGroupCfg(prim_path_exprs=(r"{ENV_REGEX_NS}/Objects/.*/colliders/.*",)),
+        "supports": CollisionGroupCfg(prim_path_exprs=(r"{ENV_REGEX_NS}/Supports/.*/colliders/.*",)),
+    }
+
+``filtered_groups`` is a deny-list by default. Rules are symmetric, colliders may
+match multiple groups, and any denial wins. Referenced group names must exist.
+
+Selecting individual colliders
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Groups select collider prims, not whole asset objects. This permits different
+collision representations on one asset. The following policy enables only the
+SDF--SDF path between a nut and bolt, disables their convex--convex path, and uses
+their convex colliders against other objects:
+
+.. code-block:: python
+
+    physics_cfg.collision_filter = {
+        "nut_sdf": CollisionGroupCfg(
+            prim_path_exprs=(r"{ENV_REGEX_NS}/Nut/mesh/colliders/sdf",),
+            filtered_groups=("bolt_sdf",),
+            invert_filtered_groups=True,
+        ),
+        "bolt_sdf": CollisionGroupCfg(
+            prim_path_exprs=(r"{ENV_REGEX_NS}/Bolt/mesh/colliders/sdf",),
+            filtered_groups=("nut_sdf",),
+            invert_filtered_groups=True,
+        ),
+        "nut_convex": CollisionGroupCfg(
+            prim_path_exprs=(r"{ENV_REGEX_NS}/Nut/mesh/colliders/convex",),
+            filtered_groups=("bolt_convex",),
+        ),
+        "bolt_convex": CollisionGroupCfg(
+            prim_path_exprs=(r"{ENV_REGEX_NS}/Bolt/mesh/colliders/convex",),
+        ),
+    }
+
+With ``invert_filtered_groups=True``, the list becomes an allow-list, including
+against unmatched colliders. Thus the SDF groups contact only one another, while
+the convex groups contact ordinary unmatched objects but not each other. Policy
+is deny-only; it cannot override collider flags, authored filtered pairs, or
+backend structural rules.
+
+Each ``prim_path_exprs`` entry uses :func:`re.fullmatch` on the complete collider
+path. There is no ``include_descendants`` option: append ``/.*`` to select
+descendants. A trailing ``$`` is accepted but redundant. ``{ENV_REGEX_NS}``
+expands from the active :class:`~isaaclab.cloner.ClonePlan` environment template.
+
+Backend behavior
+~~~~~~~~~~~~~~~~
+
+Isaac Sim PhysX, Newton, and OVPhysX are first-class realizations. Isaac Sim
+PhysX lowers policy from assembled USD while preserving authored groups and
+filtered pairs. Newton applies it to every native shape generated for a selected
+collider; its native multi-world partition always enforces isolation. OVPhysX
+uses native environment IDs as its isolation-only GPU fast path, and uses
+full-stage realization for explicit groups, non-native isolation, or composition
+with authored groups.
+
+Configured policy must cross :func:`~isaaclab.cloner.replicate`; raw backend
+helpers do not read :class:`~isaaclab.physics.PhysicsCfg`. The old
+``InteractiveScene.filter_collisions`` method is removed, while the deprecated
+:func:`isaaclab.cloner.filter_collisions` facade remains for standalone PhysX
+workflows.

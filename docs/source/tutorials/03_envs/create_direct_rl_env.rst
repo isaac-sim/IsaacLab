@@ -97,9 +97,9 @@ Scene Creation
 
 In contrast to manager-based environments where the scene creation is taken care of by the framework,
 the direct workflow implementation provides flexibility for users to implement their own scene creation
-function. This includes adding actors into the stage, cloning the environments, filtering collisions
-between the environments, adding the actors into the scene, and adding any additional props to the
-scene, such as ground plane and lights. These operations should be implemented in the
+function. This includes adding actors into the stage, applying the clone plan, adding the actors into the scene,
+and adding any additional props, such as ground plane and lights. Applying the plan realizes configured
+collision policy and isolates cloned environments by default. These operations should be implemented in the
 ``_setup_scene(self)`` method.
 
 .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py

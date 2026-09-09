@@ -534,7 +534,9 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
         global_paths = (self.cfg.terrain.prim_path,)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
+        plan = cloner.clone_plan_from_env_0(
+            src, dest, self.scene.num_envs, pos, global_paths=global_paths, clone_cfg=self.scene.cloner_cfg
+        )
         cloner.replicate(plan)
         # add articulation and the feet wrench sensor to scene
         self.scene.articulations["robot"] = self.robot

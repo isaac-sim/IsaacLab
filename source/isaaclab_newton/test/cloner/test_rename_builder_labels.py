@@ -250,7 +250,7 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         quaternions = np.array([[0.0, 0.0, 0.0, 1.0]] * 3, dtype=np.float32)
 
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
-            local_site_map, _, _ = replicate_builder_mapping(
+            local_site_map, _, _, _ = replicate_builder_mapping(
                 builder,
                 (source_path,),
                 np.ones((1, 3), dtype=np.bool_),
@@ -282,7 +282,7 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         env_root_offset = wp.transform((0.1, 0.0, 0.0), wp.quat_identity())
 
         with mock.patch.object(builder, "replicate", wraps=builder.replicate) as replicate:
-            local_site_map, _, _ = replicate_builder_mapping(
+            local_site_map, _, _, _ = replicate_builder_mapping(
                 builder,
                 (source_path,),
                 np.ones((1, 3), dtype=np.bool_),

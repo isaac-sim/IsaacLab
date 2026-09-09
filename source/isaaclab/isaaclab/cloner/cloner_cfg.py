@@ -52,8 +52,8 @@ class InclusionSet:
 class CloneCfg:
     """Configuration for environment replication.
 
-    Holds the knobs :class:`~isaaclab.scene.InteractiveScene` forwards to
-    :func:`~isaaclab.cloner.make_clone_plan` when building per-env layouts.
+    Holds the cloner-owned settings used to plan and dispatch per-environment layouts. Composition
+    roots pass this object to cloner APIs instead of unpacking individual policy flags.
     """
 
     clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential
@@ -80,6 +80,33 @@ class CloneCfg:
     If False, cloning is USD-only: the physics engine parses the per-env USD prims directly
     instead of replicating env_0's parsed structure. Applied by :func:`~isaaclab.cloner.replicate`.
     """
+
+    isolate_environments: bool = True
+    """Whether colliders in different cloned environments are isolated. Default is True.
+
+    The cloner records this world-level rule in its :class:`~isaaclab.cloner.ClonePlan`; the active
+    physics manager combines it with any collider-level policy during replication.
+    """
+
+
+def _resolve_clone_cfg(
+    clone_cfg: CloneCfg | None = None,
+    *,
+    clone_strategy: Callable[[np.ndarray, int], np.ndarray] | None = None,
+    clone_template: str | None = None,
+    replicate_physics: bool | None = None,
+) -> CloneCfg:
+    """Return a policy snapshot with legacy inputs folded into it."""
+    if clone_cfg is not None and not isinstance(clone_cfg, CloneCfg):
+        raise TypeError(f"clone_cfg must be a CloneCfg or None, got {type(clone_cfg).__name__}.")
+    resolved = CloneCfg() if clone_cfg is None else clone_cfg.copy()
+    if clone_strategy is not None:
+        resolved.clone_strategy = clone_strategy
+    if clone_template is not None:
+        resolved.clone_template = clone_template
+    if replicate_physics is not None:
+        resolved.replicate_physics = replicate_physics
+    return resolved
 
 
 def add(this: CloneCfg, other: InclusionSet) -> CloneCfg:

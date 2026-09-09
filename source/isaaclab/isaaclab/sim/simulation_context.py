@@ -764,6 +764,7 @@ class SimulationContext:
         Args:
             soft: If True, skip full reinitialization.
         """
+        self.physics_manager._require_collision_filter_barrier()
         self.physics_manager.reset(soft)
         for viz in self._visualizers:
             viz.reset(soft)

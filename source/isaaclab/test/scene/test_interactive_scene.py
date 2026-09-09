@@ -185,7 +185,7 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
 
 
 def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
-    """A cfg-driven scene publishes the exact plan it forwards to replication.
+    """A cfg-driven scene passes canonical CloneCfg and publishes the resulting plan.
 
     Uses a test-seam fake to isolate this unit test from real backend dispatch; queue
     lifecycle is owned by :func:`replicate` itself (snapshot-and-clear) and does not
@@ -194,23 +194,38 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
     import isaaclab.cloner.replicate_session as replicate_session_module
 
     captured: list = []
+    session_cfgs: list[CloneCfg] = []
+    replicate_session = cloner.ReplicateSession
 
-    def fake_replicate(plan, *, replicate_physics=True):
-        captured.append((plan, replicate_physics, sim_utils.SimulationContext.instance().get_clone_plan()))
+    def capture_session(*args, clone_cfg=None, **kwargs):
+        session_cfgs.append(clone_cfg)
+        return replicate_session(*args, clone_cfg=clone_cfg, **kwargs)
 
+    def fake_replicate(plan):
+        captured.append((plan, sim_utils.SimulationContext.instance().get_clone_plan()))
+
+    monkeypatch.setattr(cloner, "ReplicateSession", capture_session)
     monkeypatch.setattr(replicate_session_module, "replicate", fake_replicate)
 
     with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
         sim._app_control_on_stop_handle = None
-        InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
+        scene = InteractiveScene(
+            MySceneCfg(
+                num_envs=4,
+                env_spacing=1.0,
+                clone_cfg=CloneCfg(isolate_environments=False),
+            )
+        )
 
     assert len(captured) == 1
-    plan, replicate_physics, published = captured[0]
+    plan, published = captured[0]
+    assert session_cfgs == [scene.cloner_cfg]
     assert published is plan
     assert plan.sources == ("/World/envs/env_0",)
     assert plan.destinations == ("/World/envs/env_{}",)
     assert plan.clone_mask.shape == (1, 4)
-    assert replicate_physics is True
+    assert plan.replicate_physics is True
+    assert plan.isolate_environments is False
 
 
 def test_empty_scene_leaves_clone_lifecycle_to_caller():

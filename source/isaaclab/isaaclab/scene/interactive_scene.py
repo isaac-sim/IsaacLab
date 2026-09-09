@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import copy
 import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
@@ -69,14 +68,22 @@ class InteractiveScene:
 
       .. code-block:: python
 
-          scene = InteractiveScene(cfg=InteractiveSceneCfg(replicate_physics=True))
+          from isaaclab import cloner
+
+          clone_cfg = cloner.CloneCfg(replicate_physics=True)
+          scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0, clone_cfg=clone_cfg)
+          scene = InteractiveScene(cfg=scene_cfg)
 
     * For tasks that require having separate assets in the environments, ``replicate_physics`` would have to
       be set to False, which will add some costs to the overall startup time.
 
       .. code-block:: python
 
-          scene = InteractiveScene(cfg=InteractiveSceneCfg(replicate_physics=False))
+          from isaaclab import cloner
+
+          clone_cfg = cloner.CloneCfg(replicate_physics=False)
+          scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0, clone_cfg=clone_cfg)
+          scene = InteractiveScene(cfg=scene_cfg)
 
     Each entity is registered to scene based on its name in the configuration class. For example, if the user
     specifies a robot in the configuration class as follows:
@@ -101,7 +108,7 @@ class InteractiveScene:
         from isaaclab.scene import InteractiveScene
 
         # create 128 environments
-        scene = InteractiveScene(cfg=MySceneCfg(num_envs=128))
+        scene = InteractiveScene(cfg=MySceneCfg(num_envs=128, env_spacing=2.0))
 
         # access the robot from the scene
         robot = scene["robot"]
@@ -117,11 +124,14 @@ class InteractiveScene:
         from isaaclab import cloner
         from isaaclab.assets import Articulation
 
-        scene = InteractiveScene(cfg=InteractiveSceneCfg(num_envs=128, replicate_physics=True))
+        scene_cfg = InteractiveSceneCfg(num_envs=128, env_spacing=2.0, clone_cfg=cloner.CloneCfg())
+        scene = InteractiveScene(cfg=scene_cfg)
         robot = Articulation(robot_cfg)
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        src = scene.cloner_cfg.clone_template.format(0)
         pos = cloner.grid_transforms(scene.num_envs, scene.cfg.env_spacing)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, scene.num_envs, pos)
+        plan = cloner.clone_plan_from_env_0(
+            src, scene.cloner_cfg.clone_template, scene.num_envs, pos, clone_cfg=scene.cloner_cfg
+        )
         cloner.replicate(plan)
 
     .. note::
@@ -163,14 +173,12 @@ class InteractiveScene:
         # physics scene path
         self._physics_scene_path = None
         # prepare cloner for environment replication
-        self.cloner_cfg = copy.deepcopy(self.cfg.clone_cfg)
-        self.cloner_cfg.replicate_physics = self.cfg.replicate_physics
+        self.cloner_cfg = self.cfg.resolve_clone_cfg()
         # the template is authoritative; the regex form is the same namespace spelled for matching
         self._env_fmt = self.cloner_cfg.clone_template
         self.env_prim_paths = [self._env_fmt.format(i) for i in range(self.cfg.num_envs)]
         self._ALL_INDICES = torch.arange(self.cfg.num_envs, dtype=torch.long, device=self.device)
 
-        self._global_prim_paths = list()
         asset_cfgs, global_paths, valid_set = self._collect_asset_cfgs()
         scene_from_cfg = any(
             name not in InteractiveSceneCfg.__dataclass_fields__ and cfg is not None
@@ -182,10 +190,8 @@ class InteractiveScene:
                 num_clones=self.num_envs,
                 env_spacing=self.cfg.env_spacing,
                 global_paths=global_paths,
-                env_template=self._env_fmt,
-                clone_strategy=self.cloner_cfg.clone_strategy,
                 valid_set=valid_set,
-                replicate_physics=self.cloner_cfg.replicate_physics,
+                clone_cfg=self.cloner_cfg,
             ) as session:
                 self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
                 with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
@@ -211,10 +217,6 @@ class InteractiveScene:
             requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[type_name]
             self.sim.requires_usd_stage |= requires_stage
             self.sim.requires_newton_model |= requires_model
-
-        # Collision filtering is PhysX-only (matches both physx and ovphysx).
-        if self.cfg.filter_collisions and "physx" in self.physics_backend and scene_from_cfg:
-            self.filter_collisions(self._global_prim_paths)
 
     def _collect_asset_cfgs(self) -> tuple[list[Any], tuple[str, ...], np.ndarray | None]:
         """Flatten user-declared cfgs and declare shared prim roots for clone planning.
@@ -282,48 +284,13 @@ class InteractiveScene:
             valid_set = None
         return cfgs, global_paths, valid_set
 
-    def filter_collisions(self, global_prim_paths: list[str] | None = None):
-        """Filter environments collisions.
-
-        Disables collisions between the environments in ``/World/envs/env_.*`` and enables collisions with the prims
-        in global prim paths (e.g. ground plane).
-
-        Args:
-            global_prim_paths: A list of global prim paths to enable collisions with.
-                Defaults to None, in which case no global prim paths are considered.
-        """
-        # validate paths in global prim paths
-        if global_prim_paths is None:
-            global_prim_paths = []
-        else:
-            # remove duplicates in paths
-            global_prim_paths = list(set(global_prim_paths))
-
-        # if "/World/collisions" already exists in the stage, we don't filter again
-        if self.stage.GetPrimAtPath("/World/collisions"):
-            return
-
-        # set global prim paths list if not previously defined
-        if len(self._global_prim_paths) < 1:
-            self._global_prim_paths += global_prim_paths
-
-        # filter collisions within each environment instance
-        cloner.filter_collisions(
-            self.stage,
-            self.physics_scene_path,
-            "/World/collisions",
-            self.env_prim_paths,
-            global_paths=self._global_prim_paths,
-        )
-
     def __str__(self) -> str:
         """Returns a string representation of the scene."""
         msg = f"<class {self.__class__.__name__}>\n"
         msg += f"\tNumber of environments: {self.cfg.num_envs}\n"
         msg += f"\tEnvironment spacing   : {self.cfg.env_spacing}\n"
         msg += f"\tSource prim name      : {self.env_prim_paths[0]}\n"
-        msg += f"\tGlobal prim paths     : {self._global_prim_paths}\n"
-        msg += f"\tReplicate physics     : {self.cfg.replicate_physics}"
+        msg += f"\tReplicate physics     : {self.cloner_cfg.replicate_physics}"
         return msg
 
     """
@@ -799,8 +766,6 @@ class InteractiveScene:
 
         from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg  # noqa: PLC0415
 
-        # store paths that are in global collision filter
-        self._global_prim_paths = list()
         # Parent prototypes must exist before anything spawned below them; sensors initialize last.
         all_items = [
             (k, v)
@@ -859,10 +824,6 @@ class InteractiveScene:
                                 f"Clone planning did not assign spawn_path for '{rigid_object_cfg.prim_path}'."
                             )
                 self._rigid_object_collections[asset_name] = asset_cfg.class_type(asset_cfg)
-                for rigid_object_cfg in asset_cfg.rigid_objects.values():
-                    if hasattr(rigid_object_cfg, "collision_group") and rigid_object_cfg.collision_group == -1:
-                        asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
-                        self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SurfaceGripperCfg):
                 # add surface grippers to scene
                 self._surface_grippers[asset_name] = asset_cfg.class_type(asset_cfg)
@@ -915,8 +876,3 @@ class InteractiveScene:
                 self._extras[asset_name] = asset_cfg
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
-
-            # store global collision paths
-            if hasattr(asset_cfg, "collision_group") and asset_cfg.collision_group == -1:
-                asset_paths = sim_utils.find_matching_prim_paths(asset_cfg.prim_path)
-                self._global_prim_paths += asset_paths

@@ -9,11 +9,30 @@ import gc
 import weakref
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
-from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
+from isaaclab.cloner import ClonePlan
+from isaaclab.physics import CollisionGroupCfg, PhysicsCfg, PhysicsEvent, PhysicsManager
 from isaaclab.renderers import RendererCfg
 from isaaclab.visualizers import VisualizerCfg
+
+
+def _plan(**kwargs):
+    values = dict(
+        sources=(),
+        destinations=(),
+        clone_mask=np.empty((0, 0), dtype=np.bool_),
+        env_ids=np.empty(0, dtype=np.int64),
+    )
+    return ClonePlan(**(values | kwargs))
+
+
+def _initialize_manager(monkeypatch, manager, collision_filter=None):
+    monkeypatch.setattr(manager, "_callbacks", {})
+    cfg = PhysicsCfg(class_type=manager, collision_filter=collision_filter)
+    manager.initialize(SimpleNamespace(physics_manager=manager, cfg=SimpleNamespace(physics=cfg, device="cpu")))
+    return cfg
 
 
 def test_backend_registry_uses_only_backend_type():
@@ -69,6 +88,7 @@ def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch)
     monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=TestManager))
     monkeypatch.setattr(PhysicsManager, "_cfg", object())
     monkeypatch.setattr(PhysicsManager, "_sim_time", 1.0)
+    monkeypatch.setattr(PhysicsManager, "_collision_filter_applied", True)
     monkeypatch.setattr(PhysicsManager, "views", {(TestManager, "/World/Robot"): object()})
 
     TestManager.register_callback(
@@ -115,7 +135,72 @@ def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch)
     assert PhysicsManager._sim is None
     assert PhysicsManager._cfg is None
     assert PhysicsManager._sim_time == 0.0
+    assert not PhysicsManager._collision_filter_applied
     assert PhysicsManager.views == {}
+
+
+def test_collision_filter_policy_is_config_owned_and_applied_once(monkeypatch):
+    calls = []
+
+    class TestManager(PhysicsManager):
+        @classmethod
+        def _apply_collision_filter_impl(cls, plan, cfg):
+            calls.append((plan, cfg, plan.isolate_environments, plan.replicate_physics))
+
+    groups = {"robot": CollisionGroupCfg(prim_path_exprs=(r"/World/envs/env_.*/Robot/.*",))}
+    physics_cfg = _initialize_manager(monkeypatch, TestManager, groups)
+    plan = _plan()
+
+    with pytest.raises(RuntimeError, match="assembly barrier did not run"):
+        TestManager._require_collision_filter_barrier()
+
+    TestManager.apply_collision_filter(plan)
+
+    assert physics_cfg.collision_filter == groups
+    assert calls == [(plan, physics_cfg.collision_filter, True, True)]
+    TestManager._require_collision_filter_barrier()
+    with pytest.raises(RuntimeError, match="already been applied"):
+        TestManager.apply_collision_filter(plan)
+
+    TestManager.close()
+    assert not PhysicsManager._collision_filter_applied
+
+
+def test_base_manager_never_silently_ignores_requested_collision_filtering(monkeypatch):
+    class TestManager(PhysicsManager):
+        pass
+
+    groups = {"robot": CollisionGroupCfg(prim_path_exprs=(r"/World/Robot/.*",))}
+    _initialize_manager(monkeypatch, TestManager, groups)
+
+    with pytest.raises(NotImplementedError, match="does not implement declarative collision filtering"):
+        TestManager.apply_collision_filter(_plan(isolate_environments=False))
+    assert not PhysicsManager._collision_filter_applied
+    TestManager.close()
+
+
+def test_base_manager_ignores_isolation_for_visual_only_clone_plan(monkeypatch):
+    class NativeContext:
+        pass
+
+    class VisualContext:
+        pass
+
+    class TestManager(PhysicsManager):
+        clone_context_type = NativeContext
+
+    _initialize_manager(monkeypatch, TestManager)
+    plan = _plan(
+        sources=("/World/envs/env_0/Visual",),
+        destinations=("/World/envs/env_{}/Visual",),
+        clone_mask=np.ones((1, 2), dtype=np.bool_),
+        env_ids=np.arange(2, dtype=np.int64),
+        context_rows={VisualContext: (0,)},
+    )
+    TestManager.apply_collision_filter(plan)
+
+    assert PhysicsManager._collision_filter_applied
+    TestManager.close()
 
 
 def test_close_surfaces_stop_errors_stored_by_safe_callback_invoke(monkeypatch):
