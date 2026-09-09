@@ -293,35 +293,59 @@ def get_published_pretrained_checkpoint_path(
     return posixpath.join(*path_parts, filename)
 
 
-def get_companion_checkpoints(task_name: str) -> dict[str, str]:
+def get_declared_checkpoints(
+    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg,
+) -> dict[str, str]:
     """Return the files a task trains beside its policy, as ``{name: run glob}``.
 
-    A task declares these in its :func:`gym.register` kwargs, next to the other pretrained
-    checkpoint metadata, because publishing and fetching them is a property of the task rather
-    than of any environment instance.
+    A component declares its own file on its configuration through ``checkpoint_name`` and
+    ``checkpoint_glob``, and every declaration in the resolved config is found by walking it, so a
+    task lists nothing: the component that writes the file owns its name.
 
     Args:
-        task_name: Registered task name.
+        env_cfg: Resolved environment configuration.
 
     Returns:
-        The declared companions. Empty for tasks that train nothing outside the policy.
+        The declared declared_checkpoints. Empty for tasks that train nothing outside the policy.
     """
-    import gymnasium as gym
-
-    try:
-        spec = gym.spec(task_name.split(":")[-1])
-    except Exception:  # noqa: BLE001 -- an unregistered task simply declares nothing
-        return {}
-    return dict(spec.kwargs.get("companion_checkpoints", {}))
+    # a component can be reachable through several config paths; the name is the identity
+    found: dict[str, str] = {}
+    for cfg in _find_declaring_cfgs(env_cfg):
+        found.setdefault(cfg.checkpoint_name, cfg.checkpoint_glob)
+    return found
 
 
-def get_companion_checkpoint_path(checkpoint_path: str, workflow: str, name: str, run_glob: str) -> str:
-    """Return where a companion lives beside a policy checkpoint path.
+def _find_declaring_cfgs(value, visited: set[int] | None = None) -> list:
+    """Find every config in a resolved config tree that declares a checkpoint of its own."""
+    if visited is None:
+        visited = set()
+    if id(value) in visited:
+        return []
+    visited.add(id(value))
+
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        names = {f.name for f in dataclasses.fields(value)}
+        # match on the declared fields, never getattr: a config's values resolve lazily and
+        # touching an unrelated one pulls in the simulator
+        if {"checkpoint_name", "checkpoint_glob"} <= names:
+            return [value]
+        children = [getattr(value, f.name) for f in dataclasses.fields(value)]
+    elif isinstance(value, dict):
+        children = list(value.values())
+    elif isinstance(value, (list, tuple)):
+        children = list(value)
+    else:
+        return []
+    return [cfg for child in children for cfg in _find_declaring_cfgs(child, visited)]
+
+
+def get_declared_checkpoint_path(checkpoint_path: str, workflow: str, name: str, run_glob: str) -> str:
+    """Return where a declared checkpoint lives beside a policy checkpoint path.
 
     Args:
         checkpoint_path: Local or published path of the policy checkpoint.
         workflow: RL workflow name.
-        name: Companion name, as declared by the task.
+        name: Name of the declared checkpoint.
         run_glob: Glob of the file the run writes; its extension is kept.
 
     Returns:
@@ -344,11 +368,12 @@ def get_published_pretrained_checkpoint(
     render_backend: str | None = None,
     *,
     preset_names: Sequence[str] | None = None,
+    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg | None = None,
 ) -> str | None:
     """Gets the path for the pre-trained checkpoint.
 
     If the checkpoint is not cached locally then the file is downloaded, together with every
-    companion the task declares. Companions land beside the policy, which playback uses as the run
+    checkpoint the task declares. They land beside the policy, which playback uses as the run
     log directory, so the component that writes them finds them there.
 
     Args:
@@ -361,6 +386,8 @@ def get_published_pretrained_checkpoint(
         preset_names: Non-default domain presets that affect policy compatibility.
             For backend-aware checkpoints, defaults to resolving ``presets=`` selectors
             from :data:`sys.argv`. Legacy checkpoints do not use preset-qualified names.
+        env_cfg: Resolved environment configuration. Supplies the backends when they are not
+            given, and the checkpoints its components declare.
 
     Returns:
         The path, or None when the asset server does not report a checkpoint for this task
@@ -374,7 +401,11 @@ def get_published_pretrained_checkpoint(
             instance because the local cache directory is not writable. The originating
             error is chained as the cause.
     """
-    companions = get_companion_checkpoints(task_name)
+    declared_checkpoints = {}
+    if env_cfg is not None:
+        if physics_backend is None and render_backend is None:
+            physics_backend, render_backend = get_pretrained_checkpoint_backend_names(env_cfg)
+        declared_checkpoints = get_declared_checkpoints(env_cfg)
     if preset_names is None and physics_backend is not None and render_backend is not None:
         preset_names = get_pretrained_checkpoint_preset_names(task_name)
     elif preset_names is None:
@@ -417,14 +448,14 @@ def get_published_pretrained_checkpoint(
         return None
     except Exception as exc:
         raise _download_error(ov_path, download_dir, exc) from exc
-    for name, run_glob in companions.items():
-        companion_path = get_companion_checkpoint_path(ov_path, workflow, name, run_glob)
+    for name, run_glob in declared_checkpoints.items():
+        declared_path = get_declared_checkpoint_path(ov_path, workflow, name, run_glob)
         try:
-            retrieve_file_path(companion_path, download_dir)
+            retrieve_file_path(declared_path, download_dir)
         except FileNotFoundError:
-            print(f"[WARNING]: The asset server does not provide the {name} checkpoint '{companion_path}'.")
+            print(f"[WARNING]: The asset server does not provide the {name} checkpoint '{declared_path}'.")
         except Exception as exc:
-            raise _download_error(companion_path, download_dir, exc) from exc
+            raise _download_error(declared_path, download_dir, exc) from exc
     return resume_path
 
 

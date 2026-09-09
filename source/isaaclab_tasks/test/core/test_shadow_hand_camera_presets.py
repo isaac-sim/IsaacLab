@@ -32,12 +32,13 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab.renderers import RendererCfg
 from isaaclab.sensors import CameraCfg
 
-from isaaclab_rl.utils.pretrained_checkpoint import get_companion_checkpoints
+from isaaclab_rl.utils.pretrained_checkpoint import get_declared_checkpoints
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor, FeatureExtractorCfg
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
-    ShadowHandCameraEnvCfg,
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_manager_env_cfg import (
+    ShadowHandCameraManagerEnvCfg,
 )
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import ShadowHandCameraEnvCfg
 from isaaclab_tasks.utils.hydra import collect_presets
 
 # ---------------------------------------------------------------------------
@@ -274,7 +275,7 @@ def test_missing_feature_extractor_checkpoint_names_the_log_directory(tmp_path):
 
 
 def test_published_feature_extractor_checkpoint_is_loaded_over_the_run_files(tmp_path):
-    """A published companion beside the policy must win over the checkpoints a training run wrote."""
+    """A published checkpoint beside the policy must win over the checkpoints a training run wrote."""
     log_dir = str(tmp_path / "run")
     published = _make_feature_extractor(log_dir, load_checkpoint=False).feature_extractor.state_dict()
     stale = _make_feature_extractor(log_dir, load_checkpoint=False).feature_extractor.state_dict()
@@ -294,9 +295,9 @@ def test_saved_checkpoint_name_matches_the_declared_glob():
     assert fnmatch.fnmatch(saved, FeatureExtractorCfg().checkpoint_glob)
 
 
-@pytest.mark.parametrize("task_name", ["Isaac-Reorient-Cube-Shadow-Camera", "Isaac-Reorient-Cube-Shadow-Camera-Direct"])
-def test_camera_task_declares_the_feature_extractor_checkpoint(task_name):
-    """The task's declaration must match what the component writes, or nothing gets collected."""
+def test_camera_task_declares_the_feature_extractor_checkpoint():
+    """Discovery must find the CNN from the component that writes it, which the task never lists."""
     cfg = FeatureExtractorCfg()
 
-    assert get_companion_checkpoints(task_name) == {cfg.checkpoint_name: cfg.checkpoint_glob}
+    for env_cfg in (ShadowHandCameraEnvCfg(), ShadowHandCameraManagerEnvCfg()):
+        assert get_declared_checkpoints(env_cfg) == {cfg.checkpoint_name: cfg.checkpoint_glob}

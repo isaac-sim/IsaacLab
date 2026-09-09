@@ -53,8 +53,6 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandCameraFFPPORunnerCfg",
         "default_agent": "rsl_rl",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_camera_cfg.yaml",
-        # the vision CNN this run trains, published beside the policy checkpoint
-        "companion_checkpoints": {"feature_extractor": "cnn_*.pth"},
     },
 )
 gym.register(
@@ -66,7 +64,5 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:ShadowHandCameraFFPPORunnerCfg",
         "default_agent": "rsl_rl",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_camera_cfg.yaml",
-        # the vision CNN this run trains, published beside the policy checkpoint
-        "companion_checkpoints": {"feature_extractor": "cnn_*.pth"},
     },
 )

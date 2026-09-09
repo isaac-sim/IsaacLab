@@ -83,8 +83,8 @@ from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab_rl.utils.pretrained_checkpoint import (
     WORKFLOW_EXPERIMENT_NAME_VARIABLE,
     WORKFLOWS,
-    get_companion_checkpoint_path,
-    get_companion_checkpoints,
+    get_declared_checkpoint_path,
+    get_declared_checkpoints,
     get_latest_job_run_path,
     get_pretrained_checkpoint_backend_names,
     get_pretrained_checkpoint_filename,
@@ -120,7 +120,7 @@ class CheckpointJob:
     render_selector: str | None = None
     agent: str | None = None
     algorithm: str | None = None
-    companions: tuple[tuple[str, str], ...] = ()
+    declared_checkpoints: tuple[tuple[str, str], ...] = ()
     """Run artifacts the task publishes beside its policy."""
 
     @property
@@ -379,7 +379,7 @@ def _build_core_jobs(args: argparse.Namespace) -> list[CheckpointJob]:
                                 render_selector=render_selector,
                                 agent=agent,
                                 algorithm=algorithm,
-                                companions=tuple(get_companion_checkpoints(task_spec.id).items()),
+                                declared_checkpoints=tuple(get_declared_checkpoints(env_cfg).items()),
                             )
                         )
     return jobs
@@ -566,15 +566,15 @@ def collect_pretrained_checkpoint(job: CheckpointJob, output_dir: str, dry_run: 
     os.makedirs(os.path.dirname(destination), exist_ok=True)
     shutil.copy2(source_path, destination)
     run_path = get_latest_job_run_path(job.workflow, job.task_name, job.physics_backend, job.render_backend)
-    for name, run_glob in job.companions:
+    for name, run_glob in job.declared_checkpoints:
         matches = glob.glob(os.path.join(run_path, run_glob)) if run_path else []
         if not matches:
             print(f"No {name} checkpoint matched {run_glob!r} for {job.job_id}")
             continue
-        companion_source = max(matches, key=os.path.getmtime)
-        companion_destination = get_companion_checkpoint_path(destination, job.workflow, name, run_glob)
-        print(f"Collecting {companion_source} -> {companion_destination}")
-        shutil.copy2(companion_source, companion_destination)
+        declared_source = max(matches, key=os.path.getmtime)
+        declared_destination = get_declared_checkpoint_path(destination, job.workflow, name, run_glob)
+        print(f"Collecting {declared_source} -> {declared_destination}")
+        shutil.copy2(declared_source, declared_destination)
     return destination
 
 
@@ -687,10 +687,10 @@ def publish_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) 
         )
         publish_path = posixpath.join(args.publish_root.rstrip("/"), job.workflow, filename)
     uploads = [(local_path, publish_path)]
-    for name, run_glob in job.companions:
-        local_companion = get_companion_checkpoint_path(local_path, job.workflow, name, run_glob)
-        if not os.path.isfile(local_companion):
-            # a task that declares a companion needs it to play, so publishing the policy alone
+    for name, run_glob in job.declared_checkpoints:
+        local_declared = get_declared_checkpoint_path(local_path, job.workflow, name, run_glob)
+        if not os.path.isfile(local_declared):
+            # a task that declares a checkpoint needs it to play, so publishing the policy alone
             # would advertise a bundle that fails on load
             print(
                 f"Not publishing {job.job_id}; its {name} checkpoint was not collected."
@@ -698,7 +698,7 @@ def publish_pretrained_checkpoint(job: CheckpointJob, args: argparse.Namespace) 
                 file=sys.stderr,
             )
             return False
-        uploads.append((local_companion, get_companion_checkpoint_path(publish_path, job.workflow, name, run_glob)))
+        uploads.append((local_declared, get_declared_checkpoint_path(publish_path, job.workflow, name, run_glob)))
     for source, destination in uploads:
         print(f"Publishing {source} -> {destination}")
     if args.dry_run:

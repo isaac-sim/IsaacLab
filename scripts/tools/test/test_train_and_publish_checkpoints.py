@@ -191,7 +191,7 @@ def test_publish_refuses_a_bundle_whose_declared_checkpoint_is_missing(
         task_name="Isaac-Test",
         physics_backend="newtonmjwarp",
         render_backend="none",
-        companions=(_FE,),
+        declared_checkpoints=(_FE,),
     )
     collected_path = tmp_path / "rsl_rl" / "Isaac-Test_newtonmjwarp_none_rsl_rl.pt"
     collected_path.parent.mkdir()

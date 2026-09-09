@@ -28,11 +28,22 @@ class _CameraCfg:
 
 
 @configclass
+class _ExtractorCfg:
+    """Minimal component config that declares a checkpoint of its own."""
+
+    checkpoint_name: str = "feature_extractor"
+    checkpoint_glob: str = "cnn_*.pth"
+
+
+@configclass
 class _EnvCfg:
     """Minimal resolved environment config for backend discovery."""
 
     sim: SimulationCfg = SimulationCfg(physics=PhysxCfg())
     camera: _CameraCfg | None = None
+    extractor: _ExtractorCfg | None = None
+    observation_params: dict = {}
+    """Stands in for a manager term reaching the component config a second time."""
 
 
 def test_get_pretrained_checkpoint_filename_includes_backends():
@@ -230,11 +241,12 @@ def test_get_published_pretrained_checkpoint_downloads_the_feature_extractor(
         "Isaac-Reorient-Cube-Shadow-Camera",
         "physx",
         "rtx",
+        env_cfg=_EnvCfg(extractor=_ExtractorCfg()),
     )
 
     assert path is not None
-    companion = Path(path).parent / f"{stem}_feature_extractor.pth"
-    assert companion.is_file()
+    declared = Path(path).parent / f"{stem}_feature_extractor.pth"
+    assert declared.is_file()
 
 
 def test_get_published_pretrained_checkpoint_tolerates_no_feature_extractor(
@@ -265,27 +277,29 @@ def test_get_published_pretrained_checkpoint_tolerates_no_feature_extractor(
         ("encoder", "enc_*.safetensors", "/logs/Isaac-Cartpole_physx_none_rsl_rl_encoder.safetensors"),
     ],
 )
-def test_companion_path_keeps_the_declared_extension(name, run_glob, expected):
-    """Test that a published companion keeps the extension of the file the run writes."""
-    path = pretrained_checkpoint.get_companion_checkpoint_path(
+def test_declared_checkpoint_path_keeps_the_extension(name, run_glob, expected):
+    """Test that a published checkpoint keeps the extension of the file the run writes."""
+    path = pretrained_checkpoint.get_declared_checkpoint_path(
         "/logs/Isaac-Cartpole_physx_none_rsl_rl.pt", "rsl_rl", name, run_glob
     )
     assert path == expected
 
 
-def test_companion_checkpoints_come_from_the_task_registry():
-    """Test that the camera task declares its CNN, and a task without one declares nothing."""
-    assert pretrained_checkpoint.get_companion_checkpoints("Isaac-Cartpole") == {}
-    assert pretrained_checkpoint.get_companion_checkpoints("Isaac-Reorient-Cube-Shadow-Camera") == {
-        "feature_extractor": "cnn_*.pth"
-    }
+def test_declared_checkpoints_come_from_the_declaring_component():
+    """A component's declaration is found without the task listing it, and once per name."""
+    assert pretrained_checkpoint.get_declared_checkpoints(_EnvCfg()) == {}
+
+    extractor = _ExtractorCfg()
+    env_cfg = _EnvCfg(extractor=extractor, observation_params={"e": extractor})
+
+    assert pretrained_checkpoint.get_declared_checkpoints(env_cfg) == {"feature_extractor": "cnn_*.pth"}
 
 
-def test_get_published_pretrained_checkpoint_skips_the_companion_by_default(
+def test_get_published_pretrained_checkpoint_skips_the_declared_checkpoint_by_default(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ):
-    """Test that a task without a feature extractor makes no companion request at all."""
+    """Test that a task without a feature extractor requests no declared checkpoint at all."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
     remote_path = "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt"

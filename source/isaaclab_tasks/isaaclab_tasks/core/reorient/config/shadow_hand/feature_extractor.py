@@ -123,7 +123,7 @@ class FeatureExtractorCfg:
     """Configuration for the feature extractor model."""
 
     checkpoint_name: str = "feature_extractor"
-    """Identity of the CNN in the published checkpoint set. Must match the task's ``companion_checkpoints``."""
+    """Identity of the CNN in the published checkpoint set, used to name the file beside the policy."""
 
     checkpoint_glob: str = "cnn_*.pth"
     """Glob of the file :meth:`step` saves, matched in the log directory when loading."""
