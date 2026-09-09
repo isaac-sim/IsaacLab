@@ -14,6 +14,7 @@ from dataclasses import fields
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
@@ -178,6 +179,11 @@ class SimulationContext:
             cuda_device = self.get_setting("/physics/cudaDevice")
             device_id = max(0, int(cuda_device) if cuda_device is not None else 0)
             self.cfg.device = f"cuda:{device_id}"
+
+        # Select the process device before constructing any physics, rendering, or visualization backend.
+        if "cuda" in self.cfg.device:
+            torch.cuda.set_device(self.cfg.device)
+        wp.set_device(self.cfg.device)
 
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         # Must be set before physics_manager.initialize() so that any render callbacks
