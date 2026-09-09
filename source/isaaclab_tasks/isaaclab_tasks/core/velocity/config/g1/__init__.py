@@ -521,6 +521,30 @@ gym.register(
 
 
 gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-AirTime100-StandUp",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.rough_29dof_standup_env_cfg:G129DofRoughStandUpEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+    },
+)
+
+
+gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-AirTime100-StandUpStrong",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": (
+            f"{__name__}.rough_29dof_standup_env_cfg:G129DofRoughStandUpStrongEnvCfg"
+        ),
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughPPORunnerCfg",
+    },
+)
+
+
+gym.register(
     id="Isaac-Velocity-Rough-G1-29Dof-AirTime100-Stepping",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
