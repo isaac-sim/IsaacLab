@@ -97,11 +97,25 @@ Task Preview
 Benchmarks
 ----------
 
+Measured on one NVIDIA RTX PRO 6000 Blackwell Server Edition GPU with 16,384
+environments. Release shows the September 9, 2026 snapshot as EA 3.0; Develop
+shows August 17, August 24, August 31, and September 7. Dates refer to database
+ingestion in UTC. Only G1 training has matching measurements on August 17;
+other series have fewer points. Collection and Training show total FPS from
+runtime and RSL-RL training benchmarks, respectively.
+
 .. raw:: html
 
    <div class="environment-browser" data-environment-benchmarks
-        data-benchmark-source="../../_static/environment-performance.csv">
+        data-benchmark-release-source="../../_static/benchmarks/environment-performance-release.csv"
+        data-benchmark-develop-source="../../_static/benchmarks/environment-performance-develop.csv">
      <section class="environment-benchmark-panel">
+       <div class="environment-benchmark-toolbar">
+         <div class="environment-benchmark-switch" role="group" aria-label="Benchmark channel">
+           <button type="button" class="is-active" data-benchmark-channel="release" aria-pressed="true">Release</button>
+           <button type="button" data-benchmark-channel="develop" aria-pressed="false">Develop</button>
+         </div>
+       </div>
        <div class="environment-benchmark-toolbar">
          <div class="environment-benchmark-legend" aria-label="Benchmark series"></div>
          <div class="environment-benchmark-switch" role="group" aria-label="Benchmark workload">
@@ -114,7 +128,7 @@ Benchmarks
          <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
          <div>
            <strong>Benchmark data is not available yet</strong>
-           <p>Performance history will appear here when benchmark collection is enabled.</p>
+           <p>No measurements are available for this task, channel, and workload.</p>
          </div>
        </div>
        <p class="environment-benchmark-error" data-benchmark-error hidden>Benchmark data could not be loaded.</p>

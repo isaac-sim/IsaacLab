@@ -198,9 +198,11 @@
         scope: "core",
         task: "Isaac-Cartpole",
         benchmarkWorkload: "runtime",
+        benchmarkChannel: "release",
     };
     const rlLibraryExtras = {rl_games: "rl-games", sb3: "sb3", skrl: "skrl", rlinf: "rlinf"};
     let benchmarkRows = [];
+    const benchmarkErrors = new Set();
 
     const categoryFor = (task) => {
         if (/Velocity|Navigation|TrackPosition|Locomanip|Humanoid/.test(task)) {
@@ -472,6 +474,7 @@
         preview.querySelector("[data-preview-renderer]").textContent = fields.renderer.value || "Default";
         preview.querySelector("[data-preview-presets]").textContent = fields.presets.value || "Default";
         const latestVramRows = benchmarkRows
+            .filter((row) => row.channel === state.benchmarkChannel)
             .filter((row) => row.task === state.task && row.physics_backend === fields.physics.value)
             .sort((left, right) => right.recorded_at_utc.localeCompare(left.recorded_at_utc));
         const latestTraining = latestVramRows.find((row) => row.workload === "training");
@@ -673,7 +676,9 @@
         const plotWidth = width - margins.left - margins.right;
         const plotHeight = height - margins.top - margins.bottom;
         const benchmarkDate = (row) => (row.benchmark_date_utc || row.recorded_at_utc).slice(0, 10);
-        const dateKeys = [...new Set(rows.map(benchmarkDate))].sort();
+        const dateKeys = [...new Set(benchmarkRows
+            .filter((row) => row.channel === state.benchmarkChannel)
+            .map(benchmarkDate))].sort();
         const latestBySeriesAndDate = new Map();
         for (const row of rows) {
             const key = `${row.physics_backend}:${benchmarkDate(row)}`;
@@ -714,7 +719,7 @@
             const label = createSvgElement("text", {
                 x: xPosition(date), y: height - 15, class: "environment-chart-axis-label", "text-anchor": "middle",
             });
-            label.textContent = new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, {
+            label.textContent = state.benchmarkChannel === "release" ? "EA 3.0" : new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, {
                 month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
             });
             svg.appendChild(label);
@@ -778,15 +783,15 @@
         if (!benchmarks) {
             return;
         }
-        const taskRows = benchmarkRows.filter((row) => row.task === state.task);
+        const taskRows = benchmarkRows.filter((row) => row.task === state.task && row.channel === state.benchmarkChannel);
         const rows = taskRows.filter((row) => row.workload === state.benchmarkWorkload);
         const chart = benchmarks.querySelector("[data-benchmark-chart]");
         const empty = benchmarks.querySelector("[data-benchmark-empty]");
-        const toolbar = benchmarks.querySelector(".environment-benchmark-toolbar");
+        const failed = benchmarkErrors.has(state.benchmarkChannel);
         const maximum = standardFpsScale(Math.max(...taskRows.map((row) => Number(row.total_fps_mean))));
         chart.hidden = rows.length === 0;
-        empty.hidden = rows.length !== 0;
-        toolbar.hidden = taskRows.length === 0;
+        empty.hidden = rows.length !== 0 || failed;
+        benchmarks.querySelector("[data-benchmark-error]").hidden = !failed;
         renderBenchmarkLegend(rows);
         chart.replaceChildren(...(rows.length ? [renderBenchmarkChart(rows, maximum)] : []));
     };
@@ -795,21 +800,23 @@
         if (!benchmarks) {
             return;
         }
-        try {
-            const source = new URL(benchmarks.dataset.benchmarkSource, window.location.href);
-            const response = await fetch(source);
-            if (!response.ok) {
-                throw new Error(`Benchmark request failed with ${response.status}`);
+        benchmarkRows = (await Promise.all(["release", "develop"].map(async (channel) => {
+            try {
+                const source = new URL(benchmarks.getAttribute(`data-benchmark-${channel}-source`), window.location.href);
+                const response = await fetch(source);
+                if (!response.ok) {
+                    throw new Error(`Benchmark request failed with ${response.status}`);
+                }
+                return parseCsv(await response.text())
+                    .filter((row) => row.data_origin === "measured")
+                    .map((row) => ({...row, channel}));
+            } catch (error) {
+                benchmarkErrors.add(channel);
+                console.error(error);
+                return [];
             }
-            benchmarkRows = parseCsv(await response.text()).filter((row) => row.data_origin === "measured");
-            updatePreview();
-        } catch (error) {
-            benchmarks.querySelector("[data-benchmark-chart]").hidden = true;
-            benchmarks.querySelector("[data-benchmark-empty]").hidden = true;
-            benchmarks.querySelector(".environment-benchmark-toolbar").hidden = true;
-            benchmarks.querySelector("[data-benchmark-error]").hidden = false;
-            console.error(error);
-        }
+        }))).flat();
+        updatePreview();
     };
 
     fields.task.addEventListener("change", () => {
@@ -875,6 +882,17 @@
         commandOutput.textContent = currentCommand();
         updatePreview();
     });
+    for (const button of benchmarks?.querySelectorAll("[data-benchmark-channel]") || []) {
+        button.addEventListener("click", () => {
+            state.benchmarkChannel = button.dataset.benchmarkChannel;
+            for (const channelButton of benchmarks.querySelectorAll("[data-benchmark-channel]")) {
+                const isActive = channelButton === button;
+                channelButton.classList.toggle("is-active", isActive);
+                channelButton.setAttribute("aria-pressed", String(isActive));
+            }
+            updatePreview();
+        });
+    }
     for (const button of benchmarks?.querySelectorAll("[data-benchmark-workload]") || []) {
         button.addEventListener("click", () => {
             state.benchmarkWorkload = button.dataset.benchmarkWorkload;
