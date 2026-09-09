@@ -49,6 +49,7 @@ jobs:
           ^docker/docker-compose\.yaml$ :: Kit-less Compose definition
           ^docker/test/test_container_profiles\.py$ :: Kit-less profile tests
           ^docker/test/test_dockerfile_nonroot\.py$ :: Dockerfile contract tests
+          ^docker/test/test_image_invariants\.py$ :: Built-image invariant tests
           ^docker/utils/container_interface\.py$ :: Container profile implementation
           ^docker/utils/volume_mounts\.py$ :: Container volume helper
           ^isaaclab\.sh$ :: Install CLI wrapper

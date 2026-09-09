@@ -45,7 +45,10 @@ runs:
 
       # Nothing else in this action runs ``uv run``, the documented entry point -- every other
       # step calls ``python`` directly, which is how nvbugs 6732972 stayed green here.
-      docker run --rm "${mount_args[@]}" "$IMAGE_TAG" \
+      # UV_NO_SYNC belongs to the caller that mounts the source read-only, not to the image: in
+      # the image it would also stop ``uv run --extra <name>`` installing an extra the image does
+      # not carry. Without it the editable rebuild fails on the read-only mount.
+      docker run --rm -e UV_NO_SYNC=1 "${mount_args[@]}" "$IMAGE_TAG" \
         bash -lc '
       set -euo pipefail
       prefix="$(uv run --extra ov python -c "import sys; print(sys.prefix)" | tail -n 1)"

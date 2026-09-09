@@ -26,19 +26,20 @@ ENV LANG=C.UTF-8
 
 # uv reads UV_PROJECT_ENVIRONMENT, never VIRTUAL_ENV. UV_PYTHON overrides pyproject's
 # ``python-preference = "only-managed"``, which would fetch a CPython and rebuild the venv.
-# UV_NO_SYNC is a ``uv run`` option only, so it does not suppress the ``uv sync`` below; without
-# it ``uv run`` rebuilds the editable packages in place, which fails on a mounted source tree.
+# UV_NO_SYNC is deliberately NOT set here: it would stop ``uv run --extra <name>`` installing an
+# extra the image does not carry, such as the documented ``--extra leapp``. Callers that mount
+# the source read-only pass it themselves.
 ENV UV_PROJECT_ENVIRONMENT=${VENV_PATH_ARG}
 ENV UV_PYTHON=/usr/bin/python3.12
 ENV UV_PYTHON_PREFERENCE=only-system
-ENV UV_NO_SYNC=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
 
 # --- System packages ---
-# Runtime libraries only: nothing in the lock builds a compiled sdist, so no toolchain.
+# Runtime libraries only. On x86_64 every wheel the lock resolves is prebuilt, so no toolchain
+# ships; the arm64 exceptions are installed conditionally below.
 # git-lfs: CI checks out with ``lfs: true``, and without it every ``git`` call fails the LFS filter.
 # GLVND splits the GL stack: libgl1 gives libGL.so.1, libopengl0/libegl1 the other two.
 # libxrender1: pyglet's xlib backend resolves it via ctypes for the Newton GL viewer.
@@ -60,13 +61,22 @@ RUN apt-get update \
       python3 \
  && rm -rf /var/lib/apt/lists/*
 
+# arm64-only build deps, as in Dockerfile.base: psutil and pyopengl-accelerate publish no
+# aarch64 wheels, so uv builds them from sdist there.
+RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+        apt-get update && \
+        apt-get install -y --no-install-recommends build-essential python3-dev && \
+        rm -rf /var/lib/apt/lists/*; \
+    fi
+
 # --- Runtime user ---
-# ubuntu:24.04 ships its own uid/gid 1000, which useradd would collide with.
+# ubuntu:24.04 ships its own uid/gid 1000, which useradd would collide with. ${HOME}/.cache is
+# pre-created because BuildKit makes a missing cache-mount parent root-owned inside a 750 home.
 RUN if getent passwd ubuntu >/dev/null; then userdel -r ubuntu; fi \
  && if getent group ubuntu >/dev/null; then groupdel ubuntu; fi \
  && groupadd --gid 1000 isaaclab \
  && useradd --uid 1000 --gid 1000 --home-dir "${HOME}" --create-home --shell /bin/bash isaaclab \
- && mkdir -p "${HOME}" "${VIRTUAL_ENV}" "${ISAACLAB_PATH}" \
+ && mkdir -p "${HOME}/.cache" "${VIRTUAL_ENV}" "${ISAACLAB_PATH}" \
  && chown -R isaaclab:isaaclab "${HOME}" \
  && chown isaaclab:isaaclab "${VIRTUAL_ENV}" "${ISAACLAB_PATH}" \
  && chmod 750 "${HOME}"
@@ -105,6 +115,10 @@ RUN --mount=type=cache,target=/home/isaaclab/.cache/uv \
       assert 'rerun-sdk' in names" \
  && test ! -e "${ISAACLAB_PATH}/_isaac_sim" \
  && chown -R isaaclab:isaaclab "${VIRTUAL_ENV}" "${ISAACLAB_PATH}"
+
+# The sync needed the system interpreter as the venv base; from here on uv commands such as
+# ``uv pip install`` target the venv, not the externally-managed system Python.
+ENV UV_PYTHON=${VENV_PATH_ARG}/bin/python
 
 # apps/ is required even without Kit: isaaclab.utils.assets parses isaaclab.python.kit on import.
 COPY --chown=isaaclab:isaaclab apps/ apps/
