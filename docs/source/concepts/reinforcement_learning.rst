@@ -80,6 +80,11 @@ features your experiment needs, not on a single throughput result.
      - RL fine-tuning of Vision-Language-Action models
      - Distributed GR00T and OpenVLA post-training with Ray and FSDP
      - Specialized setup
+   * - **TorchRL**
+     - Building custom algorithms from PyTorch-native RL components
+     - PPO reference runner on a ``torchrl.envs.EnvBase`` wrapper that keeps observation groups and
+       terminal observations
+     - ``--extra torchrl``
 
 Install optional dependencies by selecting the corresponding ``uv`` extra when running a command:
 
@@ -88,6 +93,7 @@ Install optional dependencies by selecting the corresponding ``uv`` extra when r
    uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Cartpole
    uv run --extra rl-games isaaclab train --rl_library rl_games --task Isaac-Cartpole
    uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Cartpole
+   uv run --extra torchrl isaaclab train --rl_library torchrl --task Isaac-Cartpole
 
 
 Typical training workflow

@@ -25,6 +25,7 @@ _BACKEND_MODULES = {
         "rsl_rl": "isaaclab_rl.entrypoints.backends.train_rsl_rl",
         "sb3": "isaaclab_rl.entrypoints.backends.train_sb3",
         "skrl": "isaaclab_rl.entrypoints.backends.train_skrl",
+        "torchrl": "isaaclab_rl.entrypoints.backends.train_torchrl",
     },
     "play": {
         "rl_games": "isaaclab_rl.entrypoints.backends.play_rl_games",
