@@ -1,3 +1,4 @@
+:orphan:
 
 Spawning Multiple Assets
 ========================

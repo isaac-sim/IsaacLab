@@ -110,7 +110,7 @@ Start with :doc:`/source/concepts/prepare_asset_for_newton`, then use
 :doc:`/source/concepts/solver-tuning/tune_mjwarp` for the primary validated solver path or
 :doc:`/source/concepts/solver-tuning/tune_kamino` for the beta Kamino path. Experimental
 specialist guides cover :ref:`newton-using-vbd`, :ref:`newton-using-mpm`,
-:ref:`newton-using-cables`, :ref:`warp-environments`, and
+:ref:`deformables`, :ref:`warp-environments`, and
 :ref:`warp-env-migration`. Backend developers can also read
 :doc:`/source/developer-tools/extending_newton_solvers`.
 
@@ -158,6 +158,5 @@ follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
    /source/concepts/joint_and_body_ordering
    /source/concepts/ovphysx
    /source/concepts/using_mpm
-   /source/concepts/using_cables
    /source/concepts/warp_environments
    /source/concepts/warp_environment_migration
