@@ -599,6 +599,11 @@ class NewtonSiteFrameView(BaseFrameView):
         if self._fabric_sel is None and not self._initialize_fabric_mirror():
             return
 
+        # Bodies sync to Fabric at render cadence, so after a ``render=False`` step the parent matrix
+        # the local derivation below reads still holds the last rendered pose. Syncing first keeps
+        # the two spaces consistent; it is a no-op when no transform changed since the last sync.
+        NewtonManager.sync_transforms_to_usd()
+
         count = self._fabric_sel.count
         pos_ta, quat_ta = self._get_world_poses_impl(None)
         wp.launch(

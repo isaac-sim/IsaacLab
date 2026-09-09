@@ -586,3 +586,33 @@ def test_frame_view_pose_write_on_body_child_survives_body_motion():
         expected = target_pose[0, :3].cpu() + (written_position - body_start)
         _assert_position(wp.to_torch(view.get_world_poses()[0].warp).cpu()[0], expected)
         _assert_position(_fabric_position(frame_path), expected)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+def test_frame_view_pose_write_after_unrendered_steps_reaches_fabric():
+    """A pose write must render correctly even when the body moved since the last render.
+
+    Bodies sync to Fabric only at render cadence, so after ``sim.step(render=False)`` the parent's
+    Fabric matrix lags Newton. Deriving the frame's local matrix from that lagging parent displaces
+    the rendered frame by exactly the parent's motion once the next hierarchy pass runs.
+    """
+    device = "cuda:0"
+    body_path = "/World/envs/env_0/Cube"
+    frame_path = f"{body_path}/Frame"
+
+    with _frame_scene(frame_path, (0.0, 0.0, 0.35), device) as (sim, scene, view):
+        # Move the body through physics without rendering, leaving its Fabric matrix at the old pose.
+        velocity = torch.zeros((1, 6), dtype=torch.float32, device=device)
+        velocity[0, 0] = 5.0
+        scene["cube"].write_root_com_velocity_to_sim_index(root_velocity=velocity)
+        for _ in range(30):
+            sim.step(render=False)
+        assert _fabric_position(body_path)[0].item() == pytest.approx(0.0, abs=1.0e-4)
+
+        target_position = torch.tensor([0.0, 0.0, 1.5])
+        _write_frame_world_position(view, target_position.to(device))
+        _render(sim, device)
+
+        _assert_position(wp.to_torch(view.get_world_poses()[0].warp).cpu()[0], target_position)
+        _assert_position(_fabric_position(frame_path), target_position)
