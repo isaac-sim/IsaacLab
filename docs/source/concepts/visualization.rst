@@ -62,13 +62,13 @@ This page covers:
    <div class="viz-hero-stack">
    <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
      <div class="viz-hero-wrap viz-crop-newton-gl">
-       <video autoplay muted playsinline preload="auto" class="viz-hero-sync">
+       <video autoplay loop muted playsinline preload="auto">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_gl.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Newton GL</div>
      </div>
      <div class="viz-hero-wrap viz-crop-viser">
-       <video autoplay muted playsinline preload="auto" class="viz-hero-sync">
+       <video autoplay loop muted playsinline preload="auto" class="viz-hero-start-1s">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_viser.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Viser</div>
@@ -76,19 +76,19 @@ This page covers:
    </div>
    <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
      <div class="viz-hero-wrap viz-crop-newton-rtx">
-       <video autoplay muted playsinline preload="auto" class="viz-hero-speedup viz-hero-sync">
+       <video autoplay loop muted playsinline preload="auto" class="viz-hero-speedup">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_rtx.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Newton RTX</div>
      </div>
      <div class="viz-hero-wrap viz-crop-kit">
-       <video autoplay muted playsinline preload="auto" class="viz-crop-x8 viz-hero-speedup viz-hero-sync">
+       <video autoplay loop muted playsinline preload="auto" class="viz-crop-x8 viz-hero-speedup">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_kit.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Kit</div>
      </div>
      <div class="viz-hero-wrap viz-crop-rerun">
-       <video autoplay muted playsinline preload="auto" class="viz-hero-sync">
+       <video autoplay loop muted playsinline preload="auto" class="viz-hero-start-1s">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_rerun.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Rerun</div>
@@ -97,35 +97,17 @@ This page covers:
    </div>
 
    <script>
-   // The 5 clips already start in phase at file time 0 (capture_visualizer.py step_offset
-   // synchronizes Kit/Newton RTX's start to Newton GL/Rerun/Viser's). The autoplay attribute is
-   // kept as a no-JS/blocked-script fallback (each clip still starts on its own, just not necessarily in
-   // phase); when this script runs, it re-syncs all 5 to a shared start point, waiting for
-   // whichever clips aren't ready yet, then resets that sync point on every loop restart.
-   var heroVideos = Array.from(document.querySelectorAll(".viz-hero-sync"));
    // Kit/Newton RTX are encoded 10% slower than the other 3 (output_speed_factor in
-   // capture_visualizer.py); undo that so all 5 stay in phase as they play.
+   // capture_visualizer.py); undo that so all 5 independently-looping clips stay in phase.
    document.querySelectorAll(".viz-hero-speedup").forEach(function (v) {
      v.playbackRate = 1 / 0.9;
    });
-   var resyncing = false;
-   function resyncAll() {
-     if (resyncing) return;
-     resyncing = true;
-     heroVideos.forEach(function (o) { o.currentTime = 0; });
-     heroVideos.forEach(function (o) { o.play(); });
-     // Frame-rounding can make one clip's "ended" fire fractionally before the others; ignore
-     // any more of them for the rest of this loop instead of re-triggering a reset mid-loop.
-     setTimeout(function () { resyncing = false; }, 1000);
-   }
-   heroVideos.forEach(function (v) { v.addEventListener("ended", resyncAll); });
-   Promise.all(
-     heroVideos.map(function (v) {
-       return v.readyState >= 3
-         ? Promise.resolve()
-         : new Promise(function (resolve) { v.addEventListener("canplay", resolve, { once: true }); });
-     })
-   ).then(resyncAll);
+   // Start Viser/Rerun 1s into their clip instead of at 0; native loop still wraps to 0 as usual.
+   document.querySelectorAll(".viz-hero-start-1s").forEach(function (v) {
+     var seek = function () { v.currentTime = 1; };
+     if (v.readyState >= 1) seek();
+     else v.addEventListener("loadedmetadata", seek, { once: true });
+   });
    </script>
 
    <p class="viz-cap">Note: Newton RTX has no velocity arrows, since it doesn't yet support visualization markers.</p>
