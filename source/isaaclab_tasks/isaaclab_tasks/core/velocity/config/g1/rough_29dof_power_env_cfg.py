@@ -215,3 +215,32 @@ class G129DofRoughWaist1Power2HipPitchEnvCfg(G129DofRoughWaist1Power2EnvCfg):
             weight=_HIP_PITCH_L2_WEIGHT,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_pitch_joint"])},
         )
+
+
+_STEPPING_AIR_TIME = 1.5
+"""``feet_air_time`` weight for the stepping fix, against ``cl``'s 1.0.
+
+``cl`` fixed the posture and the left/right asymmetry and lost the step in the process: measured on
+its student, each foot stays on the ground for 1.6 s at a time and is airborne for 26-37 ms, where
+w100's contact bouts are 0.13-0.23 s. In Isaac Lab that still tracks the command -- the sole plate
+is forgiving -- but replayed in MuJoCo it reads as a limp, because a policy that shuffles depends on
+exactly the contact model it was trained under.
+
+Both added terms push that way: mechanical power and hip-pitch deviation are each smallest when the
+leg does not swing. So this raises the reward that pays for swinging and halves the one that
+charges for it, rather than removing either.
+"""
+
+
+@configclass
+class G129DofRoughSteppingEnvCfg(G129DofRoughWaist1Power2HipPitchLightEnvCfg):
+    """``cl`` with the step put back: power at -2e-4 and air-time at 1.5.
+
+    Read the contact bout length, not just the airborne-share ratio. ``cl`` scores 0.905 on that
+    ratio while barely lifting its feet -- two feet that both stay down are symmetric.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        _add_power_penalty(self, _POWER_WEIGHTS["p4"])
+        self.rewards.feet_air_time.weight = _STEPPING_AIR_TIME
