@@ -65,60 +65,32 @@ For example, on Isaac Sim PhysX:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. tab-set::
+      .. code-block:: bash
 
-         .. tab-item:: uv (Recommended)
-
-            .. code-block:: bash
-
-               # Newton:     uv run --extra leapp isaaclab leapp export --rl_library rsl_rl ... physics=newton_mjwarp
-               # OV PhysX:   uv run --extra ovphysx,leapp isaaclab leapp export --rl_library rsl_rl ... physics=ovphysx
-               # Isaac Sim:
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim,leapp isaaclab leapp export --rl_library rsl_rl \
-                   --task <TASK_NAME> \
-                   --checkpoint <PATH_TO_CHECKPOINT> \
-                   --export_save_path <EXPORT_PATH> \
-                   physics=isaacsim_physx
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: bash
-
-               ./isaaclab.sh leapp export --rl_library rsl_rl \
-                   --task <TASK_NAME> \
-                   --checkpoint <PATH_TO_CHECKPOINT> \
-                   --export_save_path <EXPORT_PATH> \
-                   physics=isaacsim_physx
+         # Newton:     uv run --extra leapp isaaclab leapp export --rl_library rsl_rl ... physics=newton_mjwarp
+         # OV PhysX:   uv run --extra ovphysx --extra leapp isaaclab leapp export --rl_library rsl_rl ... physics=ovphysx
+         # Isaac Sim:
+         OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim --extra leapp isaaclab leapp export --rl_library rsl_rl \
+             --task <TASK_NAME> \
+             --checkpoint <PATH_TO_CHECKPOINT> \
+             --export_save_path <EXPORT_PATH> \
+             physics=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. tab-set::
+      .. code-block:: batch
 
-         .. tab-item:: uv (Recommended)
-
-            .. code-block:: batch
-
-               :: Newton:   uv run --extra leapp isaaclab leapp export --rl_library rsl_rl ... physics=newton_mjwarp
-               :: OV PhysX: uv run --extra ovphysx,leapp isaaclab leapp export --rl_library rsl_rl ... physics=ovphysx
-               :: Isaac Sim:
-               set OMNI_KIT_ACCEPT_EULA=Y
-               set ACCEPT_EULA=Y
-               uv run --extra isaacsim,leapp isaaclab leapp export --rl_library rsl_rl ^
-                   --task <TASK_NAME> ^
-                   --checkpoint <PATH_TO_CHECKPOINT> ^
-                   --export_save_path <EXPORT_PATH> ^
-                   physics=isaacsim_physx
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: batch
-
-               isaaclab.bat leapp export --rl_library rsl_rl ^
-                   --task <TASK_NAME> ^
-                   --checkpoint <PATH_TO_CHECKPOINT> ^
-                   --export_save_path <EXPORT_PATH> ^
-                   physics=isaacsim_physx
+         :: Newton:   uv run --extra leapp isaaclab leapp export --rl_library rsl_rl ... physics=newton_mjwarp
+         :: OV PhysX: uv run --extra ovphysx --extra leapp isaaclab leapp export --rl_library rsl_rl ... physics=ovphysx
+         :: Isaac Sim:
+         set OMNI_KIT_ACCEPT_EULA=Y
+         set ACCEPT_EULA=Y
+         uv run --extra isaacsim --extra leapp isaaclab leapp export --rl_library rsl_rl ^
+             --task <TASK_NAME> ^
+             --checkpoint <PATH_TO_CHECKPOINT> ^
+             --export_save_path <EXPORT_PATH> ^
+             physics=isaacsim_physx
 
 The ``--task`` argument is the registered task name, such as
 ``IsaacContrib-Velocity-Rough-AnymalC-Direct``. The ``--checkpoint`` argument

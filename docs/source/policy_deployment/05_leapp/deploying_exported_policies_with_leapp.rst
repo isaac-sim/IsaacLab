@@ -18,105 +18,50 @@ same backend extra and backend selector that you used for training and export, a
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. tab-set::
+      .. code-block:: bash
 
-         .. tab-item:: uv (Recommended)
+         # Newton backend (kitless)
+         uv run --extra leapp isaaclab leapp deploy \
+             --task <TASK_NAME> \
+             --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
+             --viz newton_gl physics=newton_mjwarp
 
-            .. code-block:: bash
+         # OV PhysX backend
+         uv run --extra ovphysx --extra leapp isaaclab leapp deploy \
+             --task <TASK_NAME> \
+             --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
+             --viz kit physics=ovphysx
 
-               # Newton backend (kitless)
-               uv run --extra leapp isaaclab leapp deploy \
-                   --task <TASK_NAME> \
-                   --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
-                   --viz newton_gl physics=newton_mjwarp
-
-               # OV PhysX backend
-               uv run --extra ovphysx,leapp isaaclab leapp deploy \
-                   --task <TASK_NAME> \
-                   --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
-                   --viz kit physics=ovphysx
-
-               # Isaac Sim PhysX backend
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim,leapp isaaclab leapp deploy \
-                   --task <TASK_NAME> \
-                   --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
-                   --viz kit physics=isaacsim_physx
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: bash
-
-               # Newton backend (kitless)
-               ./isaaclab.sh leapp deploy \
-                   --task <TASK_NAME> \
-                   --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
-                   --viz newton_gl physics=newton_mjwarp
-
-               # OV PhysX backend
-               ./isaaclab.sh leapp deploy \
-                   --task <TASK_NAME> \
-                   --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
-                   --viz kit physics=ovphysx
-
-               # Isaac Sim PhysX backend
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh leapp deploy \
-                   --task <TASK_NAME> \
-                   --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
-                   --viz kit physics=isaacsim_physx
+         # Isaac Sim PhysX backend
+         OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim --extra leapp isaaclab leapp deploy \
+             --task <TASK_NAME> \
+             --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> \
+             --viz kit physics=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. tab-set::
+      .. code-block:: batch
 
-         .. tab-item:: uv (Recommended)
+         :: Newton backend (kitless)
+         uv run --extra leapp isaaclab leapp deploy ^
+             --task <TASK_NAME> ^
+             --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> ^
+             --viz newton_gl physics=newton_mjwarp
 
-            .. code-block:: batch
+         :: OV PhysX backend
+         uv run --extra ovphysx --extra leapp isaaclab leapp deploy ^
+             --task <TASK_NAME> ^
+             --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> ^
+             --viz kit physics=ovphysx
 
-               :: Newton backend (kitless)
-               uv run --extra leapp isaaclab leapp deploy ^
-                   --task <TASK_NAME> ^
-                   --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> ^
-                   --viz newton_gl physics=newton_mjwarp
-
-               :: OV PhysX backend
-               uv run --extra ovphysx,leapp isaaclab leapp deploy ^
-                   --task <TASK_NAME> ^
-                   --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> ^
-                   --viz kit physics=ovphysx
-
-               :: Isaac Sim PhysX backend
-               set OMNI_KIT_ACCEPT_EULA=Y
-               set ACCEPT_EULA=Y
-               uv run --extra isaacsim,leapp isaaclab leapp deploy ^
-                   --task <TASK_NAME> ^
-                   --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> ^
-                   --viz kit physics=isaacsim_physx
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: batch
-
-               :: Newton backend (kitless)
-               isaaclab.bat leapp deploy ^
-                   --task <TASK_NAME> ^
-                   --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> ^
-                   --viz newton_gl physics=newton_mjwarp
-
-               :: OV PhysX backend
-               isaaclab.bat leapp deploy ^
-                   --task <TASK_NAME> ^
-                   --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> ^
-                   --viz kit physics=ovphysx
-
-               :: Isaac Sim PhysX backend
-               set OMNI_KIT_ACCEPT_EULA=Y
-               set ACCEPT_EULA=Y
-               isaaclab.bat leapp deploy ^
-                   --task <TASK_NAME> ^
-                   --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> ^
-                   --viz kit physics=isaacsim_physx
-
+         :: Isaac Sim PhysX backend
+         set OMNI_KIT_ACCEPT_EULA=Y
+         set ACCEPT_EULA=Y
+         uv run --extra isaacsim --extra leapp isaaclab leapp deploy ^
+             --task <TASK_NAME> ^
+             --pipeline <PATH_TO_EXPORTED_LEAPP_YAML> ^
+             --viz kit physics=isaacsim_physx
 
 What the Deployment Environment Does
 ------------------------------------

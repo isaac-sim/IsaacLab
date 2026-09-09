@@ -133,81 +133,39 @@ Kit launches in non-interactive shells, set the EULA variables so startup does n
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. tab-set::
+      .. code-block:: bash
 
-         .. tab-item:: uv (Recommended)
+         # Newton backend (kitless)
+         uv run --extra leapp isaaclab leapp export --rl_library <rl_library> \
+             --task <TASK_NAME> physics=newton_mjwarp
 
-            .. code-block:: bash
+         # OV PhysX backend
+         uv run --extra ovphysx --extra leapp isaaclab leapp export --rl_library <rl_library> \
+             --task <TASK_NAME> physics=ovphysx
 
-               # Newton backend (kitless)
-               uv run --extra leapp isaaclab leapp export --rl_library <rl_library> \
-                   --task <TASK_NAME> physics=newton_mjwarp
-
-               # OV PhysX backend
-               uv run --extra ovphysx --extra leapp isaaclab leapp export --rl_library <rl_library> \
-                   --task <TASK_NAME> physics=ovphysx
-
-               # Isaac Sim PhysX backend
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim --extra leapp isaaclab leapp export \
-                   --rl_library <rl_library> \
-                   --task <TASK_NAME> physics=isaacsim_physx
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: bash
-
-               # Newton backend (kitless)
-               ./isaaclab.sh leapp export --rl_library <rl_library> \
-                   --task <TASK_NAME> physics=newton_mjwarp
-
-               # OV PhysX backend
-               ./isaaclab.sh leapp export --rl_library <rl_library> \
-                   --task <TASK_NAME> physics=ovphysx
-
-               # Isaac Sim PhysX backend
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh leapp export --rl_library <rl_library> \
-                   --task <TASK_NAME> physics=isaacsim_physx
+         # Isaac Sim PhysX backend
+         OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim --extra leapp isaaclab leapp export \
+             --rl_library <rl_library> \
+             --task <TASK_NAME> physics=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. tab-set::
+      .. code-block:: batch
 
-         .. tab-item:: uv (Recommended)
+         :: Newton backend (kitless)
+         uv run --extra leapp isaaclab leapp export --rl_library <rl_library> ^
+             --task <TASK_NAME> physics=newton_mjwarp
 
-            .. code-block:: batch
+         :: OV PhysX backend
+         uv run --extra ovphysx --extra leapp isaaclab leapp export --rl_library <rl_library> ^
+             --task <TASK_NAME> physics=ovphysx
 
-               :: Newton backend (kitless)
-               uv run --extra leapp isaaclab leapp export --rl_library <rl_library> ^
-                   --task <TASK_NAME> physics=newton_mjwarp
-
-               :: OV PhysX backend
-               uv run --extra ovphysx --extra leapp isaaclab leapp export --rl_library <rl_library> ^
-                   --task <TASK_NAME> physics=ovphysx
-
-               :: Isaac Sim PhysX backend
-               set OMNI_KIT_ACCEPT_EULA=Y
-               set ACCEPT_EULA=Y
-               uv run --extra isaacsim --extra leapp isaaclab leapp export --rl_library <rl_library> ^
-                   --task <TASK_NAME> physics=isaacsim_physx
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: batch
-
-               :: Newton backend (kitless)
-               isaaclab.bat leapp export --rl_library <rl_library> ^
-                   --task <TASK_NAME> physics=newton_mjwarp
-
-               :: OV PhysX backend
-               isaaclab.bat leapp export --rl_library <rl_library> ^
-                   --task <TASK_NAME> physics=ovphysx
-
-               :: Isaac Sim PhysX backend
-               set OMNI_KIT_ACCEPT_EULA=Y
-               set ACCEPT_EULA=Y
-               isaaclab.bat leapp export --rl_library <rl_library> ^
-                   --task <TASK_NAME> physics=isaacsim_physx
+         :: Isaac Sim PhysX backend
+         set OMNI_KIT_ACCEPT_EULA=Y
+         set ACCEPT_EULA=Y
+         uv run --extra isaacsim --extra leapp isaaclab leapp export --rl_library <rl_library> ^
+             --task <TASK_NAME> physics=isaacsim_physx
 
 When ``--checkpoint`` is omitted, the exporter uses the selected task's agent configuration to
 find the default checkpoint in the newest matching local run. This avoids hardcoding the
@@ -222,45 +180,21 @@ For example, to export a Humanoid policy trained with RSL-RL on Isaac Sim PhysX:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. tab-set::
+      .. code-block:: bash
 
-         .. tab-item:: uv (Recommended)
-
-            .. code-block:: bash
-
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim --extra leapp isaaclab leapp export \
-                   --rl_library rsl_rl \
-                   --task Isaac-Humanoid physics=isaacsim_physx
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: bash
-
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y ./isaaclab.sh leapp export --rl_library rsl_rl \
-                   --task Isaac-Humanoid physics=isaacsim_physx
+         OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim --extra leapp isaaclab leapp export \
+             --rl_library rsl_rl \
+             --task Isaac-Humanoid physics=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. tab-set::
+      .. code-block:: batch
 
-         .. tab-item:: uv (Recommended)
-
-            .. code-block:: batch
-
-               set OMNI_KIT_ACCEPT_EULA=Y
-               set ACCEPT_EULA=Y
-               uv run --extra isaacsim --extra leapp isaaclab leapp export --rl_library rsl_rl ^
-                   --task Isaac-Humanoid physics=isaacsim_physx
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: batch
-
-               set OMNI_KIT_ACCEPT_EULA=Y
-               set ACCEPT_EULA=Y
-               isaaclab.bat leapp export --rl_library rsl_rl ^
-                   --task Isaac-Humanoid physics=isaacsim_physx
+         set OMNI_KIT_ACCEPT_EULA=Y
+         set ACCEPT_EULA=Y
+         uv run --extra isaacsim --extra leapp isaaclab leapp export --rl_library rsl_rl ^
+             --task Isaac-Humanoid physics=isaacsim_physx
 
 By default, the export artifacts are saved in the same directory as the checkpoint. The
 exported graph is named after the task.
