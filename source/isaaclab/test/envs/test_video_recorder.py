@@ -259,11 +259,13 @@ def test_kit_visualizer_newton_physics_logs_warning(caplog):
     with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
         for _ in range(5):
             recorder._get_frame()
+        second_recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
+        second_recorder._get_frame()
 
     cubric_warnings = [r for r in caplog.records if "source='visualizer:newton'" in r.message]
-    assert len(cubric_warnings) == 1
+    assert len(cubric_warnings) == 2
     # Capture is still attempted on every frame rather than short-circuiting.
-    assert kit_viz.render_calls == 5
+    assert kit_viz.render_calls == 6
 
 
 def test_visualizer_newton_alias_resolves_newton_gl():
