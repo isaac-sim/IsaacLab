@@ -50,6 +50,7 @@ _BACKEND_MIRROR_NAMES = frozenset(
 
 # RL libraries listed in a stable order across generated docs.
 _RL_LIBRARY_ORDER = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf")
+_ALGORITHM_LABELS = {"": "PPO", "ppo": "PPO", "amp": "AMP", "ippo": "IPPO", "mappo": "MAPPO"}
 
 # Gym IDs excluded from the training list. The ``-Eval`` suffix marks dedicated
 # evaluation variants (e.g. ``IsaacContrib-Assemble-Trocar-G129-Dex3-Eval``, an alias
@@ -123,7 +124,6 @@ class EnvironmentDocRow:
     workflow: str
     rl_libraries: dict[str, list[str]]
     presets: dict[PresetTarget, list[str]] | None
-    agent_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
     supports_warp_frontend: bool = False
     pretrained_checkpoint_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
@@ -169,11 +169,10 @@ def parse_rl_libraries_from_kwargs(kwargs: dict) -> dict[str, list[str]]:
     Returns:
         Mapping of RL-library name to sorted algorithm labels (e.g. ``{"skrl": ["IPPO", "PPO"]}``).
     """
-    agents: dict[str, set[str]] = collections.defaultdict(set)
+    entries: list[tuple[object, str, str]] = []
     for key, value in kwargs.items():
         if not key.endswith("_cfg_entry_point") or key == "env_cfg_entry_point":
             continue
-
         stem = key[: -len("_cfg_entry_point")]
         library = None
         algo_suffix = ""
@@ -188,9 +187,25 @@ def parse_rl_libraries_from_kwargs(kwargs: dict) -> dict[str, list[str]]:
                 break
         if library is None:
             continue
-        if algo_suffix == "with_symmetry":
+        entries.append((value, library, algo_suffix))
+
+    agents: dict[str, set[str]] = collections.defaultdict(set)
+    for value, library, algo_suffix in entries:
+        algorithm = _ALGORITHM_LABELS.get(algo_suffix.lower())
+        if algorithm is None:
+            # Registry suffixes can name recipes or preset variants, not algorithms.
             continue
-        agents[library].add(_infer_algorithm(algo_suffix, value, library))
+        if not algo_suffix and any(
+            other_library == library
+            and other_value == value
+            and other_suffix
+            and other_suffix.lower() in _ALGORITHM_LABELS
+            for other_value, other_library, other_suffix in entries
+        ):
+            # An explicit algorithm alias for the same concrete config owns the
+            # label (for example the canonical and explicit SKRL AMP entries).
+            continue
+        agents[library].add(algorithm)
 
     return {library: sorted(algorithms, key=_algo_sort_key) for library, algorithms in agents.items()}
 
@@ -625,11 +640,6 @@ def collect_environment_doc_rows(
                 workflow=workflow,
                 rl_libraries=agents,
                 presets=preset_map,
-                agent_preset_compatibility={
-                    agent: tuple(presets)
-                    for agent, presets in spec.kwargs.get("agent_preset_compatibility", {}).items()
-                    if agent in spec.kwargs
-                },
                 supports_warp_frontend=_supports_warp_frontend(spec.id, workflow, preset_map),
                 pretrained_checkpoint_preset_compatibility=checkpoint_preset_compatibility,
             )
@@ -684,8 +694,8 @@ def collect_environment_browser_preview_images(content: str) -> dict[str, str]:
         if not row.startswith("["):
             continue
         values = json.loads(row)
-        if len(values) >= 7 and values[6]:
-            preview_images[values[0]] = values[6]
+        if len(values) >= 6 and values[5]:
+            preview_images[values[0]] = values[5]
     return preview_images
 
 
@@ -718,13 +728,12 @@ def render_environment_browser_task_rows(
                 preview_image = max(aliases, key=lambda item: len(item[0]))[1]
         default_algorithms = {"skrl": "MAPPO"} if "MAPPO" in row.rl_libraries.get("skrl", []) else {}
         optional_values = [
-            row.agent_preset_compatibility,
             preview_image,
             row.supports_warp_frontend,
             row.pretrained_checkpoint_preset_compatibility,
             default_algorithms,
         ]
-        optional_defaults = [{}, "", False, {}, {}]
+        optional_defaults = ["", False, {}, {}]
         last_value = next(
             (
                 index
@@ -778,22 +787,6 @@ def patch_environments_rst(content: str, generated_table: str) -> str:
     end += len(COMPREHENSIVE_LIST_END_MARKER)
     replacement = f"{COMPREHENSIVE_LIST_START_MARKER}\n\n{generated_table}\n\n{COMPREHENSIVE_LIST_END_MARKER}"
     return content[:start] + replacement + content[end:]
-
-
-def _infer_algorithm(algo_suffix: str, entry_value: object, library: str) -> str:
-    """Map a cfg-entry suffix and value to a display algorithm label."""
-    if not algo_suffix:
-        if library == "rl_games" and isinstance(entry_value, str) and "vision" in entry_value.lower():
-            return "VISION"
-        return "PPO"
-
-    normalized = {
-        "ppo": "PPO",
-        "amp": "AMP",
-        "ippo": "IPPO",
-        "mappo": "MAPPO",
-    }
-    return normalized.get(algo_suffix.lower(), algo_suffix.upper())
 
 
 def _algo_sort_key(algo: str) -> tuple[int, str]:

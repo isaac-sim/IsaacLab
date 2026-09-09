@@ -40,6 +40,7 @@ get_published_pretrained_checkpoint = None
 get_checkpoint_path = None
 hydra_task_config = None
 installed_version = None
+create_graph_configs = None
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
@@ -70,6 +71,7 @@ def _load_runtime_dependencies() -> None:
     global handle_deprecated_rsl_rl_cfg, hydra_task_config
     global installed_version
     global patch_env_for_export, retrieve_file_path
+    global create_graph_configs
 
     if _RUNTIME_IMPORTS_LOADED:
         return
@@ -101,6 +103,11 @@ def _load_runtime_dependencies() -> None:
     from isaaclab_tasks.utils import get_checkpoint_path as get_checkpoint_path_fn
     from isaaclab_tasks.utils.hydra import hydra_task_config as hydra_task_config_fn
 
+    _leapp_scripts_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _leapp_scripts_dir not in sys.path:
+        sys.path.insert(0, _leapp_scripts_dir)
+    from export_utils import create_graph_configs as create_graph_configs_fn
+
     installed_version = metadata.version("rsl-rl-lib")
     if packaging_version_module.parse(installed_version) < packaging_version_module.parse(RSL_RL_MIN_VERSION):
         print(
@@ -123,6 +130,7 @@ def _load_runtime_dependencies() -> None:
     get_published_pretrained_checkpoint = get_published_pretrained_checkpoint_fn
     get_checkpoint_path = get_checkpoint_path_fn
     hydra_task_config = hydra_task_config_fn
+    create_graph_configs = create_graph_configs_fn
     _RUNTIME_IMPORTS_LOADED = True
 
 
@@ -339,7 +347,11 @@ def export_rsl_rl_agent(
         leapp.stop()
         leapp_started = False
         validate = args_cli.validation_steps > 0
-        leapp.compile_graph(visualize=not args_cli.disable_graph_visualization, validate=validate)
+        leapp.compile_graph(
+            visualize=not args_cli.disable_graph_visualization,
+            validate=validate,
+            graph_configs=create_graph_configs(env_cfg),
+        )
     finally:
         if leapp_started:
             with contextlib.suppress(Exception):

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import json
 import pkgutil
 import subprocess
 import sys
@@ -16,6 +17,8 @@ from pathlib import Path
 import gymnasium as gym
 import pytest
 import tomllib
+
+from isaaclab.utils import editor as editor_utils
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
 TEMPLATE_TOOL_DIR = ROOT_DIR / "tools" / "template"
@@ -206,7 +209,7 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
 
 @pytest.mark.parametrize("external", [False, True])
 def test_generator_registers_multi_agent_skrl_config_entry_points(tmp_path, monkeypatch, external):
-    """Generate a multi-agent task and verify skrl IPPO/MAPPO registry keys."""
+    """Mixed projects must register only the SKRL algorithms valid for each workflow."""
     project_name = f"template_multi_{'external' if external else 'internal'}"
     root_dir = tmp_path / ("external_root" if external else "internal_tasks")
     monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
@@ -216,13 +219,32 @@ def test_generator_registers_multi_agent_skrl_config_entry_points(tmp_path, monk
     specification = {
         "external": external,
         "name": project_name,
-        "workflows": [{"name": "direct", "type": "multi-agent"}],
-        "rl_libraries": _MULTI_AGENT_RL_LIBRARIES,
+        "workflows": [
+            {"name": "direct", "type": "single-agent"},
+            {"name": "direct", "type": "multi-agent"},
+        ],
+        "rl_libraries": [{"name": "skrl", "algorithms": ["amp", "ppo", "ippo", "mappo"]}],
     }
     if external:
         specification["path"] = str(root_dir)
 
     generate(specification)
+
+    single_task_id = _task_id(project_name, "direct", "single-agent", external)
+    single_task_dir = _task_dir(root_dir, project_name, "direct", "single-agent", external)
+    _unregister(single_task_id)
+    _load_registration_module(single_task_dir, f"_template_test_{project_name}_single")
+    single_spec = gym.spec(single_task_id)
+    assert single_spec.kwargs["default_agent"] == "skrl"
+    assert single_spec.kwargs["skrl_cfg_entry_point"].endswith(":skrl_ppo_cfg.yaml")
+    assert single_spec.kwargs["skrl_amp_cfg_entry_point"].endswith(":skrl_amp_cfg.yaml")
+    assert "skrl_ippo_cfg_entry_point" not in single_spec.kwargs
+    assert "skrl_mappo_cfg_entry_point" not in single_spec.kwargs
+    assert {path.name for path in (single_task_dir / "agents").glob("skrl_*_cfg.yaml")} == {
+        "skrl_amp_cfg.yaml",
+        "skrl_ppo_cfg.yaml",
+    }
+    _unregister(single_task_id)
 
     task_id = _task_id(project_name, "direct", "multi-agent", external)
     task_dir = _task_dir(root_dir, project_name, "direct", "multi-agent", external)
@@ -239,11 +261,66 @@ def test_generator_registers_multi_agent_skrl_config_entry_points(tmp_path, monk
 
     assert spec.entry_point == f"{module_name}.{env_filename}:{task_class}Env"
     assert spec.kwargs["env_cfg_entry_point"] == f"{module_name}.{env_cfg_filename}:{task_class}EnvCfg"
+    assert spec.kwargs["default_agent"] == "skrl"
     assert spec.kwargs["skrl_ippo_cfg_entry_point"] == f"{agents_module}:skrl_ippo_cfg.yaml"
     assert spec.kwargs["skrl_mappo_cfg_entry_point"] == f"{agents_module}:skrl_mappo_cfg.yaml"
-    assert "skrl_cfg_entry_point" not in spec.kwargs
+    assert spec.kwargs["skrl_cfg_entry_point"] == spec.kwargs["skrl_mappo_cfg_entry_point"]
+    assert "skrl_amp_cfg_entry_point" not in spec.kwargs
+    assert {path.name for path in (task_dir / "agents").glob("skrl_*_cfg.yaml")} == {
+        "skrl_ippo_cfg.yaml",
+        "skrl_mappo_cfg.yaml",
+    }
 
     _unregister(task_id)
+
+
+@pytest.mark.parametrize(
+    ("library", "requested_algorithm", "algorithm", "workflow_type"),
+    [
+        ("skrl", "AMP", "amp", "single-agent"),
+        ("rsl_rl", "distillation", "distillation", "single-agent"),
+        ("skrl", "ippo", "ippo", "multi-agent"),
+    ],
+)
+def test_generator_registers_sole_non_ppo_algorithm_as_canonical(
+    tmp_path, monkeypatch, library, requested_algorithm, algorithm, workflow_type
+):
+    """A generated task must remain runnable without an explicit algorithm selector."""
+    project_name = f"template_canonical_{algorithm}"
+    root_dir = tmp_path / "internal_tasks"
+    monkeypatch.setattr(generator, "TASKS_DIR", str(root_dir))
+    generate(
+        {
+            "external": False,
+            "name": project_name,
+            "workflows": [{"name": "direct", "type": workflow_type}],
+            "rl_libraries": [{"name": library, "algorithms": [requested_algorithm]}],
+        }
+    )
+
+    task_id = _task_id(project_name, "direct", workflow_type, external=False)
+    task_dir = _task_dir(root_dir, project_name, "direct", workflow_type, external=False)
+    _unregister(task_id)
+    _load_registration_module(task_dir, f"_template_test_{project_name}")
+    kwargs = gym.spec(task_id).kwargs
+    assert kwargs["default_agent"] == library
+    assert kwargs[f"{library}_cfg_entry_point"] == kwargs[f"{library}_{algorithm}_cfg_entry_point"]
+    _unregister(task_id)
+
+
+@pytest.mark.parametrize("algorithm", ["bogus", "ippo"])
+def test_generator_rejects_algorithms_unsupported_by_selected_workflows(tmp_path, monkeypatch, algorithm):
+    """Unknown and cross-workflow algorithms must not silently produce an agentless task."""
+    monkeypatch.setattr(generator, "TASKS_DIR", str(tmp_path))
+    with pytest.raises(ValueError, match="not supported by the selected workflows"):
+        generate(
+            {
+                "external": False,
+                "name": "template_invalid_algorithm",
+                "workflows": [{"name": "direct", "type": "single-agent"}],
+                "rl_libraries": [{"name": "skrl", "algorithms": [algorithm]}],
+            }
+        )
 
 
 def test_external_launch_configs_pass_skrl_algorithm_for_every_generated_skrl_agent(tmp_path, monkeypatch):
@@ -302,11 +379,84 @@ def test_external_project_uses_src_layout_and_installed_isaaclab_commands(tmp_pa
         "build-backend": "uv_build",
     }
     assert package["project"]["dependencies"] == ["isaaclab[rsl-rl,skrl]"]
+    assert package["tool"]["pyright"] == {
+        "include": ["src", "scripts", "tests"],
+        "exclude": ["**/__pycache__", "**/logs", ".git", ".venv", ".vscode"],
+        "typeCheckingMode": "basic",
+    }
     assert package["project"]["entry-points"]["isaaclab.tasks"] == {project_name: f"{project_name}.tasks"}
     assert package["tool"]["uv"]["build-backend"]["module-name"] == project_name
     assert (project_dir / "src" / project_name / "__init__.py").is_file()
     assert not (project_dir / "source").exists()
     assert {path.name for path in (project_dir / "scripts").iterdir()} == {"list_envs.py"}
+    assert "pyrightconfig.json" in (project_dir / ".gitignore").read_text()
+    assert (
+        "python.analysis.extraPaths" not in (project_dir / ".vscode" / "tools" / "settings.template.json").read_text()
+    )
+    assert not (project_dir / ".vscode" / "tools" / "setup_vscode.py").exists()
+    assert "uv run isaaclab --editor" in (project_dir / ".vscode" / "tasks.json").read_text()
+
+
+def test_editor_setup_combines_simulator_local_and_installed_paths(tmp_path, monkeypatch):
+    """The generated Pyright child config must preserve project policy and cover every installation mode."""
+    project_dir = tmp_path / "project"
+    (project_dir / "source" / "local_package").mkdir(parents=True)
+    (project_dir / "src" / "generated_project").mkdir(parents=True)
+    (project_dir / "pyproject.toml").write_text('[tool.pyright]\ntypeCheckingMode = "basic"\n')
+    isaacsim_dir = tmp_path / "isaacsim"
+    (isaacsim_dir / ".vscode").mkdir(parents=True)
+    (isaacsim_dir / ".vscode" / "settings.json").write_text(
+        '{"python.analysis.extraPaths": ["exts/isaacsim.core.api", "extscache/omni.kit.foo"]}'
+    )
+    installed_root = tmp_path / "editable" / "isaaclab"
+    installed_root.mkdir(parents=True)
+
+    monkeypatch.setattr(editor_utils, "find_isaaclab_package_paths", lambda: [installed_root])
+
+    extra_paths = editor_utils.build_extra_paths(project_dir, isaacsim_dir)
+    editor_utils.write_pyright_config(project_dir, extra_paths)
+    config = json.loads((project_dir / "pyrightconfig.json").read_text())
+
+    assert config["extends"] == "./pyproject.toml"
+    assert config["extraPaths"] == [
+        (isaacsim_dir / "exts" / "isaacsim.core.api").as_posix(),
+        (isaacsim_dir / "extscache" / "omni.kit.foo").as_posix(),
+        "source/local_package",
+        "src",
+        installed_root.as_posix(),
+    ]
+
+
+def test_editor_setup_uses_workspace_templates(tmp_path, monkeypatch):
+    """Editor setup must generate workspace files without a project-local Python wrapper."""
+    project_dir = tmp_path / "project"
+    tools_dir = project_dir / ".vscode" / "tools"
+    tools_dir.mkdir(parents=True)
+    (tools_dir / "settings.template.json").write_text('{"python.defaultInterpreterPath": ""}\n')
+    (tools_dir / "launch.template.json").write_text('{"version": "0.2.0", "configurations": []}\n')
+    isaacsim_dir = tmp_path / "isaacsim"
+    (isaacsim_dir / ".vscode").mkdir(parents=True)
+    (isaacsim_dir / ".vscode" / "settings.json").write_text('{"python.analysis.extraPaths": []}')
+    monkeypatch.setattr(editor_utils, "find_isaaclab_package_paths", lambda: [])
+
+    editor_utils.setup_editor(project_dir, isaac_path=str(isaacsim_dir))
+
+    settings = (project_dir / ".vscode" / "settings.json").read_text()
+    assert "automatically generated by `isaaclab --editor`" in settings
+    assert Path(sys.executable).as_posix() in settings
+    assert (project_dir / ".vscode" / "launch.json").is_file()
+    assert not (tools_dir / "setup_vscode.py").exists()
+    assert json.loads((project_dir / "pyrightconfig.json").read_text()) == {"extraPaths": []}
+
+
+@pytest.mark.parametrize("path_exists", [False, True])
+def test_editor_setup_rejects_invalid_explicit_isaac_sim_path(tmp_path, path_exists):
+    """An invalid user-selected installation must not silently select a different Isaac Sim."""
+    invalid_path = tmp_path / "invalid"
+    if path_exists:
+        invalid_path.mkdir()
+    with pytest.raises(ValueError, match="Not an Isaac Sim directory"):
+        editor_utils.resolve_isaacsim_dir(tmp_path, str(invalid_path))
 
 
 def _all_libraries() -> list[dict]:
@@ -376,8 +526,8 @@ def test_generated_env_modules_have_no_forbidden_top_level_imports(tmp_path, mon
         )
 
 
-def test_each_requested_agent_cfg_file_is_generated(tmp_path, monkeypatch):
-    """Every requested (RL library, algorithm) agent config is generated; a missing template raises, not skips."""
+def test_only_workflow_compatible_agent_cfg_files_are_generated(tmp_path, monkeypatch):
+    """Each task owns exactly the requested agent configs compatible with its workflow."""
     project_name = "template_agents"
     root_dir = tmp_path / "external_root"
     monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
@@ -402,11 +552,12 @@ def test_each_requested_agent_cfg_file_is_generated(tmp_path, monkeypatch):
     for workflow in workflows:
         libraries = multi_libraries if workflow["type"] == "multi-agent" else single_libraries
         agents_dir = _task_dir(root_dir, project_name, workflow["name"], workflow["type"], external=True) / "agents"
+        expected_files = set()
         for library, algorithms in libraries.items():
             for algorithm in algorithms:
                 extension = ".py" if library == "rsl_rl" else ".yaml"
-                cfg_file = agents_dir / f"{library}_{algorithm}_cfg{extension}"
-                assert cfg_file.exists(), f"missing generated agent config: {cfg_file}"
+                expected_files.add(f"{library}_{algorithm}_cfg{extension}")
+        assert {path.name for path in agents_dir.glob("*_cfg.*")} == expected_files
 
 
 @pytest.mark.parametrize("external", [True, False])
@@ -647,6 +798,7 @@ def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, mo
             _task_id(project_name, "direct", "multi-agent", external=True),
         }
     )
+    multi_task = _task_id(project_name, "direct", "multi-agent", external=True)
     program = textwrap.dedent(
         f"""
         import sys
@@ -654,10 +806,12 @@ def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, mo
         sys.path.insert(0, {str(source_dir)!r})
         import {project_name}.tasks  # noqa: F401  (registration runs through the task entry point)
         import gymnasium as gym
+        from isaaclab_tasks.utils import load_cfg_from_registry
 
         want = {expected!r}
         missing = [task_id for task_id in want if task_id not in gym.registry]
         assert not missing, f"not registered on import: {{missing}}"
+        assert load_cfg_from_registry({multi_task!r}, "skrl_cfg_entry_point")["agent"]["class"] == "MAPPO"
         print("OK")
         """
     )

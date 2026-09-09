@@ -282,7 +282,9 @@ class CheckpointBundle:
         stem = "checkpoint" if self.is_legacy else self.stem
         if checkpoint is None:
             return f"{stem}{self.library.extension}"
-        return f"{stem}_{checkpoint.name}{checkpoint.extension}"
+        # the published copy keeps the extension of the file the component declared
+        extension = os.path.splitext(checkpoint.run_glob or checkpoint.url)[1]
+        return f"{stem}_{checkpoint.name}{extension}"
 
     def _relative_path(self, checkpoint: Checkpoint | None) -> tuple[str, ...]:
         """Return the path of a file in this bundle below a publish or collect root."""
