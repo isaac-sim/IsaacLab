@@ -464,7 +464,8 @@ on launch -- no headset connection is needed (see :ref:`isaac-teleop-standalone`
          uv run --extra teleop isaaclab teleop run \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
              --num_envs 1 \
-             --visualizer kit
+             --visualizer kit \
+             physics=isaacsim_physx
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -473,7 +474,8 @@ on launch -- no headset connection is needed (see :ref:`isaac-teleop-standalone`
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
              --num_envs 1 \
-             --visualizer kit
+             --visualizer kit \
+             physics=isaacsim_physx
 
 **With a headset (immersive XR view)**
 
@@ -491,7 +493,8 @@ only controls whether the scene is rendered to the headset. Follow the connectio
          uv run --extra teleop isaaclab teleop run \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
              --num_envs 1 \
-             --visualizer kit --xr
+             --visualizer kit --xr \
+             physics=isaacsim_physx
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -500,7 +503,8 @@ only controls whether the scene is rendered to the headset. Follow the connectio
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
              --num_envs 1 \
-             --visualizer kit --xr
+             --visualizer kit --xr \
+             physics=isaacsim_physx
 
 Start the plugin
 ^^^^^^^^^^^^^^^^
@@ -689,7 +693,7 @@ These environments use the Isaac Teleop XR pipeline with motion controllers or h
      - Right
      - **Arm:** right controller grip pose drives end-effector.
        **Gripper:** right trigger.
-   * - ``IsaacContrib-Stack-Cube-SO101-IK-Abs-v0``
+   * - ``IsaacContrib-Stack-Cube-SO101-IK-Abs-v0`` with ``physics=isaacsim_physx``
      - Controllers
      - Right
      - **Arm:** right controller grip pose drives the end-effector via absolute IK
@@ -899,7 +903,7 @@ for the run command and pipeline.
    * - Task ID
      - Device
      - Operator Interaction
-   * - ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0``
+   * - ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0`` with ``physics=isaacsim_physx``
      - SO-101 leader arm
      - **Arm + gripper:** the leader arm's six joint angles (five arm DOF + gripper) are mirrored
        onto the follower via ``JointStateRetargeter`` (``mode="joint"``).
