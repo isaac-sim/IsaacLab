@@ -115,6 +115,18 @@ def _generate_tasks(specification: dict, task_dir: str) -> list[dict]:
         for item in robot_name.split("_")
     )
     for workflow in specification["workflows"]:
+        supported_algorithms = SINGLE_AGENT_ALGORITHMS if workflow["type"] == "single-agent" else MULTI_AGENT_ALGORITHMS
+        preferred_algorithm = "ppo" if workflow["type"] == "single-agent" else "mappo"
+        task_rl_libraries = []
+        for rl_library in specification["rl_libraries"]:
+            algorithms = [
+                algorithm for algorithm in rl_library.get("algorithms", []) if algorithm.upper() in supported_algorithms
+            ]
+            if algorithms:
+                canonical_algorithm = preferred_algorithm if preferred_algorithm in algorithms else algorithms[0]
+                task_rl_libraries.append(
+                    {**rl_library, "algorithms": algorithms, "canonical_algorithm": canonical_algorithm}
+                )
         task_name = general_task_name + ("-Marl" if workflow["type"] == "multi-agent" else "")
         filename = task_name.replace("-", "_").lower()
         family_name = f"{filename}_direct" if workflow["name"] == "direct" else filename
@@ -139,7 +151,7 @@ def _generate_tasks(specification: dict, task_dir: str) -> list[dict]:
             package_init = os.path.join(package_dir, "__init__.py")
             if not os.path.exists(package_init):
                 shutil.copyfile(os.path.join(TEMPLATE_DIR, "extension", "__init__task_family"), package_init)
-        task_specification = {**specification, "task": task}
+        task_specification = {**specification, "task": task, "rl_libraries": task_rl_libraries}
         _generate_task_per_workflow(task["dir"], task_specification)
         specifications.append(task_specification)
     return specifications
@@ -256,6 +268,20 @@ def generate(specification: dict) -> None:
     for workflow in specification["workflows"]:
         assert workflow["name"] in ["direct", "manager-based"], f"Invalid workflow: {workflow}"
         assert workflow["type"] in ["single-agent", "multi-agent"], f"Invalid workflow type: {workflow}"
+    selected_workflow_types = {workflow["type"] for workflow in specification["workflows"]}
+    allowed_algorithms = set()
+    if "single-agent" in selected_workflow_types:
+        allowed_algorithms.update(algorithm.lower() for algorithm in SINGLE_AGENT_ALGORITHMS)
+    if "multi-agent" in selected_workflow_types:
+        allowed_algorithms.update(algorithm.lower() for algorithm in MULTI_AGENT_ALGORITHMS)
+    normalized_libraries = []
+    for rl_library in specification["rl_libraries"]:
+        algorithms = [algorithm.lower() for algorithm in rl_library.get("algorithms", [])]
+        invalid_algorithms = sorted(set(algorithms) - allowed_algorithms)
+        if invalid_algorithms:
+            raise ValueError(f"Algorithms {invalid_algorithms} are not supported by the selected workflows")
+        normalized_libraries.append({**rl_library, "algorithms": algorithms})
+    specification["rl_libraries"] = normalized_libraries
     if specification["external"]:
         assert "path" in specification, "Path is required for external projects"
     if specification["external"]:

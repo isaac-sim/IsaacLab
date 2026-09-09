@@ -12,6 +12,8 @@ from types import SimpleNamespace
 import gymnasium as gym
 import pytest
 
+from isaaclab_tasks.utils.hydra import collect_presets
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
@@ -30,9 +32,10 @@ def test_cartpole_feature_presets_are_in_pretrained_checkpoint_matrix() -> None:
     """Every Cartpole feature policy for the preferred workflow must receive a distinct checkpoint."""
     task_spec = gym.spec("Isaac-Cartpole-Camera")
     workflow = task_spec.kwargs["default_agent"]
-    feature_presets = task_spec.kwargs["agent_preset_compatibility"][f"{workflow}_feature_cfg_entry_point"]
+    agent_cfg = load_cfg_from_registry(task_spec.id, f"{workflow}_cfg_entry_point")
+    feature_presets = set(collect_presets(agent_cfg)[""]) - {"default"}
 
-    assert task_spec.kwargs["pretrained_checkpoint_preset_compatibility"][workflow] == feature_presets
+    assert set(task_spec.kwargs["pretrained_checkpoint_preset_compatibility"][workflow]) == feature_presets
 
 
 def test_checkpoint_preset_metadata_references_registered_variants() -> None:
