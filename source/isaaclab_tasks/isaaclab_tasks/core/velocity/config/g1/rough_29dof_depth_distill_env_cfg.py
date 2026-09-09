@@ -35,18 +35,21 @@ from collections.abc import Sequence
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.managers import ManagerTermBase
+from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
-from isaaclab.managers import ObservationTermCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-from .rough_29dof_distill_env_cfg import G129DofRoughAirTime100DistillEnvCfg, G129DofRoughAirTime100DistillObservationsCfg
+from .rough_29dof_distill_env_cfg import (
+    G129DofRoughAirTime100DistillEnvCfg,
+    G129DofRoughAirTime100DistillObservationsCfg,
+)
+from .rough_29dof_dr_env_cfg import _HISTORY_LENGTH, _HISTORY_TERMS
+from .rough_29dof_power_env_cfg import G129DofRoughWaist1Power2HipPitchLightEnvCfg
 
 _DEPTH_WIDTH = 64
 """Rendered depth width [px]. Small on purpose -- rendering is the cost of this stage."""
@@ -154,9 +157,68 @@ class G129DofRoughAirTime100DepthDistillObservationsCfg(G129DofRoughAirTime100Di
     depth: DepthCfg = DepthCfg()
 
 
+def _add_chest_camera(cfg) -> None:
+    """Mount the D435 on ``torso_link`` and render depth through Warp, in place.
+
+    Args:
+        cfg: Environment configuration to add the camera to.
+    """
+    # ``ros`` convention: +x forward, +y left, +z up. The rotation is a pitch about the camera's own
+    # y axis, so the quaternion is (w, x, y, z) = (cos(a/2), 0, sin(a/2), 0). Verified by rendering
+    # rather than derived: this aim returns 69% valid pixels with depth falling monotonically down
+    # the image (row correlation -0.98), where every alternative tried returned 14% valid or no
+    # vertical structure at all.
+    half = math.radians(_D435_MOUNT_PITCH_DEG) / 2.0
+    cfg.scene.depth_camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/torso_link/depth_camera",
+        offset=CameraCfg.OffsetCfg(
+            pos=_D435_MOUNT_POS,
+            rot=(math.cos(half), 0.0, math.sin(half), 0.0),
+            convention="ros",
+        ),
+        data_types=["distance_to_image_plane"],
+        update_period=0.0,
+        # Newton's Warp rasteriser rather than Kit RTX: depth needs no shading, and leaving the
+        # renderer unset sends the camera down the Kit path, which fails at startup here with
+        # "module 'omni.usd' has no attribute 'get_context'". ``presets=`` can still select
+        # isaacsim_rtx without touching this file.
+        renderer_cfg=MultiBackendRendererCfg(),
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=_D435_FOCAL_LENGTH,
+            horizontal_aperture=2.0 * _D435_FOCAL_LENGTH * math.tan(math.radians(_D435_HFOV_DEG / 2.0)),
+            clipping_range=(0.05, 10.0),
+        ),
+        width=_DEPTH_WIDTH,
+        height=_DEPTH_HEIGHT,
+    )
+    # Render once per control step. The default render interval is tied to the physics step, which
+    # would re-render four times per observation for no benefit.
+    cfg.sim.render_interval = cfg.decimation
+
+
 @configclass
 class G129DofRoughAirTime100DepthDistillEnvCfg(G129DofRoughAirTime100DistillEnvCfg):
-    """The blind-student config plus a chest depth camera."""
+    """The blind-student config plus a chest depth camera. Teacher: the Robust-Waist arm."""
+
+    observations: G129DofRoughAirTime100DepthDistillObservationsCfg = (
+        G129DofRoughAirTime100DepthDistillObservationsCfg()
+    )
+
+    def __post_init__(self):
+        super().__post_init__()
+        _add_chest_camera(self)
+
+
+@configclass
+class G129DofRoughAirTime100DepthDistillClEnvCfg(G129DofRoughWaist1Power2HipPitchLightEnvCfg):
+    """The depth student under the ``cl`` teacher's own environment.
+
+    A teacher hands out actions for the dynamics it was trained in. ``cl`` -- randomization, the
+    stronger push, waist L2, the power penalty and hip pitch at -0.15 -- was trained with
+    self-collision off, and the Robust-Waist base has it on, so distilling ``cl`` there would
+    supervise the student with a teacher being asked about a robot it has never driven. Same student
+    wiring, different physics underneath.
+    """
 
     observations: G129DofRoughAirTime100DepthDistillObservationsCfg = (
         G129DofRoughAirTime100DepthDistillObservationsCfg()
@@ -165,31 +227,13 @@ class G129DofRoughAirTime100DepthDistillEnvCfg(G129DofRoughAirTime100DistillEnvC
     def __post_init__(self):
         super().__post_init__()
 
-        # ``ros`` convention: +x forward, +y left, +z up. The rotation is a pitch about the camera's
-        # own y axis, so the quaternion is (w, x, y, z) = (cos(a/2), 0, sin(a/2), 0).
-        half = math.radians(_D435_MOUNT_PITCH_DEG) / 2.0
-        self.scene.depth_camera = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/torso_link/depth_camera",
-            offset=CameraCfg.OffsetCfg(
-                pos=_D435_MOUNT_POS,
-                rot=(math.cos(half), 0.0, math.sin(half), 0.0),
-                convention="ros",
-            ),
-            data_types=["distance_to_image_plane"],
-            update_period=0.0,
-            # Newton's Warp rasteriser rather than Kit RTX: depth needs no shading, and leaving the
-            # renderer unset sends the camera down the Kit path, which fails at startup here with
-            # "module 'omni.usd' has no attribute 'get_context'". ``presets=`` can still select
-            # isaacsim_rtx without touching this file.
-            renderer_cfg=MultiBackendRendererCfg(),
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=_D435_FOCAL_LENGTH,
-                horizontal_aperture=2.0 * _D435_FOCAL_LENGTH * math.tan(math.radians(_D435_HFOV_DEG / 2.0)),
-                clipping_range=(0.05, 10.0),
-            ),
-            width=_DEPTH_WIDTH,
-            height=_DEPTH_HEIGHT,
-        )
-        # Render once per control step. The default render interval is tied to the physics step,
-        # which would re-render four times per observation for no benefit.
-        self.sim.render_interval = self.decimation
+        # The student's deployable group and the teacher's own, as in the Robust-Waist variant.
+        self.observations.policy.base_lin_vel = None
+        self.observations.policy.height_scan = None
+        for term in _HISTORY_TERMS:
+            obs_term = getattr(self.observations.policy, term)
+            obs_term.history_length = _HISTORY_LENGTH
+            obs_term.flatten_history_dim = True
+        self.observations.teacher.enable_corruption = False
+
+        _add_chest_camera(self)
