@@ -213,12 +213,6 @@ How-to Guides
 
          Change environment parameters dynamically during training.
 
-      .. container:: guide-entry
-
-         :doc:`Transferring policies between PhysX and Newton </source/how-to/transfer_policies_between_physx_and_newton>`
-
-         Validate and evaluate policies across the supported physics backends.
-
    .. container:: guide-group
 
       .. rubric:: Sensors, Cameras, and Rendering
@@ -277,7 +271,7 @@ How-to Guides
 
          :doc:`Working with ProxyArray </source/how-to/proxy_array>`
 
-         Read and write simulation state through dual NumPy and Warp access.
+         Consume asset and sensor data through Torch and Warp while keeping retained views valid.
 
       .. container:: guide-entry
 
