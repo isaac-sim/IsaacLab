@@ -1,0 +1,2 @@
+Internal: added regression coverage for marker scene-partition token caching in
+``isaaclab_visualizers``; no library behavior changed in this package.
