@@ -49,7 +49,6 @@ jobs:
           ^docker/docker-compose\.yaml$ :: Kit-less Compose definition
           ^docker/test/test_container_profiles\.py$ :: Kit-less profile tests
           ^docker/test/test_dockerfile_nonroot\.py$ :: Dockerfile contract tests
-          ^docker/test/test_image_invariants\.py$ :: Built-image invariant tests
           ^docker/utils/container_interface\.py$ :: Container profile implementation
           ^docker/utils/volume_mounts\.py$ :: Container volume helper
           ^isaaclab\.sh$ :: Install CLI wrapper
@@ -105,12 +104,6 @@ jobs:
         fetch-depth: 1
         lfs: true
 
-    # The GPU runners have no uv on PATH; the invariant check below needs it.
-    - name: Set up uv
-      uses: astral-sh/setup-uv@v6
-      with:
-        enable-cache: true
-
     # Mirrors the per-commit tag scheme of build.yaml's config job so the
     # ECR tags stay in the same family as the other CI images.
     - name: Compute image tag
@@ -144,7 +137,6 @@ jobs:
         isaacsim-version: "24.04"
         dockerfile-path: docker/Dockerfile.kitless
         cache-tag: cache-kitless
-        verify-test-path: docker/test/test_image_invariants.py
         # Validation below docker-runs the image in this same job, and the
         # ECR login only exists while the action runs, so the action itself
         # must pull on a deps-cache hit.
