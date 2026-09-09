@@ -67,7 +67,10 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
     # override with CLI arguments and reject unsupported configurations before
     # launching Kit or initializing a native physics backend.
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+    if args_cli.device is not None:
+        env_cfg.sim.device = args_cli.device
+    # Pass the resolved task device through to AppLauncher.
+    args_cli.device = env_cfg.sim.device
     if args_cli.disable_fabric:
         env_cfg.sim.use_fabric = False
     try:
@@ -249,8 +252,8 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
     )
     # append AppLauncher cli args
     add_launcher_args(parser)
-    # Keep checkpoint-free agents on the kitless default path.
-    parser.set_defaults(visualizer=["newton_gl"])
+    # Let task configs select the simulation device and keep checkpoint-free agents on the kitless default path.
+    parser.set_defaults(device=None, visualizer=["newton_gl"])
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     sys.argv = [sys.argv[0]] + hydra_args
     return args_cli

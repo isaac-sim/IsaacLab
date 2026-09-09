@@ -328,6 +328,11 @@ exclude = [
     ".vscode",
 ]
 
+# Make the in-repo packages resolvable by the language server (Pylance / basedpyright)
+# without an editable install, so imports like ``isaaclab.assets`` work out of the box.
+# The glob keeps new source packages discoverable without maintaining a duplicate package list.
+extraPaths = ["source/*"]
+
 typeCheckingMode = "basic"
 pythonVersion = "3.12"
 pythonPlatform = "Linux"
