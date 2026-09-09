@@ -70,6 +70,9 @@ installed Isaac Lab package:
 The command uses the dependencies from the active Isaac Lab environment. It
 does not invoke ``pip`` or install another set of template dependencies, so it
 also works in the pip-less virtual environments created by ``uv``.
+The generated ``pyproject.toml`` pins Isaac Lab and its optional extras to that
+environment's exact Isaac Lab version so ``uv sync`` cannot silently resolve an
+older release.
 
 The short form is equivalent:
 
@@ -242,11 +245,27 @@ External projects should build their environment harness from public APIs and
 maintain project-local fixtures. Copying ``env_test_utils.py`` into a project is
 vendoring it, so the project must track upstream changes to that copy.
 
-To configure VS Code, run the generated setup task or invoke it directly:
+To configure VS Code or Cursor, run the generated setup task or invoke it directly:
 
 .. code-block:: bash
 
-   uv run python .vscode/tools/setup_vscode.py
+   uv run isaaclab --editor
+
+The command selects the active interpreter and creates a git-ignored
+``pyrightconfig.json``. This child configuration inherits the checked-in
+Pyright policy from ``pyproject.toml`` and adds the generated project's
+``src`` import root, installed Isaac Lab packages, and any discovered Isaac
+Sim extensions. When using the ``isaacsim`` extra, include it while generating
+the configuration:
+
+.. code-block:: bash
+
+   uv run --extra isaacsim isaaclab --editor
+
+In VS Code, use Pylance and select the interpreter that ran the setup command.
+In Cursor, install the ``detachhead.basedpyright`` extension instead of Pylance,
+select the same interpreter, and reload the window. Both language servers read
+the generated ``pyrightconfig.json``.
 
 Create an internal task
 -----------------------
@@ -260,6 +279,16 @@ a separate project. From the Isaac Lab repository root, list and test it with:
    uv run python scripts/environments/list_envs.py --show_presets
    uv run isaaclab random_agent --task <TASK_NAME> --num_envs 16
    uv run isaaclab train --rl_library <RL_LIBRARY> --task <TASK_NAME>
+
+The training command automatically selects an agent configuration when the
+generated task has only one entry point for that RL library. If you generated
+multiple algorithms, or want to select one explicitly, pass its registered
+entry-point name. Non-PPO entry points include the algorithm name; for example:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl --task <TASK_NAME> \
+      --agent rsl_rl_distillation_cfg_entry_point
 
 Troubleshooting
 ---------------

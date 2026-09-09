@@ -157,7 +157,7 @@ def _parse_args(argv: list[str]):
         type=str,
         default=None,
         choices=["AMP", "PPO"],
-        help="Optional algorithm-specific configuration selector; agent.class in the resolved config is authoritative.",
+        help="Optional algorithm selector; with --agent, the resolved agent.class must match.",
     )
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(

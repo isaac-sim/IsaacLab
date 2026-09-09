@@ -73,7 +73,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         type=str,
         default=None,
         choices=["AMP", "PPO", "IPPO", "MAPPO"],
-        help="Optional algorithm-specific configuration selector; agent.class in the resolved config is authoritative.",
+        help="Optional algorithm selector; with --agent, the resolved agent.class must match.",
     )
     add_launcher_args(parser)
     args_cli, hydra_args = setup_preset_cli(parser, argv)

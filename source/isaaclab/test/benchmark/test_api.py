@@ -155,21 +155,6 @@ def test_play_request_uses_backend_arguments(backend: str, monkeypatch) -> None:
     assert remaining_args == []
 
 
-@pytest.mark.parametrize("backend", ["rsl_rl", "rl_games", "sb3"])
-def test_training_request_keeps_backend_default_agent_without_presets(backend: str, monkeypatch) -> None:
-    """Without an explicit recipe, the backend's canonical entry point remains selected."""
-    import isaaclab_tasks  # noqa: F401
-
-    request = BenchmarkTrainingRequest(backend=backend, task="Isaac-Cartpole", max_iterations=1)
-    argv = dispatch._request_argv(request)
-    monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
-    entrypoint = importlib.import_module(dispatch._workflow_module("training", backend))
-    # RSL-RL's adapter returns an extra CLI-helper module alongside (args, remaining).
-    args = entrypoint._parse_args(argv)[0]
-
-    assert args.agent == f"{backend}_cfg_entry_point"
-
-
 @pytest.mark.parametrize("configured_output_dir", [None, "/tmp/custom-videos"])
 def test_play_backend_configures_video_before_environment_creation(
     monkeypatch, tmp_path, configured_output_dir

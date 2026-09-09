@@ -97,7 +97,7 @@ parser.add_argument(
     type=str,
     default=None,
     choices=["AMP", "PPO", "IPPO", "MAPPO"],
-    help="Optional algorithm-specific configuration selector; agent.class in the resolved config is authoritative.",
+    help="Optional algorithm selector; with --agent, the resolved agent.class must match.",
 )
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
