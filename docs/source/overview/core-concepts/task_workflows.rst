@@ -68,8 +68,9 @@ For reinforcement learning, much of this has been done for you already! In most 
 
 .. seealso::
 
-    We provide a more detailed tutorial for setting up an environment using the manager-based workflow at
-    :ref:`tutorial-create-manager-rl-env`.
+    Start with :ref:`tutorial-create-manager-rl-env` for a focused manager-based environment example. Then follow
+    the :ref:`SO-101 vial-placement tutorial <tutorial-so101-task>` for a complete manipulation task, including its
+    scene, MDP terms, reset curriculum, and agent configuration.
 
 
 Direct Environments
@@ -117,9 +118,8 @@ operations in the environment.
 
 .. seealso::
 
-    We provide a more detailed tutorial for setting up a RL environment using the direct workflow at
+    We provide a detailed tutorial for setting up a direct RL environment at
     :ref:`tutorial-create-direct-rl-env`.
-
 
 .. _IsaacGymEnvs: https://github.com/isaac-sim/IsaacGymEnvs
 .. _OmniIsaacGymEnvs: https://github.com/isaac-sim/OmniIsaacGymEnvs

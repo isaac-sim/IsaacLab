@@ -7,12 +7,12 @@
 
 from __future__ import annotations
 
-import collections
 import importlib
 import inspect
 import os
 import re
 import warnings
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
@@ -84,27 +84,17 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
     cfg_entry_point = spec.kwargs.get(entry_point_key)
     # check if entry point exists
     if cfg_entry_point is None:
-        # get existing agents and algorithms
-        agents = collections.defaultdict(list)
-        for k in spec.kwargs:
-            if k.endswith("_cfg_entry_point") and k != "env_cfg_entry_point":
-                spec = (
-                    k.replace("_cfg_entry_point", "")
-                    .replace("rl_games", "rl-games")
-                    .replace("rsl_rl", "rsl-rl")
-                    .split("_")
-                )
-                agent = spec[0].replace("-", "_")
-                algorithms = [item.upper() for item in (spec[1:] if len(spec) > 1 else ["PPO"])]
-                agents[agent].extend(algorithms)
-        msg = "\nExisting RL library (and algorithms) config entry points: "
-        for agent, algorithms in agents.items():
-            msg += f"\n  |-- {agent}: {', '.join(algorithms)}"
+        agent_entries = sorted(
+            key for key in spec.kwargs if key.endswith("_cfg_entry_point") and key != "env_cfg_entry_point"
+        )
+        msg = "\nExisting agent configuration entry points:"
+        if agent_entries:
+            msg += "".join(f"\n  |-- {key}" for key in agent_entries)
         # raise error
         raise ValueError(
             f"Could not find configuration for the environment: '{task_name}'."
             f"\nPlease check that the gym registry has the entry point: '{entry_point_key}'."
-            f"{msg if agents else ''}"
+            f"{msg if agent_entries else ''}"
         )
     # parse the default config file
     if isinstance(cfg_entry_point, str) and cfg_entry_point.endswith(".yaml"):
@@ -144,17 +134,27 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
 
 
 def parse_env_cfg(
-    task_name: str, device: str = "cuda:0", num_envs: int | None = None, use_fabric: bool | None = None
+    task_name: str,
+    device: str | None = None,
+    num_envs: int | None = None,
+    use_fabric: bool | None = None,
+    overrides: Sequence[str] = (),
 ) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
     Args:
         task_name: The name of the environment.
-        device: The device to run the simulation on. Defaults to "cuda:0".
+        device: The device to run the simulation on. Defaults to None, in which case it is left unchanged.
         num_envs: Number of environments to create. Defaults to None, in which case it is left unchanged.
         use_fabric: Whether to enable/disable fabric interface. If false, all read/write operations go through USD.
             This slows down the simulation but allows seeing the changes in the USD through the USD stage.
             Defaults to None, in which case it is left unchanged.
+        overrides: Hydra-style ``key=value`` overrides (e.g. ``["physics=isaacsim_physx"]``) applied on top of the
+            task's registered configuration, using the same syntax as the ``physics=``/``renderer=``/``presets=``
+            selectors documented for Hydra-driven scripts. Defaults to an empty sequence, in which case the task's
+            registered defaults are used unchanged. A single override must still be wrapped in a list or tuple
+            (e.g. ``["physics=isaacsim_physx"]``, not ``"physics=isaacsim_physx"``); a bare string is itself a
+            ``Sequence[str]`` of characters and would otherwise be split one character at a time.
 
     Returns:
         The parsed configuration object.
@@ -162,9 +162,16 @@ def parse_env_cfg(
     Raises:
         RuntimeError: If the configuration for the task is not a class. We assume users always use a class for the
             environment configuration.
+        TypeError: If ``overrides`` is a bare string instead of a list or tuple of override strings.
     """
+    if isinstance(overrides, str):
+        raise TypeError(
+            f"'overrides' must be a list or tuple of 'key=value' strings, not a bare string: {overrides!r}. Wrap"
+            f" it in a list, e.g. overrides=[{overrides!r}]."
+        )
+
     # Compose the registered task through the same boundary used by Hydra entry points.
-    cfg, _ = resolve_task_config(task_name, None, overrides=())
+    cfg, _ = resolve_task_config(task_name, None, overrides=overrides)
 
     # check that it is not a dict
     # we assume users always use a class for the configuration
@@ -172,7 +179,8 @@ def parse_env_cfg(
         raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class. Please provide a class.")
 
     # simulation device
-    cfg.sim.device = device
+    if device is not None:
+        cfg.sim.device = device
     # disable fabric to read/write through USD
     if use_fabric is not None:
         cfg.sim.use_fabric = use_fabric

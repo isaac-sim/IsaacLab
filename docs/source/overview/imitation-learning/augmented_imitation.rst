@@ -54,6 +54,27 @@ requires.
 Cosmos Augmentation
 ~~~~~~~~~~~~~~~~~~~
 
+.. important::
+    The ``hdf5_to_mp4.py`` and ``mp4_to_hdf5.py`` scripts below read and write MP4 files through OpenCV's
+    video I/O, which requires ffmpeg support. Recent Isaac Sim releases ship an OpenCV build without ffmpeg,
+    so install the full OpenCV package into the environment before running these conversions:
+
+    .. tab-set::
+
+       .. tab-item:: uv (Recommended)
+
+          .. code:: bash
+
+              uv pip install opencv-python
+
+       .. tab-item:: isaaclab.sh / isaaclab.bat
+
+          .. code:: bash
+
+              ./isaaclab.sh -p -m pip install opencv-python
+
+    Without it, the conversion scripts fail to open or write the video files.
+
 HDF5 to MP4 Conversion
 ^^^^^^^^^^^^^^^^^^^^^^
 
@@ -93,11 +114,23 @@ The ``hdf5_to_mp4.py`` script converts camera frames stored in HDF5 demonstratio
 
 Example usage for the cube stacking task:
 
-.. code:: bash
+.. tab-set::
 
-    python scripts/tools/hdf5_to_mp4.py \
-    --input_file datasets/mimic_dataset_1k.hdf5 \
-    --output_dir datasets/mimic_dataset_1k_mp4
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run --extra mimic python scripts/tools/hdf5_to_mp4.py \
+          --input_file datasets/mimic_dataset_1k.hdf5 \
+          --output_dir datasets/mimic_dataset_1k_mp4
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p scripts/tools/hdf5_to_mp4.py \
+          --input_file datasets/mimic_dataset_1k.hdf5 \
+          --output_dir datasets/mimic_dataset_1k_mp4
 
 .. _running-cosmos:
 
@@ -251,12 +284,25 @@ The ``mp4_to_hdf5.py`` script converts the visually augmented MP4 videos back to
 
 Example usage for the cube stacking task:
 
-.. code:: bash
+.. tab-set::
 
-    python scripts/tools/mp4_to_hdf5.py \
-    --input_file datasets/mimic_dataset_1k.hdf5 \
-    --videos_dir datasets/cosmos_dataset_1k_mp4 \
-    --output_file datasets/cosmos_dataset_1k.hdf5
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run --extra mimic python scripts/tools/mp4_to_hdf5.py \
+          --input_file datasets/mimic_dataset_1k.hdf5 \
+          --videos_dir datasets/cosmos_dataset_1k_mp4 \
+          --output_file datasets/cosmos_dataset_1k.hdf5
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p scripts/tools/mp4_to_hdf5.py \
+          --input_file datasets/mimic_dataset_1k.hdf5 \
+          --videos_dir datasets/cosmos_dataset_1k_mp4 \
+          --output_file datasets/cosmos_dataset_1k.hdf5
 
 Pre-generated Dataset
 ^^^^^^^^^^^^^^^^^^^^^
@@ -291,11 +337,23 @@ The ``merge_hdf5_datasets.py`` script combines multiple HDF5 datasets into a sin
 
 Example usage for the cube stacking task:
 
-.. code:: bash
+.. tab-set::
 
-    python scripts/tools/merge_hdf5_datasets.py \
-    --input_files datasets/mimic_dataset_1k.hdf5 datasets/cosmos_dataset_1k.hdf5 \
-    --output_file datasets/mimic_cosmos_dataset.hdf5
+   .. tab-item:: uv (Recommended)
+
+      .. code:: bash
+
+          uv run --extra mimic python scripts/tools/merge_hdf5_datasets.py \
+          --input_files datasets/mimic_dataset_1k.hdf5 datasets/cosmos_dataset_1k.hdf5 \
+          --output_file datasets/mimic_cosmos_dataset.hdf5
+
+   .. tab-item:: isaaclab.sh / isaaclab.bat
+
+      .. code:: bash
+
+          ./isaaclab.sh -p scripts/tools/merge_hdf5_datasets.py \
+          --input_files datasets/mimic_dataset_1k.hdf5 datasets/cosmos_dataset_1k.hdf5 \
+          --output_file datasets/mimic_cosmos_dataset.hdf5
 
 Model Training and Evaluation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

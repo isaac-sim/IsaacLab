@@ -97,6 +97,16 @@ This method is more scalable and better suited for large-scale training scenario
 
 It’s not UI-controlled—the whole process is enabled through CLI flags and runs automatically.
 
+.. note::
+
+   The OVD Recorder uses OmniPVD, which only records **PhysX** simulations. If the active physics backend is not
+   PhysX (for example, Newton, which is the default for many tasks), Isaac Lab raises an error at startup naming
+   the active backend instead of recording. Select the PhysX backend by adding ``physics=isaacsim_physx`` to the
+   command line, as shown below.
+
+   The PhysX backend requires Isaac Sim. If it isn't installed yet, add ``--extra isaacsim`` to the ``uv run``
+   command; see :ref:`installation-optional-extras` for details.
+
 
 Workflow Summary
 ~~~~~~~~~~~~~~~~
@@ -120,14 +130,14 @@ To record an animation:
 
       .. code-block:: bash
 
-         uv run python scripts/tutorials/03_envs/run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3
+         uv run python scripts/tutorials/03_envs/run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3 physics=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-         uv run python scripts\tutorials\03_envs\run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3
+         uv run python scripts\tutorials\03_envs\run_cartpole_rl_env.py --anim_recording_enabled --anim_recording_start_time 1 --anim_recording_stop_time 3 physics=isaacsim_physx
 
 .. note::
 

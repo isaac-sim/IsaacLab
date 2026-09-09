@@ -43,8 +43,8 @@ the following solver pages:
 
 Each solver is exposed as a small subclass of
 :class:`~isaaclab_newton.physics.NewtonManager`. See
-:doc:`newton-manager-abstraction` for the developer-facing guide to adding a
-new solver or a coupled solver.
+:doc:`extending-newton-solvers` for the contributor guide to adding a new
+solver or a coupled solver.
 
 For authoring and simulating deformable assets, including 1D cable / rod assets
 under the VBD solver, see :ref:`deformables`.
@@ -71,6 +71,6 @@ For direct ``Model``/``State`` access and generic selections, see
   kamino-solver
   using-vbd-solver
   using-mpm
-  newton-manager-abstraction
+  extending-newton-solvers
   warp-environments
   warp-env-migration

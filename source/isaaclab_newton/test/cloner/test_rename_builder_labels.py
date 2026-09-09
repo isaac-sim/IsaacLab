@@ -414,6 +414,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             destinations=("/World/envs/env_{}/Robot",),
             clone_mask=np.ones((1, 2), dtype=np.bool_),
             env_ids=np.arange(2, dtype=np.int64),
+            positions=np.asarray(((0.0, 0.0, 0.0), (2.0, 0.0, 0.0)), dtype=np.float32),
         )
         for env_paths, plan, expected_shape_count in (
             ([], None, 2),
@@ -451,7 +452,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
         self._define_xform(stage, "/World")
         self._define_xform(stage, "/World/envs")
-        env_paths = [(env_id, f"/World/envs/env_{env_id}") for env_id in (0, 1, 2)]
+        env_paths = [(env_id, f"/World/envs/env_{env_id}") for env_id in (0, 1)]
         for env_id, env_path in env_paths:
             self._define_xform(stage, env_path, (float(env_id) * 3.0, 0.0, 0.0))
             self._define_xform(stage, f"{env_path}/Object")
@@ -463,6 +464,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
             clone_mask=np.array([[True, False, True], [False, True, False]], dtype=np.bool_),
             env_ids=np.array([0, 1, 2], dtype=np.int64),
+            positions=np.asarray(((0.0, 0.0, 0.0), (3.0, 0.0, 0.0), (6.0, 0.0, 0.0)), dtype=np.float32),
         )
 
         with (
