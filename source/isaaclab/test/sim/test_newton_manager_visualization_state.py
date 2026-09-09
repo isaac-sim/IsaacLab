@@ -323,12 +323,14 @@ def test_ensure_visualization_model_builds_from_stage_when_backend_is_physx(monk
 
     builder.finalize = _finalize
     monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: (builder, ([], [])))
+    NewtonManager._scene_data_mapping = object()
 
     NewtonManager._ensure_visualization_model()
 
     assert finalize_calls == ["cpu"]
     assert NewtonManager._model is not None
     assert NewtonManager._state_0 is not None
+    assert NewtonManager._scene_data_mapping is None
 
 
 def test_physx_shadow_model_is_rebuilt_after_physics_stop(monkeypatch):
