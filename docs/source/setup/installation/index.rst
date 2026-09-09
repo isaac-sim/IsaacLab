@@ -451,12 +451,12 @@ Install Isaac Sim and the CUDA-enabled PyTorch build for your platform:
          .. tab-item:: uv environment (recommended)
             :sync: uv
 
-            .. isaaclab-torch-install:: cu128
+            .. isaaclab-torch-install:: cu130
 
          .. tab-item:: conda environment
             :sync: conda
 
-            .. isaaclab-torch-install:: cu128 pip
+            .. isaaclab-torch-install:: cu130 pip
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
       :sync: windows-x86_64
@@ -467,12 +467,12 @@ Install Isaac Sim and the CUDA-enabled PyTorch build for your platform:
          .. tab-item:: uv environment (recommended)
             :sync: uv
 
-            .. isaaclab-torch-install:: cu128
+            .. isaaclab-torch-install:: cu130
 
          .. tab-item:: conda environment
             :sync: conda
 
-            .. isaaclab-torch-install:: cu128 pip
+            .. isaaclab-torch-install:: cu130 pip
 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
       :sync: linux-aarch64
@@ -721,12 +721,12 @@ Install the CUDA-enabled PyTorch build appropriate for your system architecture:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
       :sync: linux-x86_64
 
-      .. isaaclab-torch-install:: cu128
+      .. isaaclab-torch-install:: cu130
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
       :sync: windows-x86_64
 
-      .. isaaclab-torch-install:: cu128
+      .. isaaclab-torch-install:: cu130
 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
       :sync: linux-aarch64

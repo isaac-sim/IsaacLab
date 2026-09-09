@@ -38,8 +38,8 @@ dependencies = [
     "isaaclab-visualizers",
     # ----- generic -----
     "numpy>=2",
-    "torch>=2.11",
-    "torchvision>=0.26.0",
+    "torch>=2.12",
+    "torchvision>=0.27.0",
     "torchaudio>=2.11",
     "onnx>=1.18.0",
     "prettytable>=3.3.0",
@@ -219,8 +219,8 @@ all = [
 [tool.isaaclab.versions]
 isaacsim = "6.0.1.0"
 usd_exchange = "2.3.0"
-torch = "2.11.0"
-torchvision = "0.26.0"
+torch = "2.12.0"
+torchvision = "0.27.0"
 torchaudio = "2.11.0"
 ovphysx = "0.5.11"
 ovrtx = "0.4.1.364340"
@@ -381,11 +381,6 @@ url = "https://pypi.org/simple"
 explicit = true
 
 [[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
-explicit = true
-
-[[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
@@ -415,8 +410,8 @@ override-dependencies = [
     "newton[sim]==1.6.0rc1",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.1",
-    "torch==2.11.0",
-    "torchvision==0.26.0",
+    "torch==2.12.0",
+    "torchvision==0.27.0",
     "torchaudio==2.11.0",
     # Isaac Sim 6.0 pins these exactly; drop all three once Isaac Sim 6.1 is published.
     "typing-extensions>=4.15.0",
@@ -449,18 +444,18 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-teleop" = { path = "source/isaaclab_teleop", editable = true }
 "isaaclab-visualizers" = { path = "source/isaaclab_visualizers", editable = true }
 torch = [
-    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'win32'" },
     { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
 ]
 torchaudio = [
-    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'win32'" },
     { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
 ]
 torchvision = [
-    { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
-    { index = "pytorch-cu128", marker = "sys_platform == 'win32'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'win32'" },
     { index = "pytorch-cu130", marker = "sys_platform == 'linux' and platform_machine == 'aarch64'" },
 ]
 

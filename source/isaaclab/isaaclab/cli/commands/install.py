@@ -302,10 +302,7 @@ def _ensure_cuda_torch() -> None:
     torch_ver = _pinned_version("torch")
     tv_ver = _pinned_version("torchvision")
 
-    if is_arm():
-        cuda_ver = "130"
-    else:
-        cuda_ver = "128"
+    cuda_ver = "130"
 
     cuda_tag = f"cu{cuda_ver}"
     index_url = f"{base_index}/{cuda_tag}"
