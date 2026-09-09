@@ -85,13 +85,13 @@ This page covers:
    </div>
    <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
      <div class="viz-hero-wrap viz-crop-newton-rtx">
-       <video autoplay loop muted playsinline preload="auto">
+       <video autoplay loop muted playsinline preload="auto" class="viz-hero-speedup">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_rtx.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Newton RTX</div>
      </div>
      <div class="viz-hero-wrap viz-crop-kit">
-       <video autoplay loop muted playsinline preload="auto" class="viz-crop-x8">
+       <video autoplay loop muted playsinline preload="auto" class="viz-crop-x8 viz-hero-speedup">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_kit.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Kit</div>
@@ -104,6 +104,17 @@ This page covers:
      </div>
    </div>
    </div>
+
+   <script>
+   // Kit/Newton RTX's clips are encoded 10% slower than the other 3 (see _hero_record_visualizer
+   // in tools/docs/media/visualizers/capture_visualizer.py) and loop independently, so without
+   // compensation they drift out of rotational phase with Newton GL/Viser/Rerun as each clip
+   // loops. Playing them back at 1/0.9 undoes that baked-in slowdown so all 5 finish a loop
+   // (and stay in phase) at the same wall-clock rate.
+   document.querySelectorAll(".viz-hero-speedup").forEach(function (v) {
+     v.playbackRate = 1 / 0.9;
+   });
+   </script>
 
    <p class="viz-cap">Note: Newton RTX has no velocity arrows, since it doesn't yet support visualization markers.</p>
 
