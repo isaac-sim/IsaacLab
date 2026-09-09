@@ -1,3 +1,5 @@
+:orphan:
+
 Transfer Policies Between PhysX and Newton
 ===========================================
 
@@ -8,7 +10,7 @@ Transfer Policies Between PhysX and Newton
    (`skill source
    <../../../skills/user/isaaclab-transferring-policies-sim-to-sim/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
    First make every robot and object MJWarp-clean by following
    :doc:`/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton`

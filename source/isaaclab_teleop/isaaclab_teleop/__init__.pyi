@@ -27,6 +27,7 @@ __all__ = [
     "XrCfg",
     "create_haptic_feedback_driver",
     "check_system_requirements",
+    "cloudxr_eula_accepted",
     "create_isaac_teleop_device",
     "poll_control_events",
     "remove_camera_configs",
@@ -51,6 +52,7 @@ from .isaac_teleop_cfg import (
     XrCameraFeedLayoutCfg,
 )
 from .isaac_teleop_device import IsaacTeleopDevice, create_isaac_teleop_device
+from .session_lifecycle import cloudxr_eula_accepted
 from .system_check import SystemCheckItem, SystemCheckResult, check_system_requirements
 from .xr_anchor_utils import XrAnchorSynchronizer
 from .xr_cfg import XrAnchorRotationMode, XrCfg, remove_camera_configs
