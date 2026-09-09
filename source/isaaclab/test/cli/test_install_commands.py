@@ -424,7 +424,7 @@ class TestEnsureCudaTorch:
     """Tests for :func:`_ensure_cuda_torch` across architectures and environment types.
 
     Combinations tested:
-    - Architecture:  x86 vs ARM (both cu130)
+    - Architecture:  x86 (cu126) vs ARM (cu130)
     - Pip command:   ``python -m pip`` (venv/conda/kit) vs ``uv pip`` (uv venv)
     - Torch state:   already installed at correct version; wrong CUDA tag; not installed
     """
@@ -432,10 +432,10 @@ class TestEnsureCudaTorch:
     # ---- x86 scenarios -------------------------------------------------------
 
     def test_x86_skips_install_when_correct_version_present(self, tmp_path):
-        """x86: torch 2.12.0+cu130 already installed → pip install is not called."""
+        """x86: torch 2.12.0+cu126 already installed → pip install is not called."""
         py = str(tmp_path / "python")
         pip_cmd = [py, "-m", "pip"]
-        pip_show_out = "Name: torch\nVersion: 2.12.0+cu130\n"
+        pip_show_out = "Name: torch\nVersion: 2.12.0+cu126\n"
 
         with (
             mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
@@ -449,8 +449,8 @@ class TestEnsureCudaTorch:
         assert mock_run.call_count == 1
         assert "show" in mock_run.call_args[0][0]
 
-    def test_x86_installs_cu130_when_torch_missing(self, tmp_path):
-        """x86: no torch installed → installs torch+cu130 from pytorch.org/whl/cu130."""
+    def test_x86_installs_cu126_when_torch_missing(self, tmp_path):
+        """x86: no torch installed → installs torch+cu126 from pytorch.org/whl/cu126."""
         py = str(tmp_path / "python")
         pip_cmd = [py, "-m", "pip"]
         calls: list[list[str]] = []
@@ -469,18 +469,18 @@ class TestEnsureCudaTorch:
 
         install_cmds = [c for c in calls if "install" in c]
         combined = " ".join(str(t) for c in install_cmds for t in c)
-        assert "cu130" in combined
+        assert "cu126" in combined
         assert "torch" in combined
 
     def test_x86_reinstalls_when_wrong_cuda_tag(self, tmp_path):
-        """x86: torch+cu128 installed → uninstalls and reinstalls as cu130."""
+        """x86: torch+cu130 installed → uninstalls and reinstalls as cu126."""
         py = str(tmp_path / "python")
         pip_cmd = [py, "-m", "pip"]
         calls: list[list[str]] = []
 
         def _run(cmd, **kwargs):
             calls.append(list(cmd))
-            stdout = "Name: torch\nVersion: 2.11.0+cu128\n" if "show" in cmd else ""
+            stdout = "Name: torch\nVersion: 2.12.0+cu130\n" if "show" in cmd else ""
             return _cp(0, stdout)
 
         with (
@@ -494,7 +494,7 @@ class TestEnsureCudaTorch:
         assert any("uninstall" in c for c in calls), "Expected an uninstall call"
         install_cmds = [c for c in calls if "install" in c]
         combined = " ".join(str(t) for c in install_cmds for t in c)
-        assert "cu130" in combined
+        assert "cu126" in combined
 
     # ---- ARM scenarios -------------------------------------------------------
 
@@ -537,14 +537,14 @@ class TestEnsureCudaTorch:
         assert mock_run.call_count == 1
 
     def test_arm_reinstalls_when_wrong_cuda_tag(self, tmp_path):
-        """ARM: torch+cu128 installed (x86 build) → uninstalls and reinstalls as cu130."""
+        """ARM: torch+cu126 installed (x86 build) → uninstalls and reinstalls as cu130."""
         py = str(tmp_path / "python")
         pip_cmd = [py, "-m", "pip"]
         calls: list[list[str]] = []
 
         def _run(cmd, **kwargs):
             calls.append(list(cmd))
-            stdout = "Name: torch\nVersion: 2.11.0+cu128\n" if "show" in cmd else ""
+            stdout = "Name: torch\nVersion: 2.12.0+cu126\n" if "show" in cmd else ""
             return _cp(0, stdout)
 
         with (
@@ -737,7 +737,7 @@ class TestRePointPrebundlePackages:
     def test_local_build_repoints_nvidia_when_cudnn_present_venv(self, tmp_path):
         """Local build + CUDA-capable venv: site-packages/nvidia has cudnn → nvidia IS repointed.
 
-        This covers the conda or pip venv case where the user installed torch+cu128/cu130
+        This covers the conda or pip venv case where the user installed torch+cu126/cu130
         with its nvidia-cudnn-cu12 dependency, giving site-packages/nvidia/cudnn/.
         """
         isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["nvidia"])
