@@ -11,6 +11,8 @@ from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverse
 from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKJointLimitObjectiveCfg, NewtonIKPoseObjectiveCfg
 from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 from isaaclab_newton.physics import NewtonCfg
+from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
@@ -20,6 +22,7 @@ from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.utils import configclass
+from isaaclab.sim.schemas import UsdPhysicsCollisionCfg
 
 from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
 from isaaclab_tasks.utils import PresetCfg, preset
@@ -100,7 +103,25 @@ class FrankaReachEnvCfg(ReachEnvCfg):
 
         # switch robot to franka
         self.scene.robot = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.spawn.rigid_props.disable_gravity = preset(default=False, diffik_abs=True)
+        # IK targets need backend-native gravity control to hold steady between commands.
+        self.scene.robot.spawn.rigid_props = [
+            PhysxRigidBodyCfg(
+                disable_gravity=preset(default=False, diffik=True, diffik_abs=True, newton_ik=True),
+                max_depenetration_velocity=5.0,
+            ),
+            MujocoRigidBodyCfg(gravcomp=preset(default=None, diffik=1.0, diffik_abs=1.0, newton_ik=1.0)),
+        ]
+        # The Menagerie asset ships its designated convex link-collision meshes disabled.
+        physx_collision_props = {"/Geometry/.*_c.*": [UsdPhysicsCollisionCfg(collision_enabled=True)]}
+        self.scene.robot.spawn.make_uninstanceable = preset(
+            default=False, isaacsim_physx=True, physx=True, ovphysx=True
+        )
+        self.scene.robot.spawn.collision_props = preset(
+            default=None,
+            isaacsim_physx=physx_collision_props,
+            physx=physx_collision_props,
+            ovphysx=physx_collision_props,
+        )
         # override rewards
         self.rewards.end_effector_position_tracking.params["asset_cfg"].body_names = ["panda_hand"]
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"].body_names = ["panda_hand"]

@@ -35,10 +35,12 @@ gym.register(
     {% else %}
       {% set agent_config = ":" ~ rl_library.name ~ "_" ~ algorithm ~ "_cfg.yaml" %}
     {% endif %}
-    {# library configuration #}
-    {% if algorithm == "ppo" %}
+    {# canonical library configuration #}
+    {% if algorithm == rl_library.canonical_algorithm %}
         "{{ rl_library.name }}_cfg_entry_point": f"{agents.__name__}{{ agent_config }}",
-    {% else %}
+    {% endif %}
+    {# explicit non-PPO algorithm configuration #}
+    {% if algorithm != "ppo" %}
         "{{ rl_library.name }}_{{ algorithm }}_cfg_entry_point": f"{agents.__name__}{{ agent_config }}",
     {% endif %}
   {% endfor %}

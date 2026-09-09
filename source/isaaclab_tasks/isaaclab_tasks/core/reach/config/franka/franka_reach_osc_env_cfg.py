@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
 from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.controllers.operational_space_cfg import OperationalSpaceControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import OperationalSpaceControllerActionCfg
@@ -25,7 +28,11 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
             stiffness=0.0,
             damping=0.0,
         )
-        self.scene.robot.spawn.rigid_props.disable_gravity = True
+        for rigid_props in self.scene.robot.spawn.rigid_props:
+            if isinstance(rigid_props, PhysxRigidBodyCfg):
+                rigid_props.disable_gravity = True
+            elif isinstance(rigid_props, MujocoRigidBodyCfg):
+                rigid_props.gravcomp = 1.0
 
         # If closed-loop contact force control is desired, contact sensors should be enabled for the robot
         # self.scene.robot.spawn.activate_contact_sensors = True

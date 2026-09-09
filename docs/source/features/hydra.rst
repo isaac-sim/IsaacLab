@@ -386,7 +386,7 @@ instances:
         depth: list = ["depth"]
         albedo: list = ["albedo"]
 
-Use ``preset()`` when the definition fits on a single line.  Use a
+Use ``preset()`` when the definition fits on a single line. Use a
 ``PresetCfg`` subclass when the options are verbose enough to benefit from
 type annotations and multiline formatting.
 
@@ -475,9 +475,13 @@ and ``renderer=rtx`` are opt-in, not universal defaults.
 
 Domain presets (observation modes, camera configurations, etc.) are task-specific.
 Pass ``--task=<task-name> --help`` to a training command to see all presets available
-for that task, grouped by selector type. Reinforcement-learning commands also list
-the registered ``--agent`` values for the selected library. When a task declares
-preset-to-agent compatibility, the compatible presets appear beneath each agent:
+for that task, grouped by selector type.
+
+For reinforcement-learning tasks, preset resolution composes the registered
+environment and agent configurations as sibling roots. A library's canonical
+``<library>_cfg_entry_point`` may therefore return a root-level ``PresetCfg`` with
+the same alternative names as the environment. A broadcast such as
+``presets=resnet18`` selects ``resnet18`` in both roots in one resolution pass:
 
 .. tab-set::
 
@@ -486,18 +490,29 @@ preset-to-agent compatibility, the compatible presets appear beneath each agent:
       .. code-block:: bash
 
           uv run isaaclab train --rl_library rsl_rl \
-               --task Isaac-Cartpole-Camera --help
+               --task Isaac-Cartpole-Camera presets=resnet18
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
           ./isaaclab.sh train --rl_library rsl_rl \
-               --task Isaac-Cartpole-Camera --help
+               --task Isaac-Cartpole-Camera presets=resnet18
 
-Preset and agent selection are otherwise independent. A task may use an alternate
-agent for symmetry, recurrence, or another algorithm without changing its environment
-preset.
+This is the preferred way to keep an environment-coupled policy shape, such as a
+feature extractor or action-space head, aligned with the selected environment. It
+does not require a preset-specific registry entry or rewrite ``--agent``.
+
+Independent training recipes remain explicit agent choices. A task may select an
+alternate agent for symmetry, recurrence, distillation, or another algorithm
+without changing its environment preset.
+
+Preset-specific agent entry points and registry-side preset-to-agent maps are not
+part of this model. Use the canonical entry point and select its variant with
+``presets=``. For older SKRL runs whose manifest or directory encoded a
+configuration-key suffix instead of ``agent.class`` as the algorithm, pass the
+checkpoint path explicitly instead of using automatic ``latest`` or ``best``
+discovery.
 
 .. note::
 
