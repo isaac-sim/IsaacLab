@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.17.2 (2026-09-09)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added policy frequency metadata to LEAPP export artifacts for all supported RL libraries.
+
+
 0.17.1 (2026-09-08)
 ~~~~~~~~~~~~~~~~~~~
 
