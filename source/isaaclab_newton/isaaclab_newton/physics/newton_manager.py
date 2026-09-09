@@ -3043,9 +3043,12 @@ class NewtonManager(PhysicsManager):
             # when the sim device changed (e.g. a --device cpu run following a --device cuda run
             # within the same process): scene_data_provider.get_transforms launches its conversion
             # kernel on scene_data_provider.device, which must match this mapping's own device.
+            # Compared as resolved wp.Device objects, not raw strings: PhysicsManager._device may
+            # be the unqualified "cuda" while the mapping's own device always reports as "cuda:0",
+            # which would otherwise always mismatch and defeat the cache every call.
             if cls._scene_data_mapping is not None and (
                 cls._scene_data_mapping.shape[0] != cls._model.body_count
-                or str(cls._scene_data_mapping.device) != str(PhysicsManager._device)
+                or cls._scene_data_mapping.device != wp.get_device(PhysicsManager._device)
             ):
                 cls._scene_data_mapping = None
 
