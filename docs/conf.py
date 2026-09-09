@@ -330,10 +330,12 @@ html_css_files = [
     "css/custom.css",
     "css/environment-browser.css",
     "css/demo-browser.css",
+    "css/guide-browser.css",
 ]
 html_js_files = [
     "css/environment-browser.js",
     "css/demo-browser.js",
+    "css/guide-browser.js",
 ]
 
 html_theme_options = {

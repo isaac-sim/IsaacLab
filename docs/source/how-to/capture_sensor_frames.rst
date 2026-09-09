@@ -1,3 +1,5 @@
+:orphan:
+
 .. _how-to-capture-sensor-frames:
 
 Capturing sensor frames during training
