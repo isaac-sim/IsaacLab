@@ -107,7 +107,6 @@ def test_camera_pose_write_moves_reported_pose_and_render(physics_cfg):
     close_m, far_m = 2.0, 8.0
     # True far-to-close depth ratio is ~4x; 1.5 tolerates framing differences but not a frozen render.
     depth_ratio_threshold = 1.5
-
     (pos_close, depth_close_m), (pos_far, depth_far_m) = _capture_at_heights(physics_cfg, (close_m, far_m))
 
     np.testing.assert_allclose(pos_close.numpy(), [[0.0, 0.0, close_m]], atol=1e-3)
