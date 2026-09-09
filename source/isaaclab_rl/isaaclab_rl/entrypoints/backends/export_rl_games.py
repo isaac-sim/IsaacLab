@@ -30,7 +30,6 @@ from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
 
 from isaaclab.app import launch_simulation
-from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnv, multi_agent_to_single_agent
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.leapp import patch_env_for_export
 from isaaclab.utils.leapp.utils import ensure_env_spec_id
@@ -102,6 +101,9 @@ def export_rl_games_agent(
     simulation_app=None,
 ) -> bool:
     """Export an RL-Games agent."""
+    # Concrete environment classes load simulation modules, so import them
+    # only after launch_simulation has initialized the selected backend.
+    from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnv, multi_agent_to_single_agent
 
     task_name = args_cli.task.split(":")[-1]
     checkpoint_task_name = task_name.replace("-Play", "")

@@ -14,7 +14,6 @@ from pathlib import Path
 import torch
 
 from isaaclab.app import AppLauncher
-from isaaclab.envs import LeappDeploymentEnv
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import resolve_task_config
@@ -48,6 +47,10 @@ def command_deploy_leapp(argv: list[str] | None = None) -> int:
     env = None
     try:
         simulation_app = AppLauncher(args_cli).app
+
+        # Runtime environment classes load simulation modules and must only be
+        # imported after SimulationApp has initialized Kit.
+        from isaaclab.envs import LeappDeploymentEnv
 
         task_name = args_cli.task.split(":")[-1]
         env_cfg, _ = resolve_task_config(task_name, "")

@@ -29,7 +29,6 @@ import skrl
 from skrl.utils.runner.torch import Runner
 
 from isaaclab.app import launch_simulation
-from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnv, multi_agent_to_single_agent
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.leapp import patch_env_for_export
 from isaaclab.utils.leapp.utils import ensure_env_spec_id
@@ -116,6 +115,10 @@ def export_skrl_agent(
     simulation_app=None,
 ) -> bool:
     """Export a skrl agent."""
+    # Concrete environment classes load simulation modules, so import them
+    # only after launch_simulation has initialized the selected backend.
+    from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnv, multi_agent_to_single_agent
+
     if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
         skrl.logger.error(
             f"Unsupported skrl version: {skrl.__version__}. "

@@ -31,7 +31,6 @@ from packaging import version
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.app import launch_simulation
-from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.leapp import patch_env_for_export
 from isaaclab.utils.leapp.utils import ensure_env_spec_id
@@ -154,6 +153,10 @@ def export_rsl_rl_agent(
     simulation_app=None,
 ) -> bool:
     """Export a RSL-RL agent."""
+    # Concrete environment classes load simulation modules, so import them
+    # only after launch_simulation has initialized the selected backend.
+    from isaaclab.envs import ManagerBasedRLEnv
+
     installed_version = metadata.version("rsl-rl-lib")
     if version.parse(installed_version) < version.parse(RSL_RL_MIN_VERSION):
         print(

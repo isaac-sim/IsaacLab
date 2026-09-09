@@ -61,8 +61,8 @@ Select extras the same way as ``isaaclab train``: add ``--extra leapp`` on every
 integration available; ``physics=...`` selects it for the task:
 
 - **Newton** (kitless): ``--extra leapp`` (no Isaac Sim extra)
-- **OV PhysX**: ``--extra ovphysx,leapp`` with ``physics=ovphysx``
-- **Isaac Sim PhysX**: ``--extra isaacsim,leapp`` with ``physics=isaacsim_physx``
+- **OV PhysX**: ``--extra ovphysx --extra leapp`` with ``physics=ovphysx``
+- **Isaac Sim PhysX**: ``--extra isaacsim --extra leapp`` with ``physics=isaacsim_physx``
 
 See :ref:`uv-run-training` and :ref:`installation-optional-extras` for the full
 extras model used by training and play.
@@ -144,11 +144,11 @@ Kit launches in non-interactive shells, set the EULA variables so startup does n
                    --task <TASK_NAME> physics=newton_mjwarp
 
                # OV PhysX backend
-               uv run --extra ovphysx,leapp isaaclab leapp export --rl_library <rl_library> \
+               uv run --extra ovphysx --extra leapp isaaclab leapp export --rl_library <rl_library> \
                    --task <TASK_NAME> physics=ovphysx
 
                # Isaac Sim PhysX backend
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim,leapp isaaclab leapp export \
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim --extra leapp isaaclab leapp export \
                    --rl_library <rl_library> \
                    --task <TASK_NAME> physics=isaacsim_physx
 
@@ -182,13 +182,13 @@ Kit launches in non-interactive shells, set the EULA variables so startup does n
                    --task <TASK_NAME> physics=newton_mjwarp
 
                :: OV PhysX backend
-               uv run --extra ovphysx,leapp isaaclab leapp export --rl_library <rl_library> ^
+               uv run --extra ovphysx --extra leapp isaaclab leapp export --rl_library <rl_library> ^
                    --task <TASK_NAME> physics=ovphysx
 
                :: Isaac Sim PhysX backend
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
-               uv run --extra isaacsim,leapp isaaclab leapp export --rl_library <rl_library> ^
+               uv run --extra isaacsim --extra leapp isaaclab leapp export --rl_library <rl_library> ^
                    --task <TASK_NAME> physics=isaacsim_physx
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
@@ -228,7 +228,7 @@ For example, to export a Humanoid policy trained with RSL-RL on Isaac Sim PhysX:
 
             .. code-block:: bash
 
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim,leapp isaaclab leapp export \
+               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim --extra leapp isaaclab leapp export \
                    --rl_library rsl_rl \
                    --task Isaac-Humanoid physics=isaacsim_physx
 
@@ -250,7 +250,7 @@ For example, to export a Humanoid policy trained with RSL-RL on Isaac Sim PhysX:
 
                set OMNI_KIT_ACCEPT_EULA=Y
                set ACCEPT_EULA=Y
-               uv run --extra isaacsim,leapp isaaclab leapp export --rl_library rsl_rl ^
+               uv run --extra isaacsim --extra leapp isaaclab leapp export --rl_library rsl_rl ^
                    --task Isaac-Humanoid physics=isaacsim_physx
 
          .. tab-item:: isaaclab.sh / isaaclab.bat

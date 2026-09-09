@@ -29,7 +29,6 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.save_util import load_from_pkl, load_from_zip_file
 
 from isaaclab.app import launch_simulation
-from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.leapp import patch_env_for_export
 from isaaclab.utils.leapp.utils import ensure_env_spec_id
@@ -202,6 +201,9 @@ def export_sb3_agent(
     simulation_app=None,
 ) -> bool:
     """Export a Stable-Baselines3 policy."""
+    # Concrete environment classes load simulation modules, so import them
+    # only after launch_simulation has initialized the selected backend.
+    from isaaclab.envs import ManagerBasedRLEnv
 
     task_name = args_cli.task.split(":")[-1]
     checkpoint_task_name = task_name.replace("-Play", "")
