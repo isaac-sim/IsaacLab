@@ -35,17 +35,17 @@ This page covers:
    /* Per-tile crop windows, sized and positioned from the source clips so the robot renders at
       the same size and position across all 5 hero tiles. object-position stays centered; each
       video's own (taller) height sets the zoom and its negative margin-top picks which slice
-      of the 265px-tall wrap is shown. Newton RTX/Rerun/Kit/Viser are pinned against their clip's
-      frame edge or UI chrome, so they're a few percent larger than a plain center crop; Newton
-      GL was shrunk to match. Viser's clip also shows a sliver of a baked-in info panel at this
-      zoom level -- a known trade-off. */
+      of the 265px-tall wrap is shown. Newton GL's crop is baked into the clip itself (see
+      _main_hero() in tools/docs/media/visualizers/capture_visualizer.py), so it needs no extra
+      crop here; Kit/Newton RTX have clean captures and are shown uncropped (full native
+      960x580). Rerun and Viser each bake in their own UI chrome (a "3D View"/physics-backend
+      bar for Rerun, an info panel for Viser) that the crop has to clear, which caps how far they
+      can zoom out -- Viser in particular still shows a sliver of its panel at this zoom level, a
+      known trade-off. */
    .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:265px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:425px; margin-top:-97px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:288px; margin-top:-23px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-rtx video { height:282px; margin-top:-17px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:303px; margin-top:-27px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-kit video { height:289px; margin-top:-24px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; height:265px; margin-top:0; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:300px; margin-top:-35px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:288px; margin-top:-12px; }
    .viz-grid-record { justify-content:center; align-items:flex-start; }
    .viz-grid-record > div { flex:0 0 auto; }
    .viz-grid-record video { display:block; width:auto; height:300px; }
