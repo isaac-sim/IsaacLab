@@ -15,6 +15,8 @@ Kit is never actually started here: availability and ``AppLauncher`` are faked, 
 """
 
 import argparse
+import sys
+import types
 
 import pytest
 
@@ -101,11 +103,7 @@ def test_require_kit_rejects_ovrtx_runtime(monkeypatch: pytest.MonkeyPatch):
     config_scan = sim_launcher.Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
-        visualizer_intent={
-            "has_any_visualizers": False,
-            "has_kit_visualizer": False,
-            "has_newton_rtx_visualizer": False,
-        },
+        visualizer_intent={"has_any_visualizers": False, "has_kit_visualizer": False},
         has_ovrtx=True,
         has_kit_camera=False,
         has_kit_physics=False,
@@ -115,9 +113,39 @@ def test_require_kit_rejects_ovrtx_runtime(monkeypatch: pytest.MonkeyPatch):
     )
     monkeypatch.setattr(sim_launcher, "scan", lambda _cfg, _launcher_args: config_scan)
 
-    with pytest.raises(ValueError, match="OVRTX renderer"):
+    with pytest.raises(ValueError, match="OVRTX runtime"):
         with launch_simulation(cfg=object(), launcher_args={"require_kit": True}):
             pass
+
+
+def test_newton_rtx_rejects_kit_before_loading_ovrtx(monkeypatch: pytest.MonkeyPatch):
+    calls = []
+    monkeypatch.setitem(
+        sys.modules, "ovrtx", types.SimpleNamespace(register_schema_paths=lambda: calls.append("register"))
+    )
+
+    with pytest.raises(ValueError, match="OVRTX runtime"):
+        with launch_simulation(sim_launcher.PhysxCfg(), {"visualizer": ["newton_rtx"]}):
+            pass
+
+    assert calls == []
+
+
+def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatch):
+    calls = []
+    monkeypatch.setitem(
+        sys.modules, "ovrtx", types.SimpleNamespace(register_schema_paths=lambda: calls.append("register"))
+    )
+    monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: calls.append("storage"))
+    cfg = argparse.Namespace(
+        physics=sim_launcher.NewtonCfg(),
+        visualizer_cfgs=argparse.Namespace(visualizer_type="newton_rtx"),
+    )
+
+    with launch_simulation(cfg):
+        calls.append("user")
+
+    assert calls == ["register", "storage", "user"]
 
 
 def test_require_kit_false_does_not_suppress_a_kit_config(kit_branch_taken):

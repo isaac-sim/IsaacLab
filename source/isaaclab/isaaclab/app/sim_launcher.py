@@ -24,7 +24,7 @@ from typing import Any
 
 from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_ov.renderers import OVRTXRendererCfg, prepare_ovrtx_runtime
+from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
@@ -193,12 +193,7 @@ def _get_visualizer_intent(cfg) -> dict[str, bool]:
     sim = getattr(cfg, "sim", None)
     visualizer_cfgs = getattr(sim, "visualizer_cfgs", None) or getattr(cfg, "visualizer_cfgs", None)
     if visualizer_cfgs is None:
-        return {
-            "has_any_visualizers": False,
-            "has_kit_visualizer": False,
-            "has_kit_streaming_view": False,
-            "has_newton_rtx_visualizer": False,
-        }
+        return {"has_any_visualizers": False, "has_kit_visualizer": False, "has_kit_streaming_view": False}
     cfgs = visualizer_cfgs if isinstance(visualizer_cfgs, list) else [visualizer_cfgs]
     cfgs = [c for c in cfgs if c is not None]
     return {
@@ -207,7 +202,6 @@ def _get_visualizer_intent(cfg) -> dict[str, bool]:
         "has_kit_streaming_view": any(
             getattr(c, "visualizer_type", None) == "kit" and bool(getattr(c, "streaming_view", False)) for c in cfgs
         ),
-        "has_newton_rtx_visualizer": any(getattr(c, "visualizer_type", None) == "newton_rtx" for c in cfgs),
     }
 
 
@@ -270,7 +264,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     physics_cfgs: list[PhysicsCfg] = []
     concrete_physics_cfgs: list[PhysicsCfg] = []
     effective_cfg: Any = cfg
-    has_ovrtx = False
+    has_ovrtx = "newton_rtx" in _get_visualizer_types(launcher_args)
     has_auto_rtx = False
     has_auto_physx = False
     has_kit_camera = False
@@ -302,7 +296,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
                 return
             else:
                 concrete_physics_cfgs.append(node)
-        elif _is_ovrtx_renderer(node):
+        elif _is_ovrtx_renderer(node) or getattr(node, "visualizer_type", None) == "newton_rtx":
             has_ovrtx = True
         elif _is_kit_camera(node):
             has_kit_camera = True
@@ -384,12 +378,6 @@ def _has_kit_visualizer(config_scan: Scan, launcher_args: argparse.Namespace | d
     return "kit" in visualizer_types or config_scan.visualizer_intent["has_kit_visualizer"]
 
 
-def _has_newton_rtx_visualizer(config_scan: Scan, launcher_args: argparse.Namespace | dict | None) -> bool:
-    """Return whether the run requests the ``newton_rtx`` visualizer through config or CLI."""
-    visualizer_types = _get_visualizer_types(launcher_args)
-    return "newton_rtx" in visualizer_types or config_scan.visualizer_intent["has_newton_rtx_visualizer"]
-
-
 def _get_kit_runtime_sources(config_scan: Scan, launcher_args: argparse.Namespace | dict | None) -> tuple[str, ...]:
     """Return the config and launcher components that require Isaac Sim / Kit."""
     kit_sources = []
@@ -444,16 +432,11 @@ def _validate_runtime(scan: Scan, kit_sources: tuple[str, ...]) -> None:
         return
 
     raise ValueError(
-        "Invalid backend combination: the OVRTX renderer (`OVRTXRendererCfg`,"
-        ' `renderer_type="ovrtx"`) is a kitless renderer and cannot be used together'
+        "Invalid backend combination: the OVRTX runtime (`OVRTXRendererCfg` or the"
+        " `newton_rtx` visualizer) cannot be used together"
         f" with Isaac Sim / Kit ({_format_runtime_sources(kit_sources)}).\n"
         "\n"
-        "To fix this, pick one of the following supported combinations:\n"
-        "  * Keep Isaac Sim / Kit and switch the renderer:\n"
-        "      use `IsaacRtxRendererCfg`, the Kit-compatible renderer\n"
-        "  * Keep the OVRTX renderer and switch to a kitless physics backend\n"
-        "    (and avoid `--visualizer kit`):\n"
-        "      use `NewtonCfg` or `OvPhysxCfg` with `OVRTXRendererCfg`\n"
+        "Keep Kit and use Kit-compatible rendering, or keep OVRTX and remove every Kit source.\n"
     )
 
 
@@ -529,15 +512,13 @@ def launch_simulation(
     physics_cfg = config_scan.resolved_physics_cfg
     visualizer_types = _get_visualizer_types(launcher_args)
 
-    if _has_newton_rtx_visualizer(config_scan, launcher_args):
-        # Register ovrtx's USD schema paths before a physics backend (e.g. ovphysx) can touch
-        # `pxr` and trigger its one-shot plug-registry init; otherwise ovrtx's later `import ovrtx`
-        # is too late and logs benign "FindAppliedAPIPrimDefinition(...) returned nothing" errors.
-        # Unguarded: this module already requires isaaclab_ov at import time (above).
-        prepare_ovrtx_runtime()
-
     kit_sources = _get_kit_runtime_sources(config_scan, launcher_args)
     _validate_runtime(config_scan, kit_sources)
+    if config_scan.has_ovrtx:
+        # USD discovers schema plugins once, so load OVRTX only after rejecting incompatible Kit runtimes.
+        import ovrtx
+
+        ovrtx.register_schema_paths()
     needs_kit = bool(kit_sources)
     _set_arg(launcher_args, "visualizer_intent", config_scan.visualizer_intent)
 

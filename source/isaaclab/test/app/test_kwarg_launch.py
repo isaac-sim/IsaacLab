@@ -59,11 +59,7 @@ def test_explicit_experience_requires_isaac_sim_runtime():
     scan = Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
-        visualizer_intent={
-            "has_any_visualizers": False,
-            "has_kit_visualizer": False,
-            "has_newton_rtx_visualizer": False,
-        },
+        visualizer_intent={"has_any_visualizers": False, "has_kit_visualizer": False},
         has_ovrtx=False,
         has_kit_camera=False,
         has_kit_physics=False,
@@ -148,11 +144,7 @@ def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.Monke
     scan = sim_launcher.Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
-        visualizer_intent={
-            "has_any_visualizers": False,
-            "has_kit_visualizer": False,
-            "has_newton_rtx_visualizer": False,
-        },
+        visualizer_intent={"has_any_visualizers": False, "has_kit_visualizer": False},
         has_ovrtx=False,
         has_kit_camera=False,
         has_kit_physics=True,
@@ -188,11 +180,7 @@ def test_launch_simulation_auto_enables_kit_camera_without_launcher_args(monkeyp
     scan = sim_launcher.Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
-        visualizer_intent={
-            "has_any_visualizers": False,
-            "has_kit_visualizer": False,
-            "has_newton_rtx_visualizer": False,
-        },
+        visualizer_intent={"has_any_visualizers": False, "has_kit_visualizer": False},
         has_ovrtx=False,
         has_kit_camera=True,
         has_kit_physics=False,
