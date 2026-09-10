@@ -36,6 +36,7 @@ from isaaclab_rl.entrypoints.common import (
     set_hydra_args,
     show_run_summary,
     startup_screen,
+    suppressed_shutdown_guard,
     validate_distributed_device,
     wrap_training_capture,
     write_run_manifest,
@@ -137,7 +138,7 @@ def _run(args_cli: argparse.Namespace) -> None:
         pre_launch_video_config(env_cfg, args_cli=args_cli)
         show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), suppressed_shutdown_guard() as stack:
             agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
             apply_env_overrides(args_cli, env_cfg)
             agent_cfg.max_iterations = (
@@ -182,67 +183,62 @@ def _run(args_cli: argparse.Namespace) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            # Register env.close() immediately once env exists, so an interrupt during
+            # checkpoint resolution or wrapper/runner setup below is handled the same way as
+            # one during runner.learn().
+            stack.callback(env.close)
 
-            # Protect everything from here on: an interrupt during checkpoint resolution,
-            # wrapper/runner setup, or training bypasses env.close() just as easily as one
-            # during runner.learn() below, if it isn't inside this try/finally too.
-            try:
-                if args_cli.checkpoint in CHECKPOINT_SELECTORS:
-                    resume_path = resolve_checkpoint_selector(
-                        log_root_path,
-                        args_cli.checkpoint,
-                        library="rsl_rl",
-                        task=args_cli.task,
-                        checkpoint_pattern=r"model_.*\.pt",
-                        metadata={"agent": args_cli.agent},
-                    )
-                elif args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
-                    resume_path = get_checkpoint_path(
-                        os.path.dirname(args_cli.checkpoint),
-                        os.path.basename(args_cli.checkpoint),
-                        agent_cfg.load_checkpoint,
-                    )
-                elif args_cli.checkpoint:
-                    resume_path = retrieve_file_path(args_cli.checkpoint)
-                elif agent_cfg.algorithm.class_name == "Distillation":
-                    raise ValueError("Distillation training requires --checkpoint.")
-
-                env = wrap_training_capture(env, log_dir, args_cli)
-
-                screen.stage("Preparing agent")
-                start_time = time.time()
-                report_activity("Wrapping environment")
-                env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
-                report_activity(None)
-
-                report_activity("Building policy")
-                if agent_cfg.class_name == "OnPolicyRunner":
-                    runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
-                elif agent_cfg.class_name == "DistillationRunner":
-                    runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
-                else:
-                    raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-                report_activity(None)
-
-                # configure_seed must run after runner construction so torch determinism does not disturb
-                # its initialization
-                if args_cli.deterministic:
-                    configure_seed(env_cfg.seed, torch_deterministic=True)
-
-                runner.add_git_repo_to_log(__file__)
-                if args_cli.checkpoint:
-                    print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-                    runner.load(resume_path)
-
-                dump_train_configs(log_dir, env_cfg, agent_cfg)
-
-                screen.close()
-                runner.learn(
-                    num_learning_iterations=agent_cfg.max_iterations,
-                    init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
+            if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+                resume_path = resolve_checkpoint_selector(
+                    log_root_path,
+                    args_cli.checkpoint,
+                    library="rsl_rl",
+                    task=args_cli.task,
+                    checkpoint_pattern=r"model_.*\.pt",
+                    metadata={"agent": args_cli.agent},
                 )
-                print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-            except KeyboardInterrupt:
-                pass
-            finally:
-                env.close()
+            elif args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
+                resume_path = get_checkpoint_path(
+                    os.path.dirname(args_cli.checkpoint),
+                    os.path.basename(args_cli.checkpoint),
+                    agent_cfg.load_checkpoint,
+                )
+            elif args_cli.checkpoint:
+                resume_path = retrieve_file_path(args_cli.checkpoint)
+            elif agent_cfg.algorithm.class_name == "Distillation":
+                raise ValueError("Distillation training requires --checkpoint.")
+
+            env = wrap_training_capture(env, log_dir, args_cli)
+
+            screen.stage("Preparing agent")
+            start_time = time.time()
+            report_activity("Wrapping environment")
+            env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+            report_activity(None)
+
+            report_activity("Building policy")
+            if agent_cfg.class_name == "OnPolicyRunner":
+                runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+            elif agent_cfg.class_name == "DistillationRunner":
+                runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+            else:
+                raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+            report_activity(None)
+
+            # configure_seed must run after runner construction so torch determinism does not disturb its initialization
+            if args_cli.deterministic:
+                configure_seed(env_cfg.seed, torch_deterministic=True)
+
+            runner.add_git_repo_to_log(__file__)
+            if args_cli.checkpoint:
+                print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+                runner.load(resume_path)
+
+            dump_train_configs(log_dir, env_cfg, agent_cfg)
+
+            screen.close()
+            runner.learn(
+                num_learning_iterations=agent_cfg.max_iterations,
+                init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
+            )
+            print(f"Training time: {round(time.time() - start_time, 2)} seconds")

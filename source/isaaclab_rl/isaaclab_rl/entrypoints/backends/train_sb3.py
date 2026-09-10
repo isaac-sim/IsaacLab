@@ -34,6 +34,7 @@ from isaaclab_rl.entrypoints.common import (
     set_hydra_args,
     show_run_summary,
     startup_screen,
+    suppressed_shutdown_guard,
     wrap_training_capture,
     write_run_manifest,
 )
@@ -107,7 +108,10 @@ def run(argv: list[str]) -> None:
         pre_launch_video_config(env_cfg, args_cli=args_cli)
         show_run_summary(screen, args_cli, env_cfg, library="sb3", action="train")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        # _cleanup_pbar (installed above) raises KeyboardInterrupt on Ctrl+C after cleaning up
+        # tqdm progress bars; suppressed_shutdown_guard() swallows it once it escapes this block,
+        # after it has already run env.close().
+        with launch_simulation(env_cfg, args_cli), suppressed_shutdown_guard() as stack:
             if args_cli.seed == -1:
                 args_cli.seed = random.randint(0, 10000)
 
@@ -149,6 +153,9 @@ def run(argv: list[str]) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            # Register env.close() immediately once env exists, so an interrupt during
+            # wrapper/agent setup below is handled the same way as one during agent.learn().
+            stack.callback(env.close)
             env = wrap_training_capture(env, log_dir, args_cli)
 
             screen.stage("Preparing agent")
@@ -218,4 +225,3 @@ def run(argv: list[str]) -> None:
                 env.save(os.path.join(log_dir, "model_vecnormalize.pkl"))
 
             print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-            env.close()

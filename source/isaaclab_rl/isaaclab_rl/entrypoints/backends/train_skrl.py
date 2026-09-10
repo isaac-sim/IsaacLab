@@ -34,6 +34,7 @@ from isaaclab_rl.entrypoints.common import (
     set_hydra_args,
     show_run_summary,
     startup_screen,
+    suppressed_shutdown_guard,
     validate_distributed_device,
     wrap_training_capture,
     write_run_manifest,
@@ -128,7 +129,7 @@ def _run(args_cli: argparse.Namespace) -> None:
         pre_launch_video_config(env_cfg, args_cli=args_cli)
         show_run_summary(screen, args_cli, env_cfg, library="skrl", action="train")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), suppressed_shutdown_guard() as stack:
             if args_cli.ml_framework.startswith("torch"):
                 from skrl.utils.runner.torch import Runner
             elif args_cli.ml_framework.startswith("jax"):
@@ -202,38 +203,34 @@ def _run(args_cli: argparse.Namespace) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
             )
-            # Protect everything from here on: an interrupt during wrapper/runner setup or
-            # training bypasses env.close() just as easily as one during runner.run() below,
-            # if it isn't inside this try/finally too.
-            try:
-                env = wrap_training_capture(env, log_dir, args_cli)
+            # Register env.close() immediately once env exists, so an interrupt during
+            # wrapper/runner setup below is handled the same way as one during runner.run().
+            stack.callback(env.close)
 
-                screen.stage("Preparing agent")
-                start_time = time.time()
-                report_activity("Wrapping environment")
-                env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
-                report_activity(None)
-                report_activity("Building policy")
-                runner = Runner(env, agent_cfg)
-                report_activity(None)
+            env = wrap_training_capture(env, log_dir, args_cli)
 
-                # configure_seed must run after Runner() so torch determinism does not disturb its initialization
-                if args_cli.deterministic:
-                    configure_seed(env_cfg.seed, torch_deterministic=True)
+            screen.stage("Preparing agent")
+            start_time = time.time()
+            report_activity("Wrapping environment")
+            env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
+            report_activity(None)
+            report_activity("Building policy")
+            runner = Runner(env, agent_cfg)
+            report_activity(None)
 
-                if resume_path:
-                    print(f"[INFO] Loading model checkpoint from: {resume_path}")
-                    runner.agent.load(resume_path)
+            # configure_seed must run after Runner() so torch determinism does not disturb its initialization
+            if args_cli.deterministic:
+                configure_seed(env_cfg.seed, torch_deterministic=True)
 
-                screen.close()
-                runner.run()
-                print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+            if resume_path:
+                print(f"[INFO] Loading model checkpoint from: {resume_path}")
+                runner.agent.load(resume_path)
 
-                total_timesteps = agent_cfg["trainer"]["timesteps"]
-                os.makedirs(os.path.join(log_dir, "checkpoints"), exist_ok=True)
-                runner.agent.write_checkpoint(timestep=total_timesteps, timesteps=total_timesteps)
-                print(f"[INFO] Saved final agent checkpoint to: {log_dir}/checkpoints")
-            except KeyboardInterrupt:
-                pass
-            finally:
-                env.close()
+            screen.close()
+            runner.run()
+            print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+
+            total_timesteps = agent_cfg["trainer"]["timesteps"]
+            os.makedirs(os.path.join(log_dir, "checkpoints"), exist_ok=True)
+            runner.agent.write_checkpoint(timestep=total_timesteps, timesteps=total_timesteps)
+            print(f"[INFO] Saved final agent checkpoint to: {log_dir}/checkpoints")

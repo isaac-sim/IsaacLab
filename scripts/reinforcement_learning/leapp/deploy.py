@@ -67,14 +67,15 @@ def main():
     print(f"[INFO]: Num envs: {env.num_envs}, decimation: {env.cfg.decimation}, step_dt: {env.step_dt:.4f}s")
 
     # ── Run loop ──────────────────────────────────────────────────
-    env.reset()
     try:
+        env.reset()
         with torch.inference_mode():
             while simulation_app.is_running():
                 env.step()
-        env.close()
     except KeyboardInterrupt:
         pass
+    finally:
+        env.close()
 
 
 if __name__ == "__main__":

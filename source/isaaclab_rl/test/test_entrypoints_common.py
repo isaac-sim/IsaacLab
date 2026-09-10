@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import argparse
+import os
+import signal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -23,9 +25,26 @@ from isaaclab_rl.entrypoints.common import (
     create_isaaclab_env,
     dispatch_library_entrypoint,
     enable_cameras_for_video,
+    flag_only_sigint,
     resolve_play_task_name,
     wrap_sensor_capture,
 )
+
+
+def test_flag_only_sigint_sets_flag_instead_of_raising() -> None:
+    """A SIGINT delivered inside the context should flip the flag, not raise."""
+    with flag_only_sigint() as is_interrupted:
+        assert not is_interrupted()
+        os.kill(os.getpid(), signal.SIGINT)
+        assert is_interrupted()
+
+
+def test_flag_only_sigint_restores_previous_handler_on_exit() -> None:
+    """The previous SIGINT handler must be back in place once the context exits."""
+    previous_handler = signal.getsignal(signal.SIGINT)
+    with flag_only_sigint():
+        assert signal.getsignal(signal.SIGINT) is not previous_handler
+    assert signal.getsignal(signal.SIGINT) is previous_handler
 
 
 class _FakeEnv(gym.Env):

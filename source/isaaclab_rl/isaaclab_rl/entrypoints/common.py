@@ -14,10 +14,11 @@ import logging
 import os
 import re
 import runpy
+import signal
 import sys
 import warnings
 from collections.abc import Callable, Iterator
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
@@ -42,6 +43,51 @@ RUN_MANIFEST_VERSION = 1
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
 logger = logging.getLogger(__name__)
 _MISSING = object()
+
+
+@contextmanager
+def flag_only_sigint() -> Iterator[Callable[[], bool]]:
+    """Swap SIGINT for a handler that only flips a flag, checked at a controlled point.
+
+    A raw SIGINT is delivered asynchronously: with multiple GUI-backed visualizers active (e.g.
+    ``--visualizer newton,kit``), it can just as easily land inside one of Kit's own internal
+    callback dispatches (its viewport/render event loop), or inside ``env.close()``'s own
+    multi-stage teardown, as inside a script's own step loop -- anywhere nothing here can catch
+    it without aborting cleanup partway through. Yields a callable reporting whether SIGINT fired
+    since entry, for callers with their own step loop to check explicitly.
+
+    Not suitable for scripts that block inside a third-party call (e.g. an RL library's own
+    training loop) they need Ctrl+C to interrupt: this handler never raises, so it cannot stop
+    that call. Use :func:`contextlib.suppress` (``KeyboardInterrupt``) around those instead.
+    """
+    interrupted = False
+
+    def _on_sigint(signum, frame):
+        nonlocal interrupted
+        interrupted = True
+
+    previous_handler = signal.signal(signal.SIGINT, _on_sigint)
+    try:
+        yield lambda: interrupted
+    finally:
+        signal.signal(signal.SIGINT, previous_handler)
+
+
+@contextmanager
+def suppressed_shutdown_guard() -> Iterator[ExitStack]:
+    """Guarantee registered cleanup runs, then silently swallow ``KeyboardInterrupt``.
+
+    Yields an :class:`~contextlib.ExitStack`: register ``env.close`` on it (via
+    ``stack.callback(env.close)``) immediately once ``env`` exists, so a ``KeyboardInterrupt``
+    raised anywhere afterward -- during setup, a script's own step loop, or a third-party call
+    (e.g. an RL library's own training loop) that needs a raw interrupt to stop it -- still runs
+    cleanup before this context silently swallows the exception, instead of bypassing cleanup or
+    letting a traceback escape to the terminal. Ordering matters: ``ExitStack`` must be nested
+    inside ``suppress`` so cleanup runs while the exception is still live, before it is
+    discarded.
+    """
+    with suppress(KeyboardInterrupt), ExitStack() as stack:
+        yield stack
 
 
 @contextmanager

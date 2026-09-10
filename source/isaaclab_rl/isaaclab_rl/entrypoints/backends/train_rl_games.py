@@ -34,6 +34,7 @@ from isaaclab_rl.entrypoints.common import (
     set_hydra_args,
     show_run_summary,
     startup_screen,
+    suppressed_shutdown_guard,
     validate_distributed_device,
     wrap_training_capture,
     write_run_manifest,
@@ -99,7 +100,7 @@ def run(argv: list[str]) -> None:
         pre_launch_video_config(env_cfg, args_cli=args_cli)
         show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="train")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), suppressed_shutdown_guard() as stack:
             apply_env_overrides(args_cli, env_cfg)
             validate_distributed_device(args_cli)
 
@@ -184,68 +185,64 @@ def run(argv: list[str]) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
-            # Protect everything from here on: an interrupt during wrapper/runner setup or
-            # training bypasses env.close() just as easily as one during runner.run() below,
-            # if it isn't inside this try/finally too.
-            try:
-                env = wrap_training_capture(env, run_log_dir, args_cli)
+            # Register env.close() immediately once env exists, so an interrupt during
+            # wrapper/runner setup below is handled the same way as one during runner.run().
+            stack.callback(env.close)
 
-                screen.stage("Preparing agent")
-                start_time = time.time()
-                report_activity("Wrapping environment")
-                env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
-                report_activity(None)
+            env = wrap_training_capture(env, run_log_dir, args_cli)
 
-                vecenv.register(
-                    "IsaacRlgWrapper",
-                    lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
+            screen.stage("Preparing agent")
+            start_time = time.time()
+            report_activity("Wrapping environment")
+            env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
+            report_activity(None)
+
+            vecenv.register(
+                "IsaacRlgWrapper",
+                lambda config_name, num_actors, **kwargs: RlGamesGpuEnv(config_name, num_actors, **kwargs),
+            )
+            env_configurations.register(
+                "rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env}
+            )
+
+            agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
+
+            report_activity("Building policy")
+            if "pbt" in agent_cfg and agent_cfg["pbt"]["enabled"]:
+                observers = MultiObserver([IsaacAlgoObserver(), PbtAlgoObserver(agent_cfg, args_cli)])
+                runner = Runner(observers)
+            else:
+                runner = Runner(IsaacAlgoObserver())
+            report_activity(None)
+
+            # configure_seed must run after Runner() so torch determinism does not disturb its initialization
+            if args_cli.deterministic:
+                configure_seed(env_cfg.seed, torch_deterministic=True)
+
+            runner.load(agent_cfg)
+            runner.reset()
+
+            global_rank = int(os.getenv("RANK", "0"))
+            if args_cli.track and global_rank == 0:
+                if args_cli.wandb_entity is None:
+                    raise ValueError("Weights and Biases entity must be specified for tracking.")
+                import wandb
+
+                wandb.init(
+                    project=wandb_project,
+                    entity=args_cli.wandb_entity,
+                    name=experiment_name,
+                    sync_tensorboard=True,
+                    monitor_gym=True,
+                    save_code=True,
                 )
-                env_configurations.register(
-                    "rlgpu", {"vecenv_type": "IsaacRlgWrapper", "env_creator": lambda **kwargs: env}
-                )
+                if not wandb.run.resumed:
+                    wandb.config.update({"env_cfg": env_cfg.to_dict()})
+                    wandb.config.update({"agent_cfg": agent_cfg})
 
-                agent_cfg["params"]["config"]["num_actors"] = env.unwrapped.num_envs
-
-                report_activity("Building policy")
-                if "pbt" in agent_cfg and agent_cfg["pbt"]["enabled"]:
-                    observers = MultiObserver([IsaacAlgoObserver(), PbtAlgoObserver(agent_cfg, args_cli)])
-                    runner = Runner(observers)
-                else:
-                    runner = Runner(IsaacAlgoObserver())
-                report_activity(None)
-
-                # configure_seed must run after Runner() so torch determinism does not disturb its initialization
-                if args_cli.deterministic:
-                    configure_seed(env_cfg.seed, torch_deterministic=True)
-
-                runner.load(agent_cfg)
-                runner.reset()
-
-                global_rank = int(os.getenv("RANK", "0"))
-                if args_cli.track and global_rank == 0:
-                    if args_cli.wandb_entity is None:
-                        raise ValueError("Weights and Biases entity must be specified for tracking.")
-                    import wandb
-
-                    wandb.init(
-                        project=wandb_project,
-                        entity=args_cli.wandb_entity,
-                        name=experiment_name,
-                        sync_tensorboard=True,
-                        monitor_gym=True,
-                        save_code=True,
-                    )
-                    if not wandb.run.resumed:
-                        wandb.config.update({"env_cfg": env_cfg.to_dict()})
-                        wandb.config.update({"agent_cfg": agent_cfg})
-
-                screen.close()
-                if args_cli.checkpoint is not None:
-                    runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
-                else:
-                    runner.run({"train": True, "play": False, "sigma": train_sigma})
-                print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-            except KeyboardInterrupt:
-                pass
-            finally:
-                env.close()
+            screen.close()
+            if args_cli.checkpoint is not None:
+                runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
+            else:
+                runner.run({"train": True, "play": False, "sigma": train_sigma})
+            print(f"Training time: {round(time.time() - start_time, 2)} seconds")

@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import signal
 import sys
 from collections.abc import Callable
 from typing import Any, Literal
@@ -24,6 +23,8 @@ import torch
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.utils import math as math_utils
+
+from isaaclab_rl.entrypoints.common import flag_only_sigint
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
@@ -79,69 +80,45 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
     except (TypeError, ValueError) as exc:
         raise SystemExit(f"Invalid environment configuration: {exc}") from None
 
-    with launch_simulation(env_cfg, args_cli):
+    with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as stack:
         # create environment
         env = gym.make(args_cli.task, cfg=env_cfg)
+        # Install the flag-only handler, and register env.close() to run under it, immediately
+        # once env exists -- so an interrupt anywhere from here on (setup, the step loop, or
+        # env.close() itself) is handled the same way instead of only the step loop.
+        is_interrupted = stack.enter_context(flag_only_sigint())
+        stack.callback(env.close)
 
-        # A raw SIGINT is delivered asynchronously: with multiple GUI-backed visualizers active
-        # (e.g. --visualizer newton,kit), Python can just as easily raise KeyboardInterrupt from
-        # inside env.reset(), policy construction, one of Kit's own internal callback dispatches
-        # (its viewport/render event loop), or the step loop below -- anywhere after the
-        # environment exists -- as from the step loop itself, where nothing here can catch it.
-        # Installing a handler that only flips a flag is safe no matter which frame it fires in,
-        # and lets this function -- the one place that knows how to shut the simulation down
-        # cleanly -- check it at a controlled point instead of hoping the exception lands
-        # somewhere useful. Install it immediately once ``env`` exists, so an interrupt during
-        # setup can't bypass env.close() any more easily than one during the step loop.
-        interrupted = False
-
-        def _on_sigint(signum, frame):
-            nonlocal interrupted
-            interrupted = True
-
-        previous_handler = signal.signal(signal.SIGINT, _on_sigint)
-        try:
-            # print info (this is vectorized environment)
-            print(f"[INFO]: Gym observation space: {env.observation_space}")
-            print(f"[INFO]: Gym action space: {env.action_space}")
-            # reset environment
-            env.reset()
-            zero_action_policy = _create_zero_action_policy(env) if policy == "zero" else None
-            if policy == "zero":
-                print("[INFO] Zero agent is running, press Ctrl+C to exit...")
-            else:
-                print("[INFO] Random agent is running, press Ctrl+C to exit...")
-            # simulate environment
-            # keep running while any visualizer is open, and until the step budget is exhausted
-            sim = env.unwrapped.sim
-            device = env.unwrapped.device
-            step = 0
-            while sim.is_headless_or_exist_active_visualizer():
-                if interrupted:
-                    break
-                if args_cli.max_steps is not None and step >= args_cli.max_steps:
-                    break
-                step += 1
-                # run everything in inference mode
-                with torch.inference_mode():
-                    if policy == "zero":
-                        actions = zero_action_policy()
-                    else:
-                        # sample actions from -1 to 1
-                        actions = 2 * torch.rand(env.action_space.shape, device=device) - 1
-                    # apply actions
-                    env.step(actions)
-        finally:
-            # Keep the flag-only handler installed through cleanup: a second Ctrl+C during
-            # env.close()'s multi-stage teardown would otherwise raise a raw KeyboardInterrupt,
-            # which is not a subclass of Exception, so it is not caught by the individual
-            # try/except wrapping each cleanup stage in SimulationContext.clear_instance() --
-            # it would abort that loop and skip whatever visualizers hadn't closed yet.
-            try:
-                # close the simulator
-                env.close()
-            finally:
-                signal.signal(signal.SIGINT, previous_handler)
+        # print info (this is vectorized environment)
+        print(f"[INFO]: Gym observation space: {env.observation_space}")
+        print(f"[INFO]: Gym action space: {env.action_space}")
+        # reset environment
+        env.reset()
+        zero_action_policy = _create_zero_action_policy(env) if policy == "zero" else None
+        if policy == "zero":
+            print("[INFO] Zero agent is running, press Ctrl+C to exit...")
+        else:
+            print("[INFO] Random agent is running, press Ctrl+C to exit...")
+        # simulate environment
+        # keep running while any visualizer is open, and until the step budget is exhausted
+        sim = env.unwrapped.sim
+        device = env.unwrapped.device
+        step = 0
+        while sim.is_headless_or_exist_active_visualizer():
+            if is_interrupted():
+                break
+            if args_cli.max_steps is not None and step >= args_cli.max_steps:
+                break
+            step += 1
+            # run everything in inference mode
+            with torch.inference_mode():
+                if policy == "zero":
+                    actions = zero_action_policy()
+                else:
+                    # sample actions from -1 to 1
+                    actions = 2 * torch.rand(env.action_space.shape, device=device) - 1
+                # apply actions
+                env.step(actions)
 
 
 def _create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:

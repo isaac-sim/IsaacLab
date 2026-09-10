@@ -37,6 +37,7 @@ from isaaclab_rl.entrypoints.common import (
     resolve_play_task_name,
     show_run_summary,
     startup_screen,
+    suppressed_shutdown_guard,
 )
 from isaaclab_rl.skrl import resolve_skrl_agent_cfg_entry_point, resolve_skrl_algorithm
 from isaaclab_rl.utils.pretrained_checkpoint import (
@@ -148,7 +149,7 @@ def _main():
     with startup_screen(args_cli, num_stages=3) as screen:
         show_run_summary(screen, args_cli, env_cfg, library="skrl", action="play")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), suppressed_shutdown_guard() as stack:
             if args_cli.ml_framework.startswith("torch"):
                 from skrl.utils.runner.torch import Runner
             elif args_cli.ml_framework.startswith("jax"):
@@ -214,65 +215,58 @@ def _main():
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
             )
+            # Register env.close() immediately once env exists, so an interrupt anywhere from
+            # here on (setup or the play loop) is handled the same way.
+            stack.callback(env.close)
 
-            # Protect everything from here on: an interrupt during wrapper/runner/checkpoint
-            # setup or during env.reset() bypasses env.close() just as easily as one during
-            # the play loop below, if it isn't inside this try/finally too.
             try:
-                try:
-                    dt = env.step_dt
-                except AttributeError:
-                    dt = env.unwrapped.step_dt
+                dt = env.step_dt
+            except AttributeError:
+                dt = env.unwrapped.step_dt
 
-                screen.stage("Loading policy")
-                env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
+            screen.stage("Loading policy")
+            env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
 
-                experiment_cfg["trainer"]["close_environment_at_exit"] = False
-                experiment_cfg["agent"]["experiment"]["write_interval"] = 0
-                experiment_cfg["agent"]["experiment"]["checkpoint_interval"] = 0
-                runner = Runner(env, experiment_cfg)
-                # configure_seed must run after Runner() so torch determinism does not disturb its initialization
-                if args_cli.deterministic:
-                    configure_seed(env_cfg.seed, torch_deterministic=True)
+            experiment_cfg["trainer"]["close_environment_at_exit"] = False
+            experiment_cfg["agent"]["experiment"]["write_interval"] = 0
+            experiment_cfg["agent"]["experiment"]["checkpoint_interval"] = 0
+            runner = Runner(env, experiment_cfg)
+            # configure_seed must run after Runner() so torch determinism does not disturb its initialization
+            if args_cli.deterministic:
+                configure_seed(env_cfg.seed, torch_deterministic=True)
 
-                print(f"[INFO] Loading model checkpoint from: {resume_path}")
-                runner.agent.load(resume_path)
-                runner.agent.enable_training_mode(False, apply_to_models=True)
+            print(f"[INFO] Loading model checkpoint from: {resume_path}")
+            runner.agent.load(resume_path)
+            runner.agent.enable_training_mode(False, apply_to_models=True)
 
-                screen.close()
-                obs, _ = env.reset()
-                states = env.state()
-                timestep = 0
-                print("[INFO] Policy playback is running, press Ctrl+C to exit...")
-                while True:
-                    start_time = time.time()
+            screen.close()
+            obs, _ = env.reset()
+            states = env.state()
+            timestep = 0
+            print("[INFO] Policy playback is running, press Ctrl+C to exit...")
+            while True:
+                start_time = time.time()
 
-                    with torch.inference_mode():
-                        outputs = runner.agent.act(obs, states, timestep=0, timesteps=0)
-                        if hasattr(env, "possible_agents"):
-                            actions = {
-                                a: outputs[-1][a].get("mean_actions", outputs[0][a]) for a in env.possible_agents
-                            }
-                        else:
-                            actions = outputs[-1].get("mean_actions", outputs[0])
-                        obs, _, _, _, _ = env.step(actions)
-                        states = env.state()
-                    if args_cli.video:
-                        timestep += 1
-                        video_stop = args_cli.video_length
-                        if video_stop is None:
-                            recorders = getattr(env_cfg, "video_recorders", [])
-                            video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
-                        if video_stop is not None and timestep >= video_stop:
-                            break
+                with torch.inference_mode():
+                    outputs = runner.agent.act(obs, states, timestep=0, timesteps=0)
+                    if hasattr(env, "possible_agents"):
+                        actions = {a: outputs[-1][a].get("mean_actions", outputs[0][a]) for a in env.possible_agents}
+                    else:
+                        actions = outputs[-1].get("mean_actions", outputs[0])
+                    obs, _, _, _, _ = env.step(actions)
+                    states = env.state()
+                if args_cli.video:
+                    timestep += 1
+                    video_stop = args_cli.video_length
+                    if video_stop is None:
+                        recorders = getattr(env_cfg, "video_recorders", [])
+                        video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
+                    if video_stop is not None and timestep >= video_stop:
+                        break
 
-                    sleep_time = dt - (time.time() - start_time)
-                    if args_cli.real_time and sleep_time > 0:
-                        time.sleep(sleep_time)
-            except KeyboardInterrupt:
-                pass
-            finally:
-                env.close()
+                sleep_time = dt - (time.time() - start_time)
+                if args_cli.real_time and sleep_time > 0:
+                    time.sleep(sleep_time)
 
 
 if __name__ == "__main__":
