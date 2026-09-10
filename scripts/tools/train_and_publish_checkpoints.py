@@ -567,12 +567,16 @@ def collect_pretrained_checkpoint(job: CheckpointJob, output_dir: str, dry_run: 
     shutil.copy2(source_path, destination)
     run_path = get_latest_job_run_path(job.workflow, job.task_name, job.physics_backend, job.render_backend)
     for name, run_glob in job.declared_checkpoints:
+        declared_destination = get_declared_checkpoint_path(destination, job.workflow, name, run_glob)
+        # drop the previous copy before looking: a collect that finds nothing must not leave an
+        # older run's file beside the fresh policy, which would publish as a mismatched pair
+        if os.path.exists(declared_destination):
+            os.remove(declared_destination)
         matches = glob.glob(os.path.join(run_path, run_glob)) if run_path else []
         if not matches:
             print(f"No {name} checkpoint matched {run_glob!r} for {job.job_id}")
             continue
         declared_source = max(matches, key=os.path.getmtime)
-        declared_destination = get_declared_checkpoint_path(destination, job.workflow, name, run_glob)
         print(f"Collecting {declared_source} -> {declared_destination}")
         shutil.copy2(declared_source, declared_destination)
     return destination

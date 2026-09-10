@@ -181,6 +181,44 @@ def test_legacy_collection_preserves_task_directory(tmp_path: Path) -> None:
     assert path == str(tmp_path / "rsl_rl" / "Isaac-Test" / "checkpoint.pt")
 
 
+def test_recollecting_without_a_run_file_drops_the_previous_declared_checkpoint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A re-collect that finds no declared file must not leave the last one beside the new policy."""
+    job = CheckpointJob(
+        workflow="rsl_rl",
+        task_name="Isaac-Test",
+        physics_backend="newtonmjwarp",
+        render_backend="none",
+        declared_checkpoints=(_FE,),
+    )
+    run_path = tmp_path / "run"
+    run_path.mkdir()
+    policy = run_path / "model.pt"
+    policy.touch()
+    (run_path / "cnn_100_0.1.pth").touch()
+    monkeypatch.setattr(
+        "scripts.tools.train_and_publish_checkpoints.get_pretrained_checkpoint_path",
+        lambda *a, **k: str(policy),
+    )
+    monkeypatch.setattr(
+        "scripts.tools.train_and_publish_checkpoints.get_latest_job_run_path",
+        lambda *a, **k: str(run_path),
+    )
+    output_dir = str(tmp_path / "out")
+
+    destination = collect_pretrained_checkpoint(job, output_dir)
+    collected_cnn = Path(destination).with_name("Isaac-Test_newtonmjwarp_none_rsl_rl_feature_extractor.pth")
+    assert collected_cnn.is_file()
+
+    # the next run trained a policy but wrote no CNN
+    (run_path / "cnn_100_0.1.pth").unlink()
+    collect_pretrained_checkpoint(job, output_dir)
+
+    assert not collected_cnn.exists()
+
+
 def test_publish_refuses_a_bundle_whose_declared_checkpoint_is_missing(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

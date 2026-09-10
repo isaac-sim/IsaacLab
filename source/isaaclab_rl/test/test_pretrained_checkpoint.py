@@ -249,6 +249,28 @@ def test_get_published_pretrained_checkpoint_downloads_the_feature_extractor(
     assert declared.is_file()
 
 
+def test_get_published_pretrained_checkpoint_rejects_an_incomplete_pair(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """A policy published without the checkpoint its component declares must fail at the fetch."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    published_root = "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl"
+    stem = "Isaac-Reorient-Cube-Shadow-Camera_physx_rtx_rsl_rl"
+    # the policy is published, its declared CNN is not
+    _install_fake_retrieve(monkeypatch, {f"{published_root}/{stem}.pt"})
+
+    with pytest.raises(FileNotFoundError, match="incomplete"):
+        pretrained_checkpoint.get_published_pretrained_checkpoint(
+            "rsl_rl",
+            "Isaac-Reorient-Cube-Shadow-Camera",
+            "physx",
+            "rtx",
+            env_cfg=_EnvCfg(extractor=_ExtractorCfg()),
+        )
+
+
 def test_get_published_pretrained_checkpoint_tolerates_no_feature_extractor(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

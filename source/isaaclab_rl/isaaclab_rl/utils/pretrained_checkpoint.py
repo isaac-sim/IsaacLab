@@ -306,7 +306,7 @@ def get_declared_checkpoints(
         env_cfg: Resolved environment configuration.
 
     Returns:
-        The declared declared_checkpoints. Empty for tasks that train nothing outside the policy.
+        The declarations found. Empty for tasks that train nothing outside the policy.
     """
     # a component can be reachable through several config paths; the name is the identity
     found: dict[str, str] = {}
@@ -452,8 +452,14 @@ def get_published_pretrained_checkpoint(
         declared_path = get_declared_checkpoint_path(ov_path, workflow, name, run_glob)
         try:
             retrieve_file_path(declared_path, download_dir)
-        except FileNotFoundError:
-            print(f"[WARNING]: The asset server does not provide the {name} checkpoint '{declared_path}'.")
+        except FileNotFoundError as exc:
+            # the policy alone cannot play, so report the incomplete pair here rather than
+            # letting the component fail later on a file the fetch already knew was missing
+            raise FileNotFoundError(
+                f"The published checkpoint for task '{task_name}' is incomplete: the asset server has"
+                f" the policy but not its {name} checkpoint '{declared_path}'. Publish the pair again,"
+                " or pass --checkpoint <path> to use a checkpoint of your own."
+            ) from exc
         except Exception as exc:
             raise _download_error(declared_path, download_dir, exc) from exc
     return resume_path

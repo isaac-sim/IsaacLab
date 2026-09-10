@@ -21,3 +21,15 @@ Changed
 * Changed ``train_and_publish_checkpoints.py --publish_checkpoint`` to fail a job whose declared
   checkpoint was not collected, instead of publishing the policy alone. A task that declares a
   checkpoint needs it to play, so such a bundle failed on load after being reported as published.
+
+* Changed ``--checkpoint pretrained`` to raise ``FileNotFoundError`` when the asset server publishes a
+  policy without a checkpoint its components declare, instead of warning and returning the policy. The
+  run failed later inside the component either way; it now reports the incomplete pair where it is
+  detected. Pass ``--checkpoint <path>`` to play such a policy with a checkpoint of your own.
+
+Fixed
+^^^^^
+
+* Fixed ``train_and_publish_checkpoints.py --collect_checkpoint`` leaving a previous run's declared
+  checkpoint beside a freshly collected policy when the new run wrote none, which published as a
+  mismatched pair.
