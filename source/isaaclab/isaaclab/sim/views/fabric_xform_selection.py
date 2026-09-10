@@ -113,9 +113,8 @@ class FabricXformSelection:
             self._prim_paths = list(prim_paths)
         self.count = len(self._prim_paths)
 
-        # A zero-prim selection is legal -- the owning views allow a pattern that matches nothing --
-        # and everything below degenerates to empty selections and zero-length buffers, which the
-        # accessors and their zero-dimension launches handle without a special case.
+        # A zero-prim selection is legal: the owning views allow a pattern that matches nothing, and
+        # everything below degenerates to empty selections, buffers, and launches.
         child_parent_paths = [_parent_path(path) for path in self._prim_paths]
         self.unique_parent_paths = list(dict.fromkeys(child_parent_paths))
         parent_ordinal = {path: i for i, path in enumerate(self.unique_parent_paths)}

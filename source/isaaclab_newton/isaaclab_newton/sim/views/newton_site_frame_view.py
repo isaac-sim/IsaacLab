@@ -682,12 +682,7 @@ class NewtonSiteFrameView(BaseFrameView):
         return True
 
     def close(self) -> None:
-        """Release the Fabric attributes and model-ready callback owned by this view.
-
-        The view must not be used afterwards. Calling :meth:`close` again is a no-op. If
-        :meth:`close` is never called, the same cleanup runs best-effort from ``__del__`` --
-        collection timing is up to the interpreter, so only :meth:`close` is deterministic.
-        """
+        """Release the Fabric attributes and the model-ready callback authored by this view."""
         handle = self._physics_ready_handle
         self._physics_ready_handle = None  # cleared first so a repeat close() cannot deregister twice
         if handle is not None:
@@ -700,10 +695,8 @@ class NewtonSiteFrameView(BaseFrameView):
     def __del__(self, _sys=sys):
         """Best-effort cleanup when the view is collected without :meth:`close`.
 
-        Follows the repo's shutdown-safe ``__del__`` idiom (see
-        :meth:`~isaaclab.envs.ManagerBasedEnv.__del__`): ``sys`` is bound as a default argument so it
-        survives module teardown, and nothing runs during interpreter finalization, when calling into
-        Kit can crash and the Fabric tags die with Fabric anyway.
+        The repo's shutdown-safe idiom: ``sys`` is bound as a default argument so it survives module
+        teardown, and nothing runs during finalization, when the tags die with Fabric anyway.
         """
         if _sys.is_finalizing() or _sys.meta_path is None:
             return
@@ -939,15 +932,9 @@ class NewtonSiteFrameView(BaseFrameView):
 class _NewtonWriterMixin:
     """Mirrors the scope's pose writes onto Fabric on exit.
 
-    The mirror is a full-view synchronization, so it runs only when the scope actually moved a site:
-    a getter-only scope, ``set_poses(None, None)``, and a scale-only scope all leave the mirrored
-    poses untouched (scale is deliberately not mirrored -- see :meth:`NewtonSiteFrameView._mirror_to_fabric`).
-
-    **Exception safety.** The mirror also runs while an exception unwinds, because the Newton-side
-    write is already committed: skipping it would strand the rendered prim at a stale pose until the
-    next successful write. If the mirror itself fails during unwinding (typically because the
-    original exception poisoned the CUDA stream) the failure is logged and the original exception
-    propagates -- masking it would hide the actual root cause.
+    The mirror is a full-view sync, so it runs only when a pose actually changed -- and it runs on the
+    exception path too, since the Newton-side write is already committed. A mirror that fails while an
+    exception unwinds is logged rather than raised, so it cannot mask the original exception.
     """
 
     def _enter_impl(self) -> None:
@@ -958,14 +945,10 @@ class _NewtonWriterMixin:
             return
         try:
             self._view._mirror_to_fabric()  # type: ignore[attr-defined]
-        except Exception as mirror_exc:  # noqa: BLE001 -- see the exception-safety note above
+        except Exception as mirror_exc:  # noqa: BLE001 -- see the docstring
             if exc_type is None:
                 raise
-            logger.error(
-                "Newton frame-view writer scope: best-effort Fabric mirror failed during exception "
-                "handling: %s. The rendered prim keeps its previous pose until the next pose write.",
-                mirror_exc,
-            )
+            logger.error("Fabric mirror failed while a writer scope unwound: %s", mirror_exc)
 
 
 class _NewtonWorldSpaceWriter(_NewtonWriterMixin, FrameViewWorldSpaceWriter):
