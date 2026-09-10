@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import MISSING
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .cloner_strategies import sequential
 

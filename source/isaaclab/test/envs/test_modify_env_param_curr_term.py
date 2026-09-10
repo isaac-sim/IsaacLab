@@ -24,7 +24,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.env_cfgs import EmptyManagerCfg
 from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 

@@ -9,7 +9,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
 from isaaclab.actuators import ActuatorBaseCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from ..asset_base_cfg import AssetBaseCfg
 from .ordering import ArticulationOrderingConvention

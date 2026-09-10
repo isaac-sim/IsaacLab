@@ -66,9 +66,8 @@ from isaaclab.cloner import CloneCfg, InclusionSet, sequential
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import schemas
-from isaaclab.utils import Timer
+from isaaclab.utils import Timer, configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from pxr import Usd

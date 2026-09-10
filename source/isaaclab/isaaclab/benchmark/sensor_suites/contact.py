@@ -37,7 +37,7 @@ def create_contact_sensor_scene_cfg(
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sensors import ContactSensorCfg
     from isaaclab.terrains import TerrainImporterCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     @configclass
     class ContactSensorBenchmarkSceneCfg(InteractiveSceneCfg):
