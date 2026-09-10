@@ -13,6 +13,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.actuators.newton import NewtonActuatorAdapter
+from isaaclab.sim import SimulationCfg
 from isaaclab.sim.schemas.schemas_actuators import _author_actuator_prims
 from isaaclab.utils.configclass import configclass
 
@@ -94,6 +95,12 @@ def _make_actuator_stage() -> Usd.Stage:
         },
     )
     return stage
+
+
+def test_newton_actuator_path_is_enabled_by_default():
+    """Use the Newton actuator path unless the legacy path is explicitly requested."""
+    assert SimulationCfg().use_newton_actuators
+    assert not SimulationCfg(use_newton_actuators=False).use_newton_actuators
 
 
 def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
