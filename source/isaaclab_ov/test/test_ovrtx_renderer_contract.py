@@ -302,6 +302,90 @@ def test_launch_extract_all_tiles_launches_kernel_when_channels_are_compatible(m
     assert launch_calls[0]["inputs"][:2] == [tiled_buffer, output_buffer]
 
 
+# Tile counts spanning the small cases and the large ones a camera-per-environment training run reaches.
+# 4096 and its neighbours are called out because that is where the renderer stops supplying a tile per
+# camera, so the grid the extraction assumes has to be checked on both sides of it.
+_TILE_COUNTS = [1, 2, 7, 1000, 4095, 4096, 4097, 8192, 16384]
+
+
+def _make_render_spec(num_envs: int, tile: int, device: str):
+    """Build a render spec for ``num_envs`` cameras of ``tile`` x ``tile`` px."""
+    from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+
+    return CameraRenderSpec(
+        cfg=CameraCfg(height=tile, width=tile, prim_path="/World/envs/env_.*/Camera", spawn=_SPAWN, data_types=["rgb"]),
+        device=device,
+        num_instances=num_envs,
+        camera_prim_paths=tuple(f"/World/envs/env_{index}/Camera" for index in range(num_envs)),
+        view_count=num_envs,
+        camera_path_relative_to_env_0="Camera",
+    )
+
+
+@pytest.mark.parametrize("num_envs", _TILE_COUNTS)
+def test_render_data_tile_grid_matches_the_authored_atlas(num_envs):
+    """The extraction grid and the authored atlas are derived separately and must stay in agreement.
+
+    :class:`OVRTXRenderData` computes the tile grid the extraction kernel indexes with, while
+    :func:`build_render_product_as_string` independently sizes the atlas the renderer draws into. They
+    are two copies of the same layout: if they ever disagree, every tile is read from the wrong offset
+    even though both the render and the returned tensor keep their expected shapes.
+    """
+    import re
+
+    from isaaclab_ov.renderers.ovrtx_usd import build_render_product_as_string
+
+    if not torch.cuda.is_available():
+        pytest.skip("OVRTX render data requires a CUDA device")
+    device = "cuda"
+
+    tile = 96
+    render_data = OVRTXRenderData(_make_render_spec(num_envs, tile, device), device=device)
+    render_product, _ = build_render_product_as_string(width=tile, height=tile, num_envs=num_envs, data_types=["rgb"])
+
+    match = re.search(r"uniform int2 resolution = \((\d+), (\d+)\)", render_product)
+    assert match is not None
+    tiled_width, tiled_height = int(match.group(1)), int(match.group(2))
+
+    assert render_data.num_cols == tiled_width // tile
+    assert render_data.num_rows == tiled_height // tile
+    assert render_data.num_cols * render_data.num_rows >= num_envs
+
+
+@pytest.mark.skip(
+    reason=(
+        "_launch_extract_all_tiles validates only the channel count, so a tiled buffer holding fewer"
+        " tiles than num_envs is reshaped into wrong per-environment images instead of raising."
+        " Remove this skip once the extraction validates tile capacity."
+    )
+)
+def test_launch_extract_all_tiles_rejects_a_tiled_buffer_missing_tiles():
+    """A tiled buffer too small to hold every tile must raise rather than reshape into wrong images.
+
+    This is the failure the >4096-tile bug produces: the renderer hands back a buffer covering only the
+    tiles it actually drew, and the extraction happily indexes past it, so the trailing environments get
+    another environment's pixels with no error anywhere.
+    """
+    if not torch.cuda.is_available():
+        pytest.skip("OVRTX tile extraction requires a CUDA device")
+    device = "cuda"
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._device = device
+    render_data = _make_ovrtx_render_data()
+    render_data.width = 96
+    render_data.height = 96
+    render_data.num_envs = 8192
+    render_data.num_cols = 91
+
+    # An atlas holding only 4096 tiles (64 x 64) while 8192 were requested.
+    undersized = _FakeArray((64 * 96, 64 * 96, 4))
+    output_buffer = _FakeArray((8192, 96, 96, 3))
+
+    with pytest.raises(ValueError, match="out of bounds"):
+        renderer._launch_extract_all_tiles(render_data, undersized, output_buffer)
+
+
 def test_ovrtx_read_output_copies_no_pixel_data():
     """OVRTXRenderer.read_output copies no pixel data; with empty renderer_info it leaves info untouched."""
     renderer = _make_ovrtx_renderer_without_backend()
