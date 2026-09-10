@@ -25,7 +25,9 @@ Capturing an Environment for a Bug Report
 Most setup failures are a difference between two machines rather than a defect in the code, and the
 difference is rarely in the lockfile. ``tools/capture_env.py`` records the parts a lockfile does not:
 the GPU and driver, the installed packages as they exist on disk, the environment variables Isaac Lab
-reads, and the symlinks and ``.pth`` files that decide which code actually gets imported.
+reads, the symlinks and ``.pth`` files that decide which code actually gets imported, and which Isaac
+Sim the checkout reaches -- the ``isaacsim`` wheel, a downloaded package, or a local Kit build, named
+by the revision it was built from.
 
 .. code:: bash
 

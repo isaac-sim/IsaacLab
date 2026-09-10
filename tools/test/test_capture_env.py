@@ -23,6 +23,7 @@ def _bootstrap_paths() -> None:
 _bootstrap_paths()
 
 from capture_env import (  # noqa: E402
+    collect_isaac_sim,
     collect_repo,
     lock_extras,
     parse_lock,
@@ -229,6 +230,81 @@ class TestSyncPlan:
 
         assert plan["lock_available"] is False
         assert plan["command"] == "uv sync --locked"
+
+
+class TestIsaacSimInstall:
+    """Isaac Sim arrives three ways, and only the ``VERSION`` string tells the last two apart."""
+
+    WHEEL = [{"key": "isaacsim", "version": "6.0.0.1"}]
+
+    @staticmethod
+    def _kit(root: Path, version: str) -> Path:
+        """Write a Kit tree at ``root`` holding ``version``, and return it."""
+        root.mkdir(parents=True)
+        (root / "VERSION").write_text(version + "\n")
+        return root
+
+    def _reached_by_env(self, monkeypatch, kit: Path, repo: Path, distributions=()) -> dict:
+        """Classify a Kit reached through ``ISAAC_PATH``, which needs no symlink privilege."""
+        monkeypatch.setenv("ISAAC_PATH", str(kit))
+        return collect_isaac_sim(repo, list(distributions))[0]
+
+    def test_a_wheel_is_told_apart_from_a_kit_tree(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("ISAAC_PATH", raising=False)
+
+        section = collect_isaac_sim(tmp_path, self.WHEEL)[0]
+
+        assert section["install_method"] == "wheel"
+        assert section["wheel_version"] == "6.0.0.1"
+        assert section["version"] is None
+
+    def test_a_downloaded_package_records_the_version_to_fetch(self, tmp_path, monkeypatch):
+        kit = self._kit(tmp_path / "isaacsim", "4.5.0-rc.36+release.19980.0133eb1e.tc")
+
+        section = self._reached_by_env(monkeypatch, kit, tmp_path / "repo")
+
+        assert section["install_method"] == "binary"
+        assert section["version"] == "4.5.0-rc.36+release.19980.0133eb1e.tc"
+        assert (section["branch"], section["revision"]) == ("release", "0133eb1e")
+
+    def test_a_local_build_records_the_revision_it_was_built_from(self, tmp_path, monkeypatch):
+        """A `.local` suffix marks a Kit compiled on the captured machine, which no bundle rebuilds."""
+        kit = self._kit(tmp_path / "isaacsim", "6.1.0-alpha.59+develop.0.4877ef77.local")
+
+        section = self._reached_by_env(monkeypatch, kit, tmp_path / "repo")
+
+        assert section["install_method"] == "source_build"
+        assert (section["branch"], section["revision"]) == ("develop", "4877ef77")
+
+    def test_a_kit_inside_a_build_tree_is_a_local_build_whatever_it_is_stamped(self, tmp_path, monkeypatch):
+        """A path through `_build` is a compiled Kit even when the version carries no `.local`."""
+        kit = self._kit(tmp_path / "IsaacSim" / "_build" / "linux-x86_64" / "release", "5.0.0+main.1234.deadbeef")
+
+        section = self._reached_by_env(monkeypatch, kit, tmp_path / "repo")
+
+        assert section["install_method"] == "source_build"
+
+    def test_the_version_file_is_stored_alongside_the_manifest(self, tmp_path, monkeypatch):
+        kit = self._kit(tmp_path / "isaacsim", "6.1.0-alpha.59+develop.0.4877ef77.local")
+        monkeypatch.setenv("ISAAC_PATH", str(kit))
+
+        _, artifacts = collect_isaac_sim(tmp_path / "repo", [])
+
+        assert artifacts["isaacsim/VERSION"] == "6.1.0-alpha.59+develop.0.4877ef77.local\n"
+
+    def test_no_isaac_sim_at_all_is_reported_as_such(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("ISAAC_PATH", raising=False)
+
+        assert collect_isaac_sim(tmp_path, [])[0]["install_method"] == "none"
+
+    def test_an_empty_isaac_path_does_not_pass_for_a_kit_tree(self, tmp_path, monkeypatch):
+        """``Path("")`` is the current directory, which must not be mistaken for an installation."""
+        monkeypatch.setenv("ISAAC_PATH", "")
+
+        section = collect_isaac_sim(tmp_path, [])[0]
+
+        assert section["install_method"] == "none"
+        assert section["path"] is None
 
 
 class TestDocument:

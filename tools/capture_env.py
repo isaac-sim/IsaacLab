@@ -28,6 +28,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ISAAC_LAB_REMOTE = "https://github.com/isaac-sim/IsaacLab.git"  # no remote is recorded, so the clone is upstream
+# Isaac Sim stamps its provenance into the local version segment: 6.1.0-alpha.59+develop.0.4877ef77.local
+_ISAAC_SIM_BUILD = re.compile(r"\+(?P<branch>[^.+]+)\.\d+\.(?P<revision>[0-9a-f]{7,40})")
 MACHINE_OWNED_ENV_VARS = frozenset("CONDA_PREFIX ISAACLAB_PATH TMPDIR USER USERNAME VIRTUAL_ENV".split())  # noqa: SIM905
 ISAAC_LAB_ENV_VARS = frozenset(
     """
@@ -202,6 +204,31 @@ def collect_repo(repo_root: Path) -> tuple[dict, dict[str, str]]:
     }
 
 
+def collect_isaac_sim(repo_root: Path, distributions: list[dict]) -> tuple[dict, dict[str, str]]:
+    """Return which Isaac Sim this installation reaches and how it was obtained.
+
+    A wheel is already described by the lockfile; a downloaded package and a local build are not,
+    and only the ``VERSION`` string says which one to fetch or rebuild.
+    """
+    wheel = next((dist["version"] for dist in distributions if dist["key"] == "isaacsim"), None)
+    env_path = os.environ.get("ISAAC_PATH")
+    candidates = [repo_root / "_isaac_sim", *([Path(env_path)] if env_path else [])]
+    kit = next((path for path in candidates if path.is_dir()), None)
+    version = ((_read_text(kit / "VERSION", limit=4096) or "").strip() if kit else "") or None
+    build = _ISAAC_SIM_BUILD.search(version or "")
+    # A path through a build tree, or a version stamped `.local`, is a Kit compiled on that machine.
+    local = bool(kit) and ("_build" in kit.resolve().parts or (version or "").endswith(".local"))
+    section = {
+        "install_method": ("source_build" if local else "binary") if kit else ("wheel" if wheel else "none"),
+        "path": str(kit.resolve()) if kit else None,
+        "version": version,
+        "branch": build.group("branch") if build else None,
+        "revision": build.group("revision") if build else None,
+        "wheel_version": wheel,
+    }
+    return section, {"isaacsim/VERSION": version + "\n"} if version else {}
+
+
 def build_manifest(
     repo_root: Path,
     venv: Path | None,
@@ -226,6 +253,8 @@ def build_manifest(
         for pth in sorted(site_packages.glob("*.pth")):
             artifacts[f"files/pth/{pth.name}"] = _read_text(pth, limit=256 << 10) or ""
     manifest["sync"] = resolve_sync_plan(artifacts.get("files/uv.lock"), manifest["python"]["distributions"])
+    manifest["isaac_sim"], files = collect_isaac_sim(repo_root, manifest["python"]["distributions"])
+    artifacts.update(files)
     # Only the top level: a link that redirects imports sits at the root (`_isaac_sim`) or in
     # site-packages, and everything deeper in this tree is tracked and arrives with the clone.
     symlinks = [
