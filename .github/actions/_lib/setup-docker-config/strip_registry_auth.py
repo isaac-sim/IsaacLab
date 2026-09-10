@@ -65,8 +65,10 @@ def main(argv):
     auths = config.get("auths") or {}
     removed = sorted(key for key in auths if _normalize(key) == target)
 
-    # A credential injected by credsStore or credHelpers is not in `auths` and
-    # cannot be removed by editing it, so report that rather than claim success.
+    # A credHelpers entry would re-supply the credential from an external helper
+    # even after its `auths` entry is gone, so the mapping for this registry is
+    # removed too. A credential held only by a global credsStore is outside this
+    # file, which is why the caller treats exit 3 as "nothing was dropped".
     helpers = config.get("credHelpers") or {}
     helper_keys = sorted(key for key in helpers if _normalize(key) == target)
     for key in helper_keys:
