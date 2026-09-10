@@ -28,6 +28,37 @@ if __import__("sys").platform not in ("win32", "darwin") and not __import__("os"
     _pyglet_headless_init.options["headless"] = True
     del _pyglet_headless_init
 
+
+def _disable_pyglet_xlib_utf8_captions() -> None:
+    """Force pyglet's Xlib backend to use ASCII-only window-caption text properties.
+
+    Some environments (observed with conda-installed pyglet on DGX Spark) have Xlib's
+    ``Xutf8TextListToTextProperty`` fail with ``Could not create UTF8 text property`` --
+    typically because the X locale database isn't reachable to that environment's bundled
+    X11 client libraries -- even though Newton's window captions ("Newton", "Newton Viewer",
+    "Newton RTX Viewer") are plain ASCII and never need UTF-8 encoding. Import
+    ``pyglet.window.xlib`` and force its ``_have_utf8`` flag off before Newton ever creates a
+    window, so this whole class of failure can't happen regardless of locale or
+    library-packaging quirks in the user's environment. No-op on non-Linux platforms.
+    """
+    if sys.platform in ("win32", "darwin"):
+        return
+    try:
+        import pyglet.window.xlib as pyglet_xlib
+    except Exception:
+        # The first import of pyglet.window can itself raise this exact exception -- it
+        # happens as a side effect of pyglet's own internal "shadow window" creation. The
+        # xlib submodule still finishes loading before that point, so recover it from
+        # sys.modules and patch it there instead.
+        pyglet_xlib = sys.modules.get("pyglet.window.xlib")
+    if pyglet_xlib is not None:
+        pyglet_xlib._have_utf8 = False
+
+
+# Must run before `from newton.viewer import ...` below, which is what first pulls in
+# pyglet.window as a transitive import.
+_disable_pyglet_xlib_utf8_captions()
+
 from isaaclab_newton.physics import NewtonManager
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
