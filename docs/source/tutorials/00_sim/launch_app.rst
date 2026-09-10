@@ -1,3 +1,5 @@
+:orphan:
+
 Deep-dive into AppLauncher
 ==========================
 

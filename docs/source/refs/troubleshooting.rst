@@ -6,7 +6,7 @@ Tricks and Troubleshooting
    This page is the source of truth for the ``isaaclab-setup-troubleshooting`` agent skill
    (`skills/user/setup-troubleshooting/ <../../../skills/user/setup-troubleshooting/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 .. note::
 
@@ -248,7 +248,7 @@ CPU configuration, consult the maintained upstream guides:
   <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/physics-performance.html>`_
 
 For Newton-specific performance and solver parameters, see the
-:doc:`Newton physics documentation <../overview/core-concepts/physical-backends/newton/index>`.
+:ref:`Newton physics documentation <physics-backends-newton>`.
 
 
 Joints actuate in PhysX but not in a Newton-based backend

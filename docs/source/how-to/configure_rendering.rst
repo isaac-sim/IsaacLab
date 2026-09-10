@@ -1,3 +1,5 @@
+:orphan:
+
 Configuring RTX Rendering Settings
 ====================================
 
