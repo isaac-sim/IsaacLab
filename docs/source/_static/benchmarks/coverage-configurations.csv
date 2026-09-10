@@ -11,66 +11,66 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-08-28,Isaac-Cartpole,8192,isaacsim_physx,none,covered,covered,1,172369,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Cartpole,8192,newton_mjwarp,none,covered,covered,1,172489,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Cartpole,8192,ovphysx,none,covered,covered,1,172629,2026-08-28,16384
-2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,2,"172947,172963",2026-08-28,
-2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,covered,covered,1,171721,2026-08-28,
-2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,covered,covered,2,"171711,171788",2026-08-28,
-2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,2,"172919,173594",2026-08-28,
-2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,2,"172986,173001",2026-08-28,
-2026-08-28,Isaac-Cartpole-Camera-Direct,8192,ovphysx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,2,"171752,171813",2026-08-28,
-2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,2,"172947,172963",2026-08-28,
-2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,covered,covered,1,171721,2026-08-28,
-2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,2,"171699,171788",2026-08-28,
-2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,2,"172918,173594",2026-08-28,
-2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,covered,covered,2,"172986,173001",2026-08-28,
-2026-08-28,Isaac-Cartpole-Camera,8192,ovphysx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,covered,covered,2,"171752,171813",2026-08-28,
+2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,1,172963,2026-08-28,
+2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,covered,covered,1,171788,2026-08-28,
+2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,1,173001,2026-08-28,
+2026-08-28,Isaac-Cartpole-Camera-Direct,8192,ovphysx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,1,171813,2026-08-28,
+2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,1,172963,2026-08-28,
+2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,1,171788,2026-08-28,
+2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,covered,covered,1,173001,2026-08-28,
+2026-08-28,Isaac-Cartpole-Camera,8192,ovphysx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,covered,covered,1,171813,2026-08-28,
 2026-08-28,Isaac-Humanoid-Direct,8192,isaacsim_physx,none,covered,covered,1,172374,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Humanoid-Direct,8192,newton_mjwarp,none,covered,covered,1,172496,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Humanoid-Direct,8192,ovphysx,none,covered,covered,1,172636,2026-08-28,16384
 2026-08-28,Isaac-Humanoid,8192,isaacsim_physx,none,covered,covered,1,172373,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Humanoid,8192,newton_mjwarp,none,covered,covered,1,172496,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Humanoid,8192,ovphysx,none,covered,covered,1,172636,2026-08-28,16384
-2026-08-28,Isaac-Lift-Cable-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Cable-Franka-Camera,8192,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Cable-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Cable-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Cloth-Franka,8192,isaacsim_physx,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Cloth-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Cloth-Franka-Camera,8192,isaacsim_physx,isaacsim_rtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Cloth-Franka-Camera,8192,isaacsim_physx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Cloth-Franka-Camera,8192,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Cloth-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Cloth-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
+2026-08-28,Isaac-Lift-Cable-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Cable-Franka-Camera,8192,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Cable-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Cable-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Cloth-Franka,8192,isaacsim_physx,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Cloth-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Cloth-Franka-Camera,8192,isaacsim_physx,isaacsim_rtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Cloth-Franka-Camera,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Cloth-Franka-Camera,8192,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Cloth-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Cloth-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
 2026-08-28,Isaac-Lift-Franka,8192,isaacsim_physx,none,covered,covered,1,172375,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Lift-Franka,8192,newton_mjwarp,none,covered,covered,1,172494,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Lift-Franka,8192,ovphysx,none,covered,covered,1,172638,2026-08-28,16384
 2026-08-28,Isaac-Lift-KukaAllegro,8192,isaacsim_physx,none,covered,covered,1,172382,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Lift-KukaAllegro,8192,newton_mjwarp,none,covered,covered,1,172506,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Lift-KukaAllegro,8192,ovphysx,none,covered,covered,1,173148,2026-08-28,16384
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,3,"172953,172961,172970",2026-08-28,16384
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,covered,covered,2,"171736,171739",2026-08-28,16384
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,3,"171687,171707,171806",2026-08-28,16384
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,2,"172921,172922",2026-08-28,16384
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,3,"172981,172983,172997",2026-08-28,16384
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,3,"171746,171747,171815",2026-08-28,
-2026-08-28,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Soft-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Soft-Franka-Camera,8192,isaacsim_physx,isaacsim_rtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Soft-Franka-Camera,8192,isaacsim_physx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Soft-Franka-Camera,8192,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Soft-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Lift-Soft-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,1,172970,2026-08-28,16384
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,1,171806,2026-08-28,16384
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,1,172997,2026-08-28,16384
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,1,171815,2026-08-28,
+2026-08-28,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Soft-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Soft-Franka-Camera,8192,isaacsim_physx,isaacsim_rtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Soft-Franka-Camera,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Soft-Franka-Camera,8192,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Soft-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Lift-Soft-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
 2026-08-28,Isaac-Open-Drawer-Franka-Direct,8192,isaacsim_physx,none,covered,covered,1,172386,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Open-Drawer-Franka-Direct,8192,newton_mjwarp,none,covered,covered,1,172515,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Open-Drawer-Franka-Direct,8192,ovphysx,none,covered,covered,1,173151,2026-08-28,16384
 2026-08-28,Isaac-Open-Drawer-Franka,8192,isaacsim_physx,none,covered,covered,1,172383,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Open-Drawer-Franka,8192,newton_mjwarp,none,covered,covered,1,172515,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Open-Drawer-Franka,8192,ovphysx,none,covered,covered,1,173143,2026-08-28,16384
-2026-08-28,Isaac-Pendulum-MARL-Direct,8192,isaacsim_physx,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Pendulum-MARL-Direct,8192,newton_mjwarp,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Pendulum-MARL-Direct,8192,ovphysx,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
+2026-08-28,Isaac-Pendulum-MARL-Direct,8192,isaacsim_physx,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Pendulum-MARL-Direct,8192,newton_mjwarp,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Pendulum-MARL-Direct,8192,ovphysx,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
 2026-08-28,Isaac-Reach-Franka,8192,isaacsim_physx,none,covered,covered,1,172393,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Reach-Franka,8192,newton_mjwarp,none,covered,covered,1,172527,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Reach-Franka,8192,ovphysx,none,covered,covered,1,173139,2026-08-28,16384
@@ -92,39 +92,39 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-08-28,Isaac-Reorient-Cube-Shadow,8192,isaacsim_physx,none,covered,covered,1,172388,2026-08-28,16384
 2026-08-28,Isaac-Reorient-Cube-Shadow,8192,newton_mjwarp,none,covered,covered,1,173586,2026-08-28,16384
 2026-08-28,Isaac-Reorient-Cube-Shadow,8192,ovphysx,none,covered,covered,1,173171,2026-08-28,16384
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,2,"171740,171852",2026-08-28,16384
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,covered,covered,1,171741,2026-08-28,16384
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,covered,covered,2,"171738,171826",2026-08-28,16384
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,2,"172927,173625",2026-08-28,16384
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,2,"171662,171870",2026-08-28,16384
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,2,"171774,171853",2026-08-28,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,2,"171740,171852",2026-08-28,16384
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,covered,covered,1,171741,2026-08-28,16384
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,2,"171738,171826",2026-08-28,16384
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,2,"172931,173625",2026-08-28,16384
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,covered,covered,2,"171456,171766",2026-08-28,16384
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,covered,covered,2,"171774,171853",2026-08-28,
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,1,171852,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,covered,covered,1,171826,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,1,171870,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,1,171853,2026-08-28,
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,1,171852,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,1,171826,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,covered,covered,1,171456,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,covered,covered,1,171853,2026-08-28,
 2026-08-28,Isaac-Reorient-Franka,8192,isaacsim_physx,none,covered,covered,1,172400,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Reorient-Franka,8192,newton_mjwarp,none,covered,covered,1,173578,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Reorient-Franka,8192,ovphysx,none,covered,covered,1,173155,2026-08-28,16384
 2026-08-28,Isaac-Reorient-KukaAllegro,8192,isaacsim_physx,none,covered,covered,1,172405,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Reorient-KukaAllegro,8192,newton_mjwarp,none,covered,covered,1,172545,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Reorient-KukaAllegro,8192,ovphysx,none,covered,covered,1,173159,2026-08-28,16384
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,3,"173542,173550,173554",2026-08-28,16384
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,covered,covered,2,"173549,173710",2026-08-28,16384
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,3,"173541,173555,173720",2026-08-28,16384
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,2,"173916,173921",2026-08-28,16384
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,3,"173521,173522,173530",2026-08-28,16384
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,3,"173533,173551,173698",2026-08-28,
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,1,173554,2026-08-28,16384
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,1,173555,2026-08-28,16384
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,1,173530,2026-08-28,16384
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,1,173551,2026-08-28,
 2026-08-28,Isaac-Shadow-Handover-Direct,8192,isaacsim_physx,none,covered,covered,1,172408,2026-08-28,"2048,16384"
 2026-08-28,Isaac-Shadow-Handover-Direct,8192,newton_mjwarp,none,covered,covered,1,172564,2026-08-28,"2048,16384"
 2026-08-28,Isaac-Shadow-Handover-Direct,8192,ovphysx,none,covered,covered,1,173178,2026-08-28,16384
-2026-08-28,Isaac-Shadow-Handover,8192,isaacsim_physx,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Shadow-Handover,8192,newton_mjwarp,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-08-28,Isaac-Shadow-Handover,8192,ovphysx,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
+2026-08-28,Isaac-Shadow-Handover,8192,isaacsim_physx,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Shadow-Handover,8192,newton_mjwarp,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-08-28,Isaac-Shadow-Handover,8192,ovphysx,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
 2026-08-28,Isaac-Velocity-Flat-AnymalD,8192,isaacsim_physx,none,covered,covered,1,172407,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Velocity-Flat-AnymalD,8192,newton_mjwarp,none,covered,covered,1,172539,2026-08-28,"4096,16384"
 2026-08-28,Isaac-Velocity-Flat-AnymalD,8192,ovphysx,none,covered,covered,1,173165,2026-08-28,16384
@@ -167,66 +167,66 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-09-09,Isaac-Cartpole,8192,isaacsim_physx,none,covered,covered,1,206242,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Cartpole,8192,newton_mjwarp,none,covered,covered,1,206330,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Cartpole,8192,ovphysx,none,covered,covered,1,206414,2026-09-09,16384
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,4,"177826,177875,206582,206583","2026-08-29,2026-09-09",
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,covered,covered,2,"177825,205021","2026-08-29,2026-09-09",512
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,covered,covered,4,"177822,177868,205000,205119","2026-08-29,2026-09-09",
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,2,"177355,206559","2026-08-29,2026-09-09",
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,4,"177804,177832,206616,206626","2026-08-29,2026-09-09",
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,4,"177824,177881,205068,205152","2026-08-29,2026-09-09",
-2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,4,"177826,177875,206582,206583","2026-08-29,2026-09-09",
-2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,covered,covered,2,"177823,205021","2026-08-29,2026-09-09",512
-2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,4,"177822,177868,205000,205119","2026-08-29,2026-09-09",
-2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,2,"177355,206559","2026-08-29,2026-09-09",
-2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,covered,covered,4,"177804,177832,206616,206626","2026-08-29,2026-09-09",
-2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,covered,covered,4,"177824,177881,205068,205152","2026-08-29,2026-09-09",
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,1,206582,2026-09-09,
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,covered,covered,1,205119,2026-09-09,
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,1,206626,2026-09-09,
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,1,205152,2026-09-09,
+2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,1,206582,2026-09-09,
+2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,1,205119,2026-09-09,
+2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,covered,covered,1,206626,2026-09-09,
+2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,covered,covered,1,205152,2026-09-09,
 2026-09-09,Isaac-Humanoid-Direct,8192,isaacsim_physx,none,covered,covered,1,206251,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Humanoid-Direct,8192,newton_mjwarp,none,covered,covered,1,206342,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Humanoid-Direct,8192,ovphysx,none,covered,covered,1,206426,2026-09-09,16384
 2026-09-09,Isaac-Humanoid,8192,isaacsim_physx,none,covered,covered,1,206251,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Humanoid,8192,newton_mjwarp,none,covered,covered,1,206338,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Humanoid,8192,ovphysx,none,covered,covered,1,206426,2026-09-09,16384
-2026-09-09,Isaac-Lift-Cable-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Cable-Franka-Camera,8192,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Cable-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Cable-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Cloth-Franka,8192,isaacsim_physx,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Cloth-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Cloth-Franka-Camera,8192,isaacsim_physx,isaacsim_rtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Cloth-Franka-Camera,8192,isaacsim_physx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Cloth-Franka-Camera,8192,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Cloth-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Cloth-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
+2026-09-09,Isaac-Lift-Cable-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Cable-Franka-Camera,8192,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Cable-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Cable-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Cloth-Franka,8192,isaacsim_physx,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Cloth-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Cloth-Franka-Camera,8192,isaacsim_physx,isaacsim_rtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Cloth-Franka-Camera,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Cloth-Franka-Camera,8192,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Cloth-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Cloth-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
 2026-09-09,Isaac-Lift-Franka,8192,isaacsim_physx,none,covered,covered,1,206254,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Lift-Franka,8192,newton_mjwarp,none,covered,covered,1,206709,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Lift-Franka,8192,ovphysx,none,covered,covered,1,206427,2026-09-09,16384
-2026-09-09,Isaac-Lift-KukaAllegro,8192,isaacsim_physx,none,covered,covered,2,"164928,206259","2026-08-26,2026-09-09","4096,16384"
+2026-09-09,Isaac-Lift-KukaAllegro,8192,isaacsim_physx,none,covered,covered,1,206259,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Lift-KukaAllegro,8192,newton_mjwarp,none,covered,covered,1,206344,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Lift-KukaAllegro,8192,ovphysx,none,covered,covered,1,206430,2026-09-09,16384
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,3,"206585,206587,206590",2026-09-09,16384
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,covered,covered,3,"164928,205032,205043","2026-08-26,2026-09-09","4096,16384"
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,3,"205005,205006,205120",2026-09-09,16384
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,2,"206552,206553",2026-09-09,16384
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,3,"206604,206607,206620",2026-09-09,16384
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,3,"205039,205066,205154",2026-09-09,
-2026-09-09,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Soft-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Soft-Franka-Camera,8192,isaacsim_physx,isaacsim_rtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Soft-Franka-Camera,8192,isaacsim_physx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Soft-Franka-Camera,8192,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Soft-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Lift-Soft-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,no usable 8192-count training record,no usable 8192-count training record,0,,,
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,1,206590,2026-09-09,16384
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,1,205120,2026-09-09,16384
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,1,206620,2026-09-09,16384
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,1,205154,2026-09-09,
+2026-09-09,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Soft-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Soft-Franka-Camera,8192,isaacsim_physx,isaacsim_rtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Soft-Franka-Camera,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Soft-Franka-Camera,8192,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Soft-Franka-Camera,8192,newton_mjwarp_vbd_proxy,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Lift-Soft-Franka-Camera,8192,newton_mjwarp_vbd_proxy,ovrtx,no usable matching-profile training record,no usable matching-profile training record,0,,,
 2026-09-09,Isaac-Open-Drawer-Franka-Direct,8192,isaacsim_physx,none,covered,covered,1,206260,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Open-Drawer-Franka-Direct,8192,newton_mjwarp,none,covered,covered,1,206352,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Open-Drawer-Franka-Direct,8192,ovphysx,none,covered,covered,1,206431,2026-09-09,16384
 2026-09-09,Isaac-Open-Drawer-Franka,8192,isaacsim_physx,none,covered,covered,1,206260,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Open-Drawer-Franka,8192,newton_mjwarp,none,covered,covered,1,206352,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Open-Drawer-Franka,8192,ovphysx,none,covered,covered,1,206431,2026-09-09,16384
-2026-09-09,Isaac-Pendulum-MARL-Direct,8192,isaacsim_physx,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Pendulum-MARL-Direct,8192,newton_mjwarp,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Pendulum-MARL-Direct,8192,ovphysx,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
+2026-09-09,Isaac-Pendulum-MARL-Direct,8192,isaacsim_physx,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Pendulum-MARL-Direct,8192,newton_mjwarp,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Pendulum-MARL-Direct,8192,ovphysx,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
 2026-09-09,Isaac-Reach-Franka,8192,isaacsim_physx,none,covered,covered,1,206262,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Reach-Franka,8192,newton_mjwarp,none,covered,covered,1,206351,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Reach-Franka,8192,ovphysx,none,covered,covered,1,206432,2026-09-09,16384
@@ -242,45 +242,45 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_sta
 2026-09-09,Isaac-Reorient-Cube-Allegro,8192,isaacsim_physx,none,covered,covered,1,206257,2026-09-09,16384
 2026-09-09,Isaac-Reorient-Cube-Allegro,8192,newton_mjwarp,none,covered,covered,1,206357,2026-09-09,16384
 2026-09-09,Isaac-Reorient-Cube-Allegro,8192,ovphysx,none,covered,covered,1,206434,2026-09-09,16384
-2026-09-09,Isaac-Reorient-Cube-Shadow-Direct,8192,isaacsim_physx,none,covered,covered,2,"164972,206282","2026-08-26,2026-09-09",16384
+2026-09-09,Isaac-Reorient-Cube-Shadow-Direct,8192,isaacsim_physx,none,covered,covered,1,206282,2026-09-09,16384
 2026-09-09,Isaac-Reorient-Cube-Shadow-Direct,8192,newton_mjwarp,none,covered,covered,1,206386,2026-09-09,16384
 2026-09-09,Isaac-Reorient-Cube-Shadow-Direct,8192,ovphysx,none,covered,covered,1,206443,2026-09-09,16384
-2026-09-09,Isaac-Reorient-Cube-Shadow,8192,isaacsim_physx,none,covered,covered,2,"164972,206282","2026-08-26,2026-09-09",16384
+2026-09-09,Isaac-Reorient-Cube-Shadow,8192,isaacsim_physx,none,covered,covered,1,206282,2026-09-09,16384
 2026-09-09,Isaac-Reorient-Cube-Shadow,8192,newton_mjwarp,none,covered,covered,1,206386,2026-09-09,16384
 2026-09-09,Isaac-Reorient-Cube-Shadow,8192,ovphysx,none,covered,covered,1,206443,2026-09-09,16384
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,4,"177852,177901,205053,205159","2026-08-29,2026-09-09",16384
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,covered,covered,3,"164972,177854,205056","2026-08-26,2026-08-29,2026-09-09","1225,16384"
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,covered,covered,4,"177877,177915,205014,205146","2026-08-29,2026-09-09",16384
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,covered,covered,2,"177384,206568","2026-08-29,2026-09-09",16384
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,4,"177459,178149,204996,205105","2026-08-29,2026-09-09",16384
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,4,"177871,177911,205094,205166","2026-08-29,2026-09-09",
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,4,"177852,177901,205053,205159","2026-08-29,2026-09-09",16384
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,covered,covered,3,"164972,177854,205056","2026-08-26,2026-08-29,2026-09-09","1225,16384"
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,4,"177877,177915,205014,205146","2026-08-29,2026-09-09",16384
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,2,"177384,206568","2026-08-29,2026-09-09",16384
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,covered,covered,4,"177813,178149,204996,205105","2026-08-29,2026-09-09",16384
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,covered,covered,4,"177871,177911,205094,205165","2026-08-29,2026-09-09",
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,covered,covered,1,205159,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,covered,covered,1,205146,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,covered,covered,1,205105,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,covered,covered,1,205166,2026-09-09,
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,1,205159,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,1,205146,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,covered,covered,1,205105,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,covered,covered,1,205165,2026-09-09,
 2026-09-09,Isaac-Reorient-Franka,8192,isaacsim_physx,none,covered,covered,1,206281,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Reorient-Franka,8192,newton_mjwarp,none,covered,covered,1,206355,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Reorient-Franka,8192,ovphysx,none,covered,covered,1,206436,2026-09-09,16384
 2026-09-09,Isaac-Reorient-KukaAllegro,8192,isaacsim_physx,none,covered,covered,1,206273,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Reorient-KukaAllegro,8192,newton_mjwarp,none,covered,covered,1,206358,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Reorient-KukaAllegro,8192,ovphysx,none,covered,covered,1,206441,2026-09-09,16384
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,3,"206586,206588,206601",2026-09-09,16384
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,covered,covered,3,"164985,205047,205051","2026-08-26,2026-09-09","4096,16384"
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,3,"205007,205017,205136",2026-09-09,16384
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,covered,covered,2,"206560,206561",2026-09-09,16384
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,3,"206610,206618,206625",2026-09-09,16384
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,newton_renderer,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,3,"205075,205080,205153",2026-09-09,
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,covered,covered,1,206601,2026-09-09,16384
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,covered,covered,1,205136,2026-09-09,16384
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,covered,covered,1,206625,2026-09-09,16384
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,newton_renderer,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,covered,covered,1,205153,2026-09-09,
 2026-09-09,Isaac-Shadow-Handover-Direct,8192,isaacsim_physx,none,covered,covered,1,206285,2026-09-09,"2048,16384"
 2026-09-09,Isaac-Shadow-Handover-Direct,8192,newton_mjwarp,none,covered,covered,1,206371,2026-09-09,"2048,16384"
 2026-09-09,Isaac-Shadow-Handover-Direct,8192,ovphysx,none,covered,covered,1,206450,2026-09-09,16384
-2026-09-09,Isaac-Shadow-Handover,8192,isaacsim_physx,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Shadow-Handover,8192,newton_mjwarp,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
-2026-09-09,Isaac-Shadow-Handover,8192,ovphysx,none,no usable 8192-count training record,no usable 8192-count training record,0,,,
+2026-09-09,Isaac-Shadow-Handover,8192,isaacsim_physx,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Shadow-Handover,8192,newton_mjwarp,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
+2026-09-09,Isaac-Shadow-Handover,8192,ovphysx,none,no usable matching-profile training record,no usable matching-profile training record,0,,,
 2026-09-09,Isaac-Velocity-Flat-AnymalD,8192,isaacsim_physx,none,covered,covered,1,206271,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Velocity-Flat-AnymalD,8192,newton_mjwarp,none,covered,covered,1,206363,2026-09-09,"4096,16384"
 2026-09-09,Isaac-Velocity-Flat-AnymalD,8192,ovphysx,none,covered,covered,1,206437,2026-09-09,16384

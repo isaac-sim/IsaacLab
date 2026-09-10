@@ -1,36 +1,41 @@
 # Benchmark coverage — 8,192 environments
 
 All plotted Collection and Training benchmarks use **num_envs = 8192**.
-This replaces the previous task-default policy to maximize backend/renderer coverage.
+Camera rows use only `simple_shading_full_mdl`, with 64×64 images and a single
+camera (Kuka uses the equivalent `simple_shading_full_mdl64` preset). RGB, dual-camera,
+and unspecified camera profiles are excluded. Non-camera tasks use headless runs.
+All selected runs use RSL-RL. Select the latest eligible run per task/physics/renderer
+and snapshot; full source presets remain in the CSV and tooltips. These fixed
+profiles give exactly one series and one table row per physics/renderer pair.
 
 ## Snapshot coverage
 
 | Snapshot | Paired records | Tasks | Backend/renderer pairs |
 | --- | ---: | ---: | ---: |
-| August 28 | 166 | 36 / 44 | 126 / 156 |
-| Current (September 9 baseline) | 209 | 36 / 44 | 126 / 156 |
+| August 28 | 114 | 36 / 44 | 114 / 156 |
+| Current (September 9 baseline) | 114 | 36 / 44 | 114 / 156 |
 
-Release contains 209 current records. Develop contains 375 records: August 28
+Release contains 114 current records. Develop contains 228 records: August 28
 plus the identical current records. Each record supplies both Collection FPS
 (`Mean Collection FPS`, stepping plus inference) and Training FPS (`Mean Total FPS`,
 including policy updates). Their coverage is identical; separate runtime runs are
 not required. Standard deviation and peak values remain in the data.
 
-The figure labels the environment count. The compact table shows only the latest
-available FPS per configuration, rounded to an integer. Full configurations and
+The figure labels the environment count beside Release/Develop. The compact table shows only the latest
+available FPS per physics + renderer pair, rounded to an integer. Full configurations and
 measurement dates remain in tooltips, and the legend appears above the graph.
 Missing supported combinations retain “Not available”; entirely absent tasks use
 the benchmark-data-unavailable placeholder.
 
 August 28 requires an exact ingestion-date match. Current selects the latest
-eligible record per configuration through September 9: 162 records from September 9,
-40 from August 29, and seven from August 26. Older values remain provisional.
-August 14 remains omitted as requested; the earlier absence finding applied to
-task-default counts, not to every count in the database.
+eligible record per physics/renderer pair through September 9. All 114 current
+records are from September 9; there are no older fallbacks under this profile.
+August 14 remains omitted as requested.
 
 ## Why 8,192
 
-The same hardware, validity, and date filters give this current coverage:
+Before restricting camera profiles, the same hardware, validity, and date filters
+gave this current coverage across all recorded camera variants:
 
 | Count policy | Tasks | Backend/renderer pairs | Recorded configurations |
 | --- | ---: | ---: | ---: |
@@ -39,34 +44,39 @@ The same hardware, validity, and date filters give this current coverage:
 | **8,192** | **36** | **126** | **209** |
 | 16,384 | 34 | 110 | 149 |
 
-Combining all measured counts also covers only 126 distinct pairs. Using 8,192
-adds 56 pairs over task defaults without losing any task. OVPhysX is now represented
-by 52 current configurations and 44 August 28 configurations. Previously most of
-its runs were excluded because their counts differed from task defaults.
+Combining all measured counts also covers only 126 distinct pairs before the
+camera-profile restriction. Using 8,192 adds 56 pairs over task defaults without
+losing any task. Restricting to simple shading now selects 114 pairs, including
+36 ovphysx pairs at each date. The omitted 12 pairs had RGB Newton-renderer runs
+but no matching simple-shading measurement in the queried data.
 
 ## Missing data
 
-There are **30 missing backend/renderer pairs out of 156** at each snapshot,
-for both metrics. The same eight tasks have no usable 8,192 runs. No WARM
-runtime/training entries for those task names were found on any queried machine
-in the August 14–September 9 window. Kamino, the Kamino-only Fourbar task, and
-incompatible physx/ovrtx and ovphysx/Isaac Sim RTX pairs are excluded.
+There are **42 missing backend/renderer pairs out of 156** at each snapshot,
+for both metrics. Of these, 24 pairs belong to eight entirely absent tasks and
+18 are Newton-renderer camera pairs without matching simple-shading runs.
+Six of those 18 were already unavailable before the profile restriction;
+the restriction removes 12 additional RGB-only pairs.
+The latter retain “Not available”; RGB measurements are not substituted.
+No WARM runtime/training entries for the eight absent task names were found on
+any queried machine in the August 14–September 9 window. Kamino, the Kamino-only
+Fourbar task, and incompatible physx/ovrtx and ovphysx/Isaac Sim RTX pairs are excluded.
 
 | Task | Missing backend/renderer combinations |
 | --- | --- |
-| Isaac-Cartpole-Camera | ovphysx/newton_renderer |
-| Isaac-Cartpole-Camera-Direct | ovphysx/newton_renderer |
+| Isaac-Cartpole-Camera | isaacsim_physx/newton_renderer, newton_mjwarp/newton_renderer, ovphysx/newton_renderer |
+| Isaac-Cartpole-Camera-Direct | isaacsim_physx/newton_renderer, newton_mjwarp/newton_renderer, ovphysx/newton_renderer |
 | Isaac-Lift-Cable-Franka | newton_mjwarp_vbd_proxy |
 | Isaac-Lift-Cable-Franka-Camera | newton_mjwarp_vbd_proxy/isaacsim_rtx, newton_mjwarp_vbd_proxy/newton_renderer, newton_mjwarp_vbd_proxy/ovrtx |
 | Isaac-Lift-Cloth-Franka | isaacsim_physx, newton_mjwarp_vbd_proxy |
 | Isaac-Lift-Cloth-Franka-Camera | isaacsim_physx/isaacsim_rtx, isaacsim_physx/newton_renderer, newton_mjwarp_vbd_proxy/isaacsim_rtx, newton_mjwarp_vbd_proxy/newton_renderer, newton_mjwarp_vbd_proxy/ovrtx |
-| Isaac-Lift-KukaAllegro-Camera | ovphysx/newton_renderer |
+| Isaac-Lift-KukaAllegro-Camera | isaacsim_physx/newton_renderer, newton_mjwarp/newton_renderer, ovphysx/newton_renderer |
 | Isaac-Lift-Soft-Franka | isaacsim_physx, newton_mjwarp_vbd_proxy |
 | Isaac-Lift-Soft-Franka-Camera | isaacsim_physx/isaacsim_rtx, isaacsim_physx/newton_renderer, newton_mjwarp_vbd_proxy/isaacsim_rtx, newton_mjwarp_vbd_proxy/newton_renderer, newton_mjwarp_vbd_proxy/ovrtx |
 | Isaac-Pendulum-MARL-Direct | isaacsim_physx, newton_mjwarp, ovphysx |
-| Isaac-Reorient-Cube-Shadow-Camera | ovphysx/newton_renderer |
-| Isaac-Reorient-Cube-Shadow-Camera-Direct | ovphysx/newton_renderer |
-| Isaac-Reorient-KukaAllegro-Camera | ovphysx/newton_renderer |
+| Isaac-Reorient-Cube-Shadow-Camera | isaacsim_physx/newton_renderer, newton_mjwarp/newton_renderer, ovphysx/newton_renderer |
+| Isaac-Reorient-Cube-Shadow-Camera-Direct | isaacsim_physx/newton_renderer, newton_mjwarp/newton_renderer, ovphysx/newton_renderer |
+| Isaac-Reorient-KukaAllegro-Camera | isaacsim_physx/newton_renderer, newton_mjwarp/newton_renderer, ovphysx/newton_renderer |
 | Isaac-Shadow-Handover | isaacsim_physx, newton_mjwarp, ovphysx |
 
 [Configuration matrix](coverage-configurations.csv) lists all 156 pairs for each
@@ -105,9 +115,10 @@ assertion that measured commits are release tags.
 
 ## Remaining work
 
-1. Collect the 30 missing supported pairs at 8,192 environments, using each task's
+1. Collect missing supported pairs at 8,192 environments and the fixed camera
+   profile where supported. Use each task's
    supported training library. Pendulum MARL requires RL-Games or SKRL, not RSL-RL.
-2. Replace older baseline values with clean release-source runs and record resolved
+2. Collect clean release-source runs and record resolved
    physics, renderer, camera dimensions/types/count, domain presets, and dependencies.
 3. Repeat noisy runs with longer measurement windows. Keep unavailable placeholders
    until valid paired measurements exist.

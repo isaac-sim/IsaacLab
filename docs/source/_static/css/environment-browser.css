@@ -583,7 +583,7 @@ html[data-theme="dark"] .environment-browser {
 
 .environment-benchmark-results {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(10rem, 12rem);
+    grid-template-columns: minmax(0, 1fr) minmax(12rem, 14rem);
     align-items: start;
     gap: 0.75rem;
 }
@@ -907,7 +907,8 @@ html[data-theme="dark"] .environment-browser {
 }
 
 .environment-benchmark-count {
-    margin: 0.5rem 0;
+    margin-right: auto;
+    white-space: nowrap;
     color: var(--environment-muted);
     font-size: 0.85rem;
 }

@@ -15,14 +15,14 @@ Standalone runtime measurements are not mixed into either mode.
 
 ## Snapshots
 
-- Release: 209 current records across 36 environments, labeled EA 3.0.
-- Develop: August 28 and September 9, with 375 records total. August 14 remains
-  omitted. August 28 has 166 records across 36 environments. The current 209 rows
+- Release: 114 current records across 36 environments, labeled EA 3.0.
+- Develop: August 28 and September 9, with 228 records total. August 14 remains
+  omitted. August 28 has 114 records across 36 environments. The current 114 rows
   are identical to Release.
 
 Historical dates use exact database ingestion dates. The current baseline selects
-latest eligible measurements through September 9, falling back to older runs per
-configuration: 162 from September 9, 40 from August 29, and seven from August 26. The graph shows the
+latest eligible measurements through September 9 per physics/renderer pair.
+All 114 current records are from September 9. The graph shows the
 two available snapshot dates. Missing values are not zeroed,
 interpolated, or backfilled into historical snapshots.
 
@@ -43,8 +43,11 @@ interpolated, or backfilled into historical snapshots.
 - Normalize historical `physx`/`newton` physics to `isaacsim_physx`/`newton_mjwarp`,
   and `IsaacRtxRenderer`/`NewtonWarpRenderer`/`newton` renderers to their canonical
   selectors. Exclude Kamino and incompatible PhysX/renderer pairs.
-- Keep each task/physics/renderer/domain-presets/count/RL-library/resolution
-  profile separate. Prefer latest ingestion timestamp, then largest record ID.
+- Use only RSL-RL, headless non-camera tasks, and 64×64 single-camera
+  `simple_shading_full_mdl` runs (including Kuka's equivalent `simple_shading_full_mdl64`).
+  Do not substitute RGB, dual-camera, or unspecified camera profiles.
+- Keep one record per task/physics/renderer and snapshot. Prefer latest ingestion
+  timestamp, then largest record ID.
   The two metrics always retain the exact same source record and WARM entry.
 
 Full domain presets come from per-entry metadata when available, otherwise the
@@ -79,6 +82,6 @@ is retained as an older unused snapshot.
   recovered identities across the queried window.
 
 The compact FPS table shows only the latest available value per configuration in
-both channels, rounded to a whole number and labeled with the backend name.
+both channels, rounded to a whole number and labeled as physics + renderer.
 Actual measurement dates and detailed configurations remain in tooltips. The
-legend above the graph identifies plotted series; the CSV retains full precision.
+legend above the graph uses the same labels; the count sits beside Release/Develop; the CSV retains full precision.

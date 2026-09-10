@@ -664,11 +664,12 @@
         newton_renderer: "newton",
         ovrtx: "ovrtx",
     };
-    // Keep different benchmark configurations separate, including camera renderers.
-    const seriesKey = (row) => JSON.stringify([
-        row.physics_backend, row.rendering_backend, row.task_presets || "", row.num_envs, row.rl_library,
-        row.camera_resolution || "",
-    ]);
+    // Snapshots contain one fixed camera profile per physics/renderer pair.
+    const seriesKey = (row) => JSON.stringify([row.physics_backend, row.rendering_backend]);
+    const configurationLabel = (row) => [
+        backendLabels[row.physics_backend] || row.physics_backend,
+        rendererLabels[row.rendering_backend],
+    ].filter(Boolean).join(" + ");
     const seriesLabel = (row) => [
         backendLabels[row.physics_backend] || row.physics_backend,
         rendererLabels[row.rendering_backend]
@@ -812,8 +813,7 @@
             swatch.style.setProperty("--environment-series-color", seriesColor(row, rows));
             swatch.setAttribute("aria-hidden", "true");
             entry.title = seriesLabel(row);
-            entry.append(swatch, [backendLabels[row.physics_backend], rendererLabels[row.rendering_backend],
-                row.task_presets ? row.task_presets.split(",").join(", ") : ""].filter(Boolean).join(" · "));
+            entry.append(swatch, configurationLabel(row));
             return entry;
         });
         legend.replaceChildren(...entries);
@@ -855,9 +855,9 @@
             swatch.style.setProperty("--environment-series-color", representative.missing
                 ? "var(--environment-muted)" : seriesColor(representative, rows));
             swatch.setAttribute("aria-hidden", "true");
-            label.append(swatch, backendLabels[representative.physics_backend]);
+            label.append(swatch, configurationLabel(representative));
             configuration.title = representative.missing
-                ? `${rendererLabels[representative.rendering_backend] || ""} 8,192-environment run unavailable`.trim()
+                ? `${rendererLabels[representative.rendering_backend] || ""} 8,192-environment matching-profile run unavailable`.trim()
                 : seriesLabel(representative);
             configuration.appendChild(label);
             entry.appendChild(configuration);

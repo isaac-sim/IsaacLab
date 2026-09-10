@@ -110,12 +110,12 @@ Benchmarks
            <button type="button" class="is-active" data-benchmark-channel="release" aria-pressed="true">Release</button>
            <button type="button" data-benchmark-channel="develop" aria-pressed="false">Develop</button>
          </div>
+         <div class="environment-benchmark-count"><code>num_envs = 8192</code></div>
          <div class="environment-benchmark-switch" role="group" aria-label="Benchmark workload">
            <button type="button" class="is-active" data-benchmark-workload="collection" aria-pressed="true">Collection</button>
            <button type="button" data-benchmark-workload="training" aria-pressed="false">Training</button>
          </div>
        </div>
-       <div class="environment-benchmark-count"><code>num_envs = 8192</code></div>
        <div class="environment-benchmark-legend" aria-label="Benchmark series"></div>
        <div class="environment-benchmark-results">
          <div class="environment-benchmark-chart" data-benchmark-chart></div>

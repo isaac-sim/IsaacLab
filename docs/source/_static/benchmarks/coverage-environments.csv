@@ -47,8 +47,8 @@ snapshot_date_utc,task,num_envs,collection_runs,training_runs,other_measured_cou
 2026-09-09,Isaac-Ant,8192,present,present,"4096,16384"
 2026-09-09,Isaac-Cartpole-Direct,8192,present,present,"4096,16384"
 2026-09-09,Isaac-Cartpole,8192,present,present,"4096,16384"
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,present,present,512
-2026-09-09,Isaac-Cartpole-Camera,8192,present,present,512
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,present,present,
+2026-09-09,Isaac-Cartpole-Camera,8192,present,present,
 2026-09-09,Isaac-Humanoid-Direct,8192,present,present,"4096,16384"
 2026-09-09,Isaac-Humanoid,8192,present,present,"4096,16384"
 2026-09-09,Isaac-Lift-Cable-Franka,8192,MISSING,MISSING,
@@ -57,7 +57,7 @@ snapshot_date_utc,task,num_envs,collection_runs,training_runs,other_measured_cou
 2026-09-09,Isaac-Lift-Cloth-Franka-Camera,8192,MISSING,MISSING,
 2026-09-09,Isaac-Lift-Franka,8192,present,present,"4096,16384"
 2026-09-09,Isaac-Lift-KukaAllegro,8192,present,present,"4096,16384"
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,present,present,"4096,16384"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,present,present,16384
 2026-09-09,Isaac-Lift-Soft-Franka,8192,MISSING,MISSING,
 2026-09-09,Isaac-Lift-Soft-Franka-Camera,8192,MISSING,MISSING,
 2026-09-09,Isaac-Open-Drawer-Franka-Direct,8192,present,present,"4096,16384"
@@ -70,11 +70,11 @@ snapshot_date_utc,task,num_envs,collection_runs,training_runs,other_measured_cou
 2026-09-09,Isaac-Reorient-Cube-Allegro,8192,present,present,16384
 2026-09-09,Isaac-Reorient-Cube-Shadow-Direct,8192,present,present,16384
 2026-09-09,Isaac-Reorient-Cube-Shadow,8192,present,present,16384
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,present,present,"1225,16384"
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,present,present,"1225,16384"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,present,present,16384
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,present,present,16384
 2026-09-09,Isaac-Reorient-Franka,8192,present,present,"4096,16384"
 2026-09-09,Isaac-Reorient-KukaAllegro,8192,present,present,"4096,16384"
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,present,present,"4096,16384"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,present,present,16384
 2026-09-09,Isaac-Shadow-Handover-Direct,8192,present,present,"2048,16384"
 2026-09-09,Isaac-Shadow-Handover,8192,MISSING,MISSING,
 2026-09-09,Isaac-Velocity-Flat-AnymalD,8192,present,present,"4096,16384"

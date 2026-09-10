@@ -1,35 +1,35 @@
 snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,source_record_ids
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,albedo,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,depth,not explicitly recorded,
-2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,rgb,explicitly measured,172947
+2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,172963
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,albedo,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,depth,not explicitly recorded,
-2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,rgb,explicitly measured,171721
+2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,rgb,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,simple_shading_full_mdl,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,albedo,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,depth,not explicitly recorded,
-2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,rgb,explicitly measured,171711
+2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,171788
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,albedo,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,depth,not explicitly recorded,
-2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,rgb,explicitly measured,"172919,173594"
+2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,rgb,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,simple_shading_full_mdl,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,albedo,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,depth,not explicitly recorded,
-2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,rgb,explicitly measured,172986
+2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -43,7 +43,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,ovphysx,newton_renderer,simple_shading_full_mdl,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,albedo,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,depth,not explicitly recorded,
-2026-08-28,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,rgb,explicitly measured,171752
+2026-08-28,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -51,7 +51,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,depth,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,resnet18,not explicitly recorded,
-2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb,explicitly measured,172947
+2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -60,7 +60,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,albedo,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,depth,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,resnet18,not explicitly recorded,
-2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,rgb,explicitly measured,171721
+2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,rgb,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -69,7 +69,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,albedo,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,depth,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,resnet18,not explicitly recorded,
-2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb,explicitly measured,171699
+2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -78,7 +78,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,albedo,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,depth,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,resnet18,not explicitly recorded,
-2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,rgb,explicitly measured,"172918,173594"
+2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,rgb,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -87,7 +87,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,albedo,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,depth,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,resnet18,not explicitly recorded,
-2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,rgb,explicitly measured,172986
+2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -105,7 +105,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,albedo,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,depth,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,resnet18,not explicitly recorded,
-2026-08-28,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,rgb,explicitly measured,171752
+2026-08-28,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -148,17 +148,17 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo64,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,cube,explicitly measured,"172953,172961,172970"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,cube,explicitly measured,172970
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,depth128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,depth256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,depth64,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,duo_camera,explicitly measured,172961
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,duo_camera,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,raycaster_depth128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,raycaster_depth256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,raycaster_depth64,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb256,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb64,explicitly measured,"172953,172961"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb64,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation64,not explicitly recorded,
@@ -172,21 +172,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl64,explicitly measured,172970
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,single_camera,explicitly measured,"172953,172970"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,single_camera,explicitly measured,172970
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,albedo128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,albedo256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,albedo64,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,cube,explicitly measured,"171736,171739"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,cube,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,depth128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,depth256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,depth64,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,duo_camera,explicitly measured,171736
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,duo_camera,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,raycaster_depth128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,raycaster_depth256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,raycaster_depth64,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb256,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb64,explicitly measured,"171736,171739"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb64,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation64,not explicitly recorded,
@@ -200,21 +200,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_full_mdl128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_full_mdl256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_full_mdl64,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,single_camera,explicitly measured,171739
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,single_camera,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,albedo128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,albedo256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,albedo64,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,cube,explicitly measured,"171687,171707,171806"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,cube,explicitly measured,171806
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,depth128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,depth256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,depth64,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,duo_camera,explicitly measured,171707
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,duo_camera,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,raycaster_depth128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,raycaster_depth256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,raycaster_depth64,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb256,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb64,explicitly measured,"171687,171707"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb64,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation64,not explicitly recorded,
@@ -228,21 +228,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl64,explicitly measured,171806
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,single_camera,explicitly measured,"171687,171806"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,single_camera,explicitly measured,171806
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,albedo128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,albedo256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,albedo64,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,cube,explicitly measured,"172921,172922"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,cube,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,depth128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,depth256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,depth64,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,duo_camera,explicitly measured,172921
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,duo_camera,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,raycaster_depth128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,raycaster_depth256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,raycaster_depth64,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb256,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb64,explicitly measured,"172921,172922"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb64,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation64,not explicitly recorded,
@@ -256,21 +256,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_full_mdl128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_full_mdl256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_full_mdl64,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,single_camera,explicitly measured,172922
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,single_camera,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,albedo128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,albedo256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,albedo64,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,cube,explicitly measured,"172981,172983,172997"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,cube,explicitly measured,172997
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,depth128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,depth256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,depth64,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,duo_camera,explicitly measured,172983
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,duo_camera,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,raycaster_depth128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,raycaster_depth256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,raycaster_depth64,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb256,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb64,explicitly measured,"172981,172983"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb64,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation64,not explicitly recorded,
@@ -284,7 +284,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl64,explicitly measured,172997
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,single_camera,explicitly measured,"172981,172997"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,single_camera,explicitly measured,172997
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,newton_renderer,albedo128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,newton_renderer,albedo256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,newton_renderer,albedo64,not explicitly recorded,
@@ -316,17 +316,17 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,albedo128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,albedo256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,albedo64,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,cube,explicitly measured,"171746,171747,171815"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,cube,explicitly measured,171815
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,depth128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,depth256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,depth64,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,duo_camera,explicitly measured,171747
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,duo_camera,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,raycaster_depth128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,raycaster_depth256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,raycaster_depth64,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb256,not explicitly recorded,
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb64,explicitly measured,"171746,171747"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb64,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,semantic_segmentation128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,semantic_segmentation256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,semantic_segmentation64,not explicitly recorded,
@@ -340,7 +340,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl64,explicitly measured,171815
-2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,single_camera,explicitly measured,"171746,171815"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,single_camera,explicitly measured,171815
 2026-08-28,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,ik,not explicitly recorded,
 2026-08-28,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,joint,not explicitly recorded,
 2026-08-28,Isaac-Lift-Soft-Franka,8192,newton_mjwarp_vbd_proxy,none,ik,not explicitly recorded,
@@ -391,7 +391,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,albedo,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,depth,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,full,not explicitly recorded,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,rgb,explicitly measured,171740
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -399,7 +399,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,albedo,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,depth,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,full,not explicitly recorded,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,rgb,explicitly measured,171741
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,rgb,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -407,7 +407,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,albedo,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,depth,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,full,not explicitly recorded,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,rgb,explicitly measured,171738
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -415,7 +415,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,albedo,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,depth,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,full,not explicitly recorded,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,rgb,explicitly measured,"172927,173625"
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,rgb,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -423,7 +423,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,albedo,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,depth,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,full,not explicitly recorded,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,rgb,explicitly measured,171662
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -439,7 +439,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,albedo,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,depth,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,full,not explicitly recorded,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,rgb,explicitly measured,171774
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -448,7 +448,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,depth,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,full,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,randomized,not explicitly recorded,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb,explicitly measured,171740
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -457,7 +457,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,depth,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,full,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,randomized,not explicitly recorded,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,rgb,explicitly measured,171741
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,rgb,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -466,7 +466,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,depth,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,full,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,randomized,not explicitly recorded,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb,explicitly measured,171738
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -475,7 +475,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,depth,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,full,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,randomized,not explicitly recorded,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,rgb,explicitly measured,"172931,173625"
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,rgb,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -484,7 +484,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,depth,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,full,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,randomized,not explicitly recorded,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,rgb,explicitly measured,171766
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -502,7 +502,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,depth,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,full,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,randomized,not explicitly recorded,
-2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,rgb,explicitly measured,171774
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,rgb,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -522,17 +522,17 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo64,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,cube,explicitly measured,"173542,173550,173554"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,cube,explicitly measured,173554
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,depth128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,depth256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,depth64,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,duo_camera,explicitly measured,173550
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,duo_camera,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,raycaster_depth128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,raycaster_depth256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,raycaster_depth64,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb256,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb64,explicitly measured,"173542,173550"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb64,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation64,not explicitly recorded,
@@ -546,21 +546,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl64,explicitly measured,173554
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,single_camera,explicitly measured,"173542,173554"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,single_camera,explicitly measured,173554
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,albedo128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,albedo256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,albedo64,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,cube,explicitly measured,"173549,173710"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,cube,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,depth128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,depth256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,depth64,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,duo_camera,explicitly measured,173549
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,duo_camera,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,raycaster_depth128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,raycaster_depth256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,raycaster_depth64,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb256,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb64,explicitly measured,"173549,173710"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb64,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation64,not explicitly recorded,
@@ -574,21 +574,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_full_mdl128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_full_mdl256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_full_mdl64,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,single_camera,explicitly measured,173710
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,single_camera,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,albedo128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,albedo256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,albedo64,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,cube,explicitly measured,"173541,173555,173720"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,cube,explicitly measured,173555
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,depth128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,depth256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,depth64,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,duo_camera,explicitly measured,173720
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,duo_camera,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,raycaster_depth128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,raycaster_depth256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,raycaster_depth64,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb256,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb64,explicitly measured,"173541,173720"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb64,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation64,not explicitly recorded,
@@ -602,21 +602,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl64,explicitly measured,173555
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,single_camera,explicitly measured,"173541,173555"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,single_camera,explicitly measured,173555
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,albedo128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,albedo256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,albedo64,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,cube,explicitly measured,"173916,173921"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,cube,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,depth128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,depth256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,depth64,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,duo_camera,explicitly measured,173921
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,duo_camera,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,raycaster_depth128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,raycaster_depth256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,raycaster_depth64,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb256,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb64,explicitly measured,"173916,173921"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb64,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation64,not explicitly recorded,
@@ -630,21 +630,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_full_mdl128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_full_mdl256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_full_mdl64,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,single_camera,explicitly measured,173916
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,single_camera,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,albedo128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,albedo256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,albedo64,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,cube,explicitly measured,"173521,173522,173530"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,cube,explicitly measured,173530
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,depth128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,depth256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,depth64,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,duo_camera,explicitly measured,173522
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,duo_camera,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,raycaster_depth128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,raycaster_depth256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,raycaster_depth64,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb256,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb64,explicitly measured,"173521,173522"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb64,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation64,not explicitly recorded,
@@ -658,7 +658,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl64,explicitly measured,173530
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,single_camera,explicitly measured,"173521,173530"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,single_camera,explicitly measured,173530
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,newton_renderer,albedo128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,newton_renderer,albedo256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,newton_renderer,albedo64,not explicitly recorded,
@@ -690,17 +690,17 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,albedo128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,albedo256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,albedo64,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,cube,explicitly measured,"173533,173551,173698"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,cube,explicitly measured,173551
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,depth128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,depth256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,depth64,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,duo_camera,explicitly measured,173698
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,duo_camera,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,raycaster_depth128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,raycaster_depth256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,raycaster_depth64,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb256,not explicitly recorded,
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb64,explicitly measured,"173533,173698"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb64,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,semantic_segmentation128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,semantic_segmentation256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,semantic_segmentation64,not explicitly recorded,
@@ -714,45 +714,45 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl64,explicitly measured,173551
-2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,single_camera,explicitly measured,"173533,173551"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,single_camera,explicitly measured,173551
 2026-08-28,Isaac-Shadow-Handover,8192,isaacsim_physx,none,randomized,not explicitly recorded,
 2026-08-28,Isaac-Shadow-Handover,8192,newton_mjwarp,none,randomized,not explicitly recorded,
 2026-08-28,Isaac-Shadow-Handover,8192,ovphysx,none,randomized,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,albedo,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,depth,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,rgb,explicitly measured,"177826,206583"
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,"177875,206582"
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,206582
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,albedo,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,depth,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,rgb,explicitly measured,"177825,205021"
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,rgb,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,isaacsim_physx,newton_renderer,simple_shading_full_mdl,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,albedo,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,depth,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,rgb,explicitly measured,"177822,205000"
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,"177868,205119"
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,205119
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,albedo,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,depth,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,rgb,explicitly measured,"177355,206559"
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,rgb,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,newton_renderer,simple_shading_full_mdl,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,albedo,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,depth,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,rgb,explicitly measured,"177804,206616"
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl,explicitly measured,"177832,206626"
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl,explicitly measured,206626
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,newton_renderer,albedo,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,newton_renderer,depth,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,newton_renderer,rgb,not explicitly recorded,
@@ -762,24 +762,24 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,newton_renderer,simple_shading_full_mdl,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,albedo,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,depth,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,rgb,explicitly measured,"177824,205068"
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,simple_shading_full_mdl,explicitly measured,"177881,205152"
+2026-09-09,Isaac-Cartpole-Camera-Direct,8192,ovphysx,ovrtx,simple_shading_full_mdl,explicitly measured,205152
 2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,depth,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,resnet18,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb,explicitly measured,"177826,206583"
+2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,"177875,206582"
+2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,206582
 2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,isaacsim_rtx,theia_tiny,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,albedo,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,depth,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,resnet18,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,rgb,explicitly measured,"177823,205021"
+2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,rgb,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -788,16 +788,16 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,albedo,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,depth,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,resnet18,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb,explicitly measured,"177822,205000"
+2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,"177868,205119"
+2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,205119
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,isaacsim_rtx,theia_tiny,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,albedo,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,depth,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,resnet18,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,rgb,explicitly measured,"177355,206559"
+2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,rgb,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -806,11 +806,11 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,albedo,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,depth,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,resnet18,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,rgb,explicitly measured,"177804,206616"
+2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl,explicitly measured,"177832,206626"
+2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl,explicitly measured,206626
 2026-09-09,Isaac-Cartpole-Camera,8192,newton_mjwarp,ovrtx,theia_tiny,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,newton_renderer,albedo,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,newton_renderer,depth,not explicitly recorded,
@@ -824,11 +824,11 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,albedo,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,depth,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,resnet18,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,rgb,explicitly measured,"177824,205068"
+2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl,explicitly measured,"177881,205152"
+2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl,explicitly measured,205152
 2026-09-09,Isaac-Cartpole-Camera,8192,ovphysx,ovrtx,theia_tiny,not explicitly recorded,
 2026-09-09,Isaac-Lift-Cable-Franka,8192,newton_mjwarp_vbd_proxy,none,ik,not explicitly recorded,
 2026-09-09,Isaac-Lift-Cable-Franka,8192,newton_mjwarp_vbd_proxy,none,joint,not explicitly recorded,
@@ -867,17 +867,17 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo64,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,cube,explicitly measured,"206585,206587,206590"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,cube,explicitly measured,206590
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,depth128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,depth256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,depth64,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,duo_camera,explicitly measured,206587
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,duo_camera,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,raycaster_depth128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,raycaster_depth256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,raycaster_depth64,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb256,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb64,explicitly measured,"206585,206587"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb64,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation64,not explicitly recorded,
@@ -891,21 +891,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl64,explicitly measured,206590
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,single_camera,explicitly measured,"206585,206590"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,single_camera,explicitly measured,206590
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,albedo128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,albedo256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,albedo64,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,cube,explicitly measured,"205032,205043"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,cube,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,depth128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,depth256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,depth64,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,duo_camera,explicitly measured,205043
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,duo_camera,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,raycaster_depth128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,raycaster_depth256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,raycaster_depth64,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb256,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb64,explicitly measured,"205032,205043"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb64,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation64,not explicitly recorded,
@@ -919,21 +919,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_full_mdl128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_full_mdl256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_full_mdl64,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,single_camera,explicitly measured,205032
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,single_camera,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,albedo128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,albedo256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,albedo64,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,cube,explicitly measured,"205005,205006,205120"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,cube,explicitly measured,205120
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,depth128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,depth256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,depth64,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,duo_camera,explicitly measured,205006
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,duo_camera,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,raycaster_depth128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,raycaster_depth256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,raycaster_depth64,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb256,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb64,explicitly measured,"205005,205006"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb64,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation64,not explicitly recorded,
@@ -947,21 +947,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl64,explicitly measured,205120
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,single_camera,explicitly measured,"205005,205120"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,single_camera,explicitly measured,205120
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,albedo128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,albedo256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,albedo64,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,cube,explicitly measured,"206552,206553"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,cube,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,depth128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,depth256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,depth64,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,duo_camera,explicitly measured,206553
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,duo_camera,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,raycaster_depth128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,raycaster_depth256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,raycaster_depth64,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb256,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb64,explicitly measured,"206552,206553"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb64,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation64,not explicitly recorded,
@@ -975,21 +975,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_full_mdl128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_full_mdl256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_full_mdl64,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,single_camera,explicitly measured,206552
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,single_camera,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,albedo128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,albedo256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,albedo64,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,cube,explicitly measured,"206604,206607,206620"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,cube,explicitly measured,206620
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,depth128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,depth256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,depth64,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,duo_camera,explicitly measured,206607
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,duo_camera,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,raycaster_depth128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,raycaster_depth256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,raycaster_depth64,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb256,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb64,explicitly measured,"206604,206607"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb64,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation64,not explicitly recorded,
@@ -1003,7 +1003,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl64,explicitly measured,206620
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,single_camera,explicitly measured,"206604,206620"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,single_camera,explicitly measured,206620
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,newton_renderer,albedo128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,newton_renderer,albedo256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,newton_renderer,albedo64,not explicitly recorded,
@@ -1035,17 +1035,17 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,albedo128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,albedo256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,albedo64,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,cube,explicitly measured,"205039,205066,205154"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,cube,explicitly measured,205154
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,depth128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,depth256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,depth64,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,duo_camera,explicitly measured,205066
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,duo_camera,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,raycaster_depth128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,raycaster_depth256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,raycaster_depth64,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb256,not explicitly recorded,
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb64,explicitly measured,"205039,205066"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb64,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,semantic_segmentation128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,semantic_segmentation256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,semantic_segmentation64,not explicitly recorded,
@@ -1059,7 +1059,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl64,explicitly measured,205154
-2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,single_camera,explicitly measured,"205039,205154"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,8192,ovphysx,ovrtx,single_camera,explicitly measured,205154
 2026-09-09,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,ik,not explicitly recorded,
 2026-09-09,Isaac-Lift-Soft-Franka,8192,isaacsim_physx,none,joint,not explicitly recorded,
 2026-09-09,Isaac-Lift-Soft-Franka,8192,newton_mjwarp_vbd_proxy,none,ik,not explicitly recorded,
@@ -1110,15 +1110,15 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,albedo,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,depth,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,full,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,rgb,explicitly measured,"177852,205053"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,"177901,205159"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,205159
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,albedo,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,depth,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,full,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,rgb,explicitly measured,"177854,205056"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,rgb,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,isaacsim_physx,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -1126,15 +1126,15 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,albedo,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,depth,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,full,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,rgb,explicitly measured,"177877,205014"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,"177915,205146"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,205146
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,albedo,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,depth,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,full,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,rgb,explicitly measured,"177384,206568"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,rgb,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -1142,11 +1142,11 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,albedo,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,depth,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,full,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,rgb,explicitly measured,"177459,204996"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl,explicitly measured,"178149,205105"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl,explicitly measured,205105
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,newton_renderer,albedo,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,newton_renderer,depth,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,newton_renderer,full,not explicitly recorded,
@@ -1158,25 +1158,25 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,albedo,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,depth,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,full,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,rgb,explicitly measured,"177871,205094"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,simple_shading_full_mdl,explicitly measured,"177911,205166"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,8192,ovphysx,ovrtx,simple_shading_full_mdl,explicitly measured,205166
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,depth,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,full,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,randomized,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb,explicitly measured,"177852,205053"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,"177901,205159"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,205159
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,albedo,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,depth,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,full,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,randomized,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,rgb,explicitly measured,"177854,205056"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,rgb,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -1185,16 +1185,16 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,depth,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,full,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,randomized,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb,explicitly measured,"177877,205014"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,"177915,205146"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl,explicitly measured,205146
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,albedo,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,depth,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,full,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,randomized,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,rgb,explicitly measured,"177384,206568"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,rgb,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_diffuse_mdl,not explicitly recorded,
@@ -1203,11 +1203,11 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,depth,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,full,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,randomized,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,rgb,explicitly measured,"177813,204996"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl,explicitly measured,"178149,205105"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl,explicitly measured,205105
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,newton_renderer,albedo,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,newton_renderer,depth,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,newton_renderer,full,not explicitly recorded,
@@ -1221,11 +1221,11 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,depth,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,full,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,randomized,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,rgb,explicitly measured,"177871,205094"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,rgb,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,semantic_segmentation,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,simple_shading_constant_diffuse,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,simple_shading_diffuse_mdl,not explicitly recorded,
-2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl,explicitly measured,"177911,205165"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl,explicitly measured,205165
 2026-09-09,Isaac-Reorient-Franka,8192,isaacsim_physx,none,cube,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Franka,8192,isaacsim_physx,none,shapes,not explicitly recorded,
 2026-09-09,Isaac-Reorient-Franka,8192,newton_mjwarp,none,cube,not explicitly recorded,
@@ -1241,17 +1241,17 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,albedo64,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,cube,explicitly measured,"206586,206588,206601"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,cube,explicitly measured,206601
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,depth128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,depth256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,depth64,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,duo_camera,explicitly measured,206588
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,duo_camera,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,raycaster_depth128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,raycaster_depth256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,raycaster_depth64,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb256,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb64,explicitly measured,"206586,206588"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,rgb64,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,semantic_segmentation64,not explicitly recorded,
@@ -1265,21 +1265,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,simple_shading_full_mdl64,explicitly measured,206601
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,single_camera,explicitly measured,"206586,206601"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,isaacsim_rtx,single_camera,explicitly measured,206601
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,albedo128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,albedo256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,albedo64,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,cube,explicitly measured,"205047,205051"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,cube,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,depth128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,depth256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,depth64,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,duo_camera,explicitly measured,205051
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,duo_camera,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,raycaster_depth128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,raycaster_depth256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,raycaster_depth64,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb256,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb64,explicitly measured,"205047,205051"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,rgb64,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,semantic_segmentation64,not explicitly recorded,
@@ -1293,21 +1293,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_full_mdl128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_full_mdl256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,simple_shading_full_mdl64,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,single_camera,explicitly measured,205047
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,isaacsim_physx,newton_renderer,single_camera,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,albedo128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,albedo256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,albedo64,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,cube,explicitly measured,"205007,205017,205136"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,cube,explicitly measured,205136
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,depth128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,depth256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,depth64,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,duo_camera,explicitly measured,205017
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,duo_camera,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,raycaster_depth128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,raycaster_depth256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,raycaster_depth64,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb256,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb64,explicitly measured,"205007,205017"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,rgb64,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,semantic_segmentation64,not explicitly recorded,
@@ -1321,21 +1321,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,simple_shading_full_mdl64,explicitly measured,205136
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,single_camera,explicitly measured,"205007,205136"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,isaacsim_rtx,single_camera,explicitly measured,205136
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,albedo128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,albedo256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,albedo64,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,cube,explicitly measured,"206560,206561"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,cube,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,depth128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,depth256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,depth64,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,duo_camera,explicitly measured,206560
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,duo_camera,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,raycaster_depth128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,raycaster_depth256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,raycaster_depth64,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb256,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb64,explicitly measured,"206560,206561"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,rgb64,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,semantic_segmentation64,not explicitly recorded,
@@ -1349,21 +1349,21 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_full_mdl128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_full_mdl256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,simple_shading_full_mdl64,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,single_camera,explicitly measured,206561
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,newton_renderer,single_camera,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,albedo128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,albedo256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,albedo64,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,cube,explicitly measured,"206610,206618,206625"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,cube,explicitly measured,206625
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,depth128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,depth256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,depth64,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,duo_camera,explicitly measured,206618
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,duo_camera,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,raycaster_depth128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,raycaster_depth256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,raycaster_depth64,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb256,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb64,explicitly measured,"206610,206618"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,rgb64,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,semantic_segmentation64,not explicitly recorded,
@@ -1377,7 +1377,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,simple_shading_full_mdl64,explicitly measured,206625
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,single_camera,explicitly measured,"206610,206625"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,newton_mjwarp,ovrtx,single_camera,explicitly measured,206625
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,newton_renderer,albedo128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,newton_renderer,albedo256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,newton_renderer,albedo64,not explicitly recorded,
@@ -1409,17 +1409,17 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,albedo128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,albedo256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,albedo64,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,cube,explicitly measured,"205075,205080,205153"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,cube,explicitly measured,205153
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,depth128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,depth256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,depth64,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,duo_camera,explicitly measured,205080
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,duo_camera,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,raycaster_depth128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,raycaster_depth256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,raycaster_depth64,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb256,not explicitly recorded,
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb64,explicitly measured,"205075,205080"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,rgb64,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,semantic_segmentation128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,semantic_segmentation256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,semantic_segmentation64,not explicitly recorded,
@@ -1433,7 +1433,7 @@ snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,preset,status,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl128,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl256,not explicitly recorded,
 2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,simple_shading_full_mdl64,explicitly measured,205153
-2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,single_camera,explicitly measured,"205075,205153"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,8192,ovphysx,ovrtx,single_camera,explicitly measured,205153
 2026-09-09,Isaac-Shadow-Handover,8192,isaacsim_physx,none,randomized,not explicitly recorded,
 2026-09-09,Isaac-Shadow-Handover,8192,newton_mjwarp,none,randomized,not explicitly recorded,
 2026-09-09,Isaac-Shadow-Handover,8192,ovphysx,none,randomized,not explicitly recorded,
