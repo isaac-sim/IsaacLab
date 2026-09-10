@@ -36,10 +36,6 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObjectCfg
 from isaaclab.sim import build_simulation_context
 
-# Temporarily disabled: this suite intermittently aborts with SIGABRT on CI.
-# Re-enable once the underlying crash is fixed.
-pytestmark = pytest.mark.skip(reason="Temporarily disabled due to intermittent crash on CI.")
-
 
 def generate_cubes_scene(
     num_cubes: int = 1,
@@ -211,7 +207,7 @@ def test_initialization_on_device_cpu():
         assert sys.getrefcount(cube_object) < 10
 
         # Play sim
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError, match="PhysX deformables require a CUDA simulation device; received 'cpu'."):
             sim.reset()
 
 
