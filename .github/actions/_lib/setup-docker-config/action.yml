@@ -10,34 +10,117 @@ description: >
   Idempotent: re-invoking it in the same job is a no-op, so callers (e.g.
   ecr-build-push-pull delegating to docker-build) don't need to coordinate.
   Reads NGC_API_KEY from the environment (optional; warns when missing).
+  When base-image-ref names an nvcr.io image that the configured credentials are
+  refused, falls back to anonymous access for that registry.
+
+inputs:
+  base-image-ref:
+    description: >
+      Optional "<image>:<tag>" that this job must be able to read. nvcr.io can
+      refuse a credential scoped to another organization a pull token for a
+      public repository instead of downgrading to anonymous, so when the
+      configured credentials are denied this image and anonymous access can read
+      it, the stored nvcr.io credential is dropped from the temp config. Only
+      nvcr.io refs are eligible; empty skips the check.
+    required: false
+    default: ''
 
 runs:
   using: composite
   steps:
     - shell: bash
+      env:
+        BASE_IMAGE_REF: ${{ inputs.base-image-ref }}
+        STRIP_HELPER: ${{ github.action_path }}/strip_registry_auth.py
       run: |
         # The runner's credential helper backend is broken ("not implemented")
         # and causes docker login calls to fail unless we point DOCKER_CONFIG at
         # a temp config with credsStore disabled. The value is written to
         # $GITHUB_ENV so subsequent steps in the job inherit it; a second
-        # invocation sees it already set and short-circuits.
+        # invocation reuses it and only re-runs the base-image check.
         if [ -n "${DOCKER_CONFIG:-}" ] && [ -f "${DOCKER_CONFIG}/config.json" ]; then
-          echo "🟢 Docker config already set up at ${DOCKER_CONFIG}, skipping"
+          echo "🟢 Docker config already set up at ${DOCKER_CONFIG}, keeping it"
+          DOCKER_CONFIG_DIR="${DOCKER_CONFIG}"
+        else
+          DOCKER_CONFIG_DIR=$(mktemp -d)
+          if [ -f "${HOME}/.docker/config.json" ]; then
+            python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG_DIR}/config.json','w'))"
+          else
+            echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+          fi
+          export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+          echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
+          # Mark this directory as ours, so a later invocation only ever edits a
+          # config this action created and never the runner's persistent one.
+          echo "SETUP_DOCKER_CONFIG_OWNED=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
+          SETUP_DOCKER_CONFIG_OWNED="${DOCKER_CONFIG_DIR}"
+
+          if [ -n "${NGC_API_KEY:-}" ]; then
+            echo "🔵 Logging into nvcr.io..."
+            printf '%s' "${NGC_API_KEY}" | docker login -u '$oauthtoken' --password-stdin nvcr.io
+          else
+            echo "🟠 NGC_API_KEY not set - skipping nvcr.io login (normal for fork PRs)"
+          fi
+        fi
+
+        if [ -z "${BASE_IMAGE_REF:-}" ]; then
           exit 0
         fi
 
-        DOCKER_CONFIG_DIR=$(mktemp -d)
-        if [ -f "${HOME}/.docker/config.json" ]; then
-          python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG_DIR}/config.json','w'))"
-        else
-          echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
-        fi
-        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
-        echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
+        # Scope: only nvcr.io shows the refuse-instead-of-downgrade behaviour.
+        # Other registries (Docker Hub in particular) must keep their
+        # credentials, which also serve as pull-rate-limit budget.
+        base_registry="$(printf '%s' "${BASE_IMAGE_REF%%/*}" | tr '[:upper:]' '[:lower:]')"
+        case "${BASE_IMAGE_REF}" in
+          */*) ;;
+          *) base_registry="" ;;
+        esac
+        case "${base_registry%%:*}" in
+          nvcr.io) ;;
+          *)
+            echo "🔵 ${BASE_IMAGE_REF} is not an nvcr.io image; leaving the docker config unchanged"
+            exit 0
+            ;;
+        esac
 
-        if [ -n "${NGC_API_KEY:-}" ]; then
-          echo "🔵 Logging into nvcr.io..."
-          docker login -u '$oauthtoken' -p "${NGC_API_KEY}" nvcr.io
-        else
-          echo "🟠 NGC_API_KEY not set - skipping nvcr.io login (normal for fork PRs)"
+        if [ "${SETUP_DOCKER_CONFIG_OWNED:-}" != "${DOCKER_CONFIG_DIR}" ]; then
+          echo "🔵 ${DOCKER_CONFIG_DIR} was not created by this action; leaving it unchanged"
+          exit 0
+        fi
+
+        # One transient error must not cost a working credential, so retry and
+        # keep stderr: only an authorization refusal justifies dropping it.
+        probe_err="$(mktemp)"
+        trap 'rm -f "${probe_err}"' EXIT
+        creds_denied=""
+        for attempt in 1 2 3; do
+          if docker buildx imagetools inspect "${BASE_IMAGE_REF}" >/dev/null 2>"${probe_err}"; then
+            echo "🟢 Configured credentials can read ${BASE_IMAGE_REF}"
+            exit 0
+          fi
+          if grep -Eqi 'denied|unauthorized|forbidden|insufficient_scope|401|403' "${probe_err}"; then
+            creds_denied="yes"
+            break
+          fi
+          echo "🟠 Base image read attempt ${attempt}/3 failed for a non-authorization reason: $(tr '\n' ' ' < "${probe_err}")"
+          [ "${attempt}" -lt 3 ] && sleep $((attempt * 5))
+        done
+
+        if [ -z "${creds_denied}" ]; then
+          echo "::warning::${BASE_IMAGE_REF} could not be read and the failure does not look like an authorization refusal; leaving the docker config unchanged"
+          exit 0
+        fi
+
+        anon_config_dir="$(mktemp -d)"
+        trap 'rm -f "${probe_err}"; rm -rf "${anon_config_dir}"' EXIT
+        echo '{"credsStore":"","auths":{}}' > "${anon_config_dir}/config.json"
+        if ! DOCKER_CONFIG="${anon_config_dir}" \
+          docker buildx imagetools inspect "${BASE_IMAGE_REF}" >/dev/null 2>&1; then
+          echo "::warning::${BASE_IMAGE_REF} is unreadable with the configured credentials and anonymously; leaving the docker config unchanged"
+          exit 0
+        fi
+
+        echo "🟠 Configured credentials cannot read ${BASE_IMAGE_REF}; using anonymous access for nvcr.io"
+        if ! python3 "${STRIP_HELPER}" "${DOCKER_CONFIG_DIR}/config.json" "${BASE_IMAGE_REF}"; then
+          echo "::warning::Could not drop the stored nvcr.io credential; the build may still fail to read ${BASE_IMAGE_REF}"
         fi
