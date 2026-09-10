@@ -8,9 +8,13 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
+
+import pytest
 
 
 def _bootstrap_paths() -> None:
@@ -358,9 +362,26 @@ class TestDocument:
 
         document = render_document(manifest, {})
 
-        assert "export ISAAC_PATH='/isaac'" in document
+        assert "export ISAAC_PATH=/isaac" in document
         assert "export VIRTUAL_ENV" not in document
         assert "`VIRTUAL_ENV`" in document and "`CONDA_PREFIX`" in document
+
+    def test_an_exported_value_survives_a_real_shell(self):
+        """``repr`` flips a value holding an apostrophe to double quotes, leaving ``$`` and backticks live."""
+        shell = shutil.which("sh")
+        if shell is None:
+            pytest.skip("no POSIX shell to check the rendered quoting against")
+        hostile = "/home/o'brien/$USER/`id`/lib"
+        manifest = _manifest(environment={"variables": {"PYTHONPATH": hostile}, "omitted_count": 0})
+
+        document = render_document(manifest, {})
+
+        exported = next(line for line in document.splitlines() if line.startswith("export PYTHONPATH="))
+        # The shell itself is the only reference that cannot be fooled by how the value was quoted.
+        command = exported + '; printf %s "$PYTHONPATH"'
+        done = subprocess.run([shell, "-c", command], capture_output=True, text=True)
+
+        assert done.stdout == hostile
 
     def test_the_document_states_what_it_cannot_reproduce_and_what_was_left_out(self):
         """The allowlist guarantee is only meaningful if the bundle states its own limits."""

@@ -20,6 +20,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import socket
 import subprocess
 import tomllib
@@ -292,7 +293,7 @@ def render_document(manifest: dict, artifacts: dict[str, str]) -> str:
             + ("" if link["exists"] else "   # BROKEN on the captured machine")
             for link in hand_made[:20]
         ),
-        *(f"export {name}={exportable[name]!r}" for name in sorted(exportable)),
+        *(f"export {name}={shlex.quote(exportable[name])}" for name in sorted(exportable)),
     ]
     notes = []
     if sync.get("extras"):
