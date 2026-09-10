@@ -129,6 +129,22 @@ def _quat_z_to(direction):
     return (math.cos(angle / 2.0), axis[0] * s, axis[1] * s, axis[2] * s)
 
 
+_FOOT_CONDIM, _OTHER_CONDIM = 3, 1
+"""mjlab's ``FULL_COLLISION``: the soles get friction, everything else is normal-force only.
+
+``condim=1`` means the contact carries no tangential force at all, so the body and arm capsules slide
+freely against the terrain and against each other; only the fourteen sole capsules are frictional,
+and ``priority=1`` makes their friction win over whatever they touch. Newton reads both from the USD
+attributes ``mjc:condim`` and ``mjc:priority``."""
+
+
+def _contact_attrs(name):
+    """The ``mjc:`` contact attributes for one geom, as USD text."""
+    if "_foot" in name:
+        return f"            int mjc:condim = {_FOOT_CONDIM}\n            int mjc:priority = 1\n"
+    return f"            int mjc:condim = {_OTHER_CONDIM}\n"
+
+
 def _prim(name, attrs):
     """Emit the USD prim text for one MJCF collision geom, indented for a link body."""
     kind = attrs.get("type", "capsule")
@@ -140,7 +156,8 @@ def _prim(name, attrs):
             f'            prepend apiSchemas = ["PhysicsCollisionAPI"]\n'
             f"        )\n        {{\n"
             f"            double radius = {radius}\n"
-            f"            float3 xformOp:translate = ({pos[0]}, {pos[1]}, {pos[2]})\n"
+            + _contact_attrs(name)
+            + f"            float3 xformOp:translate = ({pos[0]}, {pos[1]}, {pos[2]})\n"
             f'            uniform token[] xformOpOrder = ["xformOp:translate"]\n'
             f"        }}\n"
         )
@@ -160,7 +177,8 @@ def _prim(name, attrs):
         f'            uniform token axis = "Z"\n'
         f"            double height = {height}\n"
         f"            double radius = {radius}\n"
-        f"            float3 xformOp:translate = ({mid[0]}, {mid[1]}, {mid[2]})\n"
+        + _contact_attrs(name)
+        + f"            float3 xformOp:translate = ({mid[0]}, {mid[1]}, {mid[2]})\n"
         f"            quatf xformOp:orient = ({w}, {x}, {y}, {z})\n"
         f'            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient"]\n'
         f"        }}\n"

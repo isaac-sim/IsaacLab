@@ -48,13 +48,17 @@ So this config changes the robot rather than the objective:
   motion -- ``wz`` (-0.5, 0.5), resampled every 3 to 8 seconds, 30% heading environments.
 * **Push** every 1 to 3 seconds, against our 10 to 15.
 * ``soft_joint_pos_limit_factor`` 0.9.
+* **Physics** matched too: MuJoCo's own contact solver instead of Newton's collision pipeline,
+  ``ccd_iterations`` 500 against our 35, ``nconmax`` 70, ``njmax`` 1500, ``tolerance`` 1e-8, a single
+  substep, and ``mu`` 0.6 -- which together with ``mjc:condim`` 3 on the soles and 1 everywhere else
+  is mjlab's contact model exactly: only the feet carry tangential force.
 
 Rewards and terminations are inherited from :class:`G129DofRoughMjlabFullEnvCfg`.
 
 **What is still ours:** the terrain generator, the observation *set* (single group for actor and
 critic, including ``base_lin_vel`` and the height scan, where mjlab runs an asymmetric
-actor-critic), the PPO hyperparameters, and the physics backend. If this arm walks, those are the
-remaining differences; if it does not, the plant was not the answer either.
+actor-critic), and the PPO hyperparameters. If this arm walks, those are the remaining differences;
+if it does not, the plant was not the answer either.
 """
 
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -192,6 +196,34 @@ class G129DofRoughMjlabCloneEnvCfg(G129DofRoughMjlabFullEnvCfg):
         if getattr(self.events, "push_robot", None) is not None:
             self.events.push_robot.interval_range_s = (1.0, 3.0)
 
+        # The physics settings cannot be written here: ``sim.physics`` is still the preset
+        # placeholder at config time and is replaced when ``physics=newton_mjwarp`` resolves. They
+        # are passed as Hydra overrides instead, and asserted from the resolved config -- see
+        # MJLAB_PHYSICS_OVERRIDES below.
+
+
+MJLAB_PHYSICS_OVERRIDES = (
+    "env.sim.physics.num_substeps=1",
+    "env.sim.physics.default_shape_cfg.mu=0.6",
+    "env.sim.physics.collision_cfg=null",
+    "env.sim.physics.solver_cfg.use_mujoco_contacts=true",
+    "env.sim.physics.solver_cfg.ccd_iterations=500",
+    "env.sim.physics.solver_cfg.nconmax=70",
+    "env.sim.physics.solver_cfg.njmax=1500",
+    "env.sim.physics.solver_cfg.tolerance=1e-8",
+)
+"""mjlab's physics settings, as Hydra overrides.
+
+Both stacks run MuJoCo Warp with the same solver, integrator, cone, 5 ms step and decimation of 4.
+What differs is the contact model: Newton defaults to its own collision pipeline
+(``use_mujoco_contacts=False``, with its own ``ke``/``kd``/``margin``/``gap``) where mjlab uses
+MuJoCo's, and our ``ccd_iterations`` is 35 against the 500 mjlab sets for the G1. ``mu`` 0.6 is
+mjlab's foot friction; every other geom carries ``mjc:condim=1`` from the collider layer and so has
+no tangential force at all, which is what makes one global value exact rather than approximate.
+
+They are overrides rather than config because ``sim.physics`` is a preset placeholder until
+``physics=newton_mjwarp`` resolves, which happens after ``__post_init__``.
+"""
 
 # Referenced by the workflow so the layer path lives in one place.
 MJLAB_COLLIDER_LAYER = "g1_mjlab_colliders.usda"
