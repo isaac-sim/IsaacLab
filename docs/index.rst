@@ -93,6 +93,7 @@ Table of Contents
    source/setup/environments
    source/setup/quickstart
    source/setup/tutorial
+   source/setup/demos
    source/migration/migrating_to_isaaclab_3-0
 
 
@@ -101,7 +102,16 @@ Table of Contents
    :caption: Concepts
 
    source/concepts/backends_and_presets
+   source/concepts/backend_architecture
+   source/concepts/physics_backends
+   source/concepts/solver_differences
+   source/concepts/solver-tuning/index
+   source/concepts/prepare_asset_for_newton
+   source/concepts/transfer_policies_between_physx_and_newton
+   source/concepts/native-physics-api/index
+   source/concepts/renderers
    source/concepts/actuators
+   source/concepts/sensors/index
    source/concepts/coupled_solvers
    source/concepts/scene_data_providers
    source/concepts/visualization
@@ -109,13 +119,11 @@ Table of Contents
 
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Getting Started
+   :maxdepth: 1
+   :caption: Guides
    :titlesonly:
 
-   source/tutorials/index
    source/how-to/index
-   source/overview/developer-guide/index
 
 
 .. toctree::
@@ -126,7 +134,6 @@ Table of Contents
 
    source/overview/core-concepts/index
    source/overview/imitation-learning/index
-   source/overview/showroom
 
 
 .. toctree::
@@ -149,7 +156,11 @@ Table of Contents
    :maxdepth: 2
    :caption: Developer Tools
 
+   source/developer-tools/editor_setup
    source/developer-tools/template_generator
+   source/developer-tools/add_physics_backend
+   source/developer-tools/extending_newton_solvers
+   source/developer-tools/agent_skills
    source/developer-tools/benchmarking/index
 
 

@@ -1,6 +1,106 @@
 Changelog
 ---------
 
+20.1.3 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed environment-coupled agent variants to participate directly in the shared preset resolution pass through
+  each library's canonical ``<library>_cfg_entry_point``. Commands selecting Cartpole camera features or showcase
+  observation/action spaces now need only ``presets=<name>`` and no preset-specific ``--agent`` value.
+* Removed the default XR camera PiP from the G1 locomanipulation task. Neither the locomanipulation
+  nor fixed-base G1 task creates a PiP panel by default, preventing the articulated head camera from
+  capturing the panel and producing a recursive view. The locomanipulation task retains its recorded
+  robot camera.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``diffik_abs`` preset on ``Isaac-Reach-Franka-OSC``. The OSC action term replaces the
+  arm-controller presets, so on this task the preset only zeroed the action-magnitude reward weight, which
+  removed the sole regularizer on the raw pose targets. The preset now resolves as a no-op and emits a
+  :class:`FutureWarning`; it will be removed in a future release. Migration: drop ``presets=diffik_abs``
+  from ``Isaac-Reach-Franka-OSC`` commands.
+
+Removed
+^^^^^^^
+
+* Removed registry-side agent/preset compatibility metadata and agent auto-selection. Removed ``agent_library`` from
+  :func:`~isaaclab_tasks.utils.setup_preset_cli`; agent configuration families should declare matching root-level
+  :class:`~isaaclab_tasks.utils.PresetCfg` alternatives instead.
+
+Fixed
+^^^^^
+
+* Added an early validation error when Agibot place tasks use Newton-backed visualizers, whose shadow-model importer
+  does not support the reversed gripper joints in the robot USD. Use ``--visualizer kit`` with Isaac Sim PhysX, or
+  ``--visualizer none`` for headless execution.
+* Reduced the default Agibot place environment count from 4096 to one and enabled physics replication to prevent
+  interactive tools from exhausting host memory. Use ``--num_envs`` to configure a larger batch when needed.
+* Fixed unexpected Franka Reach motion before teleoperation input by configuring backend-native gravity control
+  for the differential and Newton IK presets.
+* Fixed Franka Reach links intersecting the table on PhysX by enabling the Menagerie asset's convex link colliders.
+* Fixed ``Isaac-Reach-Franka-OSC`` dropping the Franka Menagerie solver joint velocity limit. The effort
+  actuator copied the deprecated ``velocity_limit_sim`` alias instead of ``joint_velocity_limit``, so the
+  arm ran without a velocity clamp and could reach joint speeds that destabilize the simulation.
+* Fixed ``Isaac-Reach-Franka-OSC`` inheriting the controller-keyed teleop device presets of ``Isaac-Reach-Franka``;
+  the OSC task now always uses the default (empty) teleop device set.
+* Added task-specific installation guidance when loading a task configuration failed because a Pink IK dependency
+  was missing, including the standard Windows installation's missing Pinocchio dependency.
+
+
+20.1.2 (2026-09-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Reduced direct locomotion step and reset overhead by staging actions once per environment step,
+  avoiding duplicate articulation resets, redundant state copies, and separate joint-state writes.
+* Added preset-specific RSL-RL checkpoint discovery for the ResNet18 and Theia-Tiny Cartpole camera policies.
+* Fixed the SO-101 joint-teleop cube-stack task often failing to auto-reset after a completed
+  stack. The success termination accepted the gripper as open only within 0.2 rad of
+  ``SO101_GRIPPER_OPEN``, which is the top 0.2 rad of the jaw's 1.92 rad range, so a leader arm
+  whose calibrated full-open reading fell short never triggered success. The tolerance is now
+  0.5 rad, which still requires more opening than releasing a cube needs.
+* Defaulted the SO-101 cube-stacking tasks to the PhysX backend, so the gripper no longer
+  penetrates the cubes and grasps hold. ``IsaacContrib-Stack-Cube-SO101-v0``,
+  ``IsaacContrib-Stack-Cube-SO101-IK-Abs-v0``, and
+  ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0`` previously resolved to Newton MJWarp, whose
+  gripper contact response is still being tuned for this robot. Pass ``physics=newton_mjwarp``
+  to select the previous backend.
+
+
+20.1.1 (2026-09-08)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Unified rough-velocity task inputs across physics backends by removing MJWarp-only actuator armatures,
+  using 5,000 G1 training iterations for every backend, and representing shared base-COM randomization as a
+  plain event. Downstream configurations that require the former backend-specific behavior should set it
+  explicitly.
+
+Fixed
+^^^^^
+
+* Fixed preset-based ``--agent`` auto-selection being skipped for every entrypoint that registers
+  ``--agent`` with a non-``None`` default (``rsl_rl``, ``rl_games`` and ``sb3``). The selection guard
+  could not tell a default-supplied value from a user-typed one, so ``presets=resnet18`` and
+  ``presets=theia_tiny`` on ``Isaac-Cartpole-Camera`` kept the raw-camera entry point and the runner
+  failed to construct. An explicitly typed ``--agent`` still wins over auto-selection.
+* Fixed surface-gripper stack and place observations returning a quadratic environment batch due to unintended
+  broadcasting.
+* Fixed native keyboard, gamepad, and SpaceMouse teleoperation for ``Isaac-Reach-Franka`` with the
+  ``diffik`` and ``newton_ik`` presets by disabling the unsupported gripper command.
+* Fixed surface-gripper stack tasks to select CPU simulation by default and reject unsupported GPU overrides before
+  simulator initialization. Task-defined simulation devices are now preserved by :func:`parse_env_cfg` when no
+  explicit device override is provided.
+
+
 20.1.0 (2026-09-06)
 ~~~~~~~~~~~~~~~~~~~
 

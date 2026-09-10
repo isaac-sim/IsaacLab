@@ -16,8 +16,7 @@ import pytest
 import torch
 
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
-from isaaclab.utils import modifiers
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, modifiers
 
 pytestmark = pytest.mark.unit
 

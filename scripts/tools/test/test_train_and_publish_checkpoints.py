@@ -9,8 +9,12 @@ from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
 
+import gymnasium as gym
 import pytest
 
+from isaaclab_tasks.utils.hydra import collect_presets
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
 from scripts.tools.train_and_publish_checkpoints import (
@@ -22,6 +26,35 @@ from scripts.tools.train_and_publish_checkpoints import (
     collect_pretrained_checkpoint,
     publish_pretrained_checkpoint,
 )
+
+
+def test_cartpole_feature_presets_are_in_pretrained_checkpoint_matrix() -> None:
+    """Every Cartpole feature policy for the preferred workflow must receive a distinct checkpoint."""
+    task_spec = gym.spec("Isaac-Cartpole-Camera")
+    workflow = task_spec.kwargs["default_agent"]
+    agent_cfg = load_cfg_from_registry(task_spec.id, f"{workflow}_cfg_entry_point")
+    feature_presets = set(collect_presets(agent_cfg)[""]) - {"default"}
+
+    assert set(task_spec.kwargs["pretrained_checkpoint_preset_compatibility"][workflow]) == feature_presets
+
+
+def test_checkpoint_preset_metadata_references_registered_variants() -> None:
+    """Checkpoint declarations must name registered workflows and domain presets."""
+    for task_spec in gym.registry.values():
+        checkpoint_compatibility = task_spec.kwargs.get("pretrained_checkpoint_preset_compatibility", {})
+        if not checkpoint_compatibility:
+            continue
+
+        preset_map = enumerate_task_presets(task_spec.id) or {}
+        domain_presets = set(preset_map.get(PresetTarget.DOMAIN, ()))
+        for workflow, preset_names in checkpoint_compatibility.items():
+            assert f"{workflow}_cfg_entry_point" in task_spec.kwargs, (
+                f"{task_spec.id}: unregistered {workflow} workflow"
+            )
+            assert len(preset_names) == len(set(preset_names)), (
+                f"{task_spec.id}: duplicate {workflow} checkpoint preset"
+            )
+            assert not set(preset_names) - domain_presets, f"{task_spec.id}: unknown {workflow} checkpoint preset"
 
 
 def test_build_core_jobs_skips_unsupported_preset_without_normalizing_default(
@@ -57,6 +90,7 @@ def test_job_commands_use_uv_run_isaaclab() -> None:
         task_name="Isaac-Test",
         physics_backend="physx",
         render_backend="none",
+        preset_names=("depth",),
         physics_selector="isaacsim_physx",
     )
     args = Namespace(max_iterations=None, num_envs=None)
@@ -66,8 +100,33 @@ def test_job_commands_use_uv_run_isaaclab() -> None:
 
     assert train_command[:4] == ["uv", "run", "isaaclab", "train"]
     assert play_command[:4] == ["uv", "run", "isaaclab", "play"]
-    assert train_command[-1] == "physics=isaacsim_physx"
-    assert play_command[-1] == "physics=isaacsim_physx"
+    assert train_command[-2:] == ["physics=isaacsim_physx", "presets=depth"]
+    assert play_command[-2:] == ["physics=isaacsim_physx", "presets=depth"]
+
+
+def test_build_core_jobs_includes_declared_checkpoint_presets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Core jobs must include preset-specific checkpoints declared by the task."""
+    task_spec = SimpleNamespace(
+        id="Isaac-Test",
+        kwargs={
+            "env_cfg_entry_point": "isaaclab_tasks.core.test:TestEnvCfg",
+            "rl_games_cfg_entry_point": "isaaclab_tasks.core.test:TestAgentCfg",
+            "rsl_rl_cfg_entry_point": "isaaclab_tasks.core.test:TestAgentCfg",
+            "pretrained_checkpoint_preset_compatibility": {"rl_games": ("depth",)},
+        },
+    )
+    monkeypatch.setattr("scripts.tools.train_and_publish_checkpoints.gym.registry", {task_spec.id: task_spec})
+    monkeypatch.setattr("scripts.tools.train_and_publish_checkpoints.parse_env_cfg", lambda _: object())
+    monkeypatch.setattr("scripts.tools.train_and_publish_checkpoints.enumerate_task_presets", lambda _: {})
+    monkeypatch.setattr(
+        "scripts.tools.train_and_publish_checkpoints.get_pretrained_checkpoint_backend_names",
+        lambda _: ("physx", "rtx"),
+    )
+    args = Namespace(physics_backends="physx", render_backends="rtx")
+
+    jobs = _build_core_jobs(args)
+
+    assert [(job.workflow, job.preset_names) for job in jobs] == [("rsl_rl", ()), ("rl_games", ("depth",))]
 
 
 def test_select_physics_variants_uses_concrete_isaac_sim_physx() -> None:
@@ -130,8 +189,9 @@ def test_publish_uses_collected_checkpoint_without_training_logs(
         task_name="Isaac-Test",
         physics_backend="newtonmjwarp",
         render_backend="none",
+        preset_names=("depth",),
     )
-    collected_path = tmp_path / "rsl_rl" / "Isaac-Test_newtonmjwarp_none_rsl_rl.pt"
+    collected_path = tmp_path / "rsl_rl" / "Isaac-Test_depth_newtonmjwarp_none_rsl_rl.pt"
     collected_path.parent.mkdir()
     collected_path.touch()
     args = Namespace(
@@ -143,6 +203,6 @@ def test_publish_uses_collected_checkpoint_without_training_logs(
 
     assert publish_pretrained_checkpoint(job, args)
     assert (
-        f"Publishing {collected_path} -> omniverse://checkpoints/rsl_rl/Isaac-Test_newtonmjwarp_none_rsl_rl.pt"
+        f"Publishing {collected_path} -> omniverse://checkpoints/rsl_rl/Isaac-Test_depth_newtonmjwarp_none_rsl_rl.pt"
         in capsys.readouterr().out
     )

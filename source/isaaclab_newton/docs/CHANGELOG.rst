@@ -1,6 +1,35 @@
 Changelog
 ---------
 
+6.2.1 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a rebuilt Newton visualization model reusing the previous model's shadow-body index mapping.
+
+
+6.2.0 (2026-09-08)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Avoided conditional CUDA graph capture for Newton Warp rendering of deformable triangle meshes.
+* Fixed :meth:`compute_first_contact` and :meth:`compute_first_air` on the contact sensor silently
+  missing touchdowns and lift-offs once the simulation had run for a few seconds (issue #7283).
+  Their ``abs_tol`` argument now defaults to ``None``, which resolves to half the sensor update
+  interval instead of a fixed ``1e-8``. The old value was around 100x smaller than the float32
+  rounding error of the sensor clock, so most transitions were dropped. Callers that relied on the
+  previous behavior can pass ``abs_tol=1e-8`` explicitly.
+  Both methods now also refresh outdated sensor buffers before comparing, so a sensor with
+  ``history_length=0`` no longer reports the previous step's transitions when it is queried before
+  its data is read.
+* Fixed MuJoCo-based solver managers dropping ``mjc:frictionloss`` during USD
+  stage imports.
+
+
 6.1.1 (2026-09-07)
 ~~~~~~~~~~~~~~~~~~
 

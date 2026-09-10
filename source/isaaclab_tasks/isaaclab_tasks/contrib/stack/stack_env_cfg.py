@@ -23,8 +23,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -339,6 +339,20 @@ def raise_if_surface_gripper_on_newton(env_cfg) -> None:
         raise ValueError(
             "Surface grippers are only supported by the PhysX backend; the Newton backend has no "
             "surface-gripper implementation. Re-run this task with physics=isaacsim_physx (the default)."
+        )
+
+
+def raise_if_surface_gripper_on_gpu(env_cfg) -> None:
+    """Reject GPU simulation for scenes that configure a surface gripper.
+
+    Args:
+        env_cfg: The resolved environment config to inspect.
+    """
+    if getattr(env_cfg.scene, "surface_gripper", None) is None:
+        return
+    if env_cfg.sim.device != "cpu":
+        raise ValueError(
+            "Surface grippers are only supported on the CPU simulation device. Re-run this task with --device cpu."
         )
 
 

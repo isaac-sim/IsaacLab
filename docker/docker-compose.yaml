@@ -131,7 +131,7 @@ services:
       dockerfile: docker/Dockerfile.base
       args:
         - ISAACSIM_BASE_IMAGE_ARG=${ISAACSIM_BASE_IMAGE:-nvcr.io/nvidia/isaac-sim}
-        - ISAACSIM_VERSION_ARG=${ISAACSIM_VERSION:-6.0.0}
+        - ISAACSIM_VERSION_ARG=${ISAACSIM_VERSION:-6.1.0}
         - ISAACSIM_ROOT_PATH_ARG=${DOCKER_ISAACSIM_ROOT_PATH:-/isaac-sim}
         - ISAACLAB_PATH_ARG=${DOCKER_ISAACLAB_PATH}
         - DOCKER_USER_HOME_ARG=${DOCKER_USER_HOME}

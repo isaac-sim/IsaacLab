@@ -15,6 +15,10 @@ from isaaclab.utils.assets import retrieve_file_path
 
 USD_PATH = from_files_cfg._DEFAULT_GROUND_PLANE_USD
 NVIDIA_GREEN = (118, 185, 0)
+OFF_WHITE = (221, 218, 210)
+DARK_GREY = (90, 93, 97)
+ROUGH = 255
+SMOOTH = 13
 
 
 @pytest.fixture(scope="module")
@@ -35,59 +39,60 @@ def test_default_ground_plane_usd_contract(default_ground_plane_asset: tuple[Pat
         "/World/Environment/Geometry",
         "/World/GroundPlane/CollisionPlane",
         "/World/Looks/theGrid/Shader",
-        "/World/SphereLight",
     ):
         assert stage.GetPrimAtPath(prim_path).IsValid()
+    assert not stage.GetPrimAtPath("/World/SphereLight").IsValid()
+    assert UsdGeom.Imageable(stage.GetPrimAtPath("/World/GroundPlane/CollisionPlane")).GetVisibilityAttr().Get() == (
+        UsdGeom.Tokens.invisible
+    )
 
     mesh = UsdGeom.Mesh(stage.GetPrimAtPath("/World/Environment/Geometry"))
-    shader = UsdShade.Shader(stage.GetPrimAtPath("/World/Looks/theGrid/Shader"))
-    # ``primvars:st`` is the only texture mapping: OmniPBR reads UV set 0 rather than projecting.
-    assert shader.GetInput("project_uvw").Get() is False
-    assert not shader.GetInput("world_or_object")
-    assert tuple(shader.GetInput("texture_scale").Get()) == pytest.approx((1.0, 1.0))
+    assert len(mesh.GetPointsAttr().Get()) == 4
+    assert list(mesh.GetFaceVertexCountsAttr().Get()) == [4]
     assert [tuple(uv) for uv in UsdGeom.PrimvarsAPI(mesh).GetPrimvar("st").Get()] == [
-        (-10.0, -10.0),
-        (10.0, -10.0),
-        (10.0, 10.0),
-        (-10.0, 10.0),
+        (-25.0, -25.0),
+        (25.0, -25.0),
+        (25.0, 25.0),
+        (-25.0, 25.0),
     ]
 
+    shader = UsdShade.Shader.Get(stage, "/World/Looks/theGrid/Shader")
+    assert shader.GetInput("project_uvw").Get() is False
+    assert tuple(shader.GetInput("texture_scale").Get()) == pytest.approx((1.0, 1.0))
+    assert shader.GetInput("reflection_roughness_constant").Get() == pytest.approx(1.0)
+    assert shader.GetInput("reflection_roughness_texture_influence").Get() == pytest.approx(1.0)
     for input_name, filename in (
         ("diffuse_texture", "default_ground_plane_albedo.png"),
-        ("emissive_color_texture", "default_ground_plane_emissive_color.png"),
-        ("emissive_mask_texture", "default_ground_plane_emissive_mask.png"),
+        ("reflectionroughness_texture", "default_ground_plane_roughness.png"),
     ):
         assert shader.GetInput(input_name).Get().path == f"./Materials/Textures/{filename}"
         assert (texture_dir / filename).is_file()
 
 
 def test_default_ground_plane_texture_contract(default_ground_plane_asset: tuple[Path, Path]):
-    """Validate the selected colors, metric line widths, and seamless landmark edge."""
+    """Validate the 1 m checker cells and 2 m NVIDIA-green landmarks."""
     _, texture_dir = default_ground_plane_asset
-    for filename in (
-        "default_ground_plane_albedo.png",
-        "default_ground_plane_emissive_color.png",
-        "default_ground_plane_emissive_mask.png",
-    ):
-        with Image.open(texture_dir / filename) as image:
-            assert image.size == (1000, 1000)
-
     with Image.open(texture_dir / "default_ground_plane_albedo.png") as image:
-        sample_y = 30
+        assert image.size == (512, 512)
+        assert set(image.get_flattened_data()) == {OFF_WHITE, DARK_GREY, NVIDIA_GREEN}
 
-        # A 10 mm primary line occupies two texels at 200 texels per meter.
-        assert image.getpixel((198, sample_y)) != NVIDIA_GREEN
-        assert [image.getpixel((x, sample_y)) for x in range(199, 201)] == [NVIDIA_GREEN] * 2
-        assert image.getpixel((201, sample_y)) != NVIDIA_GREEN
+        pixels_per_meter = image.width / 2.0
+        for row in range(2):
+            for column in range(2):
+                center = (round((column + 0.5) * pixels_per_meter), round((row + 0.5) * pixels_per_meter))
+                expected_color = OFF_WHITE if (row + column) % 2 == 0 else DARK_GREY
+                assert image.getpixel(center) == expected_color
 
-        # The former 0.1 m grey subdivisions are absent from the texture.
-        subdivision_color = (217, 220, 213)
-        assert subdivision_color not in set(image.get_flattened_data())
+        # Quarter diamonds join across repeated texture edges into one landmark every 2 m.
+        for corner in ((0, 0), (image.width - 1, 0), (0, image.height - 1), (image.width - 1,) * 2):
+            assert image.getpixel(corner) == NVIDIA_GREEN
 
-        # The 10 mm landmark is also two texels wide across the repeating texture seam.
-        assert image.getpixel((998, sample_y)) != NVIDIA_GREEN
-        assert [image.getpixel((x, sample_y)) for x in (999, 0)] == [NVIDIA_GREEN] * 2
-        assert image.getpixel((1, sample_y)) != NVIDIA_GREEN
+    with Image.open(texture_dir / "default_ground_plane_roughness.png") as image:
+        assert image.size == (512, 512)
+        assert set(image.get_flattened_data()) == {SMOOTH, ROUGH}
+        assert image.getpixel((128, 128)) == ROUGH
+        assert image.getpixel((384, 128)) == SMOOTH
+        assert image.getpixel((0, 0)) == ROUGH
 
 
 def test_ground_plane_defaults_to_hosted_appearance():
