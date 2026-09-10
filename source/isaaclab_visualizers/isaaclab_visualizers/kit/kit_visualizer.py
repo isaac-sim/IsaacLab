@@ -1296,11 +1296,13 @@ class KitVisualizer(BaseVisualizer):
         origin = self._viewer_origin.detach().cpu().numpy()
         eye = np.array(self.cfg.eye, dtype=float) + origin
         target = np.array(self.cfg.lookat, dtype=float) + origin
-        self.set_camera_view(tuple(float(v) for v in eye), tuple(float(v) for v in target))
+        eye_f = tuple(float(v) for v in eye)
+        target_f = tuple(float(v) for v in target)
+        self.set_camera_view(eye_f, target_f)
         # Keep the Isaac RTX renderer camera in sync (no-op if isaaclab_physx is not installed).
         try:
             from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view  # noqa: PLC0415
 
-            set_kit_renderer_camera_view(eye=eye, target=target, camera_prim_path="/OmniverseKit_Persp")
+            set_kit_renderer_camera_view(eye=eye_f, target=target_f, camera_prim_path="/OmniverseKit_Persp")
         except (ImportError, ModuleNotFoundError):
             pass
