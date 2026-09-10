@@ -23,6 +23,7 @@ import time
 from pathlib import Path
 
 from isaaclab_rl.entrypoints import common as _common
+from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOWS
 
 
 def _parse_args(argv: list[str]):
@@ -153,9 +154,8 @@ def run(argv: list[str]) -> BenchmarkResult:
                     args_cli.checkpoint,
                     library="sb3",
                     task=args_cli.task,
-                    checkpoint_pattern=r"model_.*\.zip",
-                    preferred_checkpoint_pattern=r"model\.zip",
                     metadata={"agent": args_cli.agent},
+                    **WORKFLOWS["sb3"].selector_args(),
                 )
             else:
                 resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "sb3", args_cli.task, env_cfg)

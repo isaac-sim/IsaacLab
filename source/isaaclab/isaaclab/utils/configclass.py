@@ -638,3 +638,36 @@ def checked_apply(src: Any, target: Any) -> None:
                 f"{target_path} has no attribute `{f.name}`. {type(src).__name__} is out of sync with target."
             )
         setattr(target, f.name, getattr(src, f.name))
+
+
+def find_cfgs(value: Any, cfg_type: type, visited: set[int] | None = None) -> list:
+    """Find every instance of a config type nested in a resolved config.
+
+    Walks dataclass fields, dict values, lists and tuples. An object reachable through more than
+    one path is returned once.
+
+    Args:
+        value: The config to walk. Any object is accepted.
+        cfg_type: The type to collect.
+        visited: Object ids already walked. Used by the recursion.
+
+    Returns:
+        The matching instances in traversal order.
+    """
+    if visited is None:
+        visited = set()
+    if id(value) in visited:
+        return []
+    visited.add(id(value))
+
+    if isinstance(value, cfg_type):
+        return [value]
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        children = [getattr(value, f.name) for f in dataclasses.fields(value)]
+    elif isinstance(value, dict):
+        children = list(value.values())
+    elif isinstance(value, (list, tuple)):
+        children = list(value)
+    else:
+        return []
+    return [cfg for child in children for cfg in find_cfgs(child, cfg_type, visited)]

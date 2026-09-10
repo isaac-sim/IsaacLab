@@ -40,6 +40,7 @@ from isaaclab_rl.entrypoints.common import (
     wrap_training_capture,
     write_run_manifest,
 )
+from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOWS
 
 import isaaclab_tasks  # noqa: F401
 
@@ -189,8 +190,8 @@ def _run(args_cli: argparse.Namespace) -> None:
                     args_cli.checkpoint,
                     library="rsl_rl",
                     task=args_cli.task,
-                    checkpoint_pattern=r"model_.*\.pt",
                     metadata={"agent": args_cli.agent},
+                    **WORKFLOWS["rsl_rl"].selector_args(),
                 )
             elif args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
                 resume_path = get_checkpoint_path(

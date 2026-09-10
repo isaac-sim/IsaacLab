@@ -43,7 +43,7 @@ from isaaclab_rl.rsl_rl import (
     handle_deprecated_rsl_rl_cfg,
 )
 from isaaclab_rl.utils.pretrained_checkpoint import (
-    get_pretrained_checkpoint_backend_names,
+    WORKFLOWS,
     get_published_pretrained_checkpoint,
 )
 
@@ -140,8 +140,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             log_root_path = os.path.abspath(log_root_path)
             print(f"[INFO] Loading experiment from directory: {log_root_path}")
             if args_cli.checkpoint == "pretrained":
-                backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
-                resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name, *backend_names)
+                resume_path = get_published_pretrained_checkpoint("rsl_rl", train_task_name, env_cfg=env_cfg)
                 if not resume_path:
                     return
             elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
@@ -150,8 +149,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                     args_cli.checkpoint,
                     library="rsl_rl",
                     task=train_task_name,
-                    checkpoint_pattern=r"model_.*\.pt",
                     metadata={"agent": args_cli.agent},
+                    **WORKFLOWS["rsl_rl"].selector_args(),
                 )
             elif args_cli.checkpoint and os.path.isdir(args_cli.checkpoint):
                 resume_path = get_checkpoint_path(

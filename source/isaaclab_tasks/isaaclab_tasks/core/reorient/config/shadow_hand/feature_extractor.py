@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import glob
 import os
 
 import torch
@@ -11,6 +10,7 @@ import torch.nn as nn
 import torchvision
 
 from isaaclab.sensors import save_images_to_file
+from isaaclab.utils import Checkpoint
 from isaaclab.utils.configclass import configclass
 
 # Number of output channels for each supported camera data type.
@@ -122,6 +122,9 @@ class FeatureExtractorNetwork(nn.Module):
 class FeatureExtractorCfg:
     """Configuration for the feature extractor model."""
 
+    checkpoint: Checkpoint = Checkpoint(name="feature_extractor", run_glob="cnn_*.pth")
+    """The trained CNN, published beside the policy checkpoint. The glob must match what :meth:`step` saves."""
+
     train: bool = True
     """If True, the feature extractor model is trained during the rollout process. Default is True."""
 
@@ -200,9 +203,7 @@ class FeatureExtractor:
             os.makedirs(self.log_dir)
 
         if self.cfg.load_checkpoint:
-            list_of_files = glob.glob(self.log_dir + "/*.pth")
-            latest_file = max(list_of_files, key=os.path.getctime)
-            checkpoint = os.path.join(self.log_dir, latest_file)
+            checkpoint = self.cfg.checkpoint.resolve(self.log_dir)
             print(f"[INFO]: Loading feature extractor checkpoint from {checkpoint}")
             self.feature_extractor.load_state_dict(torch.load(checkpoint, weights_only=True))
 

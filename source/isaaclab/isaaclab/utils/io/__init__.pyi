@@ -7,7 +7,9 @@ __all__ = [
     "load_torchscript_model",
     "dump_yaml",
     "load_yaml",
+    "latest_file",
 ]
 
 from .torchscript import load_torchscript_model
+from .files import latest_file
 from .yaml import dump_yaml, load_yaml

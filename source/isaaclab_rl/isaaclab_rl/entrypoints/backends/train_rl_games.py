@@ -13,7 +13,6 @@ import logging
 import math
 import os
 import random
-import re
 import time
 from datetime import datetime
 from distutils.util import strtobool
@@ -38,6 +37,7 @@ from isaaclab_rl.entrypoints.common import (
     wrap_training_capture,
     write_run_manifest,
 )
+from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOWS
 
 import isaaclab_tasks  # noqa: F401
 
@@ -141,10 +141,8 @@ def run(argv: list[str]) -> None:
                     args_cli.checkpoint,
                     library="rl_games",
                     task=args_cli.task,
-                    checkpoint_pattern=r".*\.pth",
-                    other_dirs=["nn"],
-                    preferred_checkpoint_pattern=rf"{re.escape(config_name)}\.pth",
                     metadata={"agent": args_cli.agent},
+                    **WORKFLOWS["rl_games"].selector_args(config_name),
                 )
                 agent_cfg["params"]["load_checkpoint"] = True
                 agent_cfg["params"]["load_path"] = resume_path
