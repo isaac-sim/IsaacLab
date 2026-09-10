@@ -591,7 +591,7 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
     from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sim.utils import clone
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     container_pos, container_rot, _ = container_pose_at_time(0.0)
     container_vertices, container_faces = load_asset_mesh(container_usd)

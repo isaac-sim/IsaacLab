@@ -1,3 +1,4 @@
+:orphan:
 
 Spawning Multiple Assets
 ========================
@@ -152,7 +153,7 @@ The physics backend and visualizer are selected independently. Run one of these 
 The Newton commands exercise the same :class:`~assets.RigidObjectCollectionCfg` and ``(env_ids, obj_ids)`` APIs as the
 PhysX command. They do not demonstrate per-environment object or articulation variants because of the uniform-layout
 restriction described above; use the PhysX command to inspect that part of the example. See the
-:doc:`Newton installation guide </source/overview/core-concepts/physical-backends/newton/installation>` before running
+:doc:`installation guide </source/setup/installation/index>` before running
 the kitless command.
 
 To stop the simulation, you can close the window, or press ``Ctrl+C`` in the terminal.

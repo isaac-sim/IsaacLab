@@ -20,8 +20,9 @@ Ask which install path the user is following before prescribing commands. For a 
 | Binary package | `docs/source/setup/installation/index.rst` |
 | Cloud setup | `docs/source/features/docker_cloud.rst` |
 | Legacy installer or setup without Isaac Sim | `docs/source/setup/installation/index.rst` |
-| Newton setup | `docs/source/overview/core-concepts/physical-backends/newton/installation.rst` |
-| PhysX setup | `docs/source/overview/core-concepts/physical-backends/physx/installation.rst` |
+| Newton setup | `docs/source/setup/installation/index.rst` and `docs/source/concepts/physics_backends.rst` |
+| PhysX setup | `docs/source/setup/installation/index.rst` and `docs/source/concepts/physics_backends.rst` |
+| OvPhysX setup | `docs/source/setup/installation/index.rst` and `docs/source/concepts/physics_backends.rst` |
 
 ## Minimal Verification
 
@@ -53,6 +54,7 @@ uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --max_iterations
 | Task registration fails | Gym registration and task package import |
 | Backend preset fails | `uv run python scripts/environments/list_envs.py --show_presets` |
 | Camera or renderer fails | Renderer selection and sensor docs |
+| `LIVESTREAM=1`/`2` fails with `NVST_R_BUSY` or `NVST_R_INTERNAL_ERROR` | Livestreaming and WebRTC section of `docs/source/refs/troubleshooting.rst` (stale process still bound to TCP port 49100) |
 | Training starts but shapes fail | Environment reset/step smoke test before runner |
 | Simulation or training throughput is poor | Performance troubleshooting, then Nsight Systems profiling |
 

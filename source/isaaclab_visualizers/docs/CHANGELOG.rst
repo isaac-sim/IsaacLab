@@ -1,6 +1,38 @@
 Changelog
 ---------
 
+1.10.5 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``NewtonVisualizationMarkers.render`` and ``_ensure_mesh_registered`` allocating Warp
+  marker/mesh arrays on Warp's process-global default device instead of the viewer device.
+  Combined with ``--device cpu`` on a machine that also has a CUDA device present, this caused a
+  CUDA illegal memory access when the ``newton_gl`` visualizer rendered marker overlays.
+
+
+1.10.4 (2026-09-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_visualizers.kit.kit_visualization_markers.KitVisualizationMarkers`
+  rebuilding its scene-partition tokens on every frame. Marker ownership is now cached and the
+  ``primvars:omni:scenePartition`` primvar is only re-authored when the environment IDs change,
+  avoiding a device-to-host copy and one token string per marker on unchanged frames. A device
+  synchronization from comparing the cached and incoming environment IDs still occurs every call.
+  This noticeably improves throughput for camera tasks at high environment counts.
+* Fixed :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` hanging the process when
+  combined with the Kit-based ``physx`` physics backend (i.e. ``presets=isaacsim_physx``).
+  OVRTX is a kitless renderer and previously crashed inside the render thread on the first
+  ``step()``, which left the process stuck instead of exiting. It now raises a clear
+  ``RuntimeError`` from ``initialize()`` naming the incompatible combination and the supported
+  alternatives. The kitless ``ovphysx`` backend is unaffected and remains supported.
+
+
 1.10.3 (2026-09-08)
 ~~~~~~~~~~~~~~~~~~~
 

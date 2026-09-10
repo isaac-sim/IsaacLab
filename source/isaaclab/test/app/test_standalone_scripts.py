@@ -114,24 +114,19 @@ def test_script_scope_rejects_empty_selection():
         select_script_scope(SPECS, "missing")
 
 
-def test_showroom_documents_options_for_each_mentioned_demo():
-    """Every demo showcased in the showroom must list its supported launch options."""
-
-    def documented_values(entry: str, label: str) -> set[str]:
-        match = re.search(rf"(?ms)^   \*\*{label}:\*\*[ \t]*(.+?)(?=\n\n|\Z)", entry)
-        assert match is not None, f"showroom entry does not list {label.lower()} options"
-        return set(re.findall(r"``([^`]+)``", match.group(1)))
-
-    showroom = (script_cases.ROOT / "docs/source/overview/showroom.rst").read_text(encoding="utf-8")
-    entries = re.findall(r"(?ms)^-  .*?(?=^-  |\Z)", showroom)
+def test_demo_browser_documents_options_for_each_demo():
+    """Every demo card must expose its supported launch options to the command builder."""
+    docs_source = script_cases.ROOT / "docs/source"
+    demos_page = (docs_source / "setup/demos.rst").read_text(encoding="utf-8")
+    cards = re.findall(r'(?s)<button[^>]+data-demo-path="[^"]+"[^>]*>', demos_page)
     documented_entries = {}
-    for entry in entries:
-        paths = set(re.findall(r"scripts/demos/[A-Za-z0-9_./-]+\.py", entry))
-        assert len(paths) <= 1, f"showroom entry references multiple demos: {paths}"
-        if paths:
-            documented_entries[paths.pop()] = entry
+    for card in cards:
+        attributes = dict(re.findall(r'data-demo-([\w-]+)="([^"]*)"', card))
+        path = attributes.pop("path")
+        assert path not in documented_entries, f"demo browser contains a duplicate card for {path}"
+        documented_entries[path] = attributes
 
-    referenced_paths = set(re.findall(r"scripts/demos/[A-Za-z0-9_./-]+\.py", showroom))
+    referenced_paths = set(re.findall(r"scripts/demos/[A-Za-z0-9_./-]+\.py", demos_page))
     assert documented_entries.keys() == referenced_paths
 
     demo_specs = {
@@ -140,22 +135,18 @@ def test_showroom_documents_options_for_each_mentioned_demo():
         if spec.relative_path.startswith("scripts/demos/") and spec.relative_path in referenced_paths
     }
     assert demo_specs.keys() == referenced_paths
+    image_paths = re.findall(r'<img src="../../([^"]+)"', demos_page)
+    assert image_paths
+    missing_images = [path for path in image_paths if not (docs_source / path).is_file()]
+    assert not missing_images, f"demo browser references missing images: {missing_images}"
     for path, spec in demo_specs.items():
         entry = documented_entries[path]
         expected_physics = {backend for _, backend in spec.physics_backends}
         expected_visualizers = set(spec.visualizers)
-        assert documented_values(entry, "Physics") == expected_physics, f"{path} documents incorrect physics options"
-        assert documented_values(entry, "Visualizer") == expected_visualizers, (
+        assert set(entry["physics"].split(",")) == expected_physics, f"{path} documents incorrect physics options"
+        assert set(entry["visualizers"].split(",")) == expected_visualizers, (
             f"{path} documents incorrect visualizer options"
         )
-
-        selectable_renderers = {backend for option, backend in spec.rendering_backends if option is not None}
-        if selectable_renderers:
-            assert documented_values(entry, "Renderer") == selectable_renderers, (
-                f"{path} documents incorrect renderer options"
-            )
-        else:
-            assert "**Renderer:**" not in entry, f"{path} advertises a renderer option that it does not expose"
 
 
 def test_commands_respect_script_launcher_capabilities():

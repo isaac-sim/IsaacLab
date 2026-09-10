@@ -222,6 +222,9 @@ def _label_groups(builder: ModelBuilder) -> dict[str, list]:
     groups = {
         name: value for name, value in vars(builder).items() if name.endswith("_label") and isinstance(value, list)
     }
+    for frequency in builder.custom_frequencies.values():
+        if frequency.label_attribute is not None:
+            groups[frequency.label_attribute] = builder.custom_attributes[frequency.label_attribute].values
     groups["mujoco:equality_constraint_label"] = builder.custom_attributes["mujoco:equality_constraint_label"].values
     return groups
 
@@ -300,6 +303,8 @@ def replicate_builder_mapping(
         source_xform_inv = _invert_xform(xforms_np[0])
         xforms = _compose_world_xforms(positions, quaternions, source_xform_inv)
 
+        # Resolve label-based ownership before names become relative but target paths do not.
+        source_builder._resolve_custom_frequency_articulation_owners()
         label_groups = _label_groups(source_builder)
         original_labels = {name: list(labels) for name, labels in label_groups.items()}
         try:

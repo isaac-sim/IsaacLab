@@ -43,6 +43,20 @@ runs:
       print("core RL frameworks available:", ", ".join(modules))
       '
 
+      # Nothing else in this action runs ``uv run``, the documented entry point -- every other
+      # step calls ``python`` directly, which is how nvbugs 6732972 stayed green here.
+      docker run --rm "${mount_args[@]}" "$IMAGE_TAG" \
+        bash -lc '
+      set -euo pipefail
+      prefix="$(uv run --extra ov python -c "import sys; print(sys.prefix)" | tail -n 1)"
+      test "$prefix" = "$VIRTUAL_ENV" || {
+        echo "::error::uv run resolved ${prefix}, not the image environment ${VIRTUAL_ENV}"
+        exit 1
+      }
+      test ! -e "${ISAACLAB_PATH}/.venv"
+      echo "uv run resolved the image environment: ${prefix}"
+      '
+
       # Renderer construction loads the native OVRTX stack and creates a Vulkan
       # device. Full rendering correctness remains in build.yaml.
       docker run --rm --gpus all --network host \

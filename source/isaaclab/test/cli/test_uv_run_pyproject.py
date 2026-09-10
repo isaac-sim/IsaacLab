@@ -190,16 +190,14 @@ def test_uv_run_declares_no_extra_conflicts(source_checkout_root: Path):
     """No extra is forked: every combination resolves into a single environment.
 
     ``[tool.uv].conflicts`` used to fork ``isaacsim`` / ``teleop`` away from the OV runtimes,
-    and briefly away from the standalone importers. The overrides below reconcile the last of
-    those pins -- ``packaging`` for ovphysx, WebSockets for Viser, coverage for ``test``. The
-    importers install beside Isaac Sim without displacing it: the two distributions share no
-    files, and Kit serves ``isaacsim.asset`` from its extension roots either way.
+    and briefly away from the standalone importers. The remaining ``packaging`` override reconciles
+    ovphysx. The importers install beside Isaac Sim without displacing it: the two distributions share
+    no files, and Kit serves ``isaacsim.asset`` from its extension roots either way.
     """
     tool_uv = _root_pyproject(source_checkout_root)["tool"]["uv"]
 
     assert "conflicts" not in tool_uv
-    for override in ("packaging>=20,<27", "websockets>=14.0,<17.0.0", "coverage>=7.6.1"):
-        assert override in tool_uv["override-dependencies"]
+    assert "packaging>=20,<27" in tool_uv["override-dependencies"]
 
 
 def test_uv_run_isaacsim_is_an_opt_in_extra(source_checkout_root: Path):
