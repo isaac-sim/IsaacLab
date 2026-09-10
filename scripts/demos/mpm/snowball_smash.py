@@ -220,7 +220,7 @@ def create_scene_cfg():
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     particle_mass = SNOW_SPACING**3 * SNOW_DENSITY
     particle_radius = 0.5 * SNOW_SPACING
@@ -239,9 +239,7 @@ def create_scene_cfg():
                     dynamic_friction=CRATE_FRICTION,
                 ),
                 physics_material_path="physicsMaterial",
-                visual_material=(
-                    sim_utils.PreviewSurfaceCfg(diffuse_color=color) if "kit" in (args_cli.visualizer or []) else None
-                ),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color),
                 visual_material_path="visualMaterial",
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=center),
@@ -281,7 +279,7 @@ def create_scene_cfg():
         # the MPM model view.
         ground = AssetBaseCfg(
             prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(size=(12.0, 12.0), color=(0.32, 0.34, 0.38)),
+            spawn=sim_utils.GroundPlaneCfg(),
         )
 
         # The co-located hidden kinematic slab belongs only to the MPM entry.

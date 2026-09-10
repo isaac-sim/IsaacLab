@@ -29,7 +29,8 @@ adaptability, and support for running in the cloud.
 
 Additionally, Isaac Lab provides a variety of environments, and we are actively working on adding more environments
 to the list. These include classic control tasks, fixed-arm and dexterous manipulation tasks, legged locomotion tasks,
-and navigation tasks. A complete list is available in the `environments <source/overview/environments>`_ section.
+and navigation tasks. Browse the registered tasks and build a command in the
+`environment browser <source/setup/environments>`_.
 
 Isaac lab is developed with specific robot assets that are now **Batteries-included** as part of the platform and are ready to learn! These robots include...
 
@@ -91,7 +92,9 @@ Table of Contents
    source/setup/installation/index
    source/setup/environments
    source/setup/quickstart
-   source/refs/reference_architecture/index
+   source/setup/tutorial
+   source/setup/demos
+   source/migration/migrating_to_isaaclab_3-0
 
 
 .. toctree::
@@ -99,20 +102,28 @@ Table of Contents
    :caption: Concepts
 
    source/concepts/backends_and_presets
+   source/concepts/backend_architecture
+   source/concepts/physics_backends
+   source/concepts/solver_differences
+   source/concepts/solver-tuning/index
+   source/concepts/prepare_asset_for_newton
+   source/concepts/transfer_policies_between_physx_and_newton
+   source/concepts/native-physics-api/index
+   source/concepts/renderers
    source/concepts/actuators
+   source/concepts/sensors/index
+   source/concepts/coupled_solvers
+   source/concepts/scene_data_providers
+   source/concepts/visualization
+   source/concepts/reinforcement_learning
 
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Getting Started
+   :maxdepth: 1
+   :caption: Guides
    :titlesonly:
 
-   source/overview/own-project/index
-   source/setup/walkthrough/index
-   source/tutorials/index
    source/how-to/index
-   source/overview/developer-guide/index
-   source/testing/index
 
 
 .. toctree::
@@ -122,11 +133,7 @@ Table of Contents
 
 
    source/overview/core-concepts/index
-   source/overview/environments
-   source/overview/reinforcement-learning/index
    source/overview/imitation-learning/index
-   source/overview/showroom
-   source/overview/simple_agents
 
 
 .. toctree::
@@ -140,6 +147,21 @@ Table of Contents
    source/features/population_based_training
    source/features/ray
    source/features/reproducibility
+   source/features/draw_markers
+   source/features/record_video
+   source/features/visualizer_tiled_camera
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Developer Tools
+
+   source/developer-tools/editor_setup
+   source/developer-tools/template_generator
+   source/developer-tools/add_physics_backend
+   source/developer-tools/extending_newton_solvers
+   source/developer-tools/agent_skills
+   source/developer-tools/benchmarking/index
 
 
 .. toctree::
@@ -159,17 +181,6 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
-   :caption: Migration Guides
-   :titlesonly:
-
-   source/migration/migrating_to_isaaclab_3-0
-   source/migration/migrating_deformables
-   source/migration/migrating_from_isaacgymenvs
-   source/migration/migrating_from_omniisaacgymenvs
-   source/migration/migrating_from_orbit
-
-.. toctree::
-   :maxdepth: 1
    :caption: Source API
 
    source/api/index
@@ -182,7 +193,6 @@ Table of Contents
    source/refs/additional_resources
    source/refs/contributing
    source/refs/troubleshooting
-   source/refs/migration
    source/refs/issues
    source/refs/release_notes
    source/refs/changelog

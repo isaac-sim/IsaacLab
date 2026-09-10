@@ -13,7 +13,7 @@ Task Design Workflows
    (`skills/user/create-environments/ <../../../../skills/user/create-environments/SKILL.md>`__,
    `skills/user/plan-manipulation-tasks/ <../../../../skills/user/plan-manipulation-tasks/SKILL.md>`__).
    When you change this page, update those skills so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 A **Task** is defined by an environment with specific interfaces for observations to and actions from a specific agent (robot). The environment is what provides an agent with the current observations and executes that agent's actions by updating the simulation forward in time. There are many common components of simulating a robot in an environment, regardless of what you might want that robot to do or how it might be trained to do it.
 
@@ -68,8 +68,9 @@ For reinforcement learning, much of this has been done for you already! In most 
 
 .. seealso::
 
-    We provide a more detailed tutorial for setting up an environment using the manager-based workflow at
-    :ref:`tutorial-create-manager-rl-env`.
+    Start with :ref:`tutorial-create-manager-rl-env` for a focused manager-based environment example. Then follow
+    the :ref:`SO-101 vial-placement tutorial <tutorial-so101-task>` for a complete manipulation task, including its
+    scene, MDP terms, reset curriculum, and agent configuration.
 
 
 Direct Environments
@@ -117,9 +118,8 @@ operations in the environment.
 
 .. seealso::
 
-    We provide a more detailed tutorial for setting up a RL environment using the direct workflow at
+    We provide a detailed tutorial for setting up a direct RL environment at
     :ref:`tutorial-create-direct-rl-env`.
-
 
 .. _IsaacGymEnvs: https://github.com/isaac-sim/IsaacGymEnvs
 .. _OmniIsaacGymEnvs: https://github.com/isaac-sim/OmniIsaacGymEnvs

@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 import sys
 import time
 
+from isaaclab.benchmark.entrypoints.training import _resolve_training_checkpoint_path
+
 from isaaclab_rl.entrypoints import common as _common
 
 
@@ -139,10 +141,7 @@ def _parse_args(argv: list[str]):
     add_common_train_args(
         parser,
         agent_default=None,
-        agent_help=(
-            "Name of the RL agent configuration entry point. Defaults to None, in which"
-            " case --algorithm is used to determine the default agent entry point."
-        ),
+        agent_help="Agent configuration entry point (default: the task's canonical SKRL configuration).",
         include_distributed=True,
         max_iterations_type=parse_positive_int,
     )
@@ -156,9 +155,9 @@ def _parse_args(argv: list[str]):
     parser.add_argument(
         "--algorithm",
         type=str,
-        default="PPO",
+        default=None,
         choices=["AMP", "PPO"],
-        help="RL algorithm used for benchmark training.",
+        help="Optional algorithm selector; with --agent, the resolved agent.class must match.",
     )
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
@@ -237,7 +236,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     from isaaclab.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.benchmark.schema import StartupTime
 
-    from isaaclab_rl.skrl import SkrlVecEnvWrapper
+    from isaaclab_rl.skrl import SkrlVecEnvWrapper, resolve_skrl_agent_cfg_entry_point, resolve_skrl_algorithm
 
     import isaaclab_tasks  # noqa: F401
 
@@ -259,16 +258,11 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     args_cli, remaining_args = _parse_args(argv)
     distributed = DistributedContext.from_env(args_cli.distributed)
 
-    # Derive the default agent entry point from the selected algorithm.
-    if args_cli.agent is None:
-        algorithm = args_cli.algorithm.lower()
-        agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm == "ppo" else f"skrl_{algorithm}_cfg_entry_point"
-    else:
-        agent_cfg_entry_point = args_cli.agent
-        algorithm = agent_cfg_entry_point.split("_cfg")[0].split("skrl_")[-1].lower()
+    agent_cfg_entry_point = resolve_skrl_agent_cfg_entry_point(args_cli.agent, args_cli.algorithm)
 
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
+    algorithm = resolve_skrl_algorithm(agent_cfg, args_cli.algorithm)
     config_t1 = time.perf_counter_ns()
 
     start_utc = capture.now_utc_iso()
@@ -326,7 +320,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                     },
                 )
 
-            cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
+            cfg = capture.run_config_from_env_cfg(env_cfg)
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
 
@@ -349,7 +343,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                             "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
                         },
                         {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
-                        {"name": "presets", "data": ",".join(cfg.presets)},
                         {"name": "world_size", "data": distributed.world_size},
                     ]
                 },
@@ -477,7 +470,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 resources=resources,
                 learning=learning,
                 success_rate=success_rate,
-                checkpoint_path=None,
+                checkpoint_path=_resolve_training_checkpoint_path(log_dir, "skrl"),
                 video_path=os.path.join(log_dir, "videos") if args_cli.video else None,
                 extra=(
                     distributed.bundle_metadata(workload_scope="global", num_envs_per_rank=env.unwrapped.num_envs)

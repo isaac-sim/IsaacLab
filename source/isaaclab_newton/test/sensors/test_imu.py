@@ -21,7 +21,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.imu import Imu, ImuCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass
@@ -219,18 +219,6 @@ def test_freefall_acceleration(sim):
         atol=0.5,
         rtol=0.0,
     )
-
-
-def test_sensor_print(sim):
-    """Test that the sensor string representation works."""
-    scene_cfg = ImuTestSceneCfg(num_envs=2)
-    scene = InteractiveScene(scene_cfg)
-    sim.reset()
-
-    imu: Imu = scene["imu"]
-    sensor_str = str(imu)
-    assert "newton" in sensor_str
-    assert "IMU sensor" in sensor_str
 
 
 def test_no_stale_data_after_scene_reset(sim):

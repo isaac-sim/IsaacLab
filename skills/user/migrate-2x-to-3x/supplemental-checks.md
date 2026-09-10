@@ -15,7 +15,7 @@ Use these checks to route investigation, not as standalone migration docs:
 | Task names include the old Gym version suffix, such as `-v0` | Current task docs and the environment catalog; use suffixless task names in examples |
 | Visualizer launch behavior changed | `docs/source/migration/migrating_to_isaaclab_3-0.rst` and `source/isaaclab/isaaclab/app/app_launcher.py` |
 | Camera examples include obsolete launch options | Current sensor, renderer, and visualization docs; camera support is automatic |
-| Backend-specific physics or schema cfgs | `docs/source/overview/core-concepts/multi_backend_architecture.rst` and `docs/source/overview/core-concepts/schema_cfgs.rst` |
+| Backend-specific physics or schema cfgs | `docs/source/concepts/backend_architecture.rst` and `docs/source/overview/core-concepts/schema_cfgs.rst` |
 | Imports of PhysX/Newton schema cfgs from `isaaclab.sim.schemas` | Move backend-specific imports to `isaaclab_physx.sim.schemas` or `isaaclab_newton.sim.schemas`; core forwarding shims are deprecated |
 | Spawner schema overrides that need multiple namespaces in one slot | Prefer schema fragments such as `UsdPhysicsDriveCfg`, `PhysxJointCfg`, `NewtonCollisionCfg`, or `MujocoJointCfg` instead of forcing one legacy property cfg to carry every backend attribute |
 | Quaternion order changed from WXYZ to XYZW | `docs/source/migration/migrating_to_isaaclab_3-0.rst` and `scripts/tools/find_quaternions.py` |

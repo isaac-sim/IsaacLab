@@ -131,8 +131,14 @@ def test_runtime_request_uses_runtime_defaults() -> None:
 
 
 @pytest.mark.parametrize("backend", ["rsl_rl", "rl_games", "skrl", "sb3"])
-def test_play_request_uses_backend_warmup_steps_argument(backend: str, monkeypatch) -> None:
-    request = BenchmarkPlayRequest(backend=backend, task="Isaac-Cartpole-Direct", num_steps=7, warmup_steps=12)
+def test_play_request_uses_backend_arguments(backend: str, monkeypatch) -> None:
+    request = BenchmarkPlayRequest(
+        backend=backend,
+        task="Isaac-Cartpole-Direct",
+        num_steps=7,
+        warmup_steps=12,
+        backend_args=("--video", "--video_length", "37"),
+    )
 
     argv = dispatch._request_argv(request)
     monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
@@ -143,7 +149,60 @@ def test_play_request_uses_backend_warmup_steps_argument(backend: str, monkeypat
     assert args.num_steps == 7
     assert argv[argv.index("--warmup_steps") + 1] == "12"
     assert args.warmup_steps == 12
+    assert args.video is True
+    assert args.video_length == 37
+    assert args.enable_cameras is True
     assert remaining_args == []
+
+
+@pytest.mark.parametrize("configured_output_dir", [None, "/tmp/custom-videos"])
+def test_play_backend_configures_video_before_environment_creation(
+    monkeypatch, tmp_path, configured_output_dir
+) -> None:
+    class VideoConfigured(Exception):
+        pass
+
+    entrypoint = importlib.import_module(dispatch._workflow_module("play", "rsl_rl"))
+    monkeypatch.setattr(entrypoint._common, "resolve_play_checkpoint", lambda *args: "/tmp/checkpoint")
+
+    import gymnasium as gym
+
+    import isaaclab.app as app
+
+    @contextlib.contextmanager
+    def launch_simulation(env_cfg, args):
+        assert env_cfg.video_recorders == []
+        assert any(cfg.visualizer_type == "kit" for cfg in env_cfg.sim.visualizer_cfgs)
+        if configured_output_dir is not None:
+            from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
+            env_cfg.video_recorders = [VideoRecorderCfg(output_dir=configured_output_dir)]
+        yield
+
+    def make_environment(task, *, cfg):
+        recorder = cfg.video_recorders[0]
+        expected_output_dir = configured_output_dir or str(tmp_path / "videos" / "play")
+        assert recorder.output_dir == expected_output_dir
+        assert recorder.video_length == 37
+        raise VideoConfigured
+
+    monkeypatch.setattr(app, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(gym, "make", make_environment)
+
+    with pytest.raises(VideoConfigured):
+        entrypoint.run(
+            [
+                "--task",
+                "Isaac-Cartpole-Direct",
+                "--checkpoint",
+                "/tmp/checkpoint",
+                "--output_path",
+                str(tmp_path),
+                "--video",
+                "--video_length",
+                "37",
+            ]
+        )
 
 
 @pytest.mark.parametrize("workflow", ["runtime", "startup"])

@@ -7,9 +7,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Generator
 from typing import Any, cast
-from unittest.mock import patch
 
 import pytest
 
@@ -109,31 +107,38 @@ def _set_entries(ctx: RenderContext, *cfg_backend_pairs: tuple[RendererCfg, Base
     ctx._renderer_entries = list(cfg_backend_pairs)  # type: ignore[assignment]  # noqa: SLF001
 
 
-@pytest.fixture(autouse=True)
-def _patch_renderer_factory() -> Generator[None, None, None]:
-    """Never construct :class:`~isaaclab.renderers.renderer.Renderer` (real backends) in this module."""
-
-    with patch(
-        "isaaclab.renderers.render_context.Renderer",
-        side_effect=lambda *_args, **_kwargs: _FakeBackend(),
-    ):
-        yield
+def _constructable(cfg: RendererCfg) -> RendererCfg:
+    """Bind a lightweight implementation class to one renderer cfg."""
+    cfg.class_type = lambda _cfg: _FakeBackend()
+    return cfg
 
 
 def test_get_renderer_returns_equal_cfg_singleton():
     ctx = RenderContext()
-    cfg = IsaacRtxRendererCfg()
+    cfg = _constructable(IsaacRtxRendererCfg())
     r1 = ctx.get_renderer(cfg)
     r2 = ctx.get_renderer(cfg)
     assert r1 is r2
+
+
+def test_get_renderer_constructs_class_type_with_its_config():
+    ctx = RenderContext()
+    seen = []
+    cfg = RendererCfg()
+    cfg.class_type = lambda actual: seen.append(actual) or _FakeBackend()
+
+    renderer = ctx.get_renderer(cfg)
+
+    assert isinstance(renderer, _FakeBackend)
+    assert seen == [cfg]
 
 
 def test_get_renderer_two_different_concrete_types_coexist():
     """Different renderer_cfg concrete classes register distinct backends (no error)."""
 
     ctx = RenderContext()
-    rtx = ctx.get_renderer(IsaacRtxRendererCfg())
-    nw = ctx.get_renderer(NewtonWarpRendererCfg())
+    rtx = ctx.get_renderer(_constructable(IsaacRtxRendererCfg()))
+    nw = ctx.get_renderer(_constructable(NewtonWarpRendererCfg()))
     assert rtx is not nw
 
 

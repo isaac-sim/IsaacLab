@@ -6,7 +6,7 @@
 
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 import isaaclab_tasks.core.velocity.mdp as mdp
 from isaaclab_tasks.core.velocity.velocity_env_cfg import (
@@ -113,7 +113,6 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # physics
         self.sim.physics.newton_mjwarp.solver_cfg.njmax = 300
-        self.sim.physics.newton_mjwarp.num_substeps = 2
         # scene
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"

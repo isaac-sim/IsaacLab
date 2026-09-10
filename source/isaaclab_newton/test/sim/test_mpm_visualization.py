@@ -8,83 +8,95 @@
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 from isaaclab_newton.sim.spawners.mpm.visualization import create_mpm_particle_visualization
 
 from pxr import Gf, Usd, UsdGeom, UsdShade
 
 import isaaclab.sim as sim_utils
-import isaaclab.utils.version as version_utils
+
+_PRIM_PATHS = ["/World/envs/env_0/Sand/Particles", "/World/envs/env_1/Sand/Particles"]
+"""Environment-namespaced points prims, matching the ``{ENV_REGEX_NS}/<asset>/Particles`` paths used by MPMObject."""
+
+_POSITIONS = np.arange(2 * 3 * 3, dtype=np.float32).reshape(2, 3, 3)
+"""Distinct per-environment positions, so a prim showing another environment's slice is caught."""
+
+_WIDTHS = np.array([0.01, 0.02, 0.03], dtype=np.float32)
+_COLOR = (0.1, 0.2, 0.3)
 
 
-def _create_visualization(monkeypatch, visual_material, *, has_kit: bool):
+def _spawn_material(prim_path, _cfg):
+    UsdShade.Material.Define(sim_utils.get_current_stage(), prim_path)
+
+
+def _create_visualization(monkeypatch, visual_material=None):
     stage = Usd.Stage.CreateInMemory()
     monkeypatch.setattr(sim_utils, "get_current_stage", lambda: stage)
-    monkeypatch.setattr(version_utils, "has_kit", lambda: has_kit)
 
     prim_paths = create_mpm_particle_visualization(
-        prim_path="/World/Particles",
-        positions=np.zeros((1, 2, 3), dtype=np.float32),
-        widths=np.full(2, 0.01, dtype=np.float32),
-        color=(0.1, 0.2, 0.3),
+        prim_paths=_PRIM_PATHS,
+        positions=_POSITIONS,
+        widths=_WIDTHS,
+        color=_COLOR,
         visual_material=visual_material,
     )
-    return stage, prim_paths[0]
+    return stage, prim_paths
 
 
-def _assert_display_color_fallback(stage, prim_path):
-    points = UsdGeom.Points(stage.GetPrimAtPath(prim_path))
-    assert points.GetDisplayColorAttr().Get() == [Gf.Vec3f(0.1, 0.2, 0.3)]
-    assert UsdShade.MaterialBindingAPI(points).GetDirectBindingRel().GetTargets() == []
+def test_each_environment_renders_its_own_particle_slice(monkeypatch):
+    """Every environment gets a points prim carrying its own positions, plus the shared widths and color."""
+    stage, prim_paths = _create_visualization(monkeypatch)
+
+    assert prim_paths == _PRIM_PATHS
+    for env_idx, prim_path in enumerate(prim_paths):
+        points = UsdGeom.Points(stage.GetPrimAtPath(prim_path))
+        np.testing.assert_array_equal(np.asarray(points.GetPointsAttr().Get()), _POSITIONS[env_idx])
+        np.testing.assert_array_equal(np.asarray(points.GetWidthsAttr().Get()), _WIDTHS)
+        assert points.GetDisplayColorAttr().Get() == [Gf.Vec3f(*_COLOR)]
 
 
-def test_kitless_particle_visualization_skips_kit_material(monkeypatch):
-    """Kitless renderers keep displayColor and never invoke Kit-only material spawners."""
+def test_particle_clouds_ignore_the_inherited_environment_transform(monkeypatch):
+    """Points are authored in the world frame, so the prims must reset the environment's xform stack."""
+    stage, prim_paths = _create_visualization(monkeypatch)
 
-    def fail_if_called(_prim_path, _cfg):
-        raise AssertionError("Kit-only visual material spawner was called in kitless mode")
+    for prim_path in prim_paths:
+        assert UsdGeom.Points(stage.GetPrimAtPath(prim_path)).GetResetXformStack()
 
-    stage, prim_path = _create_visualization(
-        monkeypatch,
-        SimpleNamespace(func=fail_if_called),
-        has_kit=False,
-    )
 
-    _assert_display_color_fallback(stage, prim_path)
+def test_prim_path_count_must_match_environment_count(monkeypatch):
+    """A path-per-environment mismatch is rejected before any prim is authored."""
+    stage = Usd.Stage.CreateInMemory()
+    monkeypatch.setattr(sim_utils, "get_current_stage", lambda: stage)
+
+    with pytest.raises(ValueError, match="one particle visualization prim path per environment"):
+        create_mpm_particle_visualization(
+            prim_paths=_PRIM_PATHS,
+            positions=_POSITIONS[:1],
+            widths=_WIDTHS,
+            color=_COLOR,
+        )
+
+    assert not any(stage.GetPrimAtPath(prim_path).IsValid() for prim_path in _PRIM_PATHS)
 
 
 def test_missing_visual_material_prim_falls_back_to_display_color(monkeypatch):
     """A material spawner that authors no valid USD material leaves the points unbound."""
-    stage, prim_path = _create_visualization(
-        monkeypatch,
-        SimpleNamespace(func=lambda _prim_path, _cfg: None),
-        has_kit=True,
-    )
+    stage, prim_paths = _create_visualization(monkeypatch, SimpleNamespace(func=lambda _prim_path, _cfg: None))
 
-    _assert_display_color_fallback(stage, prim_path)
+    for prim_path in prim_paths:
+        points = UsdGeom.Points(stage.GetPrimAtPath(prim_path))
+        assert points.GetDisplayColorAttr().Get() == [Gf.Vec3f(*_COLOR)]
+        assert UsdShade.MaterialBindingAPI(points).GetDirectBinding().GetMaterialPath().isEmpty
 
 
-def test_kit_particle_visualization_uses_standard_material_binding(monkeypatch):
-    """A valid Kit material is bound through Isaac Lab's visual-material helper."""
-    stage = Usd.Stage.CreateInMemory()
-    monkeypatch.setattr(sim_utils, "get_current_stage", lambda: stage)
-    monkeypatch.setattr(version_utils, "has_kit", lambda: True)
-    bindings = []
-    monkeypatch.setattr(
-        sim_utils,
-        "bind_visual_material",
-        lambda prim_path, material_path, stage: bindings.append((prim_path, material_path, stage)),
-    )
+def test_visual_material_is_bound_to_every_particle_cloud(monkeypatch):
+    """A spawned material is bound to each environment's points prim from a sibling ``Looks`` scope."""
+    stage, prim_paths = _create_visualization(monkeypatch, SimpleNamespace(func=_spawn_material))
 
-    def spawn_material(prim_path, _cfg):
-        UsdShade.Material.Define(stage, prim_path)
-
-    visual_material = SimpleNamespace(func=spawn_material)
-    prim_paths = create_mpm_particle_visualization(
-        prim_path="/World/Particles",
-        positions=np.zeros((1, 2, 3), dtype=np.float32),
-        widths=np.full(2, 0.01, dtype=np.float32),
-        color=(0.1, 0.2, 0.3),
-        visual_material=visual_material,
-    )
-
-    assert bindings == [(prim_paths[0], "/World/Particles/Looks/visualMaterial", stage)]
+    expected_material_paths = [
+        "/World/envs/env_0/Sand/Looks/visualMaterial",
+        "/World/envs/env_1/Sand/Looks/visualMaterial",
+    ]
+    for prim_path, material_path in zip(prim_paths, expected_material_paths, strict=True):
+        binding = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath(prim_path)).GetDirectBinding()
+        assert str(binding.GetMaterialPath()) == material_path

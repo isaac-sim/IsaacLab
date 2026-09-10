@@ -56,7 +56,7 @@ with contextlib.suppress(ImportError):
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
-from isaaclab_tasks.utils import setup_preset_cli
+from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -74,9 +74,6 @@ _SHADOW_EYE = (0.0, -2.2, 1.8)
 _SHADOW_LOOKAT = (0.0, -0.1, 0.4)
 _SHADOW_ENV_SPACING = 1.0
 
-# Tiled camera eye offset from each robot root for generated per-env cameras.
-_SHADOW_TILED_EYE = (0.0, 0.35, 0.8)
-
 # Skip the first few steps so the RTX renderer has warmed up before recording starts.
 _KIT_STEP_OFFSET = 5
 
@@ -87,11 +84,7 @@ def _output_dir(example: int) -> str:
 
 def _shadow_env_cfg(num_envs: int, env_spacing: float = _SHADOW_ENV_SPACING):
     """Build a base Shadow Hand camera env cfg shared by all examples."""
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import ShadowHandCameraEnvCfg
-
-    env_cfg = ShadowHandCameraEnvCfg()
-    env_cfg.tiled_camera = env_cfg.tiled_camera.rgb
-    env_cfg.tiled_camera.renderer_cfg = env_cfg.tiled_camera.renderer_cfg.default
+    env_cfg, _ = resolve_task_config(_TASK_SHADOW, "", overrides=(*sys.argv[1:], "env.tiled_camera=rgb"))
     env_cfg.tiled_camera.height = 256
     env_cfg.tiled_camera.width = 256
     env_cfg.scene.num_envs = num_envs
@@ -109,8 +102,6 @@ def _build_env_cfg_example_1(num_envs: int):
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
-    env_cfg.sim.physics = env_cfg.sim.physics.default
-
     env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT)]
 
     out = _output_dir(1)
@@ -130,7 +121,6 @@ def _build_env_cfg_example_1(num_envs: int):
 def _build_env_cfg_example_2(num_envs: int):
     """Shadow Hand + headless: scene tiled-camera sensor clip only."""
     env_cfg = _shadow_env_cfg(num_envs, env_spacing=2.0)
-    env_cfg.sim.physics = env_cfg.sim.physics.default
     env_cfg.sim.visualizer_cfgs = []  # no interactive visualizer
 
     out = _output_dir(2)
@@ -158,16 +148,14 @@ def _build_env_cfg_example_3(num_envs: int):
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
-    env_cfg.sim.physics = env_cfg.sim.physics.default
-
     kit_cfg = KitVisualizerCfg(
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,
         streaming_view=True,
         streaming_envs=min(num_envs, 16),
-        # Reuse the existing scene camera sensor so the streaming panel shows
-        # the same RTX-rendered views as source="sensor:tiled_camera".
-        streaming_sensor_prim_path="/World/envs/env_.*/Camera",
+        # No streaming_sensor_prim_path/streaming_cam_target_prim_path: adopts the existing
+        # tiled_camera sensor automatically, so the streaming panel shows the same
+        # RTX-rendered views as source="sensor:tiled_camera".
     )
     newton_cfg = NewtonGLVisualizerCfg(
         eye=_SHADOW_EYE,

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -27,7 +28,7 @@ from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsEvent
-from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray
@@ -84,10 +85,11 @@ def _resolve_articulation_root_prim_path_expr(cfg: ArticulationCfg) -> str:
 
 def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None:
     """Resolve configured actuator gains into Newton builder target modes before finalization."""
-    root_prim_path_regex = path_expr_to_glob(_resolve_articulation_root_prim_path_expr(cfg)).replace("*", ".*")
+    root_prim_path_regex = _resolve_articulation_root_prim_path_expr(cfg)
     articulation_ids, _ = resolve_matching_names(
         root_prim_path_regex, builder.articulation_label, raise_when_no_match=False
     )
+    source_dof_ids = None
     for articulation_id in articulation_ids:
         joint_start = builder.articulation_start[articulation_id]
         joint_end = builder.articulation_end[articulation_id]
@@ -106,6 +108,11 @@ def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None
             for axis_index, dof_id in enumerate(range(dof_start, dof_end)):
                 dof_ids.append(dof_id)
                 dof_names.append(joint_name if dof_end - dof_start == 1 else f"{joint_name}:{axis_index}")
+
+        if source_dof_ids is not None:
+            for source_dof_id, dof_id in zip(source_dof_ids, dof_ids, strict=True):
+                builder.joint_target_mode[dof_id] = builder.joint_target_mode[source_dof_id]
+            continue
 
         for actuator_cfg in cfg.actuators.values():
             matched_indices, matched_names = resolve_matching_names(
@@ -130,6 +137,7 @@ def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None
                     if _is_implicit_actuator_cfg(actuator_cfg)
                     else JointTargetMode.EFFORT
                 )
+        source_dof_ids = dof_ids
 
 
 class Articulation(BaseArticulation):
@@ -209,6 +217,9 @@ class Articulation(BaseArticulation):
 
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
+        # Solver-built fixed-tendon adapter, held like ``_actuator_control``; None when the active
+        # solver has no tendon transmission. ``_process_tendons`` asks the manager for it.
+        self._fixed_tendon_control = None
 
     def _register_callbacks(self) -> None:
         """Register Newton lifecycle callbacks required before model finalization."""
@@ -427,6 +438,12 @@ class Articulation(BaseArticulation):
         # submit them to the backend through the collection's control adapter.
         self.actuators.compute(SimulationManager.get_physics_dt())
         self.actuators.submit_commands()
+
+        # Tendon submission is solver-specific: MuJoCo drives tendons through actuator controls
+        # outside the articulation view, so the manager owns how a buffered target reaches the solver.
+        if self._fixed_tendon_target_dirty:
+            self._fixed_tendon_control.write_data_to_sim(SimulationManager.get_control())
+            self._fixed_tendon_target_dirty = False
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -2902,6 +2919,40 @@ class Articulation(BaseArticulation):
         """
         raise NotImplementedError()
 
+    def set_fixed_tendon_position_target_index(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Command the tendon's length through MuJoCo's native tendon actuator.
+
+        MuJoCo's tendon spring has a fixed setpoint, so the command goes to the actuator whose
+        transmission is the tendon rather than to the tendon itself.
+
+        This function does not apply the target to the simulation. It only fills the buffer with
+        the desired value, which reaches ``mujoco.ctrl`` from :meth:`write_data_to_sim`.
+
+        .. note::
+            This method expects partial data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (len(env_ids), len(fixed_tendon_ids)).
+            fixed_tendon_ids: The tendon indices to command. Defaults to None (all fixed tendons).
+            env_ids: Environment indices. If None, then all indices are used.
+        """
+        if self._fixed_tendon_control is None:
+            raise RuntimeError(
+                "This articulation has no MuJoCo tendon actuator, so its tendons cannot be"
+                " commanded. The asset must author an actuator whose transmission is the tendon."
+            )
+        self._fixed_tendon_control.set_position_target_index(
+            target=target, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids
+        )
+        self._fixed_tendon_target_dirty = True
+
     def set_fixed_tendon_offset_index(
         self,
         *,
@@ -2928,6 +2979,37 @@ class Articulation(BaseArticulation):
             env_ids: Environment indices. If None, then all indices are used.
         """
         raise NotImplementedError()
+
+    def set_fixed_tendon_position_target_mask(
+        self,
+        *,
+        target: torch.Tensor | wp.array,
+        fixed_tendon_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Command the target length of fixed tendons using masks.
+
+        Same control input as :meth:`set_fixed_tendon_position_target_index`, selecting the tendons
+        and environments by mask instead of by index.
+
+        .. note::
+            This method expects full data.
+
+        Args:
+            target: Target tendon length [m or rad, depending on the spanned joints' type].
+                Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all the fixed tendons are commanded.
+            env_mask: Environment mask. If None, then all the instances are commanded.
+        """
+        if self._fixed_tendon_control is None:
+            raise RuntimeError(
+                "This articulation has no MuJoCo tendon actuator, so its tendons cannot be"
+                " commanded. The asset must author an actuator whose transmission is the tendon."
+            )
+        self._fixed_tendon_control.set_position_target_mask(
+            target=target, fixed_tendon_mask=fixed_tendon_mask, env_mask=env_mask
+        )
+        self._fixed_tendon_target_dirty = True
 
     def set_fixed_tendon_offset_mask(
         self,
@@ -3279,19 +3361,14 @@ class Articulation(BaseArticulation):
     """
 
     def _initialize_impl(self):
-        # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
-
         root_prim_path_expr = _resolve_articulation_root_prim_path_expr(self.cfg)
         # -- articulation
-        self._root_view = ArticulationView(
+        self._root_view = SimulationManager.views[SimulationManager, root_prim_path_expr] = ArticulationView(
             SimulationManager.get_model(),
-            path_expr_to_glob(root_prim_path_expr),
+            re.compile(root_prim_path_expr),
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
         )
-        # Register view with Newton manager so sensors (e.g. FrameTransformer) can find it.
-        SimulationManager.get_physics_sim_view().append(self._root_view)
 
         # container for data access
         self._data = ArticulationData(self.root_view, self.device)
@@ -3466,6 +3543,12 @@ class Articulation(BaseArticulation):
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")
+            # ``SimulationManager`` is bound to the base class, so ask the *active* solver's
+            # manager -- only it knows whether this solver transmits to tendons.
+            from isaaclab.sim import SimulationContext  # noqa: PLC0415
+
+            manager = SimulationContext.instance().physics_manager
+            self._fixed_tendon_control = manager.create_fixed_tendon_control(self)
 
     """
     Internal helpers -- Debugging.

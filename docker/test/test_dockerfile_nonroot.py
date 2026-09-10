@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 
 import pytest
+import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCKER_DIR = REPO_ROOT / "docker"
@@ -26,6 +27,11 @@ def _load_module(name: str, path: Path):
 DOCKERFILES = sorted(REPO_ROOT.glob("**/Dockerfile.*"))
 
 ROOT_USERS = {"root", "0"}
+
+# Pinned by digest so a uv release cannot silently change how the lock resolves. Matches the uv
+# that regenerated ``uv.lock``; a mismatch reintroduces the marker churn that refresh removed.
+UV_PIN = "ghcr.io/astral-sh/uv:0.12.9@sha256:8b940d3a9d65bed080436972241af2e21c84b5e8c9193f7014ed71479ee795ff"
+
 
 # Keep every Dockerfile in this map so new containers must make an explicit
 # runtime-user decision instead of silently escaping this regression test.
@@ -109,26 +115,67 @@ def test_ros2_dockerfile_restores_non_root_runtime_user():
     assert _user_directives(dockerfile_text) == ["root", "isaaclab"]
 
 
-def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_sim():
-    """The kit-less image installs Newton, both OV runtimes, every Newton viewer, and the RL frameworks."""
-    dockerfile_text = (DOCKER_DIR / "Dockerfile.kitless").read_text(encoding="utf-8")
+def test_images_share_one_pinned_uv():
+    """Every image that installs with uv agrees on the pinned version."""
+    pinned = {
+        path.relative_to(REPO_ROOT).as_posix(): re.findall(
+            r"FROM (ghcr\.io/astral-sh/uv:\S+) AS uv", path.read_text(encoding="utf-8")
+        )
+        for path in DOCKERFILES
+    }
+    pinned = {name: refs for name, refs in pinned.items() if refs}
 
-    assert (
-        "FROM ghcr.io/astral-sh/uv:0.9.25@sha256:13e233d08517abdafac4ead26c16d881cd77504a2c40c38c905cf3a0d70131a6 AS uv"
-        in dockerfile_text
-    )
-    # Installed through the same entry point as Dockerfile.base/Dockerfile.curobo.
-    assert '"${ISAACLAB_PATH}/isaaclab.sh" --install newton,rl[all],ov[all],visualizer[all]' in dockerfile_text
+    assert pinned, "no Dockerfile pins uv"
+    offenders = {name: refs for name, refs in pinned.items() if refs != [UV_PIN]}
+    assert not offenders, f"every image must pin {UV_PIN}; got {offenders}"
+
+
+def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_sim():
+    """The kit-less image installs its runtime features and importers without the full Isaac Sim runtime."""
+    dockerfile_text = (DOCKER_DIR / "Dockerfile.kitless").read_text(encoding="utf-8")
+    with (REPO_ROOT / "pyproject.toml").open("rb") as file:
+        extras = tomllib.load(file)["project"]["optional-dependencies"]
+
+    # Installed from the lock rather than through isaaclab.sh: only the lock applies
+    # ``[tool.uv] override-dependencies``, the table that holds ``packaging`` above ovphysx's
+    # ``<24`` pin. ``all`` carries rl/visualizer/ov, ``importers`` the standalone wheels.
+    assert "uv sync --frozen --inexact --extra all --extra importers" in dockerfile_text
+    assert "importers" in extras
+    # ``all`` must not drag in the Isaac Sim runtime, or the kit-less image means nothing.
+    assert "isaacsim" not in "".join(extras["all"])
+    # The interpreter must sit outside ISAACLAB_PATH. CI bind-mounts the checkout over that path,
+    # so a venv beneath it is masked and isaaclab.sh execs a missing interpreter (exit 127).
+    assert "ARG VENV_PATH_ARG=/opt/isaaclab-venv" in dockerfile_text
+    assert "ENV VIRTUAL_ENV=${VENV_PATH_ARG}" in dockerfile_text
+    # ``uv sync`` honours the project's ``only-managed`` preference and would rebuild the venv
+    # against a downloaded interpreter the runtime stage never receives, leaving bin/python
+    # dangling. The image must pin uv to the system interpreter.
+    assert "ENV UV_PYTHON=/usr/bin/python3.12" in dockerfile_text
+    assert "ENV UV_PYTHON_PREFERENCE=only-system" in dockerfile_text
     assert "COPY isaaclab.sh ./" in dockerfile_text
     assert "'isaacsim' not in names" in dockerfile_text
+    assert "'isaacsim-asset-isolated' in names" in dockerfile_text
     assert "'ovphysx' in names" in dockerfile_text
     assert "'ovrtx' in names" in dockerfile_text
     assert "'viser' in names" in dockerfile_text
     assert "'rerun-sdk' in names" in dockerfile_text
     assert "libxrender1" in dockerfile_text
     assert 'test ! -e "${ISAACLAB_PATH}/_isaac_sim"' in dockerfile_text
-    assert "COPY docker/docker-compose.yaml docker/docker-compose.yaml" in dockerfile_text
-    assert "COPY docker/utils/volume_mounts.py docker/utils/volume_mounts.py" in dockerfile_text
+    # volume_mounts.py parses docker-compose.yaml at runtime, so both must reach the image -
+    # either named individually or via a whole-tree copy.
+    for required in ("docker/docker-compose.yaml", "docker/utils/volume_mounts.py"):
+        assert f"COPY {required} {required}" in dockerfile_text or "COPY . ." in dockerfile_text, (
+            f"{required} must be copied into the kit-less image"
+        )
+
+
+def test_container_test_runner_only_links_an_actual_isaac_sim_runtime():
+    """Cache mount points under /isaac-sim must not masquerade as an Isaac Sim installation."""
+    runner_text = (REPO_ROOT / ".github/actions/run-tests/run_tests.sh").read_text(encoding="utf-8")
+    guarded_link = re.compile(r"if \[ -x /isaac-sim/python\.sh \]; then\s+ln -s /isaac-sim _isaac_sim;?\s+fi")
+
+    assert guarded_link.search(runner_text)
+    assert runner_text.count("ln -s /isaac-sim _isaac_sim") == 1
 
 
 # --------------------------------------------------------------------------- #

@@ -557,8 +557,8 @@ class image_features(ManagerTermBase):
         # forward the images through the model
         features = self._inference_fn(self._model, image_data, **(inference_kwargs or {}))
 
-        # move the features back to the image device
-        return features.detach().to(image_device)
+        # observation terms must be flat after the environment batch dimension
+        return features.flatten(start_dim=1).detach().to(image_device)
 
     """
     Helper functions.

@@ -13,13 +13,14 @@ from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
     StackEnvCfg,
+    raise_if_surface_gripper_on_gpu,
     raise_if_surface_gripper_on_newton,
 )
 
@@ -88,6 +89,7 @@ class UR10CubeStackEnvCfg(StackEnvCfg):
     def validate_config(self):
         # Surface grippers used by these suction robots are PhysX-only.
         raise_if_surface_gripper_on_newton(self)
+        raise_if_surface_gripper_on_gpu(self)
 
     def __post_init__(self):
         # post init of parent
@@ -152,7 +154,7 @@ class UR10LongSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
         super().__post_init__()
 
         # Suction grippers currently require CPU simulation
-        self.device = "cpu"
+        self.sim.device = "cpu"
 
         # Set events
         self.events = EventCfgLongSuction()
@@ -192,7 +194,7 @@ class UR10ShortSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
         super().__post_init__()
 
         # Suction grippers currently require CPU simulation
-        self.device = "cpu"
+        self.sim.device = "cpu"
 
         # Set UR10 as robot
         self.scene.robot = UR10_SHORT_SUCTION_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")

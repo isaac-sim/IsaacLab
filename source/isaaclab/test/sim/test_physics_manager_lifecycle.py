@@ -11,7 +11,50 @@ from types import SimpleNamespace
 
 import pytest
 
-from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
+from isaaclab.renderers import RendererCfg
+from isaaclab.visualizers import VisualizerCfg
+
+
+def test_backend_registry_uses_only_backend_type():
+    """Backend type is both the public and stored identity of a native resource."""
+    import inspect
+
+    from isaaclab.sim import SimulationContext
+
+    class Backend:
+        def __init__(self, value):
+            created.append(value)
+
+    class OtherBackend(Backend):
+        pass
+
+    context = object.__new__(SimulationContext)
+    context._backend_registry = {}
+    created = []
+
+    first = context.get_or_create_backend(Backend, 1)
+    same = context.get_or_create_backend(Backend, 2)
+    other_type = context.get_or_create_backend(OtherBackend, 4)
+
+    assert same is first
+    assert other_type is not first
+    assert created == [1, 4]
+    assert set(context._backend_registry) == {Backend, OtherBackend}
+    assert "resource_key" not in inspect.signature(SimulationContext.get_or_create_backend).parameters
+    cfg_types = (PhysicsCfg, RendererCfg, VisualizerCfg)
+    assert all("resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in cfg_types)
+
+
+def test_service_locator_abstraction_is_removed():
+    """Backend ownership stays directly on SimulationContext."""
+    from pathlib import Path
+
+    from isaaclab.sim import SimulationContext
+
+    sim_package = Path(__file__).parents[2] / "isaaclab" / "sim"
+    assert not (sim_package / "service_locator.py").exists()
+    assert not hasattr(SimulationContext, "services")
 
 
 def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch):
@@ -26,6 +69,7 @@ def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch)
     monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=TestManager))
     monkeypatch.setattr(PhysicsManager, "_cfg", object())
     monkeypatch.setattr(PhysicsManager, "_sim_time", 1.0)
+    monkeypatch.setattr(PhysicsManager, "views", {(TestManager, "/World/Robot"): object()})
 
     TestManager.register_callback(
         lambda _payload: events.append("first"),
@@ -71,6 +115,7 @@ def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch)
     assert PhysicsManager._sim is None
     assert PhysicsManager._cfg is None
     assert PhysicsManager._sim_time == 0.0
+    assert PhysicsManager.views == {}
 
 
 def test_close_surfaces_stop_errors_stored_by_safe_callback_invoke(monkeypatch):
@@ -149,10 +194,21 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
             if self.error is not None:
                 raise self.error
 
-    class Services:
-        def close_all(self, caught_exceptions):
-            assert caught_exceptions == []
-            events.append("services")
+    class Backend:
+        def __init__(self, name, error=None):
+            self.name = name
+            self.error = error
+
+        def clear(self):
+            events.append(self.name)
+            if self.error is not None:
+                raise self.error
+
+    class OtherBackend(Backend):
+        pass
+
+    class InvalidBackend:
+        pass
 
     class RenderContext:
         def close(self):
@@ -165,19 +221,23 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
             Visualizer("visualizer_failed", ValueError("visualizer failed")),
             Visualizer("visualizer_last"),
         ],
-        _services=Services(),
+        _backend_registry={
+            Backend: Backend("backend_failed", LookupError("backend failed")),
+            OtherBackend: OtherBackend("backend_last"),
+            InvalidBackend: InvalidBackend(),
+        },
     )
     monkeypatch.setattr(SimulationContext, "_instance", context)
     monkeypatch.setattr(context_module.stage_utils, "close_stage", lambda: events.append("stage"))
     monkeypatch.setattr(context_module, "clear_resolve_matching_names_cache", lambda: events.append("cache"))
     monkeypatch.setattr(context_module.gc, "collect", lambda: events.append("gc"))
 
-    with pytest.raises(RuntimeError, match=r"2 error\(s\) occurred during teardown") as exc_info:
+    with pytest.raises(RuntimeError, match=r"3 error\(s\) occurred during teardown") as exc_info:
         SimulationContext.clear_instance()
 
     assert str(exc_info.value) == (
-        "SimulationContext.clear_instance(): 2 error(s) occurred during teardown: "
-        "RuntimeError: STOP failed; ValueError: visualizer failed"
+        "SimulationContext.clear_instance(): 3 error(s) occurred during teardown: "
+        "RuntimeError: STOP failed; ValueError: visualizer failed; LookupError: backend failed"
     )
     assert str(exc_info.value.__cause__) == "STOP failed"
     assert events == [
@@ -185,12 +245,14 @@ def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatc
         "renderers",
         "visualizer_failed",
         "visualizer_last",
-        "services",
+        "backend_failed",
+        "backend_last",
         "stage",
         "cache",
         "gc",
     ]
     assert context._visualizers == []
+    assert context._backend_registry == {}
     assert SimulationContext.instance() is None
 
 
@@ -204,10 +266,6 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
         def close(cls):
             pass
 
-    class Services:
-        def close_all(self, caught_exceptions):
-            assert caught_exceptions == []
-
     class RenderContext:
         def close(self):
             pass
@@ -219,7 +277,7 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
     context.physics_manager = Manager
     context._render_context = RenderContext()
     context._visualizers = []
-    context._services = Services()
+    context._backend_registry = {}
     context_ref = weakref.ref(context)
     context_alive_during_gc = []
 

@@ -14,12 +14,92 @@ from rendering_test_utils import (
     KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
     attach_comparison_properties,
     generate_html_report,
+    group_rendering_params,
     make_kitless_rendering_params,
     make_kitless_rendering_params_franka,
     make_kitless_rendering_params_lift,
     make_skip_rendering_params,
     make_xfail_rendering_params,
 )
+
+
+def test_group_rendering_params_groups_static_data_types_with_matching_marks() -> None:
+    """Static AOVs with the same rendering configuration and marks should share a case."""
+    flaky = pytest.mark.flaky(max_runs=3, min_passes=1)
+    params = [
+        pytest.param("physx", "isaacsim_rtx_renderer", "albedo", id="physx-rtx-albedo", marks=flaky),
+        pytest.param("physx", "isaacsim_rtx_renderer", "normals", id="physx-rtx-normals", marks=flaky),
+        pytest.param(
+            "physx",
+            "isaacsim_rtx_renderer",
+            "instance_segmentation",
+            id="physx-rtx-instance",
+            marks=pytest.mark.xfail(reason="Known segmentation regression."),
+        ),
+    ]
+
+    grouped = group_rendering_params(params)
+
+    assert [tuple(param.values) for param in grouped] == [
+        ("physx", "isaacsim_rtx_renderer", ["albedo", "normals"]),
+        ("physx", "isaacsim_rtx_renderer", ["instance_segmentation"]),
+    ]
+    assert [param.id for param in grouped] == ["physx-isaacsim_rtx_renderer-static", "physx-rtx-instance"]
+    assert [[mark.name for mark in param.marks] for param in grouped] == [["flaky"], ["xfail"]]
+
+
+def test_group_rendering_params_isolates_temporal_and_minimal_data_types() -> None:
+    """AOVs requiring distinct capture or render-product state should stay isolated."""
+    flaky = pytest.mark.flaky(max_runs=3, min_passes=1)
+    params = [
+        pytest.param("physx", "isaacsim_rtx_renderer", "rgb", id="physx-rtx-rgb", marks=flaky),
+        pytest.param("physx", "isaacsim_rtx_renderer", "depth", id="physx-rtx-depth", marks=flaky),
+        pytest.param(
+            "physx",
+            "isaacsim_rtx_renderer",
+            "distance_to_image_plane",
+            id="physx-rtx-distance_to_image_plane",
+            marks=flaky,
+        ),
+        pytest.param("physx", "isaacsim_rtx_renderer", "motion_vectors", id="physx-rtx-motion", marks=flaky),
+        pytest.param(
+            "physx", "isaacsim_rtx_renderer", "simple_shading_diffuse_mdl", id="physx-rtx-diffuse_mdl", marks=flaky
+        ),
+        pytest.param("physx", "isaacsim_rtx_renderer", "simple_shading_full_mdl", id="physx-rtx-full_mdl", marks=flaky),
+    ]
+
+    grouped = group_rendering_params(params)
+
+    assert [tuple(param.values) for param in grouped] == [
+        ("physx", "isaacsim_rtx_renderer", ["rgb", "depth", "distance_to_image_plane"]),
+        ("physx", "isaacsim_rtx_renderer", ["motion_vectors"]),
+        ("physx", "isaacsim_rtx_renderer", ["simple_shading_diffuse_mdl"]),
+        ("physx", "isaacsim_rtx_renderer", ["simple_shading_full_mdl"]),
+    ]
+    assert [param.id for param in grouped] == [
+        "physx-isaacsim_rtx_renderer-static",
+        "physx-rtx-motion",
+        "physx-rtx-diffuse_mdl",
+        "physx-rtx-full_mdl",
+    ]
+
+
+def test_group_rendering_params_groups_each_renderer() -> None:
+    """Every renderer should launch once with all of its supported AOVs."""
+    params = [
+        pytest.param("newton", "ovrtx_renderer", "albedo", id="newton-ovrtx-albedo"),
+        pytest.param("newton", "ovrtx_renderer", "normals", id="newton-ovrtx-normals"),
+        pytest.param("newton", "newton_renderer", "rgb", id="newton-warp-rgb"),
+        pytest.param("newton", "newton_renderer", "depth", id="newton-warp-depth"),
+        pytest.param("newton", "newton_renderer", "normals", id="newton-warp-normals"),
+    ]
+
+    grouped = group_rendering_params(params)
+
+    assert [tuple(param.values) for param in grouped] == [
+        ("newton", "ovrtx_renderer", ["albedo", "normals"]),
+        ("newton", "newton_renderer", ["rgb", "depth", "normals"]),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -156,13 +236,35 @@ def test_lift_factory_retains_retries_without_native_crash_skips() -> None:
     assert "xfail" not in [mark.name for mark in params["legacy-ovphysx-ovrtx-albedo"].marks]
 
 
-def test_franka_factory_has_no_cloth_motion_xfail() -> None:
-    """OVRTX 0.4.1 cloth motion vectors should run without an xfail."""
+def test_franka_factory_marks_only_unsupported_instance_segmentation() -> None:
+    """Franka OVRTX grouping should isolate unsupported instance segmentation from valid AOVs."""
     params = {param.id: param for param in make_kitless_rendering_params_franka()}
 
     for variant in ("legacy", "ovstage"):
-        motion_id = f"{variant}-newton-ovrtx-motion_vectors"
-        assert "xfail" not in [mark.name for mark in params[motion_id].marks]
+        for physics_backend in ("newton", "ovphysx"):
+            motion_id = f"{variant}-{physics_backend}-ovrtx-motion_vectors"
+            assert [mark.name for mark in params[motion_id].marks] == ["flaky"]
+
+            instance_id = f"{variant}-{physics_backend}-ovrtx-instance_segmentation"
+            assert [mark.name for mark in params[instance_id].marks] == ["skip"]
+
+    grouped = {param.id: param for param in group_rendering_params(list(params.values()))}
+    for variant in ("legacy", "ovstage"):
+        valid_static = grouped[f"{variant}-newton-ovrtx_renderer-static"]
+        assert valid_static.values[-1] == [
+            "rgb",
+            "albedo",
+            "semantic_segmentation",
+            "depth",
+            "distance_to_camera",
+            "distance_to_image_plane",
+            "normals",
+        ]
+        assert [mark.name for mark in valid_static.marks] == ["flaky"]
+
+        unsupported = grouped[f"{variant}-newton-ovrtx-instance_segmentation"]
+        assert unsupported.values[-1] == ["instance_segmentation"]
+        assert [mark.name for mark in unsupported.marks] == ["skip"]
 
 
 def test_html_report_labels_xfail_and_xpass_outcomes(monkeypatch, tmp_path: Path) -> None:

@@ -200,3 +200,88 @@ def sync_newton_transforms_kernel(
             )
         )
     )
+
+
+@wp.func
+def _cable_capsule_endpoint_world(
+    shape_id: int,
+    z_sign: float,
+    shape_body: wp.array(dtype=wp.int32),
+    body_q: wp.array(dtype=wp.transformf),
+    shape_transform: wp.array(dtype=wp.transformf),
+    shape_scale: wp.array(dtype=wp.vec3f),
+) -> wp.vec3f:
+    """World-space tip of a Newton cable capsule along local ±Z.
+
+    Args:
+        shape_id: Newton shape id of the capsule segment.
+        z_sign: ``+1`` / ``-1`` selects the local +Z / -Z capsule tip.
+        shape_body: Newton shape-to-body index map.
+        body_q: Body poses in world frame [m, quaternion].
+        shape_transform: Local shape transforms relative to body [m, quaternion].
+        shape_scale: Shape scales; capsule half-length is ``shape_scale[shape_id][1]`` [m].
+
+    Returns:
+        Capsule tip position in world frame [m].
+    """
+    shape_q = wp.transform_multiply(body_q[shape_body[shape_id]], shape_transform[shape_id])
+    return wp.transform_point(shape_q, wp.vec3f(0.0, 0.0, z_sign * shape_scale[shape_id][1]))
+
+
+@wp.kernel(enable_backward=False)
+def compute_cable_points_world_kernel(
+    shape_ids: wp.array(dtype=wp.int32),  # type: ignore
+    offsets: wp.array(dtype=wp.int32),  # type: ignore
+    counts: wp.array(dtype=wp.int32),  # type: ignore
+    shape_body: wp.array(dtype=wp.int32),  # type: ignore
+    body_q: wp.array(dtype=wp.transformf),  # type: ignore
+    shape_transform: wp.array(dtype=wp.transformf),  # type: ignore
+    shape_scale: wp.array(dtype=wp.vec3f),  # type: ignore
+    points_out: wp.array(dtype=wp.vec3f),  # type: ignore
+):
+    """Write world-space cable curve points from Newton segment bodies.
+
+    Same endpoint construction as NewtonManager Fabric cable sync, but emits world space because
+    the OVRTX cable prims pin an identity omni:xform with the transform stack reset. Endpoints
+    come from the first and last capsule; interior points are the midpoint of the two adjacent
+    capsule ends.
+
+    Launch with ``dim=(num_curves, max_segment_count + 1)``. Each thread owns one
+    ``(curve, point)``; threads with ``point > counts[curve]`` return immediately.
+
+    Args:
+        shape_ids: Flattened Newton segment shape ids packed by curve.
+        offsets: Start index into ``shape_ids`` for each curve.
+        counts: Segment count per curve.
+        shape_body: Newton shape-to-body index map.
+        body_q: Body poses in world frame [m, quaternion].
+        shape_transform: Local shape transforms relative to body [m, quaternion].
+        shape_scale: Shape scales; capsule half-length is ``shape_scale[shape][1]`` [m].
+        points_out: Flattened world-space curve points [m].
+    """
+    curve, point = wp.tid()
+    segment_count = counts[curve]
+    if point > segment_count:
+        return
+
+    offset = offsets[curve]
+    # ``offset`` is the prefix sum of segment counts. Every preceding curve contributes one
+    # additional endpoint, so its point-buffer start is ``offset + curve``.
+    point_base = offset + curve
+    if point == 0:
+        endpoint_w = _cable_capsule_endpoint_world(
+            shape_ids[offset], -1.0, shape_body, body_q, shape_transform, shape_scale
+        )
+    elif point == segment_count:
+        endpoint_w = _cable_capsule_endpoint_world(
+            shape_ids[offset + segment_count - 1], 1.0, shape_body, body_q, shape_transform, shape_scale
+        )
+    else:
+        left_w = _cable_capsule_endpoint_world(
+            shape_ids[offset + point - 1], 1.0, shape_body, body_q, shape_transform, shape_scale
+        )
+        right_w = _cable_capsule_endpoint_world(
+            shape_ids[offset + point], -1.0, shape_body, body_q, shape_transform, shape_scale
+        )
+        endpoint_w = (left_w + right_w) * 0.5
+    points_out[point_base + point] = endpoint_w

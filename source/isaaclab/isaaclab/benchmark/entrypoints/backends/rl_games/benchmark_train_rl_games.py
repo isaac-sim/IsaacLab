@@ -16,6 +16,7 @@ import sys
 import time
 
 from isaaclab.benchmark.entrypoints.backends.rl_games.registry import register_scoped_rl_games_environment
+from isaaclab.benchmark.entrypoints.training import _resolve_training_checkpoint_path
 
 from isaaclab_rl.entrypoints import common as _common
 
@@ -208,7 +209,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             horizon_length = agent_cfg["params"]["config"].get("horizon_length", 16)
             reported_num_envs, _ = distributed.global_work(env_cfg.scene.num_envs, horizon_length)
 
-            cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
+            cfg = capture.run_config_from_env_cfg(env_cfg)
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
             formatter_types = formatter_types or ["omniperf"]
 
@@ -230,7 +231,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                             "data": ("serialized_synchronized" if args_cli.measure_sync_step else "host_return"),
                         },
                         {"name": "environment_step_warmup_steps", "data": args_cli.warmup_steps},
-                        {"name": "presets", "data": ",".join(cfg.presets)},
                         {"name": "world_size", "data": distributed.world_size},
                     ]
                 },
@@ -372,7 +372,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                 max_iterations=agent_cfg["params"]["config"].get("max_epochs"),
             )
 
-            checkpoint_path = None
+            checkpoint_path = _resolve_training_checkpoint_path(run_log_dir, "rl_games")
             video_path = os.path.join(run_log_dir, "videos") if getattr(args_cli, "video", False) else None
 
             bundle = builders.build_training_bundle(

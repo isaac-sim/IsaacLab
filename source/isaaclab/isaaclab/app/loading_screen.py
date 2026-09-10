@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import os
+import random
+import re
 import shutil
 import sys
 import tempfile
@@ -27,7 +29,7 @@ _ACTIVITY_WIDTH = 24
 _REFRESH_PER_SECOND = 10
 _SUMMARY_WIDTH = 50
 _STANDARD_WIDTH = 80
-_WIDE_WIDTH = 120
+_WIDE_WIDTH = 130
 _COLUMN_GAP = 6
 # Reported steps per stage that fill the stage's slice of the bar, and the share
 # of that slice they may fill. Sub-steps are not known in advance, so a stage
@@ -39,24 +41,64 @@ _BOX = ("╭", "╮", "╰", "╯", "─", "│")
 _ASCII_BOX = ("+", "+", "+", "+", "-", "|")
 _WRAP_CONSOLE = Console(color_system=None, force_terminal=False, width=120)
 
-LOGO = r"""Welcome to Isaac Lab!
+LOGO = (
+    "\x1b[0m                        \n"
+    "\x1b[0m                        \n"
+    "\x1b[0m          \x1b[38;2;118;185;0m\\\x1b[0m   \x1b[38;2;118;185;0m/\x1b[0m         \n"
+    "\x1b[0m        \x1b[38;2;232;228;214m.-------.\x1b[0m       \n"
+    "\x1b[0m        \x1b[38;2;232;228;214m|\x1b[0m \x1b[38;2;77;217;232mo\x1b[0m   \x1b[38;2;77;217;232mo\x1b[0m \x1b[38;2;232;228;214m|\x1b[0m       \n"  # noqa: E501
+    "\x1b[0m        \x1b[38;2;232;228;214m|\x1b[0m   \x1b[38;2;232;228;214m_\x1b[0m   \x1b[38;2;232;228;214m|\x1b[0m       \n"  # noqa: E501
+    "\x1b[0m        \x1b[38;2;232;228;214m'-------'\x1b[0m       \n"
+    "\x1b[0m                        \n"
+    "\x1b[0m\x1b[38;2;150;154;160mWelcome\x1b[0m \x1b[38;2;150;154;160mto\x1b[0m \x1b[38;2;150;154;160mIsaac\x1b[0m \x1b[38;2;150;154;160mLab\x1b[0m \x1b[38;2;150;154;160m3!\x1b[0m \n"  # noqa: E501
+    "\x1b[0m                        \n"
+    "\x1b[0m                        \n"
+    "\x1b[0m                        \n"
+)
+"""Static Isaac Lab 3 greeting used on standard-width displays."""
+LOGO_WIDE = (
+    "\x1b[0m                                                                          \n"
+    "\x1b[0m                                                                          \n"
+    "\x1b[0m \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m╗\x1b[0m \x1b[38;2;118;185;0m█████\x1b[38;2;52;84;0m╗\x1b[0m  \x1b[38;2;118;185;0m█████\x1b[38;2;52;84;0m╗\x1b[0m  \x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╗\x1b[0m   \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m      \x1b[38;2;118;185;0m█████\x1b[38;2;52;84;0m╗\x1b[0m \x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╗\x1b[0m   \x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╗\x1b[0m  \n"  # noqa: E501
+    "\x1b[0m \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔════╝\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔════╝\x1b[0m   \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m     \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m  \x1b[38;2;52;84;0m╚════\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m \n"  # noqa: E501
+    "\x1b[0m \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m        \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m     \x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╔╝\x1b[0m   \x1b[38;2;118;185;0m█████\x1b[38;2;52;84;0m╔╝\x1b[0m \n"  # noqa: E501
+    "\x1b[0m \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║╚════\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m        \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m     \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╔══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m   \x1b[38;2;52;84;0m╚═══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m \n"  # noqa: E501
+    "\x1b[0m \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m  \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m  \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║╚\x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╗\x1b[0m   \x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m  \x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╔╝\x1b[0m  \x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╔╝\x1b[0m \n"  # noqa: E501
+    "\x1b[0m \x1b[38;2;52;84;0m╚═╝╚══════╝╚═╝\x1b[0m  \x1b[38;2;52;84;0m╚═╝╚═╝\x1b[0m  \x1b[38;2;52;84;0m╚═╝\x1b[0m \x1b[38;2;52;84;0m╚═════╝\x1b[0m   \x1b[38;2;52;84;0m╚══════╝╚═╝\x1b[0m  \x1b[38;2;52;84;0m╚═╝╚═════╝\x1b[0m   \x1b[38;2;52;84;0m╚═════╝\x1b[0m  \n"  # noqa: E501
+    "\x1b[0m                                                                          \n"
+    "\x1b[0m                                                                          \n"
+    "\x1b[0m                                                                          \n"
+)
+"""Static Isaac Lab 3 greeting used when a 130-column display is available."""
+LOGO_NVIDIA = (
+    "\x1b[0m         \x1b[0m\x1b[38;2;118;185;0m▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄\x1b[0m\n"
+    "\x1b[0m      \x1b[0m\x1b[38;2;118;185;0m▄▄▄▛▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m             \x1b[0m\n"
+    "\x1b[0m  \x1b[0m\x1b[38;2;118;185;0m▗▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▀▀▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[38;2;118;185;0m▄▄▀▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m        \x1b[0m\n"  # noqa: E501
+    "\x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▀▚▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▀▙▖\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m      \x1b[0m\n"  # noqa: E501
+    "\x1b[0m\x1b[38;2;118;185;0m▝\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▖▝\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▙\x1b[0m  \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▙▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▛▘▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m       \x1b[0m\n"  # noqa: E501
+    "\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▝\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄▝▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▛▀▚▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▛▘\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▝▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\n"  # noqa: E501
+    "\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m     \x1b[0m\x1b[38;2;118;185;0m▛▀▀▗▄▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m    \x1b[0m\n"  # noqa: E501
+    "\x1b[0m      \x1b[0m\x1b[38;2;118;185;0m▀▀▀▙▄▄▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m          \x1b[0m\n"
+    "\x1b[0m         \x1b[0m\x1b[38;2;118;185;0m▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀\x1b[0m\n"
+)
+"""NVIDIA greeting used on standard-width displays."""
 
-       \   /
-     .-------.
-     | o   o |
-     |   _   |
-     '-------'"""
-"""Greeting drawn beside the run summary. Kept short enough to fit alongside it."""
+LOGO_NVIDIA_WIDE = (
+    "\x1b[0m              \x1b[0m                        \x1b[0m\x1b[0m   \x1b[0m\x1b[0m                   \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m         \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m               \x1b[0m\x1b[0m   \x1b[0m\x1b[0m                   \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m    \x1b[0m\x1b[38;2;118;185;0m▄▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[38;2;118;185;0m▙▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▀▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m          \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m     \x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╗\x1b[0m \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m \x1b[0m\x1b[38;2;118;185;0m▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▛▀▄▄▟▛▀▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄▝▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m       \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m     \x1b[38;2;52;84;0m╚════\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m\x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m\x1b[38;2;118;185;0m▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m \x1b[0m\x1b[38;2;118;185;0m▐\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▛▀\x1b[0m \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▙▖▗\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▛\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m      \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m      \x1b[38;2;118;185;0m█████\x1b[38;2;52;84;0m╔╝\x1b[0m\x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m \x1b[0m\x1b[38;2;118;185;0m▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▙\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m \x1b[0m\x1b[38;2;118;185;0m▄\x1b[0m \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m    \x1b[0m\x1b[38;2;118;185;0m▛▘▄\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▛▀▜\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[0m      \x1b[38;2;52;84;0m╚═══\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m╗\x1b[0m\x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m  \x1b[0m\x1b[38;2;118;185;0m▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▄▝▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[38;2;118;185;0m▙▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[38;2;118;185;0m▀▘\x1b[0m \x1b[0m\x1b[38;2;118;185;0m▗▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m  \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;118;185;0m██\x1b[38;2;52;84;0m║\x1b[38;2;118;185;0m███████\x1b[38;2;52;84;0m╗\x1b[38;2;118;185;0m██████\x1b[38;2;52;84;0m╔╝\x1b[0m\x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m    \x1b[0m\x1b[38;2;118;185;0m▀▀\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m   \x1b[0m\x1b[38;2;118;185;0m▛▀▀▀▚▄▄▟\x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m       \x1b[0m\x1b[0m   \x1b[0m\x1b[38;2;52;84;0m╚═╝╚══════╝╚═════╝\x1b[0m \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m         \x1b[0m\x1b[38;2;118;185;0m\x1b[48;2;118;185;0m               \x1b[0m\x1b[0m   \x1b[0m\x1b[0m                   \x1b[0m              \n"  # noqa: E501
+    "\x1b[0m              \x1b[0m                        \x1b[0m\x1b[0m   \x1b[0m\x1b[0m                   \x1b[0m              \n"  # noqa: E501
+)
+"""NVIDIA greeting used when a 130-column display is available."""
 
-LOGO_WIDE = r"""Welcome to Isaac Lab!
-
-██╗███████╗ █████╗  █████╗  ██████╗   ██╗      █████╗ ██████╗
-██║██╔════╝██╔══██╗██╔══██╗██╔════╝   ██║     ██╔══██╗██╔══██╗
-██║███████╗███████║███████║██║        ██║     ███████║██████╔╝
-██║╚════██║██╔══██║██╔══██║██║        ██║     ██╔══██║██╔══██╗
-██║███████║██║  ██║██║  ██║╚██████╗   ███████╗██║  ██║██████╔╝
-╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝   ╚══════╝╚═╝  ╚═╝╚═════╝"""
-"""Wide greeting used when a 120-column display is available."""
+_LOGO_PAIRS = ((LOGO, LOGO_WIDE), (LOGO_NVIDIA, LOGO_NVIDIA_WIDE))
+"""Static logo pairs, ordered standard width then wide."""
 
 _active_screen: LoadingScreen | None = None
 
@@ -142,9 +184,13 @@ def _format_header(
     return summary, display_width
 
 
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+"""Colour escapes, which occupy no columns and must not be measured as if they did."""
+
+
 def _block_width(block: str) -> int:
     """Return the width of the widest line in a multiline text block."""
-    return max((cell_len(line) for line in block.splitlines()), default=0)
+    return max((cell_len(_ANSI.sub("", line)) for line in block.splitlines()), default=0)
 
 
 def _join_columns(left: str, right: str, gap: int = _COLUMN_GAP) -> str:
@@ -274,7 +320,7 @@ class LoadingScreen:
                 the run summary. Defaults to True.
         """
         self._num_stages = num_stages
-        self._logos = (LOGO, LOGO_WIDE) if logo else ()
+        self._logos = random.choice(_LOGO_PAIRS) if logo else ()
         self._enabled = _console_is_interactive() if enabled is None else enabled
         self._console: IO[str] = sys.stdout
         self._ascii_only = not _supports_box_drawing(self._console)
@@ -463,7 +509,7 @@ class LoadingScreen:
                 ascii_only=self._ascii_only,
             )
             if header:
-                renderables.extend((Text(""), Text(header, no_wrap=True, overflow="crop")))
+                renderables.extend((Text(""), Text.from_ansi(header, no_wrap=True, overflow="crop")))
         if self._show_progress:
             if renderables:
                 renderables.append(Text(""))

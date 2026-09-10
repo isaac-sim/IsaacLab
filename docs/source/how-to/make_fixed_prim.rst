@@ -1,3 +1,5 @@
+:orphan:
+
 Making a physics prim fixed in the simulation
 =============================================
 

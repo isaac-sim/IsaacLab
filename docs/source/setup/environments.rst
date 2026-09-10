@@ -50,6 +50,14 @@ Command Builder
            <span>Use Pre-trained Checkpoint</span>
          </label>
        </div>
+       <p class="environment-non-rl-note" data-non-rl-note role="status" hidden>
+         <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+         This environment does not support RL training or playback. The command runs it with the
+         zero-action agent instead.
+       </p>
+       <p class="environment-backend-warning" data-backend-warning role="status" hidden>
+         OV and Isaac Sim can't be mixed. Choose matching physics and renderer backends.
+       </p>
        <div class="environment-command-output">
          <code data-command-output></code>
          <div class="environment-command-actions">
@@ -125,8 +133,8 @@ Available Tasks
      <div class="environment-task-toolbar">
        <label class="environment-task-search">
          <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-         <span class="visually-hidden">Search tasks</span>
-         <input type="search" data-task-search placeholder="Search tasks" autocomplete="off">
+         <span class="visually-hidden">Search tasks and capabilities</span>
+         <input type="search" data-task-search placeholder="Search tasks or capabilities" autocomplete="off">
        </label>
        <label class="environment-task-filter">
          <span class="visually-hidden">Task category</span>
@@ -135,9 +143,13 @@ Available Tasks
            <option value="classic">Classic control</option>
            <option value="manipulation">Manipulation</option>
            <option value="locomotion">Locomotion</option>
-           <option value="contrib">Contrib</option>
          </select>
        </label>
+       <div class="environment-scope-switch" role="group" aria-label="Task collection">
+         <button type="button" class="is-active" data-task-scope="core" aria-pressed="true">Core</button>
+         <button type="button" data-task-scope="contrib" aria-pressed="false">Contrib</button>
+         <button type="button" data-task-scope="warp" aria-pressed="false">Warp</button>
+       </div>
        <span class="environment-task-count" data-task-count></span>
      </div>
      <div class="environment-task-list" data-task-list></div>

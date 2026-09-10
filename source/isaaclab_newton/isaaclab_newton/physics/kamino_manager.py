@@ -57,6 +57,8 @@ class NewtonKaminoManager(NewtonManager):
     # Annotate the concrete solver type.
     _solver: SolverKamino
 
+    _builder_attribute_solvers = (SolverKamino,)
+
     @classmethod
     def _get_kamino_solver_cfg(cls) -> _KaminoSolverCfgBase:
         cfg = PhysicsManager._cfg

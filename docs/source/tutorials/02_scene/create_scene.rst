@@ -1,3 +1,5 @@
+:orphan:
+
 .. _tutorial-interactive-scene:
 
 Using the Interactive Scene

@@ -53,12 +53,14 @@ def create_test_articulation(
         soft_joint_pos_limit_factor=1.0,
         actuators={},
     )
+    object.__setattr__(articulation, "_sim_cfg", None)
     object.__setattr__(articulation, "_initialize_handle", None)
     object.__setattr__(articulation, "_invalidate_initialize_handle", None)
     object.__setattr__(articulation, "_prim_deletion_handle", None)
     object.__setattr__(articulation, "_debug_vis_handle", None)
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
+    object.__setattr__(articulation, "_sim_cfg", None)
     object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
     object.__setattr__(articulation, "_num_instances", num_instances)
     object.__setattr__(articulation, "_num_bodies", num_bodies)

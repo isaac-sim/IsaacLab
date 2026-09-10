@@ -55,8 +55,8 @@ def object_ee_distance(
 
 
 def _contact_force_mag(sensor: ContactSensor, num_envs: int) -> torch.Tensor:
-    """Extract per-environment contact force magnitude from a sensor's force_matrix_w."""
-    force = sensor.data.force_matrix_w.torch.view(num_envs, 3)
+    """Extract per-environment contact force magnitude from a sensor's normal_force_matrix_w."""
+    force = sensor.data.normal_force_matrix_w.torch.view(num_envs, 3)
     return torch.linalg.norm(force, dim=-1)
 
 

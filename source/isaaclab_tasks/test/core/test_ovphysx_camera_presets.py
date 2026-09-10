@@ -64,5 +64,5 @@ def test_kuka_ovphysx_preset_uses_supported_task_configuration(task_name: str):
     assert isinstance(env_cfg.scene.object.spawn, CuboidCfg)
     assert robot_asset_cfg.body_names == ".*"
     assert object_asset_cfg.body_names == ".*"
-    assert env_cfg.events.variable_gravity is None
-    assert env_cfg.curriculum.gravity_adr is None
+    assert env_cfg.events.variable_gravity is not None
+    assert env_cfg.curriculum.gravity_adr is not None

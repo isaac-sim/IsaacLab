@@ -33,9 +33,9 @@ from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets.robots.ant import ANT_CFG
 
@@ -229,6 +229,7 @@ def test_initialization_and_shapes(sim):
     assert sensor.data.torque.torch.shape == (num_envs, num_bodies, 3)
     assert sensor.body_names == robot.body_names
     assert sensor.find_bodies("Arm") == ([robot.body_names.index("Arm")], ["Arm"])
+    assert sensor._root_view is robot.root_view  # noqa: SLF001
     _assert_sensor_matches_physx_tensor(sensor)
 
 

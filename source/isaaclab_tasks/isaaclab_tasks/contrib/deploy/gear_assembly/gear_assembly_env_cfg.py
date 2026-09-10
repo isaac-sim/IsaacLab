@@ -20,8 +20,8 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg
 from isaaclab.visualizers import VisualizerCfg
 
@@ -295,7 +295,7 @@ class TerminationsCfg:
 @configclass
 class GearAssemblyEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: GearAssemblySceneCfg = GearAssemblySceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: GearAssemblySceneCfg = GearAssemblySceneCfg(num_envs=1024, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

@@ -8,6 +8,7 @@
 import dataclasses
 import inspect
 import re
+import sys
 import types
 from collections.abc import Callable
 from copy import deepcopy
@@ -53,7 +54,7 @@ def configclass(cls, **kwargs):
 
         from dataclasses import MISSING
 
-        from isaaclab.utils.configclass import configclass
+        from isaaclab.utils import configclass
 
 
         @configclass
@@ -606,49 +607,6 @@ def _return_f(f: Any) -> Callable[[], Any]:
     return _wrap
 
 
-def resolve_cfg_presets(cfg: object) -> object:
-    """Recursively replace preset-wrapper fields with their *default* preset.
-
-    Task configs may use two preset-selector patterns to support multiple physics backends
-    (PhysX / Newton) or observation modes. Both patterns produce wrapper objects that are
-    **not** valid as the concrete cfg that downstream managers / scene builders expect.
-    This function resolves them in-place so the config can be used without a Hydra CLI
-    override (e.g. in unit tests or when creating environments directly).
-
-    Supported patterns:
-
-    * **New style** (``PresetCfg`` subclass): a configclass whose MRO contains a class named
-      ``PresetCfg``. The active variant is stored in the ``default`` attribute.
-    * **Old style** (``presets`` dict): a configclass that has a ``presets: dict[str, Cfg]``
-      attribute with a ``"default"`` key.
-
-    Args:
-        cfg: Any configclass instance (or any object; non-configclasses are returned as-is).
-
-    Returns:
-        The same ``cfg`` object, modified in-place with preset wrappers replaced.
-    """
-    if not hasattr(cfg, "__dataclass_fields__"):
-        return cfg
-    for field_name in list(cfg.__dataclass_fields__):
-        value = getattr(cfg, field_name, None)
-        if value is None or not hasattr(value, "__dataclass_fields__"):
-            continue
-        # New-style PresetCfg: class hierarchy contains a class named "PresetCfg".
-        if any(cls.__name__ == "PresetCfg" for cls in type(value).__mro__):
-            resolved = value.default
-            setattr(cfg, field_name, resolved)
-            resolve_cfg_presets(resolved)
-        # Old-style preset: configclass with a ``presets`` dict that has a ``"default"`` key.
-        elif isinstance(getattr(value, "presets", None), dict) and "default" in value.presets:
-            resolved = value.presets["default"]
-            setattr(cfg, field_name, resolved)
-            resolve_cfg_presets(resolved)
-        else:
-            resolve_cfg_presets(value)
-    return cfg
-
-
 def checked_apply(src: Any, target: Any) -> None:
     """Forward every declared field on ``src`` (a dataclass) onto ``target``.
 
@@ -681,3 +639,20 @@ def checked_apply(src: Any, target: Any) -> None:
                 f"{target_path} has no attribute `{f.name}`. {type(src).__name__} is out of sync with target."
             )
         setattr(target, f.name, getattr(src, f.name))
+
+
+class _CallableModule(types.ModuleType):
+    """Module type that makes :mod:`isaaclab.utils.configclass` usable as the decorator it defines.
+
+    This sub-module and the :func:`configclass` decorator share a name, so ``isaaclab.utils.configclass``
+    can only resolve to one object. Making the module callable lets it be both: ``@configclass`` works
+    on the value exported by :mod:`isaaclab.utils`, and the module's own members stay reachable through
+    ``import isaaclab.utils.configclass as ...`` and dotted attribute access.
+    """
+
+    def __call__(self, cls: type) -> type:
+        """Apply the :func:`configclass` decorator to ``cls``."""
+        return configclass(cls)
+
+
+sys.modules[__name__].__class__ = _CallableModule
