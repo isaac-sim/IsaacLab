@@ -99,7 +99,8 @@ from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     _restore_visible_colliders_without_visual_shapes,
-    replicate_builder_mapping,
+    merge_import_results,
+    replicate_builder_mapping_with_provenance,
 )
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
@@ -553,6 +554,10 @@ class NewtonManager(PhysicsManager):
     _cl_site_index_map: dict[str, _SiteEntry] = {}
     _cl_fabric_body_bindings: list[tuple[str, int]] | None = None
     _world_xforms: list[wp.transform] | None = None
+    # USD import provenance for one environment, in the form ``ModelBuilder.add_usd`` returns it, with
+    # global (worldless) content first and the prototype's entries offset past it. Consumed by
+    # :func:`isaaclab_newton.sim.usd_export.export_model_to_usd`.
+    _stage_info: dict[str, Any] | None = None
     # Per-source builders retained from replication, keyed by clone-plan source
     # path. Single-model consumers (e.g. batched Newton IK) finalize a single-env
     # model from these and resolve it via ``query.path_to_source``.
@@ -1135,6 +1140,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._num_envs = None
         NewtonManager._builder = None
         NewtonManager._model = None
+        NewtonManager._stage_info = None
         NewtonManager._solver = None
         NewtonManager._use_single_state = None
         NewtonManager._supports_rigid_body_force_input = False
@@ -1989,6 +1995,7 @@ class NewtonManager(PhysicsManager):
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
             import_builder_visual_material_paths(builder, stage)
+            NewtonManager._stage_info = import_result
             NewtonManager._world_xforms = [wp.transform()]
             for hook in cls._per_world_builder_hooks:
                 hook(
@@ -2001,8 +2008,8 @@ class NewtonManager(PhysicsManager):
             # Load everything except the env subtrees (ground plane, lights, etc.)
             # and any terrain colliders already added as heightfields above.
             ignore_paths = [path for _, path in env_paths] + hf_ignore_paths + solver_ignore_paths
-            import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
-            _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
+            global_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
+            _restore_visible_colliders_without_visual_shapes(builder, stage, global_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
             import_builder_visual_material_paths(builder, stage)
 
@@ -2022,6 +2029,7 @@ class NewtonManager(PhysicsManager):
             cls._cl_protos = source_builders
 
             global_site_indices, source_site_indices, env_root_sites = cls._cl_inject_sites(builder, source_builders)
+
             xform_cache = UsdGeom.XformCache()
             poses = []
             for _, env_path in env_paths:
@@ -2039,7 +2047,7 @@ class NewtonManager(PhysicsManager):
             positions = np.asarray([pos for pos, _ in poses], dtype=np.float32)
             quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
             mapping = np.ones((1, len(env_paths)), dtype=np.bool_)
-            local_site_map, world_xforms, _ = replicate_builder_mapping(
+            local_site_map, world_xforms, _, world0_offsets = replicate_builder_mapping_with_provenance(
                 builder=builder,
                 sources=(proto_path,),
                 mapping=mapping,
@@ -2049,6 +2057,9 @@ class NewtonManager(PhysicsManager):
                 source_site_indices=source_site_indices,
                 env_root_sites=env_root_sites,
                 per_world_builder_hooks=cls._per_world_builder_hooks,
+            )
+            NewtonManager._stage_info = merge_import_results(
+                [global_result], [(import_result, offsets) for _, offsets in sorted(world0_offsets.items())]
             )
 
             NewtonManager._cl_site_index_map = {label: (idx, None) for label, idx in global_site_indices.items()}
@@ -2676,6 +2687,16 @@ class NewtonManager(PhysicsManager):
         return VisualShapeColorWriter(model, view, body_names)
 
     @classmethod
+    def get_stage_info(cls) -> dict[str, Any] | None:
+        """USD import provenance for one environment, or ``None`` before the model is built.
+
+        Shaped like the dict :meth:`newton.ModelBuilder.add_usd` returns, so it can be handed to
+        :func:`isaaclab_newton.sim.usd_export.export_model_to_usd` directly. Global content (ground,
+        lights) keeps its indices; the prototype environment's entries are offset past it.
+        """
+        return cls._stage_info
+
+    @classmethod
     def get_model(cls) -> Model:
         """Get the Newton model.
 
@@ -2993,6 +3014,7 @@ class NewtonManager(PhysicsManager):
                 "visualization (sim backend is PhysX)."
             )
             NewtonManager._model = None
+            NewtonManager._stage_info = None
             NewtonManager._state_0 = None
 
     @classmethod

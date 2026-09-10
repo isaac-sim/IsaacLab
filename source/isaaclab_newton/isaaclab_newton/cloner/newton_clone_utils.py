@@ -135,10 +135,77 @@ def build_source_builders(
             USD parse time and memory that only pays off when the shapes are rendered
             or ray cast.
     """
-    return {
-        source: _build_source_builder(stage, source, create_builder, schema_resolvers, ignore_paths, load_visual_shapes)
-        for source in sources
-    }
+    builders, _ = build_source_builders_with_provenance(
+        stage,
+        sources,
+        create_builder,
+        schema_resolvers,
+        ignore_paths=ignore_paths,
+        load_visual_shapes=load_visual_shapes,
+    )
+    return builders
+
+
+def build_source_builders_with_provenance(
+    stage: Usd.Stage,
+    sources: Sequence[str],
+    create_builder: Callable[[], ModelBuilder],
+    schema_resolvers: Sequence[Any],
+    *,
+    ignore_paths: Sequence[str] | None = None,
+    load_visual_shapes: bool = True,
+) -> tuple[dict[str, ModelBuilder], dict[str, dict[str, Any]]]:
+    """Build one source builder per prototype and keep each ``add_usd`` result.
+
+    Same as :func:`build_source_builders`, additionally returning the importer's result per source.
+    Those hold the prim-path provenance that :func:`merge_import_results` lifts onto the replicated
+    model, which is what lets the model be written back to USD.
+
+    Returns:
+        The builders keyed by source path, and the import results keyed the same way.
+    """
+    builders: dict[str, ModelBuilder] = {}
+    results: dict[str, dict[str, Any]] = {}
+    for source in sources:
+        builders[source], results[source] = _build_source_builder(
+            stage, source, create_builder, schema_resolvers, ignore_paths, load_visual_shapes
+        )
+    return builders, results
+
+
+def merge_import_results(
+    global_results: Sequence[dict[str, Any]], world_sources: Sequence[tuple[dict[str, Any], tuple[int, int, int]]]
+) -> dict[str, Any]:
+    """Combine global and per-source ``add_usd`` results into one environment's provenance.
+
+    Global content is imported straight into the model builder, so its results index the model
+    directly and are unioned as-is. Each source was imported into its own builder, so its indices
+    start at zero; replication appends it at a known position, so every index moves up by that
+    source's landing offset for its kind. Non-map keys (solver settings) come from the global results,
+    which hold the physics scene, then from the sources in order.
+
+    Args:
+        global_results: Import results for the content shared by every environment.
+        world_sources: ``(import_result, (body, shape, joint))`` per source present in world 0, in the
+            order the cloner placed them, with the builder counts at the moment each was appended.
+
+    Returns:
+        A dict in the shape ``add_usd`` returns, describing world 0 of the replicated model.
+    """
+    keys = ("path_body_map", "path_shape_map", "path_joint_map")
+    merged: dict[str, Any] = {}
+    for result, _ in reversed(world_sources):
+        merged.update(result)
+    for result in global_results:
+        merged.update(result)
+    for key in keys:
+        merged[key] = {}
+        for result in global_results:
+            merged[key].update(result.get(key, {}))
+    for result, offsets in world_sources:
+        for key, offset in zip(keys, offsets):
+            merged[key].update({path: index + offset for path, index in result.get(key, {}).items()})
+    return merged
 
 
 def _build_source_builder(
@@ -148,8 +215,8 @@ def _build_source_builder(
     schema_resolvers: Sequence[Any],
     ignore_paths: Sequence[str] | None,
     load_visual_shapes: bool = True,
-) -> ModelBuilder:
-    """Build one source builder."""
+) -> tuple[ModelBuilder, dict[str, Any]]:
+    """Build one source builder, returning it with its ``add_usd`` result."""
     builder = create_builder()
     import_result = builder.add_usd(
         stage,
@@ -167,7 +234,7 @@ def _build_source_builder(
     if load_visual_shapes:
         import_builder_visual_material_paths(builder, stage)
     _name_root_joints_after_their_body(builder)
-    return builder
+    return builder, import_result
 
 
 def _name_root_joints_after_their_body(builder: ModelBuilder) -> None:
@@ -251,7 +318,7 @@ def _rebase_labels(builder: ModelBuilder, source: str, destination: str) -> str:
     return prefix
 
 
-def replicate_builder_mapping(
+def _replicate_builder_mapping(
     builder: ModelBuilder,
     sources: Sequence[str],
     mapping: np.ndarray,
@@ -264,8 +331,14 @@ def replicate_builder_mapping(
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
-) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]]]:
-    """Replicate source builders, naming homogeneous copies at their destinations."""
+    record_offsets: bool = False,
+) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]], dict[int, tuple[int, int, int]]]:
+    """Replicate source builders, naming homogeneous copies at their destinations.
+
+    With ``record_offsets`` the (body, shape, joint) counts of ``builder`` at the moment each source
+    lands in world 0 are recorded per source row; they locate a source's entities in the model.
+    """
+    world0_offsets: dict[int, tuple[int, int, int]] = {}
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
     num_worlds = mapping.shape[1]
@@ -303,6 +376,8 @@ def replicate_builder_mapping(
         source_xform_inv = _invert_xform(xforms_np[0])
         xforms = _compose_world_xforms(positions, quaternions, source_xform_inv)
 
+        if record_offsets:
+            world0_offsets[0] = (builder.body_count, builder.shape_count, builder.joint_count)
         # Resolve label-based ownership before names become relative but target paths do not.
         source_builder._resolve_custom_frequency_articulation_owners()
         label_groups = _label_groups(source_builder)
@@ -321,7 +396,7 @@ def replicate_builder_mapping(
             ]
 
         bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping, skip_entity_labels=True)
-        return local_site_map, world_xforms, bindings
+        return local_site_map, world_xforms, bindings, world0_offsets
 
     source_world_indices = mapping.argmax(axis=1)
 
@@ -359,6 +434,8 @@ def replicate_builder_mapping(
         for row in rows_per_world[col]:
             source_builder = source_builders[sources[row]]
             offset = builder.shape_count
+            if col == 0 and record_offsets:
+                world0_offsets[row] = (builder.body_count, builder.shape_count, builder.joint_count)
             builder.add_builder(source_builder, xform=source_xforms[row, col])
             for label, source_shape_indices in source_site_indices.get(id(source_builder), {}).items():
                 local_indices = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col]
@@ -368,7 +445,74 @@ def replicate_builder_mapping(
         builder.end_world()
 
     bindings = rename_builder_labels(builder, sources, destinations, env_ids, mapping) if destinations else []
+    return local_site_map, world_xforms, bindings, world0_offsets
+
+
+def replicate_builder_mapping(
+    builder: ModelBuilder,
+    sources: Sequence[str],
+    mapping: np.ndarray,
+    positions: np.ndarray,
+    quaternions: np.ndarray,
+    source_builders: dict[str, ModelBuilder],
+    destinations: Sequence[str] | None = None,
+    env_ids: np.ndarray | None = None,
+    *,
+    source_site_indices: dict[int, dict[str, list[int]]] | None = None,
+    env_root_sites: dict[str, wp.transform] | None = None,
+    per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
+) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]]]:
+    """Replicate source builders, naming homogeneous copies at their destinations."""
+    local_site_map, world_xforms, bindings, _ = _replicate_builder_mapping(
+        builder=builder,
+        sources=sources,
+        mapping=mapping,
+        positions=positions,
+        quaternions=quaternions,
+        source_builders=source_builders,
+        destinations=destinations,
+        env_ids=env_ids,
+        source_site_indices=source_site_indices,
+        env_root_sites=env_root_sites,
+        per_world_builder_hooks=per_world_builder_hooks,
+    )
     return local_site_map, world_xforms, bindings
+
+
+def replicate_builder_mapping_with_provenance(
+    builder: ModelBuilder,
+    sources: Sequence[str],
+    mapping: np.ndarray,
+    positions: np.ndarray,
+    quaternions: np.ndarray,
+    source_builders: dict[str, ModelBuilder],
+    destinations: Sequence[str] | None = None,
+    env_ids: np.ndarray | None = None,
+    *,
+    source_site_indices: dict[int, dict[str, list[int]]] | None = None,
+    env_root_sites: dict[str, wp.transform] | None = None,
+    per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
+) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]], dict[int, tuple[int, int, int]]]:
+    """Same as :func:`replicate_builder_mapping`, additionally returning each source's landing offsets.
+
+    The fourth element maps a source row to the (body, shape, joint) index at which that source's
+    entities start in world 0, which :func:`merge_import_results` needs to lift the importer's
+    source-local provenance onto the replicated model.
+    """
+    return _replicate_builder_mapping(
+        builder=builder,
+        sources=sources,
+        mapping=mapping,
+        positions=positions,
+        quaternions=quaternions,
+        source_builders=source_builders,
+        destinations=destinations,
+        env_ids=env_ids,
+        source_site_indices=source_site_indices,
+        env_root_sites=env_root_sites,
+        per_world_builder_hooks=per_world_builder_hooks,
+        record_offsets=True,
+    )
 
 
 def rename_builder_labels(

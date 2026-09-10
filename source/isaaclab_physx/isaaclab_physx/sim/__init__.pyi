@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "export_environment_to_usd",
     "define_deformable_body_properties",
     "modify_deformable_body_properties",
     "DeformableBodyPropertiesCfg",
@@ -17,6 +18,8 @@ __all__ = [
     "PhysxDeformableBodyMaterialCfg",
     "PhysxSurfaceDeformableBodyMaterialCfg",
     "SurfaceDeformableBodyMaterialCfg",
+    "export_articulation_to_usd",
+    "write_articulation_state_to_stage",
     "views",
 ]
 
@@ -37,4 +40,5 @@ from .spawners import (
     PhysxSurfaceDeformableBodyMaterialCfg,
     SurfaceDeformableBodyMaterialCfg,
 )
+from .usd_export import export_articulation_to_usd, export_environment_to_usd, write_articulation_state_to_stage
 from . import views
