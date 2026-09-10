@@ -28,11 +28,23 @@ class _CameraCfg:
 
 
 @configclass
+class _ExtractorCfg:
+    """Minimal component config that declares a checkpoint of its own."""
+
+    checkpoint_name: str = "feature_extractor"
+    checkpoint_glob: str = "cnn_*.pth"
+    checkpoint_path: str | None = None
+
+
+@configclass
 class _EnvCfg:
     """Minimal resolved environment config for backend discovery."""
 
     sim: SimulationCfg = SimulationCfg(physics=PhysxCfg())
     camera: _CameraCfg | None = None
+    extractor: _ExtractorCfg | None = None
+    observation_params: dict = {}
+    """Stands in for a manager term reaching the component config a second time."""
 
 
 def test_get_pretrained_checkpoint_filename_includes_backends():
@@ -166,55 +178,38 @@ def test_get_pretrained_checkpoint_publish_path_uses_flat_workflow_directory(mon
     assert path == "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt"
 
 
-def test_get_published_pretrained_checkpoint_downloads_to_flat_cache(
+def _install_fake_retrieve(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-):
-    """Test that backend-aware downloads use the workflow cache directory."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
-    monkeypatch.setattr("sys.argv", ["play.py", "presets=depth"])
-    retrieved = {}
+    published_files: set[str],
+) -> list[tuple[str, str]]:
+    """Stub the Nucleus download with a local copy limited to ``published_files``.
+
+    The stub mirrors the published tree under the download directory, as the real download does.
+    """
+    retrieved: list[tuple[str, str]] = []
 
     def _retrieve_file_path(remote_path: str, download_dir: str) -> str:
-        retrieved["remote_path"] = remote_path
-        retrieved["download_dir"] = download_dir
-        destination = Path(download_dir) / Path(remote_path).name
-        destination.parent.mkdir(parents=True)
+        retrieved.append((remote_path, download_dir))
+        if remote_path not in published_files:
+            raise FileNotFoundError(remote_path)
+        destination = Path(download_dir) / Path(remote_path).parent.name / Path(remote_path).name
+        destination.parent.mkdir(parents=True, exist_ok=True)
         destination.touch()
-        return str(destination)
+        return str(destination.resolve())
 
     monkeypatch.setattr(pretrained_checkpoint, "retrieve_file_path", _retrieve_file_path)
-
-    path = pretrained_checkpoint.get_published_pretrained_checkpoint(
-        "rl_games",
-        "Isaac-Cartpole-Camera-Direct",
-        "newtonmjwarp",
-        "newton",
-    )
-
-    expected_download_dir = str(Path(".pretrained_checkpoints") / "rl_games")
-    filename = "Isaac-Cartpole-Camera-Direct_depth_newtonmjwarp_newton_rl_games.pth"
-    assert path == str(Path(expected_download_dir) / filename)
-    assert retrieved == {
-        "remote_path": f"omniverse://IsaacLab/PretrainedCheckpoints/rl_games/{filename}",
-        "download_dir": expected_download_dir,
-    }
+    return retrieved
 
 
-def test_get_published_pretrained_checkpoint_reports_unpublished_checkpoint(
+def test_get_published_pretrained_checkpoint_downloads_to_checkpoint_cache(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
 ):
-    """Test that a checkpoint missing from the asset server names the location that was tried."""
+    """Test that backend-aware downloads use a cache directory of their own."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
-
-    def _retrieve_file_path(remote_path: str, download_dir: str) -> str:
-        raise FileNotFoundError(f"Unable to find the file: {remote_path}")
-
-    monkeypatch.setattr(pretrained_checkpoint, "retrieve_file_path", _retrieve_file_path)
+    remote_path = "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt"
+    retrieved = _install_fake_retrieve(monkeypatch, {remote_path})
 
     path = pretrained_checkpoint.get_published_pretrained_checkpoint(
         "rsl_rl",
@@ -222,6 +217,187 @@ def test_get_published_pretrained_checkpoint_reports_unpublished_checkpoint(
         "physx",
         "none",
     )
+
+    expected_download_dir = str(Path(".pretrained_checkpoints") / "rsl_rl" / "Isaac-Cartpole_physx_none_rsl_rl")
+    assert retrieved[0] == (remote_path, expected_download_dir)
+    assert Path(path).name == "Isaac-Cartpole_physx_none_rsl_rl.pt"
+    assert Path(path).is_relative_to(tmp_path / expected_download_dir)
+
+
+def test_get_published_pretrained_checkpoint_downloads_the_feature_extractor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """Test that a published feature-extractor checkpoint lands beside its policy checkpoint."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    published_root = "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl"
+    stem = "Isaac-Reorient-Cube-Shadow-Camera_physx_rtx_rsl_rl"
+    _install_fake_retrieve(
+        monkeypatch, {f"{published_root}/{stem}.pt", f"{published_root}/{stem}_feature_extractor.pth"}
+    )
+
+    path = pretrained_checkpoint.get_published_pretrained_checkpoint(
+        "rsl_rl",
+        "Isaac-Reorient-Cube-Shadow-Camera",
+        "physx",
+        "rtx",
+        env_cfg=_EnvCfg(extractor=_ExtractorCfg()),
+    )
+
+    assert path is not None
+    declared = Path(path).parent / f"{stem}_feature_extractor.pth"
+    assert declared.is_file()
+
+
+def test_get_published_pretrained_checkpoint_hands_the_file_to_the_component(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """The fetch must record the downloaded file on the config that declared it.
+
+    Each workflow derives its log directory differently, so the component cannot rely on the
+    file landing anywhere it would search.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    published_root = "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl"
+    stem = "Isaac-Reorient-Cube-Shadow-Camera_physx_rtx_rsl_rl"
+    _install_fake_retrieve(
+        monkeypatch, {f"{published_root}/{stem}.pt", f"{published_root}/{stem}_feature_extractor.pth"}
+    )
+    # read the config back out of the tree: configclass deep-copies constructor values, and the
+    # env is handed the tree, not the value passed in
+    env_cfg = _EnvCfg(extractor=_ExtractorCfg())
+    assert env_cfg.extractor.checkpoint_path is None
+
+    pretrained_checkpoint.get_published_pretrained_checkpoint(
+        "rsl_rl",
+        "Isaac-Reorient-Cube-Shadow-Camera",
+        "physx",
+        "rtx",
+        env_cfg=env_cfg,
+    )
+
+    handed_over = env_cfg.extractor.checkpoint_path
+    assert handed_over is not None
+    assert Path(handed_over).name == f"{stem}_feature_extractor.pth"
+    assert Path(handed_over).is_file()
+
+
+def test_get_published_pretrained_checkpoint_rejects_an_incomplete_pair(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """A policy published without the checkpoint its component declares must fail at the fetch."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    published_root = "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl"
+    stem = "Isaac-Reorient-Cube-Shadow-Camera_physx_rtx_rsl_rl"
+    # the policy is published, its declared CNN is not
+    _install_fake_retrieve(monkeypatch, {f"{published_root}/{stem}.pt"})
+
+    with pytest.raises(FileNotFoundError, match="incomplete"):
+        pretrained_checkpoint.get_published_pretrained_checkpoint(
+            "rsl_rl",
+            "Isaac-Reorient-Cube-Shadow-Camera",
+            "physx",
+            "rtx",
+            env_cfg=_EnvCfg(extractor=_ExtractorCfg()),
+        )
+
+
+def test_get_published_pretrained_checkpoint_tolerates_no_feature_extractor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """Test that tasks without a published feature extractor still resolve their checkpoint."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    remote_path = "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt"
+    _install_fake_retrieve(monkeypatch, {remote_path})
+
+    path = pretrained_checkpoint.get_published_pretrained_checkpoint(
+        "rsl_rl",
+        "Isaac-Cartpole",
+        "physx",
+        "none",
+    )
+
+    assert path is not None
+    assert sorted(p.name for p in Path(path).parent.iterdir()) == ["Isaac-Cartpole_physx_none_rsl_rl.pt"]
+
+
+@pytest.mark.parametrize(
+    "name,run_glob,expected",
+    [
+        ("feature_extractor", "cnn_*.pth", "/logs/Isaac-Cartpole_physx_none_rsl_rl_feature_extractor.pth"),
+        ("encoder", "enc_*.safetensors", "/logs/Isaac-Cartpole_physx_none_rsl_rl_encoder.safetensors"),
+    ],
+)
+def test_declared_checkpoint_path_keeps_the_extension(name, run_glob, expected):
+    """Test that a published checkpoint keeps the extension of the file the run writes."""
+    path = pretrained_checkpoint.get_declared_checkpoint_path(
+        "/logs/Isaac-Cartpole_physx_none_rsl_rl.pt", "rsl_rl", name, run_glob
+    )
+    assert path == expected
+
+
+def test_declared_checkpoints_come_from_the_declaring_component():
+    """A component's declaration is found without the task listing it, and once per name."""
+    assert pretrained_checkpoint.get_declared_checkpoints(_EnvCfg()) == {}
+
+    extractor = _ExtractorCfg()
+    env_cfg = _EnvCfg(extractor=extractor, observation_params={"e": extractor})
+
+    assert pretrained_checkpoint.get_declared_checkpoints(env_cfg) == {"feature_extractor": "cnn_*.pth"}
+
+
+def test_get_published_pretrained_checkpoint_skips_the_declared_checkpoint_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """Test that a task without a feature extractor requests no declared checkpoint at all."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    remote_path = "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt"
+    retrieved = _install_fake_retrieve(monkeypatch, {remote_path})
+
+    pretrained_checkpoint.get_published_pretrained_checkpoint("rsl_rl", "Isaac-Cartpole", "physx", "none")
+
+    assert [r[0] for r in retrieved] == [remote_path]
+
+
+def test_get_published_pretrained_checkpoint_names_the_selected_presets(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """Test that a non-default domain preset qualifies both the published name and the cache directory."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    monkeypatch.setattr("sys.argv", ["play.py", "presets=depth"])
+    stem = "Isaac-Cartpole-Camera-Direct_depth_newtonmjwarp_newton_rl_games"
+    remote_path = f"omniverse://IsaacLab/PretrainedCheckpoints/rl_games/{stem}.pth"
+    retrieved = _install_fake_retrieve(monkeypatch, {remote_path})
+
+    path = pretrained_checkpoint.get_published_pretrained_checkpoint(
+        "rl_games", "Isaac-Cartpole-Camera-Direct", "newtonmjwarp", "newton"
+    )
+
+    expected_download_dir = str(Path(".pretrained_checkpoints") / "rl_games" / stem)
+    assert retrieved == [(remote_path, expected_download_dir)]
+    assert path is not None and Path(path).name == f"{stem}.pth"
+
+
+def test_get_published_pretrained_checkpoint_reports_unpublished_checkpoint(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+):
+    """Test that a checkpoint missing from the asset server names the location that was tried."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    _install_fake_retrieve(monkeypatch, set())
+
+    path = pretrained_checkpoint.get_published_pretrained_checkpoint("rsl_rl", "Isaac-Cartpole", "physx", "none")
 
     assert path is None
     output = capsys.readouterr().out
@@ -231,8 +407,7 @@ def test_get_published_pretrained_checkpoint_reports_unpublished_checkpoint(
 
 
 def test_get_published_pretrained_checkpoint_raises_on_unwritable_cache(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     """Test that a local download failure is reported instead of being reported as unavailable."""
     monkeypatch.chdir(tmp_path)
@@ -249,6 +424,5 @@ def test_get_published_pretrained_checkpoint_raises_on_unwritable_cache(
 
     message = str(error.value)
     assert "Isaac-Cartpole_physx_none_rsl_rl.pt" in message
-    assert str(tmp_path / ".pretrained_checkpoints" / "rsl_rl") in message
     assert "Permission denied" in message
     assert error.value.__cause__ is cause

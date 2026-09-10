@@ -122,6 +122,19 @@ class FeatureExtractorNetwork(nn.Module):
 class FeatureExtractorCfg:
     """Configuration for the feature extractor model."""
 
+    checkpoint_name: str = "feature_extractor"
+    """Identity of the CNN in the published checkpoint set, used to name the file beside the policy."""
+
+    checkpoint_glob: str = "cnn_*.pth"
+    """Glob of the file :meth:`step` saves, matched in the log directory when loading."""
+
+    checkpoint_path: str | None = None
+    """Local file to load, set by the tooling that fetched a published copy.
+
+    Takes precedence over both search paths: each RL workflow derives its log directory
+    differently, so the fetch hands the file over instead of relying on where it landed.
+    """
+
     train: bool = True
     """If True, the feature extractor model is trained during the rollout process. Default is True."""
 
@@ -200,9 +213,7 @@ class FeatureExtractor:
             os.makedirs(self.log_dir)
 
         if self.cfg.load_checkpoint:
-            list_of_files = glob.glob(self.log_dir + "/*.pth")
-            latest_file = max(list_of_files, key=os.path.getctime)
-            checkpoint = os.path.join(self.log_dir, latest_file)
+            checkpoint = self._resolve_checkpoint()
             print(f"[INFO]: Loading feature extractor checkpoint from {checkpoint}")
             self.feature_extractor.load_state_dict(torch.load(checkpoint, weights_only=True))
 
@@ -212,6 +223,25 @@ class FeatureExtractor:
             self.feature_extractor.train()
         else:
             self.feature_extractor.eval()
+
+    def _resolve_checkpoint(self) -> str:
+        """Return the CNN weights to load from :attr:`log_dir`.
+
+        A copy handed over by the fetch wins. Otherwise playback points the log directory at the
+        pretrained-checkpoint cache, where the published copy carries the policy stem, and a
+        training run writes the native name instead. The two never share a directory, so ``or``
+        picks whichever convention is present.
+        """
+        if self.cfg.checkpoint_path is not None:
+            return self.cfg.checkpoint_path
+        published = glob.glob(os.path.join(self.log_dir, f"*_{self.cfg.checkpoint_name}.pth"))
+        candidates = published or glob.glob(os.path.join(self.log_dir, self.cfg.checkpoint_glob))
+        if not candidates:
+            raise FileNotFoundError(
+                f"No {self.cfg.checkpoint_name!r} checkpoint was found in '{self.log_dir}'."
+                " Train the task to produce one."
+            )
+        return max(candidates, key=os.path.getmtime)
 
     def _preprocess_images(self, camera_output: dict[str, torch.Tensor]) -> torch.Tensor:
         """Preprocesses and concatenates camera images into a single tensor.
