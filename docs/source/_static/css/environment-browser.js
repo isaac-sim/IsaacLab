@@ -857,7 +857,7 @@
             swatch.setAttribute("aria-hidden", "true");
             label.append(swatch, backendLabels[representative.physics_backend]);
             configuration.title = representative.missing
-                ? `${rendererLabels[representative.rendering_backend] || ""} Default-count run unavailable`.trim()
+                ? `${rendererLabels[representative.rendering_backend] || ""} 8,192-environment run unavailable`.trim()
                 : seriesLabel(representative);
             configuration.appendChild(label);
             entry.appendChild(configuration);

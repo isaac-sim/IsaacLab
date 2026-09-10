@@ -1,278 +1,113 @@
-# Benchmark coverage — paired Collection and Training FPS
+# Benchmark coverage — 8,192 environments
 
-## Corrected interpretation
-
-**Collection and Training come from the same WARM training record.** Collection
-uses `Mean Collection FPS` (environment stepping plus policy inference); Training
-uses `Mean Total FPS` (including policy updates). Both retain their own standard
-deviation and peak. A standalone runtime benchmark is not required.
-
-The previous report's “34 environments missing Collection” described standalone
-runtime coverage and was misleading for these graph modes. It is superseded by
-this report. Every selected training record has both positive FPS metrics, so
-Collection and Training now have identical configuration/date coverage.
+All plotted Collection and Training benchmarks use **num_envs = 8192**.
+This replaces the previous task-default policy to maximize backend/renderer coverage.
 
 ## Snapshot coverage
 
-| Snapshot | Training records, each containing both metrics | Environments | Covered backend/renderer pairs |
+| Snapshot | Paired records | Tasks | Backend/renderer pairs |
 | --- | ---: | ---: | ---: |
-| August 28 | 64 | 30 / 44 | 64 / 156 |
-| Current (September 9 baseline) | 87 | 36 / 44 | 70 / 156 |
+| August 28 | 166 | 36 / 44 | 126 / 156 |
+| Current (September 9 baseline) | 209 | 36 / 44 | 126 / 156 |
 
-Release contains only the 87 current records (**174 metric points**, 87 in each
-mode). Develop contains 151 records (**302 metric points**, 151 in each mode):
-August 28 plus the identical current records. August 14 was removed from the
-graph because there are no qualifying runs.
+Release contains 209 current records. Develop contains 375 records: August 28
+plus the identical current records. Each record supplies both Collection FPS
+(`Mean Collection FPS`, stepping plus inference) and Training FPS (`Mean Total FPS`,
+including policy updates). Their coverage is identical; separate runtime runs are
+not required. Standard deviation and peak values remain in the data.
 
-The table displays only the latest FPS per configuration, rounded to an integer,
-with backend names only. Dates and full configurations remain in tooltips; the
-legend appears above the graph. Historical results remain visible in the graph.
+The figure labels the environment count. The compact table shows only the latest
+available FPS per configuration, rounded to an integer. Full configurations and
+measurement dates remain in tooltips, and the legend appears above the graph.
+Missing supported combinations retain “Not available”; entirely absent tasks use
+the benchmark-data-unavailable placeholder.
 
-Historical snapshots require the exact ingestion date. The current baseline keeps
-the latest eligible run through September 9: 64 records ingested September 9,
-14 on August 24, two on August 26, and seven on August 27. Older camera values
-remain provisional; snapshot date is not the actual measurement date.
+August 28 requires an exact ingestion-date match. Current selects the latest
+eligible record per configuration through September 9: 162 records from September 9,
+40 from August 29, and seven from August 26. Older values remain provisional.
+August 14 remains omitted as requested; the earlier absence finding applied to
+task-default counts, not to every count in the database.
 
-## Why August 14 has no points
+## Why 8,192
 
-The database was queried for August 14, including all machines. There were no
-CORE training measurements at the configured default counts. On the target GPU,
-training records covered only:
+The same hardware, validity, and date filters give this current coverage:
 
-| Environment | Measured counts | Required default |
-| --- | --- | ---: |
-| Isaac-Lift-KukaAllegro-Camera | 8,192; 16,384 | 4,096 |
-| Isaac-Reorient-Cube-Shadow-Camera-Direct | 8,192; 16,384 | 1,225 |
-| Isaac-Velocity-Rough-G1 | 16,384 | 4,096 |
+| Count policy | Tasks | Backend/renderer pairs | Recorded configurations |
+| --- | ---: | ---: | ---: |
+| Task defaults | 36 | 70 | 87 |
+| 4,096 | 27 | 52 | 61 |
+| **8,192** | **36** | **126** | **209** |
+| 16,384 | 34 | 110 | 149 |
 
-August 14 is omitted from the Develop graph and table.
-Historical values are not backfilled from later dates or borrowed from other
-counts. Lines do not bridge an explicitly missing intermediate snapshot.
+Combining all measured counts also covers only 126 distinct pairs. Using 8,192
+adds 56 pairs over task defaults without losing any task. OVPhysX is now represented
+by 52 current configurations and 44 August 28 configurations. Previously most of
+its runs were excluded because their counts differed from task defaults.
 
-## Why OV PhysX appears only for some environments
+## Missing data
 
-OV PhysX data exists. On the queried single-GPU machine its training measurements
-use **8,192 or 16,384 environments**, not 4,096. The four cube-reorientation tasks
-below default to 8,192, so OV PhysX is included for both metrics in their current
-and August 28 tables:
+There are **30 missing backend/renderer pairs out of 156** at each snapshot,
+for both metrics. The same eight tasks have no usable 8,192 runs. No WARM
+runtime/training entries for those task names were found on any queried machine
+in the August 14–September 9 window. Kamino, the Kamino-only Fourbar task, and
+incompatible physx/ovrtx and ovphysx/Isaac Sim RTX pairs are excluded.
 
-- `Isaac-Reorient-Cube-Allegro`
-- `Isaac-Reorient-Cube-Allegro-Direct`
-- `Isaac-Reorient-Cube-Shadow`
-- `Isaac-Reorient-Cube-Shadow-Direct`
+| Task | Missing backend/renderer combinations |
+| --- | --- |
+| Isaac-Cartpole-Camera | ovphysx/newton_renderer |
+| Isaac-Cartpole-Camera-Direct | ovphysx/newton_renderer |
+| Isaac-Lift-Cable-Franka | newton_mjwarp_vbd_proxy |
+| Isaac-Lift-Cable-Franka-Camera | newton_mjwarp_vbd_proxy/isaacsim_rtx, newton_mjwarp_vbd_proxy/newton_renderer, newton_mjwarp_vbd_proxy/ovrtx |
+| Isaac-Lift-Cloth-Franka | isaacsim_physx, newton_mjwarp_vbd_proxy |
+| Isaac-Lift-Cloth-Franka-Camera | isaacsim_physx/isaacsim_rtx, isaacsim_physx/newton_renderer, newton_mjwarp_vbd_proxy/isaacsim_rtx, newton_mjwarp_vbd_proxy/newton_renderer, newton_mjwarp_vbd_proxy/ovrtx |
+| Isaac-Lift-KukaAllegro-Camera | ovphysx/newton_renderer |
+| Isaac-Lift-Soft-Franka | isaacsim_physx, newton_mjwarp_vbd_proxy |
+| Isaac-Lift-Soft-Franka-Camera | isaacsim_physx/isaacsim_rtx, isaacsim_physx/newton_renderer, newton_mjwarp_vbd_proxy/isaacsim_rtx, newton_mjwarp_vbd_proxy/newton_renderer, newton_mjwarp_vbd_proxy/ovrtx |
+| Isaac-Pendulum-MARL-Direct | isaacsim_physx, newton_mjwarp, ovphysx |
+| Isaac-Reorient-Cube-Shadow-Camera | ovphysx/newton_renderer |
+| Isaac-Reorient-Cube-Shadow-Camera-Direct | ovphysx/newton_renderer |
+| Isaac-Reorient-KukaAllegro-Camera | ovphysx/newton_renderer |
+| Isaac-Shadow-Handover | isaacsim_physx, newton_mjwarp, ovphysx |
 
-Most other tasks default to 4,096; Cartpole cameras default to 512, Shadow cameras
-to 1,225, and handover to 2,048. Their OV PhysX runs cannot be plotted as matching
-default-count comparisons. Missing supported pairs now have an explicit
-**Not available** value in the FPS table, with the reason in a tooltip.
-
-Some older records have null database backend/renderer columns but explicit
-selectors in `benchmark_info.presets` or the matching successful WARM task preset.
-These records are recovered using that per-run evidence, with the source recorded
-in the CSV. Backend identity is never inferred from comparison-group labels or
-an implicit default. This recovers OV PhysX's August 28 default-count records.
-
-## Which environments lack default-count runs
-
-The flags below apply to **both Collection and Training**. “present” means at
-least one backend/renderer profile has a usable paired record; it does not mean
-all backends or all domain presets are covered. All plotted rows use the default
-count; alternative counts remain audit information only.
-
-| Environment | Default envs | Aug 28 | Current |
-| --- | ---: | --- | --- |
-| Isaac-Ant-Direct | 4096 | present | present |
-| Isaac-Ant | 4096 | present | present |
-| Isaac-Cartpole-Direct | 4096 | present | present |
-| Isaac-Cartpole | 4096 | present | present |
-| Isaac-Cartpole-Camera-Direct | 512 | MISSING | present |
-| Isaac-Cartpole-Camera | 512 | MISSING | present |
-| Isaac-Humanoid-Direct | 4096 | present | present |
-| Isaac-Humanoid | 4096 | present | present |
-| Isaac-Lift-Cable-Franka | 8192 | MISSING | MISSING |
-| Isaac-Lift-Cable-Franka-Camera | 128 | MISSING | MISSING |
-| Isaac-Lift-Cloth-Franka | 2048 | MISSING | MISSING |
-| Isaac-Lift-Cloth-Franka-Camera | 128 | MISSING | MISSING |
-| Isaac-Lift-Franka | 4096 | present | present |
-| Isaac-Lift-KukaAllegro | 4096 | present | present |
-| Isaac-Lift-KukaAllegro-Camera | 4096 | MISSING | present |
-| Isaac-Lift-Soft-Franka | 2048 | MISSING | MISSING |
-| Isaac-Lift-Soft-Franka-Camera | 128 | MISSING | MISSING |
-| Isaac-Open-Drawer-Franka-Direct | 4096 | present | present |
-| Isaac-Open-Drawer-Franka | 4096 | present | present |
-| Isaac-Pendulum-MARL-Direct | 4096 | MISSING | MISSING |
-| Isaac-Reach-Franka | 4096 | present | present |
-| Isaac-Reach-Franka-OSC | 4096 | present | present |
-| Isaac-Reach-UR10 | 4096 | present | present |
-| Isaac-Reorient-Cube-Allegro-Direct | 8192 | present | present |
-| Isaac-Reorient-Cube-Allegro | 8192 | present | present |
-| Isaac-Reorient-Cube-Shadow-Direct | 8192 | present | present |
-| Isaac-Reorient-Cube-Shadow | 8192 | present | present |
-| Isaac-Reorient-Cube-Shadow-Camera-Direct | 1225 | MISSING | present |
-| Isaac-Reorient-Cube-Shadow-Camera | 1225 | MISSING | present |
-| Isaac-Reorient-Franka | 4096 | present | present |
-| Isaac-Reorient-KukaAllegro | 4096 | present | present |
-| Isaac-Reorient-KukaAllegro-Camera | 4096 | MISSING | present |
-| Isaac-Shadow-Handover-Direct | 2048 | present | present |
-| Isaac-Shadow-Handover | 2048 | MISSING | MISSING |
-| Isaac-Velocity-Flat-AnymalD | 4096 | present | present |
-| Isaac-Velocity-Flat-Cassie | 4096 | present | present |
-| Isaac-Velocity-Flat-G1 | 4096 | present | present |
-| Isaac-Velocity-Flat-H1 | 4096 | present | present |
-| Isaac-Velocity-Flat-UnitreeGo2 | 4096 | present | present |
-| Isaac-Velocity-Rough-AnymalD | 4096 | present | present |
-| Isaac-Velocity-Rough-Cassie | 4096 | present | present |
-| Isaac-Velocity-Rough-G1 | 4096 | present | present |
-| Isaac-Velocity-Rough-H1 | 4096 | present | present |
-| Isaac-Velocity-Rough-UnitreeGo2 | 4096 | present | present |
-
-The eight environments missing from the current baseline are:
-
-- `Isaac-Lift-Cable-Franka`
-- `Isaac-Lift-Cable-Franka-Camera`
-- `Isaac-Lift-Cloth-Franka`
-- `Isaac-Lift-Cloth-Franka-Camera`
-- `Isaac-Lift-Soft-Franka`
-- `Isaac-Lift-Soft-Franka-Camera`
-- `Isaac-Pendulum-MARL-Direct`
-- `Isaac-Shadow-Handover`
-
-There are no WARM runtime/training entries for these eight task names on any
-queried machine in the August 14–September 9 window. Pendulum MARL needs RL-Games
-or SKRL training; it has no RSL-RL registration. The six camera tasks otherwise
-present in the current baseline have no eligible exact-August-28 default runs.
-
-[Environment-default CSV](coverage-environment-defaults.csv) provides the same
-flags and available alternative counts for every snapshot.
-
-## Complete current backend/renderer gaps
-
-There are **86 missing pairs out of 156** for each metric: 56 have valid paired
-training results at other counts; 30 have no usable paired training record at the
-default count. Counting the two graph metrics gives 172 missing combinations out
-of 312. Multiple profiles account for the 87 records covering 70 pairs.
-
-**P** = Isaac Sim PhysX, **N** = Newton MJWarp, **V** = Newton MJWarp + VBD,
-**O** = OV PhysX. Renderers: **I** = Isaac Sim RTX, **W** = Newton Renderer,
-**R** = OV RTX. A dash means no pair-level gaps, not complete preset coverage.
-Kamino, the Kamino-only Fourbar task, and incompatible P/R and O/I pairs are excluded.
-
-| Environment | Default envs | Current missing pairs (both metrics) |
-| --- | ---: | --- |
-| Isaac-Ant-Direct | 4096 | O |
-| Isaac-Ant | 4096 | O |
-| Isaac-Cartpole-Direct | 4096 | O |
-| Isaac-Cartpole | 4096 | O |
-| Isaac-Cartpole-Camera-Direct | 512 | P/I, N/I, N/W, N/R, O/W, O/R |
-| Isaac-Cartpole-Camera | 512 | P/I, N/I, N/W, N/R, O/W, O/R |
-| Isaac-Humanoid-Direct | 4096 | O |
-| Isaac-Humanoid | 4096 | O |
-| Isaac-Lift-Cable-Franka | 8192 | V |
-| Isaac-Lift-Cable-Franka-Camera | 128 | V/I, V/W, V/R |
-| Isaac-Lift-Cloth-Franka | 2048 | P, V |
-| Isaac-Lift-Cloth-Franka-Camera | 128 | P/I, P/W, V/I, V/W, V/R |
-| Isaac-Lift-Franka | 4096 | O |
-| Isaac-Lift-KukaAllegro | 4096 | O |
-| Isaac-Lift-KukaAllegro-Camera | 4096 | P/I, N/I, N/W, N/R, O/W, O/R |
-| Isaac-Lift-Soft-Franka | 2048 | P, V |
-| Isaac-Lift-Soft-Franka-Camera | 128 | P/I, P/W, V/I, V/W, V/R |
-| Isaac-Open-Drawer-Franka-Direct | 4096 | O |
-| Isaac-Open-Drawer-Franka | 4096 | O |
-| Isaac-Pendulum-MARL-Direct | 4096 | P, N, O |
-| Isaac-Reach-Franka | 4096 | O |
-| Isaac-Reach-Franka-OSC | 4096 | O |
-| Isaac-Reach-UR10 | 4096 | O |
-| Isaac-Reorient-Cube-Allegro-Direct | 8192 | — |
-| Isaac-Reorient-Cube-Allegro | 8192 | — |
-| Isaac-Reorient-Cube-Shadow-Direct | 8192 | — |
-| Isaac-Reorient-Cube-Shadow | 8192 | — |
-| Isaac-Reorient-Cube-Shadow-Camera-Direct | 1225 | P/I, N/I, N/W, N/R, O/W, O/R |
-| Isaac-Reorient-Cube-Shadow-Camera | 1225 | P/I, N/I, N/W, N/R, O/W, O/R |
-| Isaac-Reorient-Franka | 4096 | O |
-| Isaac-Reorient-KukaAllegro | 4096 | O |
-| Isaac-Reorient-KukaAllegro-Camera | 4096 | P/I, N/I, N/W, N/R, O/W, O/R |
-| Isaac-Shadow-Handover-Direct | 2048 | O |
-| Isaac-Shadow-Handover | 2048 | P, N, O |
-| Isaac-Velocity-Flat-AnymalD | 4096 | O |
-| Isaac-Velocity-Flat-Cassie | 4096 | O |
-| Isaac-Velocity-Flat-G1 | 4096 | O |
-| Isaac-Velocity-Flat-H1 | 4096 | O |
-| Isaac-Velocity-Flat-UnitreeGo2 | 4096 | O |
-| Isaac-Velocity-Rough-AnymalD | 4096 | O |
-| Isaac-Velocity-Rough-Cassie | 4096 | O |
-| Isaac-Velocity-Rough-G1 | 4096 | O |
-| Isaac-Velocity-Rough-H1 | 4096 | O |
-| Isaac-Velocity-Rough-UnitreeGo2 | 4096 | O |
-
-[Configuration CSV](coverage-configurations.csv) contains the full matrix for
-**both displayed snapshots**, the paired metric statuses, source IDs/dates, and
-alternative environment counts. [Observed profiles](coverage-observed-profiles.csv)
-retains full measured configurations. [Preset selectors](coverage-preset-selectors.csv)
-flags explicitly recorded domain selectors. That checklist is not a claim that
-all Cartesian combinations of selectors are compatible or measured.
+[Configuration matrix](coverage-configurations.csv) lists all 156 pairs for each
+snapshot, statuses for both metrics, selected source IDs/dates, and other counts.
+[Environment coverage](coverage-environments.csv) flags missing 8,192 runs per task.
+[Observed profiles](coverage-observed-profiles.csv) preserves full configurations.
+[Preset selectors](coverage-preset-selectors.csv) flags explicitly recorded domain
+selectors; it does not assert that every Cartesian combination is compatible.
+[Task-default audit](coverage-environment-defaults.csv) retains the earlier default-count
+flags for reference only; it does not describe the current plotted count policy.
 
 ## Data quality and provenance
 
-The [data-issues CSV](coverage-data-issues.csv) audits target-hardware **training**
-entries across August 14–September 9. It replaces the previous all-workflow audit.
-Issue counts overlap:
+The query covers 63,631 database records from
+`2026-08-14 <= created_at < 2026-09-10`. Selected hardware is
+`XEON_GOLD_5512U_1XRTXPRO6000_BW_SV`: one RTX PRO 6000 Blackwell Server Edition GPU,
+world size 1. Only successful WARM training entries with positive finite paired
+FPS metrics, matching configured/measured counts of 8,192, supported backends,
+and unambiguous task metadata are selected.
 
-- **3,696** entries lack the database physics column; recovered identities
-  specify their metadata source, and unresolved identities remain excluded.
-- **1,598** camera entries lack the database renderer column; explicit
-  per-entry or successful-task selectors may recover them. Unresolved camera
-  renderers remain excluded.
-- **182** entries have misleading physics group labels and
-  **182** have misleading count labels. Measured counts and
-  per-run configuration take precedence; group names remain provenance only.
+The [data-issues audit](coverage-data-issues.csv) covers training entries on that
+hardware throughout the query window. Its counts overlap: 3,696 entries lack the
+database physics column, 1,598 camera entries lack the database renderer column,
+182 have misleading physics group labels, and 182 have misleading count labels.
+Explicit per-entry presets or matching successful WARM task presets can recover
+backend identity. The CSV records that evidence; group labels and implicit defaults
+are not used to invent identities. Unresolved camera renderers remain excluded.
 
-All selected current records report dirty-source metadata and use 10 measured
-training iterations. Their commits identify base source, not a reproducible clean
-release checkout. FPS variability above 25% is flagged separately for Collection
-and Training in `quality_notes`; these are noisy observations, not proven failures.
-Camera dimensions and full default domain profiles are not always recorded.
-Missing metadata stays empty; no verified camera dimensions are invented from names.
+Per-record `quality_notes` flag dirty-source metadata, older fallbacks, missing
+camera dimensions/domain metadata, and FPS coefficients of variation above 25%.
+These observations are not guaranteed clean release-source reproductions.
+Original source IDs, commits, measured iterations, and timestamps remain in the CSV.
+Dates are ingestion dates interpreted as UTC; original measurement timestamps lack
+timezones and are preserved verbatim. EA 3.0 is the release display label, not an
+assertion that measured commits are release tags.
 
-Dates are ingestion dates interpreted as UTC. Original measurement timestamps
-lack timezones and are preserved verbatim. Release uses EA 3.0 as a documentation
-label; measured source commits are not asserted to be release tags.
+## Remaining work
 
-The query window includes 63,631 database records on all machines from
-`2026-08-14 <= created_at < 2026-09-10`. The selected machine is
-`XEON_GOLD_5512U_1XRTXPRO6000_BW_SV`, one RTX PRO 6000 Blackwell Server Edition GPU,
-world size 1. Today's incomplete batch is excluded. Only positive paired metrics
-from successful WARM training entries with matching measured default counts and
-unambiguous task metadata are selected. Current values may use older dates;
-history requires exact requested dates.
-
-## Would a fixed count of 4,096 improve coverage?
-
-No. Applying the same hardware, metadata, paired-metric, and date filters to the
-queried data reduces coverage. This comparison changes only the required count.
-
-| Snapshot | Count policy | Environments | Backend/renderer pairs | Recorded configurations |
-| --- | --- | ---: | ---: | ---: |
-| Current | Task defaults | 36 | 70 | 87 |
-| Current | Fixed 4,096 | 27 | 52 | 61 |
-| August 28 | Task defaults | 30 | 64 | 64 |
-| August 28 | Fixed 4,096 | 25 | 50 | 50 |
-
-Both FPS metrics have the same coverage. A fixed 4,096 adds no environments and
-loses nine from the current baseline: Cartpole Camera and Camera Direct, all six
-Allegro/Shadow cube-reorientation variants, and Shadow Handover Direct. It also
-removes all four currently covered OV PhysX configurations, which were measured
-at their 8,192 default. Keep task defaults for this dataset.
-
-## Remaining collection work
-
-1. Run missing backend/renderer pairs at the default counts in the configuration
-   matrix, particularly OV PhysX at 4,096 and the camera-specific default counts.
-2. Schedule the eight entirely absent environments using supported training
-   libraries. Each training run should emit both FPS metrics; separate runtime
-   runs are not needed to fill these graph modes.
-3. Replace the older current camera values with clean release-source runs that
-   record resolved physics, renderer, image types, dimensions, camera count,
-   presets, measured environment count, and dependency versions.
-4. Increase the measurement window and repeat noisy runs. For historical dates
-   without matching records, preserve “Not available”; a new run cannot recreate
-   an observation from August 14.
+1. Collect the 30 missing supported pairs at 8,192 environments, using each task's
+   supported training library. Pendulum MARL requires RL-Games or SKRL, not RSL-RL.
+2. Replace older baseline values with clean release-source runs and record resolved
+   physics, renderer, camera dimensions/types/count, domain presets, and dependencies.
+3. Repeat noisy runs with longer measurement windows. Keep unavailable placeholders
+   until valid paired measurements exist.

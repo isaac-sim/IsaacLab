@@ -905,3 +905,9 @@ html[data-theme="dark"] .environment-browser {
     white-space: normal;
     font-size: 0.7rem;
 }
+
+.environment-benchmark-count {
+    margin: 0.5rem 0;
+    color: var(--environment-muted);
+    font-size: 0.85rem;
+}

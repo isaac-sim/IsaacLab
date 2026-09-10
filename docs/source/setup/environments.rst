@@ -115,6 +115,7 @@ Benchmarks
            <button type="button" data-benchmark-workload="training" aria-pressed="false">Training</button>
          </div>
        </div>
+       <div class="environment-benchmark-count"><code>num_envs = 8192</code></div>
        <div class="environment-benchmark-legend" aria-label="Benchmark series"></div>
        <div class="environment-benchmark-results">
          <div class="environment-benchmark-chart" data-benchmark-chart></div>

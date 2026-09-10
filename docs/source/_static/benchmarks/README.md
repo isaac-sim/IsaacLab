@@ -15,14 +15,14 @@ Standalone runtime measurements are not mixed into either mode.
 
 ## Snapshots
 
-- Release: 87 current records across 36 environments, labeled EA 3.0.
-- Develop: August 28 and September 9. August 14 was investigated but removed
-  from the graph because it has no qualifying default-count records. August 28 has 64
-  records across 30 environments. The current 87 rows are identical to Release.
+- Release: 209 current records across 36 environments, labeled EA 3.0.
+- Develop: August 28 and September 9, with 375 records total. August 14 remains
+  omitted. August 28 has 166 records across 36 environments. The current 209 rows
+  are identical to Release.
 
 Historical dates use exact database ingestion dates. The current baseline selects
 latest eligible measurements through September 9, falling back to older runs per
-configuration: 64 from September 9 and 23 from August 24–27. The graph shows the
+configuration: 162 from September 9, 40 from August 29, and seven from August 26. The graph shows the
 two available snapshot dates. Missing values are not zeroed,
 interpolated, or backfilled into historical snapshots.
 
@@ -32,8 +32,8 @@ interpolated, or backfilled into historical snapshots.
 - Select successful WARM training records on
   `XEON_GOLD_5512U_1XRTXPRO6000_BW_SV`, one GPU and world size 1.
 - Require finite positive Collection and Total FPS; matching
-  `benchmark_info.num_envs` and `runtime.num_envs`; and the task's configured
-  training-default count. Neither mode substitutes a different environment count.
+  `benchmark_info.num_envs` and `runtime.num_envs`, both equal to **8,192**.
+  Neither mode substitutes a different environment count.
 - Match successful WARM task metadata by task, workflow, and entry-key variant.
 - Prefer explicit database physics/renderer columns. If absent, use an explicit
   selector in the WARM entry's `benchmark_info.presets`, then the matching
@@ -66,8 +66,10 @@ label, not a verified release-commit claim. The legacy `environment-performance.
 is retained as an older unused snapshot.
 
 - [Coverage report](COVERAGE.md): corrected interpretation, dates, OV PhysX,
-  missing default-count runs, full current pair matrix, and collection plan.
-- [Environment defaults](coverage-environment-defaults.csv): per-task/per-date flags.
+  missing 8,192 runs, full current pair matrix, and collection plan.
+- [Environment coverage](coverage-environments.csv): per-task/per-date 8,192-run flags.
+- [Environment defaults](coverage-environment-defaults.csv): retained earlier default-count
+  audit, independent of the current plotted count policy.
 - [Configuration coverage](coverage-configurations.csv): all 156 pairs per displayed date,
   statuses for both metrics, alternative counts, and source IDs/dates.
 - [Observed profiles](coverage-observed-profiles.csv): selected paired configurations.
