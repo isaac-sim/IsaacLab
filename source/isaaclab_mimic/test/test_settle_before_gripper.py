@@ -17,7 +17,9 @@ simulation_app = AppLauncher(headless=True).app
 import pytest
 import torch
 
-from isaaclab_mimic.datagen.data_generator import insert_settle_frames_before_gripper
+from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig, SubTaskConstraintConfig, SubTaskConstraintType
+
+from isaaclab_mimic.datagen.data_generator import check_settle_hold_compatible, insert_settle_frames_before_gripper
 from isaaclab_mimic.datagen.waypoint import Waypoint, WaypointSequence, WaypointTrajectory
 
 GRIPPER = [-1, -1, -1, -1, 1, 1, 1, -1, -1, -1]
@@ -105,3 +107,69 @@ def test_the_held_frames_reach_the_executed_sequence():
     held = [i for i in range(5, len(full)) if float(full[i].noise) == 0]
     assert held == [5 + 4, 5 + 5, 5 + 6, 5 + 10, 5 + 11, 5 + 12]
     assert all(int(full[i].gripper_action[0]) == (-1 if i < 5 + 10 else 1) for i in held)
+
+
+def test_a_transition_on_the_first_frame_is_held_with_the_previous_action():
+    """A segment that starts already closed, after an open frame in the source: the hold leads it."""
+    poses, gripper = _sequence([1, 1, 1])
+    new_poses, new_gripper, new_noise = insert_settle_frames_before_gripper(
+        poses, gripper, 0.03, num_steps=3, previous_gripper_action=torch.tensor([-1.0])
+    )
+    assert _frames(new_poses) == [0, 0, 0, 0, 1, 2]
+    assert new_gripper.flatten().tolist() == [-1, -1, -1, 1, 1, 1]
+    assert new_noise.flatten().tolist() == pytest.approx([0, 0, 0, 0.03, 0.03, 0.03])
+
+
+@pytest.mark.parametrize("previous", [None, torch.tensor([1.0])])
+def test_no_or_an_equal_previous_action_is_not_a_boundary_transition(previous):
+    poses, gripper = _sequence([1, 1, 1])
+    out_poses, _, _ = insert_settle_frames_before_gripper(
+        poses, gripper, 0.03, num_steps=3, previous_gripper_action=previous
+    )
+    assert out_poses is poses
+
+
+def test_a_leading_hold_reaches_the_executed_sequence_before_the_interpolated_target():
+    """merge() pops the first frame as the interpolation target, so the interpolation towards a segment
+    that starts on a transition carries the pre-transition gripper action, then the hold, then the flip."""
+    poses, gripper = _sequence([1, 1, 1])
+    new_poses, new_gripper, new_noise = insert_settle_frames_before_gripper(
+        poses, gripper, 0.03, num_steps=3, previous_gripper_action=torch.tensor([-1.0])
+    )
+    subtask_traj = WaypointTrajectory()
+    subtask_traj.add_waypoint_sequence(WaypointSequence.from_poses(new_poses, new_gripper, new_noise))
+    traj = WaypointTrajectory()
+    traj.add_waypoint_sequence(WaypointSequence(sequence=[Waypoint(torch.eye(4), torch.tensor([-1.0]), 0.03)]))
+    traj.merge(subtask_traj, num_steps_interp=5, num_steps_fixed=0, action_noise=0.0)
+    traj.pop_first()
+    grippers = [int(waypoint.gripper_action[0]) for waypoint in traj.get_full_sequence().sequence]
+    # 5 interpolation frames + the popped hold frame + 2 remaining hold frames stay open; frames 0..2 closed
+    assert grippers == [-1] * 8 + [1] * 3
+
+
+@pytest.mark.parametrize("noise", [0.03, torch.full((10,), 0.03)])
+def test_held_noise_lives_on_the_poses_device(noise):
+    poses, gripper = _sequence(GRIPPER)
+    if torch.cuda.is_available():
+        poses, gripper = poses.cuda(), gripper.cuda()
+    _, _, new_noise = insert_settle_frames_before_gripper(poses, gripper, noise, num_steps=2)
+    assert new_noise.device == poses.device
+
+
+def test_settle_hold_is_refused_under_a_coordination_constraint():
+    cfg = MimicEnvCfg()
+    cfg.subtask_configs = {"left": [SubTaskConfig(num_settle_steps_before_gripper=20)], "right": [SubTaskConfig()]}
+    cfg.task_constraint_configs = [
+        SubTaskConstraintConfig(
+            eef_subtask_constraint_tuple=[("left", 0), ("right", 0)],
+            constraint_type=SubTaskConstraintType.COORDINATION,
+        )
+    ]
+    with pytest.raises(ValueError, match="coordination"):
+        check_settle_hold_compatible(cfg)
+    # the same hold on a subtask that is not coordinated, or under a sequential constraint, is fine
+    cfg.subtask_configs["left"][0].num_settle_steps_before_gripper = 0
+    check_settle_hold_compatible(cfg)
+    cfg.subtask_configs["left"][0].num_settle_steps_before_gripper = 20
+    cfg.task_constraint_configs[0].constraint_type = SubTaskConstraintType.SEQUENTIAL
+    check_settle_hold_compatible(cfg)

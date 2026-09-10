@@ -172,13 +172,19 @@ class SubTaskConfig:
     action noise. 0 (default) keeps the source timing unchanged.
 
     A transition is any change of the gripper action between consecutive frames of the subtask
-    segment, as discrete open/close commands produce; leave the option at 0 for continuous
-    hand-joint targets, where nearly every frame differs. A useful value is a few time constants
-    of the arm controller (20 steps for the Franka IK-Rel stack task).
+    segment, as discrete open/close commands produce, including a change between the source frame
+    just before the segment and its first frame; leave the option at 0 for continuous hand-joint
+    targets, where nearly every frame differs. A useful value is a few time constants of the arm
+    controller (20 steps for the Franka IK-Rel stack task).
 
     Note:
         :attr:`num_fixed_steps` also holds a target, but the subtask's first one, at its start;
         this option holds at the gripper transition inside the subtask.
+
+    Note:
+        Not supported on subtasks under a coordination constraint: the hold lengthens each
+        end effector's segment independently, which the synchronous-steps coordination does not
+        account for. The data generator raises at construction in that case.
     """
 
     description: str = ""

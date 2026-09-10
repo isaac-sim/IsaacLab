@@ -7,4 +7,5 @@ Added
   action and no action noise, for that many steps before the transition is commanded, so the generated
   arm settles where the source arm was when its operator acted the gripper. On the Franka cube stack
   task this raised the generation success rate from 35% to 54% (five scene draws, 300 attempts each).
-  Off by default.
+  Off by default. Setting it on a subtask under a coordination constraint raises a ``ValueError`` when
+  the data generator is created, because the hold lengthens each end effector's segment independently.
