@@ -59,7 +59,7 @@ import pytest
 import torch
 import warp as wp
 
-from pxr import Gf, Usd, UsdPhysics
+from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.test.utils import test_devices
 from isaaclab.test.utils.articulation_ordering import (
@@ -163,6 +163,8 @@ def test_generalized_dynamics_reorder_uses_public_joint_order():
     data._read_launch_cache = _WarpLaunchCache("cpu")
     data.joint_ordering = object()
     data._jacobian_joint_user_to_backend = wp.array([1, 0], dtype=wp.int32, device="cpu")
+    data._joint_dof_signs = wp.ones(2, dtype=wp.int32, device="cpu")
+    data._has_reversed_joints = False
     data._num_base_dofs = 0
 
     backend_values = wp.array([[[1.0, 2.0], [3.0, 4.0]]], dtype=wp.float32, device="cpu")
@@ -685,6 +687,29 @@ def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_ena
     torch.testing.assert_close(
         articulation.data.gravity_compensation_forces.torch, expected_compensation, atol=1e-5, rtol=1e-5
     )
+
+
+def test_joint_dof_sign_resolution_traverses_instance_proxies():
+    """Resolve reversed joints inside an instanceable articulation."""
+    source_stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(source_stage, "/Robot")
+    UsdGeom.Xform.Define(source_stage, "/Robot/base")
+    UsdGeom.Xform.Define(source_stage, "/Robot/link")
+    joint = UsdPhysics.RevoluteJoint.Define(source_stage, "/Robot/joint")
+    joint.GetBody0Rel().SetTargets(["/Robot/link"])
+    joint.GetBody1Rel().SetTargets(["/Robot/base"])
+    stage = Usd.Stage.CreateInMemory()
+    instance = UsdGeom.Xform.Define(stage, "/World/Robot").GetPrim()
+    instance.GetReferences().AddReference(source_stage.GetRootLayer().identifier, "/Robot")
+    instance.SetInstanceable(True)
+
+    articulation = Mock(
+        cfg=Mock(prim_path="/World/Robot"),
+        _joint_names=["joint"],
+        _body_names=["base", "link"],
+    )
+
+    assert Articulation._resolve_joint_dof_signs(articulation, stage) == (-1,)
 
 
 @pytest.mark.parametrize("num_articulations", [1])

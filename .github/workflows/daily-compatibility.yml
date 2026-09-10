@@ -135,7 +135,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: ${{ format('{0} {1}', steps.ov_pins.outputs.ovphysx, steps.ov_pins.outputs.ovrtx) }} ${{ steps.ov_pins.outputs.dependencies }}
+        extra-pip-packages: ${{ format('{0} {1}', steps.ov_pins.outputs.ovphysx, steps.ov_pins.outputs.ovrtx) }}
 
     - name: Copy All Test Results from IsaacLab Tasks Container
       run: |

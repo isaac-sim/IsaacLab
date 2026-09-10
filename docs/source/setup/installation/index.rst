@@ -19,18 +19,6 @@ Installation
    :target: https://www.microsoft.com/en-ca/windows/windows-11
    :alt: Windows 11
 
-.. note::
-
-   This ``develop`` branch currently requires NVIDIA internal Omniverse Artifactory
-   access for its pinned OVStage and OmniClient dependencies. The ``ovphysx`` and
-   ``ovrtx`` extras use the matching internal OvPhysX 0.6 and OVRTX 0.5 releases.
-   Source ``uv`` and Isaac Lab CLI installs configure this index automatically.
-   For ``pip`` or ``uv pip`` wheel installs, add
-   ``--extra-index-url https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple``.
-   For ``uv pip``, also add ``--index-strategy unsafe-best-match`` to match the
-   source resolver when packages occur on multiple indexes.
-   See :doc:`/source/concepts/ovphysx` for the runtime versions and migration steps.
-
 Choose the path that matches what you want to install and how you want to run it. Start with the
 automatic ``uv`` setup unless you need to manage your own environment, use a downloaded Isaac Sim
 package, or deploy to Docker or the cloud. Each card jumps to complete instructions on this page.

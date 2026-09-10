@@ -72,15 +72,16 @@ def _fake_ovphysx_module(bootstrap):
 
 
 @pytest.mark.parametrize(
-    ("registered_names", "expected_paths", "schema_root"),
+    ("registered_names", "expected_paths", "schema_root", "has_registration_api"),
     [
-        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas"),
-        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], "/schemas"),
-        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], None),
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", True),
+        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], "/schemas", True),
+        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], None, True),
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", False),
     ],
 )
 def test_schema_registration_skips_providers_already_supplied_by_host(
-    monkeypatch, manager_module, registered_names, expected_paths, schema_root
+    monkeypatch, manager_module, registered_names, expected_paths, schema_root, has_registration_api
 ):
     manager = manager_module.OvPhysxManager
     schema_paths = [
@@ -96,7 +97,9 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
         fake_ovphysx.codeless_schema_root = lambda: Path(schema_root)
 
     fake_ovstage = ModuleType("ovstage")
-    fake_ovstage.population = SimpleNamespace(register_usd_schemas=ovstage_registrations.append)
+    fake_ovstage.population = SimpleNamespace()
+    if has_registration_api:
+        fake_ovstage.population.register_usd_schemas = ovstage_registrations.append
 
     class FakeRegistry:
         def GetAllPlugins(self):
@@ -114,7 +117,7 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
     manager._ensure_physx_schemas_registered()
     manager._ensure_physx_schemas_registered()
 
-    assert ovstage_registrations == ([schema_root] if schema_root is not None else [])
+    assert ovstage_registrations == ([schema_root] if schema_root is not None and has_registration_api else [])
     assert host_registrations == ([expected_paths] if expected_paths else [])
 
 

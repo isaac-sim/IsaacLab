@@ -58,7 +58,7 @@ dependencies = [
     "pillow>=12.1.1",
     "botocore",  # omni.replicator.core S3 backend
     "starlette>=0.46.0,<0.50",  # livestream; range coexists with isaacsim 6.1
-    "omniverseclient==2.74.0",
+    "omniverseclient==2.72.3",
     "filelock",
     "lazy_loader>=0.4",
     # ----- project template generator -----
@@ -173,9 +173,9 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.1.0.0"]
 
-ov = ["ovphysx==0.6.2", "ovrtx==0.5.0.377615", "ovstage==0.2.0.377349"]
-ovphysx = ["ovphysx==0.6.2", "ovstage==0.2.0.377349"]
-ovrtx = ["ovrtx==0.5.0.377615", "ovstage==0.2.0.377349"]
+ov = ["ovphysx==0.5.11", "ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
+ovphysx = ["ovphysx==0.5.11", "ovstage==0.1.1.355824"]
+ovrtx = ["ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
 
 mimic = [
     "isaaclab-mimic",
@@ -222,10 +222,9 @@ usd_exchange = "2.3.0"
 torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
-ovphysx = "0.6.2"
-omniverseclient = "2.74.0"
-ovrtx = "0.5.0.377615"
-ovstage = "0.2.0.377349"
+ovphysx = "0.5.11"
+ovrtx = "0.4.1.364340"
+ovstage = "0.1.1.355824"
 warp = "1.17.0"
 
 [tool.ruff]
@@ -376,12 +375,6 @@ markers = [
 url = "https://pypi.nvidia.com"
 explicit = false
 
-# OvPhysX 0.6 and its OVStage/OmniClient dependencies are currently internal releases.
-[[tool.uv.index]]
-name = "ov-internal"
-url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple"
-explicit = true
-
 [[tool.uv.index]]
 name = "pypi-public"
 url = "https://pypi.org/simple"
@@ -433,10 +426,10 @@ python-preference = "only-managed"
 package = false
 
 [tool.uv.sources]
-omniverseclient = { index = "ov-internal" }
-ovphysx = { index = "ov-internal" }
-ovrtx = { index = "ov-internal" }
-ovstage = { index = "ov-internal" }
+omniverseclient = { index = "pypi-public" }
+ovphysx = { index = "pypi-public" }
+ovrtx = { index = "pypi-public" }
+ovstage = { index = "pypi-public" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
 "isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }

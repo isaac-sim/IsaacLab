@@ -121,6 +121,8 @@ class ArticulationData(BaseArticulationData):
         self._fk_timestamp: float = 0.0
         self._is_primed: bool = False
         self._read_launch_cache = _WarpLaunchCache(device)
+        self._joint_dof_signs = wp.ones(self.num_joints, dtype=wp.int32, device=device)
+        self._has_reversed_joints = False
         # pinned-host staging buffers for CPU-only bindings (keyed by tensor_type)
         self._cpu_staging_buffers: dict[int, wp.array] = {}
 
@@ -1065,7 +1067,7 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_jacobian_w.timestamp < self._sim_timestamp:
             has_body_ordering = self.has_body_ordering
             has_joint_ordering = self.has_joint_ordering
-            if has_body_ordering or has_joint_ordering:
+            if has_body_ordering or has_joint_ordering or self._has_reversed_joints:
                 self._binding_read(TT.JACOBIAN, self._body_com_jacobian_w_backend)
                 self._read_launch_cache.launch(
                     "body_com_jacobian_w",
@@ -1075,7 +1077,7 @@ class ArticulationData(BaseArticulationData):
                         self._body_com_jacobian_w_backend,
                         self._jacobian_body_user_to_backend,
                         self._jacobian_joint_user_to_backend,
-                        None,
+                        self._joint_dof_signs,
                         self._num_base_dofs,
                         has_body_ordering,
                         has_joint_ordering,
@@ -1105,12 +1107,18 @@ class ArticulationData(BaseArticulationData):
         return self._body_link_jacobian_w_ta
 
     def _refresh_generalized_dynamics_buffer(
-        self, buffer: TimestampedBuffer, backend_buffer: wp.array, tensor_type: int, reorder_kernel: wp.Kernel
+        self,
+        buffer: TimestampedBuffer,
+        backend_buffer: wp.array,
+        tensor_type: int,
+        reorder_kernel: wp.Kernel,
+        *,
+        correct_joint_signs: bool = True,
     ) -> None:
         """Refresh a generalized dynamics buffer and gather its joint axes when needed."""
         if buffer.timestamp >= self._sim_timestamp:
             return
-        if self.has_joint_ordering:
+        if self.has_joint_ordering or (correct_joint_signs and self._has_reversed_joints):
             self._binding_read(tensor_type, backend_buffer)
             self._read_launch_cache.launch(
                 (id(buffer), "generalized_dynamics"),
@@ -1119,7 +1127,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[
                     backend_buffer,
                     self._jacobian_joint_user_to_backend,
-                    None,
+                    self._joint_dof_signs if correct_joint_signs else None,
                     self._num_base_dofs,
                     self.has_joint_ordering,
                 ],
@@ -1143,11 +1151,13 @@ class ArticulationData(BaseArticulationData):
     @property
     def gravity_compensation_forces(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`."""
+        # Gravity forces already use the public joint basis on both 0.5.11 and 0.6.
         self._refresh_generalized_dynamics_buffer(
             self._gravity_compensation_forces,
             self._gravity_compensation_forces_backend,
             TT.GRAVITY_FORCE,
             ordering_kernels.reorder_generalized_vector_backend_to_user,
+            correct_joint_signs=False,
         )
         return self._gravity_compensation_forces_ta
 

@@ -458,7 +458,7 @@ jobs:
         # deformables.py tetrahedralizes its volume meshes at startup
         extra-pip-packages: >-
           pytetwild[all]>=0.3.0,<0.4
-          ${{ steps.ov_pins.outputs.ovphysx }} ${{ steps.ov_pins.outputs.dependencies }}
+          ${{ steps.ov_pins.outputs.ovphysx }}
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
         standalone-script-visualizer: "none"
@@ -685,7 +685,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_ov"
         # Volume deformable tests tetrahedralize their meshes at startup.
-        extra-pip-packages: pytetwild[all]>=0.3.0,<0.4 ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }} ${{ steps.ov_pins.outputs.dependencies }}
+        extra-pip-packages: pytetwild[all]>=0.3.0,<0.4 ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         container-name: isaac-lab-ov-test
@@ -861,7 +861,7 @@ jobs:
         filter-pattern: "isaaclab_tasks"
         extra-pip-packages: >-
           pytetwild[all]>=0.3.0,<0.4
-          ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }} ${{ steps.ov_pins.outputs.dependencies }}
+          ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
@@ -909,7 +909,7 @@ jobs:
         filter-pattern: "isaaclab_tasks"
         extra-pip-packages: >-
           pytetwild[all]>=0.3.0,<0.4
-          ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }} ${{ steps.ov_pins.outputs.dependencies }}
+          ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && steps.ov_pins.outputs.ovrtx || format('{0} {1}', steps.ov_pins.outputs.ovrtx, steps.ov_pins.outputs.ovphysx) }}
         wheelhouse-image: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_image || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
@@ -1014,7 +1014,7 @@ jobs:
         # One combined job covers both sub-trees: Kit cartpole rendering warms
         # kit/, kitless ovrtx cartpole rendering warms kitless/.
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }} ${{ steps.ov_pins.outputs.dependencies }}"
+        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
         include-files: >-
           test_rendering_cartpole.py,
           test_rendering_cartpole_kitless.py

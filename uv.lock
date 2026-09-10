@@ -1754,7 +1754,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "24.1.2"
+version = "24.1.1"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -2045,18 +2045,18 @@ requires-dist = [
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "numpydantic", marker = "extra == 'rlinf'", specifier = ">=1.7.0" },
-    { name = "omniverseclient", specifier = "==2.74.0", index = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" },
+    { name = "omniverseclient", specifier = "==2.72.3", index = "https://pypi.org/simple" },
     { name = "onnx", specifier = ">=1.18.0" },
     { name = "onnxscript", specifier = ">=0.5" },
     { name = "onnxscript", marker = "extra == 'rsl-rl'", specifier = ">=0.5" },
     { name = "open3d", marker = "(python_full_version < '3.13' and platform_machine != 'aarch64') or (python_full_version < '3.13' and sys_platform != 'linux')", specifier = ">=0.19.0" },
-    { name = "ovphysx", marker = "extra == 'ov'", specifier = "==0.6.2", index = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" },
-    { name = "ovphysx", marker = "extra == 'ovphysx'", specifier = "==0.6.2", index = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" },
-    { name = "ovrtx", marker = "extra == 'ov'", specifier = "==0.5.0.377615", index = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" },
-    { name = "ovrtx", marker = "extra == 'ovrtx'", specifier = "==0.5.0.377615", index = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" },
-    { name = "ovstage", marker = "extra == 'ov'", specifier = "==0.2.0.377349", index = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" },
-    { name = "ovstage", marker = "extra == 'ovphysx'", specifier = "==0.2.0.377349", index = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" },
-    { name = "ovstage", marker = "extra == 'ovrtx'", specifier = "==0.2.0.377349", index = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" },
+    { name = "ovphysx", marker = "extra == 'ov'", specifier = "==0.5.11", index = "https://pypi.org/simple" },
+    { name = "ovphysx", marker = "extra == 'ovphysx'", specifier = "==0.5.11", index = "https://pypi.org/simple" },
+    { name = "ovrtx", marker = "extra == 'ov'", specifier = "==0.4.1.364340", index = "https://pypi.org/simple" },
+    { name = "ovrtx", marker = "extra == 'ovrtx'", specifier = "==0.4.1.364340", index = "https://pypi.org/simple" },
+    { name = "ovstage", marker = "extra == 'ov'", specifier = "==0.1.1.355824", index = "https://pypi.org/simple" },
+    { name = "ovstage", marker = "extra == 'ovphysx'", specifier = "==0.1.1.355824", index = "https://pypi.org/simple" },
+    { name = "ovstage", marker = "extra == 'ovrtx'", specifier = "==0.1.1.355824", index = "https://pypi.org/simple" },
     { name = "packaging" },
     { name = "pandas", marker = "extra == 'rlinf'" },
     { name = "peft", marker = "extra == 'rlinf'", specifier = ">=0.17.0" },
@@ -2137,7 +2137,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-mimic"
-version = "2.0.7"
+version = "2.0.6"
 source = { editable = "source/isaaclab_mimic" }
 dependencies = [
     { name = "isaaclab" },
@@ -2154,7 +2154,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "6.2.1"
+version = "6.2.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2175,12 +2175,12 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "source/isaaclab" },
-    { name = "ovstage", specifier = "==0.2.0.377349" },
+    { name = "ovstage", specifier = "==0.1.1.355824" },
 ]
 
 [[package]]
 name = "isaaclab-physx"
-version = "7.1.2"
+version = "7.1.1"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2202,7 +2202,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "0.17.3"
+version = "0.17.2"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -2219,7 +2219,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "20.1.3"
+version = "20.1.2"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
@@ -2249,7 +2249,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-teleop"
-version = "0.9.0"
+version = "0.8.4"
 source = { editable = "source/isaaclab_teleop" }
 dependencies = [
     { name = "isaaclab" },
@@ -2260,7 +2260,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-visualizers"
-version = "1.10.5"
+version = "1.10.4"
 source = { editable = "source/isaaclab_visualizers" }
 dependencies = [
     { name = "isaaclab" },
@@ -3735,12 +3735,12 @@ wheels = [
 
 [[package]]
 name = "omniverseclient"
-version = "2.74.0"
-source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" }
+version = "2.72.3"
+source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/omniverseclient/2.74.0/omniverseclient-2.74.0-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:2071be85b5932b787df280e569078ed9274739da865f14d777a41a4b5e767fc4" },
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/omniverseclient/2.74.0/omniverseclient-2.74.0-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:20ede072259d6912aa2176349b74aae71c0f56c4b7ff26f6885e4a84980cc2cc" },
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/omniverseclient/2.74.0/omniverseclient-2.74.0-cp312-cp312-win_amd64.whl", hash = "sha256:a4138c3c17502176b8fab3a0e0f4c8a4aab22006e7a6f4ee7d57a1a44906ee6f" },
+    { url = "https://files.pythonhosted.org/packages/ed/83/a4b1a9b7c046d72c37f2c9a3496f34f516285475cc841f9d917c17dcc61d/omniverseclient-2.72.3-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:cc3cf460bb95517b6b610b142bec5809105310f8fe57a913dc404d8801c91b7b", size = 16894728, upload-time = "2026-07-22T13:57:09.342Z" },
+    { url = "https://files.pythonhosted.org/packages/4e/2b/738fede63c3c8b2119b9532002cd14f5561eed0f3ac3c0ac26f3d9c61bd5/omniverseclient-2.72.3-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:4cb9af5953be9940b462b954055ec2397e77d1117e742eb20703ed3e38db540f", size = 16938296, upload-time = "2026-07-22T13:57:05.003Z" },
+    { url = "https://files.pythonhosted.org/packages/23/4c/3e685146febf968387b3557dd5c1ebd05701c0bc0442718cfb7a22dcebf0/omniverseclient-2.72.3-cp312-cp312-win_amd64.whl", hash = "sha256:35197d0fda6f0c4cd2e145a2741a420d095a4107b4b24dd395d5918c4206351b", size = 12171518, upload-time = "2026-07-22T13:57:12.917Z" },
 ]
 
 [[package]]
@@ -3984,37 +3984,32 @@ wheels = [
 
 [[package]]
 name = "ovphysx"
-version = "0.6.2"
-source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" }
+version = "0.5.11"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ovstage" },
     { name = "packaging" },
-    { name = "warp-lang" },
 ]
 wheels = [
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/ovphysx/0.6.2/ovphysx-0.6.2-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:96eeb1e208a2a518df6865b54288dd3634526ea4f06a6876050d8e02ec79a2fc" },
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/ovphysx/0.6.2/ovphysx-0.6.2-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:c0e481280d8b3fbdcb5c01c6fca4af6ffd8c5ef3206ac16dafc0ea1bd6c136af" },
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/ovphysx/0.6.2/ovphysx-0.6.2-py3-none-win_amd64.whl", hash = "sha256:71c6c1e2e31c4ed6c12acc2b1764a8cc8e07b045a3a89d2e61d8229f1b3650df" },
+    { url = "https://files.pythonhosted.org/packages/e1/93/36e41c4ea7c9a1e0a4a7ab95286c7428b228bd78eccd1e5d5388f893c88b/ovphysx-0.5.11-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:fff7e648fe14989e6ae51b7c6e6c516beab0b4f0749110c32c5a142b31525946", size = 162111746, upload-time = "2026-08-28T08:44:04.939Z" },
+    { url = "https://files.pythonhosted.org/packages/07/ea/df4b90eb2ba9136eac99d0da839fa687c77017016300674801254c79e107/ovphysx-0.5.11-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:4e6f904d9858674ecf4fccc2a462d048f9eeb7d20724a7eafd294bf5ccac9a2c", size = 168926695, upload-time = "2026-08-28T08:45:49.197Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/8f/f653c0d8b8973c482ac0e93500c5d48d846ca0f49388122f60a1a49a6c99/ovphysx-0.5.11-py3-none-win_amd64.whl", hash = "sha256:409637574296f2f4c9a377444c2072c5539a8a5adf88b9536c02fdff6af387be", size = 148040678, upload-time = "2026-08-28T08:47:14.928Z" },
 ]
 
 [[package]]
 name = "ovrtx"
-version = "0.5.0.377615"
-source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" }
-wheels = [
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/ovrtx/0.5.0.377615/ovrtx-0.5.0.377615-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:77371fc8cfa6aceb660abe0a11978a4c7b608da7214ca22a5df1a3dd64111258" },
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/ovrtx/0.5.0.377615/ovrtx-0.5.0.377615-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:e57c266a3a0b7b8a7e17dbecf75f559caf5f1dac2c9f58c1424b0e7ac10a16a2" },
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/ovrtx/0.5.0.377615/ovrtx-0.5.0.377615-py3-none-win_amd64.whl", hash = "sha256:36a79af1f9613e0a66fe10d59e0ab5b2e0c8552bdbf0f930a9ec5282875fdc4b" },
-]
+version = "0.4.1.364340"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/3e/ecefd14d7dc8b377607aafe19e426f40b921b2be9a8f73ebc6e4d180ecd1/ovrtx-0.4.1.364340.tar.gz", hash = "sha256:1b20e48a69a091246b0537412e0434ee5d5437a8bfc3bbe02599f13ac7488927", size = 23382, upload-time = "2026-08-14T22:43:40.756Z" }
 
 [[package]]
 name = "ovstage"
-version = "0.2.0.377349"
-source = { registry = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple" }
+version = "0.1.1.355824"
+source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/ovstage/0.2.0.377349/ovstage-0.2.0.377349-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:48622327aa693774e0f03a283e11aa25344119ff0cfc411867e4d03a38c6f4ea" },
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/ovstage/0.2.0.377349/ovstage-0.2.0.377349-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:092a34c0054664b90a32c07209647bd02e6f774a705295d8c460813940153f5b" },
-    { url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/packages/ovstage/0.2.0.377349/ovstage-0.2.0.377349-py3-none-win_amd64.whl", hash = "sha256:d1408fd27ad57bc216c8da3ba326fa2a2f9a5abb922c4c42206dd40e0c3e7f3b" },
+    { url = "https://files.pythonhosted.org/packages/05/fd/a1650d436b3c304720236178848d4e7ad523a2b9f2b76918d7b902934cac/ovstage-0.1.1.355824-py3-none-manylinux_2_35_aarch64.whl", hash = "sha256:046aa360959bf5344d912470aaa11d3ec1fc750e28816e5239ce0438864c9863", size = 59799282, upload-time = "2026-08-05T20:07:10.538Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/2e/e5d03719d9ab8e412187be84efe11bc6b912eca02bd8dfb09a1bf522bbe4/ovstage-0.1.1.355824-py3-none-manylinux_2_35_x86_64.whl", hash = "sha256:b4affd9e5b23620ec71901a164df4ae373d25de2c76b9fae4d193d97aa2df0ec", size = 64302147, upload-time = "2026-08-05T20:06:18.013Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/d0/ff9124f524ffadc87f8893e99de1679e7c517ca6ceb60e0b870a284b71a3/ovstage-0.1.1.355824-py3-none-win_amd64.whl", hash = "sha256:fc8ae7fe950aa2ff8fd24643047f7156ffa1b9b384ce3f024ee2193929e21a3b", size = 35031430, upload-time = "2026-08-05T20:05:29.88Z" },
 ]
 
 [[package]]

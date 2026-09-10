@@ -92,7 +92,6 @@ jobs:
           --exclude 'YOUR_'
           --exclude 'yourdomain'
           --exclude 'user@'
-          --exclude '^https://artifactory\.pdx\.nvidia\.com/'
           --exclude 'helm\.ngc\.nvidia\.com'
           --exclude 'slurm\.schedmd\.com'
           --exclude 'graphics\.pixar\.com'

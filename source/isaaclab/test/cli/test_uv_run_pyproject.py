@@ -8,10 +8,6 @@
 from __future__ import annotations
 
 import re
-import shlex
-import subprocess
-import sys
-import textwrap
 from pathlib import Path
 
 import pytest
@@ -131,8 +127,8 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
-    assert versions["ovphysx"] == "0.6.2"
-    assert f"omniverseclient=={versions['omniverseclient']}" in dependencies
+    assert versions["ovphysx"] == "0.5.11"
+    assert "omniverseclient==2.72.3" in dependencies
 
     # Isaac Sim extra mirrors the table; it is the only place the wheel is pinned.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
@@ -147,8 +143,6 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     assert spec("ovrtx") in optional["ovrtx"]
     assert spec("ovstage") in optional["ovphysx"]
     assert spec("ovstage") in optional["ovrtx"]
-    with (source_checkout_root / "source/isaaclab_ov/pyproject.toml").open("rb") as f:
-        assert spec("ovstage") in tomllib.load(f)["project"]["dependencies"]
 
     # CI installs OVRTX through a generic pip-package input (a bare ``pip install
     # ovrtx`` ignores this ceiling). Each such install must therefore be pinned:
@@ -177,31 +171,8 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     assert warp_spec in dependencies
 
 
-def test_ci_ov_runtime_requirements_include_matching_dependencies(source_checkout_root: Path):
-    """CI pip installs resolve the same complete OV stack as the source environment."""
-    action = (source_checkout_root / ".github/actions/resolve-ov-pins/action.yml").read_text()
-    script = textwrap.dedent(action.split("run: |", 1)[1])
-    python_source = script.split("python3 <<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
-    result = subprocess.run(
-        [sys.executable, "-c", python_source],
-        cwd=source_checkout_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    resolved = dict(line.split("=", 1) for line in result.stdout.splitlines())
-    assert resolved["index-strategy"] == _root_pyproject(source_checkout_root)["tool"]["uv"]["index-strategy"]
-    versions = _root_pyproject(source_checkout_root)["tool"]["isaaclab"]["versions"]
-    for package in ("ovphysx", "ovrtx"):
-        assert resolved[package] == f"{package}=={versions[package]}"
-    dependencies = shlex.split(resolved["dependencies"])
-    for package in ("ovstage", "omniverseclient"):
-        assert f"{package}=={versions[package]}" in dependencies
-    assert dependencies[dependencies.index("--extra-index-url") + 1] == resolved["index-url"]
-
-
-def test_ov_packages_use_declared_runtime_indexes(source_checkout_root: Path):
-    """The OV runtimes use the internal index hosting their matching releases."""
+def test_public_ov_packages_use_public_pypi_index(source_checkout_root: Path):
+    """Public OV packages must not resolve from the NVIDIA package index."""
     pyproject = _root_pyproject(source_checkout_root)
     indexes = {index.get("name"): index for index in pyproject["tool"]["uv"]["index"]}
     sources = pyproject["tool"]["uv"]["sources"]
@@ -211,13 +182,8 @@ def test_ov_packages_use_declared_runtime_indexes(source_checkout_root: Path):
         "url": "https://pypi.org/simple",
         "explicit": True,
     }
-    assert indexes["ov-internal"] == {
-        "name": "ov-internal",
-        "url": "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple",
-        "explicit": True,
-    }
     for package in ("omniverseclient", "ovphysx", "ovrtx", "ovstage"):
-        assert sources[package] == {"index": "ov-internal"}
+        assert sources[package] == {"index": "pypi-public"}
 
 
 def test_uv_run_declares_no_extra_conflicts(source_checkout_root: Path):
