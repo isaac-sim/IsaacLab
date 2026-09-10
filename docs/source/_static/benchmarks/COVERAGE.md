@@ -245,6 +245,24 @@ from successful WARM training entries with matching measured default counts and
 unambiguous task metadata are selected. Current values may use older dates;
 history requires exact requested dates.
 
+## Would a fixed count of 4,096 improve coverage?
+
+No. Applying the same hardware, metadata, paired-metric, and date filters to the
+queried data reduces coverage. This comparison changes only the required count.
+
+| Snapshot | Count policy | Environments | Backend/renderer pairs | Recorded configurations |
+| --- | --- | ---: | ---: | ---: |
+| Current | Task defaults | 36 | 70 | 87 |
+| Current | Fixed 4,096 | 27 | 52 | 61 |
+| August 28 | Task defaults | 30 | 64 | 64 |
+| August 28 | Fixed 4,096 | 25 | 50 | 50 |
+
+Both FPS metrics have the same coverage. A fixed 4,096 adds no environments and
+loses nine from the current baseline: Cartpole Camera and Camera Direct, all six
+Allegro/Shadow cube-reorientation variants, and Shadow Handover Direct. It also
+removes all four currently covered OV PhysX configurations, which were measured
+at their 8,192 default. Keep task defaults for this dataset.
+
 ## Remaining collection work
 
 1. Run missing backend/renderer pairs at the default counts in the configuration

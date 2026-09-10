@@ -652,17 +652,17 @@
             .find((candidate) => candidate >= paddedValue);
     };
     const backendLabels = {
-        isaacsim_physx: "Isaac Sim PhysX",
-        newton_mjwarp: "Newton MJWarp",
-        newton_mjwarp_vbd_proxy: "Newton MJWarp + VBD",
-        ovphysx: "OV PhysX",
+        isaacsim_physx: "physx",
+        newton_mjwarp: "mjwarp",
+        newton_mjwarp_vbd_proxy: "mjwarp + vbd",
+        ovphysx: "ovphysx",
     };
     const backendOrder = Object.keys(backendLabels);
     const backendClass = (backend) => `environment-chart-backend-${backend.replaceAll("_", "-")}`;
     const rendererLabels = {
-        isaacsim_rtx: "Isaac Sim RTX",
-        newton_renderer: "Newton Renderer",
-        ovrtx: "OV RTX",
+        isaacsim_rtx: "rtx",
+        newton_renderer: "newton",
+        ovrtx: "ovrtx",
     };
     // Keep different benchmark configurations separate, including camera renderers.
     const seriesKey = (row) => JSON.stringify([
