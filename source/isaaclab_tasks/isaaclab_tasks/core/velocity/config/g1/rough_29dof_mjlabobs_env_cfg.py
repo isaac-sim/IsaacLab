@@ -41,9 +41,8 @@ minibatches, learning rate, adaptive schedule, gamma, lambda, ``desired_kl``, ``
 import torch
 
 from isaaclab.assets import Articulation
-from isaaclab.managers import ManagerTermBase
+from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
@@ -150,6 +149,7 @@ class G129DofRoughMjlabObsEnvCfg(G129DofRoughMjlabTerrainEnvCfg):
         super().__post_init__()
 
         foot_contacts = SceneEntityCfg("contact_forces", body_names=list(_FOOT_BODIES))
+
         # The joint terms have to cover the same 29 joints as everything else, or the biased term
         # silently reports 43 and the observation grows by fourteen fingers. A *fresh* config per
         # term: the manager resolves names to ids in place, and a shared object resolved twice fails
@@ -189,14 +189,8 @@ class G129DofRoughMjlabObsEnvCfg(G129DofRoughMjlabTerrainEnvCfg):
             func=foot_clearance_obs,
             params={"asset_cfg": SceneEntityCfg("robot", body_names=list(_FOOT_BODIES))},
         )
-        self.observations.critic.foot_air_time = ObsTerm(
-            func=foot_air_time_obs, params={"sensor_cfg": foot_contacts}
-        )
-        self.observations.critic.foot_contact = ObsTerm(
-            func=foot_contact_obs, params={"sensor_cfg": foot_contacts}
-        )
+        self.observations.critic.foot_air_time = ObsTerm(func=foot_air_time_obs, params={"sensor_cfg": foot_contacts})
+        self.observations.critic.foot_contact = ObsTerm(func=foot_contact_obs, params={"sensor_cfg": foot_contacts})
         self.observations.critic.foot_contact_forces = ObsTerm(
             func=foot_contact_forces_obs, params={"sensor_cfg": foot_contacts}
         )
-
-

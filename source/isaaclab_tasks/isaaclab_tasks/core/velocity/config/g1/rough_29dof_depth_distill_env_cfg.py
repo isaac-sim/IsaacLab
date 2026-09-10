@@ -49,8 +49,10 @@ from .rough_29dof_distill_env_cfg import (
     G129DofRoughAirTime100DistillObservationsCfg,
 )
 from .rough_29dof_dr_env_cfg import _HISTORY_LENGTH, _HISTORY_TERMS
+from .rough_29dof_mjlab_env_cfg import G129DofRoughMjlabScaleEnvCfg
 from .rough_29dof_posture_env_cfg import G129DofRoughHipL2AirTime100EnvCfg
 from .rough_29dof_power_env_cfg import G129DofRoughWaist1Power2HipPitchLightEnvCfg
+from .rough_29dof_waistonly_env_cfg import G129DofRoughAirTime100WaistWarmupEnvCfg
 
 _DEPTH_WIDTH = 64
 """Rendered depth width [px]. Small on purpose -- rendering is the cost of this stage."""
@@ -281,4 +283,53 @@ class G129DofRoughAirTime100DepthDistillW100EnvCfg(G129DofRoughHipL2AirTime100En
 
     def __post_init__(self):
         super().__post_init__()
+        _wire_depth_student(self)
+
+
+@configclass
+class G129DofRoughYmsDepthDistillEnvCfg(G129DofRoughMjlabScaleEnvCfg):
+    """The depth student under ``yms``'s environment.
+
+    ``yms`` -- the per-joint action scale plus left-right mirror augmentation -- is the best gait
+    this line has measured: 0.990 success at sd 0.003, and on flat ground under a pinned straight
+    command a pelvis roll of 0.55 degrees against the control's 2.8, an airborne share ratio of
+    1.03 to 1.07 against 0.71, and a worst joint-pair asymmetry under a degree against three to six.
+
+    The environment is ``yms``'s own. The mirror augmentation lives in how the teacher was trained,
+    not in the environment, so the student does not inherit it -- whether the symmetry survives the
+    distillation is a thing to measure on the student rather than assume.
+    """
+
+    observations: G129DofRoughAirTime100DepthDistillObservationsCfg = (
+        G129DofRoughAirTime100DepthDistillObservationsCfg()
+    )
+
+    def __post_init__(self):
+        super().__post_init__()
+        _wire_depth_student(self)
+
+
+@configclass
+class G129DofRoughYsuDepthDistillEnvCfg(G129DofRoughAirTime100WaistWarmupEnvCfg):
+    """The depth student under ``ysu``'s environment.
+
+    ``ysu`` is the same mirror augmentation on the ``su`` base -- the blanket 0.5 action scale
+    rather than the per-joint table. It reaches 0.978 success with a pelvis roll of 0.10 degrees and
+    an airborne ratio of 1.005 to 1.049, so the symmetry result holds on both bases and is not a
+    property of the action scale.
+
+    ``su`` is :class:`G129DofRoughStandUpEnvCfg`; the warm-up parent is used here with the
+    pelvis-height penalty added below, which is what ``su`` is.
+    """
+
+    observations: G129DofRoughAirTime100DepthDistillObservationsCfg = (
+        G129DofRoughAirTime100DepthDistillObservationsCfg()
+    )
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        from .rough_29dof_standup_env_cfg import _STAND_WEIGHTS, _add_stand_height  # noqa: PLC0415
+
+        _add_stand_height(self, _STAND_WEIGHTS["s1"])
         _wire_depth_student(self)
