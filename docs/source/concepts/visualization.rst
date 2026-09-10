@@ -794,6 +794,21 @@ To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
 For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 
 
+Scene Background
+~~~~~~~~~~~~~~~~
+
+Kit, Newton GL, and Newton RTX use the shared solid sky-blue background from
+``VisualizerCfg.background_color`` by default. This changes only the visible background; scene
+lights continue to illuminate objects and contribute reflections. Set a different normalized RGB
+color directly, or set the field to ``None`` to preserve the backend's native background:
+
+.. code-block:: python
+
+    from isaaclab.visualizers import VisualizerCfg
+
+    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(background_color=(0.1, 0.2, 0.3))
+
+
 Performance
 ~~~~~~~~~~~
 
