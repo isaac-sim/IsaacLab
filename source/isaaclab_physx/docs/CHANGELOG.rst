@@ -1,6 +1,111 @@
 Changelog
 ---------
 
+6.0.0 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added batched GPU material-channel writes through Fabric for Isaac RTX rendering.
+* Added config-owned construction to ``IsaacRtxRendererCfg`` through its ``class_type`` field.
+* Added translation of :attr:`~isaaclab.physics.PhysicsCfg.deterministic` in ``PhysxManager``, which
+  enables :attr:`~isaaclab_physx.physics.PhysxCfg.enable_enhanced_determinism`.
+* Added :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisCfg` for configuring the
+  ``PhysxTendonAxisAPI`` properties of existing fixed-tendon instances.
+* Added ``lower_limit`` and ``upper_limit`` to
+  :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisRootCfg` and
+  :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`.
+
+Changed
+^^^^^^^
+
+* **Breaking:** The Isaac RTX renderer now raises an error for albedo and simple-shading outputs on Isaac Sim
+  versions before 6.0, rather than silently omitting them. Upgrade Isaac Sim or remove those data types.
+* Changed the tendon fragment functions (e.g. the ``func`` behind
+  :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonCfg`) to author on the given prim
+  only. Target selection, including subtree matching via prim path expressions, is now
+  owned by the core family writers such as
+  :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`; pass
+  ``f"{prim_path}(/.*)?"`` to those writers to reach descendant tendon prims.
+* Renamed ``PhysxFixedTendonCfg`` to
+  :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisRootCfg` and
+  ``PhysxSpatialTendonCfg`` to
+  :class:`~isaaclab_physx.sim.schemas.PhysxTendonAttachmentRootCfg` so every fragment name matches
+  its USD schema. No compatibility aliases are provided.
+* Added ``instance_names`` to :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisRootCfg` and
+  :class:`~isaaclab_physx.sim.schemas.PhysxTendonAttachmentRootCfg`. Pass one name or a list to select
+  existing tendon instances; the default ``None`` preserves the previous broadcast behavior.
+* Changed :class:`~isaaclab_physx.sim.schemas.PhysxTendonAttachmentRootCfg` to configure only
+  ``PhysxTendonAttachmentRootAPI`` instances. Leaf and intermediate attachment topology remains
+  asset-authored.
+* Renamed PhysX contact sensor normal and filtered-friction outputs to use the shared explicit
+  force names. Aggregate friction remains unsupported; use ``friction_force_matrix_w`` with
+  configured filter objects. ``net_forces_w`` is the total contact force; PhysX cannot compute
+  it, so the property returns ``net_normal_forces_w`` and warns. ``friction_forces_w`` is the
+  aggregate friction force; PhysX only provides filtered friction, so the property returns
+  ``friction_force_matrix_w`` and warns (known limitations planned to be fixed in a later
+  release).
+* Added ``friction_force_matrix_w_history`` for filtered friction force history.
+* Changed the IMU and PVA sensors to read linear and angular accelerations from the PhysX solver
+  (:meth:`RigidBodyView.get_accelerations`) instead of finite-differencing the body velocity
+  between updates. The reported acceleration now includes the rigid-body transport terms for the
+  sensor offset from the center of mass and no longer produces spurious spikes when velocities are
+  written directly (for example on environment resets or teleports). The reading is available from
+  the first sensor update and is independent of the sensor update period. The PVA sensor keeps
+  reporting a kinematic acceleration (no gravity bias), so a body in free fall now reads ``-g``
+  instead of a finite-difference estimate.
+
+* Changed the PVA sensor's world-frame gravity direction from a public per-instance
+  ``GRAVITY_VEC_W`` proxy array to the internal ``_gravity_vec_w`` scene-wide vector, matching the
+  OvPhysX sensor. Gravity is scene-wide on this backend, so the per-instance buffer held one
+  broadcast value. Code reading ``pva_sensor.GRAVITY_VEC_W`` should read
+  ``pva_sensor.data.projected_gravity_b`` instead; the identically-named attribute on the asset
+  data classes is unaffected.
+* Changed fixed tendons to be named after their ``PhysxTendonAxisRootAPI`` instance rather than the
+  joint prim carrying it, matching OVPhysX and Newton. Code that looked a tendon up by its joint
+  name, through ``find_fixed_tendons`` or ``SceneEntityCfg.fixed_tendon_names``, must use the
+  instance name.
+* Changed ``IsaacRtxRenderer.render()`` to pass the tiled annotator buffer to
+  ``reshape_tiled_image`` as a 3D array instead of flattening it to 1D. Large environment counts
+  and camera resolutions no longer overflow the maximum size of a single Warp array dimension.
+
+Removed
+^^^^^^^
+
+* Removed the per-prim ``apply_fixed_tendon`` and ``apply_spatial_tendon`` functions from
+  :mod:`isaaclab_physx.sim.schemas`. Configure tendon fragments through
+  :func:`isaaclab.sim.schemas.apply_fixed_tendon_properties` and
+  :func:`isaaclab.sim.schemas.apply_spatial_tendon_properties`, respectively.
+
+Fixed
+^^^^^
+
+* Fixed PhysX scene-data rigid-body views resolving same-named USD joint prims
+  when synchronizing PhysX simulations with Newton visualizers.
+* Fixed :class:`~isaaclab_physx.sensors.Imu` and :class:`~isaaclab_physx.sensors.Pva` reporting
+  gravity captured at sensor initialization. Both sensors now re-read the scene gravity on every
+  update, so runtime randomization through
+  :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity` is reflected in the
+  accelerometer bias and the projected gravity direction.
+* Handled empty Isaac RTX annotator warm-up frames without invalid Warp slicing.
+* Fixed :meth:`compute_first_contact` and :meth:`compute_first_air` on the contact sensor silently
+  missing touchdowns and lift-offs once the simulation had run for a few seconds (issue #7283).
+  Their ``abs_tol`` argument now defaults to ``None``, which resolves to half the sensor update
+  interval instead of a fixed ``1e-8``. The old value was around 100x smaller than the float32
+  rounding error of the sensor clock, so most transitions were dropped. Callers that relied on the
+  previous behavior can pass ``abs_tol=1e-8`` explicitly.
+  Both methods now also refresh outdated sensor buffers before comparing, so a sensor with
+  ``history_length=0`` no longer reports the previous step's transitions when it is queried before
+  its data is read.
+* Fixed a SIGSEGV crash when calling ``SimulationContext.play()`` a second time after
+  ``SimulationContext.stop()`` without an intervening ``reset()``, e.g. registering a raw
+  ``omni.timeline`` event subscription and cycling play/stop twice on the GPU PhysX pipeline.
+  ``PhysxManager`` now detaches the PhysX stage on ``stop()`` so the next play's automatic
+  re-warmup reattaches cleanly instead of calling ``attach_stage`` on a stage that PhysX still
+  considered attached, which corrupted its internal view registry.
+
+
 5.1.0 (2026-08-20)
 ~~~~~~~~~~~~~~~~~~
 

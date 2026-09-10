@@ -1,6 +1,78 @@
 Changelog
 ---------
 
+0.7.0 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``JOINT_NAMES``, ``TENDON_NAMES``,
+  ``TENDON_POSITION_LIMITS`` and ``FINGERTIP_NAMES`` to
+  :mod:`~isaaclab_assets.robots.shadow_hand`, so a task can name the hand's sixteen joint-driving
+  motors, its four tendon-driving motors and their commandable range without restating them.
+  ``SHADOW_HAND_PHYSX_CFG`` and ``SHADOW_HAND_NEWTON_CFG`` select the PhysX and Newton variants.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated ``SO101_CFG`` to use the SysID-capable asset and resolve actuator gains, friction, armature,
+  and limits from its default Newton MJWarp USD variant. The USD-authored actuator group is now named ``usd``. The
+  config also uses the workshop operational joint pose, inherits root fixation from the USD, disables
+  self-collisions, enables contact sensors, and applies a 0.98 soft joint-limit factor. Tasks that require the
+  previous simulation gains should migrate to ``SO101_HIGH_PD_CFG``, which retains the prior high-PD actuator
+  behavior.
+* Changed the Shadow Hand configurations to spawn one asset and select the physics engine through
+  its ``Physics`` USD variant, replacing the two separate PhysX and Newton assets whose joints were
+  named differently. Both engines now spawn the hand at the same orientation; the previous assets
+  needed two, because one baked a root orientation that the other did not.
+
+* Changed ``SHADOW_HAND_CFG`` to spawn the asset with its default ``Physics`` variant. Use
+  ``SHADOW_HAND_PHYSX_CFG`` or ``SHADOW_HAND_NEWTON_CFG`` to select an engine explicitly.
+
+Removed
+^^^^^^^
+
+* Removed ``SHADOW_ACTUATED_JOINT_NAMES``; use ``JOINT_NAMES`` for the sixteen joint-driving
+  motors and ``TENDON_NAMES`` for the four tendon-driving ones. The removed list named all twenty
+  motors, so code that fed it to ``find_joints`` was asking for four joints that do not exist.
+
+* Removed ``SHADOW_FINGERTIP_BODY_NAMES``; use ``FINGERTIP_NAMES``.
+
+Fixed
+^^^^^
+
+* Fixed self-collisions being uncontrolled under Newton for
+  :data:`~isaaclab_assets.robots.allegro.ALLEGRO_HAND_CFG`,
+  :data:`~isaaclab_assets.robots.shadow_hand.SHADOW_HAND_CFG`,
+  :data:`~isaaclab_assets.robots.shadow_hand.SHADOW_HAND_NEWTON_CFG`, and
+  :data:`~isaaclab_assets.robots.kuka_allegro.KUKA_ALLEGRO_CFG`. Their ``articulation_props`` used
+  the deprecated PhysX-only ``ArticulationRootPropertiesCfg``, which never authored the
+  ``newton:selfCollisionEnabled`` attribute Newton's schema resolver checks. They now pass a
+  ``PhysxArticulationCfg`` + ``NewtonArticulationCfg`` fragment pair so ``enabled_self_collisions``
+  is authored on both backends explicitly.
+* Fixed ``SO101_CFG`` running convex decomposition instead of using the asset's authored convex hulls.
+* Fixed the Unitree Go1 and Go2 leg actuator limits ignoring the knee reduction. Both robots applied
+  the hip and thigh limits to the calf joints, which capped calf torque well below its rated value and
+  let the torque-speed curve keep motoring past its rated speed. The calf joints now use the limits
+  authored in ``go1.usd`` and ``go2.usd`` (Go1: 35.55 N·m, 20.06 rad/s; Go2: 45.43 N·m, 15.70 rad/s),
+  and the hip and thigh limits were aligned with the same assets (23.7 N·m, 30.1 rad/s).
+
+  These robots now produce more calf torque at lower calf speeds, so policies trained on the previous
+  configuration should be retrained rather than reused directly.
+* Fixed the Shadow Hand asset applying an articulation-root schema to two prims, which made any
+  consumer that resolves the root by search fail with ``Expected 1 prims ... found 2`` once the
+  asset was loaded in Kit. ``JointWrenchSensor`` hit this on every backend, so the manager-based
+  reorientation environment could not start. The second schema carried one attribute, the Newton
+  self-collision flag, which the configuration already supplies for both engines; removing both
+  leaves a single articulation root.
+
+* Removed configuration that restated the asset or its defaults: the joint drive type, which the
+  asset authors on every joint, and ``soft_joint_pos_limit_factor`` and
+  ``activate_contact_sensors``, which repeated their defaults. What remains differs between the two
+  variants only in the selected USD variant and the PhysX solver settings, which Newton ignores.
+
+
 0.6.4 (2026-08-14)
 ~~~~~~~~~~~~~~~~~~
 

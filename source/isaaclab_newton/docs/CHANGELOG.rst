@@ -1,6 +1,102 @@
 Changelog
 ---------
 
+5.4.0 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added one-launch GPU writes from scene material colors and per-link randomization events to
+  Newton shape-color storage.
+* Added config-owned construction to ``NewtonWarpRendererCfg`` through its ``class_type`` field.
+* Added translation of :attr:`~isaaclab.physics.PhysicsCfg.deterministic` in ``NewtonManager``.
+  The request selects ``deterministic_mode="run_to_run"`` and sets ``MJWarpSolverCfg.disable_sensors``
+  on the MJWarp GPU path. An explicitly set ``deterministic_mode`` takes precedence. MuJoCo on the
+  CPU is left unchanged: Warp's deterministic mode does not reach that path, and the request is
+  logged instead of applied.
+* Added aggregate and filtered friction force outputs to the Newton contact sensor, including
+  ``net_friction_forces_w_history`` and ``friction_force_matrix_w_history``.
+* Added a view over MuJoCo's native fixed-tendon position actuators, so a tendon imported from a
+  MuJoCo-authored asset can be commanded directly instead of through the joints it spans. Actuators
+  are paired with tendons by their target; a tendon without an actuator is named in a start-up
+  warning and commands to it have no effect.
+* Added a compatibility shim so the MuJoCo tendon adapter runs on Newton 1.5, which
+  lacks the ``mujoco:actuator`` custom-frequency view API added in newton-physics/newton#4017.
+
+Changed
+^^^^^^^
+
+* Built the shared shape BVH with collision geometry during model finalization when a raycast sensor is present,
+  instead of rebuilding the BVH when the sensor task initializes.
+* Changed Newton replication to import the physics scene and explicitly declared
+  :attr:`isaaclab.cloner.ClonePlan.global_paths` without stage discovery. Hand-built clone plans must declare
+  every shared USD asset root.
+* Registered builder attributes only for the active Newton solver instead of importing and allocating inactive
+  solver data.
+* Reused target-mode resolution across identical articulation clones and one canonical articulation view between
+  each articulation and its joint-wrench sensor.
+* Changed :func:`~isaaclab_newton.sim.schemas.apply_mujoco_fixed_tendon` to author on
+  the given prim only. Target selection, including subtree matching via prim path
+  expressions, is now owned by the core family writer
+  :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`; pass
+  ``f"{prim_path}(/.*)?"`` to it to reach descendant ``MjcTendon`` prims.
+* Changed Newton contact sensor normal-force outputs to exclude friction. ``net_forces_w`` and
+  ``force_matrix_w`` expose Newton's total contact force (normal + friction) without a warning.
+  ``friction_forces_w`` exposes the aggregate friction force (``net_friction_forces_w``) without
+  a warning. Reconstruct components from ``net_normal_forces_w`` / ``net_friction_forces_w`` and
+  the corresponding matrix properties when needed.
+
+Fixed
+^^^^^
+
+* Fixed stale Newton visualization models being reused across sequential PhysX scenes.
+* **Breaking:** Fixed Newton contact sensors matching their body and shape expressions as globs
+  instead of regular expressions, which silently dropped alternation and let the segment-safe
+  ``[^/]*`` cross path separators. Expressions are now compiled and full-matched, as
+  :func:`~isaaclab.utils.string.resolve_matching_names` already does elsewhere. An expression that
+  relied on the widened wildcard to reach the shapes below a body now selects nothing and fails at
+  sensor initialization; spell the descendant segments explicitly to migrate, so
+  ``sensor_shape_prim_expr=["{ENV_REGEX_NS}/Object[^/]*"]`` becomes
+  ``["{ENV_REGEX_NS}/Object[^/]*/.*"]``. The same applies to ``filter_shape_prim_expr``.
+* **Breaking:** Removed the contact sensor's bare-label fallback, which rewrote a path expression
+  down to its final segment when no model label contained a separator. It dated from Newton's
+  pre-hierarchical label API. Spell body and shape expressions as full paths to migrate, so
+  ``["fingertip_.*"]`` becomes ``["{ENV_REGEX_NS}/Robot/fingertip_[^/]*/.*"]``.
+* Migrated the Newton contact sensor off the deprecated ``sensing_obj_*`` names onto the
+  replacements Newton 1.4 introduced.
+* Fixed :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` rejecting
+  non-colliding Newton shape records, including MJCF sites and visual-only
+  shapes, after model finalization while keeping collision shape expressions
+  rejected before and after finalization.
+* Fixed Newton body pose synchronization dropping authored USD scale from Kit viewport and Isaac RTX
+  rendering, which caused scaled rigid assets to render at unit scale.
+* Fixed a determinism request silently starving the IMU, PVA, and joint-wrench sensors. Disabling
+  MuJoCo Warp's sensors also skips the ``rne_postconstraint`` stage that fills ``body_qdd`` and
+  ``body_parent_f``, so those sensors reported stale values. ``NewtonManager`` now raises at solver
+  initialization when a scene requests both.
+* Fixed Newton ray-caster updates reading stale carrier poses after joint or root state writes.
+* Fixed legacy Newton multi-mesh ray casters failing to associate tracked target sites when target discovery
+  produced a different path expression than site registration.
+* Fixed PhysX-backend Newton visualization models replicating unused collision
+  filters and contact pairs, which could exhaust memory during ``ModelBuilder.finalize()``.
+* Fixed :attr:`~isaaclab.assets.articulation.BaseArticulationData.fixed_tendon_pos_limits` raising
+  ``AttributeError`` on Newton. It is now bound to ``mujoco.tendon_range``.
+* Avoided conditional CUDA graph capture for Newton Warp rendering of deformable triangle meshes.
+* Fixed :meth:`compute_first_contact` and :meth:`compute_first_air` on the contact sensor silently
+  missing touchdowns and lift-offs once the simulation had run for a few seconds (issue #7283).
+  Their ``abs_tol`` argument now defaults to ``None``, which resolves to half the sensor update
+  interval instead of a fixed ``1e-8``. The old value was around 100x smaller than the float32
+  rounding error of the sensor clock, so most transitions were dropped. Callers that relied on the
+  previous behavior can pass ``abs_tol=1e-8`` explicitly.
+  Both methods now also refresh outdated sensor buffers before comparing, so a sensor with
+  ``history_length=0`` no longer reports the previous step's transitions when it is queried before
+  its data is read.
+* Fixed MuJoCo-based solver managers dropping ``mjc:frictionloss`` during USD
+  stage imports.
+* Fixed a rebuilt Newton visualization model reusing the previous model's shadow-body index mapping.
+
+
 5.3.0 (2026-08-20)
 ~~~~~~~~~~~~~~~~~~
 

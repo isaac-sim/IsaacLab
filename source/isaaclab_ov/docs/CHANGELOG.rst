@@ -1,6 +1,153 @@
 Changelog
 ---------
 
+2.2.0 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added live scene gravity updates through sealed OvStage control ordinals.
+* Added batched GPU material-channel writes for both OVRTX detached-scene APIs.
+* Added config-owned construction to ``OVRTXRendererCfg`` through its ``class_type`` field.
+* Added translation of :attr:`~isaaclab.physics.PhysicsCfg.deterministic` in ``OvPhysxManager``, which
+  enables ``physxScene:enableEnhancedDeterminism``. Reproducibility on OvPhysX is best-effort and is
+  not verified end to end.
+* Added :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.enable_shadows`, which authors
+  ``omni:rtx:minimal:castShadows`` on the OVRTX render product. It applies to the
+  ``simple_shading_*`` data types, which are the ones that select RTX Minimal mode; OVRTX's
+  path-traced modes provide no shadow switch and always cast shadows.
+* Added :attr:`~isaaclab_ov.physics.OvPhysxCfg.cooked_collider_cache_dir` to select where OVPhysX
+  writes its cooked-collider cache. It defaults to a per-user directory under the system temporary
+  directory, so cooked colliders are reusable across runs from that directory. Set it to ``None`` to
+  use the runtime default.
+* Added ``OVRTX_SHADER_CACHE_PATH`` support to
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` for selecting the NVIDIA driver
+  shader-cache directory.
+* Added :attr:`~isaaclab_ov.tensor_types.DOF_DRIVE_TYPE`,
+  :attr:`~isaaclab_ov.tensor_types.DOF_DRIVE_MODEL`,
+  :attr:`~isaaclab_ov.tensor_types.BODY_DISABLE_GRAVITY`,
+  :attr:`~isaaclab_ov.tensor_types.CONTACT_OFFSET`,
+  :attr:`~isaaclab_ov.tensor_types.REST_OFFSET`,
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_DISABLE_GRAVITY`,
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_CONTACT_OFFSET`, and
+  :attr:`~isaaclab_ov.tensor_types.RIGID_BODY_REST_OFFSET` tensor type aliases,
+  documenting the shape, dtype and units of each.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :class:`~isaaclab_ov.renderers.OVRTXRenderer` to raise :class:`ValueError` when a camera
+  requests ``rgb`` or ``rgba`` together with a ``simple_shading_*`` data type, or more than one
+  distinct ``simple_shading_*`` data type. These outputs all read the ``LdrColor`` render var and
+  simple shading additionally requires the render product to be in RTX Minimal mode, so one render
+  product cannot serve them. Previously the conflict was resolved silently and produced wrongly
+  shaded or empty images. Request the conflicting outputs from separate cameras. Repeated identical
+  simple-shading requests still collapse to one render var.
+* Changed the OVRTX ovstage path to write object transforms, camera transforms and deformable or
+  particle points straight from their Warp GPU buffers as CUDA DLTensors, removing the per-frame
+  host copies that ``ovstage 0.1.0`` required.
+* Changed those writes to be ordered by handing ovstage the producing Warp stream
+  (``write_attribute(cuda_stream=...)``), replacing the device-wide ``wp.synchronize_device`` with
+  stream-scoped producer ordering, and matching the legacy OVRTX binding path. The write is still
+  awaited, so the calling thread can block; the gain is the removed host copy and the narrower
+  synchronization scope, not a nonblocking handoff.
+* Updated the optional ovphysx runtime to 0.5.11. OVStage attachment now honors
+  explicit CUDA device selection. OVStage-backed articulation link and DOF
+  indices now use stable path-derived ordering, which may differ from 0.5.10;
+  use reported paths or names when identity matters.
+* Changed the OVRTX renderer to turn shadows off by default in RTX Minimal mode. Renders that need
+  cast shadows from the ``simple_shading_*`` data types must now set
+  ``OVRTXRendererCfg(enable_shadows=True)``.
+* Changed the IMU and PVA sensors to read rigid-body accelerations from the solver through the
+  ``RIGID_BODY_ACCELERATION`` tensor binding, including the transport terms for the sensor offset
+  from the center of mass, instead of finite-differencing the body velocity between updates. The
+  reported acceleration is available from the first update, is independent of the sensor update
+  period, and no longer spikes when velocities are written directly (for example on environment
+  resets or teleports).
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX shape material bindings to allocate CPU buffers during GPU simulation.
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` authoring only one pixel render var when a
+  camera requested several data types, which left every other requested output empty. The render
+  product now authors one render var per requested data type, so combinations such as ``rgb`` with
+  ``normals``, ``albedo``, ``motion_vectors``, segmentation, and depth are rendered together.
+* Fixed :class:`~isaaclab_ov.renderers.OVRTXRenderer` filling ``depth``,
+  ``distance_to_image_plane``, and ``distance_to_camera`` from a single depth render var, which
+  returned euclidean distance for the image-plane outputs (or the reverse) when they were requested
+  together. Each output is now extracted from the source that measures it.
+* Cleared ``ContactSensorData.force_matrix_w_history`` when resetting an
+  OVPhysX contact sensor.
+* Fixed an illegal memory access (CUDA error 700) when rendering with OVRTX on a device other than
+  ``cuda:0``. The OVRTX render product is now pinned to the renderer's CUDA device through its
+  ``deviceIds`` attribute, so its render var buffers are allocated on the same device as the Warp
+  kernels that extract camera tiles from them. Previously OVRTX chose the device itself, which on a
+  multi-GPU machine placed the buffers on ``cuda:0`` while the extraction kernels ran on the
+  simulation device.
+* Fixed OVPhysX CPU-only property writes (joint stiffness, damping, limits, armature, friction,
+  body mass, center of mass, and inertia) on GPU simulations consuming their pinned-host staging
+  buffers before the asynchronous device-to-host copy had completed. Environments could silently
+  receive stale (typically zero) property values, which made repeated training runs diverge.
+  Every pinned-host staging copy in :class:`~isaaclab_ov.assets.Articulation`,
+  :class:`~isaaclab_ov.assets.RigidObject`, and :class:`~isaaclab_ov.assets.RigidObjectCollection`
+  now waits for the device stream before the CPU setter runs.
+* Fixed OvPhysX writing its cooked-collider cache into the directory holding the Python interpreter,
+  which logged ``omni.datastore`` errors when that directory was not writable.
+* Fixed the OVRTX renderer re-deriving its CUDA device per call site from the device string, which
+  split a bare ``"cuda"`` across GPUs on multi-GPU processes: render-product device ids parsed it
+  to device 0 while Warp resolved kernel launches and sync streams on its current CUDA device. The
+  renderer now resolves the Warp device once when the render spec arrives, normalizes its device
+  string from it, and derives the render-product device ids and every CUDA sync stream — attribute
+  writes on both the legacy and ovstage paths, and render-var reads — from the cached device.
+
+* Updated ``map_attribute_for_warp_writes`` to accept a resolved Warp device as well as its string
+  alias, preserving the release branch's mapped-write path while keeping its mapping and stream on
+  the same device.
+* Fixed OVRTX object and camera transform updates to write a caller-owned GPU buffer instead of mapping and unmapping OVRTX memory every frame.
+* Fixed :class:`~isaaclab_ov.sim.views.OvPhysxView` routing eight CPU-resident
+  tensor types to the simulation device. The per-collision-shape contact and rest
+  offsets, the articulation and rigid-body gravity-disable flags, and the DOF drive
+  type and drive model are CPU-resident even on a GPU simulation, but were absent
+  from the internal CPU-only classification. Reads and writes of these types
+  incurred a hidden per-call host-to-device staging copy, and a correctly placed
+  host buffer was rejected with ``OvPhysxView.DeviceMismatch``. Residency was
+  measured on a GPU simulation by counting CUDA memcpys around a binding read.
+* **Breaking:** Fixed ``articulation_dof_drive_type`` not being classified as
+  read-only. The underlying tensor type is read-only, but
+  :meth:`~isaaclab_ov.sim.views.OvPhysxView.set_attribute` previously accepted
+  writes to it and silently forwarded them. Such calls now raise
+  ``OvPhysxView.ReadOnlyAttribute``. Remove any write to this attribute; drive
+  type is authored through the USD drive schema, not the tensor path.
+* Fixed :meth:`~isaaclab_ov.physics.OvPhysxManager.get_gravity` returning the construction-time
+  gravity after :meth:`~isaaclab_ov.physics.OvPhysxManager.set_gravity` changed the running scene.
+  The manager now tracks the applied gravity vector, while ``SimulationCfg.gravity`` stays the
+  nominal value that randomization terms resample from.
+* Fixed :class:`~isaaclab_ov.sensors.Imu` and :class:`~isaaclab_ov.sensors.Pva` reporting gravity
+  captured at sensor initialization. Both sensors now re-read the scene gravity on every update, so
+  runtime randomization through :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`
+  is reflected in the accelerometer bias and the projected gravity direction.
+* Fixed OVRTX transform synchronization dropping authored scale from clone-plan destinations.
+* Fixed fixed tendons being named after the joint carrying the tendon's root rather than after the
+  tendon instance itself, which gave the same tendon a different name on each physics engine and
+  left it unreachable from a shared configuration.
+
+* Fixed every fixed tendon being counted twice, which made ``fixed_tendon_ids=None`` address twice
+  as many tendons as the articulation has and index past the end of every fixed-tendon buffer. The
+  prim's applied schemas were read from both ``GetAppliedSchemas()`` and the ``apiSchemas``
+  metadata, which report the same entries.
+* Fixed :meth:`compute_first_contact` and :meth:`compute_first_air` on the contact sensor silently
+  missing touchdowns and lift-offs once the simulation had run for a few seconds (issue #7283).
+  Their ``abs_tol`` argument now defaults to ``None``, which resolves to half the sensor update
+  interval instead of a fixed ``1e-8``. The old value was around 100x smaller than the float32
+  rounding error of the sensor clock, so most transitions were dropped. Callers that relied on the
+  previous behavior can pass ``abs_tol=1e-8`` explicitly.
+  Both methods now also refresh outdated sensor buffers before comparing, so a sensor with
+  ``history_length=0`` no longer reports the previous step's transitions when it is queried before
+  its data is read.
+
+
 2.1.0 (2026-08-20)
 ~~~~~~~~~~~~~~~~~~
 

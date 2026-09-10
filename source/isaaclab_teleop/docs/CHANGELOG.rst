@@ -1,6 +1,42 @@
 Changelog
 ---------
 
+0.9.0 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``ISAACLAB_CXR_ACCEPT_EULA=1`` environment variable, which accepts the NVIDIA
+  CloudXR license up front wherever Isaac Lab launches the CloudXR runtime -- both the teleop
+  session lifecycle and the process-scoped launcher in ``teleop_replay_agent.py``, which share
+  one :func:`~isaaclab_teleop.cloudxr_eula_accepted` helper. The license is separate from the
+  Omniverse one and was otherwise only ever prompted for on stdin, so headless, container and
+  CI runs aborted with
+  ``RuntimeError: CloudXR EULA was not accepted; cannot start the runtime``.
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab teleop run``, ``record``, and ``replay`` workflows rejecting Hydra-style
+  task selectors such as ``physics=isaacsim_physx presets=diffik``. The workflows now resolve task
+  configurations through the shared preset-aware path and expose the selector syntax in ``--help``.
+* Fixed the XR headset receiving noise instead of the rendered scene on multi-GPU hosts.
+  The auto-launched CloudXR runtime selected its own device, and because Vulkan's physical
+  device enumeration is unrelated to the CUDA ordering Isaac Lab picks the simulation and
+  renderer devices with, the compositor could end up on a different GPU than the one holding
+  the rendered swapchain. The runtime is now pinned to the renderer's CUDA device via
+  ``NV_CXR_GPU_INDEX_CUDA``; an index already set in the environment or in the
+  ``--cloudxr_env`` profile is left untouched.
+* Fixed ``from isaaclab_teleop import IsaacTeleopDevice`` raising ``ModuleNotFoundError: No module named 'carb'``
+  on hosts without Isaac Sim installed. :mod:`~isaaclab_teleop.xr_anchor_manager` now imports ``carb`` with the
+  same optional fallback it already used for ``omni.kit.xr.core``, so headless sessions that never start an XR
+  runtime can import the device. The XR render and anchor settings are skipped when Kit is absent; behavior with
+  Kit present is unchanged.
+* Fixed demonstration recording for tasks whose rewards reference the ``success``
+  termination term.
+
+
 0.8.0 (2026-08-08)
 ~~~~~~~~~~~~~~~~~~
 
