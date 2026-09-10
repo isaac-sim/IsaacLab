@@ -114,8 +114,23 @@ runs:
         anon_config_dir="$(mktemp -d)"
         trap 'rm -f "${probe_err}"; rm -rf "${anon_config_dir}"' EXIT
         echo '{"credsStore":"","auths":{}}' > "${anon_config_dir}/config.json"
-        if ! DOCKER_CONFIG="${anon_config_dir}" \
-          docker buildx imagetools inspect "${BASE_IMAGE_REF}" >/dev/null 2>&1; then
+        # Retried like the credentialed probe above: a transient failure here
+        # would otherwise keep a credential already proven to be denied, and the
+        # build would then fail on the very pull this fallback exists to rescue.
+        anon_readable=""
+        for attempt in 1 2 3; do
+          if DOCKER_CONFIG="${anon_config_dir}" \
+            docker buildx imagetools inspect "${BASE_IMAGE_REF}" >/dev/null 2>"${probe_err}"; then
+            anon_readable="yes"
+            break
+          fi
+          echo "🟠 Anonymous read attempt ${attempt}/3 failed: $(tr '\n' ' ' < "${probe_err}")"
+          if [ "${attempt}" -lt 3 ]; then
+            sleep $((attempt * 5))
+          fi
+        done
+
+        if [ -z "${anon_readable}" ]; then
           echo "::warning::${BASE_IMAGE_REF} is unreadable with the configured credentials and anonymously; leaving the docker config unchanged"
           exit 0
         fi

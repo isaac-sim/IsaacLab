@@ -123,6 +123,37 @@ def test_transient_failure_keeps_credentials(tmp_path: Path) -> None:
     assert "::warning::" in result.stdout
 
 
+def test_transient_anonymous_failure_is_retried(tmp_path: Path) -> None:
+    """A flaky anonymous probe must not leave a credential that is already denied.
+
+    Without a retry the action would keep the denied credential and the build
+    would fail on the pull this fallback exists to rescue.
+    """
+    stub = """
+config="${DOCKER_CONFIG:-}/config.json"
+if [ -f "$config" ] && grep -q '"auths":{}' "$config"; then
+  counter=/tmp/il_anon_attempts
+  n=$(cat "$counter" 2>/dev/null || echo 0)
+  n=$((n + 1))
+  echo "$n" > "$counter"
+  if [ "$n" -lt 2 ]; then
+    echo "error: received unexpected HTTP status: 503" >&2
+    exit 1
+  fi
+  exit 0
+fi
+echo "denied: Access Denied" >&2
+exit 1
+"""
+    Path("/tmp/il_anon_attempts").unlink(missing_ok=True)
+    try:
+        result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.1.0", stub)
+        assert result.returncode == 0, result.stderr
+        assert _auths(tmp_path / "cfg" / "config.json") == {_ECR, _HUB}
+    finally:
+        Path("/tmp/il_anon_attempts").unlink(missing_ok=True)
+
+
 def test_unowned_config_is_never_modified(tmp_path: Path) -> None:
     """A config this action did not create belongs to the runner and stays intact."""
     result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.1.0", _DENY_UNLESS_ANONYMOUS, owned=False)
