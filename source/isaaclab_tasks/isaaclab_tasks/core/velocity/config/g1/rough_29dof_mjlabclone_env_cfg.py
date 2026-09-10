@@ -12,7 +12,7 @@ rewards were the whole story their robot would fall over too. It does not, becau
 same plant**:
 
 ===============================  ===================  ==================  ==========
-quantity                         mjlab                ours                
+quantity                         mjlab                ours
 ===============================  ===================  ==================  ==========
 hip_pitch / hip_yaw / waist_yaw  kp 40.2, kd 2.56     kp 200, kd 5        5.0x stiff
 hip_roll / knee                  kp 99.1, kd 6.31     kp 150-200, kd 5    1.5-2.0x
@@ -67,18 +67,39 @@ from .rough_29dof_mjlabfull_env_cfg import G129DofRoughMjlabFullEnvCfg
 _MOTORS = {
     # name: (joint patterns, armature, stiffness, damping, effort, velocity)
     "m5020": (
-        [".*_shoulder_pitch_joint", ".*_shoulder_roll_joint", ".*_shoulder_yaw_joint", ".*_elbow_joint",
-         ".*_wrist_roll_joint"],
-        0.00360972, 14.250623, 0.907223, 25.0, 37.0,
+        [
+            ".*_shoulder_pitch_joint",
+            ".*_shoulder_roll_joint",
+            ".*_shoulder_yaw_joint",
+            ".*_elbow_joint",
+            ".*_wrist_roll_joint",
+        ],
+        0.00360972,
+        14.250623,
+        0.907223,
+        25.0,
+        37.0,
     ),
-    "m7520_14": ([".*_hip_pitch_joint", ".*_hip_yaw_joint", "waist_yaw_joint"],
-                 0.01017752, 40.179239, 2.557890, 88.0, 32.0),
+    "m7520_14": (
+        [".*_hip_pitch_joint", ".*_hip_yaw_joint", "waist_yaw_joint"],
+        0.01017752,
+        40.179239,
+        2.557890,
+        88.0,
+        32.0,
+    ),
     "m7520_22": ([".*_hip_roll_joint", ".*_knee_joint"], 0.02510192, 99.098428, 6.308802, 139.0, 20.0),
     "m4010": ([".*_wrist_pitch_joint", ".*_wrist_yaw_joint"], 0.00425000, 16.778327, 1.068142, 5.0, 22.0),
     # Waist roll/pitch and the ankles are four-bar linkages driven by two 5020s. mjlab assumes a
     # nominal 1:1 ratio and sums the two motors, which is what these doubled numbers are.
-    "m_double5020": ([".*_ankle_pitch_joint", ".*_ankle_roll_joint", "waist_roll_joint", "waist_pitch_joint"],
-                     0.00721945, 28.501246, 1.814446, 50.0, 37.0),
+    "m_double5020": (
+        [".*_ankle_pitch_joint", ".*_ankle_roll_joint", "waist_roll_joint", "waist_pitch_joint"],
+        0.00721945,
+        28.501246,
+        1.814446,
+        50.0,
+        37.0,
+    ),
 }
 """mjlab's motor table, evaluated. ``armature`` is the reflected inertia of the two-stage planetary;
 ``stiffness = armature * (2*pi*10)^2`` and ``damping = 2 * 2 * armature * (2*pi*10)``."""
@@ -175,4 +196,3 @@ class G129DofRoughMjlabCloneEnvCfg(G129DofRoughMjlabFullEnvCfg):
 # Referenced by the workflow so the layer path lives in one place.
 MJLAB_COLLIDER_LAYER = "g1_mjlab_colliders.usda"
 """Filename of the layer :mod:`scripts.make_g1_mjlab_colliders` writes."""
-

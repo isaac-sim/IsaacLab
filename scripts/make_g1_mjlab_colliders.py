@@ -30,9 +30,12 @@ import math
 import xml.etree.ElementTree as ET
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--mjcf", default=None,
-                    help="mjlab's g1.xml. Optional: the table below is the same data, embedded so the"
-                         " generator runs where mjlab is not checked out. Pass it to re-verify.")
+parser.add_argument(
+    "--mjcf",
+    default=None,
+    help="mjlab's g1.xml. Optional: the table below is the same data, embedded so the"
+    " generator runs where mjlab is not checked out. Pass it to re-verify.",
+)
 parser.add_argument("--usd", required=True, help="The shipped g1.usd the layer references.")
 parser.add_argument("--out", required=True, help="Output .usda path.")
 args = parser.parse_args()
@@ -48,39 +51,46 @@ NESTED_PARENT = {"hand": ("left_hand", "right_hand")}
 _GEOMS = [
     # (parent body, geom name, type, size, fromto, pos) -- mjlab's 33 collision geoms, verbatim.
     # A ``size`` of None means the ``foot_capsule`` class default, 0.01.
-    ('pelvis', 'pelvis_collision', 'sphere', 0.07, None, '0 0 -0.08'),
-    ('left_hip_roll_link', 'left_hip_collision', 'capsule', 0.06, '0.02 0 0 0.02 0 -0.08', None),
-    ('left_hip_yaw_link', 'left_thigh_collision', 'capsule', 0.055, '-0.0 0 -0.03 -0.06 0 -0.17', None),
-    ('left_knee_link', 'left_shin_collision', 'capsule', 0.045, '0.01 0 0 0.01 0 -0.15', None),
-    ('left_knee_link', 'left_linkage_brace_collision', 'capsule', 0.03, '0.01 0 -0.2 0.01 0 -0.28', None),
-    ('left_ankle_roll_link', 'left_foot1_collision', 'capsule', None, '0.1 -0.026 -0.025 0.05 -0.027 -0.025', None),
-    ('left_ankle_roll_link', 'left_foot2_collision', 'capsule', None, '-0.044 -0.018 -0.025 0.123 -0.018 -0.025', None),
-    ('left_ankle_roll_link', 'left_foot3_collision', 'capsule', None, '-0.052 -0.01 -0.025 0.13 -0.01 -0.025', None),
-    ('left_ankle_roll_link', 'left_foot4_collision', 'capsule', None, '-0.054 0 -0.025 0.132 0 -0.025', None),
-    ('left_ankle_roll_link', 'left_foot5_collision', 'capsule', None, '-0.052 0.01 -0.025 0.13 0.01 -0.025', None),
-    ('left_ankle_roll_link', 'left_foot6_collision', 'capsule', None, '-0.044 0.018 -0.025 0.123 0.018 -0.025', None),
-    ('left_ankle_roll_link', 'left_foot7_collision', 'capsule', None, '0.1 0.026 -0.025 0.05 0.026 -0.025', None),
-    ('right_hip_roll_link', 'right_hip_collision', 'capsule', 0.06, '0.02 0 0 0.02 0 -0.08', None),
-    ('right_hip_yaw_link', 'right_thigh_collision', 'capsule', 0.055, '-0.0 0 -0.03 -0.06 0 -0.17', None),
-    ('right_knee_link', 'right_shin_collision', 'capsule', 0.045, '0.01 0 0 0.01 0 -0.15', None),
-    ('right_knee_link', 'right_linkage_brace_collision', 'capsule', 0.03, '0.01 0 -0.2 0.01 0 -0.28', None),
-    ('right_ankle_roll_link', 'right_foot1_collision', 'capsule', None, '0.1 -0.026 -0.025 0.05 -0.026 -0.025', None),
-    ('right_ankle_roll_link', 'right_foot2_collision', 'capsule', None, '-0.044 -0.018 -0.025 0.123 -0.018 -0.025', None),
-    ('right_ankle_roll_link', 'right_foot3_collision', 'capsule', None, '-0.052 -0.01 -0.025 0.13 -0.01 -0.025', None),
-    ('right_ankle_roll_link', 'right_foot4_collision', 'capsule', None, '-0.054 0 -0.025 0.132 0 -0.025', None),
-    ('right_ankle_roll_link', 'right_foot5_collision', 'capsule', None, '-0.052 0.01 -0.025 0.13 0.01 -0.025', None),
-    ('right_ankle_roll_link', 'right_foot6_collision', 'capsule', None, '-0.044 0.018 -0.025 0.123 0.018 -0.025', None),
-    ('right_ankle_roll_link', 'right_foot7_collision', 'capsule', None, '0.1 0.026 -0.025 0.05 0.026 -0.025', None),
-    ('torso_link', 'torso_collision', 'capsule', 0.09, '0.01 0 0.08 0.01 0 0.2', None),
-    ('torso_link', 'head_collision', 'sphere', 0.06, None, '0 0 .43'),
-    ('left_shoulder_yaw_link', 'left_shoulder_yaw_collision', 'capsule', 0.035, '0 0 -0.08 0 0 0.05', None),
-    ('left_elbow_link', 'left_elbow_yaw_collision', 'capsule', 0.035, '-0.01 0 -0.01 0.08 0 -0.01', None),
-    ('left_wrist_pitch_link', 'left_wrist_collision', 'capsule', 0.035, '-0.01 0 0 0.06 0 0', None),
-    ('left_wrist_yaw_link', 'left_hand_collision', 'capsule', 0.035, '0.07 0 0 0.15 -0.02 0', None),
-    ('right_shoulder_yaw_link', 'right_shoulder_yaw_collision', 'capsule', 0.035, '0 0 -0.08 0 0 0.05', None),
-    ('right_elbow_link', 'right_elbow_yaw_collision', 'capsule', 0.035, '-0.01 0 -0.01 0.08 0 -0.01', None),
-    ('right_wrist_pitch_link', 'right_wrist_collision', 'capsule', 0.035, '-0.01 0 0 0.06 0 0', None),
-    ('right_wrist_yaw_link', 'right_hand_collision', 'capsule', 0.035, '0.07 0 0 0.15 0.02 0', None),
+    ("pelvis", "pelvis_collision", "sphere", 0.07, None, "0 0 -0.08"),
+    ("left_hip_roll_link", "left_hip_collision", "capsule", 0.06, "0.02 0 0 0.02 0 -0.08", None),
+    ("left_hip_yaw_link", "left_thigh_collision", "capsule", 0.055, "-0.0 0 -0.03 -0.06 0 -0.17", None),
+    ("left_knee_link", "left_shin_collision", "capsule", 0.045, "0.01 0 0 0.01 0 -0.15", None),
+    ("left_knee_link", "left_linkage_brace_collision", "capsule", 0.03, "0.01 0 -0.2 0.01 0 -0.28", None),
+    ("left_ankle_roll_link", "left_foot1_collision", "capsule", None, "0.1 -0.026 -0.025 0.05 -0.027 -0.025", None),
+    ("left_ankle_roll_link", "left_foot2_collision", "capsule", None, "-0.044 -0.018 -0.025 0.123 -0.018 -0.025", None),
+    ("left_ankle_roll_link", "left_foot3_collision", "capsule", None, "-0.052 -0.01 -0.025 0.13 -0.01 -0.025", None),
+    ("left_ankle_roll_link", "left_foot4_collision", "capsule", None, "-0.054 0 -0.025 0.132 0 -0.025", None),
+    ("left_ankle_roll_link", "left_foot5_collision", "capsule", None, "-0.052 0.01 -0.025 0.13 0.01 -0.025", None),
+    ("left_ankle_roll_link", "left_foot6_collision", "capsule", None, "-0.044 0.018 -0.025 0.123 0.018 -0.025", None),
+    ("left_ankle_roll_link", "left_foot7_collision", "capsule", None, "0.1 0.026 -0.025 0.05 0.026 -0.025", None),
+    ("right_hip_roll_link", "right_hip_collision", "capsule", 0.06, "0.02 0 0 0.02 0 -0.08", None),
+    ("right_hip_yaw_link", "right_thigh_collision", "capsule", 0.055, "-0.0 0 -0.03 -0.06 0 -0.17", None),
+    ("right_knee_link", "right_shin_collision", "capsule", 0.045, "0.01 0 0 0.01 0 -0.15", None),
+    ("right_knee_link", "right_linkage_brace_collision", "capsule", 0.03, "0.01 0 -0.2 0.01 0 -0.28", None),
+    ("right_ankle_roll_link", "right_foot1_collision", "capsule", None, "0.1 -0.026 -0.025 0.05 -0.026 -0.025", None),
+    (
+        "right_ankle_roll_link",
+        "right_foot2_collision",
+        "capsule",
+        None,
+        "-0.044 -0.018 -0.025 0.123 -0.018 -0.025",
+        None,
+    ),
+    ("right_ankle_roll_link", "right_foot3_collision", "capsule", None, "-0.052 -0.01 -0.025 0.13 -0.01 -0.025", None),
+    ("right_ankle_roll_link", "right_foot4_collision", "capsule", None, "-0.054 0 -0.025 0.132 0 -0.025", None),
+    ("right_ankle_roll_link", "right_foot5_collision", "capsule", None, "-0.052 0.01 -0.025 0.13 0.01 -0.025", None),
+    ("right_ankle_roll_link", "right_foot6_collision", "capsule", None, "-0.044 0.018 -0.025 0.123 0.018 -0.025", None),
+    ("right_ankle_roll_link", "right_foot7_collision", "capsule", None, "0.1 0.026 -0.025 0.05 0.026 -0.025", None),
+    ("torso_link", "torso_collision", "capsule", 0.09, "0.01 0 0.08 0.01 0 0.2", None),
+    ("torso_link", "head_collision", "sphere", 0.06, None, "0 0 .43"),
+    ("left_shoulder_yaw_link", "left_shoulder_yaw_collision", "capsule", 0.035, "0 0 -0.08 0 0 0.05", None),
+    ("left_elbow_link", "left_elbow_yaw_collision", "capsule", 0.035, "-0.01 0 -0.01 0.08 0 -0.01", None),
+    ("left_wrist_pitch_link", "left_wrist_collision", "capsule", 0.035, "-0.01 0 0 0.06 0 0", None),
+    ("left_wrist_yaw_link", "left_hand_collision", "capsule", 0.035, "0.07 0 0 0.15 -0.02 0", None),
+    ("right_shoulder_yaw_link", "right_shoulder_yaw_collision", "capsule", 0.035, "0 0 -0.08 0 0 0.05", None),
+    ("right_elbow_link", "right_elbow_yaw_collision", "capsule", 0.035, "-0.01 0 -0.01 0.08 0 -0.01", None),
+    ("right_wrist_pitch_link", "right_wrist_collision", "capsule", 0.035, "-0.01 0 0 0.06 0 0", None),
+    ("right_wrist_yaw_link", "right_hand_collision", "capsule", 0.035, "0.07 0 0 0.15 0.02 0", None),
 ]
 """mjlab's collision set, embedded.
 
