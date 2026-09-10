@@ -745,7 +745,7 @@ model owns the gains.
 This page does **not** cover:
 
 * Motion generators or low-level control modes -- see
-  :doc:`/source/overview/core-concepts/motion_generators`.
+  :doc:`/source/concepts/motion_generators`.
 * Cross-backend policy transfer and solver-dynamics differences -- see
   :doc:`/source/concepts/transfer_policies_between_physx_and_newton`.
 
