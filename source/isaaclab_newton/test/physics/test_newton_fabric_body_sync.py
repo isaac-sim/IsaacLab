@@ -478,12 +478,9 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
             sim.register_interactive_scene(None)
 
 
-"""FrameView (non-physics frame) synchronization.
-
-A :class:`~isaaclab.sim.views.FrameView` prim is not a Newton body, so its *own* pose writes had no
-path to Fabric (frames parented to a body already track it via the hierarchy pass). These tests check
-the same boundary as the body tests: the Fabric world matrix the renderer consumes.
-"""
+# FrameView (non-physics frame) synchronization. A FrameView prim is not a Newton body, so its *own*
+# pose writes had no path to Fabric. These tests check the same boundary as the body tests above: the
+# Fabric world matrix the renderer consumes.
 
 
 @contextlib.contextmanager
@@ -619,18 +616,16 @@ def test_frame_view_pose_write_on_body_child_survives_body_motion():
 def test_first_frame_pose_write_after_body_move_leaves_the_body_rendered():
     """Building the mirror must not reseed its prims from USD.
 
-    The mirror tags the frame *and its parent body*, and the body's Fabric transform is driven by
-    Newton, which never writes back to USD. Seeding it from USD when the mirror is built would snap
-    the rendered body back to its spawn pose -- and the body sync is a no-op at that point, so
-    nothing would put it back. Ordering matters: the body has to move and render *before* the first
-    frame write, which is what builds the mirror.
+    The mirror tags the frame *and its parent body*, whose Fabric transform Newton drives without
+    ever writing back to USD. Seeding from USD would snap the rendered body to its spawn pose, with
+    the body sync clean and unable to put it back. Hence the ordering: the body moves and renders
+    before the first frame write, which is what builds the mirror.
     """
     device = "cuda:0"
     body_path = "/World/envs/env_0/Cube"
     frame_path = f"{body_path}/Frame"
 
     with _frame_scene(frame_path, (0.0, 0.0, 0.35), device) as (sim, scene, view):
-        body_start = torch.tensor([0.0, 0.0, 1.0])
         body_target = torch.tensor([1.5, -0.75, 2.0])
         target_pose = torch.zeros((1, 7), dtype=torch.float32, device=device)
         target_pose[0, :3] = body_target.to(device)
@@ -648,7 +643,6 @@ def test_first_frame_pose_write_after_body_move_leaves_the_body_rendered():
 
         _assert_position(_fabric_position(body_path), body_target)
         _assert_position(_fabric_position(frame_path), written_position)
-        assert not torch.allclose(_fabric_position(body_path), body_start, rtol=0.0, atol=1.0e-4)
 
 
 @pytest.mark.isaacsim_ci

@@ -313,7 +313,7 @@ class FabricFrameView(BaseFrameView):
             kernel=fabric_utils.decompose_indexed_fabric_transforms,
             dim=count,
             inputs=[
-                self._get_world_ifa(),
+                self._fabric_sel.world_ifa(),
                 positions_wp,
                 orientations_wp,
                 self._fabric_empty_2d_array_sentinel,
@@ -354,7 +354,7 @@ class FabricFrameView(BaseFrameView):
             kernel=fabric_utils.decompose_indexed_fabric_transforms,
             dim=count,
             inputs=[
-                self._get_local_ifa(),
+                self._fabric_sel.local_ifa(),
                 translations_wp,
                 orientations_wp,
                 self._fabric_empty_2d_array_sentinel,
@@ -376,7 +376,7 @@ class FabricFrameView(BaseFrameView):
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        return self._decompose_scales(self._get_world_ifa(), indices)
+        return self._decompose_scales(self._fabric_sel.world_ifa(), indices)
 
     def _get_local_scales_impl(self, indices=None) -> ProxyArray:
         if not self._use_fabric:
@@ -385,7 +385,7 @@ class FabricFrameView(BaseFrameView):
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        return self._decompose_scales(self._get_local_ifa(), indices)
+        return self._decompose_scales(self._fabric_sel.local_ifa(), indices)
 
     def _decompose_scales(self, ro_array, indices) -> ProxyArray:
         """Shared scale-decompose path for world / local getters."""
@@ -445,13 +445,13 @@ class FabricFrameView(BaseFrameView):
         Storage convention: see
         :func:`isaaclab.utils.warp.fabric.update_indexed_local_matrix_from_world`.
         """
-        world_ifa, local_ifa = self._get_child_ifas()
+        world_ifa, local_ifa = self._fabric_sel.child_ifas()
         wp.launch(
             kernel=fabric_utils.update_indexed_local_matrix_from_world,
             dim=self.count,
             inputs=[
                 world_ifa,
-                self._get_parent_world_ifa(),
+                self._fabric_sel.parent_world_ifa(),
                 local_ifa,
                 self._fabric_sel.view_indices,
             ],
@@ -466,40 +466,18 @@ class FabricFrameView(BaseFrameView):
         Storage convention: see
         :func:`isaaclab.utils.warp.fabric.update_indexed_world_matrix_from_local`.
         """
-        world_ifa, local_ifa = self._get_child_ifas()
+        world_ifa, local_ifa = self._fabric_sel.child_ifas()
         wp.launch(
             kernel=fabric_utils.update_indexed_world_matrix_from_local,
             dim=self.count,
             inputs=[
                 local_ifa,
-                self._get_parent_world_ifa(),
+                self._fabric_sel.parent_world_ifa(),
                 world_ifa,
                 self._fabric_sel.view_indices,
             ],
             device=self._device,
         )
-
-    # ------------------------------------------------------------------
-    # Internal -- selection accessors (kernel-built slot mappings)
-    # ------------------------------------------------------------------
-
-    def _get_world_ifa(self) -> wp.indexedfabricarray:
-        return self._fabric_sel.world_ifa()
-
-    def _get_local_ifa(self) -> wp.indexedfabricarray:
-        return self._fabric_sel.local_ifa()
-
-    def _get_child_ifas(self) -> tuple[wp.indexedfabricarray, wp.indexedfabricarray]:
-        """Return ``(world, local)`` child arrays from a single selection refresh.
-
-        Callers that need both spaces must use this instead of calling
-        :meth:`_get_world_ifa` and :meth:`_get_local_ifa`, which would refresh
-        the same selection -- and re-run its mapping kernel -- twice.
-        """
-        return self._fabric_sel.child_ifas()
-
-    def _get_parent_world_ifa(self) -> wp.indexedfabricarray:
-        return self._fabric_sel.parent_world_ifa()
 
     def _resolve_indices_wp(self, indices: wp.array | None) -> wp.array:
         """Resolve view indices as a Warp uint32 array."""
@@ -566,7 +544,7 @@ class FabricFrameView(BaseFrameView):
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=self.count,
             inputs=[
-                self._get_local_ifa(),  # caller holds ``read_write=True``: init-time write, no scope yet
+                self._fabric_sel.local_ifa(),  # caller holds ``read_write=True``: init-time write, no scope yet
                 _to_float32_2d(local_pos_ta.warp),
                 _to_float32_2d(local_ori_ta.warp),
                 _to_float32_2d(scales_wp),
@@ -748,7 +726,7 @@ class _FabricWorldSpaceWriter(_FabricWriterMixin, FrameViewWorldSpaceWriter):
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=indices_wp.shape[0],
             inputs=[
-                view._get_world_ifa(),
+                view._fabric_sel.world_ifa(),
                 positions_wp,
                 orientations_wp,
                 view._fabric_empty_2d_array_sentinel,
@@ -769,7 +747,7 @@ class _FabricWorldSpaceWriter(_FabricWriterMixin, FrameViewWorldSpaceWriter):
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=indices_wp.shape[0],
             inputs=[
-                view._get_world_ifa(),
+                view._fabric_sel.world_ifa(),
                 view._fabric_empty_2d_array_sentinel,
                 view._fabric_empty_2d_array_sentinel,
                 scales_wp,
@@ -809,7 +787,7 @@ class _FabricLocalSpaceWriter(_FabricWriterMixin, FrameViewLocalSpaceWriter):
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=indices_wp.shape[0],
             inputs=[
-                view._get_local_ifa(),
+                view._fabric_sel.local_ifa(),
                 translations_wp,
                 orientations_wp,
                 view._fabric_empty_2d_array_sentinel,
@@ -830,7 +808,7 @@ class _FabricLocalSpaceWriter(_FabricWriterMixin, FrameViewLocalSpaceWriter):
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=indices_wp.shape[0],
             inputs=[
-                view._get_local_ifa(),
+                view._fabric_sel.local_ifa(),
                 view._fabric_empty_2d_array_sentinel,
                 view._fabric_empty_2d_array_sentinel,
                 scales_wp,

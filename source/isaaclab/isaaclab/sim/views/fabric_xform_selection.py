@@ -5,8 +5,7 @@
 
 """Fabric prim tagging, selections, and view-to-slot mapping shared by the backend frame views.
 
-Internal to the frame-view implementations: the backend views own the lifetime of the selection they
-build, and nothing here is part of the public :mod:`isaaclab.sim.views` API.
+Internal to those views; nothing here is part of the public :mod:`isaaclab.sim.views` API.
 """
 
 from __future__ import annotations
@@ -22,15 +21,10 @@ logger = logging.getLogger(__name__)
 
 
 def _parent_path(prim_path: str) -> str:
-    """Parent prim path of ``prim_path``, which must not be directly under the stage root: a
-    pseudoroot parent carries no Fabric matrices to read."""
+    """Parent prim path of ``prim_path``; the pseudoroot carries no Fabric matrices, so it cannot be one."""
     parent = prim_path.rsplit("/", 1)[0]
     if not parent:
-        raise RuntimeError(
-            f"Child prim '{prim_path}' is at the stage root and has no parent prim. "
-            "A Fabric xform selection requires every prim to have a non-pseudoroot parent "
-            "with Fabric world+local matrices."
-        )
+        raise RuntimeError(f"Prim '{prim_path}' is at the stage root; a Fabric xform selection needs a parent prim.")
     return parent
 
 
@@ -89,9 +83,6 @@ class FabricXformSelection:
         self._owner = owner
         self.read_write = False
         self._tagged_prims: list[tuple[str, list]] = []
-        self.sel_ro = None
-        self.sel_rw = None
-        self.sel_parent = None
 
         self.stage = usdrt.Usd.Stage.Attach(get_current_stage_id())
         fabric_id = self.stage.GetFabricId()
