@@ -117,10 +117,10 @@ def test_wheel_builder_keeps_standalone_importers_explicit(tmp_path):
     generated = _generate_wheel_pyproject(tmp_path)
     project = generated["project"]
 
-    assert "isaacsim-asset-isolated>=6.0,<6.1" not in project["dependencies"]
+    assert "isaacsim-asset-isolated==6.1.0.0" not in project["dependencies"]
     assert "tinyobjloader==2.0.0rc13" not in project["dependencies"]
     assert project["optional-dependencies"]["importers"] == [
-        "isaacsim-asset-isolated>=6.0,<6.1",
+        "isaacsim-asset-isolated==6.1.0.0",
         "tinyobjloader==2.0.0rc13",
     ]
 
@@ -195,11 +195,3 @@ def test_wheel_builder_uv_overrides_match_root_pyproject(tmp_path):
     assert generated_overrides == root["tool"]["uv"]["override-dependencies"]
     assert published_overrides == generated_overrides
     assert install_ci_overrides == generated_overrides
-
-
-def test_wheel_builder_uv_overrides_relax_isaacsim_exact_pins(tmp_path):
-    """The wheel resolver must relax Isaac Sim 6.0's exact pins so the extras co-resolve."""
-    overrides = _generate_uv_overrides(tmp_path)
-
-    for spec in ("typing-extensions>=4.15.0", "websockets>=14.0,<17.0.0", "coverage>=7.6.1"):
-        assert spec in overrides

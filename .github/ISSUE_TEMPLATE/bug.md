@@ -31,7 +31,7 @@ Describe the characteristic of your environment:
 
 <!-- Please complete the following description. -->
 - Commit: [e.g. 8f3b9ca]
-- Isaac Sim Version: [e.g. 5.0, this can be obtained by `cat ${ISAACSIM_PATH}/VERSION`]
+- Isaac Sim Version: [e.g. 6.1, this can be obtained by `cat ${ISAACSIM_PATH}/VERSION`]
 - OS: [e.g. Ubuntu 22.04]
 - GPU: [e.g. RTX 5090]
 - CUDA: [e.g. 12.8]
