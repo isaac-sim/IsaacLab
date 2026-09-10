@@ -14,7 +14,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.actuators.newton import NewtonActuatorAdapter
 from isaaclab.sim.schemas.schemas_actuators import _author_actuator_prims
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
 
