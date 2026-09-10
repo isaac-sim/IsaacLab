@@ -764,6 +764,8 @@ def test_ensure_mesh_registered_handles_none_normals_and_uvs(monkeypatch):
     log_calls = []
 
     class _LoggingViewer:
+        device = "cpu"
+
         def log_mesh(self, name, vertices, indices, normals=None, uvs=None, texture=None, hidden=True):
             log_calls.append({"normals": normals, "uvs": uvs})
 
@@ -788,6 +790,44 @@ def test_newton_visualizer_cfg_distinct_types():
     # shared fields present on both
     assert NewtonGLVisualizerCfg().show_particles is False
     assert NewtonRTXVisualizerCfg().show_particles is False
+    assert NewtonGLVisualizerCfg().background_color == (0.3, 0.55, 0.82)
+    assert NewtonRTXVisualizerCfg().background_color == (0.3, 0.55, 0.82)
+    with pytest.raises(ValueError, match="three normalized RGB values"):
+        NewtonGLVisualizerCfg(background_color=(0.0, -0.1, 1.0))
+
+
+@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
+def test_newton_gl_background_color(color: tuple[float, float, float] | None) -> None:
+    cfg = NewtonGLVisualizerCfg(background_color=color)
+    visualizer = NewtonGLVisualizer(cfg)
+    visualizer._viewer = SimpleNamespace(
+        renderer=SimpleNamespace(),
+        _coerce_color3=lambda value: tuple(value),
+    )
+
+    visualizer._apply_viewer_post_init()
+
+    assert visualizer._viewer.renderer.draw_sky == (color is None)
+    expected_upper = cfg.sky_upper_color if color is None else color
+    expected_lower = cfg.sky_lower_color if color is None else color
+    assert visualizer._viewer.renderer.sky_upper == expected_upper
+    assert visualizer._viewer.renderer.sky_lower == expected_lower
+
+
+@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
+def test_newton_rtx_receives_background_color(
+    monkeypatch: pytest.MonkeyPatch, color: tuple[float, float, float] | None
+) -> None:
+    kwargs = {}
+    monkeypatch.setattr(
+        newton_visualizer_module,
+        "NewtonViewerRTX",
+        lambda **viewer_kwargs: kwargs.update(viewer_kwargs) or object(),
+    )
+
+    NewtonRTXVisualizer(NewtonRTXVisualizerCfg(background_color=color))._create_viewer(False, {})
+
+    assert kwargs["background_color"] == color
 
 
 def test_eye_lookat_to_pitch_yaw_horizontal():
@@ -949,6 +989,37 @@ def test_newton_rtx_visualizer_streaming_view_enabled():
 
     visualizer_off = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(streaming_view=False))
     assert visualizer_off._uses_streaming_view() is False
+
+
+@pytest.mark.parametrize("backend", ["physx", "isaacsim_physx"])
+def test_newton_rtx_visualizer_rejects_kit_physics_backend(monkeypatch, backend):
+    """OVRTX is kitless and must fail fast instead of crashing the render thread on first step().
+
+    "physx" is what FactoryBase._get_backend() reports at runtime (covers both an explicit
+    ``physics=isaacsim_physx`` and the ``physics=physx`` auto selector once resolved to Kit);
+    "isaacsim_physx" is checked too in case a future/alternate backend-name source reports the
+    explicit selector string instead.
+    """
+    from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
+    monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: backend))
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
+
+    with pytest.raises(RuntimeError, match="Newton RTX"):
+        visualizer.initialize(Mock())
+
+
+def test_newton_rtx_visualizer_allows_ovphysx_backend(monkeypatch):
+    """ovphysx is itself kitless, so it must not trip the Kit-only guard (unlike physx)."""
+    from isaaclab.visualizers.base_visualizer import BaseVisualizer
+
+    monkeypatch.setattr(BaseVisualizer, "physics_backend", property(lambda self: "ovphysx"))
+    visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
+
+    # No RuntimeError from the guard; falls through to the next line, which needs a real
+    # SimulationContext and fails differently -- proving the guard did not fire for ovphysx.
+    with pytest.raises(AttributeError):
+        visualizer.initialize(Mock())
 
 
 def test_newton_rtx_visualizer_setup_streaming_view_creates_owned_camera(monkeypatch):

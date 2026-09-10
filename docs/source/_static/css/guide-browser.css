@@ -1,0 +1,279 @@
+/*
+ * Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+.guide-browser-toolbar {
+    position: sticky;
+    top: 4rem;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1.25rem 0 1.5rem;
+    padding: 0.75rem;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--pst-color-background) 94%, transparent);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--pst-color-shadow) 18%, transparent);
+    backdrop-filter: blur(12px);
+}
+
+.guide-search {
+    position: relative;
+    flex: 1 1 24rem;
+    min-width: 12rem;
+    height: 2.5rem;
+    margin: 0;
+}
+
+.guide-search i {
+    position: absolute;
+    top: 50%;
+    left: 0.8rem;
+    z-index: 1;
+    color: var(--pst-color-text-muted);
+    pointer-events: none;
+    transform: translateY(-50%);
+}
+
+.guide-search input {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0.45rem 0.8rem 0.45rem 2.35rem;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 6px;
+    color: var(--pst-color-text-base);
+    background: var(--pst-color-background);
+}
+
+.guide-search input:focus {
+    border-color: var(--pst-color-primary);
+    outline: 2px solid color-mix(in srgb, var(--pst-color-primary) 25%, transparent);
+    outline-offset: 0;
+}
+
+.guide-result-count {
+    flex: 0 0 auto;
+    min-width: 5.25rem;
+    color: var(--pst-color-text-muted);
+    font-size: 0.85rem;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.guide-group {
+    margin: 0 0 1.5rem;
+}
+
+.guide-group > .rubric {
+    margin: 0 0 0.5rem;
+    color: var(--pst-color-text-base);
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.guide-entry {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    column-gap: 0.8rem;
+    align-items: center;
+    min-height: 4.5rem;
+    padding: 0.8rem 1.25rem !important;
+    border: 1px solid var(--pst-color-border);
+    border-bottom: 0;
+    background: var(--pst-color-background);
+}
+
+.guide-entry:first-of-type {
+    border-radius: 8px 8px 0 0;
+}
+
+.guide-entry.is-first-visible {
+    border-radius: 8px 8px 0 0;
+}
+
+.guide-entry:last-child {
+    border-bottom: 1px solid var(--pst-color-border);
+    border-radius: 0 0 8px 8px;
+}
+
+.guide-entry.is-last-visible {
+    border-bottom: 1px solid var(--pst-color-border);
+    border-radius: 0 0 8px 8px;
+}
+
+.guide-entry.is-first-visible.is-last-visible {
+    border-radius: 8px;
+}
+
+.guide-entry:only-of-type {
+    border-bottom: 1px solid var(--pst-color-border);
+    border-radius: 8px;
+}
+
+.guide-entry:hover,
+.guide-entry:focus-within {
+    border-color: var(--pst-color-primary);
+    background: color-mix(in srgb, var(--pst-color-primary) 7%, var(--pst-color-background));
+    box-shadow: inset 3px 0 var(--pst-color-primary);
+}
+
+.guide-entry::after {
+    grid-row: 1 / 3;
+    grid-column: 2;
+    width: 0.45rem;
+    height: 0.45rem;
+    margin-right: 0.2rem;
+    border-top: 2px solid var(--pst-color-text-muted);
+    border-right: 2px solid var(--pst-color-text-muted);
+    content: "";
+    transform: rotate(45deg);
+}
+
+.guide-entry > p {
+    grid-column: 1;
+    margin: 0;
+}
+
+.guide-entry > p:first-of-type {
+    align-self: end;
+    font-weight: 650;
+}
+
+.guide-entry > p:last-of-type {
+    align-self: start;
+    color: var(--pst-color-text-muted);
+    font-size: 0.88rem;
+}
+
+.guide-entry a {
+    color: var(--pst-color-text-base);
+    text-decoration: none;
+}
+
+.guide-entry a::after {
+    position: absolute;
+    inset: 0;
+    content: "";
+}
+
+.guide-entry[hidden],
+.guide-group[hidden],
+.guide-empty-state[hidden] {
+    display: none;
+}
+
+.guide-empty-state {
+    margin: 2rem 0;
+    padding: 1.25rem;
+    border: 1px dashed var(--pst-color-border);
+    border-radius: 8px;
+    color: var(--pst-color-text-muted);
+    text-align: center;
+}
+
+.guide-viewer {
+    overflow: hidden;
+    margin: 1.25rem 0;
+    scroll-margin-top: 4.5rem;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 10px;
+    background: var(--pst-color-background);
+    box-shadow: 0 12px 36px color-mix(in srgb, var(--pst-color-shadow) 20%, transparent);
+}
+
+.guide-viewer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--pst-color-border);
+    background: color-mix(in srgb, var(--pst-color-background) 94%, transparent);
+    backdrop-filter: blur(12px);
+}
+
+.guide-viewer-content {
+    padding: 1.5rem;
+}
+
+.guide-back-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0.45rem 0.8rem;
+    border: 1px solid var(--pst-color-primary);
+    border-radius: 6px;
+    color: #1f3300;
+    background: #76b900;
+    font-weight: 650;
+}
+
+.guide-back-button:hover,
+.guide-back-button:focus-visible {
+    background: color-mix(in srgb, #76b900 82%, white);
+}
+
+.guide-open-page {
+    font-size: 0.88rem;
+    white-space: nowrap;
+}
+
+.guide-loading {
+    min-height: 12rem;
+    margin: 0;
+    padding: 5rem 1rem;
+    color: var(--pst-color-text-muted);
+    text-align: center;
+}
+
+.guide-frame {
+    display: block;
+    width: 100%;
+    min-height: 20rem;
+    border: 0;
+    background: transparent;
+}
+
+.guide-browser-intro[hidden],
+.guide-browser-toolbar[hidden],
+.guide-list[hidden],
+.guide-browser-note[hidden],
+.guide-viewer[hidden],
+.guide-frame[hidden],
+.guide-loading[hidden] {
+    display: none;
+}
+
+@media (max-width: 760px) {
+    .guide-browser-toolbar {
+        position: static;
+        flex-wrap: wrap;
+    }
+
+    .guide-search {
+        flex-basis: 100%;
+    }
+
+    .guide-entry {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .guide-entry::after {
+        display: none;
+    }
+
+    .guide-viewer-content {
+        padding: 1rem;
+    }
+}

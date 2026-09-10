@@ -2959,6 +2959,7 @@ class NewtonManager(PhysicsManager):
         builder, (shadow_entities, registry_groups) = build_visualization_builder_from_stage_envs(
             stage, env_paths, clone_plan, up_axis=up_axis, device=str(PhysicsManager._device or "cpu")
         )
+        NewtonManager._scene_data_mapping = None
         NewtonManager._shadow_deformable_entities = shadow_entities
         NewtonManager._scene_data_geometry_mapping = None
         NewtonManager._mapped_sim_particle_offsets = None

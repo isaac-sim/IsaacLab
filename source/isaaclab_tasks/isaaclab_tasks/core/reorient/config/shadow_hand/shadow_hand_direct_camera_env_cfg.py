@@ -9,12 +9,22 @@ import isaaclab.sim as sim_utils
 from isaaclab.renderers import RendererCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+_PRETRAINED_CHECKPOINT_DIR = f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl"
+_DIRECT_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT = (
+    f"{_PRETRAINED_CHECKPOINT_DIR}/"
+    "Isaac-Reorient-Cube-Shadow-Camera-Direct_newtonmjwarp_newton_rsl_rl_feature_extractor.pth"
+)
+_DIRECT_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT = (
+    f"{_PRETRAINED_CHECKPOINT_DIR}/Isaac-Reorient-Cube-Shadow-Camera-Direct_physx_rtx_rsl_rl_feature_extractor.pth"
+)
 
 
 def validate_shadow_hand_camera_settings(
@@ -166,7 +176,15 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
 
     # camera — data-type and renderer backend selectable via CLI presets
     tiled_camera: ShadowHandTiledCameraCfg = ShadowHandTiledCameraCfg()
-    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg()
+    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(
+        pretrained_checkpoint=preset(  # type: ignore[arg-type]
+            default=_DIRECT_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
+            newton_mjwarp=_DIRECT_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
+            isaacsim_physx=_DIRECT_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+            ovphysx=_DIRECT_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+            physx=_DIRECT_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+        )
+    )
 
     # env
     observation_space = 164 + 27  # state observation + vision CNN embedding

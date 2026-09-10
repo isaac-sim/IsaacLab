@@ -11,7 +11,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from isaaclab.managers import ActionTermCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .actions import SelectedBinaryJointPositionAction, SelectedJointPositionAction

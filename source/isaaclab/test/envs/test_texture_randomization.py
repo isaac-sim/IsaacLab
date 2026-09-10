@@ -30,8 +30,8 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 pytestmark = pytest.mark.integration
 

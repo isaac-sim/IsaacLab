@@ -74,6 +74,7 @@ MAX_ACTIVE_CELL_COUNT = 1 << 17
 RIGID_ENTRY = "crates"
 SNOW_ENTRY = "snow"
 CRATE_BODY_PATTERN = r"/World/envs/env_.*/Crate_.*"
+MPM_GROUND_BODY_PATTERN = r"/World/envs/env_.*/MPMGround"
 
 # Soft elastic-plastic snow with pressure yielding, hardening, and dilatancy.
 SNOW_DENSITY = 400.0
@@ -177,7 +178,10 @@ def create_sim_cfg():
                     collider_velocity_mode="forward",
                     project_outside_colliders=False,
                 ),
+                bodies=[MPM_GROUND_BODY_PATTERN],
                 all_particles=True,
+                include_static_shapes=False,
+                include_child_joints=False,
                 in_place=True,
             ),
         ],
@@ -216,7 +220,7 @@ def create_scene_cfg():
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     particle_mass = SNOW_SPACING**3 * SNOW_DENSITY
     particle_radius = 0.5 * SNOW_SPACING
@@ -268,11 +272,35 @@ def create_scene_cfg():
 
     @configclass
     class SnowballSmashSceneCfg(InteractiveSceneCfg):
-        """Scene with rigid crates, MPM snow, and the default ground plane."""
+        """Scene with rigid crates and independently owned rigid/MPM ground collision."""
 
+        # This visible static plane belongs to the rigid entry, so MuJoCo can
+        # resolve crate-ground contact without duplicating the ground shape in
+        # the MPM model view.
         ground = AssetBaseCfg(
             prim_path="/World/Ground",
             spawn=sim_utils.GroundPlaneCfg(),
+        )
+
+        # The co-located hidden kinematic slab belongs only to the MPM entry.
+        # This mirrors the shared geometry without assigning one Newton shape
+        # to two coupled solver entries.
+        mpm_ground = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/MPMGround",
+            spawn=sim_utils.CuboidCfg(
+                size=(12.0, 12.0, 0.10),
+                rigid_props=sim_utils.NewtonRigidBodyPropertiesCfg(
+                    rigid_body_enabled=True,
+                    kinematic_enabled=True,
+                ),
+                collision_props=sim_utils.NewtonCollisionPropertiesCfg(collision_enabled=True),
+                physics_material=sim_utils.NewtonMaterialPropertiesCfg(
+                    static_friction=CRATE_FRICTION,
+                    dynamic_friction=CRATE_FRICTION,
+                ),
+                visible=False,
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05)),
         )
 
         dome_light = AssetBaseCfg(

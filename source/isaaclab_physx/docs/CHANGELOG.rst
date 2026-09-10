@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+7.1.2 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a SIGSEGV crash when calling ``SimulationContext.play()`` a second time after
+  ``SimulationContext.stop()`` without an intervening ``reset()``, e.g. registering a raw
+  ``omni.timeline`` event subscription and cycling play/stop twice on the GPU PhysX pipeline.
+  ``PhysxManager`` now detaches the PhysX stage on ``stop()`` so the next play's automatic
+  re-warmup reattaches cleanly instead of calling ``attach_stage`` on a stage that PhysX still
+  considered attached, which corrupted its internal view registry.
+
+
+7.1.1 (2026-09-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``IsaacRtxRenderer.render()`` to pass the tiled annotator buffer to
+  ``reshape_tiled_image`` as a 3D array instead of flattening it to 1D. Large environment counts
+  and camera resolutions no longer overflow the maximum size of a single Warp array dimension.
+
+
 7.1.0 (2026-09-08)
 ~~~~~~~~~~~~~~~~~~
 

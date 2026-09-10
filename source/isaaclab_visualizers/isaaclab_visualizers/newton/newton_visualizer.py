@@ -615,6 +615,7 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         *args,
         metadata: dict | None = None,
         update_frequency: int = 1,
+        background_color: tuple[float, float, float] | None = None,
         render_settings: dict[str, Any] | None = None,
         **kwargs,
     ):
@@ -624,31 +625,17 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
             *args: Positional arguments forwarded to ``ViewerRTX``.
             metadata: Optional metadata shown in viewer panels.
             update_frequency: Viewer refresh cadence in simulation frames.
+            background_color: Optional solid background color RGB [0, 1].
             render_settings: Extra RTX attributes to author on the render product. See
                 :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`.
             **kwargs: Keyword arguments forwarded to ``ViewerRTX``.
         """
-        # Patch environment so OVRTX's CRenderApiLibLoader can find libovrtx.dylib.so.
-        # libovrtx-dynamic.so's built-in RPATH uses paths from the original deploy layout
-        # which don't match the pip install layout. LD_LIBRARY_PATH (read by glibc at each
-        # dlopen call) and OMNI_USD_PLUGINS_BASE_PATH (read by CRenderApiLibLoader) redirect
-        # the search to the correct location.
-        if sys.platform.startswith("linux"):
-            import importlib.util as _ilu
-            import pathlib as _pl
-
-            _spec = _ilu.find_spec("ovrtx")
-            if _spec is not None:
-                _bin = _pl.Path(_spec.origin).parent / "bin"
-                _extra = os.pathsep.join([str(_bin / "plugins" / "rtx"), str(_bin / "plugins"), str(_bin)])
-                _ld = os.environ.get("LD_LIBRARY_PATH", "")
-                if str(_bin / "plugins" / "rtx") not in _ld:
-                    os.environ["LD_LIBRARY_PATH"] = _extra + (os.pathsep + _ld if _ld else "")
-                os.environ.setdefault("OMNI_USD_PLUGINS_BASE_PATH", str(_bin))
-
         # Assigned before super().__init__(): ViewerRTX reaches
         # _add_camera_lights_and_render_product() during initialization, and the override reads
-        # this. Copied so a caller's dict cannot mutate the viewer's settings afterwards.
+        # these values. The render settings are copied so a caller cannot mutate them afterwards.
+        self._background_color = (
+            tuple(float(value) for value in background_color) if background_color is not None else None
+        )
         self._render_settings = dict(render_settings or {})
 
         super().__init__(*args, **kwargs)
@@ -678,11 +665,16 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         reads that export, so later edits are ignored.
         """
         super()._add_camera_lights_and_render_product()
-        if not self._render_settings:
+        if self._background_color is None and not self._render_settings:
             return
-        from pxr import Sdf
+        from pxr import Gf, Sdf
 
         prim = self.stage.GetPrimAtPath(self._render_product_path)
+        if self._background_color is not None:
+            prim.CreateAttribute("omni:rtx:background:source:type", Sdf.ValueTypeNames.Token).Set("color")
+            prim.CreateAttribute("omni:rtx:background:source:color", Sdf.ValueTypeNames.Color3f).Set(
+                Gf.Vec3f(*self._background_color)
+            )
         for name, (type_name, value) in self._render_settings.items():
             value_type = getattr(Sdf.ValueTypeNames, type_name, None)
             if value_type is None:
@@ -1027,6 +1019,22 @@ class NewtonVisualizer(BaseVisualizer):
             return
 
         scene_data_provider = self._set_scene_data_provider(scene_data_provider)
+        if isinstance(self, NewtonRTXVisualizer) and self.physics_backend in ("physx", "isaacsim_physx"):
+            # OVRTX is a kitless renderer and cannot share a process with Kit. "physx" is the
+            # runtime name FactoryBase._get_backend() reports for the resolved PhysxManager
+            # (covers both an explicit `physics=isaacsim_physx` and the `physics=physx` auto
+            # selector once it resolves to Kit); "isaacsim_physx" is checked too in case a
+            # future/alternate backend-name source reports the explicit selector string
+            # instead. ovphysx is itself kitless, so it is not affected. Left unchecked,
+            # OVRTX's native loader crashes inside the render thread on first step() instead
+            # of failing here, which hangs the process instead of exiting.
+            raise RuntimeError(
+                f"[{type(self).__name__}] Newton RTX (OVRTX) cannot be used with physics backend"
+                f" {self.physics_backend!r}. It is a kitless renderer and cannot run in the same process as Kit"
+                " (isaacsim_physx). Use `presets=newton_mjwarp,ovrtx` or `presets=ovphysx,ovrtx` with"
+                " `--viz newton_rtx`, or switch to `--viz newton_gl`, `--viz viser`, `--viz rerun`, or"
+                " `--viz kit` with a Kit-compatible physics backend."
+            )
         newton_backend_active = self.physics_backend == "newton"
         physics_manager = SimulationContext.instance().physics_manager
         picking_supported = newton_backend_active and bool(
@@ -1102,6 +1110,7 @@ class NewtonVisualizer(BaseVisualizer):
                 ("eye", current_eye),
                 ("lookat", self._last_camera_pose[1] if self._last_camera_pose else self.cfg.lookat),
                 ("focal_length", self.cfg.focal_length),
+                ("background_color", self.cfg.background_color),
                 ("streaming_view", self.cfg.streaming_view),
                 ("streaming_gt_types", list(self.cfg.streaming_gt_types)),
                 ("num_visualized_envs", num_visualized_envs),
@@ -2038,11 +2047,17 @@ class NewtonGLVisualizer(NewtonVisualizer):
         self._viewer.scaling = 1.0
         self._viewer.particle_color = self.cfg.particle_color
         self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
-        self._viewer.renderer.draw_sky = self.cfg.enable_sky
         self._viewer.renderer.draw_wireframe = self.cfg.enable_wireframe
         # Accept list/tuple/array-like config colors; provide a stable tuple for nanobind conversion.
-        self._viewer.renderer.sky_upper = self._viewer._coerce_color3(self.cfg.sky_upper_color)
-        self._viewer.renderer.sky_lower = self._viewer._coerce_color3(self.cfg.sky_lower_color)
+        if self.cfg.background_color is None:
+            self._viewer.renderer.draw_sky = self.cfg.enable_sky
+            upper_color = self.cfg.sky_upper_color
+            lower_color = self.cfg.sky_lower_color
+        else:
+            self._viewer.renderer.draw_sky = False
+            upper_color = lower_color = self.cfg.background_color
+        self._viewer.renderer.sky_upper = self._viewer._coerce_color3(upper_color)
+        self._viewer.renderer.sky_lower = self._viewer._coerce_color3(lower_color)
         self._viewer.renderer._light_color = self._viewer._coerce_color3(self.cfg.light_color)
 
     def _apply_camera_pose(
@@ -2171,10 +2186,8 @@ class NewtonRTXVisualizer(NewtonVisualizer):
     The tiled camera panel remains disabled because ``ViewerRTX.log_image`` has no
     display sink.
 
-    .. note::
-        RTX render quality settings (fps, lighting environment, denoiser, etc.)
-        use ``ViewerRTX`` defaults. These will be exposed in a future revision
-        consistently with other RTX-capable renderers.
+    A solid background can be configured through :class:`NewtonRTXVisualizerCfg`. Other RTX
+    settings use ``ViewerRTX`` defaults unless supplied through ``render_settings``.
     """
 
     def __init__(self, cfg: NewtonRTXVisualizerCfg):
@@ -2199,6 +2212,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
             environment=self.cfg.rtx_environment,
+            background_color=self.cfg.background_color,
             render_settings=self.cfg.render_settings,
         )
 

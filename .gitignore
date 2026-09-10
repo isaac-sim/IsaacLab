@@ -7,6 +7,9 @@
 # Omniverse
 **/*.dmp
 **/.thumbs
+# Kit's ImGui UI-state file, written to the process working directory by long
+# sessions with a GUI-backed visualizer (e.g. --visualizer kit).
+**/imgui.ini
 
 # No USD files allowed in the repo
 **/*.usd
@@ -82,6 +85,7 @@ _build
 # No benchmarks output
 /benchmarks/
 benchmark_*.json
+/pyrightconfig.json
 
 
 # Ruff cache
