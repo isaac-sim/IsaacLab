@@ -216,7 +216,7 @@ def _main():
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
             )
             # Guarantee env.close() runs; see suppressed_shutdown_guard().
-            stack.callback(env.close)
+            stack.callback(lambda: env.close())
 
             try:
                 dt = env.step_dt

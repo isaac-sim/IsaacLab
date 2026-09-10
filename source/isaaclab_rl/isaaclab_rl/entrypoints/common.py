@@ -74,11 +74,15 @@ def flag_only_sigint() -> Iterator[Callable[[], bool]]:
 def suppressed_shutdown_guard() -> Iterator[ExitStack]:
     """Guarantee registered cleanup runs, then silently swallow ``KeyboardInterrupt``.
 
-    Yields an :class:`~contextlib.ExitStack`; register ``env.close`` on it
-    (``stack.callback(env.close)``) right after ``env`` exists. A ``KeyboardInterrupt`` raised
-    anywhere after that -- including inside a blocking third-party call, like an RL library's
-    training loop, that needs a raw interrupt to stop -- still runs cleanup before being
-    swallowed here.
+    Yields an :class:`~contextlib.ExitStack`; register cleanup on it
+    (``stack.callback(lambda: env.close())``) right after ``env`` exists. A ``KeyboardInterrupt``
+    raised anywhere after that -- including inside a blocking third-party call, like an RL
+    library's training loop, that needs a raw interrupt to stop -- still runs cleanup before
+    being swallowed here.
+
+    Use ``lambda: env.close()``, not ``env.close``: the latter binds the current ``env`` object
+    immediately, so if ``env`` is later reassigned to a wrapper (as every entrypoint here does),
+    the callback would still close the original, unwrapped object instead of the final one.
     """
     with suppress(KeyboardInterrupt), ExitStack() as stack:
         yield stack
