@@ -109,6 +109,7 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
             default=_MANAGER_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
             newton_mjwarp=_MANAGER_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
             isaacsim_physx=_MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+            ovphysx=_MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
             physx=_MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
         )
     )

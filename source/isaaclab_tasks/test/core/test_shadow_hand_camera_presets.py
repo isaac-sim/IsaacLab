@@ -269,6 +269,11 @@ def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_pre
             "Isaac-Reorient-Cube-Shadow-Camera_physx_rtx_rsl_rl_feature_extractor.pth",
         ),
         (
+            ShadowHandCameraManagerEnvCfg,
+            ("ovphysx", "ovrtx"),
+            "Isaac-Reorient-Cube-Shadow-Camera_physx_rtx_rsl_rl_feature_extractor.pth",
+        ),
+        (
             ShadowHandCameraEnvCfg,
             ("newton_mjwarp", "newton_renderer"),
             "Isaac-Reorient-Cube-Shadow-Camera-Direct_newtonmjwarp_newton_rsl_rl_feature_extractor.pth",
@@ -276,6 +281,11 @@ def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_pre
         (
             ShadowHandCameraEnvCfg,
             ("isaacsim_physx", "isaacsim_rtx"),
+            "Isaac-Reorient-Cube-Shadow-Camera-Direct_physx_rtx_rsl_rl_feature_extractor.pth",
+        ),
+        (
+            ShadowHandCameraEnvCfg,
+            ("ovphysx", "ovrtx"),
             "Isaac-Reorient-Cube-Shadow-Camera-Direct_physx_rtx_rsl_rl_feature_extractor.pth",
         ),
     ],
