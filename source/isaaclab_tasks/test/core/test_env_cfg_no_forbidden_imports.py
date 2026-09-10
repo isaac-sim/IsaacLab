@@ -191,3 +191,37 @@ def test_config_load_does_not_import_backend_modules(task_name: str, all_cfg_che
         "__init__.py, or move the import under TYPE_CHECKING and use a string "
         "reference for isinstance checks."
     )
+
+
+def test_agibot_place_config_loads_without_teleop():
+    """The Agibot place config must not require the optional teleop package."""
+    script = textwrap.dedent("""\
+        import builtins
+
+        original_import = builtins.__import__
+
+        def block_teleop(name, *args, **kwargs):
+            if name == "isaaclab_teleop" or name.startswith("isaaclab_teleop."):
+                raise ModuleNotFoundError("No module named 'isaaclab_teleop'", name="isaaclab_teleop")
+            return original_import(name, *args, **kwargs)
+
+        builtins.__import__ = block_teleop
+
+        import isaaclab_tasks  # noqa: F401
+        from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+        cfg = load_cfg_from_registry(
+            "IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow",
+            "env_cfg_entry_point",
+        )
+        assert cfg.xr is None
+    """)
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, (
+        f"Subprocess failed:\n--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
+    )
