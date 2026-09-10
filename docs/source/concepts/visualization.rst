@@ -102,9 +102,9 @@ This page covers:
    document.querySelectorAll(".viz-hero-speedup").forEach(function (v) {
      v.playbackRate = 1 / 0.9;
    });
-   // Start Viser/Rerun 1s into their clip instead of at 0; native loop still wraps to 0 as usual.
+   // Start Viser/Rerun 1.2s into their clip instead of at 0; native loop still wraps to 0 as usual.
    document.querySelectorAll(".viz-hero-start-1s").forEach(function (v) {
-     var seek = function () { v.currentTime = 1; };
+     var seek = function () { v.currentTime = 1.2; };
      if (v.readyState >= 1) seek();
      else v.addEventListener("loadedmetadata", seek, { once: true });
    });
