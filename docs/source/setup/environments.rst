@@ -97,12 +97,16 @@ Task Preview
 Benchmarks
 ----------
 
-Measured on one NVIDIA RTX PRO 6000 Blackwell Server Edition GPU with 16,384
-environments. Release shows the September 9, 2026 snapshot as EA 3.0; Develop
+Measured at each task's configured training-default environment count on one
+NVIDIA RTX PRO 6000 Blackwell Server Edition GPU. The same task-specific count
+is used for Collection and Training; runs at other counts are excluded.
+The legend identifies the physics backend, renderer, and presets
+for each configuration. Release shows the September 9, 2026 snapshot as EA 3.0; Develop
 shows August 17, August 24, August 31, and September 7. Dates refer to database
-ingestion in UTC. Only G1 training has matching measurements on August 17;
-other series have fewer points. Collection and Training show total FPS from
-runtime and RSL-RL training benchmarks, respectively.
+ingestion in UTC. Collection and Training show total FPS from runtime and RSL-RL
+training benchmarks, respectively. Camera results retain the measured renderer
+and preset configurations; some series have fewer dates. Missing
+configurations are not estimated; Kamino results are excluded.
 
 .. raw:: html
 
@@ -115,20 +119,18 @@ runtime and RSL-RL training benchmarks, respectively.
            <button type="button" class="is-active" data-benchmark-channel="release" aria-pressed="true">Release</button>
            <button type="button" data-benchmark-channel="develop" aria-pressed="false">Develop</button>
          </div>
-       </div>
-       <div class="environment-benchmark-toolbar">
-         <div class="environment-benchmark-legend" aria-label="Benchmark series"></div>
          <div class="environment-benchmark-switch" role="group" aria-label="Benchmark workload">
            <button type="button" class="is-active" data-benchmark-workload="runtime" aria-pressed="true">Collection</button>
            <button type="button" data-benchmark-workload="training" aria-pressed="false">Training</button>
          </div>
        </div>
+       <div class="environment-benchmark-legend" aria-label="Benchmark series"></div>
        <div class="environment-benchmark-chart" data-benchmark-chart></div>
        <div class="environment-benchmark-stub" data-benchmark-empty hidden>
          <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
          <div>
            <strong>Benchmark data is not available yet</strong>
-           <p>No measurements are available for this task, channel, and workload.</p>
+           <p>No measurements are available at this task's default environment count for the selected channel and workload.</p>
          </div>
        </div>
        <p class="environment-benchmark-error" data-benchmark-error hidden>Benchmark data could not be loaded.</p>

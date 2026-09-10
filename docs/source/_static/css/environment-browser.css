@@ -568,6 +568,7 @@ html[data-theme="dark"] .environment-browser {
     gap: 0.75rem 1.25rem;
     color: var(--environment-muted);
     font-size: 0.82rem;
+    margin-bottom: 0.5rem;
 }
 
 .environment-benchmark-legend span {
@@ -809,8 +810,7 @@ html[data-theme="dark"] .environment-browser {
     }
 
     .environment-benchmark-toolbar {
-        align-items: flex-start;
-        flex-direction: column-reverse;
+        flex-wrap: wrap;
     }
 
     .environment-task-search,

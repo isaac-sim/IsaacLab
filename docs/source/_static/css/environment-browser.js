@@ -476,6 +476,8 @@
         const latestVramRows = benchmarkRows
             .filter((row) => row.channel === state.benchmarkChannel)
             .filter((row) => row.task === state.task && row.physics_backend === fields.physics.value)
+            .filter((row) => !selectedTask().renderer.length || row.rendering_backend === fields.renderer.value)
+            .filter((row) => row.rl_library === fields.rl.value)
             .sort((left, right) => right.recorded_at_utc.localeCompare(left.recorded_at_utc));
         const latestTraining = latestVramRows.find((row) => row.workload === "training");
         const vram = preview.querySelector("[data-preview-vram]");
@@ -651,12 +653,35 @@
     };
     const backendLabels = {
         isaacsim_physx: "Isaac Sim PhysX",
-        newton_kamino: "Newton Kamino",
         newton_mjwarp: "Newton MJWarp",
+        newton_mjwarp_vbd_proxy: "Newton MJWarp + VBD",
         ovphysx: "OV PhysX",
     };
     const backendOrder = Object.keys(backendLabels);
     const backendClass = (backend) => `environment-chart-backend-${backend.replaceAll("_", "-")}`;
+    const rendererLabels = {
+        isaacsim_rtx: "Isaac Sim RTX",
+        newton_renderer: "Newton Renderer",
+        ovrtx: "OV RTX",
+    };
+    // Keep different benchmark configurations separate, including camera renderers.
+    const seriesKey = (row) => JSON.stringify([
+        row.physics_backend, row.rendering_backend, row.task_presets || "", row.num_envs, row.rl_library,
+    ]);
+    const seriesLabel = (row) => [
+        backendLabels[row.physics_backend] || row.physics_backend,
+        rendererLabels[row.rendering_backend]
+            || (row.task.includes("Camera") ? "Unspecified renderer" : ""),
+        row.task_presets,
+        row.rl_library,
+    ].filter(Boolean).join(" · ");
+    const benchmarkSeries = (rows) => [...new Map(rows.map((row) => [seriesKey(row), row])).values()]
+        .sort((left, right) => backendOrder.indexOf(left.physics_backend) - backendOrder.indexOf(right.physics_backend)
+            || seriesKey(left).localeCompare(seriesKey(right)));
+    const seriesColor = (row, rows) => {
+        const index = benchmarkSeries(rows).findIndex((candidate) => seriesKey(candidate) === seriesKey(row));
+        return `hsl(${(index * 137.508 + 30) % 360} 65% 42%)`;
+    };
 
     const renderBenchmarkChart = (rows, maximum) => {
         const namespace = "http://www.w3.org/2000/svg";
@@ -681,7 +706,7 @@
             .map(benchmarkDate))].sort();
         const latestBySeriesAndDate = new Map();
         for (const row of rows) {
-            const key = `${row.physics_backend}:${benchmarkDate(row)}`;
+            const key = `${seriesKey(row)}:${benchmarkDate(row)}`;
             if (!latestBySeriesAndDate.has(key) || latestBySeriesAndDate.get(key).recorded_at_utc < row.recorded_at_utc) {
                 latestBySeriesAndDate.set(key, row);
             }
@@ -725,20 +750,20 @@
             svg.appendChild(label);
         }
 
-        const backends = [...new Set(plottedRows.map((row) => row.physics_backend))]
-            .sort((left, right) => backendOrder.indexOf(left) - backendOrder.indexOf(right));
-        for (const backend of backends) {
+        const configurations = benchmarkSeries(plottedRows);
+        for (const representative of configurations) {
             const series = plottedRows
-                .filter((row) => row.physics_backend === backend)
+                .filter((row) => seriesKey(row) === seriesKey(representative))
                 .sort((left, right) => benchmarkDate(left).localeCompare(benchmarkDate(right)));
-            const seriesClass = backendClass(backend);
+            const seriesClass = backendClass(representative.physics_backend);
+            const style = `--environment-series-color: ${seriesColor(representative, rows)}`;
             if (series.length > 1) {
                 const points = series.map((row) => {
                     const date = benchmarkDate(row);
                     return `${xPosition(date)},${yPosition(Number(row.total_fps_mean))}`;
                 }).join(" ");
                 svg.appendChild(createSvgElement("polyline", {
-                    points, class: `environment-chart-line ${seriesClass}`,
+                    points, class: `environment-chart-line ${seriesClass}`, style,
                 }));
             }
             for (const [index, row] of series.entries()) {
@@ -747,16 +772,17 @@
                 const x = xPosition(date);
                 const y = yPosition(value);
                 const circle = createSvgElement("circle", {
-                    cx: x, cy: y, r: 5, class: `environment-chart-point ${seriesClass}`,
+                    cx: x, cy: y, r: 5, class: `environment-chart-point ${seriesClass}`, style,
                 });
                 const title = createSvgElement("title");
                 const tooltipWorkload = state.benchmarkWorkload === "runtime" ? "Collection" : "Training";
-                title.textContent = `${backendLabels[backend] || backend} · ${tooltipWorkload}: ${Math.round(value).toLocaleString()} FPS on ${date}`;
+                title.textContent = `${seriesLabel(row)} · ${tooltipWorkload}: ${Math.round(value).toLocaleString()} FPS on ${date}`;
                 circle.appendChild(title);
                 svg.appendChild(circle);
-                if (index === series.length - 1) {
+                // Dense camera charts expose exact values in tooltips without overlapping labels.
+                if (index === series.length - 1 && configurations.length <= 3) {
                     const valueLabel = createSvgElement("text", {
-                        x, y: y - 11, class: `environment-chart-value ${seriesClass}`, "text-anchor": "middle",
+                        x, y: y - 11, class: `environment-chart-value ${seriesClass}`, "text-anchor": "middle", style,
                     });
                     valueLabel.textContent = formatFps(value);
                     svg.appendChild(valueLabel);
@@ -768,12 +794,12 @@
 
     const renderBenchmarkLegend = (rows) => {
         const legend = benchmarks.querySelector(".environment-benchmark-legend");
-        const backends = [...new Set(rows.map((row) => row.physics_backend))]
-            .sort((left, right) => backendOrder.indexOf(left) - backendOrder.indexOf(right));
-        const entries = backends.map((backend) => {
+        const entries = benchmarkSeries(rows).map((row) => {
             const entry = document.createElement("span");
-            entry.innerHTML = `<i class="environment-legend-swatch ${backendClass(backend)}"></i>`;
-            entry.append(backendLabels[backend] || backend);
+            const swatch = document.createElement("i");
+            swatch.className = `environment-legend-swatch ${backendClass(row.physics_backend)}`;
+            swatch.style.setProperty("--environment-series-color", seriesColor(row, rows));
+            entry.append(swatch, seriesLabel(row));
             return entry;
         });
         legend.replaceChildren(...entries);
@@ -809,6 +835,9 @@
                 }
                 return parseCsv(await response.text())
                     .filter((row) => row.data_origin === "measured")
+                    .filter((row) => row.task.startsWith("Isaac-") && row.physics_backend !== "newton_kamino")
+                    .filter((row) => !(row.physics_backend === "isaacsim_physx" && row.rendering_backend === "ovrtx")
+                        && !(row.physics_backend === "ovphysx" && row.rendering_backend === "isaacsim_rtx"))
                     .map((row) => ({...row, channel}));
             } catch (error) {
                 benchmarkErrors.add(channel);
