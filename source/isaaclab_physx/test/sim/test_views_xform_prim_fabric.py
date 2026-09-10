@@ -1145,11 +1145,7 @@ def test_view_getter_inside_scope_raises(device, view_factory):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_zero_match_view_is_usable(device):
-    """A pattern that matches no prim yields an empty but fully usable view.
-
-    ``UsdFrameView`` allows a zero-match pattern, so the Fabric backend has to build an empty
-    selection instead of leaving its selections and index buffers unset.
-    """
+    """A pattern that matches no prim yields an empty but fully usable view."""
     _skip_if_unavailable(device)
     sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=0.01, device=device, use_fabric=True))
     view = FrameView("/World/NoSuchParent_[^/]*/Child", device=device)
@@ -1162,7 +1158,6 @@ def test_zero_match_view_is_usable(device):
         assert view.get_world_scales().warp.shape[0] == 0
         assert view.get_local_scales().warp.shape[0] == 0
 
-        # A writer scope over an empty view must be a no-op rather than an error.
         with view.xform_world_space_writer() as writer:
             writer.set_poses(
                 wp.zeros((0, 3), dtype=wp.float32, device=device),

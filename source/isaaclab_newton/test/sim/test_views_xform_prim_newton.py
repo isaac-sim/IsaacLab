@@ -196,11 +196,7 @@ def test_clone_plan_view_uses_source_child_without_destination_usd(device):
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_close_before_reset_cancels_deferred_initialization(device):
-    """Closing a view built before the Newton model exists must release its physics-ready callback.
-
-    Counterpart to the test above: that view initializes when ``PHYSICS_READY`` fires, so a closed
-    one must not -- a closed view has released its state and must stay inert.
-    """
+    """A view closed before the Newton model exists must not initialize on ``PHYSICS_READY``."""
     num_envs = 3
     ctx = _sim_context(device, num_envs=num_envs)
     sim = ctx.__enter__()

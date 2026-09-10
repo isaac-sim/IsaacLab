@@ -478,14 +478,9 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
             sim.register_interactive_scene(None)
 
 
-# FrameView (non-physics frame) synchronization. A FrameView prim is not a Newton body, so its *own*
-# pose writes had no path to Fabric. These tests check the same boundary as the body tests above: the
-# Fabric world matrix the renderer consumes.
-
-
 @contextlib.contextmanager
 def _frame_scene(frame_path: str, translation, device: str = "cuda:0"):
-    """Yield a reset render scene with a FrameView over a freshly created Xform at ``frame_path``."""
+    """Yield a reset render scene with a FrameView over a new Xform at ``frame_path``."""
     from isaaclab.sim.views import FrameView
 
     sim_cfg = SimulationCfg(
@@ -514,14 +509,25 @@ def _render(sim, device: str = "cuda:0") -> None:
     wp.synchronize_device(device)
 
 
-def _write_frame_world_position(view, position: torch.Tensor) -> None:
-    """Write a world-space position (identity rotation) through the view's world-space writer."""
-    positions = wp.from_torch(position.reshape(1, 3).contiguous(), dtype=wp.vec3f)
-    orientations = wp.from_torch(
-        torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=position.device), dtype=wp.vec4f
+def _world_pose(position: torch.Tensor) -> tuple[wp.array, wp.array]:
+    """Return ``(positions, orientations)`` writer arguments for ``position`` with identity rotation."""
+    return (
+        wp.from_torch(position.reshape(1, 3).contiguous(), dtype=wp.vec3f),
+        wp.from_torch(
+            torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=position.device), dtype=wp.vec4f
+        ),
     )
+
+
+def _write_frame_world_position(view, position: torch.Tensor) -> None:
+    """Write a world-space position through the view's world-space writer."""
     with view.xform_world_space_writer() as writer:
-        writer.set_poses(positions, orientations)
+        writer.set_poses(*_world_pose(position))
+
+
+def _reported_position(view) -> torch.Tensor:
+    """Read the view's own world position, as opposed to the one Fabric renders."""
+    return wp.to_torch(view.get_world_poses()[0].warp).cpu()[0]
 
 
 def _assert_position(actual: torch.Tensor, expected: torch.Tensor) -> None:
@@ -531,12 +537,7 @@ def _assert_position(actual: torch.Tensor, expected: torch.Tensor) -> None:
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
 def test_frame_view_pose_write_reaches_fabric():
-    """A world-attached FrameView pose write must reach the transform Kit/RTX renders.
-
-    Regression for camera poses set via ``Camera.set_world_poses`` under Newton: the write lands in
-    the Newton site's local transform and ``get_world_poses`` reflects it, but nothing mirrors it
-    onto the prim, so the renderer keeps drawing the frame at its spawn pose.
-    """
+    """A world-attached FrameView pose write reaches the transform Kit/RTX renders."""
     device = "cuda:0"
     frame_path = "/World/Frame"
     spawn_position = torch.tensor([0.0, 0.0, 2.0])
@@ -548,32 +549,23 @@ def test_frame_view_pose_write_reaches_fabric():
         _write_frame_world_position(view, target_position.to(device))
         _render(sim, device)
 
-        # The view's own report and the rendered transform must agree; only the latter regresses.
-        _assert_position(wp.to_torch(view.get_world_poses()[0].warp).cpu()[0], target_position)
+        _assert_position(_reported_position(view), target_position)
         _assert_position(_fabric_position(frame_path), target_position)
 
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
 def test_frame_view_pose_write_reaches_fabric_when_the_scope_raises():
-    """A write that lands in Newton must still be mirrored when the scope unwinds.
-
-    The Newton-side write is committed as soon as ``set_poses`` returns, so skipping the mirror on
-    the exception path would leave the renderer showing the old pose indefinitely.
-    """
+    """A pose write already committed to Newton is mirrored even when the scope unwinds."""
     device = "cuda:0"
     frame_path = "/World/Frame"
     target_position = torch.tensor([1.0, -0.5, 8.0])
 
     with _frame_scene(frame_path, (0.0, 0.0, 2.0), device) as (sim, _, view):
-        positions = wp.from_torch(target_position.reshape(1, 3).to(device).contiguous(), dtype=wp.vec3f)
-        orientations = wp.from_torch(
-            torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device), dtype=wp.vec4f
-        )
-        with pytest.raises(RuntimeError, match="scope body failed"):  # noqa: PT012 -- the raise is the scenario
+        with pytest.raises(RuntimeError, match="boom"):  # noqa: PT012 -- the raise is the scenario
             with view.xform_world_space_writer() as writer:
-                writer.set_poses(positions, orientations)
-                raise RuntimeError("scope body failed")
+                writer.set_poses(*_world_pose(target_position.to(device)))
+                raise RuntimeError("boom")
         _render(sim, device)
 
         _assert_position(_fabric_position(frame_path), target_position)
@@ -582,18 +574,12 @@ def test_frame_view_pose_write_reaches_fabric_when_the_scope_raises():
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
 def test_frame_view_pose_write_on_body_child_survives_body_motion():
-    """A pose write on a body-attached frame must render, and the frame must still track the body.
-
-    Writing a world pose has to update the frame's transform *relative to its body*, not pin it in
-    world space.  A fix that only stamps the world matrix renders correctly once and is then either
-    overwritten by the next hierarchy pass or frozen away from the body.
-    """
+    """A body-attached frame renders at the written pose and keeps tracking the body."""
     device = "cuda:0"
     body_path = "/World/envs/env_0/Cube"
     frame_path = f"{body_path}/Frame"
 
     with _frame_scene(frame_path, (0.0, 0.0, 0.35), device) as (sim, scene, view):
-        # Cube spawns at (0, 0, 1); place the frame 0.5 m to its +X side.
         body_start = torch.tensor([0.0, 0.0, 1.0])
         written_position = body_start + torch.tensor([0.5, 0.0, 0.0])
         _write_frame_world_position(view, written_position.to(device))
@@ -601,42 +587,30 @@ def test_frame_view_pose_write_on_body_child_survives_body_motion():
 
         _assert_position(_fabric_position(frame_path), written_position)
 
-        # Move the body; the frame must carry the written offset with it.
-        target_pose = torch.tensor([[1.5, -0.75, 2.0, 0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device)
-        scene["cube"].write_root_link_pose_to_sim_index(root_pose=target_pose)
+        body_pose = torch.tensor([[1.5, -0.75, 2.0, 0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device)
+        scene["cube"].write_root_link_pose_to_sim_index(root_pose=body_pose)
         _render(sim, device)
 
-        expected = target_pose[0, :3].cpu() + (written_position - body_start)
-        _assert_position(wp.to_torch(view.get_world_poses()[0].warp).cpu()[0], expected)
+        expected = body_pose[0, :3].cpu() + (written_position - body_start)
+        _assert_position(_reported_position(view), expected)
         _assert_position(_fabric_position(frame_path), expected)
 
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
 def test_first_frame_pose_write_after_body_move_leaves_the_body_rendered():
-    """Building the mirror must not reseed its prims from USD.
-
-    The mirror tags the frame *and its parent body*, whose Fabric transform Newton drives without
-    ever writing back to USD. Seeding from USD would snap the rendered body to its spawn pose, with
-    the body sync clean and unable to put it back. Hence the ordering: the body moves and renders
-    before the first frame write, which is what builds the mirror.
-    """
+    """Building the mirror must not reseed its prims from USD, which would unrender the moved body."""
     device = "cuda:0"
     body_path = "/World/envs/env_0/Cube"
     frame_path = f"{body_path}/Frame"
 
     with _frame_scene(frame_path, (0.0, 0.0, 0.35), device) as (sim, scene, view):
-        body_target = torch.tensor([1.5, -0.75, 2.0])
-        target_pose = torch.zeros((1, 7), dtype=torch.float32, device=device)
-        target_pose[0, :3] = body_target.to(device)
-        target_pose[0, 6] = 1.0
-
-        # Move and render the body first, so its Fabric transform is current and USD is stale.
-        scene["cube"].write_root_link_pose_to_sim_index(root_pose=target_pose)
+        body_pose = torch.tensor([[1.5, -0.75, 2.0, 0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device)
+        body_target = body_pose[0, :3].cpu()
+        scene["cube"].write_root_link_pose_to_sim_index(root_pose=body_pose)
         _render(sim, device)
         _assert_position(_fabric_position(body_path), body_target)
 
-        # First frame write: this is what builds the mirror.
         written_position = body_target + torch.tensor([0.5, 0.0, 0.0])
         _write_frame_world_position(view, written_position.to(device))
         _render(sim, device)
@@ -648,18 +622,12 @@ def test_first_frame_pose_write_after_body_move_leaves_the_body_rendered():
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
 def test_frame_view_pose_write_after_unrendered_steps_reaches_fabric():
-    """A pose write must render correctly even when the body moved since the last render.
-
-    Bodies sync to Fabric only at render cadence, so after ``sim.step(render=False)`` the parent's
-    Fabric matrix lags Newton. Deriving the frame's local matrix from that lagging parent displaces
-    the rendered frame by exactly the parent's motion once the next hierarchy pass runs.
-    """
+    """A pose write renders correctly even when the body moved since the last render."""
     device = "cuda:0"
     body_path = "/World/envs/env_0/Cube"
     frame_path = f"{body_path}/Frame"
 
     with _frame_scene(frame_path, (0.0, 0.0, 0.35), device) as (sim, scene, view):
-        # Move the body through physics without rendering, leaving its Fabric matrix at the old pose.
         velocity = torch.zeros((1, 6), dtype=torch.float32, device=device)
         velocity[0, 0] = 5.0
         scene["cube"].write_root_com_velocity_to_sim_index(root_velocity=velocity)
@@ -671,5 +639,5 @@ def test_frame_view_pose_write_after_unrendered_steps_reaches_fabric():
         _write_frame_world_position(view, target_position.to(device))
         _render(sim, device)
 
-        _assert_position(wp.to_torch(view.get_world_poses()[0].warp).cpu()[0], target_position)
+        _assert_position(_reported_position(view), target_position)
         _assert_position(_fabric_position(frame_path), target_position)
