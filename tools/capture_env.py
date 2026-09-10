@@ -26,7 +26,6 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-MAX_COPIED_FILE_BYTES = 16 << 20  # sized for `uv.lock`, the largest file copied verbatim
 SYMLINK_SCAN_DEPTH = 3  # reaches source/<package>/<module> without walking into an asset tree
 PRUNED_DIRECTORIES = frozenset(  # skipped by the symlink scan for size, not for lack of interest
     ".git .venv __pycache__ .pytest_cache .ruff_cache node_modules logs outputs _build".split()  # noqa: SIM905
@@ -72,13 +71,16 @@ def _run(command: list[str], timeout: int = 60) -> str | None:
     return done.stdout + done.stderr or None
 
 
-def _read_text(path: Path, limit: int = MAX_COPIED_FILE_BYTES) -> str | None:
+def _read_text(path: Path, limit: int | None = None) -> str | None:
+    """Return ``path`` as text. ``limit`` truncates; the files copied verbatim pass none, because a
+    lockfile cut at a byte offset is no longer a lockfile the reproduction can sync from."""
     try:
         data = path.read_bytes()
     except OSError:
         return None
-    text, marker = data[:limit].decode("utf-8", errors="replace"), "\n... [truncated]\n"
-    return text + marker if len(data) > limit else text
+    if limit is None or len(data) <= limit:
+        return data.decode("utf-8", errors="replace")
+    return data[:limit].decode("utf-8", errors="replace") + "\n... [truncated]\n"
 
 
 def _git(repo_root: Path, args: list[str], timeout: int = 15) -> str | None:
