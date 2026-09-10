@@ -165,9 +165,7 @@ def _build_map(env: ManagerBasedRLEnv) -> tuple[torch.Tensor, torch.Tensor]:
             )
         resolved = by_limits if by_limits is not None else by_name
         if resolved is None:
-            raise RuntimeError(
-                f"{name}: neither the limits nor the name determine the mirror sign; add it explicitly"
-            )
+            raise RuntimeError(f"{name}: neither the limits nor the name determine the mirror sign; add it explicitly")
         sign[i] = resolved
 
     mirrored_default = sign * default[perm]
@@ -226,9 +224,7 @@ def _mirror_group(env: ManagerBasedRLEnv, group: str, obs: torch.Tensor) -> torc
         elif name == "height_scan":
             if size != _SCAN_ROWS * _SCAN_COLS:
                 raise ValueError(f"height_scan is {size} values, not the {_SCAN_ROWS}x{_SCAN_COLS} grid")
-            out[:, offset : offset + size] = (
-                block.view(-1, _SCAN_ROWS, _SCAN_COLS).flip(dims=[1]).reshape(block.shape)
-            )
+            out[:, offset : offset + size] = block.view(-1, _SCAN_ROWS, _SCAN_COLS).flip(dims=[1]).reshape(block.shape)
         else:
             raise ValueError(f"no mirror defined for observation term {name!r}; refusing to guess")
         offset += size
