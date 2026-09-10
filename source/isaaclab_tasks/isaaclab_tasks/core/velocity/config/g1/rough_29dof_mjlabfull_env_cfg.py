@@ -57,7 +57,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import ContactSensor
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.math import quat_apply_inverse, matrix_from_quat
+from isaaclab.utils.math import matrix_from_quat, quat_apply_inverse
 
 from isaaclab_tasks.core.velocity.mdp.terminations import terrain_out_of_bounds
 
@@ -128,7 +128,9 @@ def track_ang_vel_mjlab(env, command_name: str, std: float = _ANG_STD) -> torch.
     return torch.exp(-error / std**2)
 
 
-def upright_body_exp(env, std: float = _UPRIGHT_STD, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+def upright_body_exp(
+    env, std: float = _UPRIGHT_STD, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
     """``exp(-|g_xy|^2 / std^2)`` for a named body, mjlab's ``upright`` on ``torso_link``.
 
     Args:
@@ -221,9 +223,7 @@ def feet_slip_l2(
     in_contact = (contacts.data.current_contact_time[:, sensor_cfg.body_ids] > 0.0).float()
     asset: Articulation = env.scene[asset_cfg.name]
     velocity = _as_tensor(asset.data.body_lin_vel_w)[:, asset_cfg.body_ids, :2]
-    return torch.sum(torch.sum(torch.square(velocity), dim=-1) * in_contact, dim=1) * _command_active(
-        env, command_name
-    )
+    return torch.sum(torch.sum(torch.square(velocity), dim=-1) * in_contact, dim=1) * _command_active(env, command_name)
 
 
 def soft_landing(env, command_name: str, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -284,9 +284,7 @@ class G129DofRoughMjlabFullEnvCfg(G129DofRoughMjlabScaleEnvCfg):
         rewards.track_angular_velocity = RewTerm(
             func=track_ang_vel_mjlab, weight=2.0, params={"command_name": "base_velocity", "std": _ANG_STD}
         )
-        rewards.upright = RewTerm(
-            func=upright_body_exp, weight=1.0, params={"std": _UPRIGHT_STD, "asset_cfg": torso}
-        )
+        rewards.upright = RewTerm(func=upright_body_exp, weight=1.0, params={"std": _UPRIGHT_STD, "asset_cfg": torso})
         rewards.pose = RewTerm(
             func=variable_posture,
             weight=1.0,
@@ -328,7 +326,5 @@ class G129DofRoughMjlabFullEnvCfg(G129DofRoughMjlabScaleEnvCfg):
         for term in ("base_contact", "base_height"):
             if hasattr(self.terminations, term):
                 setattr(self.terminations, term, None)
-        self.terminations.fell_over = DoneTerm(
-            func=bad_orientation, params={"limit_angle": _FELL_OVER_ANGLE}
-        )
+        self.terminations.fell_over = DoneTerm(func=bad_orientation, params={"limit_angle": _FELL_OVER_ANGLE})
         self.terminations.out_of_terrain_bounds = DoneTerm(func=terrain_out_of_bounds, time_out=True)
