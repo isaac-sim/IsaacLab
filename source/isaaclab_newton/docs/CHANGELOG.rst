@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+6.2.1 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a rebuilt Newton visualization model reusing the previous model's shadow-body index mapping.
+
+
 6.2.0 (2026-09-08)
 ~~~~~~~~~~~~~~~~~~
 

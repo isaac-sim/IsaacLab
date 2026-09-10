@@ -659,6 +659,24 @@ def test_prepare_native_actuators_does_not_zero_solver_gains(monkeypatch):
     assert gain_writes == []
 
 
+def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_path(monkeypatch):
+    """Keep implicit-only articulations on the unchanged solver-drive path."""
+    activation_calls = []
+    articulation = SimpleNamespace(_sim_cfg=SimpleNamespace(use_newton_actuators=True))
+    monkeypatch.setattr(SimulationManager, "activate_newton_actuator_path", lambda: activation_calls.append(True))
+
+    control = NewtonActuatorControl(articulation)
+    native_groups = control.prepare_native_actuators(
+        collection=None,
+        actuator_cfgs={"implicit": ImplicitActuatorCfg(joint_names_expr=["joint"], stiffness=10.0, damping=1.0)},
+    )
+
+    assert native_groups == set()
+    assert not control.native_actuator_path_active
+    assert not articulation._has_newton_actuators
+    assert activation_calls == []
+
+
 @pytest.mark.parametrize(
     ("actuator_cfg", "expected_mode", "expected_actuator_indices"),
     [
@@ -1065,8 +1083,9 @@ def test_newton_ordered_body_state_cache_invalidates_on_same_timestamp_root_writ
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
+@pytest.mark.parametrize("use_newton_actuators", [False])
 def test_newton_ordered_state_caches_invalidate_on_rebind(
-    sim, num_articulations, device, gravity_enabled, articulation_type, ordering_mode
+    sim, num_articulations, device, gravity_enabled, articulation_type, ordering_mode, use_newton_actuators
 ):
     """Rebind public state to recreated Newton arrays and invalidate ordered caches."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
@@ -1268,8 +1287,9 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
 @pytest.mark.parametrize("gravity_enabled", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
+@pytest.mark.parametrize("use_newton_actuators", [False])
 def test_newton_rebind_preserves_lab_owned_actuator_gains(
-    sim, num_articulations, device, gravity_enabled, articulation_type, ordering_mode
+    sim, num_articulations, device, gravity_enabled, articulation_type, ordering_mode, use_newton_actuators
 ):
     """Keep Lab-owned actuator gains across a rebind that re-seeds the solver's sim gains.
 
@@ -1592,7 +1612,7 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -1687,7 +1707,7 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -1736,7 +1756,7 @@ def test_initialization_fixed_base(sim, num_articulations, device, articulation_
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -1846,7 +1866,7 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -1903,7 +1923,7 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device, articu
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert actuator.is_implicit_model == is_implicit_model_cfg
+        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
 
     # Simulate physics
     for _ in range(10):
@@ -2824,8 +2844,9 @@ def test_setting_velocity_limit_implicit(
 @pytest.mark.parametrize("joint_velocity_limit", [1e5, None])
 @pytest.mark.parametrize("vel_limit", [1e2, None])
 @pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])  # consumed by the sim fixture
+@pytest.mark.parametrize("use_newton_actuators", [False])
 def test_setting_velocity_limit_explicit(
-    sim, articulation_type, num_articulations, device, joint_velocity_limit, vel_limit
+    sim, articulation_type, num_articulations, device, joint_velocity_limit, vel_limit, use_newton_actuators
 ):
     """Test setting of velocity limit for explicit actuators."""
     articulation_cfg = generate_articulation_cfg(
@@ -2924,8 +2945,15 @@ def test_setting_effort_limit_implicit(sim, articulation_type, num_articulations
 @pytest.mark.parametrize("joint_effort_limit", [1e5, None])
 @pytest.mark.parametrize("actuator_effort_limit", [1e2, None])
 @pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])  # consumed by the sim fixture
+@pytest.mark.parametrize("use_newton_actuators", [False])
 def test_setting_effort_limit_explicit(
-    sim, articulation_type, num_articulations, device, joint_effort_limit, actuator_effort_limit
+    sim,
+    articulation_type,
+    num_articulations,
+    device,
+    joint_effort_limit,
+    actuator_effort_limit,
+    use_newton_actuators,
 ):
     """Test setting of effort limit for explicit actuators.
 
@@ -4148,7 +4176,7 @@ def test_get_jacobians_link_origin_contract(sim, num_articulations, device, arti
     independently:
 
     * Predicted by ``J · q_dot``: takes the (already-shifted) Jacobian
-      and the same ``q_dot`` Newton has post-step. Linear rows should
+      and the same ``q_dot`` Newton has after the kinematics refresh. Linear rows should
       equal v_origin.
     * Ground truth from ``state.body_qd``: read Newton's per-body spatial
       twist directly via ``ArticulationView.get_link_velocities`` (which
@@ -4169,7 +4197,9 @@ def test_get_jacobians_link_origin_contract(sim, num_articulations, device, arti
     torch.manual_seed(0)
     qdot = torch.randn(num_articulations, articulation.num_joints, device=device) * 0.5
     articulation.write_joint_velocity_to_sim_index(velocity=qdot)
-    sim.step()
+    # Refresh kinematics without integrating: for floating bases, an actuator step can
+    # introduce root motion that is intentionally absent from the actuated-only J slice.
+    sim.forward()
     articulation.update(sim.cfg.dt)
 
     # body_link_jacobian_w prepends ``num_base_dofs`` floating-base columns; slice past

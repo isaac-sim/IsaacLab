@@ -48,7 +48,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/overview/core-concepts/task_workflows.rst`, `docs/source/tutorials/03_envs/create_manager_rl_env.rst`, direct/manager paired examples under `source/isaaclab_tasks/isaaclab_tasks/core/`, and shared MDP terms under task-specific `mdp/` packages.
+Keep this skill synchronized with `docs/source/concepts/task_workflows.rst`, `docs/source/tutorials/03_envs/create_manager_rl_env.rst`, direct/manager paired examples under `source/isaaclab_tasks/isaaclab_tasks/core/`, and shared MDP terms under task-specific `mdp/` packages.
 
 ## References
 
@@ -56,7 +56,7 @@ Keep this skill synchronized with `docs/source/overview/core-concepts/task_workf
 - [Evaluations](evaluations.md)
 - [Environment building skill](../create-environments/SKILL.md)
 - [Isaac Gym migration skill](../migrate-from-isaac-gym/SKILL.md)
-- [Task workflows](../../../docs/source/overview/core-concepts/task_workflows.rst)
+- [Task workflows](../../../docs/source/concepts/task_workflows.rst)
 - [Create manager-based RL environment tutorial](../../../docs/source/tutorials/03_envs/create_manager_rl_env.rst)
 - [Register Gym environment tutorial](../../../docs/source/tutorials/03_envs/register_rl_env_gym.rst)
 - [Ant direct environment](../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_direct_env.py)

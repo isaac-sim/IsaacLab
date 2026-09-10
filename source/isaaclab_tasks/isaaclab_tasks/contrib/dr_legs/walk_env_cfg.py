@@ -17,7 +17,7 @@ from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 import isaaclab_tasks.contrib.dr_legs.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg

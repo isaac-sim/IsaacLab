@@ -1,6 +1,45 @@
 Changelog
 ---------
 
+24.1.2 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed SKRL training and playback benchmarks to use the canonical task config and report its ``agent.class``.
+* Updated the Isaac Sim and standalone asset converter dependencies, Docker image default, and
+  installation guidance to 6.1. Recreate or resynchronize environments that install the
+  ``isaacsim`` or ``importers`` extras.
+
+Fixed
+^^^^^
+
+* Fixed ``SceneDataProvider`` allocating transform and geometry buffers on Warp's process-global
+  default device. Allocations now follow the device of the publication they consume.
+* Selected the configured PyTorch and Warp process device in ``SimulationContext`` before
+  constructing physics, rendering, and visualization backends.
+* Fixed ``uv run`` inside the kit-less Docker image resolving its own environment at
+  ``/workspace/isaaclab/.venv`` instead of the one the image ships. Commands such as
+  ``uv run isaaclab train ...`` reinstalled the entire locked dependency set and, when the
+  source tree was mounted from the host, failed with
+  ``could not create '<package>.egg-info': Permission denied``.
+* Initialized an already-imported PyTorch CUDA runtime before Kit startup so deferred capability checks do not retain
+  stale device indices when Kit filters the GPUs available to its Vulkan backend.
+* Fixed :class:`~isaaclab.controllers.OperationalSpaceController` using ``pose_abs`` target quaternions
+  without normalizing them. Unnormalized policy outputs scaled the orientation error and the commanded
+  efforts by the quaternion norm. Targets are now normalized, and degenerate (zero or non-finite)
+  quaternions fall back to the current end-effector orientation, matching the absolute-pose handling of
+  :class:`~isaaclab.controllers.DifferentialIKController`.
+* Fixed ``isaaclab.utils.configclass`` resolving to either the sub-module or the
+  :func:`~isaaclab.utils.configclass.configclass` decorator depending on which one happened to be
+  imported first. ``from isaaclab.utils import configclass`` could return the sub-module, making
+  ``@configclass`` fail with ``TypeError: 'module' object is not callable``, and resolving the
+  decorator first left the sub-module unreachable as an attribute of :mod:`isaaclab.utils`. The
+  sub-module is now callable, so the decorator, ``import isaaclab.utils.configclass as ...`` and
+  dotted attribute access all work regardless of import order. No migration is needed.
+
+
 24.1.1 (2026-09-09)
 ~~~~~~~~~~~~~~~~~~~
 

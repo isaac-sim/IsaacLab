@@ -37,6 +37,17 @@ def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> boo
     return False
 
 
+def _static_collider_owner_path(stage: Usd.Stage, collider_path: str) -> str:
+    """Return the nearest rigid-body ancestor or the collider's immediate parent."""
+    collider_prim = stage.GetPrimAtPath(collider_path)
+    prim = collider_prim.GetParent() if collider_prim else None
+    while prim and not prim.IsPseudoRoot():
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            return str(prim.GetPath())
+        prim = prim.GetParent()
+    return collider_path.rpartition("/")[0]
+
+
 def _restore_visible_colliders_without_visual_shapes(
     builder: ModelBuilder,
     stage: Usd.Stage,
@@ -58,6 +69,14 @@ def _restore_visible_colliders_without_visual_shapes(
     """
     if not path_shape_map or not load_visual_shapes:
         return
+    # Newton may synthesize a visible ``*_visual`` mesh for a proxy-purpose collider.
+    # It is not an authored USD prim and must remain hidden alongside its source collider.
+    for index, path in enumerate(builder.shape_label):
+        if not path.endswith("_visual") or stage.GetPrimAtPath(path):
+            continue
+        collider_prim = stage.GetPrimAtPath(path.removesuffix("_visual"))
+        if collider_prim and collider_prim.HasAPI(UsdPhysics.CollisionAPI):
+            builder.shape_flags[index] &= ~ShapeFlags.VISIBLE
     bodies_with_visual_shapes = {
         builder.shape_body[index]
         for index, flags in enumerate(builder.shape_flags)
@@ -65,7 +84,7 @@ def _restore_visible_colliders_without_visual_shapes(
     }
     # Resolved on first use: a static parent whose colliders are all filtered out below is
     # never traversed at all.
-    static_parents_with_visual_shapes: dict[str, bool] = {}
+    static_owners_with_visual_shapes: dict[str, bool] = {}
     for path, index in path_shape_map.items():
         flags = builder.shape_flags[index]
         body_index = builder.shape_body[index]
@@ -76,10 +95,10 @@ def _restore_visible_colliders_without_visual_shapes(
         ):
             continue
         if body_index < 0:
-            parent_path = path.rpartition("/")[0]
-            if parent_path not in static_parents_with_visual_shapes:
-                static_parents_with_visual_shapes[parent_path] = _has_visible_non_collision_geometry(stage, parent_path)
-            if static_parents_with_visual_shapes[parent_path]:
+            owner_path = _static_collider_owner_path(stage, path)
+            if owner_path not in static_owners_with_visual_shapes:
+                static_owners_with_visual_shapes[owner_path] = _has_visible_non_collision_geometry(stage, owner_path)
+            if static_owners_with_visual_shapes[owner_path]:
                 continue
         imageable = UsdGeom.Imageable(stage.GetPrimAtPath(path))
         if (
@@ -203,6 +222,9 @@ def _label_groups(builder: ModelBuilder) -> dict[str, list]:
     groups = {
         name: value for name, value in vars(builder).items() if name.endswith("_label") and isinstance(value, list)
     }
+    for frequency in builder.custom_frequencies.values():
+        if frequency.label_attribute is not None:
+            groups[frequency.label_attribute] = builder.custom_attributes[frequency.label_attribute].values
     groups["mujoco:equality_constraint_label"] = builder.custom_attributes["mujoco:equality_constraint_label"].values
     return groups
 
@@ -281,6 +303,8 @@ def replicate_builder_mapping(
         source_xform_inv = _invert_xform(xforms_np[0])
         xforms = _compose_world_xforms(positions, quaternions, source_xform_inv)
 
+        # Resolve label-based ownership before names become relative but target paths do not.
+        source_builder._resolve_custom_frequency_articulation_owners()
         label_groups = _label_groups(source_builder)
         original_labels = {name: list(labels) for name, labels in label_groups.items()}
         try:

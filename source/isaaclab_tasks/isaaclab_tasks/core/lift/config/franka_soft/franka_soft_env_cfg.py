@@ -40,8 +40,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_contrib.coupling import (
