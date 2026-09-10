@@ -75,12 +75,12 @@ ffmpeg -y -v error \
     -i "${WORK_DIR}/random/random_0000.mp4" \
     -i "${WORK_DIR}/play/play_0000.mp4" \
     -filter_complex \
-    "[0:v]select='not(mod(n,5))',setpts=N/(12*TB),hqdn3d=2:2:6:6,drawbox=x=8:y=8:w=112:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='zero_agent':fontcolor=white:fontsize=16:x=16:y=13[zero];
-     [1:v]select='not(mod(n,5))',setpts=N/(12*TB),hqdn3d=2:2:6:6,drawbox=x=8:y=8:w=134:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='random_agent':fontcolor=white:fontsize=16:x=16:y=13[random];
-     [2:v]select='not(mod(n,5))',setpts=N/(12*TB),hqdn3d=2:2:6:6,drawbox=x=8:y=8:w=58:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='play':fontcolor=white:fontsize=16:x=16:y=13[play];
+    "[0:v]select='not(mod(n,5))',setpts=N/(12*TB),scale=320:240:flags=lanczos,hqdn3d=1:1:3:3,drawbox=x=8:y=8:w=112:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='zero_agent':fontcolor=white:fontsize=16:x=16:y=13[zero];
+     [1:v]select='not(mod(n,5))',setpts=N/(12*TB),scale=320:240:flags=lanczos,hqdn3d=1:1:3:3,drawbox=x=8:y=8:w=134:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='random_agent':fontcolor=white:fontsize=16:x=16:y=13[random];
+     [2:v]select='not(mod(n,5))',setpts=N/(12*TB),scale=320:240:flags=lanczos,hqdn3d=1:1:3:3,drawbox=x=8:y=8:w=58:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='play':fontcolor=white:fontsize=16:x=16:y=13[play];
      [zero][random][play]hstack=inputs=3,split[frames][palette_frames];
-     [palette_frames]palettegen=max_colors=128:stats_mode=diff[palette];
-     [frames][palette]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" \
+     [palette_frames]palettegen=max_colors=256:stats_mode=diff[palette];
+     [frames][palette]paletteuse=dither=sierra2_4a:diff_mode=rectangle" \
     -loop 0 "${OUTPUT_DIR}/agent-comparison.gif"
 
 ffmpeg -y -v error \
@@ -88,12 +88,12 @@ ffmpeg -y -v error \
     -i "${WORK_DIR}/g1/g1_0000.mp4" \
     -i "${WORK_DIR}/kuka_allegro/kuka_allegro_0000.mp4" \
     -filter_complex \
-    "[0:v]crop=320:180:0:30,select='not(mod(n,5))',setpts=N/(12*TB),hqdn3d=2:2:6:6,drawbox=x=8:y=8:w=82:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='Cartpole':fontcolor=white:fontsize=16:x=16:y=13[cartpole];
-     [1:v]crop=320:180:0:30,select='not(mod(n,5))',setpts=N/(12*TB),hqdn3d=2:2:6:6,drawbox=x=8:y=8:w=128:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='G1 locomotion':fontcolor=white:fontsize=16:x=16:y=13[g1];
-     [2:v]crop=320:180:0:30,select='not(mod(n,5))',setpts=N/(12*TB),hqdn3d=2:2:6:6,drawbox=x=8:y=8:w=116:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='Kuka Allegro':fontcolor=white:fontsize=16:x=16:y=13[kuka];
+    "[0:v]crop=1280:720:0:120,select='not(mod(n,5))',setpts=N/(12*TB),scale=320:180:flags=lanczos,hqdn3d=1:1:3:3,drawbox=x=8:y=8:w=82:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='Cartpole':fontcolor=white:fontsize=16:x=16:y=13[cartpole];
+     [1:v]crop=1280:720:0:120,select='not(mod(n,5))',setpts=N/(12*TB),scale=320:180:flags=lanczos,hqdn3d=1:1:3:3,drawbox=x=8:y=8:w=128:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='G1 locomotion':fontcolor=white:fontsize=16:x=16:y=13[g1];
+     [2:v]crop=1280:720:0:120,select='not(mod(n,5))',setpts=N/(12*TB),scale=320:180:flags=lanczos,hqdn3d=1:1:3:3,drawbox=x=8:y=8:w=116:h=28:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='Kuka Allegro':fontcolor=white:fontsize=16:x=16:y=13[kuka];
      [cartpole][g1][kuka]hstack=inputs=3,split[frames][palette_frames];
-     [palette_frames]palettegen=max_colors=128:stats_mode=diff[palette];
-     [frames][palette]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" \
+     [palette_frames]palettegen=max_colors=256:stats_mode=diff[palette];
+     [frames][palette]paletteuse=dither=sierra2_4a:diff_mode=rectangle" \
     -loop 0 "${OUTPUT_DIR}/task-sampler.gif"
 
 for output in agent-comparison.gif task-sampler.gif; do
