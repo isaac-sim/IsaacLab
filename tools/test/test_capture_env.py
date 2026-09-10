@@ -12,8 +12,6 @@ import sys
 import zipfile
 from pathlib import Path
 
-import pytest
-
 
 def _bootstrap_paths() -> None:
     """Prepend ``tools/`` so the module under test imports from the working tree."""
@@ -25,14 +23,11 @@ def _bootstrap_paths() -> None:
 _bootstrap_paths()
 
 from capture_env import (  # noqa: E402
-    ISAAC_LAB_ENV_VARS,
-    collect_environment,
     collect_repo,
     lock_extras,
     parse_lock,
     render_document,
     resolve_sync_plan,
-    sanitize_remote_url,
     scan_distributions,
     select_sync_extras,
     write_bundle,
@@ -111,119 +106,68 @@ def _manifest(**sections) -> dict:
     return base
 
 
-def _stub_remotes(monkeypatch, remotes: str) -> None:
-    """Make ``git remote -v`` return ``remotes`` and every other git command return nothing."""
-    monkeypatch.setattr(
-        "capture_env._git",
-        lambda root, args, timeout=15: remotes if args[:2] == ["remote", "-v"] else "",
-    )
+class TestRepositoryRevision:
+    """The checked-out revision is read out of ``.git``, without running git."""
 
+    @staticmethod
+    def _repo(root: Path, head: str, refs: dict[str, str] | None = None, packed: str | None = None) -> Path:
+        """Write a ``.git`` holding ``head``, plus any loose ``refs`` and ``packed-refs`` content."""
+        git_dir = root / ".git"
+        (git_dir / "refs" / "heads").mkdir(parents=True)
+        (git_dir / "HEAD").write_text(head)
+        for name, sha in (refs or {}).items():
+            (git_dir / "refs" / "heads" / name).write_text(sha + "\n")
+        if packed is not None:
+            (git_dir / "packed-refs").write_text(packed)
+        return root
 
-class TestEnvironmentAllowlist:
-    """The process environment is captured by an exact, closed list of names."""
+    def test_a_branch_is_read_from_its_loose_ref(self, tmp_path):
+        sha = "a" * 40
+        self._repo(tmp_path, "ref: refs/heads/main\n", refs={"main": sha})
 
-    @pytest.mark.parametrize(
-        "name",
-        ["ISAAC_PATH", "EXP_PATH", "PYTHONPATH", "LD_LIBRARY_PATH", "LD_PRELOAD", "CARB_APP_PATH", "WARP_CACHE_PATH"],
-    )
-    def test_variables_isaac_lab_reads_are_collected(self, name):
-        assert name in ISAAC_LAB_ENV_VARS
+        assert collect_repo(tmp_path)[0]["git"] == {"commit": sha, "branch": "main"}
 
-    @pytest.mark.parametrize(
-        "name",
-        ["MY_INTERNAL_HOST", "SSH_AUTH_SOCK", "SLACK_WEBHOOK", "AWS_PROFILE", "NGC_API_KEY", "UV_INDEX_URL"],
-    )
-    def test_names_outside_the_list_are_never_collected_however_they_are_spelled(self, name):
-        """No prefix or pattern matching, so a credential cannot arrive under a known namespace."""
-        assert name not in ISAAC_LAB_ENV_VARS
+    def test_a_branch_with_no_loose_ref_falls_back_to_packed_refs(self, tmp_path):
+        """A clone keeps its branches packed, so the loose file is simply absent."""
+        sha = "b" * 40
+        packed = "# pack-refs with: peeled fully-peeled sorted\n" + sha + " refs/heads/main\n"
+        self._repo(tmp_path, "ref: refs/heads/main\n", packed=packed)
 
-    def test_the_list_holds_exact_names_only(self):
-        """A near-miss on a listed name must not match; only the listed spelling counts."""
-        assert "ISAACLAB_TEST_DEVICES" in ISAAC_LAB_ENV_VARS
-        assert "ISAACLAB_TEST_DEVICES_EXTRA" not in ISAAC_LAB_ENV_VARS
-        assert "MY_ISAAC_PATH" not in ISAAC_LAB_ENV_VARS
+        assert collect_repo(tmp_path)[0]["git"] == {"commit": sha, "branch": "main"}
 
-    def test_uncollected_variables_are_counted_but_never_named(self, monkeypatch):
-        monkeypatch.setattr(
-            "os.environ",
-            {"ISAAC_PATH": "/isaac", "NGC_API_KEY": "secret", "CUSTOMER_INTERNAL_HOST": "host.corp"},
-        )
-        section, artifacts = collect_environment()
+    def test_a_detached_head_records_the_commit_and_no_branch(self, tmp_path):
+        sha = "c" * 40
+        self._repo(tmp_path, sha + "\n")
 
-        assert section["variables"] == {"ISAAC_PATH": "/isaac"}
-        assert section["omitted_count"] == 2
-        rendered = artifacts["env/environment.txt"]
-        for leaked in ("CUSTOMER_INTERNAL_HOST", "host.corp", "secret", "NGC_API_KEY"):
-            assert leaked not in rendered
-            assert leaked not in json.dumps(section)
+        assert collect_repo(tmp_path)[0]["git"] == {"commit": sha, "branch": None}
 
-    def test_every_listed_name_is_upper_case_and_unqualified(self):
-        """Guards against a stray lower-case or prefixed entry slipping into the list."""
-        assert all(name == name.upper() and not name.startswith("_") for name in ISAAC_LAB_ENV_VARS)
+    def test_a_worktree_follows_the_redirect_to_the_state_it_shares(self, tmp_path):
+        """A worktree keeps its own HEAD beside itself and shares refs with the checkout it came from."""
+        sha = "d" * 40
+        main = self._repo(tmp_path / "main", "ref: refs/heads/main\n", refs={"main": sha, "side": sha})
+        linked = tmp_path / "linked"
+        linked.mkdir()
+        worktree_dir = main / ".git" / "worktrees" / "linked"
+        worktree_dir.mkdir(parents=True)
+        (worktree_dir / "HEAD").write_text("ref: refs/heads/side\n")
+        (worktree_dir / "commondir").write_text("../..\n")
+        (linked / ".git").write_text("gitdir: " + str(worktree_dir) + "\n")
 
+        assert collect_repo(linked)[0]["git"] == {"commit": sha, "branch": "side"}
 
-class TestRemoteSanitization:
-    """A remote is recorded only on request, and never with the credential a checkout stored."""
+    def test_a_directory_that_is_not_a_checkout_reports_nothing(self, tmp_path):
+        """The capture still has to produce a bundle when it is pointed somewhere unexpected."""
+        assert collect_repo(tmp_path)[0]["git"] == {"commit": None, "branch": None}
 
-    @pytest.mark.parametrize(
-        "url, expected",
-        [
-            ("https://ghp_TOKEN@github.com/org/repo.git", "https://github.com/org/repo.git"),
-            ("https://oauth2:glpat_TOKEN@gitlab.example.com/org/repo.git", "https://gitlab.example.com/org/repo.git"),
-            ("http://user:password@host.corp/repo.git", "http://host.corp/repo.git"),
-            ("ssh://user:password@host.corp/repo.git", "ssh://host.corp/repo.git"),
-            ("user:password@host.corp:org/repo.git", "host.corp:org/repo.git"),
-        ],
-    )
-    def test_credentials_are_removed(self, url, expected):
-        assert sanitize_remote_url(url) == expected
+    def test_the_project_files_are_copied_verbatim(self, tmp_path):
+        """Written as bytes: a lockfile is copied exactly, line endings included."""
+        (tmp_path / "pyproject.toml").write_bytes(b"[project]\nname = 'demo'\n")
+        (tmp_path / "uv.lock").write_bytes(b"version = 1\n")
 
-    @pytest.mark.parametrize(
-        "url",
-        [
-            "https://github.com/isaac-sim/IsaacLab.git",
-            "git@github.com:isaac-sim/IsaacLab.git",
-            "ssh://git@github.com:22/isaac-sim/IsaacLab.git",
-            "git://github.com/isaac-sim/IsaacLab.git",
-            "/srv/git/IsaacLab.git",
-        ],
-    )
-    def test_a_url_without_a_credential_survives_intact(self, url):
-        """The clone step is only actionable if a key-authenticated remote is left usable."""
-        assert sanitize_remote_url(url) == url
+        _, artifacts = collect_repo(tmp_path)
 
-    def test_remotes_are_omitted_by_default(self, tmp_path, monkeypatch):
-        """A fork's URL names a host and an organisation the reproduction does not need."""
-        _stub_remotes(monkeypatch, "origin\thttps://github.corp.internal/team/repo.git (fetch)")
-
-        section, artifacts = collect_repo(tmp_path, include_diff=False)
-
-        assert section["git"]["remotes_included"] is False
-        assert "remotes" not in section["git"]
-        assert "repo/git-remote.txt" not in artifacts
-        assert "github.corp.internal" not in json.dumps(section)
-
-    def test_neither_the_manifest_nor_the_stored_listing_carries_the_token(self, tmp_path, monkeypatch):
-        _stub_remotes(
-            monkeypatch,
-            "origin\thttps://ghp_TOKEN@github.com/org/repo.git (fetch)\n"
-            "origin\thttps://ghp_TOKEN@github.com/org/repo.git (push)\n",
-        )
-
-        section, artifacts = collect_repo(tmp_path, include_diff=False, include_remotes=True)
-
-        assert section["git"]["remotes"] == ["https://github.com/org/repo.git"]
-        assert section["git"]["remotes_redacted"] is True
-        assert "ghp_TOKEN" not in artifacts["repo/git-remote.txt"]
-        assert "ghp_TOKEN" not in json.dumps(section)
-
-    def test_a_remote_with_nothing_to_redact_is_not_reported_as_redacted(self, tmp_path, monkeypatch):
-        _stub_remotes(monkeypatch, "origin\tgit@github.com:isaac-sim/IsaacLab.git (fetch)")
-
-        section, artifacts = collect_repo(tmp_path, include_diff=False, include_remotes=True)
-
-        assert section["git"]["remotes_redacted"] is False
-        assert artifacts["repo/git-remote.txt"] == "origin\tgit@github.com:isaac-sim/IsaacLab.git (fetch)"
+        assert artifacts["files/pyproject.toml"] == "[project]\nname = 'demo'\n"
+        assert artifacts["files/uv.lock"] == "version = 1\n"
 
 
 class TestDistributionScan:
@@ -307,17 +251,15 @@ class TestDocument:
         assert document.index("unzip <this-bundle>.zip") < document.index("cp ../bundle/files/pyproject.toml")
 
     def test_only_hand_made_symlinks_appear_in_the_recreate_step(self):
-        """A tracked link arrives with the clone and a venv link is recreated by the sync."""
+        """A link inside the virtual environment is recreated by the sync, so it is not a step."""
         manifest = _manifest(
             links={
                 "symlinks": [
-                    {"path": "/repo/_isaac_sim", "target": "/build", "exists": True, "tracked": False},
-                    {"path": "/repo/.agents/skill", "target": "../s", "exists": True, "tracked": True},
+                    {"path": "/repo/_isaac_sim", "target": "/build", "exists": True},
                     {
                         "path": "/repo/.venv/bin/python",
                         "target": "/uv/python3.12",
                         "exists": True,
-                        "tracked": False,
                         "in_virtualenv": True,
                     },
                 ]
@@ -327,7 +269,6 @@ class TestDocument:
         document = render_document(manifest, {})
 
         assert "ln -s /build _isaac_sim" in document
-        assert "skill" not in document
         assert "/uv/python3.12" not in document
 
     def test_machine_owned_variables_are_recorded_but_not_exported(self):

@@ -27,13 +27,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-SYMLINK_SCAN_DEPTH = 3  # reaches source/<package>/<module> without walking into an asset tree
-PRUNED_DIRECTORIES = frozenset(  # skipped by the symlink scan for size, not for lack of interest
-    ".git .venv __pycache__ .pytest_cache .ruff_cache node_modules logs outputs _build".split()  # noqa: SIM905
-)
-# An HTTPS remote authenticates with what its URL carries; an SSH remote's userinfo is a login name.
-CREDENTIAL_BEARING_URL_SCHEMES = frozenset({"ftp", "ftps", "http", "https"})
-# Collected, but never exported by the document: these describe the machine, not the run.
+ISAAC_LAB_REMOTE = "https://github.com/isaac-sim/IsaacLab.git"  # no remote is recorded, so the clone is upstream
 MACHINE_OWNED_ENV_VARS = frozenset("CONDA_PREFIX ISAACLAB_PATH TMPDIR USER USERNAME VIRTUAL_ENV".split())  # noqa: SIM905
 ISAAC_LAB_ENV_VARS = frozenset(
     """
@@ -82,31 +76,6 @@ def _read_text(path: Path, limit: int | None = None) -> str | None:
     if limit is None or len(data) <= limit:
         return data.decode("utf-8", errors="replace")
     return data[:limit].decode("utf-8", errors="replace") + "\n... [truncated]\n"
-
-
-def _git(repo_root: Path, args: list[str], timeout: int = 15) -> str | None:
-    options = {"capture_output": True, "text": True, "errors": "replace", "timeout": timeout, "check": False}
-    try:
-        done = subprocess.run(["git", *args], cwd=str(repo_root), **options)
-    except (OSError, subprocess.SubprocessError):
-        return None
-    return done.stdout if done.returncode == 0 else None
-
-
-def sanitize_remote_url(url: str) -> str:
-    """Return ``url`` without the userinfo that can hold a credential; bundles go onto public issues."""
-    scheme, separator, rest = url.partition("://")
-    if not separator:
-        # SCP-style or a local path. Only the `user:password@host` form holds a secret.
-        userinfo, at_sign, tail = url.rpartition("@")
-        return tail if at_sign and ":" in userinfo else url
-    authority, slash, path = rest.partition("/")
-    userinfo, at_sign, host = authority.rpartition("@")
-    if not at_sign:
-        return url
-    if scheme.lower() in CREDENTIAL_BEARING_URL_SCHEMES or ":" in userinfo:
-        return f"{scheme}://{host}{slash}{path}"
-    return url
 
 
 def _requirement_nodes(requirements: list[dict]) -> set[str]:
@@ -204,44 +173,44 @@ def collect_environment() -> tuple[dict, dict[str, str]]:
     return {"variables": variables, "omitted_count": omitted}, {"env/environment.txt": rendered}
 
 
-def collect_repo(repo_root: Path, include_diff: bool, include_remotes: bool = False) -> tuple[dict, dict[str, str]]:
-    """Return the repository's git state, with ``pyproject.toml`` and ``uv.lock`` copied verbatim.
+def collect_repo(repo_root: Path) -> tuple[dict, dict[str, str]]:
+    """Return the checked-out revision, with ``pyproject.toml`` and ``uv.lock`` copied verbatim.
 
-    Both flags are off by default: a dirty tree can hold code the sender may not share, and a fork's
-    URL names an organisation and a host. The diffstat is stored either way, so the gap stays visible.
+    Read out of ``.git`` rather than through the git binary, which an installation broken enough to
+    need capturing may not have, and which a read-only mount will not run.
     """
     artifacts = {f"files/{name}": _read_text(repo_root / name) or "" for name in ("pyproject.toml", "uv.lock")}
-    artifacts["repo/git-status.txt"] = status = _git(repo_root, ["status", "--porcelain"]) or ""
-    artifacts["repo/git-diffstat.txt"] = _git(repo_root, ["diff", "--stat", "HEAD"]) or ""
-    git_info: dict = {"dirty": bool(status.strip()), "diff_included": False, "remotes_included": include_remotes}
-    git_info["commit"] = (_git(repo_root, ["rev-parse", "HEAD"]) or "").strip() or None
-    git_info["branch"] = (_git(repo_root, ["rev-parse", "--abbrev-ref", "HEAD"]) or "").strip() or None
-    if include_diff and git_info["dirty"]:
-        artifacts["repo/git-diff.patch"] = _git(repo_root, ["diff", "HEAD"], timeout=60) or ""
-        git_info["diff_included"] = True
-    # Redacted on the way in, so the manifest, the listing, and the clone command all read the same.
-    rows = [(line, line.split()) for line in (_git(repo_root, ["remote", "-v"]) or "").splitlines() if include_remotes]
-    if rows:
-        urls = {fields[1]: sanitize_remote_url(fields[1]) for _, fields in rows if len(fields) > 1}
-        artifacts["repo/git-remote.txt"] = "\n".join(
-            "\t".join([f[0], " ".join([urls[f[1]], *f[2:]])]) if len(f) > 1 else line for line, f in rows
+    dot_git, git_dir = repo_root / ".git", None
+    if dot_git.is_dir():
+        git_dir = dot_git
+    elif (redirect := (_read_text(dot_git, limit=4096) or "").strip()).startswith("gitdir:"):
+        git_dir = Path(redirect.removeprefix("gitdir:").strip())  # a worktree points at its real state
+    head = ((_read_text(git_dir / "HEAD", limit=4096) if git_dir else None) or "").strip()
+    branch = head.partition("ref: refs/heads/")[2] or None
+    commit = None if branch else head or None
+    if branch and git_dir:
+        # A worktree keeps its own HEAD but shares refs with the checkout it was made from.
+        common = (_read_text(git_dir / "commondir", limit=4096) or ".").strip()
+        roots = [git_dir, (git_dir / common).resolve()]
+        loose = (_read_text(d / "refs" / "heads" / branch, limit=4096) for d in roots)
+        packed = "".join(_read_text(d / "packed-refs", limit=1 << 20) or "" for d in roots)
+        commit = next((ref.strip() for ref in loose if ref), None) or next(
+            (line.split()[0] for line in packed.splitlines() if line.endswith(f" refs/heads/{branch}")), None
         )
-        git_info["remotes"] = sorted(set(urls.values()))
-        git_info["remotes_redacted"] = any(raw != clean for raw, clean in urls.items())
-    return {"root": str(repo_root), "git": git_info}, {k: v for k, v in artifacts.items() if v}
+    return {"root": str(repo_root), "git": {"commit": commit, "branch": branch}}, {
+        name: content for name, content in artifacts.items() if content
+    }
 
 
 def build_manifest(
     repo_root: Path,
     venv: Path | None,
     command: str | None = None,
-    include_diff: bool = False,
-    include_remotes: bool = False,
 ) -> tuple[dict, dict[str, str]]:
     """Capture an environment into a manifest and the files stored alongside it."""
     capture = {"hostname": socket.gethostname(), "command_under_test": command}
     manifest: dict = {"captured_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "capture": capture}
-    manifest["repo"], artifacts = collect_repo(repo_root, include_diff, include_remotes)
+    manifest["repo"], artifacts = collect_repo(repo_root)
     manifest["environment"], files = collect_environment()
     artifacts.update(files)
     query = "index,name,uuid,driver_version,vbios_version,memory.total"
@@ -257,23 +226,14 @@ def build_manifest(
         for pth in sorted(site_packages.glob("*.pth")):
             artifacts[f"files/pth/{pth.name}"] = _read_text(pth, limit=256 << 10) or ""
     manifest["sync"] = resolve_sync_plan(artifacts.get("files/uv.lock"), manifest["python"]["distributions"])
-    tracked = {
-        str(repo_root / line.split("\t", 1)[1])
-        for line in (_git(repo_root, ["ls-files", "-s"]) or "").splitlines()
-        if line.startswith("120000 ") and "\t" in line
-    }
-    symlinks: list[dict] = []
-    frontier = [(repo_root, SYMLINK_SCAN_DEPTH), *([(site_packages, 0)] if site_packages else [])]
-    while frontier:
-        directory, depth = frontier.pop()
-        for entry in sorted(directory.iterdir()) if directory.is_dir() else []:
-            if entry.is_symlink():
-                link = {"path": str(entry), "target": os.readlink(entry), "exists": entry.exists()}
-                link["tracked"] = link["path"] in tracked
-                link["in_virtualenv"] = any((parent / "pyvenv.cfg").is_file() for parent in entry.parents)
-                symlinks.append(link)
-            elif depth > 0 and entry.is_dir() and entry.name not in PRUNED_DIRECTORIES:
-                frontier.append((entry, depth - 1))
+    # Only the top level: a link that redirects imports sits at the root (`_isaac_sim`) or in
+    # site-packages, and everything deeper in this tree is tracked and arrives with the clone.
+    symlinks = [
+        {"path": str(entry), "target": os.readlink(entry), "exists": entry.exists(), "in_virtualenv": in_venv}
+        for directory, in_venv in ((repo_root, False), *([(site_packages, True)] if site_packages else ()))
+        for entry in sorted(directory.iterdir())
+        if entry.is_symlink()
+    ]
     manifest["links"] = {"symlinks": symlinks}
     return manifest, {name: content for name, content in artifacts.items() if content}
 
@@ -284,20 +244,18 @@ def render_document(manifest: dict, artifacts: dict[str, str]) -> str:
     git, environment = repo.get("git", {}), manifest.get("environment", {})
     variables, omitted = environment.get("variables", {}), environment.get("omitted_count", 0)
     root = str(repo.get("root", ""))
-    remote = (git.get("remotes") or ["https://github.com/isaac-sim/IsaacLab.git"])[0]
     command = manifest.get("capture", {}).get("command_under_test")
     hand_made = [
         link
         for link in manifest.get("links", {}).get("symlinks", [])
-        if link["path"].startswith(root) and not link.get("tracked") and not link.get("in_virtualenv")
+        if link["path"].startswith(root) and not link.get("in_virtualenv")
     ]
     exportable = {name: value for name, value in variables.items() if name not in MACHINE_OWNED_ENV_VARS}
     owned = ", ".join(f"`{name}`" for name in sorted(set(variables) & MACHINE_OWNED_ENV_VARS))
     steps = [
         "unzip <this-bundle>.zip -d bundle",
-        f"git clone {remote} IsaacLab-repro && cd IsaacLab-repro",
+        f"git clone {ISAAC_LAB_REMOTE} IsaacLab-repro && cd IsaacLab-repro",
         *([f"git checkout {git['commit']}"] if git.get("commit") else []),
-        *(["git apply ../bundle/repo/git-diff.patch"] if git.get("diff_included") else []),
         "cp ../bundle/files/pyproject.toml ../bundle/files/uv.lock .",
         sync.get("command", "uv sync --locked"),
         *(
@@ -310,8 +268,8 @@ def render_document(manifest: dict, artifacts: dict[str, str]) -> str:
     notes = []
     if sync.get("extras"):
         notes.append("The extras are derived from what is installed; `uv sync` deletes whatever they leave out.")
-    if not git.get("remotes_included"):
-        notes.append("Remotes were not recorded: the clone URL is Isaac Lab; a commit missing from it is a fork's.")
+    if git.get("commit"):
+        notes.append("The clone URL is Isaac Lab itself; a commit missing from it came from a fork.")
     if owned:
         notes.append(f"Recorded but never exported, because they describe the machine, not the run: {owned}.")
     summary = (
@@ -365,16 +323,12 @@ def main(argv: list[str] | None = None) -> int:
     capture.add_argument("--venv", default=None, help="Environment to describe. Default: $VIRTUAL_ENV, else .venv.")
     capture.add_argument("--output_dir", default=".", help="Where to write the bundle. Default: the current directory.")
     capture.add_argument("--command", default=None, help="The command that prompted this capture, recorded verbatim.")
-    capture.add_argument("--include_diff", action="store_true", help="Attach the uncommitted working-tree patch.")
-    capture.add_argument("--include_remotes", action="store_true", help="Attach the configured git remote URLs.")
     args = parser.parse_args(argv)
     marked = (path for path in [Path.cwd(), *Path.cwd().parents] if (path / "pyproject.toml").is_file())
     repo_root = Path(args.repo_root).resolve() if args.repo_root else next(marked, Path.cwd())
     venv = Path(args.venv or os.environ.get("VIRTUAL_ENV") or repo_root / ".venv")
     print(f"capturing {repo_root} with {venv} ...")
-    manifest, artifacts = build_manifest(
-        repo_root, venv if venv.is_dir() else None, args.command, args.include_diff, args.include_remotes
-    )
+    manifest, artifacts = build_manifest(repo_root, venv if venv.is_dir() else None, args.command)
     document = render_document(manifest, artifacts)
     stem = f"isaaclab-env-{socket.gethostname()}-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}"
     bundle = Path(args.output_dir).resolve() / f"{stem}.zip"

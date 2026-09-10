@@ -41,9 +41,10 @@ graph and what is installed, because a bare ``uv sync`` installs the default dep
 *removes* everything else -- on a working checkout that is over a hundred packages, including Isaac Sim
 and every RL library.
 
-The script uses only the Python standard library and never imports Isaac Lab, so it still runs on an
-installation that is too broken to start. Run it with any ``python3``: it reads the virtual environment
-from disk rather than from the interpreter that runs it.
+The script uses only the Python standard library, never imports Isaac Lab, and never runs ``git``, so
+it still works on an installation that is too broken to start and on a machine with no git installed.
+Run it with any ``python3``: the virtual environment and the checked-out revision are both read from
+disk rather than through the interpreter or the tools that normally report them.
 
 Environment variables are captured by allowlist, limited to the names Isaac Lab and its runtime stack
 are known to read. The list is closed and matched by exact name, so a variable this project does not
@@ -53,12 +54,10 @@ manifest, the ``--command`` string as you typed it, and the values of allowliste
 as ``PYTHONPATH`` and ``LD_LIBRARY_PATH``. Read ``REPRODUCE.md`` and ``env/environment.txt`` from the
 bundle before attaching it to a public issue.
 
-Two things a checkout knows about are left out of the default bundle, each behind its own flag.
-Uncommitted source changes are excluded because a dirty tree can hold code you are not free to share;
-pass ``--include_diff`` to attach them. Git remote URLs are excluded because a fork's URL names a
-host, an organisation, and a repository that the reproduction does not need -- a commit reachable
-from a public remote is reached by cloning Isaac Lab, and one that is not has to come from you either
-way. Pass ``--include_remotes`` to attach them; any credential embedded in a URL is stripped even then.
+Nothing about the working tree is captured beyond the commit it sits on. Uncommitted changes, the
+diff against them, and the configured remotes are all left out, so a dirty tree cannot carry code you
+are not free to share and a fork's URL cannot name a host or an organisation. The clone step names
+Isaac Lab itself; a commit that is not reachable from it came from a fork and has to come from you.
 
 
 Reproducing a Reported Environment
@@ -77,8 +76,8 @@ The document holds a single block of shell: clone and check out the recorded com
 symlinks, and export the environment variables that change behaviour. Take the ``uv sync`` line from
 the document rather than typing it yourself -- the bare form removes everything the extras leave out.
 
-The document ends with what the bundle cannot rebuild: the GPU and its driver, uncommitted source
-changes when they were not attached, and anything reached through ``PYTHONPATH`` or ``LD_LIBRARY_PATH``
+The document ends with what the bundle cannot rebuild: the GPU and its driver, any uncommitted source
+changes, and anything reached through ``PYTHONPATH`` or ``LD_LIBRARY_PATH``
 from outside the repository. Read that section before concluding that a failure to reproduce is
 meaningful.
 
