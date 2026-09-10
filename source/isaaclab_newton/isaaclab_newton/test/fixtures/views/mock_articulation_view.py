@@ -321,6 +321,16 @@ class MockNewtonArticulationView:
         return self._joint_dof_count
 
     @property
+    def joint_dof_counts(self) -> list[int]:
+        """DOF count per selected joint. One DOF per joint -- no ball joints in the mock."""
+        return [1] * self._joint_dof_count
+
+    @property
+    def joint_coord_counts(self) -> list[int]:
+        """Coordinate count per selected joint. Equal to :attr:`joint_dof_counts` -- no ball joints."""
+        return [1] * self._joint_dof_count
+
+    @property
     def is_fixed_base(self) -> bool:
         """Whether the articulation has a fixed base."""
         return self._is_fixed_base

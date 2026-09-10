@@ -15,8 +15,8 @@ Isaac Lab addresses joints by DOF index throughout -- ``joint_names``, ``find_jo
 consistent with ``joint_vel``, ``default_joint_pos`` and the joint gains, all of which already are.
 
 The rotation vector is the representation consistent with ``joint_qd``, which holds angular velocity
-in the joint frame, and with PhysX, whose spherical-joint positions are the axis-angle vector
-projected onto the DOF axes.
+in the joint frame. PhysX also reports spherical-joint positions as an axis-angle vector projected
+onto the DOF axes; sign and frame parity with PhysX has not been verified numerically.
 """
 
 from __future__ import annotations

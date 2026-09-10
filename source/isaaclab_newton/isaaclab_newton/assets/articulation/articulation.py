@@ -3462,7 +3462,8 @@ class Articulation(BaseArticulation):
         )
         # Republish the Tier-1 backend->user state shadows inside the stepped
         # (and captured) region after the last solver substep. Registering only
-        # when ordering is non-identity keeps identity-ordering scenes at zero
+        # when ordering is non-identity or a ball joint needs the coordinate
+        # gather keeps a plain identity-ordering, non-ball-joint scene at zero
         # overhead (empty callback list). The reorders are then recorded into
         # every captured graph, so passthrough state getters never replay stale.
         # The stored handle is the exact bound method ``_clear_callbacks`` later

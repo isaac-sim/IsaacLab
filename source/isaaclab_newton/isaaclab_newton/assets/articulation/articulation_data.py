@@ -1637,18 +1637,10 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_target_coords = self._sim_bind_joint_position_target
             self._joint_targets_need_conversion = self._sim_bind_joint_target_coords.shape[1] != self._num_joints
             if self._joint_targets_need_conversion:
-                if not self._joint_coord_map.required:
-                    raise NotImplementedError(
-                        "Newton returned joint position targets in coordinate space"
-                        f" ({self._sim_bind_joint_target_coords.shape[1]} against"
-                        f" {self._num_joints} DOFs) for an articulation with no ball joint."
-                    )
                 self._sim_bind_joint_position_target = wp.zeros(
                     (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
                 )
-                self._all_env_mask = wp.array(
-                    np.ones(self._num_instances, dtype=bool), dtype=wp.bool, device=self.device
-                )
+                self._joint_coord_map.gather(self._sim_bind_joint_target_coords, self._sim_bind_joint_position_target)
             self._sim_bind_joint_velocity_target = self._root_view.get_attribute(
                 "joint_target_qd", SimulationManager.get_control()
             )[:, 0]
@@ -2212,16 +2204,19 @@ class ArticulationData(BaseArticulationData):
             outputs=[self._body_link_pose_w_user, self._body_com_vel_w_user],
         )
 
-    def _flush_joint_targets(self) -> None:
+    def _flush_joint_targets(self, env_mask: wp.array) -> None:
         """Push DOF-space joint position targets into Newton's coordinate array.
 
         A no-op unless Newton hands back coordinate-layout targets, in which case the actuators
         write into a DOF-shaped staging buffer and this scatters it across. A ball joint's three
         target values are read as a rotation vector, the same convention ``joint_pos`` uses.
+
+        Args:
+            env_mask: Per-environment mask of instances to scatter.
         """
         if self._joint_targets_need_conversion:
             self._joint_coord_map.scatter(
-                self._sim_bind_joint_position_target, self._sim_bind_joint_target_coords, self._all_env_mask
+                self._sim_bind_joint_position_target, self._sim_bind_joint_target_coords, env_mask
             )
 
     def _gather_joint_coordinates(self) -> None:
@@ -2234,7 +2229,8 @@ class ArticulationData(BaseArticulationData):
             self._joint_coord_map.gather(self._sim_bind_joint_coords, self._sim_bind_joint_pos)
 
     def _refresh_user_order_state(self) -> None:
-        """Republish all Tier-1 user-order state shadows from live backend state.
+        """Republish all Tier-1 user-order state shadows from live backend state, and gather any
+        ball-joint DOF positions ahead of them.
 
         Registered as a post-step callback (see
         :meth:`isaaclab_newton.physics.NewtonManager.register_post_step_callback`)
@@ -2242,7 +2238,9 @@ class ArticulationData(BaseArticulationData):
         the last solver substep. With no Python freshness guard the launches are
         recorded into every captured graph and replayed on each tick, so the
         passthrough ``joint_pos`` / ``joint_vel`` / ``body_link_pose_w`` /
-        ``body_com_vel_w`` shadows behave exactly like sim-bound memory.
+        ``body_com_vel_w`` shadows behave exactly like sim-bound memory. For an
+        identity-ordered ball-joint articulation the coordinate gather is the only
+        work this method does -- the two reorder calls below are no-ops.
         """
         # Ahead of the reorder: the user-order shadows have to gather from a current DOF buffer.
         self._gather_joint_coordinates()
