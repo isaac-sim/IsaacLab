@@ -31,7 +31,11 @@ _NEWTON_GL_WM_CLASS = "Newton"
 _NEWTON_RTX_WM_CLASS = "Newton RTX Viewer"
 
 _ICON_NAME = "isaaclab-newton-viewer"
-_ICON_SIZES = (16, 32, 64)
+
+#: Pixel sizes of Newton's bundled icon (``newton/_src/viewer/gl/icon_*.png``). Shared with
+#: ``isaaclab_visualizers.newton.newton_visualizer``, which sets the same icon on the live
+#: Newton RTX window; keep both in sync if Newton's bundled sizes ever change.
+NEWTON_ICON_SIZES = (16, 32, 64)
 
 
 def _has_graphical_session() -> bool:
@@ -43,8 +47,13 @@ def _has_graphical_session() -> bool:
     return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 
-def _newton_icon_source_dir() -> Path | None:
-    """Return the directory containing Newton's bundled ``icon_{16,32,64}.png``, if importable."""
+def newton_icon_source_dir() -> Path | None:
+    """Return the directory containing Newton's bundled ``icon_{16,32,64}.png``, if importable.
+
+    Single source of truth for locating Newton's bundled icon directory — also used by
+    ``isaaclab_visualizers.newton.newton_visualizer`` to set the live Newton RTX window's icon,
+    so both stay consistent if Newton ever moves these files.
+    """
     try:
         import inspect
 
@@ -54,18 +63,18 @@ def _newton_icon_source_dir() -> Path | None:
     return Path(inspect.getfile(RendererGL)).parent
 
 
-def _install_icon_files(icon_source_dir: Path, data_home: Path) -> bool:
-    """Copy Newton's icon into the user's hicolor icon theme. Returns whether all copies succeeded."""
-    ok = True
-    for size in _ICON_SIZES:
+def _install_icon_files(icon_source_dir: Path, data_home: Path) -> int:
+    """Copy Newton's icon into the user's hicolor icon theme. Returns how many sizes were copied."""
+    copied = 0
+    for size in NEWTON_ICON_SIZES:
         src = icon_source_dir / f"icon_{size}.png"
         if not src.is_file():
-            ok = False
             continue
         dst_dir = data_home / "icons" / "hicolor" / f"{size}x{size}" / "apps"
         dst_dir.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, dst_dir / f"{_ICON_NAME}.png")
-    return ok
+        copied += 1
+    return copied
 
 
 def _desktop_entry(name: str, wm_class: str) -> str:
@@ -115,14 +124,18 @@ def install_desktop_icons() -> None:
     if not _has_graphical_session():
         return
 
-    icon_source_dir = _newton_icon_source_dir()
+    icon_source_dir = newton_icon_source_dir()
     if icon_source_dir is None:
         print_debug("Skipping desktop icon install: Newton is not installed in this environment.")
         return
 
     data_home = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
     with contextlib.suppress(OSError):
-        if not _install_icon_files(icon_source_dir, data_home):
+        copied = _install_icon_files(icon_source_dir, data_home)
+        if copied == 0:
+            print_warning("No Newton icon files found; skipping desktop icon install.")
+            return
+        if copied < len(NEWTON_ICON_SIZES):
             print_warning("Some Newton icon files were missing; desktop icons may be incomplete.")
         apps_dir = _install_desktop_entries(data_home)
         _refresh_desktop_caches(apps_dir, data_home)

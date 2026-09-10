@@ -11,7 +11,7 @@ from isaaclab.utils.editor import _find_isaac_sim_icon, _read_kit_window_identit
 
 pytestmark = pytest.mark.unit
 
-# A minimal excerpt of apps/isaaclab.python.kit's shape: [settings] is re-declared across
+# A minimal excerpt of apps/isaaclab.python.kit's shape: [settings] is redeclared across
 # multiple sections, which is invalid under strict TOML but is what Kit's own files look like.
 _KIT_FILE_CONTENT = """
 [package]

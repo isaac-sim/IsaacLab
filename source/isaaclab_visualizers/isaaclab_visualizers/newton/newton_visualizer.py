@@ -85,9 +85,6 @@ CONTACT_ARROW_COLOR = (0.0, 1.0, 0.0)
 CONTACT_ARROW_LENGTH = 0.1
 """Length of synthesized contact arrows in meters."""
 
-_NEWTON_ICON_SIZES = (16, 32, 64)
-"""Pixel sizes of Newton's bundled apple icon (``newton/_src/viewer/gl/icon_*.png``)."""
-
 
 def _load_newton_icon_images() -> list:
     """Load Newton's own bundled apple icon as a multi-resolution list of ``pyglet`` images.
@@ -96,19 +93,25 @@ def _load_newton_icon_images() -> list:
     creates a bare ``pyglet.window.Window`` and never sets an icon at all, so it falls
     back to the windowing toolkit's generic default. Reusing Newton's own icon file here
     (rather than a new asset) keeps the RTX window consistent with the GL window.
+
+    Shares its icon-directory lookup with ``isaaclab.utils.desktop_icons``, which installs
+    the same icon as an XDG ``.desktop`` entry, so both stay in sync if Newton ever moves
+    these files.
     """
-    import inspect
     import io
 
     import pyglet
-    from newton._src.viewer.gl.opengl import RendererGL
 
-    icon_dir = os.path.dirname(inspect.getfile(RendererGL))
+    from isaaclab.utils.desktop_icons import NEWTON_ICON_SIZES, newton_icon_source_dir
+
+    icon_dir = newton_icon_source_dir()
+    if icon_dir is None:
+        raise FileNotFoundError("Newton's bundled icon directory could not be located.")
     images = []
-    for size in _NEWTON_ICON_SIZES:
-        filename = os.path.join(icon_dir, f"icon_{size}.png")
+    for size in NEWTON_ICON_SIZES:
+        filename = icon_dir / f"icon_{size}.png"
         with open(filename, "rb") as f:
-            images.append(pyglet.image.load(filename=filename, file=io.BytesIO(f.read())))
+            images.append(pyglet.image.load(filename=str(filename), file=io.BytesIO(f.read())))
     return images
 
 

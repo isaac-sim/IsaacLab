@@ -84,7 +84,7 @@ def setup_editor(project_dir: pathlib.Path, isaac_path: str | None = None, verbo
     # successful editor-settings run into a hard crash.
     try:
         setup_desktop_entry(project_dir)
-    except OSError as error:
+    except (OSError, UnicodeDecodeError) as error:
         print(f"[WARN] Skipped desktop entry generation: {error}")
 
 
