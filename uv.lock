@@ -19,7 +19,7 @@ prerelease-mode = "allow"
 overrides = [
     { name = "mujoco", specifier = "~=3.12.0" },
     { name = "mujoco-warp", specifier = "~=3.12.0" },
-    { name = "newton", extras = ["sim"], specifier = "==1.6.0rc1" },
+    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=release-1.6" },
     { name = "newton-usd-schemas", specifier = ">=0.4.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "packaging", specifier = ">=20,<27" },
@@ -1754,7 +1754,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "24.1.1"
+version = "24.1.2"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -2040,7 +2040,7 @@ requires-dist = [
     { name = "meshio", specifier = ">=5.3.5" },
     { name = "moviepy", marker = "extra == 'video'", specifier = ">=1.0.3,<2.0.0.dev0" },
     { name = "myst-parser", marker = "extra == 'dev'" },
-    { name = "newton", extras = ["sim"], specifier = "==1.6.0rc1" },
+    { name = "newton", extras = ["sim"], specifier = ">=1.2.0" },
     { name = "newton-usd-schemas", specifier = ">=0.2.0" },
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
@@ -2137,7 +2137,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-mimic"
-version = "2.0.6"
+version = "2.0.7"
 source = { editable = "source/isaaclab_mimic" }
 dependencies = [
     { name = "isaaclab" },
@@ -2154,7 +2154,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "6.2.0"
+version = "6.2.1"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2180,7 +2180,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "7.1.1"
+version = "7.1.2"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2202,7 +2202,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "0.17.2"
+version = "0.17.3"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -2219,7 +2219,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "20.1.2"
+version = "20.1.3"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
@@ -2249,7 +2249,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-teleop"
-version = "0.8.4"
+version = "0.9.0"
 source = { editable = "source/isaaclab_teleop" }
 dependencies = [
     { name = "isaaclab" },
@@ -2260,7 +2260,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-visualizers"
-version = "1.10.4"
+version = "1.10.5"
 source = { editable = "source/isaaclab_visualizers" }
 dependencies = [
     { name = "isaaclab" },
@@ -3354,13 +3354,10 @@ wheels = [
 
 [[package]]
 name = "newton"
-version = "1.6.0rc1"
-source = { registry = "https://pypi.org/simple" }
+version = "1.6.0"
+source = { git = "https://github.com/newton-physics/newton.git?rev=release-1.6#c2ca70bec5998062b0b2d35869865cbe3a49feee" }
 dependencies = [
     { name = "warp-lang" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/67/28/1a88699e9e4a5cbe5408e4f5ffb24355cd5854b3f549c59d83679d6c88cc/newton-1.6.0rc1-py3-none-any.whl", hash = "sha256:7ed998bba97167534194c53119c68bd116c8266661c3a339e5a2e4d503701f20", size = 6072745, upload-time = "2026-09-03T04:17:09.936Z" },
 ]
 
 [package.optional-dependencies]
