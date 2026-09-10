@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Literal
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners import materials
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .terrain_generator_cfg import TerrainGeneratorCfg
