@@ -85,6 +85,31 @@ class G1RoughSymmetryPPORunnerCfg(G1RoughPPORunnerCfg):
 
 
 @configclass
+class G1RoughMjlabPPORunnerCfg(G1RoughPPORunnerCfg):
+    """mjlab's PPO settings and its asymmetric observation split.
+
+    Three things differ from ours and they are all here: observation normalisation on rather than
+    off, an entropy coefficient of 0.01 rather than 0.008, and **30000 iterations rather than
+    6000**. The last is not a detail -- every arm on this line needs 3000 to 4000 iterations just to
+    leave ``success_rate`` 0.000, so our budget is barely two thousand iterations of real learning
+    against their thirty thousand.
+
+    ``obs_groups`` is where the split lands: the actor reads the corrupted, biased group and the
+    critic the clean one with the foot state.
+    """
+
+    max_iterations = 30000
+    obs_groups = {"actor": ["policy"], "critic": ["critic"]}
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.actor.obs_normalization = True
+        self.critic.obs_normalization = True
+        self.algorithm.entropy_coef = 0.01
+
+
+@configclass
 class G1FlatPPORunnerCfg(G1RoughPPORunnerCfg):
     def __post_init__(self):
         super().__post_init__()
