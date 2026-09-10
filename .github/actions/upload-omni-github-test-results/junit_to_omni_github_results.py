@@ -14,6 +14,7 @@ from pathlib import Path
 
 _MANIFEST_NAME = "omni-github-test-results-upload.json"
 _RESULT_PATH = "_testoutput/test_results.json"
+_LOG_DIR = "_testoutput/logs"
 _MAX_MESSAGE_CHARS = 500
 _FLAG_PATTERNS = {
     "crash": ("abort", "core dumped", "crash", "process killed", "segmentation fault", "signal "),
@@ -94,7 +95,6 @@ def _convert_testcase(
     test_type: str,
     group_id: str,
     retries: int,
-    log_paths: list[str],
 ) -> dict[str, object]:
     """Convert one JUnit testcase element into an omni-github test row."""
     failure_or_error = _first_child(testcase, {"error", "failure"})
@@ -108,7 +108,6 @@ def _convert_testcase(
         "duration": _duration_seconds(testcase),
         "group_id": group_id,
         "retries": retries,
-        "log_paths": log_paths,
     }
     if testcase.attrib.get("name"):
         row["test_name"] = testcase.attrib["name"]
@@ -140,6 +139,52 @@ def _convert_testcase(
     return row
 
 
+def _log_text(testcase: ET.Element, row: dict[str, object]) -> str:
+    """Render the per-test log file contents for one converted testcase.
+
+    The header repeats the row identity so a log opened on its own is still
+    attributable, and the body carries the untruncated failure text plus whatever
+    pytest captured for the test (``system-out`` / ``system-err``). pytest only
+    embeds captured output for failing tests, so passing rows get a header-only log.
+    """
+    status = "skipped" if row.get("skipped") else "passed" if row["passed"] else "failed"
+    lines = [
+        f"test_id: {row['test_id']}",
+        f"status: {status}",
+        f"duration: {row['duration']}",
+        f"group_id: {row['group_id']}",
+        f"test_type: {row['test_type']}",
+        f"retries: {row['retries']}",
+        "",
+    ]
+    for child in testcase:
+        name = _local_name(child.tag)
+        if name not in {"error", "failure", "skipped", "system-err", "system-out"}:
+            continue
+        header = name
+        message = child.attrib.get("message")
+        if message:
+            header = f"{name}: {' '.join(message.split())}"
+        lines.append(f"--- {header} ---")
+        if child.text and child.text.strip():
+            lines.append(child.text.strip())
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _write_test_log(output_dir: Path, index: int, testcase: ET.Element, row: dict[str, object]) -> str:
+    """Write one per-test log into the artifact and return its artifact-relative path.
+
+    omni-github resolves ``log_paths`` against the uploaded artifact root, so the
+    returned path must stay relative and the file must ship inside the artifact.
+    """
+    log_rel = f"{_LOG_DIR}/pytest-{index:04d}.log"
+    log_file = output_dir / log_rel
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    log_file.write_text(_log_text(testcase, row), encoding="utf-8")
+    return log_rel
+
+
 def convert_junit(
     junit_file: Path,
     output_dir: Path,
@@ -148,8 +193,6 @@ def convert_junit(
     app_platform: str,
     app_config: str,
     group_name: str,
-    junit_log_url: str,
-    comparison_images_url: str,
     retries: int = 0,
 ) -> None:
     """Convert a JUnit XML report and write the omni-github artifact directory.
@@ -163,28 +206,14 @@ def convert_junit(
         app_config: Configuration label for the result app metadata.
         group_name: Human-readable test group label to store on each test row.
         retries: Within-job retry count to store on each test row.
-        junit_log_url: URL of the uploaded source JUnit XML artifact.
-        comparison_images_url: URL of the uploaded comparison images artifact.
     """
     root = ET.parse(junit_file).getroot()
-    log_paths: list[str] = []
-    if junit_log_url:
-        log_paths.append(junit_log_url)
-
-    if comparison_images_url:
-        log_paths.append(comparison_images_url)
 
     tests = []
-    for testcase in _iter_testcases(root):
-        tests.append(
-            _convert_testcase(
-                testcase,
-                test_type,
-                group_name,
-                retries,
-                log_paths=log_paths,
-            )
-        )
+    for index, testcase in enumerate(_iter_testcases(root), start=1):
+        row = _convert_testcase(testcase, test_type, group_name, retries)
+        row["log_paths"] = [_write_test_log(output_dir, index, testcase, row)]
+        tests.append(row)
     result: dict[str, object] = {
         "result_schema_version": 1,
         "test_tool_id": test_tool_id,
@@ -215,12 +244,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--app-platform", required=True, help="App platform label.")
     parser.add_argument("--app-config", required=True, help="App configuration label.")
     parser.add_argument("--group-name", required=True, help="Human-readable group label for each test row.")
-    parser.add_argument(
-        "--junit-log-url", required=True, type=str, help="URL of the uploaded source JUnit XML artifact."
-    )
-    parser.add_argument(
-        "--comparison-images-url", required=True, type=str, help="URL of the uploaded comparison images artifact."
-    )
     parser.add_argument("--retries", type=int, default=0, help="Within-job retry count for each test row.")
     return parser.parse_args()
 
@@ -236,8 +259,6 @@ def main() -> None:
         app_platform=args.app_platform,
         app_config=args.app_config,
         group_name=args.group_name,
-        junit_log_url=args.junit_log_url,
-        comparison_images_url=args.comparison_images_url,
         retries=max(args.retries, 0),
     )
 
