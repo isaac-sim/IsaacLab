@@ -84,6 +84,11 @@ The command creates or updates these machine-local files:
 * ``.vscode/launch.json``: Debugging configurations. An existing file is preserved.
 * ``.vscode/settings.json``: The interpreter and shared editor settings.
 * ``pyrightconfig.json``: Import paths for Pyright-compatible language servers.
+* ``~/.local/share/applications/isaaclab.desktop`` (Linux only): A desktop entry so the Kit
+  visualizer window's taskbar/dock icon shows the Isaac Sim icon instead of a generic one. Most
+  Linux desktop environments look up taskbar icons through a ``.desktop`` file's
+  ``StartupWMClass``, not the window's own icon hint, so this is required for the icon to
+  resolve correctly. Delete the file to remove the entry; it does not affect running Isaac Lab.
 
 The generated files are ignored by Git because interpreter and extension paths
 vary between machines. Rerun the command after changing Python environments or

@@ -85,6 +85,42 @@ CONTACT_ARROW_COLOR = (0.0, 1.0, 0.0)
 CONTACT_ARROW_LENGTH = 0.1
 """Length of synthesized contact arrows in meters."""
 
+
+def _load_newton_icon_images() -> list:
+    """Load Newton's own bundled apple icon as a multi-resolution list of ``pyglet`` images.
+
+    ``RendererGL`` (the GL backend) already sets this icon on its window. ``ViewerRTX``
+    creates a bare ``pyglet.window.Window`` and never sets an icon at all, so it falls
+    back to the windowing toolkit's generic default. Reusing Newton's own icon file here
+    (rather than a new asset) keeps the RTX window consistent with the GL window.
+
+    Shares its icon-directory lookup with ``isaaclab.utils.desktop_icons``, which installs
+    the same icon as an XDG ``.desktop`` entry, so both stay in sync if Newton ever moves
+    these files.
+    """
+    import io
+
+    import pyglet
+
+    from isaaclab.utils.desktop_icons import NEWTON_ICON_SIZES, newton_icon_source_dir
+
+    icon_dir = newton_icon_source_dir()
+    if icon_dir is None:
+        raise FileNotFoundError("Newton's bundled icon directory could not be located.")
+    images = []
+    for size in NEWTON_ICON_SIZES:
+        filename = icon_dir / f"icon_{size}.png"
+        with open(filename, "rb") as f:
+            images.append(pyglet.image.load(filename=str(filename), file=io.BytesIO(f.read())))
+    return images
+
+
+def _apply_newton_icon(window) -> None:
+    """Set *window*'s icon to Newton's own apple icon, ignoring headless/EGL windows."""
+    with contextlib.suppress(Exception):
+        window.set_icon(*_load_newton_icon_images())
+
+
 if TYPE_CHECKING:
     from newton import State
 
@@ -697,6 +733,10 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
     def _init_window(self) -> None:
         """Create the viewer window and immediately apply Isaac Lab UI patches."""
         super()._init_window()
+        # ViewerRTX creates a bare pyglet window and never sets an icon, unlike ViewerGL's
+        # RendererGL which sets Newton's own apple icon — without this the RTX window shows
+        # the windowing toolkit's generic default icon.
+        _apply_newton_icon(self._window)
         # Disable imgui's automatic ini file I/O — the file would be written to the
         # current working directory (often the repo root), polluting it with
         # session-specific UI state and causing hard-to-diagnose bugs when a stale

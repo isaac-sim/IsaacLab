@@ -22,6 +22,7 @@ import isaaclab.cli.commands.install as install_cmd
 from isaaclab.cli.commands.install import (
     _PREBUNDLE_REPOINT_PACKAGES,
     _ensure_cuda_torch,
+    _install_desktop_icons_best_effort,
     _install_isaacsim,
     _maybe_uninstall_prebundled_torch,
     _repoint_prebundle_packages,
@@ -1058,3 +1059,45 @@ class TestInstallRootExtraExcludesIsaacSim:
         installed = " ".join(" ".join(call.args[0]) for call in mock_run.call_args_list)
         assert "isaacsim[all,extscache]" not in installed
         assert "isaacteleop" in installed
+
+
+# ---------------------------------------------------------------------------
+# _install_desktop_icons_best_effort
+# ---------------------------------------------------------------------------
+
+
+def test_install_desktop_icons_best_effort_calls_install_desktop_icons():
+    """Test the happy path actually invokes the underlying installer."""
+    with mock.patch("isaaclab.utils.desktop_icons.install_desktop_icons") as mock_install:
+        _install_desktop_icons_best_effort()
+
+    mock_install.assert_called_once_with()
+
+
+def test_install_desktop_icons_best_effort_swallows_import_errors():
+    """Test a broken transitive import never escapes ``./isaaclab.sh -i``.
+
+    Regression test for an ARM installation-test failure: ``isaaclab.utils``'s own
+    ``__init__`` (needed by ``from ...utils.desktop_icons import install_desktop_icons``) can
+    fail with ``ModuleNotFoundError`` if a transitive dependency (e.g. ``lazy_loader``) is
+    briefly missing mid-install. The previous, unguarded ``from ...utils.desktop_icons import
+    install_desktop_icons`` at the ``command_install`` call site let that escape and crash a
+    completed install; this cosmetic step must never be able to do that.
+    """
+    real_import = __builtins__["__import__"] if isinstance(__builtins__, dict) else __builtins__.__import__
+
+    def _raising_import(name, *args, **kwargs):
+        if name == "isaaclab.utils.desktop_icons" or name.endswith(".utils.desktop_icons"):
+            raise ModuleNotFoundError("No module named 'lazy_loader'")
+        return real_import(name, *args, **kwargs)
+
+    with mock.patch("builtins.__import__", side_effect=_raising_import):
+        # Must not raise.
+        _install_desktop_icons_best_effort()
+
+
+def test_install_desktop_icons_best_effort_swallows_runtime_errors():
+    """Test a failure inside install_desktop_icons() itself is also swallowed, not just import errors."""
+    with mock.patch("isaaclab.utils.desktop_icons.install_desktop_icons", side_effect=RuntimeError("boom")):
+        # Must not raise.
+        _install_desktop_icons_best_effort()

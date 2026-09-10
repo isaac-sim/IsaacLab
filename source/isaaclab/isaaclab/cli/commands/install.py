@@ -1359,3 +1359,22 @@ def command_install(install_type: str = "all") -> None:
     # Update editor settings unless we're in Docker.
     if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):
         command_editor([], project_dir=ISAACLAB_ROOT)
+
+    _install_desktop_icons_best_effort()
+
+
+def _install_desktop_icons_best_effort() -> None:
+    """Install desktop icons for the Newton viewer windows, never raising.
+
+    Linux graphical sessions only; no-op elsewhere, including Docker/CI/Windows (see
+    :func:`isaaclab.utils.desktop_icons.install_desktop_icons`). Guards the import itself, not
+    just the call: ``isaaclab.utils``'s own ``__init__`` can fail to import in some environments
+    (e.g. a transitive dependency briefly missing mid-install), and this step is cosmetic -- it
+    should never be able to turn a completed install into a crash.
+    """
+    try:
+        from ...utils.desktop_icons import install_desktop_icons
+
+        install_desktop_icons()
+    except Exception as error:
+        print_debug(f"Skipped desktop icon install: {error}")

@@ -10,9 +10,12 @@ import importlib.util
 import json
 import os
 import pathlib
+import platform
 import re
 import subprocess
 import sys
+
+from isaaclab.utils.desktop_icons import xdg_data_home
 
 _DEFAULT_VSCODE_SETTINGS_TEMPLATE = """
 {
@@ -77,6 +80,134 @@ def setup_editor(project_dir: pathlib.Path, isaac_path: str | None = None, verbo
 
     print(f"Editor settings generated at {settings_path}")
     print(f"Pyright configuration generated at {project_dir / 'pyrightconfig.json'}")
+
+    # Desktop icon integration is a convenience, not something that should block the rest of
+    # this command -- an unwritable home directory or unreadable kit file shouldn't turn a
+    # successful editor-settings run into a hard crash.
+    try:
+        setup_desktop_entry(project_dir)
+    except (OSError, UnicodeDecodeError) as error:
+        print(f"[WARN] Skipped desktop entry generation: {error}")
+
+
+def setup_desktop_entry(project_dir: pathlib.Path) -> None:
+    """Generate a Linux desktop entry so the taskbar shows the Isaac Sim icon, not a generic one.
+
+    Kit's window manager class (``WM_CLASS``) is composed from the ``[settings.app.window] title``
+    and ``[settings.app] version`` values in ``apps/isaaclab.python.kit`` (for example
+    ``"Isaac Lab 3.0.0"``), with no exposed setting to make it version-independent: overriding
+    ``/app/version`` to empty falls back to the raw Kit SDK build string instead of dropping the
+    suffix. Most Linux desktop environments (GNOME included) resolve taskbar/dock icons by
+    matching a running window's ``WM_CLASS`` against an installed ``.desktop`` file's
+    ``StartupWMClass`` -- not from the window's own ``_NET_WM_ICON`` hint, which Kit does set
+    correctly (confirmed with ``xprop``) but which most taskbars ignore for this purpose. Without
+    a matching ``.desktop`` file, the desktop environment falls back to a generic icon.
+
+    Because ``WM_CLASS`` embeds the app title and version, ``StartupWMClass`` here is read from
+    the same ``apps/isaaclab.python.kit`` file rather than hardcoded, so it self-updates on every
+    ``isaaclab --editor`` run. Requirement to track: if a future Isaac Lab release changes
+    ``apps/isaaclab.python.kit``'s ``[settings.app.window] title`` or ``[settings.app] version``
+    (or Kit changes how it composes ``WM_CLASS`` at all), this needs re-running -- there is no way
+    to keep the ``.desktop`` file in sync automatically without that rerun, since the desktop
+    entry is a static file, not a live setting.
+
+    No-op on non-Linux platforms, or if the kit file or the Isaac Sim icon asset cannot be found;
+    desktop icon integration is a convenience, not something that should block the rest of
+    ``isaaclab --editor``.
+
+    Args:
+        project_dir: Project root, used to locate ``apps/isaaclab.python.kit``.
+    """
+    if platform.system() != "Linux":
+        return
+
+    kit_file = project_dir / "apps" / "isaaclab.python.kit"
+    identity = _read_kit_window_identity(kit_file)
+    if identity is None:
+        return
+    title, version = identity
+
+    icon_path = _find_isaac_sim_icon()
+    if icon_path is None:
+        return
+
+    applications_dir = xdg_data_home() / "applications"
+    applications_dir.mkdir(parents=True, exist_ok=True)
+    desktop_path = applications_dir / "isaaclab.desktop"
+    desktop_path.write_text(
+        "[Desktop Entry]\n"
+        "Version=1.0\n"
+        "Type=Application\n"
+        "Name=Isaac Lab\n"
+        # This entry exists only for StartupWMClass matching (see the docstring above), not as a
+        # real launcher: NoDisplay keeps it out of application menus, and Exec is a harmless no-op
+        # rather than re-invoking isaaclab, which would also need shell-quoting sys.executable for
+        # paths containing spaces.
+        "NoDisplay=true\n"
+        "Exec=true\n"
+        f"Icon={icon_path}\n"
+        f"StartupWMClass={title} {version}\n",
+        encoding="utf-8",
+    )
+    print(f"Desktop entry generated at {desktop_path}")
+
+
+def _read_kit_window_identity(kit_file: pathlib.Path) -> tuple[str, str] | None:
+    """Read the ``(title, version)`` pair Kit composes this app's ``WM_CLASS`` from.
+
+    ``.kit`` files are TOML-like but redeclare the ``[settings]`` table across multiple
+    sections (Kit's own parser merges them), which is invalid under strict TOML and rejects
+    :mod:`tomllib`. Since only these two known scalars are needed, this scans lines under the
+    exact ``[settings.app]`` and ``[settings.app.window]`` headers instead of parsing the whole
+    file as TOML.
+
+    Args:
+        kit_file: Path to ``apps/isaaclab.python.kit``.
+
+    Returns:
+        The ``(title, version)`` pair, or None if the file or either value is missing.
+    """
+    if not kit_file.is_file():
+        return None
+
+    title: str | None = None
+    version: str | None = None
+    section = ""
+    scalar_pattern = re.compile(r'^(\w+)\s*=\s*"([^"]*)"')
+    for raw_line in kit_file.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1]
+            continue
+        match = scalar_pattern.match(line)
+        if not match:
+            continue
+        key, value = match.groups()
+        if section == "settings.app.window" and key == "title":
+            title = value
+        elif section == "settings.app" and key == "version":
+            version = value
+
+    if not title or not version:
+        return None
+    return title, version
+
+
+def _find_isaac_sim_icon() -> pathlib.Path | None:
+    """Locate the Isaac Sim icon asset shipped with the installed ``isaacsim`` package.
+
+    Returns:
+        Absolute path to the icon, or None if the ``isaacsim`` package is not installed or does
+        not ship the expected asset.
+    """
+    spec = importlib.util.find_spec("isaacsim")
+    if spec is None or not spec.submodule_search_locations:
+        return None
+    for location in spec.submodule_search_locations:
+        icon_path = pathlib.Path(location) / "exts" / "isaacsim.simulation_app" / "data" / "omni.isaac.sim.png"
+        if icon_path.is_file():
+            return icon_path
+    return None
 
 
 def resolve_isaacsim_dir(project_dir: pathlib.Path, isaac_path: str | None = None) -> pathlib.Path | None:
