@@ -201,8 +201,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
 
          powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-      .. isaaclab-clone-https::
-         :platform: windows
+      .. isaaclab-clone-commands::
 
       .. code-block:: batch
 
