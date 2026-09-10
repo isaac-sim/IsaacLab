@@ -37,6 +37,7 @@ from isaaclab_rl.entrypoints.common import (
     resolve_play_task_name,
     show_run_summary,
     startup_screen,
+    suppressed_shutdown_guard,
 )
 from isaaclab_rl.skrl import resolve_skrl_agent_cfg_entry_point, resolve_skrl_algorithm
 from isaaclab_rl.utils.pretrained_checkpoint import (
@@ -148,7 +149,7 @@ def _main():
     with startup_screen(args_cli, num_stages=3) as screen:
         show_run_summary(screen, args_cli, env_cfg, library="skrl", action="play")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), suppressed_shutdown_guard() as stack:
             if args_cli.ml_framework.startswith("torch"):
                 from skrl.utils.runner.torch import Runner
             elif args_cli.ml_framework.startswith("jax"):
@@ -214,6 +215,8 @@ def _main():
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
             )
+            # Guarantee env.close() runs; see suppressed_shutdown_guard().
+            stack.callback(lambda: env.close())
 
             try:
                 dt = env.step_dt
@@ -240,36 +243,29 @@ def _main():
             states = env.state()
             timestep = 0
             print("[INFO] Policy playback is running, press Ctrl+C to exit...")
-            try:
-                while True:
-                    start_time = time.time()
+            while True:
+                start_time = time.time()
 
-                    with torch.inference_mode():
-                        outputs = runner.agent.act(obs, states, timestep=0, timesteps=0)
-                        if hasattr(env, "possible_agents"):
-                            actions = {
-                                a: outputs[-1][a].get("mean_actions", outputs[0][a]) for a in env.possible_agents
-                            }
-                        else:
-                            actions = outputs[-1].get("mean_actions", outputs[0])
-                        obs, _, _, _, _ = env.step(actions)
-                        states = env.state()
-                    if args_cli.video:
-                        timestep += 1
-                        video_stop = args_cli.video_length
-                        if video_stop is None:
-                            recorders = getattr(env_cfg, "video_recorders", [])
-                            video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
-                        if video_stop is not None and timestep >= video_stop:
-                            break
+                with torch.inference_mode():
+                    outputs = runner.agent.act(obs, states, timestep=0, timesteps=0)
+                    if hasattr(env, "possible_agents"):
+                        actions = {a: outputs[-1][a].get("mean_actions", outputs[0][a]) for a in env.possible_agents}
+                    else:
+                        actions = outputs[-1].get("mean_actions", outputs[0])
+                    obs, _, _, _, _ = env.step(actions)
+                    states = env.state()
+                if args_cli.video:
+                    timestep += 1
+                    video_stop = args_cli.video_length
+                    if video_stop is None:
+                        recorders = getattr(env_cfg, "video_recorders", [])
+                        video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
+                    if video_stop is not None and timestep >= video_stop:
+                        break
 
-                    sleep_time = dt - (time.time() - start_time)
-                    if args_cli.real_time and sleep_time > 0:
-                        time.sleep(sleep_time)
-
-                env.close()
-            except KeyboardInterrupt:
-                pass
+                sleep_time = dt - (time.time() - start_time)
+                if args_cli.real_time and sleep_time > 0:
+                    time.sleep(sleep_time)
 
 
 if __name__ == "__main__":

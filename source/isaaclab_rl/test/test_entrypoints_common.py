@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import argparse
+import os
+import signal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -23,9 +25,54 @@ from isaaclab_rl.entrypoints.common import (
     create_isaaclab_env,
     dispatch_library_entrypoint,
     enable_cameras_for_video,
+    flag_only_sigint,
     resolve_play_task_name,
+    suppressed_shutdown_guard,
     wrap_sensor_capture,
 )
+
+
+def test_flag_only_sigint_sets_flag_instead_of_raising() -> None:
+    """A SIGINT delivered inside the context should flip the flag, not raise."""
+    with flag_only_sigint() as is_interrupted:
+        assert not is_interrupted()
+        os.kill(os.getpid(), signal.SIGINT)
+        assert is_interrupted()
+
+
+def test_flag_only_sigint_restores_previous_handler_on_exit() -> None:
+    """The previous SIGINT handler must be back in place once the context exits."""
+    previous_handler = signal.getsignal(signal.SIGINT)
+    with flag_only_sigint():
+        assert signal.getsignal(signal.SIGINT) is not previous_handler
+    assert signal.getsignal(signal.SIGINT) is previous_handler
+
+
+def test_suppressed_shutdown_guard_closes_env_reassigned_after_registration() -> None:
+    """A callback registered as ``lambda: env.close()`` must close the final, rewrapped env.
+
+    Every train/play entrypoint reassigns ``env`` to one or more wrappers after registering the
+    close callback (e.g. ``env = SomeVecEnvWrapper(env)``). Registering ``env.close`` directly
+    would bind the pre-wrap object, silently skipping any wrapper-specific cleanup -- e.g.
+    ``CaptureEnvSensors`` flushing its writer before delegating to the wrapped env.
+    """
+
+    class _TrackingWrapper(gym.Wrapper):
+        def __init__(self, env: gym.Env) -> None:
+            super().__init__(env)
+            self.wrapper_closed = False
+
+        def close(self) -> None:
+            self.wrapper_closed = True
+            super().close()
+
+    inner = _FakeEnv()
+    with suppressed_shutdown_guard() as stack:
+        env = inner
+        stack.callback(lambda: env.close())
+        env = _TrackingWrapper(env)  # reassign, as every entrypoint does when wrapping
+    assert env.wrapper_closed
+    assert inner.closed
 
 
 class _FakeEnv(gym.Env):

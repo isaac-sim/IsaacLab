@@ -35,6 +35,7 @@ from isaaclab_rl.entrypoints.common import (
     resolve_play_task_name,
     show_run_summary,
     startup_screen,
+    suppressed_shutdown_guard,
 )
 from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 from isaaclab_rl.utils.pretrained_checkpoint import (
@@ -103,7 +104,7 @@ def main():
     with startup_screen(args_cli, num_stages=3) as screen:
         show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), suppressed_shutdown_guard() as stack:
             task_name = args_cli.task.split(":")[-1]
             train_task_name = task_name.replace("-Play", "")
 
@@ -166,6 +167,8 @@ def main():
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            # Guarantee env.close() runs; see suppressed_shutdown_guard().
+            stack.callback(lambda: env.close())
 
             screen.stage("Loading policy")
             env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
@@ -203,34 +206,29 @@ def main():
             if agent.is_rnn:
                 agent.init_rnn()
             print("[INFO] Policy playback is running, press Ctrl+C to exit...")
-            try:
-                while True:
-                    start_time = time.time()
-                    with torch.inference_mode():
-                        obs = agent.obs_to_torch(obs)
-                        actions = agent.get_action(obs, is_deterministic=agent.is_deterministic)
-                        obs, _, dones, _ = env.step(actions)
+            while True:
+                start_time = time.time()
+                with torch.inference_mode():
+                    obs = agent.obs_to_torch(obs)
+                    actions = agent.get_action(obs, is_deterministic=agent.is_deterministic)
+                    obs, _, dones, _ = env.step(actions)
 
-                        if len(dones) > 0:
-                            if agent.is_rnn and agent.states is not None:
-                                for s in agent.states:
-                                    s[:, dones, :] = 0.0
-                    if args_cli.video:
-                        timestep += 1
-                        video_stop = args_cli.video_length
-                        if video_stop is None:
-                            recorders = getattr(env_cfg, "video_recorders", [])
-                            video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
-                        if video_stop is not None and timestep >= video_stop:
-                            break
+                    if len(dones) > 0:
+                        if agent.is_rnn and agent.states is not None:
+                            for s in agent.states:
+                                s[:, dones, :] = 0.0
+                if args_cli.video:
+                    timestep += 1
+                    video_stop = args_cli.video_length
+                    if video_stop is None:
+                        recorders = getattr(env_cfg, "video_recorders", [])
+                        video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
+                    if video_stop is not None and timestep >= video_stop:
+                        break
 
-                    sleep_time = dt - (time.time() - start_time)
-                    if args_cli.real_time and sleep_time > 0:
-                        time.sleep(sleep_time)
-
-                env.close()
-            except KeyboardInterrupt:
-                pass
+                sleep_time = dt - (time.time() - start_time)
+                if args_cli.real_time and sleep_time > 0:
+                    time.sleep(sleep_time)
 
 
 if __name__ == "__main__":

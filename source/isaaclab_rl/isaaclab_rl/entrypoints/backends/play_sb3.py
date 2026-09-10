@@ -32,6 +32,7 @@ from isaaclab_rl.entrypoints.common import (
     resolve_play_task_name,
     show_run_summary,
     startup_screen,
+    suppressed_shutdown_guard,
 )
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import (
@@ -106,7 +107,7 @@ def main():
     with startup_screen(args_cli, num_stages=3) as screen:
         show_run_summary(screen, args_cli, env_cfg, library="sb3", action="play")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), suppressed_shutdown_guard() as stack:
             task_name = args_cli.task.split(":")[-1]
             train_task_name = task_name.replace("-Play", "")
             if args_cli.seed == -1:
@@ -157,6 +158,8 @@ def main():
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            # Guarantee env.close() runs; see suppressed_shutdown_guard().
+            stack.callback(lambda: env.close())
 
             agent_cfg = process_sb3_cfg(agent_cfg, env.unwrapped.num_envs)
 
@@ -191,28 +194,23 @@ def main():
             obs = env.reset()
             timestep = 0
             print("[INFO] Policy playback is running, press Ctrl+C to exit...")
-            try:
-                while True:
-                    start_time = time.time()
-                    with torch.inference_mode():
-                        actions, _ = agent.predict(obs, deterministic=True)
-                        obs, _, _, _ = env.step(actions)
-                    if args_cli.video:
-                        timestep += 1
-                        video_stop = args_cli.video_length
-                        if video_stop is None:
-                            recorders = getattr(env_cfg, "video_recorders", [])
-                            video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
-                        if video_stop is not None and timestep >= video_stop:
-                            break
+            while True:
+                start_time = time.time()
+                with torch.inference_mode():
+                    actions, _ = agent.predict(obs, deterministic=True)
+                    obs, _, _, _ = env.step(actions)
+                if args_cli.video:
+                    timestep += 1
+                    video_stop = args_cli.video_length
+                    if video_stop is None:
+                        recorders = getattr(env_cfg, "video_recorders", [])
+                        video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
+                    if video_stop is not None and timestep >= video_stop:
+                        break
 
-                    sleep_time = dt - (time.time() - start_time)
-                    if args_cli.real_time and sleep_time > 0:
-                        time.sleep(sleep_time)
-
-                env.close()
-            except KeyboardInterrupt:
-                pass
+                sleep_time = dt - (time.time() - start_time)
+                if args_cli.real_time and sleep_time > 0:
+                    time.sleep(sleep_time)
 
 
 if __name__ == "__main__":

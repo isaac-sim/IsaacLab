@@ -34,6 +34,7 @@ from isaaclab_rl.entrypoints.common import (
     set_hydra_args,
     show_run_summary,
     startup_screen,
+    suppressed_shutdown_guard,
     validate_distributed_device,
     wrap_training_capture,
     write_run_manifest,
@@ -99,7 +100,7 @@ def run(argv: list[str]) -> None:
         pre_launch_video_config(env_cfg, args_cli=args_cli)
         show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="train")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), suppressed_shutdown_guard() as stack:
             apply_env_overrides(args_cli, env_cfg)
             validate_distributed_device(args_cli)
 
@@ -184,6 +185,9 @@ def run(argv: list[str]) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            # Guarantee env.close() runs; see suppressed_shutdown_guard().
+            stack.callback(lambda: env.close())
+
             env = wrap_training_capture(env, run_log_dir, args_cli)
 
             screen.stage("Preparing agent")
@@ -236,12 +240,8 @@ def run(argv: list[str]) -> None:
                     wandb.config.update({"agent_cfg": agent_cfg})
 
             screen.close()
-            try:
-                if args_cli.checkpoint is not None:
-                    runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
-                else:
-                    runner.run({"train": True, "play": False, "sigma": train_sigma})
-                print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-                env.close()
-            except KeyboardInterrupt:
-                pass
+            if args_cli.checkpoint is not None:
+                runner.run({"train": True, "play": False, "sigma": train_sigma, "checkpoint": resume_path})
+            else:
+                runner.run({"train": True, "play": False, "sigma": train_sigma})
+            print(f"Training time: {round(time.time() - start_time, 2)} seconds")

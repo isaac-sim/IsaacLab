@@ -34,6 +34,7 @@ from isaaclab_rl.entrypoints.common import (
     resolve_play_task_name,
     show_run_summary,
     startup_screen,
+    suppressed_shutdown_guard,
 )
 from isaaclab_rl.rsl_rl import (
     RslRlBaseRunnerCfg,
@@ -121,7 +122,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     with startup_screen(args_cli, num_stages=3) as screen:
         show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="play")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), suppressed_shutdown_guard() as stack:
             task_name = args_cli.task.split(":")[-1]
             train_task_name = task_name.replace("-Play", "")
 
@@ -176,6 +177,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            # Guarantee env.close() runs; see suppressed_shutdown_guard().
+            stack.callback(lambda: env.close())
 
             screen.stage("Loading policy")
             env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
@@ -187,7 +190,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
             else:
                 raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-            # configure_seed must run after runner construction so torch determinism does not disturb its initialization
+            # configure_seed must run after runner construction so torch determinism does not disturb
+            # its initialization
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)
             runner.load(resume_path)
@@ -222,33 +226,28 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             obs = env.get_observations()
             timestep = 0
             print("[INFO] Policy playback is running, press Ctrl+C to exit...")
-            try:
-                while True:
-                    start_time = time.time()
-                    with torch.inference_mode():
-                        actions = policy(obs)
-                        obs, _, dones, _ = env.step(actions)
-                        # reset recurrent states for episodes that have terminated
-                        if version.parse(installed_version) >= version.parse("4.0.0"):
-                            policy.reset(dones)
-                        else:
-                            policy_nn.reset(dones)
-                    if args_cli.video:
-                        timestep += 1
-                        video_stop = args_cli.video_length
-                        if video_stop is None:
-                            recorders = getattr(env_cfg, "video_recorders", [])
-                            video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
-                        if video_stop is not None and timestep >= video_stop:
-                            break
+            while True:
+                start_time = time.time()
+                with torch.inference_mode():
+                    actions = policy(obs)
+                    obs, _, dones, _ = env.step(actions)
+                    # reset recurrent states for episodes that have terminated
+                    if version.parse(installed_version) >= version.parse("4.0.0"):
+                        policy.reset(dones)
+                    else:
+                        policy_nn.reset(dones)
+                if args_cli.video:
+                    timestep += 1
+                    video_stop = args_cli.video_length
+                    if video_stop is None:
+                        recorders = getattr(env_cfg, "video_recorders", [])
+                        video_stop = recorders[0].video_length + recorders[0].step_offset if recorders else None
+                    if video_stop is not None and timestep >= video_stop:
+                        break
 
-                    sleep_time = dt - (time.time() - start_time)
-                    if args_cli.real_time and sleep_time > 0:
-                        time.sleep(sleep_time)
-
-                env.close()
-            except KeyboardInterrupt:
-                pass
+                sleep_time = dt - (time.time() - start_time)
+                if args_cli.real_time and sleep_time > 0:
+                    time.sleep(sleep_time)
 
 
 if __name__ == "__main__":

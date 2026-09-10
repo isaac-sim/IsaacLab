@@ -24,6 +24,8 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.utils import math as math_utils
 
+from isaaclab_rl.entrypoints.common import flag_only_sigint
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
     resolve_task_config,
@@ -78,9 +80,13 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
     except (TypeError, ValueError) as exc:
         raise SystemExit(f"Invalid environment configuration: {exc}") from None
 
-    with launch_simulation(env_cfg, args_cli):
+    with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as stack:
         # create environment
         env = gym.make(args_cli.task, cfg=env_cfg)
+        # See flag_only_sigint(): covers env.close() too, so a second Ctrl+C mid-teardown
+        # can't abort it.
+        is_interrupted = stack.enter_context(flag_only_sigint())
+        stack.callback(env.close)
 
         # print info (this is vectorized environment)
         print(f"[INFO]: Gym observation space: {env.observation_space}")
@@ -98,6 +104,8 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         device = env.unwrapped.device
         step = 0
         while sim.is_headless_or_exist_active_visualizer():
+            if is_interrupted():
+                break
             if args_cli.max_steps is not None and step >= args_cli.max_steps:
                 break
             step += 1
@@ -110,8 +118,6 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
                     actions = 2 * torch.rand(env.action_space.shape, device=device) - 1
                 # apply actions
                 env.step(actions)
-        # close the simulator
-        env.close()
 
 
 def _create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:

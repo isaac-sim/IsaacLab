@@ -36,6 +36,7 @@ from isaaclab_rl.entrypoints.common import (
     set_hydra_args,
     show_run_summary,
     startup_screen,
+    suppressed_shutdown_guard,
     validate_distributed_device,
     wrap_training_capture,
     write_run_manifest,
@@ -137,7 +138,7 @@ def _run(args_cli: argparse.Namespace) -> None:
         pre_launch_video_config(env_cfg, args_cli=args_cli)
         show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), suppressed_shutdown_guard() as stack:
             agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
             apply_env_overrides(args_cli, env_cfg)
             agent_cfg.max_iterations = (
@@ -182,6 +183,8 @@ def _run(args_cli: argparse.Namespace) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            # Guarantee env.close() runs; see suppressed_shutdown_guard().
+            stack.callback(lambda: env.close())
 
             if args_cli.checkpoint in CHECKPOINT_SELECTORS:
                 resume_path = resolve_checkpoint_selector(
@@ -232,12 +235,8 @@ def _run(args_cli: argparse.Namespace) -> None:
             dump_train_configs(log_dir, env_cfg, agent_cfg)
 
             screen.close()
-            try:
-                runner.learn(
-                    num_learning_iterations=agent_cfg.max_iterations,
-                    init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
-                )
-                print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-                env.close()
-            except KeyboardInterrupt:
-                pass
+            runner.learn(
+                num_learning_iterations=agent_cfg.max_iterations,
+                init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
+            )
+            print(f"Training time: {round(time.time() - start_time, 2)} seconds")

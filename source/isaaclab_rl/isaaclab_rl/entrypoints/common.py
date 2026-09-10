@@ -14,10 +14,11 @@ import logging
 import os
 import re
 import runpy
+import signal
 import sys
 import warnings
 from collections.abc import Callable, Iterator
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
@@ -42,6 +43,49 @@ RUN_MANIFEST_VERSION = 1
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
 logger = logging.getLogger(__name__)
 _MISSING = object()
+
+
+@contextmanager
+def flag_only_sigint() -> Iterator[Callable[[], bool]]:
+    """Swap SIGINT for a handler that only flips a flag, checked at a controlled point.
+
+    A raw SIGINT can be delivered anywhere -- e.g. inside one of Kit's own render callbacks --
+    where an ordinary ``try/except`` can't catch it. Yields a callable reporting whether SIGINT
+    fired, for a caller's own step loop to check.
+
+    Only use this around code the caller fully owns. It never raises, so it must not wrap a
+    blocking third-party call (e.g. an RL library's training loop) that needs a raw
+    ``KeyboardInterrupt`` to stop -- use :func:`suppressed_shutdown_guard` there instead.
+    """
+    interrupted = False
+
+    def _on_sigint(signum, frame):
+        nonlocal interrupted
+        interrupted = True
+
+    previous_handler = signal.signal(signal.SIGINT, _on_sigint)
+    try:
+        yield lambda: interrupted
+    finally:
+        signal.signal(signal.SIGINT, previous_handler)
+
+
+@contextmanager
+def suppressed_shutdown_guard() -> Iterator[ExitStack]:
+    """Guarantee registered cleanup runs, then silently swallow ``KeyboardInterrupt``.
+
+    Yields an :class:`~contextlib.ExitStack`; register cleanup on it
+    (``stack.callback(lambda: env.close())``) right after ``env`` exists. A ``KeyboardInterrupt``
+    raised anywhere after that -- including inside a blocking third-party call, like an RL
+    library's training loop, that needs a raw interrupt to stop -- still runs cleanup before
+    being swallowed here.
+
+    Use ``lambda: env.close()``, not ``env.close``: the latter binds the current ``env`` object
+    immediately, so if ``env`` is later reassigned to a wrapper (as every entrypoint here does),
+    the callback would still close the original, unwrapped object instead of the final one.
+    """
+    with suppress(KeyboardInterrupt), ExitStack() as stack:
+        yield stack
 
 
 @contextmanager
