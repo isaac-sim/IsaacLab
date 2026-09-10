@@ -341,3 +341,29 @@ class G129DofRoughMjlabPostureEnvCfg(G129DofRoughStandUpEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         _add_mjlab_posture(self)
+
+
+@configclass
+class G129DofRoughMjlabScaleHwTorqueEnvCfg(G129DofRoughMjlabScaleEnvCfg):
+    """The per-joint action scale, with the torque ceilings it was computed from actually enforced.
+
+    The scale in :data:`_MJLAB_ACTION_SCALE` is ``0.25 * effort_limit / stiffness`` using the
+    hardware's ``ctrlrange``, but ``effort_limit_sim`` is left at ``G1_29DOF_VELOCITY_CFG``'s blanket
+    placeholders -- 300 on the legs and arms, 20 on the ankles, 300 on the hands. So the rule and the
+    ceiling disagree, and they disagree worst exactly where it matters: **the simulated ankle is
+    capped at 20 N*m against the hardware's 50**, which is the joint that places the foot and sets
+    the body roll, and the one the per-joint scale was supposed to give more authority to.
+
+    This arm enforces the hardware ceilings, which makes one unit of action a quarter of the motor's
+    real capacity *and* the motor's real capacity the limit. Everything else is ``ms``.
+
+    The ankle ceiling has been measured to matter on its own before: at 20 N*m the stock task ends at
+    ``error_vel_yaw`` 1.06 against a 0.4 success threshold while linear tracking is already fine.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        from .rough_29dof_env_cfg import _apply_hardware_efforts  # noqa: PLC0415
+
+        _apply_hardware_efforts(self)
