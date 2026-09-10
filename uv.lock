@@ -36,6 +36,7 @@ overrides = [
     { name = "torchvision", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/cu128" },
     { name = "torchvision", marker = "sys_platform == 'win32'", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/cu128" },
     { name = "usd-exchange", specifier = "==3.0.0" },
+    { name = "usd-optimize", marker = "python_full_version < '3'" },
 ]
 
 [[package]]
@@ -2350,7 +2351,6 @@ dependencies = [
     { name = "newton-usd-schemas" },
     { name = "urdf-usd-converter" },
     { name = "usd-exchange" },
-    { name = "usd-optimize" },
 ]
 wheels = [
     { url = "https://pypi.nvidia.com/isaacsim-asset-isolated/isaacsim_asset_isolated-6.1.0.0-py3-none-any.whl", hash = "sha256:b1f9a9d03924512f3d85ef9030f33657adc9be52269e140415e7e7f4f9fc7969" },
@@ -5899,28 +5899,6 @@ wheels = [
     { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-3.0.0-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:59a3b8ef4bc545c76059f7efc5fec94023e0818c5a714fae40f8e0411de79db5" },
     { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-3.0.0-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:3d5a3ca9f6153abaf2bb4f8fda6c4026e174b6b050eb904a6e4a5bdf89a52926" },
     { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-3.0.0-cp312-cp312-win_amd64.whl", hash = "sha256:374499c3d06bd10f4cda2036239935222527f17e1f3ee059fc093aeb9058439b" },
-]
-
-[[package]]
-name = "usd-optimize"
-version = "1.2.1"
-source = { registry = "https://pypi.nvidia.com/" }
-dependencies = [
-    { name = "usd-exchange" },
-    { name = "usd-validation-nvidia" },
-]
-wheels = [
-    { url = "https://pypi.nvidia.com/usd-optimize/usd_optimize-1.2.1-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:6a351bcee83dd38ab6365a83fcfb6c4ead0965b2a8ffd9733d80f16991c97374" },
-    { url = "https://pypi.nvidia.com/usd-optimize/usd_optimize-1.2.1-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:a3fb65529bccf59d4043e22d9f918ef99ef0c98000479d6abeedb2368d3279d6" },
-    { url = "https://pypi.nvidia.com/usd-optimize/usd_optimize-1.2.1-cp312-cp312-win_amd64.whl", hash = "sha256:77635aaef35e03d5858b006bb1ff19bbb13bbc7050102bca0e9a873cb44f6377" },
-]
-
-[[package]]
-name = "usd-validation-nvidia"
-version = "1.21.0"
-source = { registry = "https://pypi.nvidia.com/" }
-wheels = [
-    { url = "https://pypi.nvidia.com/usd-validation-nvidia/usd_validation_nvidia-1.21.0-py3-none-any.whl", hash = "sha256:dcd2871e75f2629670351046917dd8fa2e0e210cbb4f88b33f3624ced931393e" },
 ]
 
 [[package]]

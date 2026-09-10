@@ -416,8 +416,11 @@ override-dependencies = [
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.4.1",
     # isaacsim-asset-isolated and isaacsim-robot-schema pin ==2.3.0; usd-optimize caps at <3.
-    # Forcing 3.0.0 no-ops importer merge_mesh until usd-optimize ships a 26.08 build.
     "usd-exchange==3.0.0",
+    # usd-optimize's core links usd-exchange 2.x's OpenUSD 25.05 SONAMEs and cannot bind 26.08,
+    # so drop it until its v1.3.0. Only importer merge_mesh uses it; absent, the importer logs
+    # the miss instead of silently skipping the merge.
+    "usd-optimize ; python_version < '3'",
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",
