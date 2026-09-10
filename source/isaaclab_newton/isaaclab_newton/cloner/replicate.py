@@ -194,7 +194,7 @@ def _build_newton_builder_from_mapping(
         source_site_indices=source_sites,
         env_root_sites=root_sites,
         per_world_builder_hooks=NewtonManager._per_world_builder_hooks,
-        source_builder_added=record_source_particle_ranges,
+        source_builder_added=record_source_particle_ranges if NewtonManager._mpm_object_registry else None,
     )
 
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}

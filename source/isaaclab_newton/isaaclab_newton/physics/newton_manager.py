@@ -2065,7 +2065,7 @@ class NewtonManager(PhysicsManager):
                 source_site_indices=source_site_indices,
                 env_root_sites=env_root_sites,
                 per_world_builder_hooks=cls._per_world_builder_hooks,
-                source_builder_added=record_source_particle_ranges,
+                source_builder_added=record_source_particle_ranges if cls._mpm_object_registry else None,
             )
 
             NewtonManager._cl_site_index_map = {label: (idx, None) for label, idx in global_site_indices.items()}

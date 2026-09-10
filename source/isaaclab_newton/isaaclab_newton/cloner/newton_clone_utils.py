@@ -326,9 +326,9 @@ def replicate_builder_mapping(
             for name, labels in original_labels.items():
                 label_groups[name][:] = labels
 
-        for world in range(num_worlds):
-            particle_offset = base_particle + world * particle_stride
-            if source_builder_added is not None:
+        if source_builder_added is not None:
+            for world in range(num_worlds):
+                particle_offset = base_particle + world * particle_stride
                 source_builder_added(sources[0], particle_offset, source_builder, xforms[world])
 
         for label, local_indices in site_local_indices.items():
