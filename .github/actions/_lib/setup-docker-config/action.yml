@@ -7,8 +7,9 @@ name: 'Setup docker config'
 description: >
   Point DOCKER_CONFIG at a temp config with the credential helper disabled and
   log into nvcr.io. Shared by the docker-build and ecr-build-push-pull actions.
-  Idempotent: re-invoking it in the same job is a no-op, so callers (e.g.
-  ecr-build-push-pull delegating to docker-build) don't need to coordinate.
+  Idempotent: re-invoking it in the same job reuses the existing config, and a
+  base-image-ref already checked in this job is not probed again, so callers
+  (e.g. ecr-build-push-pull delegating to docker-build) don't need to coordinate.
   Reads NGC_API_KEY from the environment (optional; warns when missing).
   When base-image-ref names an nvcr.io image that the configured credentials are
   refused, falls back to anonymous access for that registry.
@@ -66,6 +67,16 @@ runs:
         if [ -z "${BASE_IMAGE_REF:-}" ]; then
           exit 0
         fi
+
+        # ecr-build-push-pull delegates to docker-build, so this action can run
+        # twice in one job with the same ref. The probes are network calls with
+        # backoff, and the first run already settled the outcome, so a ref
+        # checked in this job is not probed again.
+        if [ "${SETUP_DOCKER_CONFIG_CHECKED_REF:-}" = "${BASE_IMAGE_REF}" ]; then
+          echo "🟢 ${BASE_IMAGE_REF} was already checked in this job, skipping"
+          exit 0
+        fi
+        echo "SETUP_DOCKER_CONFIG_CHECKED_REF=${BASE_IMAGE_REF}" >> "$GITHUB_ENV"
 
         # Scope: only nvcr.io shows the refuse-instead-of-downgrade behaviour.
         # Other registries (Docker Hub in particular) must keep their
