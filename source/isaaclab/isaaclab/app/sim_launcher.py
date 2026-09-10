@@ -436,7 +436,10 @@ def _validate_runtime(scan: Scan, kit_sources: tuple[str, ...]) -> None:
         " `newton_rtx` visualizer) cannot be used together"
         f" with Isaac Sim / Kit ({_format_runtime_sources(kit_sources)}).\n"
         "\n"
-        "Keep Kit and use Kit-compatible rendering, or keep OVRTX and remove every Kit source.\n"
+        "To fix this, pick one of the following supported combinations:\n"
+        "  * Keep Isaac Sim / Kit and switch the renderer:\n"
+        "      use `IsaacRtxRendererCfg`, the Kit-compatible renderer\n"
+        "  * Keep OVRTX (`OVRTXRendererCfg` or `--visualizer newton_rtx`) and remove every Kit source\n"
     )
 
 
