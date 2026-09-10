@@ -1065,8 +1065,9 @@ def test_newton_ordered_body_state_cache_invalidates_on_same_timestamp_root_writ
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
+@pytest.mark.parametrize("use_newton_actuators", [False])
 def test_newton_ordered_state_caches_invalidate_on_rebind(
-    sim, num_articulations, device, gravity_enabled, articulation_type, ordering_mode
+    sim, num_articulations, device, gravity_enabled, articulation_type, ordering_mode, use_newton_actuators
 ):
     """Rebind public state to recreated Newton arrays and invalidate ordered caches."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
@@ -1268,8 +1269,9 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
 @pytest.mark.parametrize("gravity_enabled", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
+@pytest.mark.parametrize("use_newton_actuators", [False])
 def test_newton_rebind_preserves_lab_owned_actuator_gains(
-    sim, num_articulations, device, gravity_enabled, articulation_type, ordering_mode
+    sim, num_articulations, device, gravity_enabled, articulation_type, ordering_mode, use_newton_actuators
 ):
     """Keep Lab-owned actuator gains across a rebind that re-seeds the solver's sim gains.
 
