@@ -887,3 +887,9 @@ html[data-theme="dark"] .environment-browser {
         padding: 0.85rem;
     }
 }
+
+.environment-benchmark-table .environment-benchmark-missing {
+    color: var(--environment-muted);
+    white-space: normal;
+    font-size: 0.7rem;
+}

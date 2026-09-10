@@ -100,25 +100,32 @@ Benchmarks
 Measured at each task's configured training-default environment count on one
 NVIDIA RTX PRO 6000 Blackwell Server Edition GPU. The same task-specific count
 is used for Collection and Training; runs at other counts are excluded.
-Release and Develop share the September 9, 2026 documentation baseline: 115
-measurements, using older runs where release-day data is missing. This is an
-assembled baseline from develop runs, not a comparison of independently measured
-release and develop builds. Release labels the snapshot EA 3.0; Develop labels
-it September 9. The table shows each configuration's mean FPS and actual measurement
-date; scroll the table to see additional camera configurations.
+Collection and Training use two metrics from the same successful training run:
+Collection FPS measures rollouts (environment stepping and policy inference), and
+Training FPS includes policy updates. Both modes therefore use the same task,
+presets, count, library, measurement date, and source record.
 
-Collection and Training show total FPS from runtime and RSL-RL training benchmarks,
-respectively. Camera results retain the recorded renderer and presets. Missing
-configurations are not estimated; camera records without renderer metadata and
-Kamino results are excluded. See the
-`coverage report <../../_static/benchmarks/COVERAGE.md>`__ for all missing
-configurations, source-data issues, and the collection plan.
+Release shows the current September 9, 2026 baseline as EA 3.0. Develop shows
+August 14, August 28, and the identical current baseline. Current configurations
+use the latest available run through September 9, including older camera runs;
+historical points require a run ingested on the displayed date. August 14 has no
+qualifying default-count runs, so its table cells show "Not available" and no
+points are plotted. Missing measurements are not interpolated.
+
+The table shows exact FPS for each configuration and snapshot; scroll to see more
+camera configurations. Release lists actual measurement dates, and Develop exposes
+them in FPS tooltips. Missing environments use the benchmark-unavailable placeholder.
+Kamino is excluded. See the
+`coverage report <../../_static/benchmarks/COVERAGE.md>`__ for missing defaults,
+OV PhysX coverage, historical gaps, and source-data issues.
 
 .. raw:: html
 
    <div class="environment-browser" data-environment-benchmarks
         data-benchmark-release-source="../../_static/benchmarks/environment-performance-release.csv"
-        data-benchmark-develop-source="../../_static/benchmarks/environment-performance-develop.csv">
+        data-benchmark-develop-source="../../_static/benchmarks/environment-performance-develop.csv"
+        data-benchmark-release-dates="2026-09-09"
+        data-benchmark-develop-dates="2026-08-14,2026-08-28,2026-09-09">
      <section class="environment-benchmark-panel">
        <div class="environment-benchmark-toolbar">
          <div class="environment-benchmark-switch" role="group" aria-label="Benchmark channel">
@@ -126,7 +133,7 @@ configurations, source-data issues, and the collection plan.
            <button type="button" data-benchmark-channel="develop" aria-pressed="false">Develop</button>
          </div>
          <div class="environment-benchmark-switch" role="group" aria-label="Benchmark workload">
-           <button type="button" class="is-active" data-benchmark-workload="runtime" aria-pressed="true">Collection</button>
+           <button type="button" class="is-active" data-benchmark-workload="collection" aria-pressed="true">Collection</button>
            <button type="button" data-benchmark-workload="training" aria-pressed="false">Training</button>
          </div>
        </div>

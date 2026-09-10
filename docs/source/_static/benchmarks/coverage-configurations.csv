@@ -1,313 +1,469 @@
-task,num_envs,workload,physics_backend,rendering_backend,status,selected_profiles,source_record_ids,source_dates,other_measured_counts
-Isaac-Ant-Direct,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Ant-Direct,4096,training,isaacsim_physx,none,covered,1,206494,2026-09-09,"8192,16384"
-Isaac-Ant-Direct,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Ant-Direct,4096,training,newton_mjwarp,none,covered,1,206516,2026-09-09,"8192,16384"
-Isaac-Ant-Direct,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Ant-Direct,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Ant,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Ant,4096,training,isaacsim_physx,none,covered,1,206494,2026-09-09,"8192,16384"
-Isaac-Ant,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Ant,4096,training,newton_mjwarp,none,covered,1,206516,2026-09-09,"8192,16384"
-Isaac-Ant,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Ant,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole-Direct,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole-Direct,4096,training,isaacsim_physx,none,covered,1,206495,2026-09-09,"8192,16384"
-Isaac-Cartpole-Direct,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole-Direct,4096,training,newton_mjwarp,none,covered,1,206521,2026-09-09,"8192,16384"
-Isaac-Cartpole-Direct,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole-Direct,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole,4096,training,isaacsim_physx,none,covered,1,206495,2026-09-09,"8192,16384"
-Isaac-Cartpole,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole,4096,training,newton_mjwarp,none,covered,1,206514,2026-09-09,"8192,16384"
-Isaac-Cartpole,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole-Camera-Direct,512,runtime,isaacsim_physx,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole-Camera-Direct,512,training,isaacsim_physx,isaacsim_rtx,other environment counts only,0,,,8192
-Isaac-Cartpole-Camera-Direct,512,runtime,isaacsim_physx,newton_renderer,covered,2,"157809,157819",2026-08-24,"8192,16384"
-Isaac-Cartpole-Camera-Direct,512,training,isaacsim_physx,newton_renderer,covered,3,"158161,158168,165773","2026-08-24,2026-08-27",8192
-Isaac-Cartpole-Camera-Direct,512,runtime,newton_mjwarp,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole-Camera-Direct,512,training,newton_mjwarp,isaacsim_rtx,other environment counts only,0,,,8192
-Isaac-Cartpole-Camera-Direct,512,runtime,newton_mjwarp,newton_renderer,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole-Camera-Direct,512,training,newton_mjwarp,newton_renderer,other environment counts only,0,,,8192
-Isaac-Cartpole-Camera-Direct,512,runtime,newton_mjwarp,ovrtx,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole-Camera-Direct,512,training,newton_mjwarp,ovrtx,other environment counts only,0,,,8192
-Isaac-Cartpole-Camera-Direct,512,runtime,ovphysx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Cartpole-Camera-Direct,512,training,ovphysx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Cartpole-Camera-Direct,512,runtime,ovphysx,ovrtx,other environment counts only,0,,,8192
-Isaac-Cartpole-Camera-Direct,512,training,ovphysx,ovrtx,other environment counts only,0,,,8192
-Isaac-Cartpole-Camera,512,runtime,isaacsim_physx,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole-Camera,512,training,isaacsim_physx,isaacsim_rtx,other environment counts only,0,,,8192
-Isaac-Cartpole-Camera,512,runtime,isaacsim_physx,newton_renderer,covered,2,"156523,157819",2026-08-24,"8192,16384"
-Isaac-Cartpole-Camera,512,training,isaacsim_physx,newton_renderer,covered,3,"158160,158168,165773","2026-08-24,2026-08-27",8192
-Isaac-Cartpole-Camera,512,runtime,newton_mjwarp,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole-Camera,512,training,newton_mjwarp,isaacsim_rtx,other environment counts only,0,,,8192
-Isaac-Cartpole-Camera,512,runtime,newton_mjwarp,newton_renderer,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole-Camera,512,training,newton_mjwarp,newton_renderer,other environment counts only,0,,,8192
-Isaac-Cartpole-Camera,512,runtime,newton_mjwarp,ovrtx,other environment counts only,0,,,"8192,16384"
-Isaac-Cartpole-Camera,512,training,newton_mjwarp,ovrtx,other environment counts only,0,,,8192
-Isaac-Cartpole-Camera,512,runtime,ovphysx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Cartpole-Camera,512,training,ovphysx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Cartpole-Camera,512,runtime,ovphysx,ovrtx,other environment counts only,0,,,8192
-Isaac-Cartpole-Camera,512,training,ovphysx,ovrtx,other environment counts only,0,,,8192
-Isaac-Humanoid-Direct,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Humanoid-Direct,4096,training,isaacsim_physx,none,covered,1,206503,2026-09-09,"8192,16384"
-Isaac-Humanoid-Direct,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Humanoid-Direct,4096,training,newton_mjwarp,none,covered,1,206529,2026-09-09,"8192,16384"
-Isaac-Humanoid-Direct,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Humanoid-Direct,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Humanoid,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Humanoid,4096,training,isaacsim_physx,none,covered,1,206503,2026-09-09,"8192,16384"
-Isaac-Humanoid,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Humanoid,4096,training,newton_mjwarp,none,covered,1,206526,2026-09-09,"8192,16384"
-Isaac-Humanoid,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Humanoid,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-Cable-Franka,8192,runtime,newton_mjwarp_vbd_proxy,none,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cable-Franka,8192,training,newton_mjwarp_vbd_proxy,none,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cable-Franka-Camera,128,runtime,newton_mjwarp_vbd_proxy,isaacsim_rtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cable-Franka-Camera,128,training,newton_mjwarp_vbd_proxy,isaacsim_rtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cable-Franka-Camera,128,runtime,newton_mjwarp_vbd_proxy,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cable-Franka-Camera,128,training,newton_mjwarp_vbd_proxy,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cable-Franka-Camera,128,runtime,newton_mjwarp_vbd_proxy,ovrtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cable-Franka-Camera,128,training,newton_mjwarp_vbd_proxy,ovrtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cloth-Franka,2048,runtime,isaacsim_physx,none,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cloth-Franka,2048,training,isaacsim_physx,none,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cloth-Franka,2048,runtime,newton_mjwarp_vbd_proxy,none,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cloth-Franka,2048,training,newton_mjwarp_vbd_proxy,none,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cloth-Franka-Camera,128,runtime,isaacsim_physx,isaacsim_rtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cloth-Franka-Camera,128,training,isaacsim_physx,isaacsim_rtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cloth-Franka-Camera,128,runtime,isaacsim_physx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cloth-Franka-Camera,128,training,isaacsim_physx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cloth-Franka-Camera,128,runtime,newton_mjwarp_vbd_proxy,isaacsim_rtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cloth-Franka-Camera,128,training,newton_mjwarp_vbd_proxy,isaacsim_rtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cloth-Franka-Camera,128,runtime,newton_mjwarp_vbd_proxy,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cloth-Franka-Camera,128,training,newton_mjwarp_vbd_proxy,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cloth-Franka-Camera,128,runtime,newton_mjwarp_vbd_proxy,ovrtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Cloth-Franka-Camera,128,training,newton_mjwarp_vbd_proxy,ovrtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Franka,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-Franka,4096,training,isaacsim_physx,none,covered,1,206501,2026-09-09,"8192,16384"
-Isaac-Lift-Franka,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-Franka,4096,training,newton_mjwarp,none,covered,1,206530,2026-09-09,"8192,16384"
-Isaac-Lift-Franka,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-Franka,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-KukaAllegro,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-KukaAllegro,4096,training,isaacsim_physx,none,covered,2,"165753,206505","2026-08-27,2026-09-09","8192,16384"
-Isaac-Lift-KukaAllegro,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-KukaAllegro,4096,training,newton_mjwarp,none,covered,1,206532,2026-09-09,"8192,16384"
-Isaac-Lift-KukaAllegro,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-KukaAllegro,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-KukaAllegro-Camera,4096,runtime,isaacsim_physx,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-KukaAllegro-Camera,4096,training,isaacsim_physx,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-KukaAllegro-Camera,4096,runtime,isaacsim_physx,newton_renderer,covered,4,"157805,157816,157828,157830",2026-08-24,"8192,16384"
-Isaac-Lift-KukaAllegro-Camera,4096,training,isaacsim_physx,newton_renderer,covered,5,"158164,158165,158176,158177,165753","2026-08-24,2026-08-27","8192,16384"
-Isaac-Lift-KukaAllegro-Camera,4096,runtime,newton_mjwarp,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-KukaAllegro-Camera,4096,training,newton_mjwarp,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-KukaAllegro-Camera,4096,runtime,newton_mjwarp,newton_renderer,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-KukaAllegro-Camera,4096,training,newton_mjwarp,newton_renderer,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-KukaAllegro-Camera,4096,runtime,newton_mjwarp,ovrtx,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-KukaAllegro-Camera,4096,training,newton_mjwarp,ovrtx,other environment counts only,0,,,"8192,16384"
-Isaac-Lift-KukaAllegro-Camera,4096,runtime,ovphysx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-KukaAllegro-Camera,4096,training,ovphysx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-KukaAllegro-Camera,4096,runtime,ovphysx,ovrtx,other environment counts only,0,,,8192
-Isaac-Lift-KukaAllegro-Camera,4096,training,ovphysx,ovrtx,other environment counts only,0,,,8192
-Isaac-Lift-Soft-Franka,2048,runtime,isaacsim_physx,none,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Soft-Franka,2048,training,isaacsim_physx,none,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Soft-Franka,2048,runtime,newton_mjwarp_vbd_proxy,none,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Soft-Franka,2048,training,newton_mjwarp_vbd_proxy,none,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Soft-Franka-Camera,128,runtime,isaacsim_physx,isaacsim_rtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Soft-Franka-Camera,128,training,isaacsim_physx,isaacsim_rtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Soft-Franka-Camera,128,runtime,isaacsim_physx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Soft-Franka-Camera,128,training,isaacsim_physx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Soft-Franka-Camera,128,runtime,newton_mjwarp_vbd_proxy,isaacsim_rtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Soft-Franka-Camera,128,training,newton_mjwarp_vbd_proxy,isaacsim_rtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Soft-Franka-Camera,128,runtime,newton_mjwarp_vbd_proxy,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Soft-Franka-Camera,128,training,newton_mjwarp_vbd_proxy,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Soft-Franka-Camera,128,runtime,newton_mjwarp_vbd_proxy,ovrtx,no WARM entry on any queried hardware,0,,,
-Isaac-Lift-Soft-Franka-Camera,128,training,newton_mjwarp_vbd_proxy,ovrtx,no WARM entry on any queried hardware,0,,,
-Isaac-Open-Drawer-Franka-Direct,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Open-Drawer-Franka-Direct,4096,training,isaacsim_physx,none,covered,1,206507,2026-09-09,"8192,16384"
-Isaac-Open-Drawer-Franka-Direct,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Open-Drawer-Franka-Direct,4096,training,newton_mjwarp,none,covered,1,206558,2026-09-09,"8192,16384"
-Isaac-Open-Drawer-Franka-Direct,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Open-Drawer-Franka-Direct,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Open-Drawer-Franka,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Open-Drawer-Franka,4096,training,isaacsim_physx,none,covered,1,206507,2026-09-09,"8192,16384"
-Isaac-Open-Drawer-Franka,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Open-Drawer-Franka,4096,training,newton_mjwarp,none,covered,1,206558,2026-09-09,"8192,16384"
-Isaac-Open-Drawer-Franka,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Open-Drawer-Franka,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Pendulum-MARL-Direct,4096,runtime,isaacsim_physx,none,no WARM entry on any queried hardware,0,,,
-Isaac-Pendulum-MARL-Direct,4096,training,isaacsim_physx,none,no WARM entry on any queried hardware,0,,,
-Isaac-Pendulum-MARL-Direct,4096,runtime,newton_mjwarp,none,no WARM entry on any queried hardware,0,,,
-Isaac-Pendulum-MARL-Direct,4096,training,newton_mjwarp,none,no WARM entry on any queried hardware,0,,,
-Isaac-Pendulum-MARL-Direct,4096,runtime,ovphysx,none,no WARM entry on any queried hardware,0,,,
-Isaac-Pendulum-MARL-Direct,4096,training,ovphysx,none,no WARM entry on any queried hardware,0,,,
-Isaac-Reach-Franka,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reach-Franka,4096,training,isaacsim_physx,none,covered,1,206509,2026-09-09,"8192,16384"
-Isaac-Reach-Franka,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reach-Franka,4096,training,newton_mjwarp,none,covered,1,206535,2026-09-09,"8192,16384"
-Isaac-Reach-Franka,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reach-Franka,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reach-Franka-OSC,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reach-Franka-OSC,4096,training,isaacsim_physx,none,covered,1,206509,2026-09-09,"8192,16384"
-Isaac-Reach-Franka-OSC,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reach-Franka-OSC,4096,training,newton_mjwarp,none,covered,1,206536,2026-09-09,"8192,16384"
-Isaac-Reach-Franka-OSC,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reach-Franka-OSC,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reach-UR10,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reach-UR10,4096,training,isaacsim_physx,none,covered,1,206508,2026-09-09,"8192,16384"
-Isaac-Reach-UR10,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reach-UR10,4096,training,newton_mjwarp,none,covered,1,206539,2026-09-09,"8192,16384"
-Isaac-Reach-UR10,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reach-UR10,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Allegro-Direct,8192,runtime,isaacsim_physx,none,covered,1,205595,2026-09-09,16384
-Isaac-Reorient-Cube-Allegro-Direct,8192,training,isaacsim_physx,none,covered,1,206266,2026-09-09,16384
-Isaac-Reorient-Cube-Allegro-Direct,8192,runtime,newton_mjwarp,none,covered,1,205846,2026-09-09,16384
-Isaac-Reorient-Cube-Allegro-Direct,8192,training,newton_mjwarp,none,covered,1,206357,2026-09-09,16384
-Isaac-Reorient-Cube-Allegro-Direct,8192,runtime,ovphysx,none,covered,1,205949,2026-09-09,16384
-Isaac-Reorient-Cube-Allegro-Direct,8192,training,ovphysx,none,covered,1,206434,2026-09-09,16384
-Isaac-Reorient-Cube-Allegro,8192,runtime,isaacsim_physx,none,covered,1,205595,2026-09-09,16384
-Isaac-Reorient-Cube-Allegro,8192,training,isaacsim_physx,none,covered,1,206257,2026-09-09,16384
-Isaac-Reorient-Cube-Allegro,8192,runtime,newton_mjwarp,none,covered,1,205845,2026-09-09,16384
-Isaac-Reorient-Cube-Allegro,8192,training,newton_mjwarp,none,covered,1,206357,2026-09-09,16384
-Isaac-Reorient-Cube-Allegro,8192,runtime,ovphysx,none,covered,1,205949,2026-09-09,16384
-Isaac-Reorient-Cube-Allegro,8192,training,ovphysx,none,covered,1,206434,2026-09-09,16384
-Isaac-Reorient-Cube-Shadow-Direct,8192,runtime,isaacsim_physx,none,covered,2,"164296,205605","2026-08-26,2026-09-09",16384
-Isaac-Reorient-Cube-Shadow-Direct,8192,training,isaacsim_physx,none,covered,2,"164972,206282","2026-08-26,2026-09-09",16384
-Isaac-Reorient-Cube-Shadow-Direct,8192,runtime,newton_mjwarp,none,covered,1,205856,2026-09-09,16384
-Isaac-Reorient-Cube-Shadow-Direct,8192,training,newton_mjwarp,none,covered,1,206386,2026-09-09,16384
-Isaac-Reorient-Cube-Shadow-Direct,8192,runtime,ovphysx,none,covered,1,205961,2026-09-09,16384
-Isaac-Reorient-Cube-Shadow-Direct,8192,training,ovphysx,none,covered,1,206443,2026-09-09,16384
-Isaac-Reorient-Cube-Shadow,8192,runtime,isaacsim_physx,none,covered,2,"164296,205605","2026-08-26,2026-09-09",16384
-Isaac-Reorient-Cube-Shadow,8192,training,isaacsim_physx,none,covered,2,"164972,206282","2026-08-26,2026-09-09",16384
-Isaac-Reorient-Cube-Shadow,8192,runtime,newton_mjwarp,none,covered,1,205856,2026-09-09,16384
-Isaac-Reorient-Cube-Shadow,8192,training,newton_mjwarp,none,covered,1,206386,2026-09-09,16384
-Isaac-Reorient-Cube-Shadow,8192,runtime,ovphysx,none,covered,1,205961,2026-09-09,16384
-Isaac-Reorient-Cube-Shadow,8192,training,ovphysx,none,covered,1,206443,2026-09-09,16384
-Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,runtime,isaacsim_physx,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,training,isaacsim_physx,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,runtime,isaacsim_physx,newton_renderer,covered,1,157803,2026-08-24,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,training,isaacsim_physx,newton_renderer,covered,2,"158172,165778","2026-08-24,2026-08-27","8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,runtime,newton_mjwarp,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,training,newton_mjwarp,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,runtime,newton_mjwarp,newton_renderer,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,training,newton_mjwarp,newton_renderer,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,runtime,newton_mjwarp,ovrtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,training,newton_mjwarp,ovrtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,runtime,ovphysx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,training,ovphysx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,runtime,ovphysx,ovrtx,other environment counts only,0,,,8192
-Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,training,ovphysx,ovrtx,other environment counts only,0,,,8192
-Isaac-Reorient-Cube-Shadow-Camera,1225,runtime,isaacsim_physx,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera,1225,training,isaacsim_physx,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera,1225,runtime,isaacsim_physx,newton_renderer,covered,1,157803,2026-08-24,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera,1225,training,isaacsim_physx,newton_renderer,covered,2,"158172,165778","2026-08-24,2026-08-27","8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera,1225,runtime,newton_mjwarp,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera,1225,training,newton_mjwarp,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera,1225,runtime,newton_mjwarp,newton_renderer,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera,1225,training,newton_mjwarp,newton_renderer,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera,1225,runtime,newton_mjwarp,ovrtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera,1225,training,newton_mjwarp,ovrtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Cube-Shadow-Camera,1225,runtime,ovphysx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Reorient-Cube-Shadow-Camera,1225,training,ovphysx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Reorient-Cube-Shadow-Camera,1225,runtime,ovphysx,ovrtx,other environment counts only,0,,,8192
-Isaac-Reorient-Cube-Shadow-Camera,1225,training,ovphysx,ovrtx,other environment counts only,0,,,8192
-Isaac-Reorient-Franka,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Franka,4096,training,isaacsim_physx,none,covered,1,206511,2026-09-09,"8192,16384"
-Isaac-Reorient-Franka,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Franka,4096,training,newton_mjwarp,none,covered,1,206537,2026-09-09,"8192,16384"
-Isaac-Reorient-Franka,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-Franka,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-KukaAllegro,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-KukaAllegro,4096,training,isaacsim_physx,none,covered,1,206512,2026-09-09,"8192,16384"
-Isaac-Reorient-KukaAllegro,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-KukaAllegro,4096,training,newton_mjwarp,none,covered,1,206538,2026-09-09,"8192,16384"
-Isaac-Reorient-KukaAllegro,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-KukaAllegro,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-KukaAllegro-Camera,4096,runtime,isaacsim_physx,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-KukaAllegro-Camera,4096,training,isaacsim_physx,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-KukaAllegro-Camera,4096,runtime,isaacsim_physx,newton_renderer,covered,4,"157807,157815,157835,157839",2026-08-24,"8192,16384"
-Isaac-Reorient-KukaAllegro-Camera,4096,training,isaacsim_physx,newton_renderer,covered,5,"158169,158185,158188,158190,165401","2026-08-24,2026-08-27","8192,16384"
-Isaac-Reorient-KukaAllegro-Camera,4096,runtime,newton_mjwarp,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-KukaAllegro-Camera,4096,training,newton_mjwarp,isaacsim_rtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-KukaAllegro-Camera,4096,runtime,newton_mjwarp,newton_renderer,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-KukaAllegro-Camera,4096,training,newton_mjwarp,newton_renderer,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-KukaAllegro-Camera,4096,runtime,newton_mjwarp,ovrtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-KukaAllegro-Camera,4096,training,newton_mjwarp,ovrtx,other environment counts only,0,,,"8192,16384"
-Isaac-Reorient-KukaAllegro-Camera,4096,runtime,ovphysx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Reorient-KukaAllegro-Camera,4096,training,ovphysx,newton_renderer,no WARM entry on any queried hardware,0,,,
-Isaac-Reorient-KukaAllegro-Camera,4096,runtime,ovphysx,ovrtx,other environment counts only,0,,,8192
-Isaac-Reorient-KukaAllegro-Camera,4096,training,ovphysx,ovrtx,other environment counts only,0,,,8192
-Isaac-Shadow-Handover-Direct,2048,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Shadow-Handover-Direct,2048,training,isaacsim_physx,none,covered,1,206510,2026-09-09,"8192,16384"
-Isaac-Shadow-Handover-Direct,2048,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Shadow-Handover-Direct,2048,training,newton_mjwarp,none,covered,1,206721,2026-09-09,"8192,16384"
-Isaac-Shadow-Handover-Direct,2048,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Shadow-Handover-Direct,2048,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Shadow-Handover,2048,runtime,isaacsim_physx,none,no WARM entry on any queried hardware,0,,,
-Isaac-Shadow-Handover,2048,training,isaacsim_physx,none,no WARM entry on any queried hardware,0,,,
-Isaac-Shadow-Handover,2048,runtime,newton_mjwarp,none,no WARM entry on any queried hardware,0,,,
-Isaac-Shadow-Handover,2048,training,newton_mjwarp,none,no WARM entry on any queried hardware,0,,,
-Isaac-Shadow-Handover,2048,runtime,ovphysx,none,no WARM entry on any queried hardware,0,,,
-Isaac-Shadow-Handover,2048,training,ovphysx,none,no WARM entry on any queried hardware,0,,,
-Isaac-Velocity-Flat-AnymalD,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-AnymalD,4096,training,isaacsim_physx,none,covered,1,206520,2026-09-09,"8192,16384"
-Isaac-Velocity-Flat-AnymalD,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-AnymalD,4096,training,newton_mjwarp,none,covered,1,206541,2026-09-09,"8192,16384"
-Isaac-Velocity-Flat-AnymalD,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-AnymalD,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-Cassie,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-Cassie,4096,training,isaacsim_physx,none,covered,1,206517,2026-09-09,"8192,16384"
-Isaac-Velocity-Flat-Cassie,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-Cassie,4096,training,newton_mjwarp,none,covered,1,206540,2026-09-09,"8192,16384"
-Isaac-Velocity-Flat-Cassie,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-Cassie,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-G1,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-G1,4096,training,isaacsim_physx,none,covered,1,206524,2026-09-09,"8192,16384"
-Isaac-Velocity-Flat-G1,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-G1,4096,training,newton_mjwarp,none,covered,1,206543,2026-09-09,"8192,16384"
-Isaac-Velocity-Flat-G1,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-G1,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-H1,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-H1,4096,training,isaacsim_physx,none,covered,1,206519,2026-09-09,"8192,16384"
-Isaac-Velocity-Flat-H1,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-H1,4096,training,newton_mjwarp,none,covered,1,206545,2026-09-09,"8192,16384"
-Isaac-Velocity-Flat-H1,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-H1,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-UnitreeGo2,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-UnitreeGo2,4096,training,isaacsim_physx,none,covered,1,206525,2026-09-09,"8192,16384"
-Isaac-Velocity-Flat-UnitreeGo2,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-UnitreeGo2,4096,training,newton_mjwarp,none,covered,1,206547,2026-09-09,"8192,16384"
-Isaac-Velocity-Flat-UnitreeGo2,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Flat-UnitreeGo2,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-AnymalD,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-AnymalD,4096,training,isaacsim_physx,none,covered,1,206527,2026-09-09,"8192,16384"
-Isaac-Velocity-Rough-AnymalD,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-AnymalD,4096,training,newton_mjwarp,none,covered,1,206542,2026-09-09,"8192,16384"
-Isaac-Velocity-Rough-AnymalD,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-AnymalD,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-Cassie,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-Cassie,4096,training,isaacsim_physx,none,covered,1,206723,2026-09-09,"8192,16384"
-Isaac-Velocity-Rough-Cassie,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-Cassie,4096,training,newton_mjwarp,none,covered,1,206549,2026-09-09,"8192,16384"
-Isaac-Velocity-Rough-Cassie,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-Cassie,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-G1,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-G1,4096,training,isaacsim_physx,none,covered,1,206488,2026-09-09,"8192,16384"
-Isaac-Velocity-Rough-G1,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-G1,4096,training,newton_mjwarp,none,covered,1,206518,2026-09-09,"8192,16384"
-Isaac-Velocity-Rough-G1,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-G1,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-H1,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-H1,4096,training,isaacsim_physx,none,covered,1,206728,2026-09-09,"8192,16384"
-Isaac-Velocity-Rough-H1,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-H1,4096,training,newton_mjwarp,none,covered,1,206551,2026-09-09,"8192,16384"
-Isaac-Velocity-Rough-H1,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-H1,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-UnitreeGo2,4096,runtime,isaacsim_physx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-UnitreeGo2,4096,training,isaacsim_physx,none,covered,1,206533,2026-09-09,"8192,16384"
-Isaac-Velocity-Rough-UnitreeGo2,4096,runtime,newton_mjwarp,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-UnitreeGo2,4096,training,newton_mjwarp,none,covered,1,206548,2026-09-09,"8192,16384"
-Isaac-Velocity-Rough-UnitreeGo2,4096,runtime,ovphysx,none,other environment counts only,0,,,"8192,16384"
-Isaac-Velocity-Rough-UnitreeGo2,4096,training,ovphysx,none,other environment counts only,0,,,"8192,16384"
+snapshot_date_utc,task,num_envs,physics_backend,rendering_backend,collection_status,training_status,selected_profiles,source_record_ids,source_dates,other_measured_counts
+2026-08-14,Isaac-Ant-Direct,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Ant-Direct,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Ant-Direct,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Ant,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Ant,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Ant,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Direct,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Direct,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Direct,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Camera-Direct,512,isaacsim_physx,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Camera-Direct,512,isaacsim_physx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Camera-Direct,512,newton_mjwarp,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Camera-Direct,512,newton_mjwarp,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Camera-Direct,512,newton_mjwarp,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Camera-Direct,512,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Camera-Direct,512,ovphysx,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Camera,512,isaacsim_physx,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Camera,512,isaacsim_physx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Camera,512,newton_mjwarp,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Camera,512,newton_mjwarp,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Camera,512,newton_mjwarp,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Camera,512,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Cartpole-Camera,512,ovphysx,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Humanoid-Direct,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Humanoid-Direct,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Humanoid-Direct,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Humanoid,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Humanoid,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Humanoid,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Cable-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Cable-Franka-Camera,128,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Cable-Franka-Camera,128,newton_mjwarp_vbd_proxy,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Cable-Franka-Camera,128,newton_mjwarp_vbd_proxy,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Cloth-Franka,2048,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Cloth-Franka,2048,newton_mjwarp_vbd_proxy,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Cloth-Franka-Camera,128,isaacsim_physx,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Cloth-Franka-Camera,128,isaacsim_physx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Cloth-Franka-Camera,128,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Cloth-Franka-Camera,128,newton_mjwarp_vbd_proxy,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Cloth-Franka-Camera,128,newton_mjwarp_vbd_proxy,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Franka,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Franka,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Franka,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-KukaAllegro,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-KukaAllegro,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-KukaAllegro,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-KukaAllegro-Camera,4096,isaacsim_physx,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-14,Isaac-Lift-KukaAllegro-Camera,4096,isaacsim_physx,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-14,Isaac-Lift-KukaAllegro-Camera,4096,newton_mjwarp,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-14,Isaac-Lift-KukaAllegro-Camera,4096,newton_mjwarp,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-14,Isaac-Lift-KukaAllegro-Camera,4096,newton_mjwarp,ovrtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-14,Isaac-Lift-KukaAllegro-Camera,4096,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-KukaAllegro-Camera,4096,ovphysx,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-08-14,Isaac-Lift-Soft-Franka,2048,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Soft-Franka,2048,newton_mjwarp_vbd_proxy,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Soft-Franka-Camera,128,isaacsim_physx,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Soft-Franka-Camera,128,isaacsim_physx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Soft-Franka-Camera,128,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Soft-Franka-Camera,128,newton_mjwarp_vbd_proxy,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Lift-Soft-Franka-Camera,128,newton_mjwarp_vbd_proxy,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Open-Drawer-Franka-Direct,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Open-Drawer-Franka-Direct,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Open-Drawer-Franka-Direct,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Open-Drawer-Franka,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Open-Drawer-Franka,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Open-Drawer-Franka,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Pendulum-MARL-Direct,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Pendulum-MARL-Direct,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Pendulum-MARL-Direct,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reach-Franka,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reach-Franka,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reach-Franka,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reach-Franka-OSC,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reach-Franka-OSC,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reach-Franka-OSC,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reach-UR10,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reach-UR10,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reach-UR10,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Allegro-Direct,8192,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Allegro-Direct,8192,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Allegro-Direct,8192,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Allegro,8192,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Allegro,8192,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Allegro,8192,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Shadow-Direct,8192,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Shadow-Direct,8192,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Shadow-Direct,8192,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Shadow,8192,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Shadow,8192,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Shadow,8192,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,isaacsim_physx,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-14,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,isaacsim_physx,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-14,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,newton_mjwarp,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-14,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,newton_mjwarp,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-14,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,newton_mjwarp,ovrtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-14,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,ovphysx,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-08-14,Isaac-Reorient-Cube-Shadow-Camera,1225,isaacsim_physx,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Shadow-Camera,1225,isaacsim_physx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Shadow-Camera,1225,newton_mjwarp,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Shadow-Camera,1225,newton_mjwarp,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Shadow-Camera,1225,newton_mjwarp,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Shadow-Camera,1225,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Cube-Shadow-Camera,1225,ovphysx,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Franka,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Franka,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-Franka,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-KukaAllegro,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-KukaAllegro,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-KukaAllegro,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-KukaAllegro-Camera,4096,isaacsim_physx,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-KukaAllegro-Camera,4096,isaacsim_physx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-KukaAllegro-Camera,4096,newton_mjwarp,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-KukaAllegro-Camera,4096,newton_mjwarp,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-KukaAllegro-Camera,4096,newton_mjwarp,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-KukaAllegro-Camera,4096,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Reorient-KukaAllegro-Camera,4096,ovphysx,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Shadow-Handover-Direct,2048,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Shadow-Handover-Direct,2048,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Shadow-Handover-Direct,2048,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Shadow-Handover,2048,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Shadow-Handover,2048,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Shadow-Handover,2048,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-AnymalD,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-AnymalD,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-AnymalD,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-Cassie,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-Cassie,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-Cassie,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-G1,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-G1,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-G1,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-H1,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-H1,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-H1,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-UnitreeGo2,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-UnitreeGo2,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Flat-UnitreeGo2,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Rough-AnymalD,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Rough-AnymalD,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Rough-AnymalD,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Rough-Cassie,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Rough-Cassie,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Rough-Cassie,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Rough-G1,4096,isaacsim_physx,none,other environment counts only,other environment counts only,0,,,16384
+2026-08-14,Isaac-Velocity-Rough-G1,4096,newton_mjwarp,none,other environment counts only,other environment counts only,0,,,16384
+2026-08-14,Isaac-Velocity-Rough-G1,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Rough-H1,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Rough-H1,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Rough-H1,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Rough-UnitreeGo2,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Rough-UnitreeGo2,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-14,Isaac-Velocity-Rough-UnitreeGo2,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Ant-Direct,4096,isaacsim_physx,none,covered,covered,1,173282,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Ant-Direct,4096,newton_mjwarp,none,covered,covered,1,173333,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Ant-Direct,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Ant,4096,isaacsim_physx,none,covered,covered,1,173282,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Ant,4096,newton_mjwarp,none,covered,covered,1,173333,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Ant,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Cartpole-Direct,4096,isaacsim_physx,none,covered,covered,1,173288,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Cartpole-Direct,4096,newton_mjwarp,none,covered,covered,1,173340,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Cartpole-Direct,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Cartpole,4096,isaacsim_physx,none,covered,covered,1,173280,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Cartpole,4096,newton_mjwarp,none,covered,covered,1,173334,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Cartpole,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Cartpole-Camera-Direct,512,isaacsim_physx,isaacsim_rtx,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Cartpole-Camera-Direct,512,isaacsim_physx,newton_renderer,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Cartpole-Camera-Direct,512,newton_mjwarp,isaacsim_rtx,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Cartpole-Camera-Direct,512,newton_mjwarp,newton_renderer,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Cartpole-Camera-Direct,512,newton_mjwarp,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Cartpole-Camera-Direct,512,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Cartpole-Camera-Direct,512,ovphysx,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Cartpole-Camera,512,isaacsim_physx,isaacsim_rtx,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Cartpole-Camera,512,isaacsim_physx,newton_renderer,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Cartpole-Camera,512,newton_mjwarp,isaacsim_rtx,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Cartpole-Camera,512,newton_mjwarp,newton_renderer,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Cartpole-Camera,512,newton_mjwarp,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Cartpole-Camera,512,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Cartpole-Camera,512,ovphysx,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Humanoid-Direct,4096,isaacsim_physx,none,covered,covered,1,173286,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Humanoid-Direct,4096,newton_mjwarp,none,covered,covered,1,173353,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Humanoid-Direct,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Humanoid,4096,isaacsim_physx,none,covered,covered,1,173286,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Humanoid,4096,newton_mjwarp,none,covered,covered,1,173338,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Humanoid,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Lift-Cable-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Cable-Franka-Camera,128,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Cable-Franka-Camera,128,newton_mjwarp_vbd_proxy,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Cable-Franka-Camera,128,newton_mjwarp_vbd_proxy,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Cloth-Franka,2048,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Cloth-Franka,2048,newton_mjwarp_vbd_proxy,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Cloth-Franka-Camera,128,isaacsim_physx,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Cloth-Franka-Camera,128,isaacsim_physx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Cloth-Franka-Camera,128,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Cloth-Franka-Camera,128,newton_mjwarp_vbd_proxy,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Cloth-Franka-Camera,128,newton_mjwarp_vbd_proxy,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Franka,4096,isaacsim_physx,none,covered,covered,1,173296,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Lift-Franka,4096,newton_mjwarp,none,covered,covered,1,172869,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Lift-Franka,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Lift-KukaAllegro,4096,isaacsim_physx,none,covered,covered,1,173295,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Lift-KukaAllegro,4096,newton_mjwarp,none,covered,covered,1,173357,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Lift-KukaAllegro,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,4096,isaacsim_physx,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,4096,isaacsim_physx,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,4096,newton_mjwarp,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,4096,newton_mjwarp,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,4096,newton_mjwarp,ovrtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,4096,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-KukaAllegro-Camera,4096,ovphysx,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Lift-Soft-Franka,2048,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Soft-Franka,2048,newton_mjwarp_vbd_proxy,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Soft-Franka-Camera,128,isaacsim_physx,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Soft-Franka-Camera,128,isaacsim_physx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Soft-Franka-Camera,128,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Soft-Franka-Camera,128,newton_mjwarp_vbd_proxy,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Lift-Soft-Franka-Camera,128,newton_mjwarp_vbd_proxy,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Open-Drawer-Franka-Direct,4096,isaacsim_physx,none,covered,covered,1,173300,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Open-Drawer-Franka-Direct,4096,newton_mjwarp,none,covered,covered,1,173366,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Open-Drawer-Franka-Direct,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Open-Drawer-Franka,4096,isaacsim_physx,none,covered,covered,1,173300,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Open-Drawer-Franka,4096,newton_mjwarp,none,covered,covered,1,173361,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Open-Drawer-Franka,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Pendulum-MARL-Direct,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Pendulum-MARL-Direct,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Pendulum-MARL-Direct,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Reach-Franka,4096,isaacsim_physx,none,covered,covered,1,173307,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Reach-Franka,4096,newton_mjwarp,none,covered,covered,1,173369,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Reach-Franka,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reach-Franka-OSC,4096,isaacsim_physx,none,covered,covered,1,173327,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Reach-Franka-OSC,4096,newton_mjwarp,none,covered,covered,1,173373,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Reach-Franka-OSC,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Reach-UR10,4096,isaacsim_physx,none,covered,covered,1,173305,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Reach-UR10,4096,newton_mjwarp,none,covered,covered,1,173398,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Reach-UR10,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-Cube-Allegro-Direct,8192,isaacsim_physx,none,covered,covered,1,172391,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Allegro-Direct,8192,newton_mjwarp,none,covered,covered,1,172546,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Allegro-Direct,8192,ovphysx,none,covered,covered,1,173156,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Allegro,8192,isaacsim_physx,none,covered,covered,1,172390,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Allegro,8192,newton_mjwarp,none,covered,covered,1,172546,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Allegro,8192,ovphysx,none,covered,covered,1,173156,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Shadow-Direct,8192,isaacsim_physx,none,covered,covered,1,172389,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Shadow-Direct,8192,newton_mjwarp,none,covered,covered,1,173586,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Shadow-Direct,8192,ovphysx,none,covered,covered,1,173171,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Shadow,8192,isaacsim_physx,none,covered,covered,1,172388,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Shadow,8192,newton_mjwarp,none,covered,covered,1,173586,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Shadow,8192,ovphysx,none,covered,covered,1,173171,2026-08-28,16384
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,isaacsim_physx,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,isaacsim_physx,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,newton_mjwarp,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,newton_mjwarp,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,newton_mjwarp,ovrtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,ovphysx,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,1225,isaacsim_physx,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,1225,isaacsim_physx,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,1225,newton_mjwarp,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,1225,newton_mjwarp,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,1225,newton_mjwarp,ovrtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,1225,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Reorient-Cube-Shadow-Camera,1225,ovphysx,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Reorient-Franka,4096,isaacsim_physx,none,covered,covered,1,173312,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Reorient-Franka,4096,newton_mjwarp,none,covered,covered,1,173365,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Reorient-Franka,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-KukaAllegro,4096,isaacsim_physx,none,covered,covered,1,173310,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Reorient-KukaAllegro,4096,newton_mjwarp,none,covered,covered,1,173372,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Reorient-KukaAllegro,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,4096,isaacsim_physx,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,4096,isaacsim_physx,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,4096,newton_mjwarp,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,4096,newton_mjwarp,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,4096,newton_mjwarp,ovrtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,4096,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Reorient-KukaAllegro-Camera,4096,ovphysx,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-08-28,Isaac-Shadow-Handover-Direct,2048,isaacsim_physx,none,covered,covered,1,173306,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Shadow-Handover-Direct,2048,newton_mjwarp,none,covered,covered,1,173392,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Shadow-Handover-Direct,2048,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Shadow-Handover,2048,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Shadow-Handover,2048,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Shadow-Handover,2048,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-08-28,Isaac-Velocity-Flat-AnymalD,4096,isaacsim_physx,none,covered,covered,1,173919,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Flat-AnymalD,4096,newton_mjwarp,none,covered,covered,1,173370,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Flat-AnymalD,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Velocity-Flat-Cassie,4096,isaacsim_physx,none,covered,covered,1,173322,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Flat-Cassie,4096,newton_mjwarp,none,covered,covered,1,173375,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Flat-Cassie,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Velocity-Flat-G1,4096,isaacsim_physx,none,covered,covered,1,173344,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Flat-G1,4096,newton_mjwarp,none,covered,covered,1,173377,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Flat-G1,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Velocity-Flat-H1,4096,isaacsim_physx,none,covered,covered,1,173320,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Flat-H1,4096,newton_mjwarp,none,covered,covered,1,173380,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Flat-H1,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Velocity-Flat-UnitreeGo2,4096,isaacsim_physx,none,covered,covered,1,173323,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Flat-UnitreeGo2,4096,newton_mjwarp,none,covered,covered,1,173381,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Flat-UnitreeGo2,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Velocity-Rough-AnymalD,4096,isaacsim_physx,none,covered,covered,1,173321,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Rough-AnymalD,4096,newton_mjwarp,none,covered,covered,1,173408,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Rough-AnymalD,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Velocity-Rough-Cassie,4096,isaacsim_physx,none,covered,covered,1,173339,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Rough-Cassie,4096,newton_mjwarp,none,covered,covered,1,173407,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Rough-Cassie,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Velocity-Rough-G1,4096,isaacsim_physx,none,covered,covered,1,173303,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Rough-G1,4096,newton_mjwarp,none,covered,covered,1,173332,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Rough-G1,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Velocity-Rough-H1,4096,isaacsim_physx,none,covered,covered,1,173341,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Rough-H1,4096,newton_mjwarp,none,covered,covered,1,173399,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Rough-H1,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-08-28,Isaac-Velocity-Rough-UnitreeGo2,4096,isaacsim_physx,none,covered,covered,1,173347,2026-08-28,"8192,16384"
+2026-08-28,Isaac-Velocity-Rough-UnitreeGo2,4096,newton_mjwarp,none,covered,covered,1,173413,2026-08-28,8192
+2026-08-28,Isaac-Velocity-Rough-UnitreeGo2,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Ant-Direct,4096,isaacsim_physx,none,covered,covered,1,206494,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Ant-Direct,4096,newton_mjwarp,none,covered,covered,1,206516,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Ant-Direct,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Ant,4096,isaacsim_physx,none,covered,covered,1,206494,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Ant,4096,newton_mjwarp,none,covered,covered,1,206516,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Ant,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Cartpole-Direct,4096,isaacsim_physx,none,covered,covered,1,206495,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Cartpole-Direct,4096,newton_mjwarp,none,covered,covered,1,206521,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Cartpole-Direct,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Cartpole,4096,isaacsim_physx,none,covered,covered,1,206495,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Cartpole,4096,newton_mjwarp,none,covered,covered,1,206514,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Cartpole,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Cartpole-Camera-Direct,512,isaacsim_physx,isaacsim_rtx,other environment counts only,other environment counts only,0,,,8192
+2026-09-09,Isaac-Cartpole-Camera-Direct,512,isaacsim_physx,newton_renderer,covered,covered,3,"158161,158168,165773","2026-08-24,2026-08-27",8192
+2026-09-09,Isaac-Cartpole-Camera-Direct,512,newton_mjwarp,isaacsim_rtx,other environment counts only,other environment counts only,0,,,8192
+2026-09-09,Isaac-Cartpole-Camera-Direct,512,newton_mjwarp,newton_renderer,other environment counts only,other environment counts only,0,,,8192
+2026-09-09,Isaac-Cartpole-Camera-Direct,512,newton_mjwarp,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-09-09,Isaac-Cartpole-Camera-Direct,512,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Cartpole-Camera-Direct,512,ovphysx,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-09-09,Isaac-Cartpole-Camera,512,isaacsim_physx,isaacsim_rtx,other environment counts only,other environment counts only,0,,,8192
+2026-09-09,Isaac-Cartpole-Camera,512,isaacsim_physx,newton_renderer,covered,covered,3,"158160,158168,165773","2026-08-24,2026-08-27",8192
+2026-09-09,Isaac-Cartpole-Camera,512,newton_mjwarp,isaacsim_rtx,other environment counts only,other environment counts only,0,,,8192
+2026-09-09,Isaac-Cartpole-Camera,512,newton_mjwarp,newton_renderer,other environment counts only,other environment counts only,0,,,8192
+2026-09-09,Isaac-Cartpole-Camera,512,newton_mjwarp,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-09-09,Isaac-Cartpole-Camera,512,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Cartpole-Camera,512,ovphysx,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-09-09,Isaac-Humanoid-Direct,4096,isaacsim_physx,none,covered,covered,1,206503,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Humanoid-Direct,4096,newton_mjwarp,none,covered,covered,1,206529,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Humanoid-Direct,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Humanoid,4096,isaacsim_physx,none,covered,covered,1,206503,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Humanoid,4096,newton_mjwarp,none,covered,covered,1,206526,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Humanoid,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Lift-Cable-Franka,8192,newton_mjwarp_vbd_proxy,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Cable-Franka-Camera,128,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Cable-Franka-Camera,128,newton_mjwarp_vbd_proxy,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Cable-Franka-Camera,128,newton_mjwarp_vbd_proxy,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Cloth-Franka,2048,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Cloth-Franka,2048,newton_mjwarp_vbd_proxy,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Cloth-Franka-Camera,128,isaacsim_physx,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Cloth-Franka-Camera,128,isaacsim_physx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Cloth-Franka-Camera,128,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Cloth-Franka-Camera,128,newton_mjwarp_vbd_proxy,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Cloth-Franka-Camera,128,newton_mjwarp_vbd_proxy,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Franka,4096,isaacsim_physx,none,covered,covered,1,206501,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Lift-Franka,4096,newton_mjwarp,none,covered,covered,1,206530,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Lift-Franka,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Lift-KukaAllegro,4096,isaacsim_physx,none,covered,covered,2,"165753,206505","2026-08-27,2026-09-09","8192,16384"
+2026-09-09,Isaac-Lift-KukaAllegro,4096,newton_mjwarp,none,covered,covered,1,206532,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Lift-KukaAllegro,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,4096,isaacsim_physx,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,4096,isaacsim_physx,newton_renderer,covered,covered,5,"158164,158165,158176,158177,165753","2026-08-24,2026-08-27","8192,16384"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,4096,newton_mjwarp,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,4096,newton_mjwarp,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,4096,newton_mjwarp,ovrtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,4096,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-KukaAllegro-Camera,4096,ovphysx,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-09-09,Isaac-Lift-Soft-Franka,2048,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Soft-Franka,2048,newton_mjwarp_vbd_proxy,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Soft-Franka-Camera,128,isaacsim_physx,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Soft-Franka-Camera,128,isaacsim_physx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Soft-Franka-Camera,128,newton_mjwarp_vbd_proxy,isaacsim_rtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Soft-Franka-Camera,128,newton_mjwarp_vbd_proxy,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Lift-Soft-Franka-Camera,128,newton_mjwarp_vbd_proxy,ovrtx,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Open-Drawer-Franka-Direct,4096,isaacsim_physx,none,covered,covered,1,206507,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Open-Drawer-Franka-Direct,4096,newton_mjwarp,none,covered,covered,1,206558,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Open-Drawer-Franka-Direct,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Open-Drawer-Franka,4096,isaacsim_physx,none,covered,covered,1,206507,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Open-Drawer-Franka,4096,newton_mjwarp,none,covered,covered,1,206558,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Open-Drawer-Franka,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Pendulum-MARL-Direct,4096,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Pendulum-MARL-Direct,4096,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Pendulum-MARL-Direct,4096,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Reach-Franka,4096,isaacsim_physx,none,covered,covered,1,206509,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Reach-Franka,4096,newton_mjwarp,none,covered,covered,1,206535,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Reach-Franka,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reach-Franka-OSC,4096,isaacsim_physx,none,covered,covered,1,206509,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Reach-Franka-OSC,4096,newton_mjwarp,none,covered,covered,1,206536,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Reach-Franka-OSC,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reach-UR10,4096,isaacsim_physx,none,covered,covered,1,206508,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Reach-UR10,4096,newton_mjwarp,none,covered,covered,1,206539,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Reach-UR10,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-Cube-Allegro-Direct,8192,isaacsim_physx,none,covered,covered,1,206266,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Allegro-Direct,8192,newton_mjwarp,none,covered,covered,1,206357,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Allegro-Direct,8192,ovphysx,none,covered,covered,1,206434,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Allegro,8192,isaacsim_physx,none,covered,covered,1,206257,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Allegro,8192,newton_mjwarp,none,covered,covered,1,206357,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Allegro,8192,ovphysx,none,covered,covered,1,206434,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Shadow-Direct,8192,isaacsim_physx,none,covered,covered,2,"164972,206282","2026-08-26,2026-09-09",16384
+2026-09-09,Isaac-Reorient-Cube-Shadow-Direct,8192,newton_mjwarp,none,covered,covered,1,206386,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Shadow-Direct,8192,ovphysx,none,covered,covered,1,206443,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Shadow,8192,isaacsim_physx,none,covered,covered,2,"164972,206282","2026-08-26,2026-09-09",16384
+2026-09-09,Isaac-Reorient-Cube-Shadow,8192,newton_mjwarp,none,covered,covered,1,206386,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Shadow,8192,ovphysx,none,covered,covered,1,206443,2026-09-09,16384
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,isaacsim_physx,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,isaacsim_physx,newton_renderer,covered,covered,2,"158172,165778","2026-08-24,2026-08-27","8192,16384"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,newton_mjwarp,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,newton_mjwarp,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,newton_mjwarp,ovrtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera-Direct,1225,ovphysx,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,1225,isaacsim_physx,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,1225,isaacsim_physx,newton_renderer,covered,covered,2,"158172,165778","2026-08-24,2026-08-27","8192,16384"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,1225,newton_mjwarp,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,1225,newton_mjwarp,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,1225,newton_mjwarp,ovrtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,1225,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Reorient-Cube-Shadow-Camera,1225,ovphysx,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-09-09,Isaac-Reorient-Franka,4096,isaacsim_physx,none,covered,covered,1,206511,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Reorient-Franka,4096,newton_mjwarp,none,covered,covered,1,206537,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Reorient-Franka,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-KukaAllegro,4096,isaacsim_physx,none,covered,covered,1,206512,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Reorient-KukaAllegro,4096,newton_mjwarp,none,covered,covered,1,206538,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Reorient-KukaAllegro,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,4096,isaacsim_physx,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,4096,isaacsim_physx,newton_renderer,covered,covered,5,"158169,158185,158188,158190,165401","2026-08-24,2026-08-27","8192,16384"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,4096,newton_mjwarp,isaacsim_rtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,4096,newton_mjwarp,newton_renderer,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,4096,newton_mjwarp,ovrtx,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,4096,ovphysx,newton_renderer,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Reorient-KukaAllegro-Camera,4096,ovphysx,ovrtx,other environment counts only,other environment counts only,0,,,8192
+2026-09-09,Isaac-Shadow-Handover-Direct,2048,isaacsim_physx,none,covered,covered,1,206510,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Shadow-Handover-Direct,2048,newton_mjwarp,none,covered,covered,1,206721,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Shadow-Handover-Direct,2048,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Shadow-Handover,2048,isaacsim_physx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Shadow-Handover,2048,newton_mjwarp,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Shadow-Handover,2048,ovphysx,none,no usable default-count training record,no usable default-count training record,0,,,
+2026-09-09,Isaac-Velocity-Flat-AnymalD,4096,isaacsim_physx,none,covered,covered,1,206520,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Flat-AnymalD,4096,newton_mjwarp,none,covered,covered,1,206541,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Flat-AnymalD,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Velocity-Flat-Cassie,4096,isaacsim_physx,none,covered,covered,1,206517,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Flat-Cassie,4096,newton_mjwarp,none,covered,covered,1,206540,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Flat-Cassie,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Velocity-Flat-G1,4096,isaacsim_physx,none,covered,covered,1,206524,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Flat-G1,4096,newton_mjwarp,none,covered,covered,1,206543,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Flat-G1,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Velocity-Flat-H1,4096,isaacsim_physx,none,covered,covered,1,206519,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Flat-H1,4096,newton_mjwarp,none,covered,covered,1,206545,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Flat-H1,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Velocity-Flat-UnitreeGo2,4096,isaacsim_physx,none,covered,covered,1,206525,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Flat-UnitreeGo2,4096,newton_mjwarp,none,covered,covered,1,206547,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Flat-UnitreeGo2,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-AnymalD,4096,isaacsim_physx,none,covered,covered,1,206527,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-AnymalD,4096,newton_mjwarp,none,covered,covered,1,206542,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-AnymalD,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-Cassie,4096,isaacsim_physx,none,covered,covered,1,206723,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-Cassie,4096,newton_mjwarp,none,covered,covered,1,206549,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-Cassie,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-G1,4096,isaacsim_physx,none,covered,covered,1,206488,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-G1,4096,newton_mjwarp,none,covered,covered,1,206518,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-G1,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-H1,4096,isaacsim_physx,none,covered,covered,1,206728,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-H1,4096,newton_mjwarp,none,covered,covered,1,206551,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-H1,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-UnitreeGo2,4096,isaacsim_physx,none,covered,covered,1,206533,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-UnitreeGo2,4096,newton_mjwarp,none,covered,covered,1,206548,2026-09-09,"8192,16384"
+2026-09-09,Isaac-Velocity-Rough-UnitreeGo2,4096,ovphysx,none,other environment counts only,other environment counts only,0,,,"8192,16384"
