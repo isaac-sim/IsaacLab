@@ -15,6 +15,7 @@ import h5py
 import pytest
 import torch
 
+from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
@@ -182,6 +183,24 @@ def test_initialize_dataset_file(dataset_dir):
 
     # check if the dataset is created
     assert os.path.exists(os.path.join(cfg.dataset_export_dir_path, cfg.dataset_filename))
+    recorder_manager.close()
+
+
+def test_requires_post_step_observation():
+    """The manager reports whether active post-step terms require fresh observations."""
+    cfg = DummyRecorderManagerCfg(dataset_export_mode=DatasetExportMode.EXPORT_NONE)
+    recorder_manager = RecorderManager(cfg, create_dummy_env())
+    assert recorder_manager.requires_post_step_observation
+    recorder_manager.close()
+
+    cfg.record_step_term = None
+    recorder_manager = RecorderManager(cfg, create_dummy_env())
+    assert not recorder_manager.requires_post_step_observation
+    recorder_manager.close()
+
+    cfg = ActionStateRecorderManagerCfg(dataset_export_mode=DatasetExportMode.EXPORT_NONE)
+    recorder_manager = RecorderManager(cfg, create_dummy_env())
+    assert not recorder_manager.requires_post_step_observation
     recorder_manager.close()
 
 
