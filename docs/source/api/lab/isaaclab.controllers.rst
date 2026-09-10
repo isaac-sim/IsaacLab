@@ -47,6 +47,13 @@ Operational Space controllers
 Pink IK Controller
 ------------------
 
+.. note::
+
+   The standard Isaac Lab installation provides Pink IK dependencies only on Linux x86_64 and aarch64.
+   Pink IK requires ``pin`` (Pinocchio), ``pin-pink``, and ``daqp``. The Windows uv/pip installation does not
+   provide Pinocchio, so Pink IK tasks cannot run with that installation. This is an installation limitation;
+   upstream Pinocchio supports Windows through other distribution methods.
+
 .. automodule:: isaaclab.controllers.pink_ik
 
 .. autoclass:: PinkIKController

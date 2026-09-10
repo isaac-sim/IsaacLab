@@ -244,6 +244,20 @@ html[data-theme="dark"] .environment-browser {
     background: color-mix(in srgb, var(--pst-color-surface) 70%, transparent);
 }
 
+.environment-backend-warning {
+    margin: 0.75rem 0 0;
+    color: var(--pst-color-warning);
+}
+
+.environment-command-output.is-disabled {
+    opacity: 0.5;
+    border-left-color: var(--pst-color-text-muted);
+}
+
+.environment-copy-button:disabled {
+    cursor: not-allowed;
+}
+
 .environment-command-output code {
     min-width: 0;
     color: inherit;

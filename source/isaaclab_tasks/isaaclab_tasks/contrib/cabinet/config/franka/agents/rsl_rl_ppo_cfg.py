@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.cabinet.config.franka.agents.rsl_rl_ppo_cfg import CabinetPPORunnerCfg
 

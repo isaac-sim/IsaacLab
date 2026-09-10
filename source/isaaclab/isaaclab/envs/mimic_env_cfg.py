@@ -15,7 +15,7 @@ from __future__ import annotations
 import enum
 
 from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass

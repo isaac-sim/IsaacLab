@@ -11,7 +11,7 @@ owners:
 
 ## When To Use
 
-Read the [sim-to-sim how-to](../../../docs/source/how-to/transfer_policies_between_physx_and_newton.rst) first. This skill follows that page in the same order. Before transfer, make the asset and task MJWarp-ready with `isaaclab-preparing-assets-for-newton`.
+Read the [sim-to-sim guide](../../../docs/source/concepts/transfer_policies_between_physx_and_newton.rst) first. This skill follows that page in the same order. Before transfer, make the asset and task MJWarp-ready with `isaaclab-preparing-assets-for-newton`.
 
 ## Workflow
 
@@ -21,7 +21,7 @@ Read the [sim-to-sim how-to](../../../docs/source/how-to/transfer_policies_betwe
 4. **Transferring control behavior.** Match nominal actuator response before tuning the policy. Distinguish rated and solver velocity limits, use per-joint effort, gains, friction, and armature, preserve `dt * decimation`, keep targets away from hard stops, and monitor saturation and action sign changes. Increase damping to prevent bang-bang control and retune it after increasing armature.
 5. **Introducing domain randomization.** Randomize plausible robot/object friction, object mass/inertia, joint gains/friction, joint armature, gravity, actuator response, reset pose/geometry, and observation noise. Keep inertia valid and coupled mechanisms coherent. If transfer needs extreme ranges, revisit the nominal model. Use curriculum when the final distribution blocks learning, promote to final deployment difficulty, and keep a separate deterministic nominal evaluation.
 6. **Validate the full matrix.** Evaluate PP, PN, NN, and NP. For each source policy, reproduce the same-backend baseline and deploy the exact checkpoint in the other backend.
-7. **Run a validated transfer.** The how-to lists three fully validated tasks in a compact table — `Isaac-Lift-Franka`, `Isaac-Velocity-Rough-G1`, and `Isaac-Velocity-Rough-AnymalD` — with each task's experiment directory and task-specific notes. Substitute the task ID and directory into the generic PP/PN/NN/NP commands above. The play entry point applies `play_mode` overrides automatically. `Isaac-Reorient-Cube-Allegro` is shown as a PhysX-to-Newton demonstration only.
+7. **Run a validated transfer.** The guide lists three fully validated tasks in a compact table — `Isaac-Lift-Franka`, `Isaac-Velocity-Rough-G1`, and `Isaac-Velocity-Rough-AnymalD` — with each task's experiment directory and task-specific notes. Substitute the task ID and directory into the generic PP/PN/NN/NP commands above. The play entry point applies `play_mode` overrides automatically. `Isaac-Reorient-Cube-Allegro` is shown as a PhysX-to-Newton demonstration only.
 
 ## Validation
 
@@ -29,12 +29,12 @@ Require a task trainable in both backends, exact environment-contract equality, 
 
 ## Maintenance
 
-Keep this skill synchronized section-for-section with the sim-to-sim how-to, including the validated-task table (Franka, G1, ANYmal D).
+Keep this skill synchronized section-for-section with the sim-to-sim guide, including the validated-task table (Franka, G1, ANYmal D).
 
 ## References
 
 - [Compact reference](reference.md)
 - [Examples](examples.md)
 - [Evaluations](evaluations.md)
-- [Asset migration guide](../../../docs/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton.rst)
+- [Asset migration guide](../../../docs/source/concepts/prepare_asset_for_newton.rst)
 - [RL train and play guide](../../../docs/source/concepts/reinforcement_learning.rst)
