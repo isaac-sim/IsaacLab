@@ -25,13 +25,17 @@ def capture_physics_structure(stage: Usd.Stage) -> dict:
             continue
         for path, description in zip(paths, descriptions):
             assert description.isValid, path
+            prim = stage.GetPrimAtPath(path)
             for field in dir(description):
                 if field.startswith("_") or field in buffered:
                     continue
                 value = getattr(description, field)
+                if kind == UsdPhysics.ObjectType.CollisionGroup and field == "invertFilteredGroups":
+                    # Some parser builds leave this descriptor field unset for an unauthored
+                    # attribute. Read the USD value explicitly, including its false default.
+                    value = bool(UsdPhysics.CollisionGroup(prim).GetInvertFilteredGroupsAttr().Get())
                 if not callable(value):
                     result[str(path), field] = _value(value)
-            prim = stage.GetPrimAtPath(path)
             if prim.HasAPI(UsdPhysics.CollisionAPI):
                 material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
                 if material:
