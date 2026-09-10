@@ -14,8 +14,10 @@ from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidO
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-_DEFAULT_GROUND_PLANE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Environments/Grid/default_ground_plane.usda"
-_DEFAULT_GROUND_PLANE_TILE_SIZE = 5.0
+_DEFAULT_GROUND_PLANE_USD = (
+    f"{ISAACLAB_NUCLEUS_DIR}/Environments/Grid/default_ground_plane_checker_v1/default_ground_plane.usda"
+)
+_DEFAULT_GROUND_PLANE_TILE_SIZE = 2.0
 
 
 @configclass
@@ -363,7 +365,7 @@ class UsdFileWithCompliantContactCfg(UsdFileCfg):
 class GroundPlaneCfg(SpawnerCfg):
     """Create a ground plane prim.
 
-    This uses Isaac Lab's warm-white ground plane with NVIDIA-green metric grid lines by default.
+    This uses Isaac Lab's metric checker ground plane with NVIDIA-green landmarks by default.
     """
 
     func: Callable | str = "{DIR}.from_files:spawn_ground_plane"
@@ -374,8 +376,8 @@ class GroundPlaneCfg(SpawnerCfg):
     color: tuple[float, float, float] | None = None
     """The color tint of the ground plane. Defaults to None.
 
-    If None, the authored material colors remain unchanged. An explicit value tints the diffuse
-    component; authored emission remains unchanged.
+    If None, the authored material colors remain unchanged. An explicit value multiplicatively
+    tints the diffuse texture without changing its authored roughness.
     """
 
     size: tuple[float, float] = (100.0, 100.0)
