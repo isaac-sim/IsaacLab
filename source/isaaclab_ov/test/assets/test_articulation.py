@@ -53,6 +53,7 @@ from __future__ import annotations
 import importlib
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -77,6 +78,7 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import Articulation  # noqa: E402
+from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl  # noqa: E402
 from isaaclab_ov.assets.articulation.articulation_data import ArticulationData  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
@@ -107,6 +109,34 @@ _OMNI_PHYSX_SCHEMAS_GAP_REASON = (
     "Schema-level fixed-joint creation in :mod:`isaaclab.sim.schemas` imports the Kit-only "
     "``omni.physx.scripts.utils`` module, which is not shipped by the ovphysx wheel."
 )
+
+
+def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_path(monkeypatch):
+    """Keep implicit-only articulations on the unchanged solver-drive path."""
+    from isaaclab_ov.assets.articulation import actuator_control
+
+    runtime_prepare_calls = []
+    runtime = SimpleNamespace(
+        prepare=lambda *args, **kwargs: runtime_prepare_calls.append(True), wrapper=None, adapter=None
+    )
+    articulation = SimpleNamespace(
+        _sim_cfg=SimpleNamespace(use_newton_actuators=True),
+        cfg=SimpleNamespace(prim_path="/World/Robot"),
+    )
+    monkeypatch.setattr(actuator_control, "PhysxActuatorRuntime", lambda *args, **kwargs: runtime)
+    monkeypatch.setattr(actuator_control, "find_first_matching_prim", lambda _: None)
+
+    control = OvPhysxActuatorControl(articulation)
+    native_groups = control.prepare_native_actuators(
+        collection=None,
+        actuator_cfgs={"implicit": ImplicitActuatorCfg(joint_names_expr=["joint"], stiffness=10.0, damping=1.0)},
+    )
+
+    assert native_groups == set()
+    assert not control.native_actuator_path_active
+    assert not articulation._has_newton_actuators
+    assert runtime_prepare_calls == []
+
 
 _SPATIAL_TENDON_OVSTAGE_GAP_REASON = (
     "OVPhysX 0.5.9 segfaults while attaching OVStage scenes containing spatial tendon schemas."

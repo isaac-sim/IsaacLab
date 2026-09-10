@@ -631,20 +631,20 @@ configuration leaves a value unspecified. Unspecified values appear as ``Not Spe
 Native actuators
 ----------------
 
-By default, Isaac Lab runs explicit actuator models once per step outside the solver, usually on
-Torch or Warp. This path is deprecated. Set
-:attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to ``True`` to use the native path for
-supported explicit models:
+By default, Isaac Lab uses the native path for supported explicit actuator models. Each explicit
+model runs either inside the solver or through a shared host adapter. To restore the deprecated
+Isaac Lab execution path, set :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to ``False``:
 
 .. code-block:: python
 
     from isaaclab.sim import SimulationCfg
 
-    sim_cfg = SimulationCfg(use_newton_actuators=True)
+    sim_cfg = SimulationCfg(use_newton_actuators=False)
 
-With the flag enabled, each supported explicit actuator config becomes a ``NewtonActuator`` USD
-prim. Newton executes it in the solver. PhysX and OVPhysX execute the same model through the shared
-host adapter during :meth:`~isaaclab.assets.Articulation.write_data_to_sim`.
+With the default native path enabled, each supported explicit actuator config becomes a
+``NewtonActuator`` USD prim. Newton executes it in the solver. PhysX and OVPhysX execute the same
+model through the shared host adapter during
+:meth:`~isaaclab.assets.Articulation.write_data_to_sim`.
 
 On Newton, native actuators run in the CUDA-graph-captured region. Implicit actuators are unchanged:
 the solver still applies their PD gains. On CUDA, the host adapter captures actuator staging, model
@@ -702,9 +702,9 @@ joints.
 
 .. warning::
 
-    With ``use_newton_actuators=True``, every explicit actuator config must be supported. An
-    unsupported config raises an error before native authoring. Disable ``use_newton_actuators`` to
-    use the Isaac Lab execution path, or select a supported config.
+    With the default ``use_newton_actuators=True``, every explicit actuator config must be
+    supported. An unsupported config raises an error before native authoring. Disable
+    ``use_newton_actuators`` to use the Isaac Lab execution path, or select a supported config.
 
 .. note::
 
