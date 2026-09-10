@@ -562,24 +562,81 @@ html[data-theme="dark"] .environment-browser {
     margin: 0 0 0.5rem;
 }
 
-.environment-benchmark-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem 1.25rem;
-    color: var(--environment-muted);
-    font-size: 0.82rem;
-    margin-bottom: 0.5rem;
+.environment-benchmark-results {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(22rem, 1fr);
+    align-items: start;
+    gap: 1rem;
 }
 
-.environment-benchmark-legend span {
-    display: inline-flex;
-    align-items: center;
+.environment-benchmark-table {
+    max-height: 25rem;
+    overflow: auto;
+    border: 1px solid var(--environment-border);
+    border-radius: 8px;
+    font-size: 0.75rem;
+}
+
+.environment-benchmark-table table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.environment-benchmark-table caption {
+    padding: 0.65rem;
+    color: var(--environment-muted);
+    text-align: left;
+    caption-side: top;
+}
+
+.environment-benchmark-table th,
+.environment-benchmark-table td {
+    padding: 0.65rem;
+    border-bottom: 1px solid var(--environment-border);
+    vertical-align: top;
+}
+
+.environment-benchmark-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--pst-color-surface);
+    white-space: nowrap;
+}
+
+.environment-benchmark-table tbody th {
+    font-weight: 500;
+    text-align: left;
+}
+
+.environment-benchmark-table tbody tr:nth-child(even) {
+    background: color-mix(in srgb, var(--pst-color-surface) 55%, transparent);
+}
+
+.environment-benchmark-table td {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.environment-benchmark-table th span {
+    display: flex;
+    align-items: baseline;
     gap: 0.4rem;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 1100px) {
+    .environment-benchmark-results {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 .environment-legend-swatch {
     width: 0.7rem;
     height: 0.7rem;
+    flex: 0 0 0.7rem;
     border-radius: 50%;
 }
 
@@ -638,11 +695,11 @@ html[data-theme="dark"] .environment-browser {
 .environment-chart-value {
     fill: var(--environment-muted);
     font-family: var(--pst-font-family-base);
-    font-size: 11px;
+    font-size: 16px;
 }
 
 .environment-chart-axis-title {
-    font-size: 10px;
+    font-size: 14px;
     font-weight: 650;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -659,7 +716,7 @@ html[data-theme="dark"] .environment-browser {
 }
 
 .environment-chart-value {
-    font-size: 12px;
+    font-size: 16px;
     font-weight: 750;
 }
 

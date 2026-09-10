@@ -667,12 +667,16 @@
     // Keep different benchmark configurations separate, including camera renderers.
     const seriesKey = (row) => JSON.stringify([
         row.physics_backend, row.rendering_backend, row.task_presets || "", row.num_envs, row.rl_library,
+        row.camera_resolution || "",
     ]);
     const seriesLabel = (row) => [
         backendLabels[row.physics_backend] || row.physics_backend,
         rendererLabels[row.rendering_backend]
             || (row.task.includes("Camera") ? "Unspecified renderer" : ""),
-        row.task_presets,
+        row.task_presets ? row.task_presets.split(",").join(", ")
+            : (row.task.includes("Camera") ? "Presets not recorded" : ""),
+        row.camera_resolution ? `${row.camera_resolution} px` : "",
+        `${Number(row.num_envs).toLocaleString()} envs`,
         row.rl_library,
     ].filter(Boolean).join(" · ");
     const benchmarkSeries = (rows) => [...new Map(rows.map((row) => [seriesKey(row), row])).values()]
@@ -692,15 +696,15 @@
             }
             return element;
         };
-        const svg = createSvgElement("svg", {viewBox: "0 0 900 400", role: "img"});
+        const svg = createSvgElement("svg", {viewBox: "0 0 600 360", role: "img"});
         const workloadLabel = state.benchmarkWorkload === "runtime" ? "collection" : "training";
         svg.setAttribute("aria-label", `${state.task} ${workloadLabel} throughput history in frames per second`);
-        const width = 900;
-        const height = 400;
-        const margins = {top: 38, right: 38, bottom: 60, left: 82};
+        const width = 600;
+        const height = 360;
+        const margins = {top: 38, right: 25, bottom: 60, left: 65};
         const plotWidth = width - margins.left - margins.right;
         const plotHeight = height - margins.top - margins.bottom;
-        const benchmarkDate = (row) => (row.benchmark_date_utc || row.recorded_at_utc).slice(0, 10);
+        const benchmarkDate = (row) => (row.snapshot_date_utc || row.benchmark_date_utc || row.recorded_at_utc).slice(0, 10);
         const dateKeys = [...new Set(benchmarkRows
             .filter((row) => row.channel === state.benchmarkChannel)
             .map(benchmarkDate))].sort();
@@ -776,7 +780,7 @@
                 });
                 const title = createSvgElement("title");
                 const tooltipWorkload = state.benchmarkWorkload === "runtime" ? "Collection" : "Training";
-                title.textContent = `${seriesLabel(row)} · ${tooltipWorkload}: ${Math.round(value).toLocaleString()} FPS on ${date}`;
+                title.textContent = `${seriesLabel(row)} · ${tooltipWorkload}: ${Math.round(value).toLocaleString()} FPS · measured ${(row.measurement_timestamp || row.recorded_at_utc).slice(0, 10)}`;
                 circle.appendChild(title);
                 svg.appendChild(circle);
                 // Dense camera charts expose exact values in tooltips without overlapping labels.
@@ -792,17 +796,44 @@
         return svg;
     };
 
-    const renderBenchmarkLegend = (rows) => {
-        const legend = benchmarks.querySelector(".environment-benchmark-legend");
-        const entries = benchmarkSeries(rows).map((row) => {
-            const entry = document.createElement("span");
-            const swatch = document.createElement("i");
-            swatch.className = `environment-legend-swatch ${backendClass(row.physics_backend)}`;
-            swatch.style.setProperty("--environment-series-color", seriesColor(row, rows));
-            entry.append(swatch, seriesLabel(row));
-            return entry;
-        });
-        legend.replaceChildren(...entries);
+    const renderBenchmarkTable = (rows) => {
+        const container = benchmarks.querySelector("[data-benchmark-table]");
+        container.hidden = rows.length === 0;
+        const table = document.createElement("table");
+        const caption = table.createCaption();
+        caption.textContent = `${state.task} · ${state.benchmarkWorkload === "runtime" ? "Collection" : "Training"}`;
+        const header = table.createTHead().insertRow();
+        for (const label of ["Configuration", "Mean FPS", "Measured"]) {
+            const cell = document.createElement("th");
+            cell.scope = "col";
+            cell.textContent = label;
+            header.appendChild(cell);
+        }
+        const body = table.createTBody();
+        for (const representative of benchmarkSeries(rows)) {
+            const series = rows.filter((row) => seriesKey(row) === seriesKey(representative))
+                .sort((left, right) => right.recorded_at_utc.localeCompare(left.recorded_at_utc));
+            for (const row of series) {
+                const entry = body.insertRow();
+                const configuration = document.createElement("th");
+                configuration.scope = "row";
+                const label = document.createElement("span");
+                const swatch = document.createElement("i");
+                swatch.className = `environment-legend-swatch ${backendClass(row.physics_backend)}`;
+                swatch.style.setProperty("--environment-series-color", seriesColor(row, rows));
+                swatch.setAttribute("aria-hidden", "true");
+                label.append(swatch, seriesLabel(row));
+                configuration.appendChild(label);
+                entry.appendChild(configuration);
+                entry.insertCell().textContent = Number(row.total_fps_mean).toLocaleString(undefined, {
+                    minimumFractionDigits: 2, maximumFractionDigits: 2,
+                });
+                const measured = entry.insertCell();
+                measured.textContent = (row.measurement_timestamp || row.recorded_at_utc).slice(0, 10);
+                measured.title = `Source record ${row.source_record_id} · ${row.source_entry_key} · commit ${row.git_commit}`;
+            }
+        }
+        container.replaceChildren(table);
     };
 
     const updateBenchmark = () => {
@@ -818,7 +849,7 @@
         chart.hidden = rows.length === 0;
         empty.hidden = rows.length !== 0 || failed;
         benchmarks.querySelector("[data-benchmark-error]").hidden = !failed;
-        renderBenchmarkLegend(rows);
+        renderBenchmarkTable(rows);
         chart.replaceChildren(...(rows.length ? [renderBenchmarkChart(rows, maximum)] : []));
     };
 

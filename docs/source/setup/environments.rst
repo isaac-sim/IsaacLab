@@ -100,13 +100,19 @@ Benchmarks
 Measured at each task's configured training-default environment count on one
 NVIDIA RTX PRO 6000 Blackwell Server Edition GPU. The same task-specific count
 is used for Collection and Training; runs at other counts are excluded.
-The legend identifies the physics backend, renderer, and presets
-for each configuration. Release shows the September 9, 2026 snapshot as EA 3.0; Develop
-shows August 17, August 24, August 31, and September 7. Dates refer to database
-ingestion in UTC. Collection and Training show total FPS from runtime and RSL-RL
-training benchmarks, respectively. Camera results retain the measured renderer
-and preset configurations; some series have fewer dates. Missing
-configurations are not estimated; Kamino results are excluded.
+Release and Develop share the September 9, 2026 documentation baseline: 115
+measurements, using older runs where release-day data is missing. This is an
+assembled baseline from develop runs, not a comparison of independently measured
+release and develop builds. Release labels the snapshot EA 3.0; Develop labels
+it September 9. The table shows each configuration's mean FPS and actual measurement
+date; scroll the table to see additional camera configurations.
+
+Collection and Training show total FPS from runtime and RSL-RL training benchmarks,
+respectively. Camera results retain the recorded renderer and presets. Missing
+configurations are not estimated; camera records without renderer metadata and
+Kamino results are excluded. See the
+`coverage report <../../_static/benchmarks/COVERAGE.md>`__ for all missing
+configurations, source-data issues, and the collection plan.
 
 .. raw:: html
 
@@ -124,8 +130,11 @@ configurations are not estimated; Kamino results are excluded.
            <button type="button" data-benchmark-workload="training" aria-pressed="false">Training</button>
          </div>
        </div>
-       <div class="environment-benchmark-legend" aria-label="Benchmark series"></div>
-       <div class="environment-benchmark-chart" data-benchmark-chart></div>
+       <div class="environment-benchmark-results">
+         <div class="environment-benchmark-chart" data-benchmark-chart></div>
+         <div class="environment-benchmark-table" data-benchmark-table tabindex="0"
+              role="region" aria-label="Benchmark FPS measurements, scroll for more configurations" hidden></div>
+       </div>
        <div class="environment-benchmark-stub" data-benchmark-empty hidden>
          <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
          <div>
