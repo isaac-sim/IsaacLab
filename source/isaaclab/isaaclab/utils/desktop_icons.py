@@ -16,6 +16,7 @@ is generic Linux desktop-environment behavior wherever a ``.desktop`` file is ab
 """
 
 import contextlib
+import importlib.util
 import os
 import platform
 import shutil
@@ -38,6 +39,16 @@ _ICON_NAME = "isaaclab-newton-viewer"
 NEWTON_ICON_SIZES = (16, 32, 64)
 
 
+def xdg_data_home() -> Path:
+    """Return ``$XDG_DATA_HOME``, falling back to ``~/.local/share``.
+
+    Per the XDG Base Directory spec, an unset *or empty* ``XDG_DATA_HOME`` both mean "use the
+    default" — ``os.environ.get("XDG_DATA_HOME", default)`` alone does not handle the empty-string
+    case, since the key is still present in the environment.
+    """
+    return Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+
+
 def _has_graphical_session() -> bool:
     """Return whether a Linux graphical session is present to install desktop icons for."""
     if platform.system().lower() != "linux":
@@ -48,19 +59,23 @@ def _has_graphical_session() -> bool:
 
 
 def newton_icon_source_dir() -> Path | None:
-    """Return the directory containing Newton's bundled ``icon_{16,32,64}.png``, if importable.
+    """Return the directory containing Newton's bundled ``icon_{16,32,64}.png``, if installed.
 
     Single source of truth for locating Newton's bundled icon directory — also used by
     ``isaaclab_visualizers.newton.newton_visualizer`` to set the live Newton RTX window's icon,
     so both stay consistent if Newton ever moves these files.
-    """
-    try:
-        import inspect
 
-        from newton._src.viewer.gl.opengl import RendererGL
-    except ImportError:
+    Resolves the path via :func:`importlib.util.find_spec` rather than importing
+    ``newton._src.viewer.gl.opengl`` — that module pulls in ``warp``/``pyglet``/GL at import
+    time, and importing it here (at the tail of ``isaaclab.sh -i``, best-effort) risks raising
+    something other than ``ImportError`` on a broken or partial install, which would violate
+    :func:`install_desktop_icons`'s documented never-raises contract.
+    """
+    spec = importlib.util.find_spec("newton")
+    if spec is None or not spec.submodule_search_locations:
         return None
-    return Path(inspect.getfile(RendererGL)).parent
+    icon_dir = Path(spec.submodule_search_locations[0]) / "_src" / "viewer" / "gl"
+    return icon_dir if icon_dir.is_dir() else None
 
 
 def _install_icon_files(icon_source_dir: Path, data_home: Path) -> int:
@@ -129,7 +144,7 @@ def install_desktop_icons() -> None:
         print_debug("Skipping desktop icon install: Newton is not installed in this environment.")
         return
 
-    data_home = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+    data_home = xdg_data_home()
     with contextlib.suppress(OSError):
         copied = _install_icon_files(icon_source_dir, data_home)
         if copied == 0:

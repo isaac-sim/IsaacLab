@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import builtins
 import pathlib
 
 import pytest
@@ -18,6 +17,7 @@ from isaaclab.utils.desktop_icons import (
     _install_icon_files,
     install_desktop_icons,
     newton_icon_source_dir,
+    xdg_data_home,
 )
 
 pytestmark = pytest.mark.unit
@@ -61,15 +61,28 @@ def test_has_graphical_session_false_in_docker(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_newton_icon_source_dir_returns_none_when_newton_missing(monkeypatch: pytest.MonkeyPatch):
-    """Test a missing Newton install is reported as no icon source rather than raising."""
-    real_import = builtins.__import__
+    """Test a missing Newton install is reported as no icon source rather than raising.
 
-    def _fake_import(name, *args, **kwargs):
-        if name == "newton._src.viewer.gl.opengl":
-            raise ImportError("no newton")
-        return real_import(name, *args, **kwargs)
+    Resolved via importlib.util.find_spec rather than importing newton's GL renderer module:
+    that module pulls in warp/pyglet/GL at import time, which could raise something other than
+    ImportError on a broken install and violate install_desktop_icons's never-raises contract.
+    """
+    monkeypatch.setattr("isaaclab.utils.desktop_icons.importlib.util.find_spec", lambda name: None)
 
-    monkeypatch.setattr(builtins, "__import__", _fake_import)
+    assert newton_icon_source_dir() is None
+
+
+def test_newton_icon_source_dir_returns_none_when_icon_dir_missing(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Test a resolved package spec whose expected icon subdirectory doesn't exist returns None."""
+    package_root = tmp_path / "newton"
+    package_root.mkdir()
+
+    class _FakeSpec:
+        submodule_search_locations = [str(package_root)]
+
+    monkeypatch.setattr("isaaclab.utils.desktop_icons.importlib.util.find_spec", lambda name: _FakeSpec())
 
     assert newton_icon_source_dir() is None
 
@@ -80,6 +93,30 @@ def test_newton_icon_source_dir_finds_real_package():
 
     assert icon_dir is not None
     assert (icon_dir / "icon_64.png").is_file()
+
+
+def test_xdg_data_home_defaults_to_local_share_when_unset(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
+    """Test a missing XDG_DATA_HOME falls back to ~/.local/share."""
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.setattr(pathlib.Path, "home", lambda: tmp_path)
+
+    assert xdg_data_home() == tmp_path / ".local" / "share"
+
+
+def test_xdg_data_home_defaults_to_local_share_when_empty(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
+    """Test an empty-string XDG_DATA_HOME is treated as unset, per the XDG Base Directory spec."""
+    monkeypatch.setenv("XDG_DATA_HOME", "")
+    monkeypatch.setattr(pathlib.Path, "home", lambda: tmp_path)
+
+    assert xdg_data_home() == tmp_path / ".local" / "share"
+
+
+def test_xdg_data_home_honors_explicit_value(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
+    """Test a non-empty XDG_DATA_HOME is used as-is."""
+    custom = tmp_path / "custom"
+    monkeypatch.setenv("XDG_DATA_HOME", str(custom))
+
+    assert xdg_data_home() == custom
 
 
 def test_install_icon_files_copies_available_sizes(tmp_path: pathlib.Path):

@@ -15,6 +15,8 @@ import re
 import subprocess
 import sys
 
+from isaaclab.utils.desktop_icons import xdg_data_home
+
 _DEFAULT_VSCODE_SETTINGS_TEMPLATE = """
 {
     "editor.rulers": [120],
@@ -129,7 +131,7 @@ def setup_desktop_entry(project_dir: pathlib.Path) -> None:
     if icon_path is None:
         return
 
-    applications_dir = pathlib.Path.home() / ".local" / "share" / "applications"
+    applications_dir = xdg_data_home() / "applications"
     applications_dir.mkdir(parents=True, exist_ok=True)
     desktop_path = applications_dir / "isaaclab.desktop"
     desktop_path.write_text(
@@ -137,9 +139,13 @@ def setup_desktop_entry(project_dir: pathlib.Path) -> None:
         "Version=1.0\n"
         "Type=Application\n"
         "Name=Isaac Lab\n"
-        f"Exec={sys.executable} -m isaaclab\n"
+        # This entry exists only for StartupWMClass matching (see the docstring above), not as a
+        # real launcher: NoDisplay keeps it out of application menus, and Exec is a harmless no-op
+        # rather than re-invoking isaaclab, which would also need shell-quoting sys.executable for
+        # paths containing spaces.
+        "NoDisplay=true\n"
+        "Exec=true\n"
         f"Icon={icon_path}\n"
-        "Terminal=true\n"
         f"StartupWMClass={title} {version}\n",
         encoding="utf-8",
     )
