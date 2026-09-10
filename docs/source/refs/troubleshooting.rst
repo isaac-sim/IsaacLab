@@ -31,7 +31,7 @@ by the revision it was built from.
 
 .. code:: bash
 
-    python3 tools/capture_env.py capture --command "<the command that failed>"
+    uv run --no-project python tools/capture_env.py capture --command "<the command that failed>"
 
 This writes ``isaaclab-env-<host>-<timestamp>.zip`` and a matching ``.md`` document beside it. The
 document lists the steps to rebuild the environment and what the bundle cannot rebuild. Attach the
@@ -45,8 +45,9 @@ and every RL library.
 
 The script uses only the Python standard library, never imports Isaac Lab, and never runs ``git``, so
 it still works on an installation that is too broken to start and on a machine with no git installed.
-Run it with any ``python3``: the virtual environment and the checked-out revision are both read from
-disk rather than through the interpreter or the tools that normally report them.
+``--no-project`` stops ``uv`` from syncing. What gets described is the active environment
+and the checked-out revision, both read from disk rather than through the interpreter that runs the
+capture; pass ``--venv`` to describe a different one.
 
 Environment variables are captured by allowlist, limited to the names Isaac Lab and its runtime stack
 are known to read. The list is closed and matched by exact name, so a variable this project does not
