@@ -59,7 +59,7 @@ class ManagerTermBase(ABC):
 
     .. code-block:: python
 
-        from isaaclab.utils.configclass import configclass
+        from isaaclab.utils import configclass
         from isaaclab.utils.mdp import ManagerBase, ManagerTermBaseCfg
 
 
