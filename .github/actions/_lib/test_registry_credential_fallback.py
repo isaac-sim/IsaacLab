@@ -60,7 +60,14 @@ def _write_stub_docker(bin_dir: Path, body: str) -> None:
     script.chmod(0o755)
 
 
-def _run_setup(tmp_path: Path, base_image_ref: str, stub: str, *, owned: bool = True) -> subprocess.CompletedProcess:
+def _run_setup(
+    tmp_path: Path,
+    base_image_ref: str,
+    stub: str,
+    *,
+    owned: bool = True,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess:
     bin_dir = tmp_path / "bin"
     _write_stub_docker(bin_dir, stub)
     config_dir = tmp_path / "cfg"
@@ -78,6 +85,8 @@ def _run_setup(tmp_path: Path, base_image_ref: str, stub: str, *, owned: bool = 
     }
     if owned:
         env["SETUP_DOCKER_CONFIG_OWNED"] = str(config_dir)
+    if extra_env:
+        env.update(extra_env)
     Path(env["GITHUB_ENV"]).touch()
     return subprocess.run(["bash", str(body)], env=env, capture_output=True, text=True, check=False)
 
@@ -158,6 +167,25 @@ def test_unowned_config_is_never_modified(tmp_path: Path) -> None:
     """A config this action did not create belongs to the runner and stays intact."""
     result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.1.0", _DENY_UNLESS_ANONYMOUS, owned=False)
     assert result.returncode == 0, result.stderr
+    assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
+
+
+def test_already_checked_reference_is_not_probed_again(tmp_path: Path) -> None:
+    """ecr-build-push-pull delegates to docker-build, so the probe must not repeat.
+
+    The probes are network calls with backoff, and the first invocation already
+    settled the outcome for this ref.
+    """
+    ref = "nvcr.io/nvidia/isaac-sim:6.1.0"
+    stub = 'echo "the probe must not run again" >&2\nexit 1'
+    result = _run_setup(
+        tmp_path,
+        ref,
+        stub,
+        extra_env={"SETUP_DOCKER_CONFIG_CHECKED_REF": ref},
+    )
+    assert result.returncode == 0, result.stderr
+    assert "already checked" in result.stdout
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
