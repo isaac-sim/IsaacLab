@@ -58,7 +58,7 @@ subclasses:
   properties in the matching ``Physx*PropertiesCfg`` classes.
 
 For configuration hierarchy and parameter-to-USD routing, see
-:doc:`/source/overview/core-concepts/schema_cfgs`. Check the
+:doc:`/source/concepts/schema_cfgs`. Check the
 :doc:`Newton/MuJoCo schema API </source/api/lab_newton/isaaclab_newton.sim.schemas>` and
 :doc:`PhysX schema API </source/api/lab_physx/isaaclab_physx.sim.schemas>` for supported fields.
 A value present in a PhysX asset or imported Newton model is not proof that MJWarp consumes it.
