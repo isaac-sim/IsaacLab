@@ -261,5 +261,5 @@ Where to go next
   assets, and sensors dispatch across backends.
 - :ref:`physics-backends` compares physics backend runtime requirements,
   maturity, solver families, and intended uses.
-- :doc:`/source/overview/core-concepts/renderers` explains renderer selection and
+- :doc:`/source/concepts/renderers` explains renderer selection and
   implementation details.

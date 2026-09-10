@@ -109,7 +109,9 @@ Table of Contents
    source/concepts/prepare_asset_for_newton
    source/concepts/transfer_policies_between_physx_and_newton
    source/concepts/native-physics-api/index
+   source/concepts/renderers
    source/concepts/actuators
+   source/concepts/sensors/index
    source/concepts/coupled_solvers
    source/concepts/scene_data_providers
    source/concepts/visualization
