@@ -241,7 +241,7 @@ def _run_simulation(
             recorded_vel.append(wp.to_torch(articulation.data.joint_vel).clone())
             recorded_computed_effort.append(articulation.actuators.computed_effort.torch.clone())
             recorded_applied_effort.append(articulation.actuators.applied_effort.torch.clone())
-            if use_newton_actuators:
+            if articulation._physx_actuator_wrapper is not None:
                 recorded_adapter_applied.append(wp.to_torch(articulation._physx_actuator_wrapper.joint_f_2d).clone())
         native_actuator_graph_count = len(getattr(articulation._actuator_control, "_native_actuator_graphs", ()) or ())
 
