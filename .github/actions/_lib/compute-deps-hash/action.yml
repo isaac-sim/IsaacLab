@@ -88,12 +88,14 @@ runs:
                 "${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}" \
                 --format '{{json .Manifest.Digest}}' 2>"${inspect_err}" || true)
               candidate=$(printf '%s' "${inspect_out}" | tr -d '"')
-              case "${candidate}" in
-                sha256:*)
-                  base_image_digest="${candidate}"
-                  break
-                  ;;
-              esac
+              # A digest is exactly sha256: plus 64 hex characters. Anything
+              # looser lets stray stdout into the cache key, and a stable
+              # diagnostic string would then stop a changed base image from
+              # invalidating it.
+              if printf '%s' "${candidate}" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
+                base_image_digest="${candidate}"
+                break
+              fi
               echo "🟠 Base image manifest read attempt ${attempt}/${attempts} failed: $(tr '\n' ' ' < "${inspect_err}")"
               # An authorization refusal will not clear on its own, so stop
               # retrying and report it as the configuration error it is.
