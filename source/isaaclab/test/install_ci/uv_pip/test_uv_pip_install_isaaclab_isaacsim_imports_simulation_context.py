@@ -8,7 +8,7 @@ Setup:
     - (wheel supplied by runner: tools/run_install_ci.py --build-wheel or --wheel <path>)
     - ./isaaclab.sh -u
     - uv --no-config pip install <wheel>[isaacsim] --overrides uv_pip/uv-overrides.txt
-        --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match
+        --index https://pypi.nvidia.com --index-strategy unsafe-best-match
     - uv pip install --reinstall-package torch --reinstall-package torchvision
         torch==<pinned> torchvision==<pinned> --index-url <cu128|cu130>
         (versions read from [tool.isaaclab.versions] in the root pyproject.)
@@ -62,7 +62,7 @@ class Test_Uv_Pip_Install_Isaaclab_Isaacsim_Imports_Simulation_Context(UV_Mixin)
                 f"{cls._wheel}[isaacsim]",
                 "--overrides",
                 str(uv_overrides),
-                "--extra-index-url",
+                "--index",
                 "https://pypi.nvidia.com",
                 "--index-strategy",
                 "unsafe-best-match",

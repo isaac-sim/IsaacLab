@@ -191,8 +191,16 @@ jobs:
           name: ${{ steps.meta.outputs.artifact_name }}
           path: /tmp/isaaclab-wheel-artifact
 
+      - name: Resolve OV runtime package index
+        if: steps.changes.outputs.run_build == 'true'
+        uses: ./.github/actions/resolve-ov-pins
+        id: ov_pins
+
       - name: Test wheel extras resolution
         if: steps.changes.outputs.run_build == 'true'
+        env:
+          UV_EXTRA_INDEX_URL: https://pypi.nvidia.com ${{ steps.ov_pins.outputs.index-url }}
+          UV_INDEX_STRATEGY: ${{ steps.ov_pins.outputs.index-strategy }}
         run: |
           set -euo pipefail
 
@@ -220,6 +228,4 @@ jobs:
           bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
             --dry-run \
             --overrides "$overrides" \
-            --extra-index-url https://pypi.nvidia.com \
-            --index-strategy unsafe-best-match \
             "${wheel}[isaacsim]"

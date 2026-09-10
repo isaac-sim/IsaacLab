@@ -39,8 +39,10 @@ def test_package_indexes_include_the_ov_runtime_source(monkeypatch, configured):
             monkeypatch.delenv(name, raising=False)
         else:
             monkeypatch.setenv(name, configured)
+    monkeypatch.delenv("UV_INDEX_STRATEGY", raising=False)
     install_cmd._configure_package_indexes()
     uv_config = install_cmd._load_root_pyproject()["tool"]["uv"]
+    assert os.environ["UV_INDEX_STRATEGY"] == uv_config["index-strategy"]
     source_index = uv_config["sources"]["ovphysx"]["index"]
     expected_url = next(index["url"] for index in uv_config["index"] if index.get("name") == source_index)
     for name in ("UV_EXTRA_INDEX_URL", "PIP_EXTRA_INDEX_URL"):

@@ -190,6 +190,7 @@ def test_ci_ov_runtime_requirements_include_matching_dependencies(source_checkou
         text=True,
     )
     resolved = dict(line.split("=", 1) for line in result.stdout.splitlines())
+    assert resolved["index-strategy"] == _root_pyproject(source_checkout_root)["tool"]["uv"]["index-strategy"]
     versions = _root_pyproject(source_checkout_root)["tool"]["isaaclab"]["versions"]
     for package in ("ovphysx", "ovrtx"):
         assert resolved[package] == f"{package}=={versions[package]}"

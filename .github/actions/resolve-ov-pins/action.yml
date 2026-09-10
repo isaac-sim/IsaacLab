@@ -18,6 +18,9 @@ outputs:
   index-url:
     description: 'Package index hosting the pinned OV runtime stack'
     value: ${{ steps.resolve.outputs.index-url }}
+  index-strategy:
+    description: 'uv index selection strategy for matching source dependency resolution'
+    value: ${{ steps.resolve.outputs.index-strategy }}
   dependencies:
     description: 'Matching OVStage/OmniClient requirements and internal package index for pip installs'
     value: ${{ steps.resolve.outputs.dependencies }}
@@ -63,6 +66,7 @@ runs:
         index_name = uv_config["sources"]["ovphysx"]["index"]
         index_url = next(index["url"] for index in uv_config["index"] if index.get("name") == index_name)
         print(f"index-url={index_url}")
+        print(f"index-strategy={uv_config['index-strategy']}")
         print(f"dependencies={spec('ovstage')} {spec('omniverseclient')} --extra-index-url {index_url}")
         PY
         )"

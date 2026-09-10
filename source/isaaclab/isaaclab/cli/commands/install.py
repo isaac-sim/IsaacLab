@@ -420,6 +420,7 @@ def _load_root_pyproject() -> dict:
 def _configure_package_indexes() -> None:
     """Expose the OV runtime source to pip-based installers as well as uv sync."""
     uv_config = _load_root_pyproject()["tool"]["uv"]
+    os.environ.setdefault("UV_INDEX_STRATEGY", uv_config["index-strategy"])
     ov_index_name = uv_config["sources"]["ovphysx"]["index"]
     ov_index_url = next(index["url"] for index in uv_config["index"] if index.get("name") == ov_index_name)
     for variable in ("UV_EXTRA_INDEX_URL", "PIP_EXTRA_INDEX_URL"):

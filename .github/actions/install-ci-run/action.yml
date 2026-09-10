@@ -39,6 +39,7 @@ runs:
       shell: bash
       env:
         PIP_EXTRA_INDEX_URL: https://pypi.nvidia.com ${{ steps.ov_pins.outputs.index-url }}
+        UV_INDEX_STRATEGY: ${{ steps.ov_pins.outputs.index-strategy }}
         UV_EXTRA_INDEX_URL: https://pypi.nvidia.com ${{ steps.ov_pins.outputs.index-url }}
         BASE_IMAGE: ${{ inputs.base-image }}
         TEST_FILTER: ${{ inputs.test-filter }}

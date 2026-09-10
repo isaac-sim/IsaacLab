@@ -340,7 +340,7 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     # Pass environment variables
     docker_run_cmd.extend(["-e", "OMNI_KIT_ACCEPT_EULA=Y"])
     docker_run_cmd.extend(["-e", "ACCEPT_EULA=Y"])
-    for variable in ("PIP_EXTRA_INDEX_URL", "UV_EXTRA_INDEX_URL"):
+    for variable in ("PIP_EXTRA_INDEX_URL", "UV_EXTRA_INDEX_URL", "UV_INDEX_STRATEGY"):
         if variable in os.environ:
             docker_run_cmd.extend(["-e", variable])
 
