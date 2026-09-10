@@ -367,3 +367,63 @@ class G129DofRoughMjlabScaleHwTorqueEnvCfg(G129DofRoughMjlabScaleEnvCfg):
         from .rough_29dof_env_cfg import _apply_hardware_efforts  # noqa: PLC0415
 
         _apply_hardware_efforts(self)
+
+
+_LOCOMOTION_JOINTS = [
+    ".*_hip_pitch_joint",
+    ".*_hip_roll_joint",
+    ".*_hip_yaw_joint",
+    ".*_knee_joint",
+    ".*_ankle_pitch_joint",
+    ".*_ankle_roll_joint",
+    "waist_yaw_joint",
+    "waist_roll_joint",
+    "waist_pitch_joint",
+    ".*_shoulder_pitch_joint",
+    ".*_shoulder_roll_joint",
+    ".*_shoulder_yaw_joint",
+    ".*_elbow_joint",
+    ".*_wrist_roll_joint",
+    ".*_wrist_pitch_joint",
+    ".*_wrist_yaw_joint",
+]
+"""The 29 joints mjlab's G1 has: everything except the fourteen finger joints."""
+
+
+@configclass
+class G129DofRoughMjlabScaleNoFingersEnvCfg(G129DofRoughMjlabScaleEnvCfg):
+    """``ms`` with the fingers out of the action and observation spaces, as mjlab's G1 has them.
+
+    mjlab trains ``g1_29dof_rev_1_0``: 29 joints, no hand. This asset carries 43, and the extra
+    fourteen are not free:
+
+    * **They are saturated.** Mean ``|action|`` on the hands is 26 against 0.37 on the legs, so with
+      ``scale`` and ``use_default_offset`` the finger targets sit at roughly +-13 rad against +-1.75
+      rad limits -- permanently against the stops, flipping every step. Under the blanket 0.5 scale
+      one unit of action was 816% of a finger motor's 2.45 N*m; they never had a usable range.
+    * **They dominate the penalties that are summed over all joints.** ``action_rate_l2``,
+      ``dof_torques_l2`` and ``dof_acc_l2`` are computed across the whole action or joint vector, so
+      the term meant to smooth the legs is spending most of itself on fingers. It is also what made
+      a first pass at measuring the camera's influence read 20x too small.
+    * **They are dropped at deployment anyway.** ``g1_deploy`` maps all fourteen to motor index -1;
+      the robot has 29 motors.
+
+    The fingers keep their actuators and stay at their default pose, which is zero for all fourteen,
+    so nothing about the robot's mass or contact set changes -- only what the policy writes and
+    reads. Action dimension 43 -> 29; the observation loses 42 values (fingers in ``joint_pos``,
+    ``joint_vel`` and ``actions``).
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.actions.joint_pos.joint_names = list(_LOCOMOTION_JOINTS)
+        # The per-joint scale is resolved against the action's own joint list, so an entry for a
+        # joint that is no longer an action is an unmatched pattern rather than a harmless extra.
+        self.actions.joint_pos.scale = {
+            pattern: value for pattern, value in _MJLAB_ACTION_SCALE.items() if "_hand_" not in pattern
+        }
+        for term in ("joint_pos", "joint_vel"):
+            getattr(self.observations.policy, term).params["asset_cfg"] = SceneEntityCfg(
+                "robot", joint_names=list(_LOCOMOTION_JOINTS)
+            )
