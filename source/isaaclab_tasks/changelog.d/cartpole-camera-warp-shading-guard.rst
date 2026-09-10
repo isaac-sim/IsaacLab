@@ -6,3 +6,5 @@ Fixed
   renderer cannot produce: the run failed only at environment construction, after the simulator had
   started. The combination is now rejected during config resolution. Use ``presets=newton_renderer,rgb``,
   or keep the shading data types on an RTX backend with ``presets=isaacsim_rtx,simple_shading_full_mdl``.
+* Fixed the Shadow Hand camera and Lift reorientation tasks rejecting Newton Warp ``rgba``, ``rgb_hdr``,
+  and ``albedo`` outputs that the renderer supports.

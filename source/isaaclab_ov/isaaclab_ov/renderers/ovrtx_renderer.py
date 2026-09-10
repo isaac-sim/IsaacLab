@@ -296,30 +296,7 @@ class OVRTXRenderer(BaseRenderer):
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this OVRTX backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
-        instance_seg_spec = (
-            RenderBufferSpec(4, wp.uint8) if self.cfg.colorize_instance_segmentation else RenderBufferSpec(1, wp.int32)
-        )
-        # Semantic segmentation: colorized RGBA (uint8), else raw int32 IDs (matches Isaac RTX, whose
-        # non-colorized per-pixel value is the semantic ID).
-        semantic_seg_spec = (
-            RenderBufferSpec(4, wp.uint8) if self.cfg.colorize_semantic_segmentation else RenderBufferSpec(1, wp.int32)
-        )
-        return {
-            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
-            RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
-            RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
-            RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE: RenderBufferSpec(3, wp.uint8),
-            RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, wp.uint8),
-            RenderBufferKind.SIMPLE_SHADING_FULL_MDL: RenderBufferSpec(3, wp.uint8),
-            RenderBufferKind.SEMANTIC_SEGMENTATION: semantic_seg_spec,
-            RenderBufferKind.INSTANCE_SEGMENTATION: instance_seg_spec,
-            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
-            RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, wp.float32),
-        }
+        return self.cfg.supported_output_types()
 
     def __init__(self, cfg: OVRTXRendererCfg):
         self.cfg = cfg

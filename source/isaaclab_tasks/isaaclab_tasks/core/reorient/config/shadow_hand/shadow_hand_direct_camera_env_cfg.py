@@ -42,24 +42,7 @@ def validate_shadow_hand_camera_settings(
             f"Shadow Hand camera validation requires a concrete RendererCfg or None, got {type(renderer_cfg).__name__}."
         )
 
-    renderer_type = getattr(renderer_cfg, "renderer_type", None)
-    warp_supported = {
-        "rgb",
-        "depth",
-        "distance_to_camera",
-        "distance_to_image_plane",
-        "normals",
-        "semantic_segmentation",
-        "instance_segmentation",
-    }
-    if renderer_type == "newton_warp":
-        unsupported = set(tiled_camera.data_types) - warp_supported
-        if unsupported:
-            raise ValueError(
-                f"Warp renderer only supports data types {sorted(warp_supported)}, "
-                f"but the camera is configured with unsupported types: {sorted(unsupported)}. "
-                "Choose a compatible preset, e.g. presets=newton_renderer,rgb."
-            )
+    tiled_camera.validate_config()
 
     non_depth_data_types = set(tiled_camera.data_types).difference(
         {"depth", "distance_to_image_plane", "distance_to_camera"}

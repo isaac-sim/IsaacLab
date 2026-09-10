@@ -536,29 +536,11 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
 
     def validate_config(self):
         """Check for invalid preset combinations after resolution."""
-
-        warp_supported = {
-            "rgb",
-            "depth",
-            "distance_to_camera",
-            "distance_to_image_plane",
-            "normals",
-            "semantic_segmentation",
-            "instance_segmentation",
-        }
         for cam_attr in ("base_camera", "wrist_camera"):
             cam = getattr(self.scene, cam_attr, None)
             if cam is None:
                 continue
-            renderer_type = getattr(getattr(cam, "renderer_cfg", None), "renderer_type", None)
-            if renderer_type == "newton_warp":
-                unsupported = set(cam.data_types) - warp_supported
-                if unsupported:
-                    raise ValueError(
-                        f"Warp renderer only supports data types {sorted(warp_supported)}, "
-                        f"but '{cam_attr}' is configured with unsupported types: {sorted(unsupported)}. "
-                        "Choose a compatible preset, e.g. presets=newton_renderer,rgb128."
-                    )
+            cam.validate_config()
 
     def __post_init__(self):
         """Post initialization."""

@@ -52,9 +52,15 @@ def _make_cfg(renderer_type: str | None, data_types: list[str], feature_extracto
     The mock reuses the real validation logic from :class:`ShadowHandCameraEnvCfg`.
     """
     cfg = types.SimpleNamespace()
+    if renderer_type == "newton_warp":
+        renderer_cfg = NewtonWarpRendererCfg()
+    elif renderer_type == "isaac_rtx":
+        renderer_cfg = IsaacRtxRendererCfg()
+    else:
+        renderer_cfg = RendererCfg(renderer_type=renderer_type) if renderer_type is not None else None
     cfg.tiled_camera = CameraCfg(
         prim_path="/Camera",
-        renderer_cfg=RendererCfg(renderer_type=renderer_type) if renderer_type is not None else None,
+        renderer_cfg=renderer_cfg,
         data_types=data_types,
     )
     cfg.feature_extractor = types.SimpleNamespace(enabled=feature_extractor_enabled)
@@ -81,8 +87,11 @@ _VALID_COMBOS = [
     ("isaac_rtx", ["simple_shading_full_mdl"], True),
     ("isaac_rtx", ["rgb", "depth", "semantic_segmentation"], True),
     ("isaac_rtx", ["depth"], False),
-    # ── Warp renderer: rgb, depth, and semantic_segmentation are supported ──
+    # ── Warp renderer: all published color, depth, and segmentation outputs are supported ──
     ("newton_warp", ["rgb"], True),
+    ("newton_warp", ["rgba"], True),
+    ("newton_warp", ["rgb_hdr"], True),
+    ("newton_warp", ["albedo"], True),
     ("newton_warp", ["depth"], False),  # depth-only OK when CNN disabled
     ("newton_warp", ["rgb", "depth"], True),  # multiple supported types
     ("newton_warp", ["rgb", "depth", "semantic_segmentation"], True),
@@ -101,13 +110,7 @@ def test_valid_combinations_do_not_raise(renderer_type, data_types, enabled):
 
 _INVALID_COMBOS = [
     # renderer_type, data_types, enabled, substring expected in error message
-    # ── Warp does not support colour-space data types ──
-    (
-        "newton_warp",
-        ["albedo"],
-        True,
-        "albedo",
-    ),
+    # ── Warp does not support RTX simple-shading outputs ──
     (
         "newton_warp",
         ["simple_shading_constant_diffuse"],
@@ -234,7 +237,7 @@ _WARP_CAMERA_PRESETS = [
     ("depth", False),
     ("default", False),
     ("full", False),
-    ("albedo", True),
+    ("albedo", False),
     ("simple_shading_constant_diffuse", True),
     ("simple_shading_diffuse_mdl", True),
     ("simple_shading_full_mdl", True),
