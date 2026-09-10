@@ -31,6 +31,10 @@ from isaaclab_rl.entrypoints.simple_agents import _create_zero_action_policy
         ("import isaaclab_rl", ["isaaclab_rl.entrypoints", "torch"]),
         ("import isaaclab_rl.entrypoints", ["isaaclab_rl.entrypoints.multigpu", "torch"]),
         ("import isaaclab_rl.entrypoints.backends", ["torch"]),
+        (
+            "import isaaclab_rl.entrypoints.backends.export_rsl_rl",
+            ["torch", "leapp", "rsl_rl", "isaaclab.envs", "isaaclab_tasks"],
+        ),
         ("import isaaclab_rl.rl_games", ["isaaclab_rl.rl_games.rl_games", "rl_games", "torch"]),
         ("import isaaclab_rl.rl_games.pbt", ["isaaclab_rl.rl_games.pbt.pbt", "rl_games", "torch"]),
         ("import isaaclab_rl.rsl_rl", ["isaaclab_rl.rsl_rl.vecenv_wrapper", "rsl_rl", "torch"]),

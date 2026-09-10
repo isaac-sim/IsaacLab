@@ -13,18 +13,13 @@ import argparse
 import os
 import re
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
-import torch
-from leapp import GraphConfigs
+if TYPE_CHECKING:
+    import torch
+    from leapp import GraphConfigs
 
-# TorchScript must be disabled before importing task or environment modules because
-# ``@torch.jit.script`` compiles at decoration time.
-torch.jit._state.disable()
-
-from isaaclab.app import AppLauncher
-from isaaclab.envs import DirectRLEnvCfg, ManagerBasedEnvCfg
-
-from isaaclab_tasks.utils import setup_preset_cli
+    from isaaclab.envs import DirectRLEnvCfg, ManagerBasedEnvCfg
 
 
 def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: str) -> None:
@@ -34,6 +29,8 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
         parser: Argument parser to extend.
         agent_default: Default Hydra agent configuration entry point for the backend.
     """
+
+    from isaaclab.app import AppLauncher
 
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
     parser.add_argument(
@@ -91,10 +88,29 @@ def finalize_export_args(
     parser: argparse.ArgumentParser, argv: list[str] | None = None
 ) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments with preset support and force headless mode."""
+    from isaaclab_tasks.utils import setup_preset_cli
 
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     args_cli.headless = True
     return args_cli, hydra_args
+
+
+def disable_torchscript_for_export() -> None:
+    """Disable TorchScript compilation so ``@torch.jit.script`` helpers stay traceable.
+
+    LEAPP traces the observation and action pipeline in Python. A compiled
+    :class:`torch.jit.ScriptFunction` is opaque to the tracer, so any environment
+    quantity flowing through one (for example the quaternion helpers in
+    ``isaaclab.utils.math``) is folded into the graph as a constant and the exported
+    policy fails validation once that quantity changes.
+
+    Call this before importing task or environment modules: :func:`torch.jit.script`
+    compiles at decoration time, so disabling afterwards has no effect on helpers that
+    were already imported.
+    """
+    import torch
+
+    torch.jit._state.disable()
 
 
 def get_checkpoint_path(
@@ -163,12 +179,15 @@ def create_graph_configs(env_cfg: ManagerBasedEnvCfg | DirectRLEnvCfg) -> GraphC
         Graph metadata containing the policy frequency [Hz].
     """
 
+    from leapp import GraphConfigs
+
     policy_frequency = 1.0 / (env_cfg.sim.dt * env_cfg.decimation)
     return GraphConfigs(frequency=policy_frequency)
 
 
 def is_two_tensor_lstm_state(states: object) -> bool:
     """Return whether *states* looks like an LSTM ``[hidden, cell]`` state."""
+    import torch
 
     return (
         isinstance(states, (list, tuple))
