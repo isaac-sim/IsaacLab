@@ -1,3 +1,4 @@
+.. _concepts_sensors_ray_caster:
 .. _overview_sensors_ray_caster:
 
 .. currentmodule:: isaaclab
@@ -5,7 +6,7 @@
 Ray Caster
 =============
 
-.. figure:: ../../../_static/overview/sensors/raycaster_patterns.jpg
+.. figure:: ../../_static/overview/sensors/raycaster_patterns.jpg
     :align: center
     :figwidth: 100%
     :alt: A diagram outlining the basic geometry of frame transformations
@@ -23,13 +24,13 @@ explicit and to access Newton-specific options.
 
 Using a ray caster sensor requires a **pattern** and a parent xform to be attached to.  The pattern defines how the rays are cast, while the prim properties defines the orientation and position of the sensor (additional offsets can be specified for more exact placement).  Isaac Lab supports a number of ray casting pattern configurations, including a generic LIDAR and grid pattern.
 
-.. literalinclude:: ../../../../../scripts/demos/sensors/raycaster_sensor.py
+.. literalinclude:: ../../../../scripts/demos/sensors/raycaster_sensor.py
     :language: python
     :lines: 40-71
 
 Notice that the units on the pattern config is in degrees! Also, we enable visualization here to explicitly show the pattern in the rendering, but this is not required and should be disabled for performance tuning.
 
-.. figure:: ../../../_static/overview/sensors/raycaster_visualizer.jpg
+.. figure:: ../../_static/overview/sensors/raycaster_visualizer.jpg
     :align: center
     :figwidth: 100%
     :alt: Lidar Pattern visualized
@@ -79,6 +80,6 @@ You can use this script to experiment with pattern configurations and build an i
 .. dropdown:: Code for raycaster_sensor.py
    :icon: code
 
-   .. literalinclude:: ../../../../../scripts/demos/sensors/raycaster_sensor.py
+   .. literalinclude:: ../../../../scripts/demos/sensors/raycaster_sensor.py
       :language: python
       :linenos:
