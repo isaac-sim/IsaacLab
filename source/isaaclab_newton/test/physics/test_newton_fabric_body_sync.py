@@ -27,8 +27,8 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
+from isaaclab.utils import configclass
 from isaaclab.utils import math as math_utils
-from isaaclab.utils.configclass import configclass
 
 
 @configclass

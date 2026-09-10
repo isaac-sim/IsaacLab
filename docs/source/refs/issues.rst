@@ -16,6 +16,16 @@ apply to the others unless it says so.
 PhysX backends
 --------------
 
+Surface grippers require CPU simulation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** ``physics=isaacsim_physx`` surface-gripper tasks.
+
+Surface grippers require CPU simulation. This includes the UR10 Long/Short Suction stacking tasks,
+the Galbot Right Arm Suction stacking task, and its relative and absolute Mimic variants.
+Pass ``--device cpu`` when running teleoperation. Zero and random agents preserve these tasks'
+CPU defaults when ``--device`` is omitted; an explicit GPU override is unsupported.
+
 Sensor readings are stale immediately after a reset
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -195,6 +205,30 @@ There are two workarounds:
   :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` to
   ``False`` to opt out of partitioning entirely, at the cost of the per-environment
   culling.
+
+.. _known-issues-scene-partition-count-cap:
+
+Scene partitioning is capped at 15625 partitions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** ``renderer=isaacsim_rtx`` with scene partitioning enabled, and ``renderer=ovrtx``.
+
+The underlying ``rtx.scenedb.plugin`` allocates a fixed-size pool of scene partitions and
+caps it at 15625, regardless of which renderer requests them. Isaac Lab assigns one scene
+partition per environment when
+:attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` is enabled
+for the Isaac RTX renderer, and OVRTX always assigns one scene partition per environment, so
+runs with more than 15625 environments exceed the pool on either backend. Once the cap is
+hit, ``rtx.scenedb.plugin`` logs a warning and discards the remaining partitions:
+
+.. code-block:: text
+
+    [Warning] [rtx.scenedb.plugin] SceneDbContext : Maximum number of scene partitions
+    (15625) reached. Additional scene partitions will be discarded.
+
+Environments beyond the cap are left without their own partition and end up sharing one
+with another environment, so their tiled camera views can render another environment's
+geometry instead of their own.
 
 Using instanceable assets for markers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

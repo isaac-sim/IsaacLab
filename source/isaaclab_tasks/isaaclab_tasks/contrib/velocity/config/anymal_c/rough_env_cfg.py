@@ -4,10 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
-from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -22,6 +21,3 @@ class AnymalCRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
         # scene
         self.scene.robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.actuators["legs"].armature = preset(
-            default=0.0, newton_mjwarp=0.01, physx=0.0, isaacsim_physx=0.0
-        )

@@ -103,7 +103,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         external_callback_function = string_to_callable(registration_args.external_callback, separator=".")
         remaining_args_env_registration = external_callback_function()
 
-    args_cli, remaining_args = setup_preset_cli(parser, argv, agent_library="rsl_rl")
+    args_cli, remaining_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
 
     set_hydra_args(list_intersection(remaining_args, remaining_args_env_registration))

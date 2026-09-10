@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
@@ -68,7 +68,7 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
         self.scene.replicate_physics = True
         self.sim.physics.newton_mjwarp.solver_cfg.nconmax = 600
         self.sim.physics = preset(
-            default=self.sim.physics.newton_mjwarp,
+            default=self.sim.physics.isaacsim_physx,
             isaacsim_physx=self.sim.physics.isaacsim_physx,
             physx=self.sim.physics.physx,
             newton_mjwarp=self.sim.physics.newton_mjwarp,
@@ -95,7 +95,7 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
                     "Robot": "robot",
                     "Sensor": "sensors",
                     "Physics": preset(
-                        default="physics",
+                        default="physx",
                         isaacsim_physx="physx",
                         physx="physx",
                         newton_mjwarp="physics",

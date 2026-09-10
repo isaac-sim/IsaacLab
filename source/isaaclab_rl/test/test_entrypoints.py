@@ -12,6 +12,7 @@ import runpy
 import subprocess
 import sys
 import types
+from pathlib import Path
 from types import SimpleNamespace
 
 import gymnasium as gym
@@ -234,7 +235,87 @@ def test_simple_agents_default_to_newton_visualizer(
 
     args = _simple_agents._parse_args([], policy)
 
+    assert args.device is None
     assert args.visualizer == ["newton_gl"]
+
+
+@pytest.mark.parametrize("policy", ["zero", "random"])
+def test_simple_agents_accept_explicit_device(
+    policy: _simple_agents.PolicyName,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Checkpoint-free agents should retain an explicit CLI device."""
+    monkeypatch.setattr(sys, "argv", ["pytest"])
+
+    args = _simple_agents._parse_args(["--device", "cuda:1"], policy)
+
+    assert args.device == "cuda:1"
+
+
+def test_simple_agents_preserve_task_device_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Checkpoint-free agents should not replace a task-required device with the CLI default."""
+
+    class _ExpectedStop(Exception):
+        pass
+
+    class _Cfg:
+        scene = SimpleNamespace(num_envs=1)
+        sim = SimpleNamespace(device="cpu", use_fabric=True)
+
+        def validate(self) -> None:
+            pass
+
+    args = SimpleNamespace(
+        num_envs=None,
+        device=None,
+        disable_fabric=False,
+        task="Cpu-Task",
+    )
+
+    def launch_simulation(cfg, launcher_args):
+        assert cfg.sim.device == "cpu"
+        assert launcher_args.device == "cpu"
+        raise _ExpectedStop
+
+    monkeypatch.setattr(_simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(_simple_agents, "resolve_task_config", lambda task, agent: (_Cfg(), None))
+    monkeypatch.setattr(_simple_agents, "launch_simulation", launch_simulation)
+
+    with pytest.raises(_ExpectedStop):
+        _simple_agents.run([], policy="zero")
+
+
+def test_simple_agents_apply_explicit_device_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Checkpoint-free agents should continue to honor an explicit CLI device."""
+
+    class _ExpectedStop(Exception):
+        pass
+
+    class _Cfg:
+        scene = SimpleNamespace(num_envs=1)
+        sim = SimpleNamespace(device="cpu", use_fabric=True)
+
+        def validate(self) -> None:
+            pass
+
+    args = SimpleNamespace(
+        num_envs=None,
+        device="cuda:1",
+        disable_fabric=False,
+        task="Cpu-Task",
+    )
+
+    def launch_simulation(cfg, launcher_args):
+        assert cfg.sim.device == "cuda:1"
+        assert launcher_args.device == "cuda:1"
+        raise _ExpectedStop
+
+    monkeypatch.setattr(_simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(_simple_agents, "resolve_task_config", lambda task, agent: (_Cfg(), None))
+    monkeypatch.setattr(_simple_agents, "launch_simulation", launch_simulation)
+
+    with pytest.raises(_ExpectedStop):
+        _simple_agents.run([], policy="random")
 
 
 def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -384,6 +465,24 @@ def test_train_dispatches_selected_backend(monkeypatch) -> None:
     assert dispatch.run_train_cli(["--rl_library", "rsl_rl", "--task", "Isaac-Cartpole"]) == 0
     assert received == {
         "module_name": "isaaclab_rl.entrypoints.backends.train_rsl_rl",
+        "argv": ["--task", "Isaac-Cartpole"],
+        "run_as_script": False,
+    }
+
+
+def test_export_dispatches_selected_backend(monkeypatch) -> None:
+    """The unified export dispatcher forwards backend arguments and its status."""
+    received: dict[str, object] = {}
+
+    def _fake_run_backend(module_name: str, argv: list[str], *, run_as_script: bool) -> int:
+        received.update(module_name=module_name, argv=argv, run_as_script=run_as_script)
+        return 1
+
+    monkeypatch.setattr(dispatch, "_run_backend", _fake_run_backend)
+
+    assert dispatch.run_export_cli(["--rl_library", "rsl_rl", "--task", "Isaac-Cartpole"]) == 1
+    assert received == {
+        "module_name": "isaaclab_rl.entrypoints.backends.export_rsl_rl",
         "argv": ["--task", "Isaac-Cartpole"],
         "run_as_script": False,
     }
@@ -580,12 +679,70 @@ def test_skrl_training_restores_jax_backend(monkeypatch) -> None:
     assert not hasattr(skrl.config.jax, "backend")
 
 
+def test_skrl_agent_config_selection_is_explicit() -> None:
+    """SKRL uses the canonical task config unless the user explicitly selects another source."""
+    from isaaclab_rl.skrl import resolve_skrl_agent_cfg_entry_point as resolve
+
+    assert resolve(None, None) == resolve(None, "PPO") == "skrl_cfg_entry_point"
+    assert resolve(None, "AMP") == "skrl_amp_cfg_entry_point"
+    assert resolve("skrl_custom_cfg_entry_point", None) == "skrl_custom_cfg_entry_point"
+
+
+def test_skrl_algorithm_comes_from_resolved_config() -> None:
+    """The resolved agent class, rather than the registry-key spelling, owns algorithm identity."""
+    from isaaclab_rl.skrl import resolve_skrl_algorithm
+
+    assert resolve_skrl_algorithm({"agent": {"class": "AMP"}}) == "amp"
+    assert resolve_skrl_algorithm({"agent": {"class": "PPO"}}, "PPO") == "ppo"
+    with pytest.raises(ValueError, match="does not match the resolved agent.class"):
+        resolve_skrl_algorithm({"agent": {"class": "AMP"}}, "PPO")
+    with pytest.raises(ValueError, match="must define a non-empty 'agent.class'"):
+        resolve_skrl_algorithm({})
+
+
+def test_skrl_training_parser_leaves_algorithm_implicit(monkeypatch) -> None:
+    """The canonical task config decides the algorithm when the CLI omits both selectors."""
+    from isaaclab_rl.entrypoints.backends import train_skrl
+
+    monkeypatch.setattr(sys, "argv", ["train_skrl.py"])
+    args = train_skrl._parse_args(["--task", "Isaac-Cartpole"])
+
+    assert args.agent is None
+    assert args.algorithm is None
+
+
+@pytest.mark.parametrize("motion", ["Dance", "Run", "Walk"])
+def test_humanoid_amp_tasks_register_canonical_skrl_config(motion) -> None:
+    """SKRL-only AMP tasks work through the same canonical entry point as other tasks."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import load_cfg_from_registry
+
+    spec = gym.spec(f"IsaacContrib-Humanoid-AMP-{motion}-Direct")
+
+    assert spec.kwargs["default_agent"] == "skrl"
+    assert spec.kwargs["skrl_cfg_entry_point"] == spec.kwargs["skrl_amp_cfg_entry_point"]
+    assert load_cfg_from_registry(spec.id, "skrl_cfg_entry_point")["agent"]["class"] == "AMP"
+
+
+def test_skrl_entrypoints_do_not_infer_algorithm_from_registry_key() -> None:
+    """Registry-key spelling is a config-source concern, never an algorithm identity."""
+    root = Path(__file__).parents[3]
+    paths = list(root.glob("source/isaaclab*/**/*skrl.py"))
+    for path in paths:
+        source = path.read_text()
+
+        assert 'split("_cfg")' not in source, path
+        assert 'agent_library="skrl"' not in source, path
+
+
 def test_skrl_play_main_restores_jax_backend(monkeypatch) -> None:
     """Direct SKRL play calls remove the JAX backend setting they created."""
     pytest.importorskip("skrl")
     monkeypatch.setattr(sys, "argv", ["play_skrl.py"])
     namespace = runpy.run_module("isaaclab_rl.entrypoints.backends.play_skrl", run_name="test_play_skrl")
     skrl = namespace["skrl"]
+    assert namespace["args_cli"].algorithm is None
+    assert namespace["agent_cfg_entry_point"] == "skrl_cfg_entry_point"
     namespace["args_cli"].ml_framework = "jax"
     monkeypatch.delattr(skrl.config.jax, "backend", raising=False)
 
