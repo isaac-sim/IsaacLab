@@ -83,7 +83,7 @@ features your experiment needs, not on a single throughput result.
    * - **TorchRL**
      - Building custom algorithms from PyTorch-native RL components
      - PPO reference runner on a ``torchrl.envs.EnvBase`` wrapper that keeps observation groups and
-       terminal observations
+       terminal observations; training only (no ``play`` backend yet)
      - ``--extra torchrl``
 
 Install optional dependencies by selecting the corresponding ``uv`` extra when running a command:

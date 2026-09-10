@@ -24,7 +24,7 @@ from torchrl.data import Bounded, Categorical, Composite, MultiCategorical, Unbo
 from torchrl.envs import ExplorationType, StepCounter, TransformedEnv, set_exploration_type  # noqa: E402
 from torchrl.envs.utils import check_env_specs  # noqa: E402
 
-from isaaclab_rl.torchrl import IsaacLabTorchRLWrapper, TorchRlPpoCfg, make_actor, train_ppo  # noqa: E402
+from isaaclab_rl.torchrl import IsaacLabTorchRLWrapper, TorchRlPpoCfg, make_actor, make_critic, train_ppo  # noqa: E402
 
 NUM_ENVS = 4
 CLOCK_SCALE = 100.0
@@ -55,18 +55,21 @@ class _FakeUnwrapped(_FakeEnvBase):
 
     Each environment keeps a step clock that is encoded in the observations, reset to zero when the environment
     resets, and used to schedule time-outs. Rewards and done flags live in persistent buffers mutated in place.
+    The ``"critic"`` group is a dictionary of terms unless ``flat_critic`` is set.
     """
 
-    def __init__(self, action_space=None, truncate_at=None, compute_final_obs=True, is_finite_horizon=False):
+    def __init__(
+        self, action_space=None, truncate_at=None, compute_final_obs=True, is_finite_horizon=False, flat_critic=False
+    ):
         self.num_envs = NUM_ENVS
         self.device = "cpu"
         self.cfg = types.SimpleNamespace(compute_final_obs=compute_final_obs, is_finite_horizon=is_finite_horizon)
+        self._flat_critic = flat_critic
+        critic_space = gym.spaces.Box(low=-float("inf"), high=float("inf"), shape=(12,), dtype="float32")
         self.single_observation_space = gym.spaces.Dict(
             {
                 "policy": gym.spaces.Box(low=-1.0, high=1.0, shape=(8,), dtype="float32"),
-                "critic": gym.spaces.Dict(
-                    {"privileged": gym.spaces.Box(low=-float("inf"), high=float("inf"), shape=(12,), dtype="float32")}
-                ),
+                "critic": critic_space if flat_critic else gym.spaces.Dict({"privileged": critic_space}),
             }
         )
         self.single_action_space = action_space or gym.spaces.Box(low=-1.0, high=1.0, shape=(6,), dtype="float32")
@@ -86,7 +89,7 @@ class _FakeUnwrapped(_FakeEnvBase):
     def _compute_obs(self):
         policy = (self.clock / CLOCK_SCALE).unsqueeze(-1).expand(NUM_ENVS, 8).clone()
         privileged = self.clock.unsqueeze(-1).expand(NUM_ENVS, 12).clone()
-        return {"policy": policy, "critic": {"privileged": privileged}}
+        return {"policy": policy, "critic": privileged if self._flat_critic else {"privileged": privileged}}
 
     def seed(self, seed=-1):
         self.last_seed = seed
@@ -371,9 +374,9 @@ PPO example
 """
 
 
-def test_train_ppo_learns_checkpoints_and_reloads(make_wrapper, tmp_path):
-    wrapper, _ = make_wrapper(truncate_at={3: [0, 1]})
-    cfg = TorchRlPpoCfg(
+def _ppo_cfg() -> TorchRlPpoCfg:
+    """Small PPO configuration for the fake environment."""
+    return TorchRlPpoCfg(
         seed=0,
         device="cpu",
         num_steps_per_env=4,
@@ -389,6 +392,41 @@ def test_train_ppo_learns_checkpoints_and_reloads(make_wrapper, tmp_path):
         lam=0.95,
         entropy_coef=0.01,
     )
+
+
+def test_make_critic_reads_flat_critic_group(make_wrapper):
+    wrapper, _ = make_wrapper(flat_critic=True)
+
+    assert make_critic(wrapper, _ppo_cfg()).in_keys == ["critic"]
+
+
+@pytest.mark.parametrize(
+    "action_space",
+    [
+        gym.spaces.Discrete(3),
+        gym.spaces.MultiDiscrete([3, 2]),
+        gym.spaces.Box(low=-1.0, high=1.0, shape=(2, 3), dtype="float32"),
+    ],
+    ids=["discrete", "multi-discrete", "box-2d"],
+)
+def test_make_actor_rejects_non_flat_continuous_actions(make_wrapper, action_space):
+    wrapper, _ = make_wrapper(action_space=action_space, flat_critic=True)
+
+    with pytest.raises(NotImplementedError, match="action"):
+        make_actor(wrapper, _ppo_cfg())
+
+
+def test_make_critic_rejects_dictionary_observation_group(make_wrapper):
+    """A ``"critic"`` group made of several terms is rejected instead of silently falling back to ``"policy"``."""
+    wrapper, _ = make_wrapper()
+
+    with pytest.raises(NotImplementedError, match='"critic" observation group'):
+        make_critic(wrapper, _ppo_cfg())
+
+
+def test_train_ppo_learns_checkpoints_and_reloads(make_wrapper, tmp_path):
+    wrapper, _ = make_wrapper(truncate_at={3: [0, 1]}, flat_critic=True)
+    cfg = _ppo_cfg()
 
     actor = train_ppo(wrapper, cfg, str(tmp_path))
 

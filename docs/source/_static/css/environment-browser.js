@@ -14,8 +14,8 @@
         const taskRows = [
             ["Isaac-Ant-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/ant.jpg", true],
             ["Isaac-Ant", "rl_games,rsl_rl,skrl,sb3", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/ant.jpg", true],
-            ["Isaac-Cartpole-Direct", "rl_games,rsl_rl,skrl,sb3", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/cartpole.jpg", true],
-            ["Isaac-Cartpole", "rl_games,rsl_rl,skrl,sb3", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/cartpole.jpg", true],
+            ["Isaac-Cartpole-Direct", "rl_games,rsl_rl,skrl,sb3,torchrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/cartpole.jpg", true],
+            ["Isaac-Cartpole", "rl_games,rsl_rl,skrl,sb3,torchrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", {}, "tasks/classic/cartpole.jpg", true],
             ["Isaac-Cartpole-Camera-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo,depth,rgb,semantic_segmentation,simple_shading_constant_diffuse,simple_shading_diffuse_mdl,simple_shading_full_mdl", {}, "tasks/classic/cartpole.jpg"],
             ["Isaac-Cartpole-Camera", "rl_games,rsl_rl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo,depth,resnet18,rgb,semantic_segmentation,simple_shading_constant_diffuse,simple_shading_diffuse_mdl,simple_shading_full_mdl,theia_tiny", {"rl_games_cfg_entry_point": ["albedo", "depth", "rgb", "semantic_segmentation", "simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"], "rl_games_feature_cfg_entry_point": ["resnet18", "theia_tiny"], "rsl_rl_cfg_entry_point": ["albedo", "depth", "rgb", "semantic_segmentation", "simple_shading_constant_diffuse", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"], "rsl_rl_feature_cfg_entry_point": ["resnet18", "theia_tiny"]}, "tasks/classic/cartpole.jpg"],
             ["Isaac-Fourbar-Pole-Swingup", "rsl_rl", "newton_kamino", "", "", {}, "tasks/classic/fourbar_pole.jpg"],
@@ -195,7 +195,9 @@
         task: "Isaac-Cartpole",
         benchmarkWorkload: "runtime",
     };
-    const rlLibraryExtras = {rl_games: "rl-games", sb3: "sb3", skrl: "skrl", rlinf: "rlinf"};
+    const rlLibraryExtras = {rl_games: "rl-games", sb3: "sb3", skrl: "skrl", rlinf: "rlinf", torchrl: "torchrl"};
+    // Libraries with a train backend but no play backend in isaaclab_rl.entrypoints.dispatch.
+    const trainOnlyRlLibraries = new Set(["torchrl"]);
     let benchmarkRows = [];
 
     const categoryFor = (task) => {
@@ -284,14 +286,22 @@
 
     const updateModeControls = () => {
         const supportsRl = selectedTask().rl.length > 0;
+        const supportsPlay = supportsRl && !trainOnlyRlLibraries.has(fields.rl.value);
+        if (supportsRl && !supportsPlay) {
+            state.mode = "train";
+        }
         for (const modeButton of modeButtons) {
-            modeButton.disabled = !supportsRl;
+            const isPlayButton = modeButton.dataset.commandMode === "play";
+            modeButton.disabled = !supportsRl || (isPlayButton && !supportsPlay);
+            modeButton.title = isPlayButton && supportsRl && !supportsPlay
+                ? `${fields.rl.value} supports training only`
+                : "";
             const isActive = supportsRl && modeButton.dataset.commandMode === state.mode;
             modeButton.classList.toggle("is-active", isActive);
             modeButton.setAttribute("aria-pressed", String(isActive));
         }
         nonRlNote.hidden = supportsRl;
-        const supportsPretrainedCheckpoint = supportsRl && state.scope === "core";
+        const supportsPretrainedCheckpoint = supportsPlay && state.scope === "core";
         fields.checkpoint.disabled = !supportsPretrainedCheckpoint;
         if (!supportsPretrainedCheckpoint) {
             fields.checkpoint.checked = false;
@@ -670,6 +680,9 @@
     });
     for (const field of [fields.rl, fields.physics, fields.renderer, fields.presets, fields.checkpoint]) {
         field.addEventListener("change", () => {
+            if (field === fields.rl) {
+                updateModeControls();
+            }
             commandOutput.textContent = currentCommand();
             updatePreview();
         });

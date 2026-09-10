@@ -61,8 +61,8 @@ Training outputs, including checkpoints, are saved under ``logs/``. Add
    ``physics=ovphysx`` selects it for the task. You can combine extras as needed. The ``--extra all``
    shortcut installs the curated ``ov``, ``rl-games``, ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``,
    and ``viser`` extras. Isaac Sim, standalone importers, and specialized extras such as ``rlinf``,
-   ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, and ``leapp`` are not included; add
-   them explicitly. See
+   ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``, and ``torchrl`` are not
+   included; add them explicitly. See
    :ref:`installation-optional-extras` for the complete list.
 
 Choose an RL library
@@ -92,6 +92,9 @@ and is a good starting point for GPU-based training.
    * - ``rlinf``
      - VLA model fine-tuning
      - ``uv run --extra rlinf isaaclab train --rl_library rlinf ...``
+   * - ``torchrl``
+     - Custom algorithms from PyTorch-native RL components (training only)
+     - ``uv run --extra torchrl isaaclab train --rl_library torchrl ...``
 
 RL libraries differ in their supported algorithms, tasks, and workflows. See
 :ref:`choose-an-rl-library` for a detailed comparison.

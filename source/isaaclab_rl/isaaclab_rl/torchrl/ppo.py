@@ -14,7 +14,7 @@ from tensordict.nn import NormalParamExtractor, TensorDictModule
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from torchrl.collectors import Collector
-from torchrl.data import Composite
+from torchrl.data import Bounded, Composite, Unbounded
 from torchrl.envs import ExplorationType
 from torchrl.modules import MLP, IndependentNormal, ProbabilisticActor, ValueOperator
 from torchrl.objectives import ClipPPOLoss, ValueEstimators
@@ -24,9 +24,24 @@ from .vecenv_wrapper import IsaacLabTorchRLWrapper
 
 
 def make_actor(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg) -> ProbabilisticActor:
-    """Gaussian MLP policy over the ``"policy"`` observation group."""
+    """Gaussian MLP policy over the ``"policy"`` observation group.
+
+    Raises:
+        NotImplementedError: When the action spec is not a flat continuous vector or the ``"policy"``
+            observation group is not a flat tensor.
+    """
+    action_spec = env.action_spec
+    if (
+        not isinstance(action_spec, (Bounded, Unbounded))
+        or not action_spec.dtype.is_floating_point
+        or len(action_spec.shape) != len(env.batch_size) + 1
+    ):
+        raise NotImplementedError(
+            f"{type(action_spec).__name__} action spec of shape {tuple(action_spec.shape)} is not supported: the PPO"
+            " example expects a flat continuous action vector (one-dimensional gymnasium.spaces.Box)."
+        )
     net = nn.Sequential(
-        _mlp(env, "policy", 2 * env.action_spec.shape[-1], cfg.actor_hidden_dims, cfg.activation),
+        _mlp(env, "policy", 2 * action_spec.shape[-1], cfg.actor_hidden_dims, cfg.activation),
         NormalParamExtractor(scale_mapping=f"biased_softplus_{cfg.init_noise_std}"),
     )
     return ProbabilisticActor(
@@ -41,9 +56,12 @@ def make_actor(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg) -> Probabilistic
 
 
 def make_critic(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg) -> ValueOperator:
-    """MLP value function over the flat ``"critic"`` observation group when the task defines one, else ``"policy"``."""
-    critic_spec = env.observation_spec.get("critic", None)
-    key = "critic" if critic_spec is not None and not isinstance(critic_spec, Composite) else "policy"
+    """MLP value function over the ``"critic"`` observation group when the task defines one, else ``"policy"``.
+
+    Raises:
+        NotImplementedError: When the selected observation group is not a flat tensor.
+    """
+    key = "critic" if env.observation_spec.get("critic", None) is not None else "policy"
     return ValueOperator(_mlp(env, key, 1, cfg.critic_hidden_dims, cfg.activation), in_keys=[key])
 
 
@@ -79,32 +97,46 @@ def train_ppo(env: IsaacLabTorchRLWrapper, cfg: TorchRlPpoCfg, log_dir: str) -> 
     )
     writer = SummaryWriter(log_dir)
 
-    for iteration, batch in enumerate(collector, start=1):
-        with torch.no_grad():
-            loss.value_estimator(batch)
-        samples = batch.reshape(-1)
-        for _ in range(cfg.num_learning_epochs):
-            for indices in torch.randperm(samples.shape[0], device=samples.device).chunk(cfg.num_mini_batches):
-                terms = loss(samples[indices])
-                optimizer.zero_grad()
-                sum(value for key, value in terms.items() if key.startswith("loss_")).backward()
-                nn.utils.clip_grad_norm_(loss.parameters(), cfg.max_grad_norm)
-                optimizer.step()
+    try:
+        for iteration, batch in enumerate(collector, start=1):
+            with torch.no_grad():
+                loss.value_estimator(batch)
+            samples = batch.reshape(-1)
+            for _ in range(cfg.num_learning_epochs):
+                for indices in torch.randperm(samples.shape[0], device=samples.device).chunk(cfg.num_mini_batches):
+                    terms = loss(samples[indices])
+                    optimizer.zero_grad()
+                    sum(value for key, value in terms.items() if key.startswith("loss_")).backward()
+                    nn.utils.clip_grad_norm_(loss.parameters(), cfg.max_grad_norm)
+                    optimizer.step()
 
-        stats = {f"Loss/{key}": value.item() for key, value in terms.items() if key.startswith("loss_")}
-        stats["Train/mean_step_reward"] = batch["next", "reward"].mean().item()
-        stats.update({key: float(value) for key, value in env.unwrapped.extras.get("log", {}).items()})
-        for key, value in stats.items():
-            writer.add_scalar(key, value, iteration)
-        print(f"[TorchRL] iteration {iteration}/{cfg.max_iterations}: reward {stats['Train/mean_step_reward']:.4f}")
-        if iteration % cfg.save_interval == 0 or iteration == cfg.max_iterations:
-            torch.save(actor.state_dict(), os.path.join(log_dir, f"model_{iteration}.pt"))
-
-    collector.shutdown()
-    writer.close()
+            stats = {f"Loss/{key}": value.item() for key, value in terms.items() if key.startswith("loss_")}
+            stats["Train/mean_step_reward"] = batch["next", "reward"].mean().item()
+            stats.update({key: float(value) for key, value in env.unwrapped.extras.get("log", {}).items()})
+            for key, value in stats.items():
+                writer.add_scalar(key, value, iteration)
+            print(f"[TorchRL] iteration {iteration}/{cfg.max_iterations}: reward {stats['Train/mean_step_reward']:.4f}")
+            if iteration % cfg.save_interval == 0 or iteration == cfg.max_iterations:
+                torch.save(actor.state_dict(), os.path.join(log_dir, f"model_{iteration}.pt"))
+    finally:
+        # release the collector and flush the logs also when training is interrupted
+        collector.shutdown()
+        writer.close()
     return actor
 
 
 def _mlp(env: IsaacLabTorchRLWrapper, key: str, out_features: int, hidden_dims: list[int], activation: str) -> MLP:
-    in_features = env.observation_spec[key].shape[len(env.batch_size) :].numel()
+    """MLP reading the flat observation group ``key``.
+
+    Raises:
+        NotImplementedError: When the observation group is a dictionary of terms or not a flat tensor.
+    """
+    spec = env.observation_spec[key]
+    if isinstance(spec, Composite) or len(spec.shape) != len(env.batch_size) + 1:
+        shape = f"terms {sorted(spec.keys())}" if isinstance(spec, Composite) else f"shape {tuple(spec.shape)}"
+        raise NotImplementedError(
+            f'The "{key}" observation group ({shape}) is not supported: the PPO example expects a flat tensor per'
+            " observation group (e.g. concatenate_terms=True in manager-based tasks)."
+        )
+    in_features = spec.shape[-1]
     return MLP(in_features, out_features, num_cells=hidden_dims, activation_class=getattr(nn, activation))

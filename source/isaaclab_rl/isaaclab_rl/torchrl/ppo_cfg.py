@@ -30,7 +30,10 @@ class TorchRlPpoCfg:
 
     actor_hidden_dims: list[int] = MISSING
     critic_hidden_dims: list[int] = MISSING
-    """The critic reads the ``"critic"`` observation group when the task defines one, else ``"policy"``."""
+    """The critic reads the ``"critic"`` observation group when the task defines one, else ``"policy"``.
+
+    Both groups must be flat tensors; dictionary observation groups are not supported by the PPO example.
+    """
     activation: str = "ELU"
     """Name of a :mod:`torch.nn` activation class."""
     init_noise_std: float = 1.0

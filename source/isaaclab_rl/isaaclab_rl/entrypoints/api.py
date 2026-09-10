@@ -12,7 +12,8 @@ from typing import Literal
 
 from .dispatch import run_play_cli, run_random_agent_cli, run_train_cli, run_zero_agent_cli
 
-BackendName = Literal["rl_games", "rlinf", "rsl_rl", "sb3", "skrl"]
+BackendName = Literal["rl_games", "rlinf", "rsl_rl", "sb3", "skrl", "torchrl"]
+"""Backends of the unified entrypoints. ``torchrl`` provides training only."""
 
 MULTI_GPU_BACKENDS: tuple[BackendName, ...] = ("rl_games", "rsl_rl", "skrl")
 """Backends the multi-GPU launcher can drive."""

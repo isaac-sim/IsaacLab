@@ -113,7 +113,9 @@ def run(argv: list[str]) -> None:
             screen.close()
 
             start_time = time.time()
-            with contextlib.suppress(KeyboardInterrupt):
+            try:
                 train_ppo(env, agent_cfg, log_dir)
+            except KeyboardInterrupt:
+                print("[TorchRL] Training interrupted.")
             print(f"Training time: {round(time.time() - start_time, 2)} seconds")
             env.close()
