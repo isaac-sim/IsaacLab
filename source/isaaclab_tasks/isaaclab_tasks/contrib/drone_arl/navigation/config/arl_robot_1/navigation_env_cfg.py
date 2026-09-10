@@ -338,6 +338,8 @@ class NavigationVelocityFloatingObstacleEnvCfg(ManagerBasedRLEnvCfg):
             dynamic_friction=1.0,
         )
         self.sim.physics = PhysxCfg(gpu_max_rigid_patch_count=2**21)
+        # ThrusterCfg is implemented in Isaac Lab and has no Newton-native execution path.
+        self.sim.use_newton_actuators = False
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         if self.scene.contact_forces is not None:
