@@ -928,6 +928,254 @@ jobs:
         container-name: "isaac-lab-rendering-correctness-kitless-ovstage-test"
         omni-github-test-type: "rendering-correctness-kitless-ovstage"
 
+  performance-smoke:
+    name: "performance-smoke (${{ matrix.name }})"
+    runs-on: [self-hosted, gpu]
+    # Budget for two attempts plus image pull and cache restore.
+    # Each attempt is bounded individually by `timeout` to prevent starving retry.
+    timeout-minutes: ${{ matrix.timeout_minutes * 2 + 10 }}
+    needs: [build, config]
+    # Pull requests and manual dispatches run in gate mode. A push runs only on develop,
+    # where it also records a baseline; pushes to main and release/** skip this job.
+    if: >-
+      (github.event_name != 'push' || github.ref == 'refs/heads/develop') &&
+      needs.build.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - name: cartpole-physx
+          task: Isaac-Cartpole-Direct
+          num_envs: 4096
+          timeout_minutes: 10
+          args: ""
+        - name: cartpole-newton
+          task: Isaac-Cartpole-Direct
+          num_envs: 4096
+          timeout_minutes: 10
+          args: physics=newton_mjwarp
+        - name: gear-mesh-physx
+          task: IsaacContrib-Factory-GearMesh-Direct
+          num_envs: 512
+          timeout_minutes: 15
+          args: ""
+        - name: shadow-camera-physx-rtx
+          task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
+          num_envs: 512
+          timeout_minutes: 20
+          args: renderer=isaacsim_rtx
+        - name: shadow-camera-physx-newton-renderer
+          task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
+          num_envs: 512
+          timeout_minutes: 20
+          args: renderer=newton_renderer
+        - name: shadow-camera-newton-rtx
+          task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
+          num_envs: 512
+          timeout_minutes: 20
+          args: physics=newton_mjwarp renderer=isaacsim_rtx
+        - name: shadow-camera-newton-renderer
+          task: Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct
+          num_envs: 512
+          timeout_minutes: 20
+          args: physics=newton_mjwarp renderer=newton_renderer
+        - name: g1-physx
+          task: Isaac-Velocity-Flat-G1
+          num_envs: 512
+          timeout_minutes: 12
+          args: ""
+        - name: g1-newton
+          task: Isaac-Velocity-Flat-G1
+          num_envs: 512
+          timeout_minutes: 12
+          args: physics=newton_mjwarp
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+    - name: Pull pull-request image
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+    - name: Resolve Warp version for the JIT cache key
+      id: warp_version
+      run: |
+        set -euo pipefail
+        version="$(sed -n 's/.*warp-lang[^0-9]*\([0-9][0-9A-Za-z.\-]*\).*/\1/p' pyproject.toml | head -n1)"
+        if [ -z "$version" ]; then
+          echo "::error::Could not resolve the warp-lang pin from pyproject.toml; the JIT cache key would stop tracking Warp"
+          exit 1
+        fi
+        echo "value=$version" >> "$GITHUB_OUTPUT"
+
+    - name: Restore warm JIT cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/jit-cache
+        key: perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.name }}-${{ github.run_id }}
+        restore-keys: |
+          perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.name }}-
+          perf-jit-warp${{ steps.warp_version.outputs.value }}-
+
+    - name: Run runtime benchmark
+      env:
+        BENCHMARK_ARGS: ${{ matrix.args }}
+        BENCHMARK_TASK: ${{ matrix.task }}
+        CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
+        NUM_ENVS: ${{ matrix.num_envs }}
+        BENCH_TIMEOUT_S: ${{ matrix.timeout_minutes * 60 }}
+      run: |
+        set -uo pipefail
+        install -d -m 0777 benchmark-output
+        # World-writable so the in-container user (uid 1000) can populate the cache
+        install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
+
+        run_attempt() {
+          local attempt="$1"
+          local container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.name }}-${attempt}"
+          docker rm -f "$container" >/dev/null 2>&1 || true
+          timeout "${BENCH_TIMEOUT_S}" docker run --name "$container" --gpus all --network=host --ipc=host \
+            -e OMNI_KIT_ACCEPT_EULA=yes \
+            -e ACCEPT_EULA=Y \
+            -e ISAAC_SIM_HEADLESS=1 \
+            -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
+            -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
+            -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
+            --entrypoint bash "$CI_IMAGE_TAG" -lc \
+            "set -euo pipefail
+            mkdir -p /tmp/benchmark-output
+            ./isaaclab.sh benchmark runtime \
+              --task '$BENCHMARK_TASK' \
+              --num_envs '$NUM_ENVS' \
+              --num_steps 200 \
+              --warmup_steps 100 \
+              --seed 42 \
+              --benchmark_formatter schema \
+              --output_path /tmp/benchmark-output \
+              --visualizer none \
+              $BENCHMARK_ARGS"
+          local status=$?
+          docker cp "$container:/tmp/benchmark-output/." benchmark-output/ 2>/dev/null || true
+          docker rm -f "$container" >/dev/null 2>&1 || true
+          if [ "$status" -eq 0 ] && ! compgen -G 'benchmark-output/benchmark_runtime_*.json' >/dev/null; then
+            echo "::error::${{ matrix.name }} exited 0 but produced no benchmark JSON"
+            return 1
+          fi
+          return $status
+        }
+
+        if ! run_attempt 1; then
+          echo "::warning::${{ matrix.name }} failed on the first attempt; retrying once"
+          rm -f benchmark-output/benchmark_runtime_*.json
+          run_attempt 2
+        fi
+    # The gate runs on the runner host, not inside the Isaac Sim container, so the
+    # baseline store's SDK goes in a throwaway venv. Everything else in tools/perf_smoke
+    # is standard library.
+    - name: Set up the baseline store client
+      if: always()
+      # Job status answers "did the benchmark run", the check answers "did it regress".
+      # A transient PyPI failure means the gate could not run, degrading to ERROR instead of a failure.
+      continue-on-error: true
+      id: store_venv
+      run: |
+        set -euo pipefail
+        venv="${RUNNER_TEMP}/perf-smoke-venv"
+        python3 -m venv "$venv"
+        "$venv/bin/python" -m pip install -q --disable-pip-version-check \
+          -r tools/perf_smoke/requirements.txt
+        echo "python=$venv/bin/python" >> "$GITHUB_OUTPUT"
+
+    # Read-only
+    - name: Compare against baseline history
+      # The exit code carries the verdict to the summary job through the uploaded
+      # artifact, so it must not also redden this job: job status answers "did the
+      # benchmark run", the check answers "did performance regress".
+      continue-on-error: true
+      if: always()
+      timeout-minutes: 5
+      env:
+        # The SAS URL is strictly only read from the environment for security.
+        ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_URL }}
+        PYTHON: ${{ steps.store_venv.outputs.python }}
+      run: |
+        set -euo pipefail
+        mapfile -t results < <(find benchmark-output -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
+        if [ "${#results[@]}" -eq 1 ]; then
+          result="${results[0]}"
+        else
+          # Zero bundles (crash or timeout) or several (one attempt emitted more than one)
+          # point compare at a path that cannot exist so it reports ERROR
+          echo "::warning::Expected one runtime benchmark JSON, found ${#results[@]}"
+          result="benchmark-output/benchmark_runtime_MISSING.json"
+        fi
+        # A missing credential yields SKIP, a gate fault yields ERROR; neither fails.
+        "${PYTHON:-python3}" -m tools.perf_smoke.cli compare \
+          --benchmark_result "$result" \
+          --label "${{ matrix.name }}" \
+          --output_json benchmark-output/comparison.json \
+          | tee -a "$GITHUB_STEP_SUMMARY"
+
+    # Only develop records baselines, so the gate always compares a pull request
+    # against the branch it will merge into rather than against a stale snapshot.
+    # Writes are create-only under a name derived from the commit and run id.
+    - name: Record baseline
+      if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+      timeout-minutes: 5
+      env:
+        ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_URL }}
+        PYTHON: ${{ steps.store_venv.outputs.python }}
+      run: |
+        set -euo pipefail
+        if [ -z "${ISAACLAB_BLOB_URL:-}" ]; then
+          echo "::warning::ISAACLAB_BLOB_URL is not set; no baseline recorded"
+          exit 0
+        fi
+        mapfile -t results < <(find benchmark-output -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
+        if [ "${#results[@]}" -ne 1 ]; then
+          echo "::error::Expected one runtime benchmark JSON, found ${#results[@]}; no baseline recorded"
+          exit 1
+        fi
+        "${PYTHON:-python3}" -m tools.perf_smoke.cli write \
+          --benchmark_result "${results[0]}" \
+          --commit "$GITHUB_SHA" \
+          --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          --run_id "$GITHUB_RUN_ID"
+    - name: Upload performance results
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: performance-smoke-${{ matrix.name }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: benchmark-output/
+        if-no-files-found: warn
+        retention-days: 7
+
+  # Centralized summary; individual failed tasks still display their own failed jobs.
+  performance-smoke-summary:
+    name: performance-smoke
+    runs-on: ubuntu-latest
+    needs: [performance-smoke]
+    if: always() && needs.performance-smoke.result != 'skipped'
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+    - uses: actions/download-artifact@v7
+      with:
+        pattern: performance-smoke-*-${{ github.run_id }}-${{ github.run_attempt }}
+        path: comparisons
+      continue-on-error: true
+    - name: Summarise performance comparisons
+      run: |
+        set -euo pipefail
+        python3 -m tools.perf_smoke.cli aggregate \
+          --comparison_dir comparisons \
+          | tee -a "$GITHUB_STEP_SUMMARY"
+
   # Publishes the shared Warp kernel cache the test jobs restore. Needed as its
   # own job because a cache written from a PR is readable only by that PR, and
   # no solver-heavy test job runs on push. Restores the newest compatible
