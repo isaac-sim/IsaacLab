@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab"
-version = "24.1.0"
+version = "24.1.2"
 description = "Extension providing main framework interfaces and abstractions for robot learning."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
@@ -25,8 +25,8 @@ dependencies = []
 Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
 
-# Only the ``isaaclab`` entry point is exposed; training/play are subcommands
-# (``isaaclab train`` / ``isaaclab play`` / ``isaaclab train_multigpu``) so they
+# Only the ``isaaclab`` entry point is exposed; training, play, export, and deploy are subcommands
+# (``isaaclab train`` / ``isaaclab play`` / ``isaaclab leapp export`` / ``isaaclab leapp deploy``) so they
 # do not clash with ``train``/``play`` scripts from other installed packages.
 [project.scripts]
 isaaclab = "isaaclab.cli:cli"

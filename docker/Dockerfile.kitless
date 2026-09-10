@@ -111,6 +111,14 @@ ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 ENV HOME=${DOCKER_USER_HOME}
 ENV VIRTUAL_ENV=${VENV_PATH_ARG}
 ENV PATH=${VENV_PATH_ARG}/bin:/usr/local/bin:${PATH}
+# ENV does not cross stages and this is the only multi-stage image, so the builder's uv settings
+# are repeated here. uv reads UV_PROJECT_ENVIRONMENT, never VIRTUAL_ENV. UV_PYTHON overrides
+# pyproject's ``python-preference = "only-managed"``, which would fetch a CPython and replace this
+# venv. UV_NO_SYNC stops ``uv run`` rebuilding the editable packages into a mounted ``source/``.
+ENV UV_PROJECT_ENVIRONMENT=${VENV_PATH_ARG}
+ENV UV_PYTHON=/usr/bin/python3.12
+ENV UV_PYTHON_PREFERENCE=only-system
+ENV UV_NO_SYNC=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV NVIDIA_VISIBLE_DEVICES=all

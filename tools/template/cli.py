@@ -296,6 +296,8 @@ def main() -> None:
         "external": is_external_project,
         "path": project_path,
         "name": project_name,
+        "isaaclab_version": lab_module.__version__,
+        "isaaclab_source_path": ROOT_DIR if not is_lab_pip_installed else None,
         "task_name": task_name,
         "robot_name": robot_name,
         "include_ui_extension": include_ui_extension,

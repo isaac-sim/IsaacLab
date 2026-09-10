@@ -13,12 +13,8 @@ All the environments are registered in the `isaaclab_tasks` extension. They star
 with `Isaac` in their name.
 """
 
-"""Launch Isaac Sim Simulator first."""
-
 import argparse
 import contextlib
-
-from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="List Isaac Lab environments.")
@@ -35,13 +31,6 @@ parser.add_argument(
 )
 # parse the arguments
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
-
-
-"""Rest everything follows."""
 
 import gymnasium as gym
 from prettytable import PrettyTable
@@ -127,11 +116,4 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        # run the main function
-        main()
-    except Exception as e:
-        raise e
-    finally:
-        # close the app
-        simulation_app.close()
+    main()

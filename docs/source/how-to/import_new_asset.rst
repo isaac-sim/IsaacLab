@@ -1,3 +1,5 @@
+:orphan:
+
 Importing a New Asset
 =====================
 

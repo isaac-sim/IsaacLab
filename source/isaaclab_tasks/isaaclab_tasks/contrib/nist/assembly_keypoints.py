@@ -11,7 +11,7 @@ Positions are in meters relative to the asset's root frame.
 
 from __future__ import annotations
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 # ``Offset`` lives in the shared util layer — pure rigid-body math, no
 # assembly semantics. Re-exported here for backwards compatibility with

@@ -25,7 +25,7 @@ def container_context(tmp_path: Path) -> Path:
         "\n".join(
             (
                 "ISAACSIM_BASE_IMAGE=nvcr.io/nvidia/isaac-sim",
-                "ISAACSIM_VERSION=6.0.0",
+                "ISAACSIM_VERSION=6.1.0",
                 "DOCKER_ISAACSIM_ROOT_PATH=/isaac-sim",
                 "DOCKER_ISAACLAB_PATH=/workspace/isaaclab",
                 "DOCKER_USER_HOME=/root",

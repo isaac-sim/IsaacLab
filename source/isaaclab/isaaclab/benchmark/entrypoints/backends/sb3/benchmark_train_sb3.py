@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 import sys
 import time
 
-from isaaclab_rl.entrypoints import common as _common
+from isaaclab_rl.entrypoints import common
 
 
 def _build_benchmark_callback_class():
@@ -102,8 +102,8 @@ def _parse_args(argv: list[str]):
 
     from isaaclab_tasks.utils import setup_preset_cli
 
-    add_common_train_args = _common.add_common_train_args
-    enable_cameras_for_video = _common.enable_cameras_for_video
+    add_common_train_args = common.add_common_train_args
+    enable_cameras_for_video = common.enable_cameras_for_video
 
     parser = argparse.ArgumentParser(description="Benchmark RL training with Stable-Baselines3.")
     add_common_train_args(
@@ -163,7 +163,7 @@ def _parse_args(argv: list[str]):
     add_success_cli_args(parser, include_check_success=False)
     add_launcher_args(parser)
 
-    args_cli, remaining_args = setup_preset_cli(parser, argv, agent_library="sb3")
+    args_cli, remaining_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
 
@@ -210,7 +210,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
     from isaaclab_tasks.utils import resolve_task_config
 
-    apply_env_overrides = _common.apply_env_overrides
+    apply_env_overrides = common.apply_env_overrides
 
     from isaaclab.benchmark.entrypoints.early_stop import (
         SuccessRateTrackerWrapper,
@@ -275,16 +275,16 @@ def run(argv: list[str]) -> BenchmarkResult:
             run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
             log_dir = os.path.join(log_root_path, run_info)
-            _common.write_run_manifest(log_dir, library="sb3", task=args_cli.task, metadata={"agent": args_cli.agent})
+            common.write_run_manifest(log_dir, library="sb3", task=args_cli.task, metadata={"agent": args_cli.agent})
             env_cfg.log_dir = log_dir
-            _common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
+            common.apply_video_recording(env_cfg, log_dir, args_cli, subdir="benchmark")
 
             agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
             policy_arch = agent_cfg.pop("policy")
             n_timesteps = agent_cfg.pop("n_timesteps")
 
             env_t0 = time.perf_counter_ns()
-            env = _common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
+            env = common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
             env_t1 = time.perf_counter_ns()
             success_kwargs = build_success_kwargs(args_cli)

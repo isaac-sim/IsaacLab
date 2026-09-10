@@ -244,6 +244,20 @@ html[data-theme="dark"] .environment-browser {
     background: color-mix(in srgb, var(--pst-color-surface) 70%, transparent);
 }
 
+.environment-backend-warning {
+    margin: 0.75rem 0 0;
+    color: var(--pst-color-warning);
+}
+
+.environment-command-output.is-disabled {
+    opacity: 0.5;
+    border-left-color: var(--pst-color-text-muted);
+}
+
+.environment-copy-button:disabled {
+    cursor: not-allowed;
+}
+
 .environment-command-output code {
     min-width: 0;
     color: inherit;
@@ -410,61 +424,138 @@ html[data-theme="dark"] .environment-browser {
 
 .environment-task-list {
     display: grid;
-    max-height: 31rem;
-    overflow-y: auto;
-    border: 1px solid var(--environment-border);
-    border-radius: 8px;
+    grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+    gap: 0.75rem;
 }
 
-.environment-task-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 1rem;
-    width: 100%;
-    min-height: 3.4rem;
-    padding: 0.65rem 0.85rem;
-    border: 0;
-    border-bottom: 1px solid var(--environment-border);
-    border-radius: 0;
+.environment-task-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--environment-border);
+    border-radius: 8px;
     color: var(--pst-color-text-base);
     background: var(--pst-color-background);
+}
+
+.environment-task-card:hover,
+.environment-task-card:has(.environment-task-card-select:focus-visible) {
+    border-color: var(--pst-color-primary);
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--pst-color-shadow) 18%, transparent);
+}
+
+.environment-task-card.is-selected {
+    border-color: var(--pst-color-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--pst-color-primary) 35%, transparent);
+}
+
+.environment-task-card-select {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    align-content: start;
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    color: inherit;
+    background: transparent;
+    cursor: pointer;
     text-align: left;
 }
 
-.environment-task-row:last-child {
-    border-bottom: 0;
+.environment-task-card-select > img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    border-bottom: 1px solid var(--environment-border);
+    object-fit: cover;
 }
 
-.environment-task-row:hover,
-.environment-task-row:focus-visible,
-.environment-task-row.is-selected {
-    background: color-mix(in srgb, var(--pst-color-primary) 9%, var(--pst-color-background));
-}
-
-.environment-task-row.is-selected {
-    box-shadow: inset 3px 0 var(--pst-color-primary);
+.environment-task-card-content {
+    display: grid;
+    align-content: start;
+    min-width: 0;
+    padding: 0.55rem 0.6rem 0.35rem;
 }
 
 .environment-task-name {
+    display: block;
     min-width: 0;
     overflow-wrap: anywhere;
     font-family: var(--pst-font-family-monospace);
+    font-size: 0.8rem;
     font-weight: 650;
 }
 
-.environment-task-meta {
-    display: inline-flex;
-    gap: 0.45rem;
-    color: var(--environment-muted);
-    font-size: 0.78rem;
-    white-space: nowrap;
+.environment-task-symbols {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    padding: 0 0.6rem 0.6rem;
 }
 
-.environment-task-meta span {
-    padding: 0.15rem 0.4rem;
+.environment-task-symbols:empty {
+    display: none;
+}
+
+.environment-task-symbol {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.18rem 0.45rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-family: var(--pst-font-family-monospace);
+    font-size: 0.64rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.environment-task-symbol i {
+    font-size: 0.6rem;
+}
+
+.environment-task-symbol-physics {
+    border-color: color-mix(in srgb, var(--environment-physics) 35%, transparent);
+    color: var(--environment-physics);
+    background: color-mix(in srgb, var(--environment-physics) 8%, transparent);
+}
+
+.environment-task-symbol-renderer {
+    border-color: color-mix(in srgb, var(--environment-renderer) 35%, transparent);
+    color: var(--environment-renderer);
+    background: color-mix(in srgb, var(--environment-renderer) 8%, transparent);
+}
+
+.environment-task-symbol-rl {
+    border-color: color-mix(in srgb, var(--environment-preset) 35%, transparent);
+    color: var(--environment-preset);
+    background: color-mix(in srgb, var(--environment-preset) 8%, transparent);
+}
+
+.environment-task-variants {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0 0.6rem 0.45rem;
+}
+
+.environment-task-variants button {
+    padding: 0.12rem 0.45rem;
     border: 1px solid var(--environment-border);
-    border-radius: 4px;
+    border-radius: 999px;
+    color: var(--environment-muted);
+    background: color-mix(in srgb, var(--pst-color-surface) 65%, transparent);
+    font-size: 0.68rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.environment-task-variants button.is-selected {
+    color: #1f3300;
+    border-color: #76b900;
+    background: #76b900;
 }
 
 .environment-empty-state {
@@ -745,13 +836,8 @@ html[data-theme="dark"] .environment-browser {
         width: 100%;
     }
 
-    .environment-task-row {
+    .environment-task-list {
         grid-template-columns: 1fr;
-        gap: 0.35rem;
-    }
-
-    .environment-task-meta {
-        white-space: normal;
     }
 
     .environment-benchmark-panel {

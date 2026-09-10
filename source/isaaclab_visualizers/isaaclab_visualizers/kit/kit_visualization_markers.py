@@ -41,6 +41,14 @@ class KitVisualizationMarkers:
     .. _UsdGeom.PointInstancer: https://graphics.pixar.com/usd/dev/api/class_usd_geom_point_instancer.html
     """
 
+    # Marker ownership is static in most tasks, but ``visualize`` runs every frame. These memoize
+    # the resolved partition tokens, the tensor they came from, and the tokens currently authored,
+    # so unchanged environment IDs skip the device-to-host copy, token rebuild, and USD write. The
+    # cached-vs-incoming tensor comparison itself still synchronizes the device every call.
+    _environment_ids_source: torch.Tensor | None = None
+    _authored_environment_ids: tuple[int, ...] | None = None
+    _scene_partitioning_active: bool = False
+
     def __init__(self, cfg: VisualizationMarkersCfg, visible: bool = True):
         """Initialize the USD point instancer and register marker prototypes.
 
@@ -146,11 +154,14 @@ class KitVisualizationMarkers:
                 # changes and explicit marker indices are not provided.
                 self._instancer_manager.GetProtoIndicesAttr().Set([0] * num_markers)
         if environment_ids is not None:
-            self._environment_ids = tuple(int(env_id) for env_id in environment_ids.detach().cpu().tolist())
+            if not self._matches_cached_environment_ids(environment_ids):
+                self._environment_ids_source = environment_ids.detach().clone()
+                self._environment_ids = tuple(int(env_id) for env_id in self._environment_ids_source.cpu().tolist())
             if num_markers == 0:
                 num_markers = len(self._environment_ids)
         elif num_markers != 0 and num_markers != previous_count:
             self._environment_ids = None
+            self._environment_ids_source = None
         if num_markers != 0:
             self._count = num_markers
         self._sync_scene_partition_primvar()
@@ -164,12 +175,20 @@ class KitVisualizationMarkers:
         """
         from pxr import Sdf, UsdGeom, Vt  # noqa: PLC0415
 
+        target_ids = self._environment_ids if self._scene_partitioning_is_active() else None
+        # The tuple is rebuilt only when marker ownership changes, so identity is enough to tell
+        # that the authored tokens are still current. Skipping the write keeps the renderer from
+        # rebuilding its partition data on frames where nothing moved between environments.
+        if target_ids is self._authored_environment_ids:
+            return
+
         primvars_api = UsdGeom.PrimvarsAPI(self._instancer_manager.GetPrim())
         # PrimvarsAPI adds the ``primvars:`` namespace, matching the env-root attribute.
         primvar = primvars_api.GetPrimvar("omni:scenePartition")
-        if self._environment_ids is None or not self._scene_partitioning_is_active():
+        if target_ids is None:
             if primvar:
                 primvar.GetAttr().Clear()
+            self._authored_environment_ids = None
             return
 
         if not primvar:
@@ -184,7 +203,19 @@ class KitVisualizationMarkers:
             raise RuntimeError(
                 f"Expected '{primvar.GetAttr().GetPath()}' to have type TokenArray. Received: {primvar.GetTypeName()}."
             )
-        primvar.Set(Vt.TokenArray([f"env_{env_id}" for env_id in self._environment_ids]))
+        primvar.Set(Vt.TokenArray([f"env_{env_id}" for env_id in target_ids]))
+        self._authored_environment_ids = target_ids
+
+    def _matches_cached_environment_ids(self, environment_ids: torch.Tensor) -> bool:
+        """Return whether ``environment_ids`` still describes the cached marker ownership."""
+        cached = self._environment_ids_source
+        return (
+            cached is not None
+            and cached.shape == environment_ids.shape
+            and cached.dtype == environment_ids.dtype
+            and cached.device == environment_ids.device
+            and bool(torch.equal(cached, environment_ids))
+        )
 
     def _scene_partitioning_is_active(self) -> bool:
         """Return whether renderer stage preparation authored environment partitions.
@@ -192,11 +223,16 @@ class KitVisualizationMarkers:
         Renderer preparation always starts with ``env_0``, so its root is the
         canonical stage-level signal regardless of which environments own markers.
         """
+        # Markers can be created before the renderer prepares the stage, so a negative result is
+        # re-checked. Partitions are never withdrawn from a stage, so a positive one is cached.
+        if self._scene_partitioning_active:
+            return True
         env_prim = self.stage.GetPrimAtPath("/World/envs/env_0")
         if not env_prim.IsValid():
             return False
         attr = env_prim.GetAttribute("primvars:omni:scenePartition")
-        return attr.IsValid() and attr.Get() is not None
+        self._scene_partitioning_active = attr.IsValid() and attr.Get() is not None
+        return self._scene_partitioning_active
 
     def _add_markers_prototypes(self, markers_cfg: dict[str, sim_utils.SpawnerCfg]) -> None:
         """Add marker prototypes to the scene and register them with the point instancer."""
