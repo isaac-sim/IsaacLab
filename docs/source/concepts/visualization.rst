@@ -458,6 +458,14 @@ Visualizer Overview
       - Direct access to the Isaac Sim USD stage for inspecting and editing prims at runtime
       - Full Isaac Sim GUI tooling (Property, Layers, and Stage panels)
 
+      .. note::
+
+         Kit's ImGui-based UI writes an ``imgui.ini`` file, recording window layout (panel
+         positions, docking, collapsed state), to the process working directory. If that is the
+         repository root, it shows up as an untracked file. ``imgui.ini`` is already listed in
+         ``.gitignore``; delete it or launch from outside the repository if you would rather it
+         not appear at all.
+
       **Core configuration:**
 
       .. code-block:: python
