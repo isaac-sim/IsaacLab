@@ -177,8 +177,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
-            # Register env.close() immediately once env exists, so an interrupt anywhere from
-            # here on (setup or the play loop) is handled the same way.
+            # Guarantee env.close() runs; see suppressed_shutdown_guard().
             stack.callback(env.close)
 
             screen.stage("Loading policy")

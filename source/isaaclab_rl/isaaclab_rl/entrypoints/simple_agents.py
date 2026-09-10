@@ -83,9 +83,8 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
     with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as stack:
         # create environment
         env = gym.make(args_cli.task, cfg=env_cfg)
-        # Install the flag-only handler, and register env.close() to run under it, immediately
-        # once env exists -- so an interrupt anywhere from here on (setup, the step loop, or
-        # env.close() itself) is handled the same way instead of only the step loop.
+        # See flag_only_sigint(): covers env.close() too, so a second Ctrl+C mid-teardown
+        # can't abort it.
         is_interrupted = stack.enter_context(flag_only_sigint())
         stack.callback(env.close)
 

@@ -185,8 +185,7 @@ def run(argv: list[str]) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
-            # Register env.close() immediately once env exists, so an interrupt during
-            # wrapper/runner setup below is handled the same way as one during runner.run().
+            # Guarantee env.close() runs; see suppressed_shutdown_guard().
             stack.callback(env.close)
 
             env = wrap_training_capture(env, run_log_dir, args_cli)

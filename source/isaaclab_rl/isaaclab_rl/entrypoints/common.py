@@ -49,16 +49,13 @@ _MISSING = object()
 def flag_only_sigint() -> Iterator[Callable[[], bool]]:
     """Swap SIGINT for a handler that only flips a flag, checked at a controlled point.
 
-    A raw SIGINT is delivered asynchronously: with multiple GUI-backed visualizers active (e.g.
-    ``--visualizer newton,kit``), it can just as easily land inside one of Kit's own internal
-    callback dispatches (its viewport/render event loop), or inside ``env.close()``'s own
-    multi-stage teardown, as inside a script's own step loop -- anywhere nothing here can catch
-    it without aborting cleanup partway through. Yields a callable reporting whether SIGINT fired
-    since entry, for callers with their own step loop to check explicitly.
+    A raw SIGINT can be delivered anywhere -- e.g. inside one of Kit's own render callbacks --
+    where an ordinary ``try/except`` can't catch it. Yields a callable reporting whether SIGINT
+    fired, for a caller's own step loop to check.
 
-    Not suitable for scripts that block inside a third-party call (e.g. an RL library's own
-    training loop) they need Ctrl+C to interrupt: this handler never raises, so it cannot stop
-    that call. Use :func:`contextlib.suppress` (``KeyboardInterrupt``) around those instead.
+    Only use this around code the caller fully owns. It never raises, so it must not wrap a
+    blocking third-party call (e.g. an RL library's training loop) that needs a raw
+    ``KeyboardInterrupt`` to stop -- use :func:`suppressed_shutdown_guard` there instead.
     """
     interrupted = False
 
@@ -77,14 +74,11 @@ def flag_only_sigint() -> Iterator[Callable[[], bool]]:
 def suppressed_shutdown_guard() -> Iterator[ExitStack]:
     """Guarantee registered cleanup runs, then silently swallow ``KeyboardInterrupt``.
 
-    Yields an :class:`~contextlib.ExitStack`: register ``env.close`` on it (via
-    ``stack.callback(env.close)``) immediately once ``env`` exists, so a ``KeyboardInterrupt``
-    raised anywhere afterward -- during setup, a script's own step loop, or a third-party call
-    (e.g. an RL library's own training loop) that needs a raw interrupt to stop it -- still runs
-    cleanup before this context silently swallows the exception, instead of bypassing cleanup or
-    letting a traceback escape to the terminal. Ordering matters: ``ExitStack`` must be nested
-    inside ``suppress`` so cleanup runs while the exception is still live, before it is
-    discarded.
+    Yields an :class:`~contextlib.ExitStack`; register ``env.close`` on it
+    (``stack.callback(env.close)``) right after ``env`` exists. A ``KeyboardInterrupt`` raised
+    anywhere after that -- including inside a blocking third-party call, like an RL library's
+    training loop, that needs a raw interrupt to stop -- still runs cleanup before being
+    swallowed here.
     """
     with suppress(KeyboardInterrupt), ExitStack() as stack:
         yield stack
