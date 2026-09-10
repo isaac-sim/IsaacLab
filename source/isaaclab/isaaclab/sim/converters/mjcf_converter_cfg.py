@@ -27,7 +27,12 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
     """
 
     merge_mesh: bool = False
-    """Merge meshes where possible to optimize the model. Defaults to False."""
+    """Merge meshes where possible to optimize the model. Defaults to False.
+
+    .. caution::
+        Silently has no effect in kit-less installs: ``usd-optimize``'s compiled core cannot
+        read stages created by the OpenUSD 26.08 ``pxr``. Kit-backed runs are unaffected.
+    """
 
     collision_from_visuals: bool = False
     """Generate collision geometry from visual geometries. Defaults to False."""

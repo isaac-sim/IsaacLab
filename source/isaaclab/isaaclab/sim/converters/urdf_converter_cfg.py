@@ -170,7 +170,12 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     """
 
     merge_mesh: bool = False
-    """Merge meshes where possible to optimize the model. Defaults to False."""
+    """Merge meshes where possible to optimize the model. Defaults to False.
+
+    .. caution::
+        Silently has no effect in kit-less installs: ``usd-optimize``'s compiled core cannot
+        read stages created by the OpenUSD 26.08 ``pxr``. Kit-backed runs are unaffected.
+    """
 
     ros_package_paths: list[dict[str, str]] = []
     """ROS package name/path mappings used to resolve ``package://`` URLs in the URDF.
