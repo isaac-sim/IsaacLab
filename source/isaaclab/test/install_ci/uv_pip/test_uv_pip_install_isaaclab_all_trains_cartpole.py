@@ -7,7 +7,7 @@
 Setup:
     - (wheel supplied by runner: tools/run_install_ci.py --build-wheel or --wheel <path>)
     - ./isaaclab.sh -u
-    - uv --no-config pip install <wheel>[all]
+    - uv --no-config pip install <wheel>[all] --overrides uv_pip/uv-overrides.txt
     - uv pip install --reinstall-package torch --reinstall-package torchvision
         torch==<pinned> torchvision==<pinned> --index-url <cu128|cu130>
         (versions read from [tool.isaaclab.versions] in the root pyproject.)
@@ -15,7 +15,7 @@ Setup:
          Reinstall AFTER the wheel install: unsafe-best-match re-resolves torch from PyPI to CPU.)
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
-    - python -c "import importlib.metadata as m; assert m.version('newton') == '1.5.1'"
+    - python -c "import importlib.metadata as m; assert m.version('newton') == '1.5.2'"
         -> verify the wheel resolves Newton 1.5
     - uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16
         presets=newton_mjwarp --max_iterations 5; uv run isaaclab train --rl_library rsl_rl
@@ -46,18 +46,22 @@ class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(4800)
-    def test_uv_pip_install_isaaclab_all_trains_cartpole(self, isaaclab_root, wheel, cartpole_smoke_script):
+    def test_uv_pip_install_isaaclab_all_trains_cartpole(
+        self, isaaclab_root, wheel, uv_overrides, cartpole_smoke_script
+    ):
         """Install the runner-supplied wheel with ``[all]`` via ``uv pip``, then train."""
         try:
             self.create_uv_env(isaaclab_root)
 
             result = self.run_in_uv_env(
-                ["uv", "--no-config", "pip", "install", f"{wheel}[all]"], cwd=isaaclab_root, timeout=1800
+                ["uv", "--no-config", "pip", "install", f"{wheel}[all]", "--overrides", str(uv_overrides)],
+                cwd=isaaclab_root,
+                timeout=1800,
             )
             assert result.returncode == 0, f"uv pip install {wheel}[all] failed:\n{result.stdout}\n{result.stderr}"
 
             result = self.run_in_uv_env(
-                ["python", "-c", "import importlib.metadata as m; assert m.version('newton') == '1.5.1'"],
+                ["python", "-c", "import importlib.metadata as m; assert m.version('newton') == '1.5.2'"],
                 cwd=isaaclab_root,
             )
             assert result.returncode == 0, (
