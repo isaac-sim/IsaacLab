@@ -595,6 +595,8 @@ def _follow_camera(env, env_ids) -> None:
             offset = _HERO_VISER_FOLLOW_EYE_OFFSET
         elif visualizer_name == "NewtonRTXVisualizer":
             offset = _HERO_RTX_FOLLOW_EYE_OFFSET
+        elif visualizer_name == "KitVisualizer":
+            offset = _HERO_KIT_EYE_OFFSET
         else:
             offset = _HERO_FOLLOW_EYE_OFFSET
         eye = (target[0] + offset[0], target[1] + offset[1], target[2] + offset[2])
