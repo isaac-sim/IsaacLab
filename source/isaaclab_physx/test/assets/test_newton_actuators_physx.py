@@ -31,7 +31,7 @@ from isaaclab_physx.assets.articulation.actuator_control import PhysxActuatorCon
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import IdealPDActuatorCfg
+from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.actuators.newton import read_group_parameter
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils.actuator_equivalence import (
@@ -112,6 +112,33 @@ def test_prepare_native_actuators_does_not_zero_solver_gains(monkeypatch):
 
     assert native_groups == {"explicit"}
     assert gain_writes == []
+
+
+def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_path(monkeypatch):
+    """Keep implicit-only articulations on the unchanged solver-drive path."""
+    from isaaclab_physx.assets.articulation import actuator_control
+
+    runtime_prepare_calls = []
+    runtime = SimpleNamespace(
+        prepare=lambda *args, **kwargs: runtime_prepare_calls.append(True), wrapper=None, adapter=None
+    )
+    articulation = SimpleNamespace(
+        _sim_cfg=SimpleNamespace(use_newton_actuators=True),
+        cfg=SimpleNamespace(prim_path="/World/Robot"),
+    )
+    monkeypatch.setattr(actuator_control, "PhysxActuatorRuntime", lambda *args, **kwargs: runtime)
+    monkeypatch.setattr(actuator_control, "find_first_matching_prim", lambda _: None)
+
+    control = PhysxActuatorControl(articulation)
+    native_groups = control.prepare_native_actuators(
+        collection=None,
+        actuator_cfgs={"implicit": ImplicitActuatorCfg(joint_names_expr=["joint"], stiffness=10.0, damping=1.0)},
+    )
+
+    assert native_groups == set()
+    assert not control.native_actuator_path_active
+    assert not articulation._has_newton_actuators
+    assert runtime_prepare_calls == []
 
 
 # ---------------------------------------------------------------------------
