@@ -11,7 +11,7 @@ import math
 
 import torch
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 __all__ = [
     "ResetDatasetSamplerCfg",

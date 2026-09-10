@@ -1,0 +1,129 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+[build-system]
+requires = ["uv_build>=0.12.6,<0.13"]
+build-backend = "uv_build"
+
+[project]
+name = "{{ name }}"
+version = "0.1.0"
+description = "Isaac Lab environments for {{ name }}."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Isaac Lab Project Developers" }]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "{{ isaaclab_dependency }}{% if rl_libraries %}[{% for rl_library in rl_libraries %}{% if not loop.first %},{% endif %}{{ rl_library.name | replace('_', '-') }}{% endfor %}]{% endif %}{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}",
+]
+
+[project.entry-points."isaaclab.tasks"]
+"{{ name }}" = "{{ name }}.tasks"
+
+[project.optional-dependencies]
+isaacsim = ["{{ isaaclab_dependency }}[isaacsim]{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
+ov = ["{{ isaaclab_dependency }}[ov]{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
+ovphysx = ["{{ isaaclab_dependency }}[ovphysx]{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
+ovrtx = ["{{ isaaclab_dependency }}[ovrtx]{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
+
+[dependency-groups]
+dev = ["codespell>=2.4", "pre-commit>=4.2", "pytest>=8.3", "ruff>=0.11"]
+
+[tool.uv]
+index-strategy = "unsafe-best-match"
+prerelease = "allow"
+{% if isaaclab_environments %}
+environments = [
+{% for environment in isaaclab_environments %}
+    "{{ environment }}",
+{% endfor %}
+]
+{% endif %}
+{% if isaaclab_overrides %}
+override-dependencies = [
+{% for dependency in isaaclab_overrides %}
+    "{{ dependency }}",
+{% endfor %}
+]
+{% endif %}
+{% if isaaclab_sources %}
+
+[tool.uv.sources]
+{% for source in isaaclab_sources %}
+"{{ source.name }}" = {{ source.value }}
+{% endfor %}
+{% endif %}
+
+[tool.uv.build-backend]
+module-name = "{{ name }}"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["{{ name }}"]
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "isaaclab",
+    "isaaclab-rl",
+    "isaaclab-tasks",
+    "isaaclab-assets",
+    "first-party",
+    "local-folder",
+]
+
+[tool.ruff.lint.isort.sections]
+isaaclab = ["isaaclab", "isaaclab_newton", "isaaclab_ov", "isaaclab_physx"]
+"isaaclab-rl" = ["isaaclab_rl"]
+"isaaclab-tasks" = ["isaaclab_tasks"]
+"isaaclab-assets" = ["isaaclab_assets"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401", "F403"]
+"**/__init__.pyi" = ["F401", "F403"]
+"scripts/**/*.py" = ["E402"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.pyright]
+include = ["src", "scripts", "tests"]
+exclude = ["**/__pycache__", "**/logs", ".git", ".venv", ".vscode"]
+typeCheckingMode = "basic"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "unit: test exercises isolated logic and does not launch the simulator",
+    "integration: test drives the simulator/scene/environment end-to-end",
+    "smoke: tests for core installation, task, and RL functionality",
+    "kitless: test must pass inside the Kit-less container, which has no Isaac Sim runtime",
+]
+
+[tool.codespell]
+skip = "*.usd,*.usda,*.usdc,*.json,*.onnx,*.pt,*.mp4,*.data,uv.lock,logs"
+
+{% if isaaclab_indexes %}
+{% for index in isaaclab_indexes %}
+[[tool.uv.index]]
+{% if index.name is defined %}
+name = "{{ index.name }}"
+{% endif %}
+url = "{{ index.url }}"
+explicit = {{ index.explicit | lower }}
+
+{% endfor %}
+{% else %}
+[[tool.uv.index]]
+url = "https://pypi.nvidia.com"
+explicit = false
+{% endif %}

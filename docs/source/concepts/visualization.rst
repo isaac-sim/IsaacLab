@@ -458,6 +458,14 @@ Visualizer Overview
       - Direct access to the Isaac Sim USD stage for inspecting and editing prims at runtime
       - Full Isaac Sim GUI tooling (Property, Layers, and Stage panels)
 
+      .. note::
+
+         Kit's ImGui-based UI writes an ``imgui.ini`` file, recording window layout (panel
+         positions, docking, collapsed state), to the process working directory. If that is the
+         repository root, it shows up as an untracked file. ``imgui.ini`` is already listed in
+         ``.gitignore``; delete it or launch from outside the repository if you would rather it
+         not appear at all.
+
       **Core configuration:**
 
       .. code-block:: python
@@ -940,7 +948,7 @@ See Also
 - :doc:`/source/features/record_video`: recording MP4 clips from a visualizer or sensor
 - :doc:`/source/features/draw_markers`: creating and configuring custom visualization markers
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
-- :doc:`/source/overview/core-concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
+- :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
 - :doc:`/source/concepts/scene_data_providers`: how scene data flows to visualizers
-- :doc:`/source/overview/core-concepts/physical-backends/newton/index`: Newton backend guide
+- :ref:`physics-backends-newton`: Newton backend guide
 - :doc:`/source/migration/migrating_to_isaaclab_3-0`: visualizer migration reference

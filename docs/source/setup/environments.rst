@@ -55,6 +55,9 @@ Command Builder
          This environment does not support RL training or playback. The command runs it with the
          zero-action agent instead.
        </p>
+       <p class="environment-backend-warning" data-backend-warning role="status" hidden>
+         OV and Isaac Sim can't be mixed. Choose matching physics and renderer backends.
+       </p>
        <div class="environment-command-output">
          <code data-command-output></code>
          <div class="environment-command-actions">

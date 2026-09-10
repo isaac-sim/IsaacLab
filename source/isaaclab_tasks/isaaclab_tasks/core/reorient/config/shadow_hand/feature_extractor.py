@@ -11,8 +11,8 @@ import torch.nn as nn
 import torchvision
 
 from isaaclab.sensors import save_images_to_file
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.configclass import configclass
 
 # Number of output channels for each supported camera data type.
 _DATA_TYPE_CHANNELS: dict[str, int] = {
