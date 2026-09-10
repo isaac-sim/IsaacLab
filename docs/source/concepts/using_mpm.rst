@@ -103,6 +103,58 @@ states, collision geometry, or a stable timestep. Coupled MPM entries do not
 support this manager-level projection pass.
 
 
+Render a Particle Surface
+-------------------------
+
+MPM simulation state remains a set of particles. Surface reconstruction is an
+optional visualization pass: it does not change particle motion, collisions, or
+material behavior. Run the teapot example to compare the available modes:
+
+.. code-block:: bash
+
+   # Reconstructed surface (default)
+   uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 \
+     --visualizer newton_gl --fluid_render_mode surface
+   # Surface and source particles together
+   uv run python scripts/demos/mpm/teapot_fill.py --device cuda:0 \
+     --visualizer newton_gl --fluid_render_mode both
+   # Path-traced translucent surface
+   uv run --extra ovrtx python scripts/demos/mpm/teapot_fill.py --device cuda:0 \
+     --visualizer newton_rtx --fluid_render_mode surface
+
+Surface rendering is available in the Newton GL and Newton RTX visualizers.
+The Kit visualizer continues to render the MPM particles directly.
+
+To reconstruct a surface in another Newton MPM script, create one reusable
+``newton.geometry.ParticleSurface`` after ``sim.reset()``. On each render update,
+extract from the current Newton particle positions, radii, flags, and world indices,
+then pass the returned vertex, triangle-index, and normal arrays to
+``NewtonGLVisualizer.log_mesh()`` or ``NewtonRTXVisualizer.log_mesh()`` with
+``dynamic=True`` before calling ``sim.render()``. The visualizer stages the latest
+mesh by name and submits it inside Newton's required viewer-frame lifecycle.
+
+Tune reconstruction independently from the simulation:
+
+* ``voxel_size`` controls surface detail and memory use. It can be smaller than
+  the MPM solver voxel size.
+* ``kernel_radius`` controls how far each particle contributes to the surface.
+  Start near three times the particle spacing.
+* ``max_grid_cells`` provides fixed-capacity storage for CUDA graph capture.
+  Increase it if the reconstructed domain outgrows the reserved grid.
+* Anisotropic kernels preserve sheets and stretched fluid features better, but
+  cost more than isotropic kernels.
+
+The demo handles CUDA graph capture, empty surfaces, inactive particles, and
+dynamic topology in one reusable helper:
+
+.. dropdown:: ``FluidSurfaceRenderer`` implementation
+   :icon: code
+
+   .. literalinclude:: ../../../scripts/demos/mpm/teapot_fill.py
+      :language: python
+      :pyobject: FluidSurfaceRenderer
+
+
 Tune Resolution, Time, Then Convergence
 ---------------------------------------
 

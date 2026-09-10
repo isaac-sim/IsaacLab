@@ -5,6 +5,8 @@
 
 """Unit tests: the Newton cloner imports visual-only geometry only when it is drawn."""
 
+from types import SimpleNamespace
+
 import newton
 from isaaclab_newton.cloner import newton_clone_utils
 from isaaclab_newton.cloner import replicate as replicate_module
@@ -100,6 +102,62 @@ class TestClonerVisualShapeImport:
         assert rendering_stage.prim_lookups == 1
         # ...and the collider was visible either way, so skipping it changed nothing.
         assert list(builder.shape_flags) == flags_before
+
+    def test_nested_static_collider_uses_rigid_body_root_for_visual_lookup(self):
+        """A collision subtree stays hidden when its rigid-body root has visuals."""
+        stage = Usd.Stage.CreateInMemory()
+        root = UsdGeom.Xform.Define(stage, _SOURCE)
+        UsdPhysics.RigidBodyAPI.Apply(root.GetPrim())
+        collider = UsdGeom.Cube.Define(stage, f"{_SOURCE}/Collisions/collision")
+        UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
+        UsdGeom.Cube.Define(stage, f"{_SOURCE}/Visuals/visual")
+        builder = SimpleNamespace(
+            shape_body=[-1],
+            shape_flags=[ShapeFlags.COLLIDE_SHAPES],
+            shape_label=[str(collider.GetPrim().GetPath())],
+            shape_type=[newton.GeoType.BOX],
+        )
+
+        newton_clone_utils._restore_visible_colliders_without_visual_shapes(
+            builder, stage, {str(collider.GetPrim().GetPath()): 0}
+        )
+
+        assert not builder.shape_flags[0] & ShapeFlags.VISIBLE
+
+    def test_static_collider_without_rigid_body_or_visual_remains_visible(self):
+        """A standalone static collider retains its authored viewport visibility."""
+        stage = Usd.Stage.CreateInMemory()
+        collider = UsdGeom.Cube.Define(stage, f"{_SOURCE}/collision")
+        UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
+        builder = SimpleNamespace(
+            shape_body=[-1],
+            shape_flags=[ShapeFlags.COLLIDE_SHAPES],
+            shape_label=[str(collider.GetPrim().GetPath())],
+            shape_type=[newton.GeoType.BOX],
+        )
+
+        newton_clone_utils._restore_visible_colliders_without_visual_shapes(
+            builder, stage, {str(collider.GetPrim().GetPath()): 0}
+        )
+
+        assert builder.shape_flags[0] & ShapeFlags.VISIBLE
+
+    def test_generated_proxy_collider_visual_remains_hidden(self):
+        """Newton's unauthored visual companion must not expose a proxy collider."""
+        stage = Usd.Stage.CreateInMemory()
+        collider = UsdGeom.Cube.Define(stage, f"{_SOURCE}/collision")
+        UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
+        collider_path = str(collider.GetPrim().GetPath())
+        builder = SimpleNamespace(
+            shape_body=[-1, -1],
+            shape_flags=[ShapeFlags.COLLIDE_SHAPES, ShapeFlags.VISIBLE],
+            shape_label=[collider_path, f"{collider_path}_visual"],
+            shape_type=[newton.GeoType.BOX, newton.GeoType.MESH],
+        )
+
+        newton_clone_utils._restore_visible_colliders_without_visual_shapes(builder, stage, {collider_path: 0})
+
+        assert not builder.shape_flags[1] & ShapeFlags.VISIBLE
 
 
 class _StubSim:
