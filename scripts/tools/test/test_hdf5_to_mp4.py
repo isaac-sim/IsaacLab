@@ -28,6 +28,10 @@ def temp_hdf5_file():
             rgb_data = np.random.randint(0, 255, (2, 704, 1280, 3), dtype=np.uint8)
             demo_group.create_dataset("table_cam", data=rgb_data)
 
+            # Create RGB frames stored as floats in [0, 1]
+            rgb_float_data = np.random.rand(2, 16, 16, 3).astype(np.float32)
+            demo_group.create_dataset("table_cam_float", data=rgb_float_data)
+
             # Create segmentation frames
             seg_data = np.random.randint(0, 255, (2, 704, 1280, 4), dtype=np.uint8)
             demo_group.create_dataset("table_cam_segmentation", data=seg_data)
@@ -69,6 +73,14 @@ class TestHDF5ToMP4:
         write_demo_to_mp4(temp_hdf5_file, 0, "data/demo_0/obs", "table_cam", temp_output_dir, 704, 1280)
 
         output_file = os.path.join(temp_output_dir, "demo_0_table_cam.mp4")
+        assert os.path.exists(output_file)
+        assert os.path.getsize(output_file) > 0
+
+    def test_write_demo_to_mp4_float_rgb(self, temp_hdf5_file, temp_output_dir):
+        """Test writing float RGB frames to MP4."""
+        write_demo_to_mp4(temp_hdf5_file, 0, "data/demo_0/obs", "table_cam_float", temp_output_dir, 16, 16)
+
+        output_file = os.path.join(temp_output_dir, "demo_0_table_cam_float.mp4")
         assert os.path.exists(output_file)
         assert os.path.getsize(output_file) > 0
 
