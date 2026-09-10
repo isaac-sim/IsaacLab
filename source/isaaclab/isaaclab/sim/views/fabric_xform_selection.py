@@ -60,9 +60,8 @@ class FabricXformSelection:
             device: Warp device for the index and slot buffers.
             owner: Owning class name, used in error messages and the attribute namespace.
             seed_from_usd: Whether to seed both matrices on every prim from USD, for an owner whose
-                source of truth is Fabric. ``False`` seeds only absent attributes and gives parents
-                no local matrix, so a transform another system drives is neither reset nor
-                overwritten by the hierarchy pass.
+                source of truth is Fabric. ``False`` seeds only absent attributes, leaving a
+                transform another system drives neither reset nor overwritten.
             skip_missing_prims: Whether prims absent from the Fabric stage are dropped instead of
                 raising, as reported by :attr:`kept_indices`.
 
