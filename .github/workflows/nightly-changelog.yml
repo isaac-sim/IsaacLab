@@ -36,7 +36,7 @@ name: Nightly Changelog Compilation
 # isaaclab-bot App must be in its branch-ruleset bypass list.
 # Surrounding whitespace per entry is stripped by the resolver below.
 env:
-  CRON_BRANCHES: develop
+  CRON_BRANCHES: develop,release/3.0.0
 
 on:
   schedule:
@@ -50,7 +50,7 @@ on:
         # develop) without needing to update the workflow. A branch
         # that lacks ``tools/changelog/cli.py`` fails the verify step
         # below with a clear error, which is the desired failure mode.
-        description: 'Branch to compile (e.g. develop, release/3.0.0-beta2). Must carry tools/changelog/cli.py.'
+        description: 'Branch to compile (e.g. develop, release/3.0.0). Must carry tools/changelog/cli.py.'
         required: true
         type: string
       dry_run:
