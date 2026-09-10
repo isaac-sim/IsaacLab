@@ -1,0 +1,1 @@
+Test-only change: added a regression assertion to test_timeline_callbacks_with_weakref.

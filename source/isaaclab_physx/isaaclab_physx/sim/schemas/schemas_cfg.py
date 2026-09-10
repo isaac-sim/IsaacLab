@@ -25,7 +25,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     SpatialTendonFragment,
     _deprecate_field_alias,
 )
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass

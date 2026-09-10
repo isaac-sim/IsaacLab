@@ -23,7 +23,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.contrib.dr_legs.mdp as mdp

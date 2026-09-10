@@ -43,7 +43,7 @@ Query: "Why does MJWarp exceed my joint velocity limit?"
 
 Expected behavior:
 
-- Explain that MJWarp enforces neither `velocity_limit` nor `joint_velocity_limit`.
+- Explain that MJWarp enforces neither `actuator_velocity_limit` nor `joint_velocity_limit`.
 - Recommend explicit task checks and physically justified control limits.
 
 Known failure modes: treating either field as an MJWarp safety clamp.

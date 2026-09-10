@@ -850,6 +850,8 @@ follows.
        controller to overtune and the arm to drift. Move the
        end-effector close to and just above the cube, stop, then
        close the suction cup.
+
+       **CPU simulation only:** pass ``--device cpu`` for teleoperation.
      - Keyboard, SpaceMouse
      - **Arm:** end-effector pose via RMPFlow.
        **Suction:** ``K`` on keyboard, left button on SpaceMouse.
@@ -865,10 +867,14 @@ follows.
      - **Arm:** right-arm end-effector pose via RMPFlow.
        **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
    * - ``IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel``
+
+       **CPU simulation only:** pass ``--device cpu`` for teleoperation.
      - Keyboard, SpaceMouse
      - **Arm:** relative IK end-effector control.
        **Suction:** ``K`` on keyboard, left button on SpaceMouse.
    * - ``IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel``
+
+       **CPU simulation only:** pass ``--device cpu`` for teleoperation.
      - Keyboard, SpaceMouse
      - Same as long-suction UR10 above with a shorter suction cup.
    * - ``Isaac-Reach-Franka`` with ``physics=isaacsim_physx presets=diffik``
@@ -1246,6 +1252,37 @@ If you prefer to run the CloudXR runtime manually in a separate terminal
              --visualizer kit --xr
 
 
+Accept the CloudXR license non-interactively
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The NVIDIA CloudXR license is separate from the Omniverse one. The first time the runtime
+starts it asks for it on stdin:
+
+.. code-block:: text
+
+   NVIDIA CloudXR EULA must be accepted to run. View: <license URL>
+
+   Accept NVIDIA CloudXR EULA? [y/N]:
+
+There is no terminal to answer on in a headless, container or CI run, so the launch fails with
+``RuntimeError: CloudXR EULA was not accepted; cannot start the runtime``. Set
+``ISAACLAB_CXR_ACCEPT_EULA=1`` to accept it up front, the same way ``OMNI_KIT_ACCEPT_EULA``
+works for the Omniverse license:
+
+.. code-block:: bash
+
+   ISAACLAB_CXR_ACCEPT_EULA=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+       --xr
+
+``y``, ``yes`` and ``1`` accept it, case-insensitively and ignoring surrounding whitespace --
+the same spellings ``OMNI_KIT_ACCEPT_EULA`` takes; leaving the variable unset, or setting any
+other value, keeps the interactive prompt. Acceptance is recorded in
+``~/.cloudxr/run/eula_accepted``, so once the license has been accepted -- interactively or
+through this variable -- later runs no longer prompt. The variable applies to every script
+that launches the runtime, including the process-scoped launcher in
+``teleop_replay_agent.py``.
+
 .. _isaac-teleop-xr-anchor:
 
 Configure the XR Anchor
@@ -1312,10 +1349,13 @@ cameras. The manager publishes each new RGBA frame after rendering, while
 :class:`~isaaclab_teleop.XrCameraFeedLayoutCfg` places the panels manually or in horizontal,
 vertical, and grid layouts. The following registered tasks enable PiP by default:
 
-* ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
 * ``IsaacContrib-PickPlace-GR1T2-Abs``
 * ``IsaacContrib-NutPour-GR1T2-Pink-IK-Abs``
 * ``IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs``
+
+The G1 locomanipulation and fixed-base tasks do not create a PiP panel by default because the head
+camera can capture the panel and produce a recursive view. The locomanipulation task retains the
+camera as a recorded policy observation.
 
 ``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an IsaacTeleop-enabled
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
@@ -1340,10 +1380,6 @@ recorded view follows robot motion:
 
    uv run --extra teleop,isaacsim isaaclab teleop run \
        --task IsaacContrib-PickPlace-GR1T2-Abs \
-       --xr --device cpu
-
-   uv run --extra teleop,isaacsim isaaclab teleop run \
-       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
        --xr --device cpu
 
 XR camera PiP currently supports exactly one environment. When a task has enabled PiP feeds,

@@ -57,7 +57,7 @@ dependencies = [
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
     "pillow>=12.1.1",
     "botocore",  # omni.replicator.core S3 backend
-    "starlette>=0.46.0,<0.50",  # livestream; range coexists with isaacsim 6.0
+    "starlette>=0.46.0,<0.50",  # livestream; range coexists with isaacsim 6.1
     "omniverseclient==2.72.3",
     "filelock",
     "lazy_loader>=0.4",
@@ -71,7 +71,7 @@ dependencies = [
     # OpenUSD (kit-less mode). Use the same provider required by the URDF and MJCF importer
     # packages so another complete ``pxr`` runtime cannot co-install with it. Two providers in
     # one environment overwrite each other's files, and removing either then breaks ``pxr``.
-    # usd-exchange 2.3.0 vendors USD 25.5, matching the Isaac Sim 6.0 wheel stack.
+    # usd-exchange 2.3.0 vendors USD 25.5, matching the supported Isaac Sim wheel stack.
     "usd-exchange==2.3.0",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64' or platform_machine == 'aarch64'",
@@ -119,7 +119,7 @@ tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 
 importers = [
-    "isaacsim-asset-isolated>=6.0,<6.1",
+    "isaacsim-asset-isolated==6.1.0.0",
     "tinyobjloader==2.0.0rc13",
 ]
 
@@ -171,7 +171,7 @@ rerun = [
     "pyarrow==22.0.0",  # match rerun-sdk's Arrow stack
 ]
 
-isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
+isaacsim = ["isaacsim[all,extscache]==6.1.0.0"]
 
 ov = ["ovphysx==0.5.11", "ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
 ovphysx = ["ovphysx==0.5.11", "ovstage==0.1.1.355824"]
@@ -217,7 +217,7 @@ all = [
 # the extras above, and [tool.uv].override-dependencies mirror these values;
 # ``test_version_single_source`` fails CI if they drift.
 [tool.isaaclab.versions]
-isaacsim = "6.0.1.0"
+isaacsim = "6.1.0.0"
 usd_exchange = "2.3.0"
 torch = "2.12.0"
 torchvision = "0.27.0"
@@ -418,10 +418,6 @@ override-dependencies = [
     "torch==2.12.0",
     "torchvision==0.27.0",
     "torchaudio==2.11.0",
-    # Isaac Sim 6.0 pins these exactly; drop all three once Isaac Sim 6.1 is published.
-    "typing-extensions>=4.15.0",
-    "websockets>=14.0,<17.0.0",
-    "coverage>=7.6.1",
     # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
     # stricter than the code needs, so widening lets them resolve together at 26.0.
     "packaging>=20,<27",

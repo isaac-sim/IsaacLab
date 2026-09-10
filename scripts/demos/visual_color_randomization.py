@@ -51,7 +51,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.timer import Timer
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip

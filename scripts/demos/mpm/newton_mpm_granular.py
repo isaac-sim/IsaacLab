@@ -120,7 +120,7 @@ def create_scene_cfg():
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg
     from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     def collider_cfg(prim_path: str, center, half_extents, orientation, friction: float = 0.1) -> AssetBaseCfg:
         return AssetBaseCfg(
@@ -146,7 +146,7 @@ def create_scene_cfg():
 
         ground = AssetBaseCfg(
             prim_path="/World/Ground",
-            spawn=sim_utils.GroundPlaneCfg(size=(12.0, 12.0), color=(0.30, 0.30, 0.30)),
+            spawn=sim_utils.GroundPlaneCfg(),
         )
 
         dome_light = AssetBaseCfg(
