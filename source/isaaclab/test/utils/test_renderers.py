@@ -7,6 +7,7 @@
 
 import pytest
 
+from isaaclab.utils import renderers
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 _ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
@@ -36,3 +37,23 @@ def test_scene_partitioning_rejects_invalid_override(monkeypatch: pytest.MonkeyP
 
     with pytest.raises(ValueError, match=f"Invalid value for {_ENV_VAR}"):
         isaac_rtx_per_env_scene_partition_enabled()
+
+
+def test_scene_partitioning_default_follows_launcher_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A launcher-set default should apply when the environment variable is absent."""
+    monkeypatch.delenv(_ENV_VAR, raising=False)
+    monkeypatch.setattr(renderers, "_scene_partition_default", True)
+
+    renderers.set_isaac_rtx_per_env_scene_partition_default(False)
+
+    assert isaac_rtx_per_env_scene_partition_enabled() is False
+
+
+def test_scene_partitioning_env_var_overrides_launcher_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An explicit environment value should win over a launcher-set default."""
+    monkeypatch.setenv(_ENV_VAR, "1")
+    monkeypatch.setattr(renderers, "_scene_partition_default", True)
+
+    renderers.set_isaac_rtx_per_env_scene_partition_default(False)
+
+    assert isaac_rtx_per_env_scene_partition_enabled() is True
