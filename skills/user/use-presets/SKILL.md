@@ -13,6 +13,8 @@ owners:
 
 Use this skill when a user needs to define, select, or debug Isaac Lab `PresetCfg` variants for environments, physics backends, renderers, sensors, events, or task-specific configuration options.
 
+Read the [Backends and Presets concept](../../../docs/source/concepts/backends_and_presets.rst) for the authoritative selector behavior and resolution order.
+
 Do not use presets for simple one-backend tasks with no meaningful configuration variants. Prefer a plain config until the task needs a real selectable alternative.
 
 ## Workflow
@@ -49,13 +51,14 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `source/isaaclab_tasks/isaaclab_tasks/utils/hydra.py`, `source/isaaclab_tasks/isaaclab_tasks/utils/preset_cli.py`, `source/isaaclab_tasks/isaaclab_tasks/utils/preset_target.py`, the environment catalog, and maintained preset examples under `source/isaaclab_tasks/isaaclab_tasks/`. If preset selector behavior changes, update the source docs or examples first and keep this skill as a routing checklist.
+Keep this skill synchronized with `docs/source/concepts/backends_and_presets.rst`, `source/isaaclab_tasks/isaaclab_tasks/utils/hydra.py`, `source/isaaclab_tasks/isaaclab_tasks/utils/preset_cli.py`, `source/isaaclab_tasks/isaaclab_tasks/utils/preset_target.py`, the environment catalog, and maintained preset examples under `source/isaaclab_tasks/isaaclab_tasks/`. If preset selector behavior changes, update the source docs or examples first and keep this skill as a routing checklist.
 
 ## References
 
 - [Reference](reference.md)
 - [Examples](examples.md)
 - [Evaluations](evaluations.md)
+- [Backends and presets](../../../docs/source/concepts/backends_and_presets.rst)
 - [Preset utility source](../../../source/isaaclab_tasks/isaaclab_tasks/utils/hydra.py)
 - [Preset CLI source](../../../source/isaaclab_tasks/isaaclab_tasks/utils/preset_cli.py)
 - [Preset targets source](../../../source/isaaclab_tasks/isaaclab_tasks/utils/preset_target.py)

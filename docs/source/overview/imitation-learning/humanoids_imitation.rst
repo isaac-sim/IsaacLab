@@ -165,7 +165,7 @@ Generate the dataset
 ^^^^^^^^^^^^^^^^^^^^
 
 If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset ``dataset_annotated_gr1.hdf5`` from
-here: `[Annotated GR1 Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_gr1.hdf5>`_.
+here: `[Annotated GR1 Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_gr1.hdf5>`_.
 Place the file under ``IsaacLab/datasets`` and run the following command to generate a new dataset with 1000 demonstrations.
 
 .. code:: bash
@@ -252,7 +252,7 @@ Demo 2: Visuomotor Policy for a Humanoid Robot
 Download the Dataset
 ^^^^^^^^^^^^^^^^^^^^
 
-Download the pre-generated dataset from `here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac/IsaacLab/Mimic/pick_place_datasets/generated_dataset_gr1_nut_pouring.hdf5>`__ and place it under ``IsaacLab/datasets/generated_dataset_gr1_nut_pouring.hdf5``
+Download the pre-generated dataset from `here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/Mimic/pick_place_datasets/generated_dataset_gr1_nut_pouring.hdf5>`__ and place it under ``IsaacLab/datasets/generated_dataset_gr1_nut_pouring.hdf5``
 (**Note: The dataset size is approximately 15GB**). The dataset contains 1000 demonstrations of a humanoid robot performing a pouring/placing task that was
 generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0`` task.
 
@@ -465,7 +465,7 @@ Follow the same data collection, annotation, and generation process as demonstra
 
 
 If you skipped the prior collection and annotation step, download the pre-recorded annotated dataset ``dataset_annotated_g1_locomanip.hdf5`` from
-here: `[Annotated G1 Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_g1_locomanip.hdf5>`_.
+here: `[Annotated G1 Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/Mimic/pick_place_datasets/dataset_annotated_g1_locomanip.hdf5>`_.
 Place the file under ``IsaacLab/datasets`` and run the following command to generate a new dataset with 1000 demonstrations.
 
 .. code:: bash
@@ -547,7 +547,7 @@ To create a comprehensive locomanipulation dataset that combines both manipulati
 
    .. code:: bash
 
-      huggingface-cli download nvidia/g1_locomanip_dataset --repo-type dataset --local-dir ./datasets/g1_locomanip_hf
+      hf download nvidia/g1_locomanip_dataset --repo-type dataset --local-dir ./datasets/g1_locomanip_hf
       unzip ./datasets/g1_locomanip_hf/*.zip -d ./datasets/
 
    The archive extracts to ``./datasets/g1_simple_high_var_lerobot/``.
@@ -648,11 +648,25 @@ Then, from the **Isaac-GR00T** directory, install GR00T N1.5 and its dependencie
    uv pip install -e .
    uv pip install wheel
    MAX_JOBS=4 uv pip install --no-build-isolation flash-attn==2.7.1.post4
-   MAX_JOBS=4 uv pip install --no-build-isolation 'git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9'
+   PYTORCH3D_NO_EXTENSION=1 uv pip install --no-build-isolation \
+       'git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9'
    uv pip install diffusers decord2 zmq
+   uv pip install 'numpy>=1.23.5,<2.0.0' pyarrow==14.0.1 numpydantic==1.6.7 pydantic==2.10.6
 
 The ``decord2`` distribution retains the ``decord`` Python import used by GR00T and provides
 pre-built wheels for both x86_64 and aarch64 systems, including DGX Spark.
+
+.. important::
+
+   GR00T N1.5 requires the NumPy and Pydantic versions installed above. When running the
+   commands below from the Isaac Lab checkout, use ``uv run --no-sync`` as shown. A regular
+   ``uv run`` synchronizes the Isaac Lab workspace and can replace GR00T's versions, causing
+   ``AttributeError: _ARRAY_API not found`` from PyArrow or ``InvalidSchemaError`` from
+   Numpydantic.
+
+The compiled PyTorch3D extension is intentionally disabled here because GR00T N1.5 uses only
+``pytorch3d.transforms``. This avoids compiling unused CUDA renderers and supports systems where
+the extension cannot be linked, including aarch64 Blackwell systems.
 
 .. note::
 
@@ -677,7 +691,7 @@ GR00T N1.5 expects data in LeRobot format. From the **IsaacLab** repository root
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py <input_dir> <output_path>
+   uv run --no-sync python scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py <input_dir> <output_path>
 
 Example — move the SDG output into its own directory first so the converter only sees SDG files:
 
@@ -685,7 +699,7 @@ Example — move the SDG output into its own directory first so the converter on
 
    mkdir -p ./datasets/locomanip_sdg
    mv ./datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 ./datasets/locomanip_sdg/
-   uv run python scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py ./datasets/locomanip_sdg ./datasets/datasets_train_200_lerobot
+   uv run --no-sync python scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py ./datasets/locomanip_sdg ./datasets/datasets_train_200_lerobot
 
 Finetune the policy
 """""""""""""""""""
@@ -718,7 +732,7 @@ See the GR00T N1.5 repository documentation for additional training options.
 
    .. code:: bash
 
-      huggingface-cli download nvidia/g1_locomanip_finetune --local-dir ./checkpoints/g1_locomanip_finetune_hf
+      hf download nvidia/g1_locomanip_finetune --local-dir ./checkpoints/g1_locomanip_finetune_hf
       unzip ./checkpoints/g1_locomanip_finetune_hf/*.zip -d ./checkpoints/
 
    The archive extracts to ``./checkpoints/g1_locomanip_finetune_20260129_231610/``.
@@ -732,7 +746,7 @@ From the **IsaacLab** repository root, run the rollout script with the path to y
 
 .. code:: bash
 
-   uv run python scripts/imitation_learning/locomanipulation_sdg/gr00t/rollout_policy.py \
+   uv run --no-sync python scripts/imitation_learning/locomanipulation_sdg/gr00t/rollout_policy.py \
        --model_path <checkpoint_dir_or_file> \
        --embodiment_tag new_embodiment \
        --dataset ./datasets/generated_dataset_g1_locomanip.hdf5 \
@@ -766,7 +780,7 @@ navigation and manipulation dataset as an HDF5 file — but here the robot navig
 manipulates objects inside a neurally-rendered environment, and an ego-centric camera
 captures the result, producing more realistic training data than a purely synthetic scene.
 NVIDIA Isaac Sim renders 3DGS models stored as USD assets; see
-`Neural Volume Rendering <https://docs.isaacsim.omniverse.nvidia.com/6.0.0/assets/usd_assets_nurec.html>`__
+`Neural Volume Rendering <https://docs.isaacsim.omniverse.nvidia.com/latest/assets/usd_assets_nurec.html>`__
 for details.
 
 .. note::
@@ -819,7 +833,7 @@ compatible with the SDG pipeline:
 
   - If your scene was reconstructed using the `Stereo Workflow <https://docs.nvidia.com/nurec/robotics/neural_reconstruction_stereo.html>`__,
     the occupancy map is generated via ``nvblox``.
-  - If your background includes a mesh, use the `Occupancy Map Generator <https://docs.isaacsim.omniverse.nvidia.com/6.0.0/digital_twin/ext_isaacsim_asset_generator_occupancy_map.html>`__
+  - If your background includes a mesh, use the `Occupancy Map Generator <https://docs.isaacsim.omniverse.nvidia.com/latest/digital_twin/ext_isaacsim_asset_generator_occupancy_map.html>`__
     to create a map via physical simulation.
 
 Generating the dataset

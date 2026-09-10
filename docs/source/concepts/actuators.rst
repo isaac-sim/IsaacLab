@@ -270,7 +270,7 @@ position target. Higher stiffness improves tracking but can increase overshoot a
 Too little stiffness leaves steady-state error under load. Tune stiffness together with damping.
 Units are [N·m/rad] for revolute joints and [N/m] for prismatic joints.
 
-.. figure:: ../_static/actuators/stiffness-clip.webp
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/stiffness-clip.webp
     :align: center
     :width: 100%
     :alt: Five pendulums with increasing stiffness stepping to the same target.
@@ -296,7 +296,7 @@ stiff joint to oscillate. More damping reduces overshoot until the joint becomes
 beyond that point, the response becomes sluggish. Damping also sets the tracking gain for velocity
 targets. Units are [N·m·s/rad] for revolute joints and [N·s/m] for prismatic joints.
 
-.. figure:: ../_static/actuators/damping-clip.webp
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/damping-clip.webp
     :align: center
     :width: 100%
     :alt: Five pendulums from underdamped to overdamped stepping to the same target.
@@ -329,7 +329,7 @@ convergence. Choose armature from the motor and transmission model. See the `Omn
 <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/articulation_stability_guide.html>`_
 for more information.
 
-.. figure:: ../_static/actuators/armature-clip.webp
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/armature-clip.webp
     :align: center
     :width: 100%
     :alt: Five pendulums with increasing armature responding to the same command.
@@ -365,7 +365,7 @@ stiction and drag, not to stabilize a controller.
     effort and has no separate dynamic-friction value. All three use viscous damping
     [N·s/m or N·m·s/rad, depending on joint type].
 
-.. figure:: ../_static/actuators/friction-clip.webp
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/friction-clip.webp
     :align: center
     :width: 100%
     :alt: Five free-spinning pendulums with increasing joint friction decaying at different rates.
@@ -398,7 +398,7 @@ demand exceeds the limit, the applied torque and damping term are both clipped. 
 therefore oscillate until the demand returns within the limit. An effort limit below the load's
 static demand prevents the controller from damping the joint effectively.
 
-.. figure:: ../_static/actuators/effort-limit-clip.webp
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/effort-limit-clip.webp
     :align: center
     :width: 100%
     :alt: Five pendulums with increasing effort limit holding or failing against gravity.
@@ -747,7 +747,7 @@ This page does **not** cover:
 * Motion generators or low-level control modes -- see
   :doc:`/source/overview/core-concepts/motion_generators`.
 * Cross-backend policy transfer and solver-dynamics differences -- see
-  :doc:`/source/how-to/transfer_policies_between_physx_and_newton`.
+  :doc:`/source/concepts/transfer_policies_between_physx_and_newton`.
 
 .. seealso::
 

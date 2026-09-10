@@ -64,7 +64,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.meshes import MeshCuboidCfg
 from isaaclab.sim.spawners.meshes.meshes import spawn_mesh_cuboid
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401

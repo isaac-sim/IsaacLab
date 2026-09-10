@@ -15,7 +15,7 @@ from __future__ import annotations
 import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 _DEFAULT_DECIMATION = 4
 _DEFAULT_EPISODE_LENGTH_S = 5.0
