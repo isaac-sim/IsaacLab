@@ -21,7 +21,7 @@ from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg,
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 def test_mpm_particle_material_emits_custom_attributes():

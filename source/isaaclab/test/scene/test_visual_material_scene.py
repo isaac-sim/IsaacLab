@@ -22,7 +22,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, VisualMaterial, VisualMaterialCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 

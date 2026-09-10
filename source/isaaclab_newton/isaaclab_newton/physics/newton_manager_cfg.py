@@ -11,7 +11,7 @@ import logging
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 

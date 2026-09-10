@@ -77,13 +77,13 @@ Export a trained policy, then launch the exported policy in Isaac Lab:
 
    uv run --extra leapp python \
        scripts/reinforcement_learning/leapp/<RL_LIBRARY>/export.py \
-       --task <TASK_NAME>
+       --task <TASK_NAME> physics=newton_mjwarp
 
    uv run --extra leapp python \
        scripts/reinforcement_learning/leapp/deploy.py \
        --task <TASK_NAME> \
        --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
-       --viz kit
+       --viz newton_gl physics=newton_mjwarp
 
 Continue with the sections below to select a different RL library, configure the
 export, and validate the generated artifacts.
@@ -97,7 +97,7 @@ checkpoint (or at a custom path). The directory contains:
 
 - **Exported model files** — ``.onnx`` (default) or ``.pt`` depending on the chosen backend.
 - **Export metadata** — LEAPP records the semantic information and wiring needed by downstream
-  deployment runtimes.
+  deployment runtimes, including the policy execution frequency.
 - **Initial values** — a ``.safetensors`` file for any feedback state, such as recurrent hidden
   state or last action.
 - **A graph visualization** — a ``.png`` diagram of the pipeline (can be disabled).

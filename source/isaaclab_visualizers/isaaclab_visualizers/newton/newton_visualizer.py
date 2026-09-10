@@ -628,24 +628,6 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
                 :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`.
             **kwargs: Keyword arguments forwarded to ``ViewerRTX``.
         """
-        # Patch environment so OVRTX's CRenderApiLibLoader can find libovrtx.dylib.so.
-        # libovrtx-dynamic.so's built-in RPATH uses paths from the original deploy layout
-        # which don't match the pip install layout. LD_LIBRARY_PATH (read by glibc at each
-        # dlopen call) and OMNI_USD_PLUGINS_BASE_PATH (read by CRenderApiLibLoader) redirect
-        # the search to the correct location.
-        if sys.platform.startswith("linux"):
-            import importlib.util as _ilu
-            import pathlib as _pl
-
-            _spec = _ilu.find_spec("ovrtx")
-            if _spec is not None:
-                _bin = _pl.Path(_spec.origin).parent / "bin"
-                _extra = os.pathsep.join([str(_bin / "plugins" / "rtx"), str(_bin / "plugins"), str(_bin)])
-                _ld = os.environ.get("LD_LIBRARY_PATH", "")
-                if str(_bin / "plugins" / "rtx") not in _ld:
-                    os.environ["LD_LIBRARY_PATH"] = _extra + (os.pathsep + _ld if _ld else "")
-                os.environ.setdefault("OMNI_USD_PLUGINS_BASE_PATH", str(_bin))
-
         # Assigned before super().__init__(): ViewerRTX reaches
         # _add_camera_lights_and_render_product() during initialization, and the override reads
         # this. Copied so a caller's dict cannot mutate the viewer's settings afterwards.
@@ -1027,6 +1009,22 @@ class NewtonVisualizer(BaseVisualizer):
             return
 
         scene_data_provider = self._set_scene_data_provider(scene_data_provider)
+        if isinstance(self, NewtonRTXVisualizer) and self.physics_backend in ("physx", "isaacsim_physx"):
+            # OVRTX is a kitless renderer and cannot share a process with Kit. "physx" is the
+            # runtime name FactoryBase._get_backend() reports for the resolved PhysxManager
+            # (covers both an explicit `physics=isaacsim_physx` and the `physics=physx` auto
+            # selector once it resolves to Kit); "isaacsim_physx" is checked too in case a
+            # future/alternate backend-name source reports the explicit selector string
+            # instead. ovphysx is itself kitless, so it is not affected. Left unchecked,
+            # OVRTX's native loader crashes inside the render thread on first step() instead
+            # of failing here, which hangs the process instead of exiting.
+            raise RuntimeError(
+                f"[{type(self).__name__}] Newton RTX (OVRTX) cannot be used with physics backend"
+                f" {self.physics_backend!r}. It is a kitless renderer and cannot run in the same process as Kit"
+                " (isaacsim_physx). Use `presets=newton_mjwarp,ovrtx` or `presets=ovphysx,ovrtx` with"
+                " `--viz newton_rtx`, or switch to `--viz newton_gl`, `--viz viser`, `--viz rerun`, or"
+                " `--viz kit` with a Kit-compatible physics backend."
+            )
         newton_backend_active = self.physics_backend == "newton"
         physics_manager = SimulationContext.instance().physics_manager
         picking_supported = newton_backend_active and bool(
@@ -1208,7 +1206,13 @@ class NewtonVisualizer(BaseVisualizer):
                     "[%s] Permanently disabling viewer after unrecoverable initialization failure.",
                     type(self).__name__,
                 )
-                self._viewer = None
+                try:
+                    self._release_viewer()
+                except Exception:
+                    # This handler exists so an unusable viewer disables itself
+                    # instead of aborting training, so a viewer that also fails
+                    # to close must not escape it either.
+                    logger.exception("[%s] Viewer teardown failed.", type(self).__name__)
 
     def is_reset_requested(self) -> bool:
         """Return whether an episode reset was requested via the viewer UI."""
@@ -1244,21 +1248,53 @@ class NewtonVisualizer(BaseVisualizer):
             if self._picking_enabled:
                 self._viewer_picking_binding.bind(self._viewer)
 
+    def _release_viewer(self) -> None:
+        """Release the viewer this visualizer owns and drop the reference to it.
+
+        The visualizer owns the viewer it creates. Before closing it, the
+        stable picking callback is neutralized so it cannot retain or call the
+        viewer after release. The RTX viewer owns GPU resources that it
+        releases in a fixed order:
+        ``ViewerRTX.close()`` waits on the in-flight render, drops the retained
+        step results, unbinds the transform attribute binding and only then
+        releases the ``ovrtx.Renderer``.  Dropping the reference without
+        closing leaves that ordering to the garbage collector, which does not
+        guarantee one; when the renderer is finalized before the resources
+        bound to it, it tears itself down with them still live and leaks them.
+
+        The reference is cleared in a ``finally`` block so an unusable viewer
+        is never retained, while the teardown failure itself still reaches the
+        caller. ``ViewerGL.close()`` is intentionally not called because its
+        renderer cannot be recreated reliably in the same Kit process.
+        """
+        viewer = self._viewer
+        if viewer is None:
+            return
+        try:
+            if self._picking_enabled:
+                # Keep the stable callback registered: captured graphs replay
+                # its now-neutral device inputs without retaining the viewer.
+                self._viewer_picking_binding.deactivate()
+            if isinstance(viewer, NewtonViewerRTX):
+                viewer.close()
+        finally:
+            self._viewer = None
+
     def close(self) -> None:
         """Release viewer resources."""
         if self._is_closed:
             return
-        if self._picking_enabled:
-            # Keep the stable callback registered: captured graphs replay its
-            # now-neutral device inputs without retaining the viewer.
-            self._viewer_picking_binding.deactivate()
-        if self._viewer is not None:
-            self._viewer = None
-        if self._camera_sensor is not None and self._camera_is_owned:
-            evict_visualizer_camera(self._streaming_camera_key)
-            remove_generated_prims(self._generated_camera_prim_paths)
-        self._camera_sensor = None
-        self._is_closed = True
+        try:
+            self._release_viewer()
+        finally:
+            # A viewer that fails to close must not strand the camera prims or
+            # leave the visualizer looking open; the failure still propagates
+            # to the caller, which logs it and drops the visualizer.
+            if self._camera_sensor is not None and self._camera_is_owned:
+                evict_visualizer_camera(self._streaming_camera_key)
+                remove_generated_prims(self._generated_camera_prim_paths)
+            self._camera_sensor = None
+            self._is_closed = True
 
     def is_running(self) -> bool:
         """Return whether the visualizer should continue stepping."""

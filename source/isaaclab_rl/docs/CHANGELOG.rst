@@ -1,6 +1,39 @@
 Changelog
 ---------
 
+0.17.3 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed SKRL train, play, and LEAPP export to default to the canonical task config and derive the algorithm from
+  ``agent.class``. ``--algorithm`` now explicitly selects an algorithm recipe and is rejected when ``--agent`` resolves
+  to a different class. Older runs named after a config suffix such as ``box_discrete`` require an explicit checkpoint
+  path.
+
+
+0.17.2 (2026-09-09)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added policy frequency metadata to LEAPP export artifacts for all supported RL libraries.
+
+
+0.17.1 (2026-09-08)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed published checkpoint lookup ignoring non-default domain presets, which could fetch an
+  incompatible policy or miss an available preset-specific checkpoint. Preset-specific checkpoints
+  can now also be trained, collected, reviewed, and published through the checkpoint management tool.
+* Fixed the zero and random agents overriding task-defined simulation devices when ``--device`` was omitted.
+
+
 0.17.0 (2026-09-05)
 ~~~~~~~~~~~~~~~~~~~
 

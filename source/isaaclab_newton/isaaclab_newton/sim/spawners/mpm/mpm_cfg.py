@@ -11,7 +11,7 @@ from typing import Literal
 
 from isaaclab.sim.spawners.materials.visual_materials_cfg import VisualMaterialCfg
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 @configclass

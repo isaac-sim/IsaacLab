@@ -3,10 +3,8 @@ mujoco~=3.12.0
 mujoco-warp~=3.12.0
 newton[sim]==1.6.0rc1
 newton-usd-schemas>=0.4.1
+usd-exchange==3.0.0
 torch==2.11.0
 torchvision==0.26.0
 torchaudio==2.11.0
-typing-extensions>=4.15.0
-websockets>=14.0,<17.0.0
-coverage>=7.6.1
 packaging>=20,<27

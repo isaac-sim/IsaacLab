@@ -118,15 +118,6 @@ a {
     width: min(100%, 480px);
 }
 
-/* Keep each showroom demo visually grouped with its options, commands, and image. */
-.showroom-demo-list > li {
-    margin-bottom: 4rem;
-}
-
-.showroom-demo-list > li:last-child {
-    margin-bottom: 0;
-}
-
 .nurec-gif-grid,
 .nurec-gif-grid td {
     border: none;
@@ -181,6 +172,12 @@ figure.nurec-gif-contain img {
 
 .nurec-gif-grid-single figcaption .line-block .line:nth-child(2) {
     white-space: nowrap;
+}
+
+/* Allow long renderer preset names to wrap without changing their copied text. */
+.renderer-preset-grid figcaption span.pre {
+    overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 /* Keep sphinx-copybutton visible on code blocks (not only on hover). */

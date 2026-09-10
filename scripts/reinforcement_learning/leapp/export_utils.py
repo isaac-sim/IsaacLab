@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared CLI and recurrent-state helpers for LEAPP policy export."""
+"""Shared CLI, graph metadata, and recurrent-state helpers for LEAPP policy export."""
 
 from __future__ import annotations
 
@@ -13,6 +13,9 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import torch
+    from leapp import GraphConfigs
+
+    from isaaclab.envs import DirectRLEnvCfg, ManagerBasedEnvCfg
 
 
 def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: str) -> None:
@@ -76,15 +79,12 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
 
 
 def finalize_export_args(
-    parser: argparse.ArgumentParser,
-    argv: list[str] | None = None,
-    *,
-    agent_library: str | None = None,
+    parser: argparse.ArgumentParser, argv: list[str] | None = None
 ) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments with preset support and force headless mode."""
     from isaaclab_tasks.utils import setup_preset_cli
 
-    args_cli, hydra_args = setup_preset_cli(parser, argv, agent_library=agent_library)
+    args_cli, hydra_args = setup_preset_cli(parser, argv)
     args_cli.headless = True
     return args_cli, hydra_args
 
@@ -105,6 +105,21 @@ def disable_torchscript_for_export() -> None:
     import torch
 
     torch.jit._state.disable()
+
+
+def create_graph_configs(env_cfg: ManagerBasedEnvCfg | DirectRLEnvCfg) -> GraphConfigs:
+    """Create LEAPP graph metadata from an Isaac Lab environment configuration.
+
+    Args:
+        env_cfg: Environment configuration that defines the policy period.
+
+    Returns:
+        Graph metadata containing the policy frequency [Hz].
+    """
+    from leapp import GraphConfigs
+
+    policy_frequency = 1.0 / (env_cfg.sim.dt * env_cfg.decimation)
+    return GraphConfigs(frequency=policy_frequency)
 
 
 def is_two_tensor_lstm_state(states: object) -> bool:
