@@ -150,7 +150,9 @@ def main(env_cfg, agent_cfg):
     print(f"[export] wrote {contract_path}")
     if missing:
         names = ", ".join(f"{t['name']} ({t['dim']})" for t in missing)
-        print(f"[export] NOT DEPLOYABLE: {contract['unobservable_dim']} of {dim} inputs have no source on the robot: {names}")
+        print(
+            f"[export] NOT DEPLOYABLE: {contract['unobservable_dim']} of {dim} inputs have no source on the robot: {names}"
+        )
     env.close()
 
 
