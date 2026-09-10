@@ -26,6 +26,8 @@ would silently bypass a faked ``sys.modules`` entry. The recovery path falls bac
 from __future__ import annotations
 
 import builtins
+import os
+import subprocess
 import sys
 import types
 
@@ -33,6 +35,47 @@ import pytest
 from isaaclab_visualizers.newton.newton_visualizer import _make_pyglet_xlib_caption_setting_resilient
 
 pytestmark = [pytest.mark.unit]
+
+_CHARACTERIZATION_SCRIPT = """
+import sys
+from pyglet.libs.x11 import xlib
+xlib.Xutf8TextListToTextProperty = lambda *a, **k: -1
+try:
+    import pyglet.window
+    print("NO_RAISE")
+except Exception as e:
+    left_loaded = "pyglet.window.xlib" in sys.modules
+    has_class = hasattr(sys.modules.get("pyglet.window.xlib"), "XlibWindow")
+    print(f"RAISED:{type(e).__name__}:{left_loaded}:{has_class}")
+"""
+
+
+@pytest.mark.skipif(not os.environ.get("DISPLAY"), reason="requires a real X11 display")
+def test_real_pyglet_leaves_patchable_xlib_module_after_failed_shadow_window_import():
+    """Characterization test: verifies the real pyglet behavior the recovery path depends on.
+
+    The rest of this file's tests exercise ``_make_pyglet_xlib_caption_setting_resilient``
+    against a fake ``pyglet.window.xlib`` module that's set up to always be present in
+    ``sys.modules`` by construction -- they can't detect a future pyglet release changing that
+    real behavior (e.g. no longer leaving the submodule loaded, or leaving it without a usable
+    ``XlibWindow`` class). This test runs in a subprocess for a genuinely fresh interpreter
+    (pyglet.window may already be cached from other tests in this process) and drives the real
+    import machinery instead, to catch that class of regression directly.
+    """
+    result = subprocess.run(
+        [sys.executable, "-c", _CHARACTERIZATION_SCRIPT],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=os.environ.copy(),
+    )
+    assert result.returncode == 0, result.stderr
+    output = result.stdout.strip()
+    assert output.startswith("RAISED:"), f"expected the real pyglet.window import to raise, got: {output!r}"
+    _, exception_name, left_loaded, has_class = output.split(":")
+    assert exception_name == "XlibException"
+    assert left_loaded == "True", "pyglet.window.xlib was not left in sys.modules after the failed import"
+    assert has_class == "True", "pyglet.window.xlib was left without a usable XlibWindow class"
 
 
 class _FakeXlibException(Exception):

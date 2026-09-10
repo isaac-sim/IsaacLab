@@ -175,7 +175,7 @@ We will now run the example script:
 .. tab-set::
    :sync-group: os
 
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux x86_64
       :sync: linux-x86_64
 
       .. tab-set::
@@ -192,11 +192,28 @@ We will now run the example script:
 
                LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5
 
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
+      :sync: linux-aarch64
+
+      .. tab-set::
+
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: console
+
+               LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: console
+
+               LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5
+
       .. note::
 
-         On aarch64 (DGX Spark), prefix direct Python commands that import Isaac Sim with
-         ``LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1``. See :ref:`installation-method-uv`
-         for details.
+         Direct Python commands that import Isaac Sim on aarch64 require the
+         ``LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1`` prefix shown above. See
+         :ref:`installation-method-uv`.
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -215,7 +232,7 @@ We will now run the example script:
             .. code-block:: powershell
 
                $env:LIVESTREAM = "2"
-               isaaclab.bat -p scripts\tutorials\00_sim\launch_app.py --size 0.5
+               .\isaaclab.bat -p scripts\tutorials\00_sim\launch_app.py --size 0.5
 
 This will spawn a 0.5m\ :sup:`3` volume cuboid in the simulation. No GUI will appear, equivalent
 to omitting ``--visualizer`` in this setup because headlessness is implied by our ``LIVESTREAM``
@@ -233,7 +250,7 @@ Now, let's look at how :class:`~app.AppLauncher` handles conflicting commands:
 .. tab-set::
    :sync-group: os
 
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux x86_64
       :sync: linux-x86_64
 
       .. tab-set::
@@ -250,11 +267,28 @@ Now, let's look at how :class:`~app.AppLauncher` handles conflicting commands:
 
                LIVESTREAM=0 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
 
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
+      :sync: linux-aarch64
+
+      .. tab-set::
+
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: console
+
+               LIVESTREAM=0 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: console
+
+               LIVESTREAM=0 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
+
       .. note::
 
-         On aarch64 (DGX Spark), prefix direct Python commands that import Isaac Sim with
-         ``LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1``. See :ref:`installation-method-uv`
-         for details.
+         Direct Python commands that import Isaac Sim on aarch64 require the
+         ``LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1`` prefix shown above. See
+         :ref:`installation-method-uv`.
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -273,7 +307,7 @@ Now, let's look at how :class:`~app.AppLauncher` handles conflicting commands:
             .. code-block:: powershell
 
                $env:LIVESTREAM = "0"
-               isaaclab.bat -p scripts\tutorials\00_sim\launch_app.py --size 0.5 --livestream 2
+               .\isaaclab.bat -p scripts\tutorials\00_sim\launch_app.py --size 0.5 --livestream 2
 
 This will cause the same behavior as in the previous run, because although we have set ``LIVESTREAM=0``
 in our envars, CLI args such as ``--livestream`` take precedence in determining behavior. The process can
@@ -285,7 +319,7 @@ Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.S
 .. tab-set::
    :sync-group: os
 
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux x86_64
       :sync: linux-x86_64
 
       .. tab-set::
@@ -302,11 +336,28 @@ Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.S
 
                LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
 
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
+      :sync: linux-aarch64
+
+      .. tab-set::
+
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: console
+
+               LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: console
+
+               LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
+
       .. note::
 
-         On aarch64 (DGX Spark), prefix direct Python commands that import Isaac Sim with
-         ``LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1``. See :ref:`installation-method-uv`
-         for details.
+         Direct Python commands that import Isaac Sim on aarch64 require the
+         ``LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1`` prefix shown above. See
+         :ref:`installation-method-uv`.
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -325,7 +376,7 @@ Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.S
             .. code-block:: powershell
 
                $env:LIVESTREAM = "2"
-               isaaclab.bat -p scripts\tutorials\00_sim\launch_app.py --size 0.5 --width 1920 --height 1080
+               .\isaaclab.bat -p scripts\tutorials\00_sim\launch_app.py --size 0.5 --width 1920 --height 1080
 
 This will cause the same behavior as before, but now the viewport will be rendered at 1920x1080p resolution.
 This can be useful when we want to gather high-resolution video, or we can specify a lower resolution if we
