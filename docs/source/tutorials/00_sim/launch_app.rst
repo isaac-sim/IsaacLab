@@ -176,7 +176,7 @@ We will now run the example script:
    :sync-group: os
 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
+      :sync: linux-x86_64
 
       .. tab-set::
 
@@ -228,7 +228,7 @@ Now, let's look at how :class:`~app.AppLauncher` handles conflicting commands:
    :sync-group: os
 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
+      :sync: linux-x86_64
 
       .. tab-set::
 
@@ -274,7 +274,7 @@ Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.S
    :sync-group: os
 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
+      :sync: linux-x86_64
 
       .. tab-set::
 

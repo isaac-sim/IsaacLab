@@ -101,7 +101,7 @@ To set the environment variables, one can use the following command in the termi
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      In an elevated Command Prompt:
+      In Command Prompt:
 
       .. code-block:: batch
 
