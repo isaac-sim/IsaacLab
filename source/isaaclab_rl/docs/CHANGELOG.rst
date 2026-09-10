@@ -1,6 +1,67 @@
 Changelog
 ---------
 
+0.16.1 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added mode-specific terminal messages when policy playback, the zero-action agent, or the random-action agent
+  finished initialization.
+* Added policy frequency metadata to LEAPP export artifacts for all supported RL libraries.
+* Moved the LEAPP policy exporters into the installed ``isaaclab_rl`` package.
+
+Changed
+^^^^^^^
+
+* Changed run summaries to report the concrete physics and renderer backends directly, without
+  reparsing preset selectors after task composition.
+* Changed ``--deterministic`` to set :attr:`~isaaclab.physics.PhysicsCfg.deterministic` on the
+  resolved physics config. The entrypoint no longer selects backend-specific determinism settings or
+  validates solvers; each physics manager translates the request and rejects what it cannot support.
+  Deterministic physics costs runtime and memory; drop the flag to opt out.
+* Changed the zero and random agents to use the Newton GL visualizer by default. Pass ``--viz kit`` to keep using
+  the Kit visualizer.
+* Changed SKRL train, play, and LEAPP export to default to the canonical task config and derive the algorithm from
+  ``agent.class``. ``--algorithm`` now explicitly selects an algorithm recipe and is rejected when ``--agent`` resolves
+  to a different class. Older runs named after a config suffix such as ``box_discrete`` require an explicit checkpoint
+  path.
+
+Fixed
+^^^^^
+
+* Fixed the zero agent to infer finite hold commands for absolute task-space controllers, support composite and
+  multi-agent action spaces, and reject invalid task configurations before launching the simulator.
+* Fixed ``--deterministic`` not making training runs reproducible. The flag configured PyTorch and
+  the Isaac RTX renderer but never reached the physics solver, so runs on Newton backends stayed
+  free-running and their reward curves diverged.
+* Fixed pretrained checkpoint resolution for coupled tasks such as ``Isaac-Lift-Cable-Franka``,
+  ``Isaac-Lift-Cloth-Franka``, and ``Isaac-Lift-Soft-Franka``, which raised
+  ``Unsupported Newton solver for pretrained checkpoints: CouplerProxyCfg``. A Newton coupled
+  solver is now named by its entry solvers in order followed by its coupling scheme, so a proxy
+  coupler over MJWarp and VBD entries resolves to the ``newtonmjwarpvbdproxy`` physics token.
+  Checkpoint names for uncoupled solvers are unchanged.
+* Fixed RSL-RL training resolving agent metadata before external task registration callbacks run.
+* Fixed single-GPU reinforcement learning entrypoints eagerly importing the multi-GPU Torch Elastic launcher.
+* Fixed RSL-RL play video filenames missing the numeric checkpoint stem used for playback.
+* Fixed RLinf training launched with ``uv run`` failing when Ray attempted to upload working directories larger than 512 MiB.
+* Fixed ``play.py`` (all RL library backends) stopping the rollout after
+  ``video_recorders[0].video_length`` steps instead of ``video_length + step_offset`` steps
+  when ``--video`` is passed without an explicit ``--video_length``, which silently truncated
+  clips recorded with a nonzero :attr:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg.step_offset`.
+* Fixed ``--deterministic`` not making camera observations reproducible. The flag configured the
+  physics solver but left :attr:`warp.config.deterministic` at ``NOT_GUARANTEED``, and Newton's
+  sensor and geometry kernels -- unlike its solvers -- take no per-module determinism option and
+  fall back to that global. The scene BVH is built over an atomically compacted shape list, so its
+  primitive order varied between processes and a tiled camera rendered a few pixels differently
+  from identical simulation state, which was enough to make image-observation training diverge.
+* Fixed the zero and random agents overriding task-defined simulation devices when ``--device`` was omitted.
+* Fixed published checkpoint lookup ignoring non-default domain presets, which could fetch an
+  incompatible policy or miss an available preset-specific checkpoint. Preset-specific checkpoints
+  can now also be trained, collected, reviewed, and published through the checkpoint management tool.
+
+
 0.16.0 (2026-08-18)
 ~~~~~~~~~~~~~~~~~~~
 

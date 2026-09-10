@@ -1,6 +1,72 @@
 Changelog
 ---------
 
+1.8.0 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added renderer-owned visual-material writers to the Kit and Newton visualizers.
+* Added config-owned construction to every concrete visualizer config through its ``class_type`` field.
+* Added :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`, which authors arbitrary RTX
+  attributes onto the OVRTX render product as ``{name: (usd_type_name, value)}``. ``ViewerRTX`` hard-codes its render
+  product and exports the stage before the renderer reads it, so these are applied in the only window that reaches the
+  renderer. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's quality convergence
+  loop, which ``ViewerRTX`` otherwise disables to keep interactive latency down.
+* Added :meth:`~isaaclab_visualizers.rerun.RerunVisualizer.set_camera_view` and
+  :meth:`~isaaclab_visualizers.viser.ViserVisualizer.set_camera_view`, letting callers move
+  these visualizers' live 3D camera every simulation step (e.g. to follow a moving robot),
+  matching the existing :class:`~isaaclab_visualizers.kit.KitVisualizer` and Newton
+  implementations. Both backends already had the underlying per-step camera-pose machinery
+  internally; this exposes it through the public :class:`~isaaclab.visualizers.BaseVisualizer`
+  API, which previously no-op'd for these two backends.
+
+Changed
+^^^^^^^
+
+* Made Kit, Newton GL, and Newton RTX honor ``VisualizerCfg.background_color`` and use its solid
+  sky-blue default. Setting it to ``None`` preserved each backend's native background.
+
+Fixed
+^^^^^
+
+* Fixed the Newton GL visualizer's "Pause Rendering" button not reflecting the paused
+  state after pressing :kbd:`Space`. Both controls now toggle the same underlying flag, so
+  the button label and :meth:`~isaaclab_visualizers.newton.newton_visualizer.NewtonViewerGL.is_rendering_paused`
+  stay in sync regardless of whether rendering was paused via the button or the keyboard shortcut.
+  Also clarified the on-screen control hint from "Space - Pause/Resume" to "Space - Pause/Resume
+  Rendering".
+* Fixed :meth:`~isaaclab_visualizers.newton.NewtonGLVisualizer.render_rgb_array` omitting
+  visualization markers, so videos recorded with ``--viz newton_gl`` showed the scene without
+  its goal poses, command arrows, and other debug markers visible in the interactive viewer.
+* Fixed :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` unconditionally reporting the
+  streaming/tiled camera view as unsupported. Setting ``streaming_view=True`` now creates the owned
+  streaming camera sensor and produces composites via ``render_tiled_rgb_array()``, usable for headless
+  capture (e.g. through :class:`~isaaclab.envs.VideoRecorderCfg`). The live on-screen streaming preview
+  panel remains unavailable on this backend, since ``ViewerRTX.log_image`` has no display sink.
+* Fixed :class:`~isaaclab_visualizers.newton.newton_visualizer.NewtonRTXVisualizer` releasing its viewer
+  without first neutralizing picking callbacks and calling the viewer's :meth:`close`, which left its ordered
+  GPU teardown to the garbage collector and intermittently leaked render step results and attribute bindings
+  on shutdown.
+* Fixed :class:`~isaaclab_visualizers.kit.kit_visualization_markers.KitVisualizationMarkers`
+  rebuilding its scene-partition tokens on every frame. Marker ownership is now cached and the
+  ``primvars:omni:scenePartition`` primvar is only re-authored when the environment IDs change,
+  avoiding a device-to-host copy and one token string per marker on unchanged frames. A device
+  synchronization from comparing the cached and incoming environment IDs still occurs every call.
+  This noticeably improves throughput for camera tasks at high environment counts.
+* Fixed :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizer` hanging the process when
+  combined with the Kit-based ``physx`` physics backend (i.e. ``presets=isaacsim_physx``).
+  OVRTX is a kitless renderer and previously crashed inside the render thread on the first
+  ``step()``, which left the process stuck instead of exiting. It now raises a clear
+  ``RuntimeError`` from ``initialize()`` naming the incompatible combination and the supported
+  alternatives. The kitless ``ovphysx`` backend is unaffected and remains supported.
+* Fixed ``NewtonVisualizationMarkers.render`` and ``_ensure_mesh_registered`` allocating Warp
+  marker/mesh arrays on Warp's process-global default device instead of the viewer device.
+  Combined with ``--device cpu`` on a machine that also has a CUDA device present, this caused a
+  CUDA illegal memory access when the ``newton_gl`` visualizer rendered marker overlays.
+
+
 1.7.0 (2026-08-20)
 ~~~~~~~~~~~~~~~~~~
 

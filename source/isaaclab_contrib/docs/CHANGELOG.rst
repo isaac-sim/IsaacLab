@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+2.0.1 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Registered every configured child solver's builder attributes for coupled Newton models.
+* Fixed coupled Newton managers with MuJoCo solvers to import MuJoCo-authored joint friction and damping
+  values from USD stages.
+
+
 2.0.0 (2026-08-15)
 ~~~~~~~~~~~~~~~~~~
 
