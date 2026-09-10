@@ -62,7 +62,7 @@ and current optional extras. Do not combine OvPhysX with a Kit runtime in the
 same process.
 
 For the general PhysX--Newton policy validation workflow, see
-:doc:`/source/concepts/transfer_policies_between_physx_and_newton`. When a
+:doc:`/source/how-to/transfer_policies_between_physx_and_newton`. When a
 checkpoint's joint or body ordering differs from the target backend, use the
 :doc:`articulation ordering guide
 </source/concepts/joint_and_body_ordering>`.
@@ -106,7 +106,7 @@ Task and component coverage is narrower and task-specific. Check task
 for current presets, the generated configuration APIs for available symbols,
 and the specialist guides below for solver-specific workflows and limitations.
 
-Start with :doc:`/source/concepts/prepare_asset_for_newton`, then use
+Start with :doc:`/source/how-to/prepare_asset_for_newton`, then use
 :doc:`/source/concepts/solver-tuning/tune_mjwarp` for the primary validated solver path or
 :doc:`/source/concepts/solver-tuning/tune_kamino` for the beta Kamino path. Experimental
 specialist guides cover :ref:`newton-using-vbd`, :ref:`newton-using-mpm`,
