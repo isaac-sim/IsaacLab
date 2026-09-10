@@ -197,18 +197,23 @@ class ContactSensor(BaseContactSensor):
         is lost. A sensor that is refreshed lazily (on data access) would skip that step and keep
         reporting the last in-contact force until the next touchdown, so the PhysX getters are
         called on every physics step. The warp kernels that turn those buffers into sensor data
-        remain lazy and only run when :attr:`data` is accessed.
+        remain lazy and only run when :attr:`data` is accessed. The body poses have no such
+        transient and are only read on data access.
 
         Args:
             dt: Time elapsed since the previous sensor update [s].
             force_recompute: Whether to recompute the sensor buffers regardless of their
                 configured update period. Defaults to False.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active. The PhysX tensor reads
+                cannot be graph-captured, so the sensor must be updated outside the capture.
         """
         super().update(dt, force_recompute=force_recompute)
         # Skip the fetch if the base class already refreshed the buffers on this step, which it
         # does when the sensor carries a history buffer.
         if self._is_initialized and self._data_generation != self._data_generation_last_update:
-            self._fetch_physx_buffers()
+            self._fetch_physx_buffers(include_pose=False)
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         # resolve env_ids to warp array
@@ -505,7 +510,7 @@ class ContactSensor(BaseContactSensor):
             )
         return view
 
-    def _fetch_physx_buffers(self) -> None:
+    def _fetch_physx_buffers(self, include_pose: bool = True) -> None:
         """Refreshes the contact data from PhysX and lazily builds the warp views over it.
 
         The PhysX tensor getters allocate their output buffers once and refresh them in place on
@@ -514,6 +519,11 @@ class ContactSensor(BaseContactSensor):
         refreshes the same count and start-index buffers as ``get_contact_data``, the
         contact-point counts are staged into sensor-owned copies before the friction read
         overwrites them.
+
+        Args:
+            include_pose: Whether to also read the body poses when ``track_pose`` is enabled.
+                The per-step refresh in :meth:`update` skips them since only the contact
+                buffers carry the contact-loss transient. Defaults to True.
 
         Raises:
             RuntimeError: If an outer CUDA graph capture is active. The PhysX tensor reads
@@ -533,7 +543,7 @@ class ContactSensor(BaseContactSensor):
             self._force_matrix_flat = self._checked_view(force_matrix, self._force_matrix_flat, wp.vec3f)
 
         # PhysX returns (B*N, 7) float32 -> viewed as (B*N,) transformf, body-major
-        if self.cfg.track_pose:
+        if self.cfg.track_pose and include_pose:
             poses = self.body_physx_view.get_transforms()
             self._poses_flat = self._checked_view(poses, self._poses_flat, wp.transformf)
 

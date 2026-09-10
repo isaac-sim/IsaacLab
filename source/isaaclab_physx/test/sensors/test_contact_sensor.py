@@ -692,10 +692,10 @@ def test_contact_history_updates_at_sensor_period(
         fetch_count = 0
         original_fetch = contact_sensor._fetch_physx_buffers
 
-        def count_fetches() -> None:
+        def count_fetches(**kwargs) -> None:
             nonlocal fetch_count
             fetch_count += 1
-            original_fetch()
+            original_fetch(**kwargs)
 
         contact_sensor._fetch_physx_buffers = count_fetches
 
