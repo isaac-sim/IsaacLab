@@ -94,6 +94,7 @@ Table of Contents
    source/setup/quickstart
    source/setup/tutorial
    source/setup/demos
+   source/how-to/index
    source/migration/migrating_to_isaaclab_3-0
 
 
@@ -116,14 +117,6 @@ Table of Contents
    source/concepts/scene_data_providers
    source/concepts/visualization
    source/concepts/reinforcement_learning
-
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Guides
-   :titlesonly:
-
-   source/how-to/index
 
 
 .. toctree::
