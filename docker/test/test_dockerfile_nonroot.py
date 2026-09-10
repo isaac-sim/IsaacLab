@@ -147,12 +147,12 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     # so a venv beneath it is masked and isaaclab.sh execs a missing interpreter (exit 127).
     assert "ARG VENV_PATH_ARG=/opt/isaaclab-venv" in dockerfile_text
     assert "ENV VIRTUAL_ENV=${VENV_PATH_ARG}" in dockerfile_text
-    # ``uv sync`` honours the project's ``only-managed`` preference and would rebuild the venv
-    # against a downloaded interpreter the runtime stage never receives, leaving bin/python
-    # dangling. The image must pin uv to the system interpreter.
+    # ``uv sync`` honours the project's ``only-managed`` preference and would download its own
+    # interpreter and rebuild the venv against it rather than reuse the shipped one. The image
+    # must pin uv to the system interpreter, whose libpython3.12 it installs.
     assert "ENV UV_PYTHON=/usr/bin/python3.12" in dockerfile_text
     assert "ENV UV_PYTHON_PREFERENCE=only-system" in dockerfile_text
-    assert "COPY isaaclab.sh ./" in dockerfile_text
+    assert "COPY --chown=isaaclab:isaaclab isaaclab.sh ./" in dockerfile_text
     assert "'isaacsim' not in names" in dockerfile_text
     assert "'isaacsim-asset-isolated' in names" in dockerfile_text
     assert "'ovphysx' in names" in dockerfile_text
@@ -164,9 +164,9 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     # volume_mounts.py parses docker-compose.yaml at runtime, so both must reach the image -
     # either named individually or via a whole-tree copy.
     for required in ("docker/docker-compose.yaml", "docker/utils/volume_mounts.py"):
-        assert f"COPY {required} {required}" in dockerfile_text or "COPY . ." in dockerfile_text, (
-            f"{required} must be copied into the kit-less image"
-        )
+        assert (
+            f"COPY --chown=isaaclab:isaaclab {required} {required}" in dockerfile_text or "COPY . ." in dockerfile_text
+        ), f"{required} must be copied into the kit-less image"
 
 
 def test_container_test_runner_only_links_an_actual_isaac_sim_runtime():
