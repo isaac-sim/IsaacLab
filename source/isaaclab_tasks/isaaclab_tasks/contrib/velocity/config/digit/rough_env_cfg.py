@@ -20,7 +20,7 @@ from isaaclab.managers import (
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.schemas import UsdPhysicsCollisionCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
@@ -316,8 +316,6 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # events
         self.events.add_base_mass.params["asset_cfg"].body_names = "torso_base"
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_base"
-        # base_com carries a single preset branch; collapse it so the body name can be set.
-        self.events.base_com = self.events.base_com.default
         self.events.base_com.params["asset_cfg"].body_names = "torso_base"
         # The asset authors no articulation_props, so Newton filters every intra-articulation
         # shape pair -- 253 of them, exactly C(23,2) for its 23 colliding shapes -- and the legs

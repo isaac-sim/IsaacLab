@@ -45,7 +45,7 @@ from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 
@@ -109,7 +109,7 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
 
     @configclass
     class _Scene(InteractiveSceneCfg):
-        ground = AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg())
+        ground = AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg(color=(0.0, 0.0, 0.0)))
         light = AssetBaseCfg(
             prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9))
         )

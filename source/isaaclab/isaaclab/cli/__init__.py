@@ -19,11 +19,11 @@ from .commands.install import (
 from .commands.misc import (
     command_build_docs,
     command_build_isaacsim,
+    command_editor,
     command_new,
     command_run_docker,
     command_run_isaacsim,
     command_test,
-    command_vscode_settings,
 )
 from .utils import (
     ISAACLAB_ROOT,
@@ -149,7 +149,7 @@ def cli() -> None:
         epilog=(
             "commands:\n"
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
-            "                  (append -multigpu to a workflow to run it across GPUs)\n"
+            "                  (append _multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"
             "  train           Train an RL policy\n"
             "  train_multigpu  Train an RL policy across multiple GPUs\n"
@@ -244,10 +244,9 @@ def cli() -> None:
         help="Run the docker container helper script (docker/container.sh).",
     )
     parser.add_argument(
-        "-v",
-        "--vscode",
-        action="store_true",
-        help="Generate the VSCode settings file from template.",
+        "--editor",
+        nargs=argparse.REMAINDER,
+        help="Generate editor settings and import paths for the current workspace.",
     )
     parser.add_argument(
         "-d",
@@ -266,14 +265,20 @@ def cli() -> None:
         "--conda",
         nargs="?",
         const="env_isaaclab",
-        help="Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'.",
+        help=(
+            "Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'. "
+            "Downloaded Isaac Sim packages are not supported."
+        ),
     )
     parser.add_argument(
         "-u",
         "--uv",
         nargs="?",
         const="env_isaaclab",
-        help="Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'.",
+        help=(
+            "Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'. "
+            "Downloaded Isaac Sim packages are not supported."
+        ),
     )
     parser.add_argument(
         "--isaacsim_source",
@@ -301,8 +306,8 @@ def cli() -> None:
     elif args.isaacsim_source:
         command_build_isaacsim(args.isaacsim_source)
 
-    elif args.vscode:
-        command_vscode_settings()
+    elif args.editor is not None:
+        command_editor(args.editor)
 
     elif args.docs:
         command_build_docs()

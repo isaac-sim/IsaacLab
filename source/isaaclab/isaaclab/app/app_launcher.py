@@ -36,6 +36,7 @@ SimulationApp = getattr(isaacsim, "SimulationApp", None)
 from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
+from isaaclab.paths import ISAACLAB_ROOT
 from isaaclab.utils._device import set_cuda_device
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
@@ -326,6 +327,13 @@ class AppLauncher:
 
         # Integrate env-vars and input keyword args into simulation app config
         self._config_resolution(launcher_args)
+
+        # PyTorch may already have been imported while constructing simulation configs. Drain
+        # its deferred CUDA capability checks before Kit changes the set of CUDA devices that
+        # correspond to Vulkan-capable GPUs. Otherwise a queued check for a device that Kit
+        # filters out fails during the post-Kit ``set_device`` call (for example, device=1 with
+        # two CUDA GPUs but only GPU 0 attached to the display).
+        self._initialize_preloaded_torch_cuda()
 
         # Create SimulationApp, passing the resolved self._config to it for initialization
         self._create_app()
@@ -1148,6 +1156,21 @@ class AppLauncher:
 
         logger.info("Using device: %s", device)
 
+    def _initialize_preloaded_torch_cuda(self) -> None:
+        """Initialize CUDA before Kit when another import has already loaded PyTorch.
+
+        Importing PyTorch schedules capability checks for every CUDA device it can see. Kit may
+        subsequently restrict CUDA to the GPUs that its Vulkan backend can use, leaving those
+        queued checks with stale device indices. Do not import PyTorch here: when it has not
+        already been loaded, the normal post-Kit initialization path remains preferable.
+        """
+        if self._deferred_cuda_device_id is None:
+            return
+
+        torch = sys.modules.get("torch")
+        if torch is not None and not torch.cuda.is_initialized():
+            torch.cuda.init()
+
     def _set_deferred_cuda_device(self) -> None:
         """Set the current CUDA device after Kit startup."""
         if self._deferred_cuda_device_id is None:
@@ -1180,7 +1203,7 @@ class AppLauncher:
                 ) from e
             kit_app_exp_path = os.path.join(os.path.dirname(_isaacsim_for_paths.__file__), "apps")
             os.environ["EXP_PATH"] = kit_app_exp_path
-        isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
+        isaaclab_app_exp_path = str(ISAACLAB_ROOT / "apps")
         # For Isaac Sim 4.5 compatibility, we use the 4.5 app files in a different folder
         # if launcher_args.get("use_isaacsim_45", False):
         if self.is_isaac_sim_version_5():
@@ -1299,7 +1322,12 @@ class AppLauncher:
                 self._kit_args.append(argument)
 
         # Select the renderer by CUDA index; the trailing comma keeps the setting string-typed.
-        if launcher_args.get("multi_gpu") is False:
+        # XR streams a single stereo swapchain that the CloudXR compositor imports, so the
+        # renderer has to stay on one known device there too -- otherwise the compositor and
+        # the renderer can end up on different GPUs and the headset receives noise. This only
+        # applies once a CUDA device has actually been selected: ``--xr`` on its own resolves
+        # to ``cpu``, where there is no simulation GPU to align to, so Kit's own choice stands.
+        if launcher_args.get("multi_gpu") is False or (self._xr and "cuda" in self.device):
             argument = f"--/renderer/multiGpu/activeCudaGpus={self.device_id},"
             setting = argument.partition("=")[0]
             if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):

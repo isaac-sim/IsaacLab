@@ -5,18 +5,19 @@
 
 """Misc commands"""
 
+import argparse
 import platform
 import shutil
 import sys
 from pathlib import Path
 
 from ..utils import (
+    ISAAC_SIM_SOURCE_BUILD_MARKER,
     ISAACLAB_ROOT,
     extract_isaacsim_exe,
     is_windows,
     print_error,
     print_info,
-    print_warning,
     run_command,
     run_python_command,
 )
@@ -46,10 +47,6 @@ def command_new(new_args: list[str]) -> None:
         new_args: Arguments forwarded to the template generator CLI.
     """
 
-    print_info("Installing template dependencies...")
-    reqs = ISAACLAB_ROOT / "tools" / "template" / "requirements.txt"
-    run_python_command("pip", ["install", "-q", "-r", str(reqs)], is_module=True)
-
     print_info("Running template generator...")
     cli_script = ISAACLAB_ROOT / "tools" / "template" / "cli.py"
     run_python_command(cli_script, new_args)
@@ -64,20 +61,26 @@ def command_test(test_args: list[str]) -> None:
     run_python_command("-m", ["pytest", str(ISAACLAB_ROOT / "tools")] + test_args)
 
 
-def command_vscode_settings() -> None:
-    """Update the vscode settings from template and Isaac Sim settings"""
+def command_editor(editor_args: list[str], project_dir: Path | None = None) -> None:
+    """Generate editor settings and import paths for a workspace.
 
-    print_info("Setting up vscode settings...")
+    Args:
+        editor_args: Editor setup command arguments.
+        project_dir: Workspace root. Defaults to the current directory.
+    """
+    parser = argparse.ArgumentParser(prog="isaaclab --editor", description="Set up editor paths and settings.")
+    parser.add_argument("--isaac_path", help="Absolute path to the Isaac Sim installation.")
+    parser.add_argument("--verbose", action="store_true", help="Print discovered extension paths.")
+    args = parser.parse_args(editor_args)
 
-    # Path to setup_vscode.py.
-    setup_vscode_script = ISAACLAB_ROOT / ".vscode" / "tools" / "setup_vscode.py"
+    # The installation CLI must start before Isaac Lab's runtime dependencies are installed.
+    from ...utils.editor import setup_editor
 
-    # Check if the file exists before attempting to run it.
-    if setup_vscode_script.exists():
-        run_python_command(setup_vscode_script, [])
-        print_info("VS Code settings generated successfully.")
-    else:
-        print_warning("Unable to find the script 'setup_vscode.py'. Aborting vscode settings setup.")
+    print_info("Setting up editor paths and settings...")
+    try:
+        setup_editor(project_dir or Path.cwd(), isaac_path=args.isaac_path, verbose=args.verbose)
+    except ValueError as error:
+        parser.error(str(error))
 
 
 def command_build_docs() -> None:
@@ -163,6 +166,7 @@ def command_build_isaacsim(source_path: str) -> None:
         if is_windows():
             print_info("Enable Windows Developer Mode or run from an elevated terminal, then retry.")
         raise SystemExit(1) from error
+    (release_dir / ISAAC_SIM_SOURCE_BUILD_MARKER).touch()
     print_info(f"Linked {link_path} -> {release_dir}")
     _repoint_source_build_prebundles()
 
@@ -191,7 +195,7 @@ def _resolve_isaacsim_release_dir(isaacsim_root: Path) -> Path:
 
 def _repoint_source_build_prebundles() -> None:
     """Keep Isaac Sim's prebundled packages from shadowing the active environment."""
-    # ``install`` imports ``command_vscode_settings`` from this module, so defer this import until
+    # ``install`` imports ``command_editor`` from this module, so defer this import until
     # both command modules are initialized. Reuse the same protection as the legacy installer.
     from .install import _repoint_prebundle_packages
 

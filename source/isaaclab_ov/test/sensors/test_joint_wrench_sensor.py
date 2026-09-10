@@ -43,9 +43,9 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
+from isaaclab.utils import configclass  # noqa: E402
 from isaaclab.utils import math as math_utils  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR  # noqa: E402
-from isaaclab.utils.configclass import configclass  # noqa: E402
 
 from isaaclab_assets.robots.ant import ANT_CFG  # noqa: E402
 

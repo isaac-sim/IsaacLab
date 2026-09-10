@@ -62,8 +62,8 @@ parser.add_argument(
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli = parser.parse_args()
+# parse the arguments, forwarding unrecognized ones as Hydra-style task config overrides
+args_cli, hydra_overrides = parser.parse_known_args()
 
 # launch the simulator
 app_launcher = AppLauncher(args_cli)
@@ -85,7 +85,7 @@ from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3Spac
 from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode, RecorderTerm, RecorderTermCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.datasets import HDF5DatasetFileHandler
 
 import isaaclab_mimic.envs  # noqa: F401
@@ -371,7 +371,7 @@ def main():
         raise ValueError("Task/env name was not specified nor found in the dataset.")
 
     # parse configuration
-    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs)
+    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs, overrides=hydra_overrides)
     env_cfg.env_name = env_name
 
     # extract success checking function to invoke manually

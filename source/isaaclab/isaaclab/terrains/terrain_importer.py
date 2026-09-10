@@ -113,7 +113,6 @@ class TerrainImporter:
             # configure the origins in a grid
             self.configure_env_origins()
         elif self.cfg.terrain_type == "plane":
-            # load the plane
             self.import_ground_plane("terrain")
             # configure the origins in a grid
             self.configure_env_origins()
@@ -192,13 +191,14 @@ class TerrainImporter:
     Operations - Import.
     """
 
-    def import_ground_plane(self, name: str, size: tuple[float, float] = (2.0e6, 2.0e6)):
+    def import_ground_plane(self, name: str, size: tuple[float, float] | None = None):
         """Add a plane to the terrain importer.
 
         Args:
             name: The name of the imported terrain. This name is used to create the USD prim
                 corresponding to the terrain.
-            size: The size of the plane. Defaults to (2.0e6, 2.0e6).
+            size: The visual size of the plane [m]. If None, the visual mesh covers the configured
+                environment grid with a 100 m minimum. The collision plane remains infinite.
 
         Raises:
             ValueError: If a terrain with the same name already exists.
@@ -213,17 +213,19 @@ class TerrainImporter:
         # store the mesh name
         self.terrain_prim_paths.append(prim_path)
 
+        if size is None:
+            size = self._compute_ground_plane_size()
+
         # obtain ground plane color from the configured visual material
-        color = (0.0, 0.0, 0.0)
+        color = None
         if self.cfg.visual_material is not None:
             material = self.cfg.visual_material.to_dict()
-            # defaults to the `GroundPlaneCfg` color if diffuse color attribute is not found
             if "diffuse_color" in material:
                 color = material["diffuse_color"]
             else:
                 logger.warning(
                     "Visual material specified for ground plane but no diffuse color found."
-                    " Using default color: (0.0, 0.0, 0.0)"
+                    " Preserving the ground plane's authored material."
                 )
 
         # get the mesh
@@ -258,6 +260,13 @@ class TerrainImporter:
         create_prim_from_mesh(
             prim_path, mesh, visual_material=self.cfg.visual_material, physics_material=self.cfg.physics_material
         )
+
+    def _compute_ground_plane_size(self) -> tuple[float, float]:
+        """Compute a bounded visual plane size that covers the environment grid [m]."""
+        num_rows = int(np.ceil(self.cfg.num_envs / np.sqrt(self.cfg.num_envs)))
+        num_cols = int(np.ceil(self.cfg.num_envs / num_rows))
+        spacing = self.cfg.env_spacing or 0.0
+        return (max(100.0, (num_rows + 1) * spacing), max(100.0, (num_cols + 1) * spacing))
 
     def _is_heightfield_collider_requested(self, cfg: TerrainGeneratorCfg) -> bool:
         """Check whether the generated terrain should be collided against as a heightfield.
@@ -402,8 +411,8 @@ class TerrainImporter:
         """Compute the origins of the environments in a grid based on configured spacing."""
         from isaaclab.cloner import grid_transforms
 
-        env_origins, _ = grid_transforms(num_envs, env_spacing, device=self.device)
-        return env_origins
+        env_origins, _ = grid_transforms(num_envs, env_spacing)
+        return torch.as_tensor(env_origins, device=self.device)
 
     """
     Deprecated.

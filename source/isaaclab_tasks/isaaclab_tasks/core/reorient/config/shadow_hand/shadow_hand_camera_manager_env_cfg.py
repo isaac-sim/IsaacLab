@@ -8,7 +8,8 @@
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
@@ -22,8 +23,17 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg
     ShadowHandManagerSceneCfg,
 )
 from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import ReorientRobotObsCfg
+from isaaclab_tasks.utils import preset
 
-from isaaclab_assets.robots.shadow_hand import SHADOW_FINGERTIP_BODY_NAMES
+from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES
+
+_PRETRAINED_CHECKPOINT_DIR = f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl"
+_MANAGER_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT = (
+    f"{_PRETRAINED_CHECKPOINT_DIR}/Isaac-Reorient-Cube-Shadow-Camera_newtonmjwarp_newton_rsl_rl_feature_extractor.pth"
+)
+_MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT = (
+    f"{_PRETRAINED_CHECKPOINT_DIR}/Isaac-Reorient-Cube-Shadow-Camera_physx_rtx_rsl_rl_feature_extractor.pth"
+)
 
 
 @configclass
@@ -52,7 +62,11 @@ class ShadowHandCameraObservationsCfg:
         """
 
         goal_pose = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
-        last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
+        # No action_name, deliberately: omitting it returns the WHOLE action vector, whereas
+        # naming a term returns only that term's raw actions. This hand's twenty motors are
+        # split across a joint term and a tendon term, so naming either would feed the policy
+        # half of its own last action.
+        last_action = ObsTerm(func=mdp.last_action)
         camera_features = ObsTerm(
             func=mdp.ShadowHandCameraFeatures,
             params={
@@ -73,9 +87,10 @@ class ShadowHandCameraObservationsCfg:
         fingertip_wrench = ObsTerm(
             func=mdp.body_incoming_wrench,
             scale=10.0,
-            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=SHADOW_FINGERTIP_BODY_NAMES)},
+            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=FINGERTIP_NAMES)},
         )
-        last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
+        # No action_name: this hand splits its motors across a joint term and a tendon term.
+        last_action = ObsTerm(func=mdp.last_action)
         camera_features = ObsTerm(func=mdp.shadow_hand_camera_cached_features)
 
     policy: CameraPolicyCfg = CameraPolicyCfg()
@@ -89,7 +104,15 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
     # only the fields that differ from ShadowHandManagerEnvCfg are overridden
     scene: ShadowHandCameraManagerSceneCfg = ShadowHandCameraManagerSceneCfg()
     observations: ShadowHandCameraObservationsCfg = ShadowHandCameraObservationsCfg()
-    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg()
+    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(
+        pretrained_checkpoint=preset(  # type: ignore[arg-type]
+            default=_MANAGER_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
+            newton_mjwarp=_MANAGER_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
+            isaacsim_physx=_MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+            ovphysx=_MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+            physx=_MANAGER_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+        )
+    )
 
     def __post_init__(self):
         super().__post_init__()

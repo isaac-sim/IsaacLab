@@ -17,6 +17,9 @@ import pytest
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+_LEGACY_LIFECYCLE_ENTRY_POINTS = {"warmup": "warmup_gpu", "destroy": "release"}
+_CURRENT_LIFECYCLE_ENTRY_POINTS = {"warmup": "warmup", "destroy": "destroy"}
+
 
 @pytest.fixture(autouse=True)
 def _close_test_views():
@@ -467,6 +470,7 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
     from isaaclab_ov.physics import OvPhysxManager
 
     events = []
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _LEGACY_LIFECYCLE_ENTRY_POINTS)
 
     class FakeWriteFloorOp:
         def __init__(self, ordinal):
@@ -542,6 +546,201 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
         ("release",),
         ("destroy",),
     ]
+
+
+@pytest.mark.parametrize(
+    ("entry_points", "expected_calls"),
+    [
+        (_LEGACY_LIFECYCLE_ENTRY_POINTS, ["warmup_gpu", "release"]),
+        (_CURRENT_LIFECYCLE_ENTRY_POINTS, ["warmup", "destroy"]),
+    ],
+)
+def test_manager_uses_version_selected_lifecycle_apis(monkeypatch, entry_points, expected_calls):
+    """The selected lifecycle generation controls both entry points."""
+    from isaaclab_ov.physics import OvPhysxManager
+    from isaaclab_ov.physics import ovphysx_manager as om_mod
+
+    calls = []
+    physx = SimpleNamespace(
+        warmup=lambda: calls.append("warmup"),
+        warmup_gpu=lambda: calls.append("warmup_gpu"),
+        destroy=lambda: calls.append("destroy"),
+        release=lambda: calls.append("release"),
+    )
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", entry_points)
+
+    OvPhysxManager._warmup_physx(physx)
+    OvPhysxManager._destroy_physx(physx)
+
+    assert calls == expected_calls
+
+
+@pytest.mark.parametrize("operation", ["warmup", "destroy"])
+def test_manager_rejects_missing_lifecycle_api(monkeypatch, operation):
+    """A runtime that lacks its selected lifecycle entry point reports it."""
+    from isaaclab_ov.physics import OvPhysxManager
+    from isaaclab_ov.physics import ovphysx_manager as om_mod
+
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _CURRENT_LIFECYCLE_ENTRY_POINTS)
+    entry_point = _CURRENT_LIFECYCLE_ENTRY_POINTS[operation]
+    lifecycle_method = getattr(OvPhysxManager, f"_{operation}_physx")
+    with pytest.raises(AttributeError, match=rf"selected {entry_point}\(\) lifecycle entry point"):
+        lifecycle_method(SimpleNamespace())
+
+
+def test_manager_releases_legacy_owners_after_release_error(monkeypatch):
+    """The 0.5.11 path preserves its unconditional owner cleanup on failure."""
+    from isaaclab_ov.physics import OvPhysxManager
+    from isaaclab_ov.physics import ovphysx_manager as om_mod
+
+    events = []
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _LEGACY_LIFECYCLE_ENTRY_POINTS)
+
+    class FakePhysX:
+        def reset_stage(self):
+            events.append("reset")
+            return 23
+
+        def wait_op(self, operation):
+            events.append(("wait", operation))
+
+        def release(self):
+            events.append("release")
+            raise RuntimeError("legacy release failed")
+
+    class FakeStage:
+        def destroy(self):
+            events.append("destroy_stage")
+
+    previous_physx = OvPhysxManager._physx
+    previous_ovstage = OvPhysxManager._ovstage
+    OvPhysxManager._physx = FakePhysX()
+    OvPhysxManager._ovstage = FakeStage()
+    monkeypatch.setattr(OvPhysxManager, "_close_physx_views", staticmethod(lambda value: events.append("close_views")))
+    try:
+        with pytest.raises(RuntimeError, match="legacy release failed"):
+            OvPhysxManager._release_physx()
+
+        assert OvPhysxManager._physx is None
+        assert OvPhysxManager._ovstage is None
+        assert events == ["close_views", "reset", ("wait", 23), "release", "destroy_stage"]
+    finally:
+        OvPhysxManager._physx = previous_physx
+        OvPhysxManager._ovstage = previous_ovstage
+
+
+def test_manager_retries_current_destroy_before_releasing_owners(monkeypatch):
+    """A pre-teardown destroy failure preserves the runtime and stage for retry."""
+    from isaaclab_ov.physics import OvPhysxManager
+    from isaaclab_ov.physics import ovphysx_manager as om_mod
+
+    events = []
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _CURRENT_LIFECYCLE_ENTRY_POINTS)
+
+    class FakePhysX:
+        fail_destroy = True
+
+        @property
+        def handle(self):
+            return 17
+
+        def reset_stage(self):
+            events.append("reset")
+            return 23
+
+        def wait_op(self, operation):
+            events.append(("wait", operation))
+
+        def destroy(self):
+            events.append("destroy")
+            if self.fail_destroy:
+                raise RuntimeError("destroy did not reach native teardown")
+
+    class FakeStage:
+        def destroy(self):
+            events.append("destroy_stage")
+
+    physx = FakePhysX()
+    stage = FakeStage()
+    previous_physx = OvPhysxManager._physx
+    previous_ovstage = OvPhysxManager._ovstage
+    OvPhysxManager._physx = physx
+    OvPhysxManager._ovstage = stage
+    monkeypatch.setattr(OvPhysxManager, "_close_physx_views", staticmethod(lambda value: events.append("close_views")))
+    try:
+        with pytest.raises(RuntimeError, match="did not reach native teardown"):
+            OvPhysxManager._release_physx()
+
+        assert OvPhysxManager._physx is physx
+        assert OvPhysxManager._ovstage is stage
+
+        physx.fail_destroy = False
+        OvPhysxManager._release_physx()
+
+        assert OvPhysxManager._physx is None
+        assert OvPhysxManager._ovstage is None
+        assert events == [
+            "close_views",
+            "reset",
+            ("wait", 23),
+            "destroy",
+            "close_views",
+            "reset",
+            ("wait", 23),
+            "destroy",
+            "destroy_stage",
+        ]
+    finally:
+        OvPhysxManager._physx = previous_physx
+        OvPhysxManager._ovstage = previous_ovstage
+
+
+def test_manager_releases_owners_after_terminal_destroy_error(monkeypatch):
+    """A destroy error after terminal teardown does not retain dead owners."""
+    from isaaclab_ov.physics import OvPhysxManager
+    from isaaclab_ov.physics import ovphysx_manager as om_mod
+
+    events = []
+    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _CURRENT_LIFECYCLE_ENTRY_POINTS)
+
+    class FakePhysX:
+        terminal = False
+
+        @property
+        def handle(self):
+            if self.terminal:
+                raise RuntimeError("PhysX instance has been destroyed")
+            return 17
+
+        def reset_stage(self):
+            return 23
+
+        def wait_op(self, operation):
+            pass
+
+        def destroy(self):
+            self.terminal = True
+            raise RuntimeError("native teardown reported a terminal failure")
+
+    class FakeStage:
+        def destroy(self):
+            events.append("destroy_stage")
+
+    previous_physx = OvPhysxManager._physx
+    previous_ovstage = OvPhysxManager._ovstage
+    OvPhysxManager._physx = FakePhysX()
+    OvPhysxManager._ovstage = FakeStage()
+    monkeypatch.setattr(OvPhysxManager, "_close_physx_views", staticmethod(lambda value: None))
+    try:
+        with pytest.raises(RuntimeError, match="terminal failure"):
+            OvPhysxManager._release_physx()
+
+        assert OvPhysxManager._physx is None
+        assert OvPhysxManager._ovstage is None
+        assert events == ["destroy_stage"]
+    finally:
+        OvPhysxManager._physx = previous_physx
+        OvPhysxManager._ovstage = previous_ovstage
 
 
 def test_manager_destroys_ovstage_when_population_fails(monkeypatch):

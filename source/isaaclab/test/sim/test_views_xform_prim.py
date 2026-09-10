@@ -186,6 +186,36 @@ def test_prim_ordering_follows_creation_order(device):
 
 
 @pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize(
+    ("scale_precision", "scale_value"),
+    [
+        (UsdGeom.XformOp.PrecisionHalf, Gf.Vec3h(0.25, 0.5, 0.75)),
+        (UsdGeom.XformOp.PrecisionFloat, Gf.Vec3f(0.01, 0.02, 0.03)),
+        (UsdGeom.XformOp.PrecisionDouble, Gf.Vec3d(0.01, 0.02, 0.03)),
+    ],
+    ids=["half3", "float3", "double3"],
+)
+def test_local_scales_accept_all_usd_precisions(device, scale_precision, scale_value):
+    """Scale reads normalize every legal USD precision without changing the FP32 view contract."""
+    stage = sim_utils.get_current_stage()
+    prim = stage.DefinePrim("/World/ScaledPrim", "Xform")
+    xformable = UsdGeom.Xformable(prim)
+    xformable.AddTranslateOp().Set(Gf.Vec3d(0.0))
+    xformable.AddOrientOp(UsdGeom.XformOp.PrecisionFloat).Set(Gf.Quatf(1.0, Gf.Vec3f(0.0)))
+    xformable.AddScaleOp(scale_precision).Set(scale_value)
+
+    view = FrameView("/World/ScaledPrim", device=device)
+    assert isinstance(prim.GetAttribute("xformOp:scale").Get(), type(scale_value))
+
+    expected = torch.tensor([[float(value) for value in scale_value]], dtype=torch.float32, device=device)
+    scales = view.get_local_scales()
+    assert scales.shape == (1, 3)
+    assert scales.warp.dtype == wp.float32
+    assert scales.torch.dtype == torch.float32
+    torch.testing.assert_close(scales.torch, expected, atol=1e-6, rtol=0)
+
+
+@pytest.mark.parametrize("device", test_devices())
 def test_standardize_transform_op(device):
     """FrameView standardizes a prim with xformOp:transform to translate/orient/scale."""
     if device == "cuda" and not torch.cuda.is_available():

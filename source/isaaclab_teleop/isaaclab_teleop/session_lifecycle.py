@@ -29,6 +29,62 @@ from .control_events import _NO_OP_EVENTS, ControlEvents
 from .isaac_teleop_cfg import IsaacTeleopCfg
 from .teleop_message_processor import TeleopMessageProcessor
 
+# Opt-in acceptance of the NVIDIA CloudXR license, mirroring the ``OMNI_KIT_ACCEPT_EULA``
+# escape hatch Kit offers for the Omniverse license.
+_CXR_ACCEPT_EULA_ENV = "ISAACLAB_CXR_ACCEPT_EULA"
+# The spellings ``OMNI_KIT_ACCEPT_EULA`` and the CloudXR prompt itself both accept.
+_CXR_ACCEPT_EULA_VALUES = frozenset({"y", "yes", "1"})
+
+
+def cloudxr_eula_accepted() -> bool:
+    """Whether ``ISAACLAB_CXR_ACCEPT_EULA`` opts into the NVIDIA CloudXR license.
+
+    The CloudXR license is separate from the Omniverse one. Without this opt-in the
+    runtime prompts for it on stdin, which fails outright when no terminal is attached,
+    so headless, container and CI runs cannot start. ``y``, ``yes`` and ``1`` accept it,
+    case-insensitively and ignoring surrounding whitespace -- the spellings
+    ``OMNI_KIT_ACCEPT_EULA`` and the CloudXR prompt itself both take. Leaving the
+    variable unset, or setting any other value, keeps the interactive prompt.
+
+    Every CloudXR launch path shares this helper -- the session lifecycle here and the
+    process-scoped launcher in ``teleop_replay_agent.py`` -- so the variable behaves the
+    same whichever script starts the runtime.
+
+    Returns:
+        Whether the CloudXR license has been accepted up front.
+    """
+    return os.environ.get(_CXR_ACCEPT_EULA_ENV, "").strip().lower() in _CXR_ACCEPT_EULA_VALUES
+
+
+# The CloudXR runtime accepts at most one of these; setting both is rejected outright.
+_CXR_GPU_INDEX_ENV_VARS = ("NV_CXR_GPU_INDEX_CUDA", "NV_CXR_GPU_INDEX_VULKAN")
+
+
+def _env_file_pins_gpu_index(env_file: str | None) -> bool:
+    """Whether a CloudXR ``.env`` profile already selects a GPU index."""
+    if not env_file:
+        return False
+    try:
+        with open(env_file, encoding="utf-8") as handle:
+            lines = handle.readlines()
+    except OSError:
+        return False
+    return any(line.strip().split("=", 1)[0].strip() in _CXR_GPU_INDEX_ENV_VARS for line in lines)
+
+
+def _renderer_cuda_index() -> int | None:
+    """CUDA index the Kit renderer is pinned to, or ``None`` when it is not pinned."""
+    try:
+        import carb
+    except ImportError:
+        return None
+    setting = carb.settings.get_settings().get("/renderer/multiGpu/activeCudaGpus")
+    if not setting:
+        return None
+    first = str(setting).split(",")[0].strip()
+    return int(first) if first.isdigit() else None
+
+
 if TYPE_CHECKING:
     from .haptic_feedback import HapticFeedbackCfg
 
@@ -1294,6 +1350,11 @@ class TeleopSessionLifecycle:
         Auto-launch is skipped when ``auto_launch_cloudxr`` is ``False``
         or the ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` environment variable is
         set (the env var takes precedence).
+
+        The NVIDIA CloudXR license is separate from the Omniverse one and is
+        otherwise prompted for on stdin, which fails outright when no terminal
+        is attached. ``ISAACLAB_CXR_ACCEPT_EULA=1`` accepts it up front so
+        headless, container and CI runs can start.
         """
         if self._cloudxr_launcher is not None:
             return
@@ -1310,12 +1371,42 @@ class TeleopSessionLifecycle:
 
         from isaacteleop.cloudxr import CloudXRLauncher as _CloudXRLauncher
 
+        self._pin_cloudxr_to_render_device()
+
         self._cloudxr_launcher = _CloudXRLauncher(
             install_dir=str(Path.home() / ".cloudxr"),
             env_config=self._cloudxr_env_file,
-            accept_eula=False,
+            accept_eula=cloudxr_eula_accepted(),
         )
         logger.info("CloudXR runtime auto-launched")
+
+    def _pin_cloudxr_to_render_device(self) -> None:
+        """Point the CloudXR runtime at the GPU the frames are rendered on.
+
+        Left to itself the runtime takes the first Vulkan physical device. That
+        enumeration is unrelated to the CUDA ordering Isaac Lab selects the
+        simulation and renderer devices with, so on a multi-GPU host the
+        compositor routinely lands on a different card than the one holding the
+        rendered swapchain. Nothing reports an error -- the client connects, the
+        session starts and the encoder logs normal frame timings -- but the
+        headset only shows noise.
+
+        An explicit choice, in the process environment or in the
+        ``--cloudxr_env`` profile, is left untouched.
+        """
+        if any(name in os.environ for name in _CXR_GPU_INDEX_ENV_VARS):
+            return
+        if _env_file_pins_gpu_index(self._cloudxr_env_file):
+            return
+
+        index = _renderer_cuda_index()
+        if index is None and self._device.type == "cuda":
+            index = self._device.index
+        if index is None:
+            return
+
+        os.environ["NV_CXR_GPU_INDEX_CUDA"] = str(index)
+        logger.info("Pinned the CloudXR runtime to CUDA device %d", index)
 
     # ------------------------------------------------------------------
     # OpenXR handle acquisition
