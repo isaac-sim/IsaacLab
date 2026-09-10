@@ -440,9 +440,14 @@ class NewtonSiteFrameView(BaseFrameView):
                 if per_world:
                     if NewtonManager._world_xforms is None:
                         raise RuntimeError(f"FrameView '{self._prim_path}' needs Newton cloned-world transforms.")
-                    world_ids = range(len(NewtonManager._world_xforms)) if env_ids is None else env_ids
+                    num_worlds = len(NewtonManager._world_xforms)
+                    world_ids = range(num_worlds) if env_ids is None else env_ids
                     for world_id in world_ids:
-                        world_xform = NewtonManager._world_xforms[world_id]
+                        # The flat (non-replicated) builder has exactly one shared world
+                        # regardless of environment count, so env-indexed callers (env_ids
+                        # from a per-environment site spec) must fall back to that single
+                        # world instead of indexing world_id (an env index) out of bounds.
+                        world_xform = NewtonManager._world_xforms[world_id if num_worlds > 1 else 0]
                         site_bodies.append(WORLD_BODY_INDEX)
                         site_locals.append([float(v) for v in wp.transform_multiply(world_xform, xform)])
                         site_scales.append(scale)
