@@ -13,10 +13,10 @@
 # Scheduled workflow — must live on the repository's default branch for the
 # cron to register. See ``.github/workflows/README.md``.
 #
-# Adding a branch to the nightly set is a one-line edit to ``env.CRON_BRANCHES``
-# below. Each target branch uses its own ``tools/changelog/cli.py`` (the
-# same copy the PR gate already runs), so the nightly compile honours the
-# same rules that validated the fragments.
+# Scheduled runs combine ``env.CRON_BRANCHES`` with every remote
+# ``release/*`` branch that carries ``tools/changelog/cli.py``. This picks up
+# new compiler-enabled release branches automatically while leaving historical
+# branches that predate the fragment system untouched.
 #
 # The push uses a short-lived GitHub App installation token minted from
 # ``CHANGELOG_APP_ID`` + ``CHANGELOG_APP_PRIVATE_KEY`` (repo secrets). The
@@ -30,11 +30,9 @@
 
 name: Nightly Changelog Compilation
 
-# Branches the nightly cron compiles. Single source of truth — include only
-# active branches that receive changelog fragments. Each branch must carry
-# ``tools/changelog/cli.py`` and the
-# isaaclab-bot App must be in its branch-ruleset bypass list.
-# Surrounding whitespace per entry is stripped by the resolver below.
+# Static branches the nightly cron compiles. The resolver also discovers every
+# remote ``release/*`` branch that carries ``tools/changelog/cli.py``. Every
+# resolved branch must allow the isaaclab-bot App to bypass its ruleset.
 env:
   CRON_BRANCHES: develop
 
@@ -50,7 +48,7 @@ on:
         # develop) without needing to update the workflow. A branch
         # that lacks ``tools/changelog/cli.py`` fails the verify step
         # below with a clear error, which is the desired failure mode.
-        description: 'Branch to compile (e.g. develop, release/3.0.0-beta2). Must carry tools/changelog/cli.py.'
+        description: 'Branch to compile (e.g. develop, release/3.0.0). Must carry tools/changelog/cli.py.'
         required: true
         type: string
       dry_run:
@@ -66,9 +64,8 @@ permissions:
 
 jobs:
   resolve-branches:
-    # CSV → JSON array bridge. ``workflow_dispatch`` inputs can only be
-    # string / bool / choice, so the branch list arrives as a comma-
-    # separated string; the matrix below needs a JSON list to fan out.
+    # Static/manual branches plus supported ``release/*`` refs → JSON array.
+    # ``workflow_dispatch`` remains exactly one explicitly requested branch.
     name: Resolve branch list
     runs-on: ubuntu-latest
     timeout-minutes: 1
@@ -77,18 +74,39 @@ jobs:
     steps:
       - id: b
         env:
-          # Schedule → the CRON_BRANCHES list. Manual → the single branch
-          # the maintainer entered. The two paths are intentionally
-          # asymmetric: cron is the configured set, manual is exactly one
-          # branch (required input).
+          # Schedule → static branches plus supported remote ``release/*``
+          # refs. Manual → exactly the branch the maintainer entered.
           BRANCHES: ${{ github.event_name == 'schedule' && env.CRON_BRANCHES || inputs.branch }}
           # ``EVENT_NAME`` mirrors ``github.event_name`` so the guard below
           # branches on it without re-interpolating into the shell.
           EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          API_TOKEN: ${{ github.token }}
         run: |
-          # CSV → JSON array, trimming surrounding whitespace per entry.
-          # Manual produces a 1-element array; cron produces N elements.
-          arr=$(echo "$BRANCHES" | tr ',' '\n' | xargs -n1 | jq -R . | jq -s -c .)
+          branches=$(echo "$BRANCHES" | tr ',' '\n' | xargs -n1)
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            release_branches=$(git ls-remote --heads "https://github.com/$REPOSITORY.git" 'refs/heads/release/*' \
+              | awk '{sub(/^refs\/heads\//, "", $2); print $2}')
+            while IFS= read -r branch; do
+              [ -z "$branch" ] && continue
+              encoded_branch=$(jq -rn --arg branch "$branch" '$branch | @uri')
+              http_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+                --header "Authorization: Bearer $API_TOKEN" \
+                --header 'Accept: application/vnd.github+json' \
+                --header 'X-GitHub-Api-Version: 2022-11-28' \
+                "https://api.github.com/repos/$REPOSITORY/contents/tools/changelog/cli.py?ref=$encoded_branch")
+              case "$http_status" in
+                200) branches=$(printf '%s\n%s\n' "$branches" "$branch") ;;
+                404) echo "::notice::Skipping $branch because it predates the changelog compiler." ;;
+                *)
+                  echo "::error::GitHub Contents API returned HTTP $http_status for $branch."
+                  exit 1
+                  ;;
+              esac
+            done <<< "$release_branches"
+          fi
+          # Trim, de-duplicate, and convert the resolved branches to a JSON array.
+          arr=$(printf '%s\n' "$branches" | sed '/^$/d' | sort -u | jq -R . | jq -s -c .)
           # Manual trigger contract: exactly one branch. A maintainer who
           # pastes a comma-separated list into the dispatch form should
           # see a clear error, not a silent multi-branch fan-out.
@@ -114,7 +132,7 @@ jobs:
         branch: ${{ fromJson(needs.resolve-branches.outputs.branches) }}
     concurrency:
       # Per-branch group: two runs against the same ref queue, while
-      # manually requested refs can compile independently.
+      # different refs can compile independently.
       group: nightly-changelog-${{ matrix.branch }}
       cancel-in-progress: false
 
