@@ -122,6 +122,87 @@ def test_rendering_test_utils_maps_newton_label_to_newton_mjwarp() -> None:
     assert _physics_preset_name("ovphysx") == "ovphysx"
 
 
+def test_kitless_rendering_baselines_do_not_require_isaac_sim(tmp_path, monkeypatch) -> None:
+    """Kitless renderers must resolve their baseline without Isaac Sim packages."""
+    import sys
+
+    import pytest
+
+    pytest.importorskip("torch")  # rendering_test_utils imports torch eagerly
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import rendering_test_utils
+    finally:
+        sys.path.pop(0)
+
+    golden_image_path = tmp_path / "cartpole" / "newton-newton_renderer-rgb.png"
+    golden_image_path.parent.mkdir()
+    golden_image_path.touch()
+    monkeypatch.setattr(rendering_test_utils, "_GOLDEN_IMAGES_DIRECTORY", str(tmp_path))
+
+    assert rendering_test_utils._resolve_golden_image_path("cartpole", "newton", "newton_renderer", "rgb") == str(
+        golden_image_path
+    )
+
+
+def test_newton_rendering_baselines_use_newton_version(tmp_path, monkeypatch) -> None:
+    """Newton renderers must prefer an available versioned baseline."""
+    import sys
+    import types
+
+    import pytest
+
+    pytest.importorskip("torch")  # rendering_test_utils imports torch eagerly
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import rendering_test_utils
+    finally:
+        sys.path.pop(0)
+
+    golden_image_path = tmp_path / "cartpole" / "newton-newton_renderer-rgb-newton-1.5.png"
+    golden_image_path.parent.mkdir()
+    golden_image_path.touch()
+    newton_module = types.ModuleType("newton")
+    newton_module.__version__ = "1.5.0.dev20260901"
+    monkeypatch.setitem(sys.modules, "newton", newton_module)
+    monkeypatch.setattr(rendering_test_utils, "_GOLDEN_IMAGES_DIRECTORY", str(tmp_path))
+
+    assert rendering_test_utils._resolve_golden_image_path("cartpole", "newton", "newton_renderer", "rgb") == str(
+        golden_image_path
+    )
+
+
+def test_isaac_rtx_rendering_baselines_use_sim_version(tmp_path, monkeypatch) -> None:
+    """Isaac RTX renderers must prefer an available versioned baseline."""
+    import sys
+    import types
+
+    import pytest
+    from packaging.version import Version
+
+    pytest.importorskip("torch")  # rendering_test_utils imports torch eagerly
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    try:
+        import rendering_test_utils
+    finally:
+        sys.path.pop(0)
+
+    golden_image_path = tmp_path / "cartpole" / "physx-isaacsim_rtx_renderer-rgb-isaacsim-6.1.png"
+    golden_image_path.parent.mkdir()
+    golden_image_path.touch()
+    version_module = types.ModuleType("isaaclab.utils.version")
+    version_module.get_isaac_sim_version = lambda: Version("6.1.0")
+    monkeypatch.setitem(sys.modules, "isaaclab.utils.version", version_module)
+    monkeypatch.setattr(rendering_test_utils, "_GOLDEN_IMAGES_DIRECTORY", str(tmp_path))
+
+    assert rendering_test_utils._resolve_golden_image_path("cartpole", "physx", "isaacsim_rtx_renderer", "rgb") == str(
+        golden_image_path
+    )
+
+
 def test_task_physics_presets_use_renamed_field_names() -> None:
     """Task ``PresetCfg`` field names should use ``newton_mjwarp`` / ``newton_kamino``."""
     tasks_root = _REPO_ROOT / "source" / "isaaclab_tasks" / "isaaclab_tasks"

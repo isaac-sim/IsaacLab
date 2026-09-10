@@ -156,6 +156,34 @@ def test_newton_warp_wraps_requested_rgb_hdr_output():
     assert render_data.get_output(RenderBufferKind.RGB_HDR) is render_data.outputs.hdr_color_image
 
 
+def test_newton_shape_bvh_refit_supports_current_and_legacy_apis(monkeypatch):
+    """Newton shape BVH refitting uses the model API when present and falls back to the legacy function."""
+    pytest.importorskip("isaaclab_newton")
+    pytest.importorskip("newton")
+    from isaaclab_newton import _newton_compat
+
+    state = object()
+    current_calls = []
+    current_model = SimpleNamespace(bvh_refit_shapes=lambda value: current_calls.append(value))
+
+    _newton_compat.refit_shape_bvh(current_model, state)
+
+    assert current_calls == [state]
+
+    legacy_calls = []
+    legacy_model = object()
+    monkeypatch.setattr(
+        _newton_compat.newton.geometry,
+        "refit_bvh_shape",
+        lambda model, value: legacy_calls.append((model, value)),
+        raising=False,
+    )
+
+    _newton_compat.refit_shape_bvh(legacy_model, state)
+
+    assert legacy_calls == [(legacy_model, state)]
+
+
 def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
     return CameraCfg(
         height=8,

@@ -7,8 +7,7 @@
 
 Covers both passes of the rewrite:
 
-  * Pass 1 — built-in label arrays (``body``, ``joint``, ``shape``,
-    ``articulation``, ``constraint_mimic``, ``equality_constraint``).
+  * Pass 1 — built-in label arrays exposed by the installed Newton release.
   * Pass 2 — any string-typed custom-attribute column whose frequency declares a
     sibling ``references="world"`` companion (e.g. ``mujoco:tendon_label``).
 
@@ -32,11 +31,22 @@ _DST = "/World/envs/env_{}"
 def _inject_builtins(builder: newton.ModelBuilder, types: tuple[str, ...], src_path: str, worlds: list[int]) -> None:
     """Append ``len(worlds)`` synthetic entries to each built-in ``*_label``/``*_world`` pair."""
     for t in types:
-        labels = getattr(builder, f"{t}_label")
-        worlds_arr = getattr(builder, f"{t}_world")
+        labels = getattr(builder, f"{t}_label", None)
+        worlds_arr = getattr(builder, f"{t}_world", None)
+        if labels is None or worlds_arr is None:
+            continue
         for w in worlds:
             labels.append(f"{src_path}/{t}_{w}")
             worlds_arr.append(w)
+
+
+def _available_builtin_label_types(builder: newton.ModelBuilder) -> tuple[str, ...]:
+    """Return the built-in label types exposed by the installed Newton release."""
+    return tuple(
+        t
+        for t in _BUILTIN_LABEL_TYPES
+        if getattr(builder, f"{t}_label", None) is not None and getattr(builder, f"{t}_world", None) is not None
+    )
 
 
 def _inject_tendon_strings(builder: newton.ModelBuilder, src_path: str, worlds: list[int]) -> None:
@@ -76,7 +86,7 @@ class TestRenameBuilderLabels(unittest.TestCase):
     def test_builtin_labels_rewritten_per_world(self):
         b = _make_builder_with_entries(self.worlds)
         self._rename(b)
-        for t in _BUILTIN_LABEL_TYPES:
+        for t in _available_builtin_label_types(b):
             labels = getattr(b, f"{t}_label")
             worlds_arr = getattr(b, f"{t}_world")
             for k, w in enumerate(worlds_arr):
@@ -99,7 +109,7 @@ class TestRenameBuilderLabels(unittest.TestCase):
         b = _make_builder_with_entries(self.worlds)
         self._rename(b)
         per_world = {int(w): _DST.format(int(w)) + "/" for w in self.env_ids.tolist()}
-        for t in _BUILTIN_LABEL_TYPES:
+        for t in _available_builtin_label_types(b):
             for label, w in zip(getattr(b, f"{t}_label"), getattr(b, f"{t}_world")):
                 self.assertTrue(label.startswith(per_world[int(w)]), msg=f"{t}: {label!r}")
         tendon_labels = b.custom_attributes["mujoco:tendon_label"].values
@@ -125,7 +135,7 @@ class TestRenameBuilderLabels(unittest.TestCase):
         """``sources=["/Sources/protoA/"]`` (trailing /) must rewrite identically to no slash."""
         b = _make_builder_with_entries(self.worlds)
         _rename_builder_labels(b, [f"{_SRC}/"], [_DST], self.env_ids, self.mapping)
-        for t in _BUILTIN_LABEL_TYPES:
+        for t in _available_builtin_label_types(b):
             labels = getattr(b, f"{t}_label")
             worlds_arr = getattr(b, f"{t}_world")
             for k, w in enumerate(worlds_arr):

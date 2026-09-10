@@ -21,10 +21,10 @@ import sys
 import pytest
 import torch
 import warp as wp
+from isaaclab_newton._newton_compat import ModelFlags
 from isaaclab_newton.assets import RigidObjectCollection
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
-from newton.solvers import SolverNotifyFlags
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
@@ -534,7 +534,7 @@ def test_set_material_properties(num_envs, num_cubes, device):
 
         wp.to_torch(friction_binding)[:] = friction
         wp.to_torch(restitution_binding)[:] = restitution
-        SimulationManager.add_model_change(SolverNotifyFlags.SHAPE_PROPERTIES)
+        SimulationManager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
         # Perform simulation
         sim.step()
@@ -608,7 +608,7 @@ def test_object_state_properties(num_envs, num_cubes, device, with_offset):
         cube_object.set_coms_index(coms=wp.from_torch(offset, dtype=wp.vec3f))
         # Flush the model change immediately so it takes effect before the next step
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch, offset)
@@ -707,7 +707,7 @@ def test_write_object_state(num_envs, num_cubes, device, with_offset, state_loca
         cube_object.set_coms_index(coms=wp.from_torch(offset, dtype=wp.vec3f))
         # Flush the model change immediately so it takes effect before the next step
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch, offset)
@@ -785,7 +785,7 @@ def test_write_object_state_functions_data_consistency(num_envs, num_cubes, devi
         cube_object.set_coms_index(coms=wp.from_torch(offset, dtype=wp.vec3f))
         # Flush the model change immediately so it takes effect before the next step
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch, offset)

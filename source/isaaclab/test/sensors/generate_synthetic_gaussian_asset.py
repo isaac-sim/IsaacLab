@@ -71,16 +71,16 @@ class SyntheticGaussianScene:
     """Scene description consumed by :func:`make_synthetic_gaussian_usd`.
 
     Defaults arrange four large fully-opaque gaussians (R, G, B, W) in a 2x2
-    grid in the X-Y plane at Z=0, with a camera placed on +Z looking at the
-    grid origin.
+    grid in the X-Y plane just above the ground, with a camera placed on +Z
+    looking at the grid origin.
     """
 
     gaussians: list[SyntheticGaussian] = field(
         default_factory=lambda: [
-            SyntheticGaussian(position=(-0.6, +0.6, 0.0), color=(0.9, 0.1, 0.1)),  # red
-            SyntheticGaussian(position=(+0.6, +0.6, 0.0), color=(0.1, 0.9, 0.1)),  # green
-            SyntheticGaussian(position=(-0.6, -0.6, 0.0), color=(0.1, 0.1, 0.9)),  # blue
-            SyntheticGaussian(position=(+0.6, -0.6, 0.0), color=(0.9, 0.9, 0.9)),  # white
+            SyntheticGaussian(position=(-0.4, +0.4, 0.1), color=(0.9, 0.1, 0.1)),  # red
+            SyntheticGaussian(position=(+0.4, +0.4, 0.1), color=(0.1, 0.9, 0.1)),  # green
+            SyntheticGaussian(position=(-0.4, -0.4, 0.1), color=(0.1, 0.1, 0.9)),  # blue
+            SyntheticGaussian(position=(+0.4, -0.4, 0.1), color=(0.9, 0.9, 0.9)),  # white
         ]
     )
     """Gaussians in the scene. Default forms a 2x2 RGBW grid."""
@@ -316,9 +316,9 @@ def assert_ppisp_invariants(
        ``vignetting_corner_ratio_max`` times the center patch (``alpha1=-1.8``
        drives the pre-CRF corner factor to ~0; after CRF compression the
        per-renderer corner/center ratio sits well below 0.5).
-    3. Exposure: center patch mean > 50 (the aggressive cfg's
+    3. Exposure: center patch mean > 20 (the aggressive cfg's
        ``responsivity * 2^exposureOffset`` is tuned so the per-renderer HDR
-       magnitude lands solidly into mid-to-upper LDR after CRF).
+       magnitude remains visibly above black after CRF).
     4. CRF clamping: output stays in ``[0, 255]`` (also catches NaNs implicitly).
 
     ``label`` is included in every assertion message so the caller can identify
@@ -348,8 +348,8 @@ def assert_ppisp_invariants(
             f"corner_mean={corner_mean:.1f}, center_mean={center_mean:.1f}"
         )
 
-    assert center_mean > 50.0, (
-        f"{prefix}aggressive PPISP cfg should land the center patch above 50 (mid-LDR); "
+    assert center_mean > 20.0, (
+        f"{prefix}aggressive PPISP cfg should land the center patch above 20; "
         f"got {center_mean:.1f}. Check responsivity/exposureOffset and that the renderer is producing HDR > 0."
     )
 

@@ -20,6 +20,7 @@ from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
+from .._newton_compat import refit_shape_bvh
 from ..physics.newton_manager import NewtonManager
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 
@@ -323,9 +324,8 @@ class NewtonWarpRenderer(BaseRenderer):
         newton_state: newton.State = NewtonManager.get_state()
 
         # Refit the shape BVH against the current state since env body poses move every frame.
-        # ``build_bvh_shape`` ran once in ``__init__``; ``refit_bvh_shape`` reuses that topology.
         if self.newton_sensor.model.shape_count > 0:
-            newton.geometry.refit_bvh_shape(self.newton_sensor.model, newton_state)
+            refit_shape_bvh(self.newton_sensor.model, newton_state)
 
         self.newton_sensor.update(
             newton_state,

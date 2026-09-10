@@ -7,7 +7,7 @@
 
 Newton's :meth:`Actuator.step` requires a ``sim_state`` / ``sim_control``
 pair that exposes flat 1-D Warp arrays (``joint_q``, ``joint_qd``,
-``joint_target_pos``, ``joint_f``, …).  On the **Newton backend** these
+``joint_target_q``, ``joint_f``, …).  On the **Newton backend** these
 are the ``State`` and ``Control`` objects that the solver already owns —
 no wrapper is needed because:
 
@@ -45,6 +45,8 @@ class PhysxActuatorWrapper:
 
     joint_q: wp.array | None = None
     joint_qd: wp.array | None = None
+    joint_target_q: wp.array | None = None
+    joint_target_qd: wp.array | None = None
     joint_target_pos: wp.array | None = None
     joint_target_vel: wp.array | None = None
     joint_act: wp.array | None = None

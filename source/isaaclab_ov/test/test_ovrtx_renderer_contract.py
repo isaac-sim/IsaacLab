@@ -7,6 +7,7 @@
 
 import importlib.util
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -66,6 +67,33 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
     return renderer
+
+
+def test_ovrtx_cloning_restores_environment_root_transforms():
+    """OVRTX clones must retain the environment offsets captured before stage export."""
+    clone_calls = []
+    write_calls = []
+
+    class FakeRenderer:
+        def clone_usd(self, source_path, target_paths):
+            clone_calls.append((source_path, target_paths))
+
+        def write_attribute(self, **kwargs):
+            write_calls.append(kwargs)
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._renderer = FakeRenderer()
+    renderer._env_root_xforms = np.arange(64, dtype=np.float64).reshape(4, 4, 4)
+    expected_xforms = renderer._env_root_xforms.copy()
+
+    renderer._clone_environments_in_ovrtx(4)
+
+    assert clone_calls == [("/World/envs/env_0", ["/World/envs/env_1", "/World/envs/env_2", "/World/envs/env_3"])]
+    assert len(write_calls) == 1
+    assert write_calls[0]["prim_paths"] == [f"/World/envs/env_{i}" for i in range(4)]
+    assert write_calls[0]["attribute_name"] == "omni:xform"
+    np.testing.assert_array_equal(write_calls[0]["tensor"], expected_xforms)
+    assert renderer._env_root_xforms is None
 
 
 def test_ovrtx_supported_output_types_key_set():

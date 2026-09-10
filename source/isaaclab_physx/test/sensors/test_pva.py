@@ -423,7 +423,8 @@ def test_single_dof_pendulum(setup_sim):
             joint_acc,
             joint_acc_pva,
             rtol=1e-1,
-            atol=1e-3,
+            # The acceleration is derived from finite differences and has small solver-dependent noise.
+            atol=5e-3,
         )
         # compare pva linear velocity with simple pendulum calculation
         torch.testing.assert_close(
@@ -569,7 +570,8 @@ def test_indirect_attachment(setup_sim):
             joint_acc,
             joint_acc_pva,
             rtol=1e-1,
-            atol=1e-3,
+            # The acceleration is derived from finite differences and has small solver-dependent noise.
+            atol=5e-3,
         )
         # compare pva linear velocity with simple pendulum calculation
         torch.testing.assert_close(

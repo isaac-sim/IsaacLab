@@ -1508,12 +1508,11 @@ class ArticulationData(BaseArticulationData):
                 :, 0
             ]
             self._sim_bind_joint_act = self._root_view.get_attribute("joint_act", SimulationManager.get_control())[:, 0]
-            self._sim_bind_joint_position_target = self._root_view.get_attribute(
-                "joint_target_pos", SimulationManager.get_control()
-            )[:, 0]
-            self._sim_bind_joint_velocity_target = self._root_view.get_attribute(
-                "joint_target_vel", SimulationManager.get_control()
-            )[:, 0]
+            control = SimulationManager.get_control()
+            position_target_attr = "joint_target_q" if hasattr(control, "joint_target_q") else "joint_target_pos"
+            velocity_target_attr = "joint_target_qd" if hasattr(control, "joint_target_qd") else "joint_target_vel"
+            self._sim_bind_joint_position_target = self._root_view.get_attribute(position_target_attr, control)[:, 0]
+            self._sim_bind_joint_velocity_target = self._root_view.get_attribute(velocity_target_attr, control)[:, 0]
         else:
             # No joints (e.g., free-floating rigid body) - set bindings to empty arrays
             self._sim_bind_joint_pos_limits_lower = wp.zeros(

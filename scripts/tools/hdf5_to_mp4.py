@@ -138,6 +138,12 @@ def write_demo_to_mp4(
             video = cv2.VideoWriter(output_path, fourcc, framerate, (video_width, video_height), isColor=False)
         else:
             video = cv2.VideoWriter(output_path, fourcc, framerate, (video_width, video_height))
+        imageio_video = None
+        if not video.isOpened():
+            video.release()
+            import imageio.v2 as imageio
+
+            imageio_video = imageio.get_writer(output_path, fps=framerate)
 
         # Process and write frames
         for ix, frame in enumerate(frames):
@@ -154,10 +160,7 @@ def write_demo_to_mp4(
                 shaded_seg = (shade[..., None] * seg).astype(np.uint8)
                 frame = np.concatenate((shaded_seg, frame[..., -1:]), axis=-1)
 
-            # Convert RGB to BGR
-            if "depth" not in input_key:
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            else:
+            if "depth" in input_key:
                 frame = (frame[..., 0] - MIN_DEPTH) / (MAX_DEPTH - MIN_DEPTH)
                 frame = np.where(frame < 0.01, 1.0, frame)
                 frame = 1.0 - frame
@@ -165,9 +168,18 @@ def write_demo_to_mp4(
 
             # Resize to video resolution
             frame = cv2.resize(frame, (video_width, video_height), interpolation=cv2.INTER_CUBIC)
-            video.write(frame)
+            if imageio_video is None:
+                # OpenCV expects color video frames in BGR order.
+                if "depth" not in input_key:
+                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                video.write(frame)
+            else:
+                # FFmpeg-backed imageio accepts RGB or grayscale frames.
+                imageio_video.append_data(frame[..., :3] if frame.ndim == 3 else frame)
 
         video.release()
+        if imageio_video is not None:
+            imageio_video.close()
 
 
 def get_num_demos(hdf5_file):

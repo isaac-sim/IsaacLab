@@ -8,12 +8,12 @@
 ``visualizer`` is an extra feature selector that reinstalls the already-present
 ``isaaclab_visualizers`` core package with specific backend extras:
 
-  - ``./isaaclab.sh -i 'visualizer[rerun]'``  → rerun-sdk + newton[sim]
-  - ``./isaaclab.sh -i 'visualizer[viser]'``  → viser + newton[sim]
-  - ``./isaaclab.sh -i 'visualizer[newton]'`` → imgui-bundle + newton[sim]
+  - ``./isaaclab.sh -i 'visualizer[rerun]'``  → rerun-sdk + newton[importers,sim]
+  - ``./isaaclab.sh -i 'visualizer[viser]'``  → viser + newton[importers,sim]
+  - ``./isaaclab.sh -i 'visualizer[newton]'`` → imgui-bundle + newton[importers,sim]
   - ``./isaaclab.sh -i visualizer``            → all backends (default)
 
-All backends also pull in the ``newton[sim]`` git dependency because the
+All backends also pull in the ``newton[importers,sim]`` git dependency because the
 Newton renderer underpins every visualizer implementation.
 """
 

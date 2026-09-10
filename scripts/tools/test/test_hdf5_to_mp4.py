@@ -12,6 +12,7 @@ import h5py
 import numpy as np
 import pytest
 
+import scripts.tools.hdf5_to_mp4 as hdf5_to_mp4
 from scripts.tools.hdf5_to_mp4 import get_num_demos, main, write_demo_to_mp4
 
 
@@ -69,6 +70,33 @@ class TestHDF5ToMP4:
         write_demo_to_mp4(temp_hdf5_file, 0, "data/demo_0/obs", "table_cam", temp_output_dir, 704, 1280)
 
         output_file = os.path.join(temp_output_dir, "demo_0_table_cam.mp4")
+        assert os.path.exists(output_file)
+        assert os.path.getsize(output_file) > 0
+
+    @pytest.mark.parametrize(
+        "input_key",
+        [
+            "table_cam",
+            "table_cam_segmentation",
+            "table_cam_normals",
+            "table_cam_shaded_segmentation",
+            "table_cam_depth",
+        ],
+    )
+    def test_write_demo_to_mp4_without_opencv_encoder(self, temp_hdf5_file, temp_output_dir, monkeypatch, input_key):
+        """Test falling back to imageio when OpenCV has no MP4 encoder."""
+
+        class UnavailableVideoWriter:
+            def isOpened(self):
+                return False
+
+            def release(self):
+                pass
+
+        monkeypatch.setattr(hdf5_to_mp4.cv2, "VideoWriter", lambda *args, **kwargs: UnavailableVideoWriter())
+        write_demo_to_mp4(temp_hdf5_file, 0, "data/demo_0/obs", input_key, temp_output_dir, 704, 1280)
+
+        output_file = os.path.join(temp_output_dir, f"demo_0_{input_key}.mp4")
         assert os.path.exists(output_file)
         assert os.path.getsize(output_file) > 0
 

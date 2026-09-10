@@ -67,12 +67,9 @@ def get_frames_from_mp4(video_path, target_height=None, target_width=None):
     # Open the video file
     video = cv2.VideoCapture(video_path)
 
-    # Get video properties
-    frame_count = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-
     # Read all frames into a numpy array
     frames = []
-    for _ in range(frame_count):
+    while True:
         ret, frame = video.read()
         if not ret:
             break
@@ -81,11 +78,20 @@ def get_frames_from_mp4(video_path, target_height=None, target_width=None):
             frame = cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_LINEAR)
         frames.append(frame)
 
-    # Convert to numpy array
-    frames = np.array(frames).astype(np.uint8)
-
     # Release the video object
     video.release()
+
+    if not frames:
+        import imageio.v2 as imageio
+
+        with imageio.get_reader(video_path) as reader:
+            for frame in reader:
+                if target_height is not None and target_width is not None:
+                    frame = cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_LINEAR)
+                frames.append(frame[..., :3])
+
+    # Convert to numpy array
+    frames = np.array(frames).astype(np.uint8)
 
     return frames
 
