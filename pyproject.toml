@@ -48,6 +48,7 @@ dependencies = [
     "hidapi>=0.14.0",
     "gymnasium>=1.2.0",
     "trimesh>=4.6.8",  # lower bound inherited from newton[importers]
+    "manifold3d>=3.0.1",
     "pyglet>=2.1.6,<3",
     "transformers==4.57.6",
     "einops",
