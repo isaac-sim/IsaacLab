@@ -107,8 +107,6 @@ Table of Contents
    source/concepts/physics_backends
    source/concepts/solver_differences
    source/concepts/solver-tuning/index
-   source/concepts/prepare_asset_for_newton
-   source/concepts/transfer_policies_between_physx_and_newton
    source/concepts/native-physics-api/index
    source/concepts/renderers
    source/concepts/actuators
