@@ -1260,11 +1260,13 @@ def test_clear_resets_rigid_body_force_capability(monkeypatch):
     """Teardown clears the canonical solver capability without subclass shadowing."""
     monkeypatch.setattr(NewtonManager, "_supports_rigid_body_force_input", True)
     monkeypatch.setattr(NewtonManager, "_sensor_bvh_shape_flags", ShapeFlags.COLLIDE_SHAPES)
+    monkeypatch.setattr(NewtonManager, "_num_envs", 4)
 
     NewtonManager.clear()
 
     assert NewtonManager._supports_rigid_body_force_input is False
     assert NewtonManager._sensor_bvh_shape_flags == ShapeFlags.VISIBLE
+    assert NewtonManager._num_envs is None
     for manager in (
         NewtonMJWarpManager,
         NewtonXPBDManager,
