@@ -112,7 +112,6 @@ Table of Contents
    source/concepts/actuators
    source/concepts/sensors/index
    source/concepts/coupled_solvers
-   source/concepts/scene_data_providers
    source/concepts/visualization
    source/concepts/reinforcement_learning
    source/concepts/deformables
@@ -132,7 +131,6 @@ Table of Contents
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training
-   source/features/ray
    source/features/reproducibility
    source/features/draw_markers
    source/features/record_video
@@ -147,6 +145,7 @@ Table of Contents
    source/developer-tools/template_generator
    source/developer-tools/add_physics_backend
    source/developer-tools/extending_newton_solvers
+   source/developer-tools/scene_data_providers
    source/developer-tools/agent_skills
    source/developer-tools/benchmarking/index
 
@@ -156,6 +155,7 @@ Table of Contents
    :caption: Experimental Features
 
    source/experimental-features/bleeding-edge
+   source/experimental-features/ray
    source/experimental-features/visuo_tactile_sensor
    source/experimental-features/rlinf_vla_posttraining
 
