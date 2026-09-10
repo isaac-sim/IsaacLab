@@ -28,7 +28,6 @@ from capture_env import (  # noqa: E402
     ISAAC_LAB_ENV_VARS,
     collect_environment,
     collect_repo,
-    is_collected_env_var,
     lock_extras,
     parse_lock,
     render_document,
@@ -128,7 +127,7 @@ class TestEnvironmentAllowlist:
         ["ISAAC_PATH", "EXP_PATH", "PYTHONPATH", "LD_LIBRARY_PATH", "LD_PRELOAD", "CARB_APP_PATH", "WARP_CACHE_PATH"],
     )
     def test_variables_isaac_lab_reads_are_collected(self, name):
-        assert is_collected_env_var(name)
+        assert name in ISAAC_LAB_ENV_VARS
 
     @pytest.mark.parametrize(
         "name",
@@ -136,13 +135,13 @@ class TestEnvironmentAllowlist:
     )
     def test_names_outside_the_list_are_never_collected_however_they_are_spelled(self, name):
         """No prefix or pattern matching, so a credential cannot arrive under a known namespace."""
-        assert not is_collected_env_var(name)
+        assert name not in ISAAC_LAB_ENV_VARS
 
     def test_the_list_holds_exact_names_only(self):
         """A near-miss on a listed name must not match; only the listed spelling counts."""
-        assert is_collected_env_var("ISAACLAB_TEST_DEVICES")
-        assert not is_collected_env_var("ISAACLAB_TEST_DEVICES_EXTRA")
-        assert not is_collected_env_var("MY_ISAAC_PATH")
+        assert "ISAACLAB_TEST_DEVICES" in ISAAC_LAB_ENV_VARS
+        assert "ISAACLAB_TEST_DEVICES_EXTRA" not in ISAAC_LAB_ENV_VARS
+        assert "MY_ISAAC_PATH" not in ISAAC_LAB_ENV_VARS
 
     def test_uncollected_variables_are_counted_but_never_named(self, monkeypatch):
         monkeypatch.setattr(

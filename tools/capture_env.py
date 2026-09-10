@@ -197,15 +197,9 @@ def scan_distributions(site_packages: Path) -> list[dict]:
     return sorted(distributions, key=lambda dist: dist["key"])
 
 
-def is_collected_env_var(name: str) -> bool:
-    """Return whether ``name`` is in the allowlist. Exact membership only: a rule clever enough to
-    admit an unforeseen name is also clever enough to admit a secret."""
-    return name in ISAAC_LAB_ENV_VARS
-
-
 def collect_environment() -> tuple[dict, dict[str, str]]:
     """Return the allowlisted variables, plus a count of the ones present but never named."""
-    variables = {name: value for name, value in os.environ.items() if is_collected_env_var(name)}
+    variables = {name: value for name, value in os.environ.items() if name in ISAAC_LAB_ENV_VARS}
     omitted = len(os.environ) - len(variables)
     rendered = (
         "# Only the exact variables Isaac Lab reads or sets are captured.\n"
