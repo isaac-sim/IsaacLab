@@ -305,7 +305,7 @@ def render_document(manifest: dict, artifacts: dict[str, str]) -> str:
     summary = (
         f"Captured {manifest.get('captured_at', '?')} on {manifest.get('capture', {}).get('hostname', '?')}:"
         f" Isaac Lab {(git.get('commit') or 'unknown')[:12]} on {git.get('branch') or '?'}"
-        f"{' (dirty)' if git.get('dirty') else ''}, driver {gpu.get('driver_version') or 'none'} on"
+        f", driver {gpu.get('driver_version') or 'none'} on"
         f" {len(gpu.get('devices', []))} GPU(s),"
         f" {len(manifest.get('python', {}).get('distributions', []))} packages installed."
         + (f" The command under test was `{command}`." if command else "")
@@ -328,8 +328,8 @@ The GPU and its driver, and anything outside the repository and the environment:
 whatever `PYTHONPATH` and `LD_LIBRARY_PATH` reach are recorded by path only. The process environment
 is captured by allowlist -- {len(variables)} variable(s) from the closed list of names Isaac Lab reads
 or sets, while {omitted} variable(s) were present but not collected, and are named nowhere here.
-Paths, hostnames, and usernames are captured as-is, so review `env/environment.txt` and, when it is
-present, `repo/git-diff.patch` before sending this anywhere.
+Paths, hostnames, and usernames are captured as-is, so review `env/environment.txt` before sending
+this anywhere.
 """
 
 
