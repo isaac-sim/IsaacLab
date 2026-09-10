@@ -16,17 +16,17 @@ license = { file = "LICENSE" }
 authors = [{ name = "Isaac Lab Project Developers" }]
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "isaaclab{% if rl_libraries %}[{% for rl_library in rl_libraries %}{% if not loop.first %},{% endif %}{{ rl_library.name | replace('_', '-') }}{% endfor %}]{% endif %}{% if isaaclab_version %}=={{ isaaclab_version }}{% endif %}",
+    "{{ isaaclab_dependency }}{% if rl_libraries %}[{% for rl_library in rl_libraries %}{% if not loop.first %},{% endif %}{{ rl_library.name | replace('_', '-') }}{% endfor %}]{% endif %}{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}",
 ]
 
 [project.entry-points."isaaclab.tasks"]
 "{{ name }}" = "{{ name }}.tasks"
 
 [project.optional-dependencies]
-isaacsim = ["isaaclab[isaacsim]{% if isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
-ov = ["isaaclab[ov]{% if isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
-ovphysx = ["isaaclab[ovphysx]{% if isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
-ovrtx = ["isaaclab[ovrtx]{% if isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
+isaacsim = ["{{ isaaclab_dependency }}[isaacsim]{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
+ov = ["{{ isaaclab_dependency }}[ov]{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
+ovphysx = ["{{ isaaclab_dependency }}[ovphysx]{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
+ovrtx = ["{{ isaaclab_dependency }}[ovrtx]{% if not isaaclab_sources and isaaclab_version %}=={{ isaaclab_version }}{% endif %}"]
 
 [dependency-groups]
 dev = ["codespell>=2.4", "pre-commit>=4.2", "pytest>=8.3", "ruff>=0.11"]
@@ -34,6 +34,27 @@ dev = ["codespell>=2.4", "pre-commit>=4.2", "pytest>=8.3", "ruff>=0.11"]
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
+{% if isaaclab_environments %}
+environments = [
+{% for environment in isaaclab_environments %}
+    "{{ environment }}",
+{% endfor %}
+]
+{% endif %}
+{% if isaaclab_overrides %}
+override-dependencies = [
+{% for dependency in isaaclab_overrides %}
+    "{{ dependency }}",
+{% endfor %}
+]
+{% endif %}
+{% if isaaclab_sources %}
+
+[tool.uv.sources]
+{% for source in isaaclab_sources %}
+"{{ source.name }}" = {{ source.value }}
+{% endfor %}
+{% endif %}
 
 [tool.uv.build-backend]
 module-name = "{{ name }}"
@@ -91,6 +112,18 @@ markers = [
 [tool.codespell]
 skip = "*.usd,*.usda,*.usdc,*.json,*.onnx,*.pt,*.mp4,*.data,uv.lock,logs"
 
+{% if isaaclab_indexes %}
+{% for index in isaaclab_indexes %}
+[[tool.uv.index]]
+{% if index.name is defined %}
+name = "{{ index.name }}"
+{% endif %}
+url = "{{ index.url }}"
+explicit = {{ index.explicit | lower }}
+
+{% endfor %}
+{% else %}
 [[tool.uv.index]]
 url = "https://pypi.nvidia.com"
 explicit = false
+{% endif %}

@@ -464,7 +464,8 @@ on launch -- no headset connection is needed (see :ref:`isaac-teleop-standalone`
          uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
              --num_envs 1 \
-             --visualizer kit
+             --visualizer kit \
+             physics=isaacsim_physx
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -473,7 +474,8 @@ on launch -- no headset connection is needed (see :ref:`isaac-teleop-standalone`
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
              --num_envs 1 \
-             --visualizer kit
+             --visualizer kit \
+             physics=isaacsim_physx
 
 **With a headset (immersive XR view)**
 
@@ -491,7 +493,8 @@ only controls whether the scene is rendered to the headset. Follow the connectio
          uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
              --num_envs 1 \
-             --visualizer kit --xr
+             --visualizer kit --xr \
+             physics=isaacsim_physx
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -500,7 +503,8 @@ only controls whether the scene is rendered to the headset. Follow the connectio
          ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
              --num_envs 1 \
-             --visualizer kit --xr
+             --visualizer kit --xr \
+             physics=isaacsim_physx
 
 Start the plugin
 ^^^^^^^^^^^^^^^^
@@ -559,6 +563,15 @@ shortcuts:
      - Pause teleoperation (follower holds position).
    * - ``R``
      - Reset the environment.
+
+.. note::
+
+   Pressing ``R`` both resets the environment **and pauses teleoperation** -- it does not resume
+   automatically. This is intentional: this task's joint-teleop pipeline mirrors the leader arm's
+   raw joint angles onto the follower with no re-anchoring or clutch, so resuming immediately after
+   a reset would snap the follower straight to wherever the physical leader arm currently is,
+   causing a sudden, large joint motion. Before pressing ``B`` to resume, move the physical leader
+   arm to match the follower's reset pose.
 
 Move the physical SO-101 leader arm and the simulated follower will mirror its joint angles in real
 time. To record demonstrations from this task, run ``scripts/tools/record_demos.py`` with the same
@@ -680,7 +693,7 @@ These environments use the Isaac Teleop XR pipeline with motion controllers or h
      - Right
      - **Arm:** right controller grip pose drives end-effector.
        **Gripper:** right trigger.
-   * - ``IsaacContrib-Stack-Cube-SO101-IK-Abs-v0``
+   * - ``IsaacContrib-Stack-Cube-SO101-IK-Abs-v0`` with ``physics=isaacsim_physx``
      - Controllers
      - Right
      - **Arm:** right controller grip pose drives the end-effector via absolute IK
@@ -837,6 +850,8 @@ follows.
        controller to overtune and the arm to drift. Move the
        end-effector close to and just above the cube, stop, then
        close the suction cup.
+
+       **CPU simulation only:** pass ``--device cpu`` for teleoperation.
      - Keyboard, SpaceMouse
      - **Arm:** end-effector pose via RMPFlow.
        **Suction:** ``K`` on keyboard, left button on SpaceMouse.
@@ -852,10 +867,14 @@ follows.
      - **Arm:** right-arm end-effector pose via RMPFlow.
        **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
    * - ``IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel``
+
+       **CPU simulation only:** pass ``--device cpu`` for teleoperation.
      - Keyboard, SpaceMouse
      - **Arm:** relative IK end-effector control.
        **Suction:** ``K`` on keyboard, left button on SpaceMouse.
    * - ``IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel``
+
+       **CPU simulation only:** pass ``--device cpu`` for teleoperation.
      - Keyboard, SpaceMouse
      - Same as long-suction UR10 above with a shorter suction cup.
    * - ``Isaac-Reach-Franka`` with ``physics=isaacsim_physx presets=diffik``
@@ -890,7 +909,7 @@ for the run command and pipeline.
    * - Task ID
      - Device
      - Operator Interaction
-   * - ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0``
+   * - ``IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0`` with ``physics=isaacsim_physx``
      - SO-101 leader arm
      - **Arm + gripper:** the leader arm's six joint angles (five arm DOF + gripper) are mirrored
        onto the follower via ``JointStateRetargeter`` (``mode="joint"``).
@@ -1232,6 +1251,37 @@ If you prefer to run the CloudXR runtime manually in a separate terminal
              --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit --xr
 
+
+Accept the CloudXR license non-interactively
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The NVIDIA CloudXR license is separate from the Omniverse one. The first time the runtime
+starts it asks for it on stdin:
+
+.. code-block:: text
+
+   NVIDIA CloudXR EULA must be accepted to run. View: <license URL>
+
+   Accept NVIDIA CloudXR EULA? [y/N]:
+
+There is no terminal to answer on in a headless, container or CI run, so the launch fails with
+``RuntimeError: CloudXR EULA was not accepted; cannot start the runtime``. Set
+``ISAACLAB_CXR_ACCEPT_EULA=1`` to accept it up front, the same way ``OMNI_KIT_ACCEPT_EULA``
+works for the Omniverse license:
+
+.. code-block:: bash
+
+   ISAACLAB_CXR_ACCEPT_EULA=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+       --xr
+
+``y``, ``yes`` and ``1`` accept it, case-insensitively and ignoring surrounding whitespace --
+the same spellings ``OMNI_KIT_ACCEPT_EULA`` takes; leaving the variable unset, or setting any
+other value, keeps the interactive prompt. Acceptance is recorded in
+``~/.cloudxr/run/eula_accepted``, so once the license has been accepted -- interactively or
+through this variable -- later runs no longer prompt. The variable applies to every script
+that launches the runtime, including the process-scoped launcher in
+``teleop_replay_agent.py``.
 
 .. _isaac-teleop-xr-anchor:
 

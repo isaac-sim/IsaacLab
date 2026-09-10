@@ -204,6 +204,68 @@ def test_environment_ids_author_point_instance_scene_partitions(sim):
     assert list(primvar.Get()) == ["env_1", "env_0"]
 
 
+def test_unchanged_environment_ids_do_not_rebuild_scene_partitions(sim, monkeypatch):
+    """Unchanged environment IDs should not rebuild partition tokens on every call.
+
+    Marker ownership is static in most tasks, but ``visualize`` runs every frame. Rebuilding the
+    token array anyway costs a device synchronization and one string per marker per frame.
+    """
+    from pxr import Sdf, UsdGeom, Vt
+
+    sim._has_offscreen_render = True
+    stage = sim_utils.get_current_stage()
+    for env_id in range(2):
+        env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
+        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
+
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/cached_partition_marker",
+        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    )
+    test_marker = VisualizationMarkers(config)
+    translations = torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device)
+    environment_ids = torch.tensor([1, 0], device=sim.device)
+    test_marker.visualize(translations=translations, environment_ids=environment_ids)
+
+    rebuilt_token_arrays = []
+    original_token_array = Vt.TokenArray
+
+    def _counting_token_array(*args, **kwargs):
+        rebuilt_token_arrays.append(args)
+        return original_token_array(*args, **kwargs)
+
+    monkeypatch.setattr(Vt, "TokenArray", _counting_token_array)
+    # Markers move every frame while their environment ownership stays fixed.
+    test_marker.visualize(translations=translations + 0.1, environment_ids=environment_ids)
+
+    assert rebuilt_token_arrays == []
+    primvar = UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(test_marker.prim_path)).GetPrimvar("omni:scenePartition")
+    assert list(primvar.Get()) == ["env_1", "env_0"]
+
+
+def test_changed_environment_ids_reauthor_scene_partitions(sim):
+    """New environment IDs should still update the authored partition tokens."""
+    from pxr import Sdf, UsdGeom
+
+    sim._has_offscreen_render = True
+    stage = sim_utils.get_current_stage()
+    for env_id in range(2):
+        env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
+        env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(f"env_{env_id}")
+
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/updated_partition_marker",
+        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    )
+    test_marker = VisualizationMarkers(config)
+    translations = torch.tensor([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]], device=sim.device)
+    test_marker.visualize(translations=translations, environment_ids=torch.tensor([1, 0], device=sim.device))
+    test_marker.visualize(translations=translations, environment_ids=torch.tensor([0, 1], device=sim.device))
+
+    primvar = UsdGeom.PrimvarsAPI(stage.GetPrimAtPath(test_marker.prim_path)).GetPrimvar("omni:scenePartition")
+    assert list(primvar.Get()) == ["env_0", "env_1"]
+
+
 def test_environment_ids_require_active_scene_partitions(sim):
     """Environment IDs should not partition markers when renderer stage preparation is inactive."""
     from pxr import UsdGeom
@@ -572,6 +634,8 @@ def test_newton_marker_mesh_registration_is_per_viewer(monkeypatch: pytest.Monke
         uvs = np.zeros((0, 2), dtype=np.float32)
 
     class _FakeViewer:
+        device = "cpu"
+
         def __init__(self):
             self.meshes = []
 
@@ -579,7 +643,7 @@ def test_newton_marker_mesh_registration_is_per_viewer(monkeypatch: pytest.Monke
             self.meshes.append((name, vertices, indices, kwargs))
 
     monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: _FakeMesh())
-    monkeypatch.setattr(newton_markers.wp, "array", lambda value, dtype=None: value)
+    monkeypatch.setattr(newton_markers.wp, "array", lambda value, dtype=None, device=None: value)
 
     spec = newton_markers._NewtonMarkerSpec(renderer="mesh", mesh_type="box", mesh_params={"size": (1.0, 1.0, 1.0)})
     viewer_a = _FakeViewer()
@@ -616,6 +680,7 @@ _NEWTON_MARKER_SPECS = {
 class _FakeNewtonMarkerViewer:
     def __init__(self, world_offsets):
         self.world_offsets = world_offsets
+        self.device = world_offsets.device
         self.meshes = []
         self.instances = []
         self.lines = []
@@ -680,7 +745,7 @@ def _patch_newton_marker_render_deps(
     warp_world_offsets = wp.array(world_offsets, dtype=wp.vec3, device=world_offsets_device)
 
     monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: _FakeNewtonMarkerMesh())
-    monkeypatch.setattr(newton_markers.wp, "array", lambda value, dtype=None: value)
+    monkeypatch.setattr(newton_markers.wp, "array", lambda value, dtype=None, device=None: value)
     return warp_world_offsets
 
 
@@ -717,6 +782,26 @@ def test_newton_marker_render_filters_visible_envs(monkeypatch: pytest.MonkeyPat
     assert len(viewer.instances) == 1
     assert viewer.instances[0]["hidden"] is False
     assert viewer.instances[0]["xforms"][:, 0].tolist() == [2.0, 3.0, 6.0, 7.0]
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA marker state")
+def test_newton_marker_render_uses_viewer_device(monkeypatch: pytest.MonkeyPatch):
+    world_offsets = wp.zeros(4, dtype=wp.vec3, device="cpu")
+    monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: _FakeNewtonMarkerMesh())
+    marker = _make_newton_marker_for_render(
+        marker_names=["arrow"],
+        translations=torch.zeros((4, 3), device="cuda:0"),
+        marker_indices=torch.zeros(4, dtype=torch.int32, device="cuda:0"),
+    )
+    marker.orientations = marker.orientations.to("cuda:0")
+    marker.scales = marker.scales.to("cuda:0")
+    viewer = _FakeNewtonMarkerViewer(world_offsets)
+
+    marker.render(viewer, visible_env_ids=None, num_envs=4)
+
+    call = viewer.instances[0]
+    assert all(call[key].device == viewer.device for key in ("xforms", "scales", "colors", "materials"))
+    assert all(viewer.meshes[0][index].device == viewer.device for index in (1, 2))
 
 
 @pytest.mark.parametrize(

@@ -6,7 +6,7 @@ Tricks and Troubleshooting
    This page is the source of truth for the ``isaaclab-setup-troubleshooting`` agent skill
    (`skills/user/setup-troubleshooting/ <../../../skills/user/setup-troubleshooting/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 .. note::
 
@@ -248,7 +248,7 @@ CPU configuration, consult the maintained upstream guides:
   <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/physics-performance.html>`_
 
 For Newton-specific performance and solver parameters, see the
-:doc:`Newton physics documentation <../overview/core-concepts/physical-backends/newton/index>`.
+:ref:`Newton physics documentation <physics-backends-newton>`.
 
 
 Joints actuate in PhysX but not in a Newton-based backend
@@ -304,6 +304,47 @@ The viser visualizer serves a web UI instead of opening a window
 URL; the default port is ``8080``, configurable through
 :attr:`~isaaclab_visualizers.ViserVisualizerCfg.port`. The ``viser`` package ships in the
 ``viser`` extra.
+
+
+Livestreaming and WebRTC
+------------------------
+
+``NVST_R_BUSY`` / ``NVST_R_INTERNAL_ERROR`` on ``LIVESTREAM=1`` or ``LIVESTREAM=2``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:class:`~isaaclab.app.AppLauncher` pins TCP port ``49100`` for WebRTC signaling whenever
+``LIVESTREAM=1`` (public network) or ``LIVESTREAM=2`` (private network) is set. If a
+previous livestream process is still bound to that port, the new session fails to start
+with:
+
+.. code:: text
+
+   [Error] [omni.kit.livestream.webrtc.plugin] NVST Error: NVST_R_BUSY
+
+or, less commonly, ``NVST_R_INTERNAL_ERROR`` while binding the signaling socket. Identify
+the process holding port 49100, confirm it is safe to stop, then terminate it and relaunch:
+
+.. tab-set::
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ss -tlnp | grep 49100    # or: lsof -i :49100
+         kill $(lsof -ti tcp:49100)       # SIGTERM first
+         kill -9 $(lsof -ti tcp:49100)    # only if it is still running
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: powershell
+
+         netstat -ano | findstr ":49100"
+         taskkill /PID <pid> /F
+
+On Windows, ``netstat`` prints the owning PID as the last column of the matching line;
+substitute it for ``<pid>``.
 
 
 Distributed training

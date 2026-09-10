@@ -1268,9 +1268,11 @@ jobs:
           test_rendering_cartpole_kitless.py
         # Only the two RTX paths compile PSO blobs: isaacsim_rtx fills kit/ and
         # ovrtx fills kitless/. newton_warp would exercise the Warp rasterizer,
-        # which populates neither tree.
-        test-k-expr: >-
-          (isaacsim_rtx or ovrtx) and (rgb or depth)
+        # which populates neither tree. The nodes are pinned by exact ID rather
+        # than a -k expression, so a parametrize-ID rename fails collection here
+        # instead of quietly leaving the warmer with nothing to run.
+        test-node-ids-file: .github/test-subsets/postmerge-rendering.toml
+        test-node-ids-key: ovrtx-cache-warm
         ovrtx-shader-cache: ${{ env.PUBLISHES_OVRTX_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-ovrtx-cache-warm
         omni-github-test-type: ovrtx-cache-warm

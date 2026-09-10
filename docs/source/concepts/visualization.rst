@@ -29,38 +29,29 @@ This page covers:
    .viz-grid-fit { justify-content:center; }
    .viz-grid-fit > div { flex:0 0 auto; }
    .viz-grid-fit video, .viz-grid-fit img { width:auto; height:488px; }
-   .viz-grid-natural { justify-content:center; }
-   .viz-grid-natural > div { flex:0 0 auto; }
-   .viz-grid-natural img { width:auto; height:260px; }
-   /* video (unlike img above) sizes by flexing to share the row instead of a fixed height:
-      these clips are much wider (near 16:9) than the marker screenshots img was tuned for, so
-      a fixed height risks overflowing the page width when 2 sit side by side. */
-   .viz-grid-natural > div:has(video) { flex:1 1 0; min-width:0; }
-   .viz-grid-natural video { width:100%; height:auto; max-height:260px; }
    .viz-grid-stretch video.viz-no-crop { object-fit:contain; background:#000; }
-   .viz-grid-stretch video.viz-crop-bottom { object-position:center bottom; }
-   .viz-grid-stretch video.viz-crop-kit-bottom { object-position:center 76%; }
    .viz-grid-stretch video.viz-crop-x8 { width:calc(100% + 16px); margin-left:-8px; }
    .viz-grid-stretch img.viz-crop-top { object-position:center 25%; }
-   .viz-hero-wrap.viz-hero-newton-gl { aspect-ratio:960/397; }
-   .viz-hero-wrap.viz-hero-newton-gl video.viz-crop-newton-hero { width:calc(100% + 2px); height:calc(100% + 55px);
-                margin-left:-1px; margin-top:-40px; object-fit:cover; object-position:center 55.3%; }
-   .viz-label.viz-label-raise { bottom:10px; }
-   /* Trims pixels off each hero tile on top of whatever object-position crop is already
-      applied, so the tile itself is shorter rather than just repositioning the existing crop.
-      Both classes crop to the same final 241px height so the 2x2 tile grid stays even, split
-      differently per tile: Kit/Rerun/Newton RTX crop 35px off the top and 10px off the bottom;
-      Viser crops 25px off the top and 20px off the bottom (its object-position framing already
-      leaves more headroom at the bottom, so it can take a heavier bottom crop). */
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:276px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { margin-top:-10px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-top25 { height:241px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-top25 video { margin-top:-35px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-mixed { height:241px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-mixed video { margin-top:-25px; }
+   /* Per-tile crop windows, sized and positioned from the source clips so the robot renders at
+      the same size and position across all 5 hero tiles. object-position stays centered; each
+      video's own (taller) height sets the zoom and its negative margin-top picks which slice
+      of the 241px-tall wrap is shown. Newton RTX/Rerun/Kit/Viser are pinned against their clip's
+      frame edge or UI chrome, so they're a few percent larger than a plain center crop; Newton
+      GL was shrunk to match. Viser's clip also shows a sliver of a baked-in info panel at this
+      zoom level -- a known trade-off. */
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:241px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:402px; margin-top:-97px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:273px; margin-top:-32px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-rtx video { height:267px; margin-top:-26px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:287px; margin-top:-36px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-kit video { height:274px; margin-top:-33px; }
    .viz-grid-record { justify-content:center; align-items:flex-start; }
    .viz-grid-record > div { flex:0 0 auto; }
    .viz-grid-record video { display:block; width:auto; height:300px; }
+   .viz-stack-centered { display:flex; flex-direction:column; align-items:center; gap:1em; margin: 0.5em 0; }
+   .viz-stack-centered > div { width:65%; }
+   .viz-stack-centered video { display:block; width:100%; height:auto; }
    .viz-cap { text-align:center; font-style:italic; margin-top:0.4em; font-size:0.9em; }
    .viz-hero-wrap { position:relative; overflow:hidden; }
    .viz-label { position:absolute; bottom:8px; right:8px; max-width:35%; background:rgba(32,32,32,0.85);
@@ -72,36 +63,35 @@ This page covers:
    Green arrow: commanded velocity. Blue arrow: current velocity.</p>
 
    <div class="viz-hero-stack">
-   <div class="viz-hero-wrap viz-hero-newton-gl">
-     <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-newton-hero">
-       <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_gl.mp4" type="video/mp4">
-     </video>
-     <div class="viz-label viz-label-raise">Newton GL</div>
-   </div>
-
    <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
-     <div class="viz-hero-wrap viz-crop-mixed">
-       <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-bottom">
+     <div class="viz-hero-wrap viz-crop-newton-gl">
+       <video autoplay loop muted playsinline controls preload="auto">
+         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_gl.mp4" type="video/mp4">
+       </video>
+       <div class="viz-label">Newton GL</div>
+     </div>
+     <div class="viz-hero-wrap viz-crop-viser">
+       <video autoplay loop muted playsinline controls preload="auto">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_viser.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Viser</div>
      </div>
-     <div class="viz-hero-wrap viz-crop-top25">
-       <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-bottom">
+   </div>
+   <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
+     <div class="viz-hero-wrap viz-crop-newton-rtx">
+       <video autoplay loop muted playsinline controls preload="auto">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_rtx.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Newton RTX</div>
      </div>
-   </div>
-   <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
-     <div class="viz-hero-wrap viz-crop-top25">
-       <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-bottom">
+     <div class="viz-hero-wrap viz-crop-rerun">
+       <video autoplay loop muted playsinline controls preload="auto">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_rerun.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Rerun</div>
      </div>
-     <div class="viz-hero-wrap viz-crop-top25">
-       <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-kit-bottom viz-crop-x8">
+     <div class="viz-hero-wrap viz-crop-kit">
+       <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-x8">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_kit.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Kit</div>
@@ -375,10 +365,11 @@ Visualizer Overview
 
       .. warning::
 
-         Newton RTX (OVRTX) is a kitless renderer and cannot be used in the same process as the Kit
-         visualizer or PhysX. This rules out ``presets=ovphysx`` and ``presets=isaacsim_physx``; use
-         ``presets=newton_mjwarp,ovrtx`` with ``--viz newton_rtx``, or switch to ``--viz newton_gl``,
-         ``--viz viser``, ``--viz rerun``, or ``--viz kit`` with a Kit-compatible physics backend.
+         Newton RTX (OVRTX) is a kitless renderer and cannot be used in the same process as Kit
+         (``presets=isaacsim_physx``). ``presets=ovphysx`` is itself kitless and works fine with
+         Newton RTX. Use ``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with
+         ``--viz newton_rtx``, or switch to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``,
+         or ``--viz kit`` with a Kit-compatible physics backend.
 
    .. tab-item:: Rerun
 
@@ -509,7 +500,7 @@ updates every step.
 
 .. raw:: html
 
-   <div class="viz-grid viz-grid-natural">
+   <div class="viz-stack-centered">
      <div>
        <video autoplay loop muted playsinline controls preload="auto">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/streaming_newton_galbot_interactive.mp4" type="video/mp4">
@@ -859,11 +850,33 @@ Limitations
      - ✓
      - ✓
 
+**Lighting differences across visualizers**
+
+Each backend lights the scene differently, so the same environment can look noticeably
+different across visualizers. Kit renders the scene's actual authored USD lights. Newton GL
+uses a fixed sky-gradient and single directional light color
+(:attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.sky_upper_color`,
+``sky_lower_color``, ``light_color``), independent of scene USD lights. Newton RTX supports
+only 3 lighting-environment presets
+(:attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.rtx_environment`: ``"default"``,
+``"studio"``, ``"none"``) and does not use any scene-authored USD lights. Viser uses a single
+ambient light with no directional key light, so scenes tend to look darker and flatter than
+the other backends. Rerun uses fixed built-in viewer shading with no scene-driven lighting.
+
 **Kit: incompatible with ovphysx / ovrtx presets**
 
 ``--viz kit`` cannot be used with ``presets=ovphysx`` or ``presets=ovrtx`` in the same process.
 Use ``--viz newton_gl``, ``--viz rerun``, or ``--viz viser`` with those presets, or omit
 ``--viz`` for headless execution.
+
+**Newton RTX: incompatible with Kit**
+
+``--viz newton_rtx`` raises a ``RuntimeError`` at startup if the active physics backend is
+``isaacsim_physx`` (i.e. ``presets=isaacsim_physx``), since OVRTX is a kitless renderer and cannot share
+a process with Kit. ``presets=ovphysx`` is itself kitless and remains supported. Use
+``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with ``--viz newton_rtx``, or switch
+to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``, or ``--viz kit`` with a Kit-compatible
+physics backend.
 
 **Rerun: large environment performance**
 
@@ -929,5 +942,5 @@ See Also
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
 - :doc:`/source/overview/core-concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
 - :doc:`/source/concepts/scene_data_providers`: how scene data flows to visualizers
-- :doc:`/source/overview/core-concepts/physical-backends/newton/index`: Newton backend guide
+- :ref:`physics-backends-newton`: Newton backend guide
 - :doc:`/source/migration/migrating_to_isaaclab_3-0`: visualizer migration reference
