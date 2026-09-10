@@ -1,6 +1,6 @@
 # Newton/MJWarp Asset Migration Reference
 
-This reference follows the sections in the [asset migration guide](../../../docs/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton.rst).
+This reference follows the sections in the [asset migration guide](../../../docs/source/concepts/prepare_asset_for_newton.rst).
 
 ## Contents
 

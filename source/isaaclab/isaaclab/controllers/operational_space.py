@@ -193,7 +193,8 @@ class OperationalSpaceController:
                 targets (i.e., pose/wrench) and impedance parameters.
             current_ee_pose_b (torch.Tensor, optional): Current end-effector pose, in root frame, of shape
                 (``num_envs``, 7), containing position and quaternion ``(x, y, z, w)``. Required for relative
-                commands. Defaults to None.
+                commands and used as the orientation fallback for degenerate absolute pose quaternions.
+                Defaults to None.
             current_task_frame_pose_b: Current pose of the task frame, in root frame, in which the targets and the
                 (motion/wrench) control axes are defined. It is a tensor of shape (``num_envs``, 7),
                 containing position and the quaternion ``(x, y, z, w)``. Defaults to None.
@@ -202,6 +203,9 @@ class OperationalSpaceController:
             Task-space targets, ordered according to 'command_types':
 
                 Absolute pose: shape (``num_envs``, 7), containing position and quaternion ``(x, y, z, w)``.
+                The quaternion is normalized before use. Entries that cannot be normalized (e.g. all zeros or
+                non-finite) fall back to the current end-effector orientation when ``current_ee_pose_b`` is
+                provided, and to the identity orientation otherwise.
                 Relative pose: shape (``num_envs``, 6), containing delta position and rotation in axis-angle form.
                 Absolute wrench: shape (``num_envs``, 6), containing force and torque.
 
@@ -291,8 +295,23 @@ class OperationalSpaceController:
                 )
                 self.desired_ee_pose_task = torch.cat([desired_ee_pos_task, desired_ee_rot_task], dim=-1)
             elif command_type == "pose_abs":
-                # compute targets
-                self.desired_ee_pose_task = target.clone()
+                # normalize the target orientation so that unnormalized policy outputs do not scale the
+                # orientation error; degenerate quaternions fall back to the current end-effector orientation
+                desired_ee_pose_task = target.clone()
+                desired_ee_quat_task = desired_ee_pose_task[:, 3:7]
+                normalized_quat = desired_ee_quat_task / torch.linalg.norm(desired_ee_quat_task, dim=-1, keepdim=True)
+                is_valid = torch.isfinite(normalized_quat).all(dim=-1, keepdim=True)
+                if current_ee_pose_b is not None:
+                    _, fallback_quat = subtract_frame_transforms(
+                        current_task_frame_pose_b[:, :3],
+                        current_task_frame_pose_b[:, 3:],
+                        current_ee_pose_b[:, :3],
+                        current_ee_pose_b[:, 3:],
+                    )
+                else:
+                    fallback_quat = current_task_frame_pose_b.new_tensor([0.0, 0.0, 0.0, 1.0]).expand(self.num_envs, 4)
+                desired_ee_pose_task[:, 3:7] = torch.where(is_valid, normalized_quat, fallback_quat)
+                self.desired_ee_pose_task = desired_ee_pose_task
             elif command_type == "wrench_abs":
                 # compute targets
                 self.desired_ee_wrench_task = target.clone()

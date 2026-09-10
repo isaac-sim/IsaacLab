@@ -248,7 +248,7 @@ CPU configuration, consult the maintained upstream guides:
   <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/physics-performance.html>`_
 
 For Newton-specific performance and solver parameters, see the
-:doc:`Newton physics documentation <../overview/core-concepts/physical-backends/newton/index>`.
+:ref:`Newton physics documentation <physics-backends-newton>`.
 
 
 Joints actuate in PhysX but not in a Newton-based backend
