@@ -94,6 +94,7 @@ Table of Contents
    source/setup/quickstart
    source/setup/tutorial
    source/setup/demos
+   source/how-to/index
    source/migration/migrating_to_isaaclab_3-0
 
 
@@ -116,30 +117,18 @@ Table of Contents
    source/concepts/scene_data_providers
    source/concepts/visualization
    source/concepts/reinforcement_learning
-
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Guides
-   :titlesonly:
-
-   source/how-to/index
-
-
-.. toctree::
-   :maxdepth: 3
-   :caption: Overview
-   :titlesonly:
-
-
-   source/overview/core-concepts/index
-   source/overview/imitation-learning/index
+   source/concepts/deformables
+   source/concepts/schema_cfgs
+   source/concepts/schema_fragments
+   source/concepts/task_workflows
+   source/concepts/motion_generators
 
 
 .. toctree::
    :maxdepth: 2
    :caption: Features
 
+   source/features/imitation-learning/index
    source/features/isaac_teleop
    source/features/docker_cloud
    source/features/hydra

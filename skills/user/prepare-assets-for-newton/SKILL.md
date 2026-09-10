@@ -13,7 +13,7 @@ owners:
 
 Read the [asset migration guide](../../../docs/source/concepts/prepare_asset_for_newton.rst) first. This skill follows that page in the same order and targets Newton with MJWarp, not Newton solvers generally. Use the sim-to-sim skill only after the asset and task run in both backends.
 
-1D cable / rod assets are out of scope here: they are authored fresh as Newton deformables (Newton + VBD only), not converted from a PhysX rigid asset. See the [Deformables guide](../../../docs/source/overview/core-concepts/deformables.rst).
+1D cable / rod assets are out of scope here: they are authored fresh as Newton deformables (Newton + VBD only), not converted from a PhysX rigid asset. See the [Deformables guide](../../../docs/source/concepts/deformables.rst).
 
 Implicit MPM particle assets and rigid-MPM coupling are also out of scope; see the [Using Implicit MPM guide](../../../docs/source/concepts/using_mpm.rst).
 
@@ -43,5 +43,5 @@ Keep this skill synchronized section-for-section with the asset migration guide 
 - [Examples](examples.md)
 - [Evaluations](evaluations.md)
 - [MJWarp solver tuning](../../../docs/source/concepts/solver-tuning/tune_mjwarp.rst)
-- [Schema configuration classes](../../../docs/source/overview/core-concepts/schema_cfgs.rst)
+- [Schema configuration classes](../../../docs/source/concepts/schema_cfgs.rst)
 - [Newton Simulation Tuning guide](https://newton-physics.github.io/newton/latest/concepts/simulation_tuning.html)
