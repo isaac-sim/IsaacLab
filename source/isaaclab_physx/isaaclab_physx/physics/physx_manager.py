@@ -1004,6 +1004,15 @@ class PhysxManager(PhysicsManager):
     def _on_stop(cls, event: Any) -> None:
         cls._warmup_needed = True
         cls._invalidate_views()
+        # Detach the stage `_warmup_and_create_views` attached (GPU pipeline only, matching its own
+        # is_gpu guard) so the next play() can reattach cleanly. Without this, a second
+        # `_warmup_and_create_views` (e.g. play() -> stop() -> play() with no reset() in between)
+        # calls attach_stage() on a stage that is still attached ("Stage already attached") and
+        # corrupts PhysX's native view registry (SIGSEGV inside omni.physx.tensors). Guarded by
+        # get_attached_stage() so this is a no-op when close() already detached it.
+        if "cuda" in PhysicsManager.get_device() and (physx_sim := omni.physx.get_physx_simulation_interface()):
+            if physx_sim.get_attached_stage():
+                physx_sim.detach_stage()
 
     @classmethod
     def _on_stage_open(cls, event: Any) -> None:
