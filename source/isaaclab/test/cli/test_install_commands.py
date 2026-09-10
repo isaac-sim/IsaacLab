@@ -30,6 +30,27 @@ from isaaclab.cli.commands.install import (
 
 pytestmark = pytest.mark.unit
 
+
+@pytest.mark.parametrize("configured", [None, "https://mirror.example/simple"])
+def test_package_indexes_include_the_ov_runtime_source(monkeypatch, configured):
+    """Pip installers retain caller indexes and can resolve the required OV stack."""
+    for name in ("UV_EXTRA_INDEX_URL", "PIP_EXTRA_INDEX_URL"):
+        if configured is None:
+            monkeypatch.delenv(name, raising=False)
+        else:
+            monkeypatch.setenv(name, configured)
+    install_cmd._configure_package_indexes()
+    uv_config = install_cmd._load_root_pyproject()["tool"]["uv"]
+    source_index = uv_config["sources"]["ovphysx"]["index"]
+    expected_url = next(index["url"] for index in uv_config["index"] if index.get("name") == source_index)
+    for name in ("UV_EXTRA_INDEX_URL", "PIP_EXTRA_INDEX_URL"):
+        indexes = os.environ[name].split()
+        assert expected_url in indexes
+        assert (configured or install_cmd.NVIDIA_INDEX_URL) in indexes
+    install_cmd._configure_package_indexes()
+    assert os.environ["PIP_EXTRA_INDEX_URL"].split().count(expected_url) == 1
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

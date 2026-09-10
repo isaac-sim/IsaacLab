@@ -15,8 +15,14 @@ outputs:
   ovrtx:
     description: 'OVRTX pip requirement specifier (e.g. ovrtx>=0.3.0,<0.4.0)'
     value: ${{ steps.resolve.outputs.ovrtx }}
+  index-url:
+    description: 'Package index hosting the pinned OV runtime stack'
+    value: ${{ steps.resolve.outputs.index-url }}
+  dependencies:
+    description: 'Matching OVStage/OmniClient requirements and internal package index for pip installs'
+    value: ${{ steps.resolve.outputs.dependencies }}
   ovphysx:
-    description: 'OVPhysX pip requirement specifier (e.g. ovphysx==0.5.9)'
+    description: 'OVPhysX pip requirement specifier (e.g. ovphysx==0.6.2)'
     value: ${{ steps.resolve.outputs.ovphysx }}
 
 runs:
@@ -40,7 +46,8 @@ runs:
         import tomllib
 
         with open("pyproject.toml", "rb") as f:
-            vals = tomllib.load(f).get("tool", {}).get("isaaclab", {}).get("versions", {})
+            config = tomllib.load(f)
+        vals = config["tool"]["isaaclab"]["versions"]
 
         def spec(pkg: str) -> str:
             # Mirror pyproject's convention: exact versions map to ``pkg==x.y.z``,
@@ -52,6 +59,11 @@ runs:
 
         for pkg in ("ovrtx", "ovphysx"):
             print(f"{pkg}={spec(pkg)}")
+        uv_config = config["tool"]["uv"]
+        index_name = uv_config["sources"]["ovphysx"]["index"]
+        index_url = next(index["url"] for index in uv_config["index"] if index.get("name") == index_name)
+        print(f"index-url={index_url}")
+        print(f"dependencies={spec('ovstage')} {spec('omniverseclient')} --extra-index-url {index_url}")
         PY
         )"
         echo "$pins" >> "$GITHUB_OUTPUT"

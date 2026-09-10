@@ -32,9 +32,14 @@ runs:
         # `auto` (the default) enables the cache only on GitHub-hosted runners;
         # this action also runs on the self-hosted arm64 runner, so force it on.
         enable-cache: true
+    - name: Resolve OV runtime package index
+      uses: ./.github/actions/resolve-ov-pins
+      id: ov_pins
     - name: Run Tests
       shell: bash
       env:
+        PIP_EXTRA_INDEX_URL: https://pypi.nvidia.com ${{ steps.ov_pins.outputs.index-url }}
+        UV_EXTRA_INDEX_URL: https://pypi.nvidia.com ${{ steps.ov_pins.outputs.index-url }}
         BASE_IMAGE: ${{ inputs.base-image }}
         TEST_FILTER: ${{ inputs.test-filter }}
       run: |

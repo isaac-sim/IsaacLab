@@ -85,24 +85,30 @@ supported.
 Installation
 ------------
 
-The Isaac Lab source install includes the ``isaaclab_ov`` package, but it
-does not install the heavier ``ovphysx`` runtime wheel by default. After a
-standard source install, install the optional OvPhysX runtime dependency from
-the repository root:
+The Isaac Lab source install includes the ``isaaclab_ov`` package. The optional
+``ovphysx`` extra installs OvPhysX 0.6.2 with OVStage 0.2.0.377349 and
+OmniClient 2.74.0. These versions currently require access to NVIDIA's internal
+Omniverse Artifactory index, configured in the root ``pyproject.toml``.
+
+From the repository root, install the runtime with:
 
 .. code-block:: bash
 
+    uv sync --extra ovphysx
+
+Use ``--extra ov`` to install both OvPhysX and the matching OVRTX 0.5.0.377615. For pip-based source or
+wheel installations, provide the internal index explicitly:
+
+.. code-block:: bash
+
+    export PIP_EXTRA_INDEX_URL="https://pypi.nvidia.com https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple"
     ./isaaclab.sh -i 'ov[ovphysx]'
 
-You can also install all OV runtime wheels with:
-
-.. code-block:: bash
-
-    ./isaaclab.sh -i 'ov[all]'
-
-The ``ov[ovphysx]`` selector installs the ``ovphysx`` runtime wheel declared by
-the root ``pyproject.toml`` ``ov`` extra. If the wheel is missing, OvPhysX-specific
-tests skip with ``ovphysx wheel not installed`` and user code fails at import time.
+When upgrading an existing environment, reinstall the complete extra so that
+OVStage and OmniClient match OvPhysX. OvPhysX 0.5.x is no longer supported by
+this branch: 0.6 already returns dynamics tensors in the public joint basis,
+and Isaac Lab no longer applies the old reversed-joint sign correction.
+Custom joint and body ordering remains supported.
 
 Testing the Installation
 ------------------------
@@ -115,7 +121,7 @@ First check that the Python package and runtime wheel import correctly:
 
       .. code-block:: bash
 
-          uv run python -c "import ovphysx.types; from isaaclab_ov.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
+          uv run --extra ovphysx --extra test python -c "import ovphysx.types; from isaaclab_ov.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -131,7 +137,7 @@ Then run a small backend smoke test:
 
       .. code-block:: bash
 
-          uv run python -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_initialization -k cpu
+          uv run --extra ovphysx --extra test python -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_initialization -k cpu
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -148,7 +154,7 @@ syntax as the other backends:
 
       .. code-block:: bash
 
-          uv run isaaclab zero_agent --task Isaac-Cartpole-Direct \
+          uv run --extra ovphysx isaaclab zero_agent --task Isaac-Cartpole-Direct \
               --num_envs 128 --max_steps 64 --viz none physics=ovphysx
 
    .. tab-item:: isaaclab.sh / isaaclab.bat

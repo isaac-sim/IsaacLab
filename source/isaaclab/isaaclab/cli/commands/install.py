@@ -417,6 +417,18 @@ def _load_root_pyproject() -> dict:
         return tomllib.load(fd)
 
 
+def _configure_package_indexes() -> None:
+    """Expose the OV runtime source to pip-based installers as well as uv sync."""
+    uv_config = _load_root_pyproject()["tool"]["uv"]
+    ov_index_name = uv_config["sources"]["ovphysx"]["index"]
+    ov_index_url = next(index["url"] for index in uv_config["index"] if index.get("name") == ov_index_name)
+    for variable in ("UV_EXTRA_INDEX_URL", "PIP_EXTRA_INDEX_URL"):
+        indexes = os.environ.get(variable, NVIDIA_INDEX_URL).split()
+        if ov_index_url not in indexes:
+            indexes.append(ov_index_url)
+        os.environ[variable] = " ".join(indexes)
+
+
 def _pinned_version(package: str) -> str:
     """Return the pinned version for ``package`` from ``[tool.isaaclab.versions]``.
 
@@ -1236,8 +1248,7 @@ def command_install(install_type: str = "all") -> None:
                 print_warning(f"Unknown install token '{name}'. Valid values: {', '.join(valid)}. Skipping.")
 
     # Configure extra package indexes for NVIDIA and MuJoCo wheels.
-    os.environ.setdefault("UV_EXTRA_INDEX_URL", "https://pypi.nvidia.com")
-    os.environ.setdefault("PIP_EXTRA_INDEX_URL", "https://pypi.nvidia.com")
+    _configure_package_indexes()
     os.environ.setdefault("PIP_FIND_LINKS", "https://py.mujoco.org/")
 
     # if on ARM arch, temporarily clear LD_PRELOAD

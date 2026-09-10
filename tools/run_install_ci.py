@@ -340,6 +340,9 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     # Pass environment variables
     docker_run_cmd.extend(["-e", "OMNI_KIT_ACCEPT_EULA=Y"])
     docker_run_cmd.extend(["-e", "ACCEPT_EULA=Y"])
+    for variable in ("PIP_EXTRA_INDEX_URL", "UV_EXTRA_INDEX_URL"):
+        if variable in os.environ:
+            docker_run_cmd.extend(["-e", variable])
 
     if args.results_dir and args.shell and host_results_xml is not None:
         docker_run_cmd.extend(["-v", f"{host_results_xml.parent}:/tmp/results"])

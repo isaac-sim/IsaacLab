@@ -11,8 +11,8 @@ with ``release()``, while 0.6 replaces those entry points with ``warmup()`` and
 the entry-point names are resolved once at import and published as
 :data:`OVPHYSX_LIFECYCLE_ENTRY_POINTS`.
 
-The public extras stay pinned to ``ovphysx==0.5.11``; a missing or unparsable
-install keeps the 0.5.11 entry points.
+The supported extras require OVPhysX 0.6.2. Legacy lifecycle entry points remain
+available for callers using older runtime instances.
 """
 
 from __future__ import annotations

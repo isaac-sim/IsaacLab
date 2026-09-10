@@ -15,7 +15,10 @@ from isaaclab.assets.articulation.ordering_kernels import (
     reorder_2d_user_to_backend,
     reorder_3d_backend_to_user,
     reorder_body_state_backend_to_user,
+    reorder_generalized_vector_backend_to_user,
+    reorder_jacobian_backend_to_user,
     reorder_joint_state_backend_to_user,
+    reorder_mass_matrix_backend_to_user,
     write_2d_user_to_backend_with_indices,
     write_2d_user_to_backend_with_mask,
     write_3d_user_to_backend_with_indices,
@@ -28,6 +31,54 @@ from isaaclab.assets.articulation.ordering_kernels import (
     write_joint_vel_user_to_backend_with_indices,
     write_joint_vel_user_to_backend_with_mask,
 )
+from isaaclab.test.utils import test_devices
+
+
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("num_base_dofs", [0, 6])
+@pytest.mark.parametrize("with_signs", [False, True])
+def test_dynamics_reordering_preserves_optional_direction_transform(
+    device: str, num_base_dofs: int, with_signs: bool
+) -> None:
+    """Preserve legacy direction transforms while allowing permutation-only reads."""
+    num_dofs = num_base_dofs + 3
+    joint_map = wp.array([2, 0, 1], dtype=wp.int32, device=device)
+    body_map = wp.array([1, 0], dtype=wp.int32, device=device)
+    signs = wp.array([1, -1, 1], dtype=wp.int32, device=device) if with_signs else None
+    dof_order = list(range(num_base_dofs)) + [num_base_dofs + i for i in [2, 0, 1]]
+    direction = np.ones(num_dofs, dtype=np.float32)
+    if with_signs:
+        direction[num_base_dofs + 1] = -1.0
+    transform = np.eye(num_dofs, dtype=np.float32)[dof_order] * direction
+
+    jacobian = np.arange(2 * 6 * num_dofs, dtype=np.float32).reshape(1, 2, 6, num_dofs)
+    mass = np.arange(num_dofs * num_dofs, dtype=np.float32).reshape(1, num_dofs, num_dofs)
+    force = np.arange(num_dofs, dtype=np.float32).reshape(1, num_dofs)
+    cases = [
+        (
+            reorder_jacobian_backend_to_user,
+            jacobian,
+            [body_map, joint_map, signs, num_base_dofs, True, True],
+            jacobian[:, [1, 0]] @ transform.T,
+        ),
+        (
+            reorder_mass_matrix_backend_to_user,
+            mass,
+            [joint_map, signs, num_base_dofs, True],
+            transform @ mass @ transform.T,
+        ),
+        (
+            reorder_generalized_vector_backend_to_user,
+            force,
+            [joint_map, signs, num_base_dofs, True],
+            force @ transform.T,
+        ),
+    ]
+    for kernel, values, inputs, expected in cases:
+        backend_data = wp.array(values, dtype=wp.float32, device=device)
+        user_data = wp.zeros_like(backend_data)
+        wp.launch(kernel, dim=user_data.shape, inputs=[backend_data, *inputs], outputs=[user_data], device=device)
+        np.testing.assert_array_equal(user_data.numpy(), expected)
 
 
 def test_reorder_2d_backend_to_user_gathers_user_axis() -> None:
