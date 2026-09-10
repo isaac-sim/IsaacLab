@@ -240,6 +240,7 @@ class MockNewtonArticulationView:
         joint_names: list[str] | None = None,
         body_names: list[str] | None = None,
         tendon_names: list[str] | None = None,
+        joint_coord_counts: list[int] | None = None,
     ):
         """Initialize the mock Newton articulation view.
 
@@ -253,6 +254,10 @@ class MockNewtonArticulationView:
             joint_names: Names of joints. Defaults to ["joint_0", ...].
             body_names: Names of bodies. Defaults to ["body_0", ...].
             tendon_names: Names of fixed tendons. Defaults to ["tendon_0", ...].
+            joint_coord_counts: Coordinate count per selected joint, e.g. ``[1, 4, 1]`` for a
+                three-joint articulation with a ball joint in the middle. Must sum with its
+                matching per-joint DOF counts (inferred as 3 in place of any ``4``, 1 otherwise)
+                to ``num_joints`` DOFs. Defaults to one coordinate per DOF -- no ball joints.
         """
         self._count = num_instances
         self._link_count = num_bodies
@@ -261,6 +266,10 @@ class MockNewtonArticulationView:
         self._device = device
         self._is_fixed_base = is_fixed_base
         self._noop_setters = False
+        self._joint_coord_counts_override = joint_coord_counts
+        # Real Newton's ``get_dof_positions`` returns ``joint_q`` (coordinate space), wider than the
+        # DOF count whenever a ball joint is present; fake that width here too.
+        self._joint_coord_count_total = sum(joint_coord_counts) if joint_coord_counts is not None else num_joints
 
         # Set joint and body names
         self._joint_dof_names = joint_names if joint_names is not None else [f"joint_{i}" for i in range(num_joints)]
@@ -322,13 +331,17 @@ class MockNewtonArticulationView:
 
     @property
     def joint_dof_counts(self) -> list[int]:
-        """DOF count per selected joint. One DOF per joint -- no ball joints in the mock."""
-        return [1] * self._joint_dof_count
+        """DOF count per selected joint. One DOF per joint unless a ball layout was requested."""
+        if self._joint_coord_counts_override is None:
+            return [1] * self._joint_dof_count
+        return [3 if n_coords == 4 else 1 for n_coords in self._joint_coord_counts_override]
 
     @property
     def joint_coord_counts(self) -> list[int]:
-        """Coordinate count per selected joint. Equal to :attr:`joint_dof_counts` -- no ball joints."""
-        return [1] * self._joint_dof_count
+        """Coordinate count per selected joint. Equal to :attr:`joint_dof_counts` unless a ball layout was requested."""
+        if self._joint_coord_counts_override is None:
+            return [1] * self._joint_dof_count
+        return list(self._joint_coord_counts_override)
 
     @property
     def is_fixed_base(self) -> bool:
@@ -406,10 +419,10 @@ class MockNewtonArticulationView:
         return self._link_velocities
 
     def _ensure_dof_positions(self) -> wp.array:
-        """Lazily create DOF positions."""
+        """Lazily create DOF positions, in coordinate space (see ``_joint_coord_count_total``)."""
         if self._dof_positions is None:
             self._dof_positions = wp.zeros(
-                (self._count, 1, self._joint_dof_count), dtype=wp.float32, device=self._device
+                (self._count, 1, self._joint_coord_count_total), dtype=wp.float32, device=self._device
             )
         return self._dof_positions
 
@@ -729,8 +742,10 @@ class MockNewtonArticulationView:
             link_vel_np = np.random.randn(N, 1, L, 6).astype(np.float32)
             self._link_velocities = wp.array(link_vel_np, dtype=wp.spatial_vectorf, device=dev)
 
-        # DOF state
-        self._dof_positions = wp.array(np.random.randn(N, 1, J).astype(np.float32), dtype=wp.float32, device=dev)
+        # DOF state -- positions are coordinate-space width (see ``_joint_coord_count_total``),
+        # velocities are always DOF-space width.
+        C = self._joint_coord_count_total
+        self._dof_positions = wp.array(np.random.randn(N, 1, C).astype(np.float32), dtype=wp.float32, device=dev)
         self._dof_velocities = wp.array(np.random.randn(N, 1, J).astype(np.float32), dtype=wp.float32, device=dev)
 
         # Body properties

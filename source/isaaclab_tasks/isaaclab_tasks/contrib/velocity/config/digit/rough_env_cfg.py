@@ -5,7 +5,6 @@
 
 import math
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -24,7 +23,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg, RoughPhysicsCfg
 from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.agility import ARM_JOINT_NAMES, DIGIT_V4_CFG, LEG_JOINT_NAMES
@@ -57,18 +56,12 @@ class DigitPhysicsCfg(PresetCfg):
         gpu_total_aggregate_pairs_capacity=2**23,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    newton_mjwarp = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            njmax=5000,
-            nconmax=2000,
-            cone="pyramidal",
-            impratio=1.0,
-            integrator="implicitfast",
-            use_mujoco_contacts=False,
-        ),
-        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
-        num_substeps=2,
-        default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
+    # ``class_type`` is reset to ``None`` because ``NewtonCfg.__post_init__`` re-derives it from
+    # ``solver_cfg`` and refuses an explicit value -- ``replace()`` would otherwise carry the
+    # already-derived value from the source instance forward as one.
+    newton_mjwarp = RoughPhysicsCfg().newton_mjwarp.replace(
+        class_type=None,
+        solver_cfg=RoughPhysicsCfg().newton_mjwarp.solver_cfg.replace(njmax=5000, nconmax=2000),
     )
     default = isaacsim_physx
 
@@ -280,7 +273,7 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # scene
         self.scene.robot = DIGIT_V4_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         # digit_v4.usd applies CollisionAPI to 32 prims, every one a decoration mesh on a RealSense
-        # camera mount -- glass, USB-C, case halves. They become 57% of the robot's collision shapes
+        # camera mount -- glass, USB-C, case halves. They are 32 of the robot's 55 collision shapes
         # while the arms, hips and rods carry none, and produced 3e7 N contact forces on bodies
         # 1.4 m above the ground. Colliders on a camera's glass are an authoring error on either
         # backend, so this is deliberately not gated on the physics preset.
@@ -299,12 +292,13 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
                 damping=None,
             ),
             # Split out purely so the armature floor can be expressed as configuration; the
-            # actuator model is the same. ``None`` keeps the value the USD prim authors.
+            # actuator model is the same. Applied on both backends -- consistent with #7607/#7612's
+            # direction of not special-casing PhysX for a value that does not hurt it there.
             "low_armature": ImplicitActuatorCfg(
                 joint_names_expr=_LOW_ARMATURE_JOINT_NAMES,
                 stiffness=None,
                 damping=None,
-                armature=preset(default=None, newton_mjwarp=_MIN_STABLE_ARMATURE),
+                armature=_MIN_STABLE_ARMATURE,
             ),
         }
         # commands
@@ -317,9 +311,10 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.events.add_base_mass.params["asset_cfg"].body_names = "torso_base"
         self.events.base_external_force_torque.params["asset_cfg"].body_names = "torso_base"
         self.events.base_com.params["asset_cfg"].body_names = "torso_base"
-        # The asset authors no articulation_props, so Newton filters every intra-articulation
-        # shape pair -- 253 of them, exactly C(23,2) for its 23 colliding shapes -- and the legs
-        # pass through each other. Which links carry colliders is left as the asset authored it.
+        # The asset authors enabledSelfCollisions=False and DIGIT_V4_CFG sets no
+        # articulation_props, so Newton filters every intra-articulation shape pair -- 253 of
+        # them, exactly C(23,2) for its 23 colliding shapes -- and the legs pass through each
+        # other. Which links carry colliders is left as the asset authored it.
         self.scene.robot.spawn.articulation_props = preset(
             default=None, newton_mjwarp=[NewtonArticulationCfg(self_collision_enabled=True)]
         )

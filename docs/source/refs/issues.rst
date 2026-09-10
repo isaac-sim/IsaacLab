@@ -118,10 +118,10 @@ OpenUSD provider that contains the fix or to Isaac Sim 6.1 or later.
 
 .. _known-issues-closed-loop-newton:
 
-Closed-loop articulations on Newton (e.g. Agility Digit)
+Closed-loop articulations are not validated on Kamino (e.g. Agility Digit)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Affects:** ``physics=newton_mjwarp``, ``physics=newton_kamino``.
+**Affects:** ``physics=newton_kamino``.
 
 Robots whose USD encodes a closed kinematic loop — such as the achilles rod and toe push-rods
 on the Agility Digit — are not validated on ``newton_kamino``.

@@ -5,6 +5,8 @@
 
 """Kitless tests for the Newton joint coordinate/DOF conversion."""
 
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
 import warp as wp
@@ -14,6 +16,11 @@ from isaaclab_newton.assets.articulation.joint_coordinates import JointCoordinat
 # built by walking the model instead of the view's own per-joint counts.
 COORD_COUNTS = [1, 4, 1]
 DOF_COUNTS = [1, 3, 1]
+
+# Two balls, straddling a revolute on each side -- the second ball's offsets (ball_coord[1] = 5,
+# ball_dof[1] = 4) are not exercised by the single-ball layout above.
+TWO_BALL_COORD_COUNTS = [1, 4, 4, 1]
+TWO_BALL_DOF_COUNTS = [1, 3, 3, 1]
 
 
 def _rotvec_to_quat(rotvec: np.ndarray) -> np.ndarray:
@@ -37,6 +44,106 @@ def test_tables_cover_every_dof() -> None:
     assert sorted(list(m.single_coord.numpy()) + [b + k for b in m.ball_coord.numpy() for k in range(4)]) == list(
         range(sum(COORD_COUNTS))
     )
+
+
+def test_two_ball_tables_cover_every_dof() -> None:
+    """A second ball joint's offsets are not a simple repeat of the first's."""
+    m = JointCoordinateMap(TWO_BALL_COORD_COUNTS, TWO_BALL_DOF_COUNTS, "cpu")
+    assert list(m.ball_dof.numpy()) == [1, 4]
+    assert list(m.ball_coord.numpy()) == [1, 5]
+    covered = list(m.single_dof.numpy()) + [b + k for b in m.ball_dof.numpy() for k in range(3)]
+    assert sorted(covered) == list(range(sum(TWO_BALL_DOF_COUNTS)))
+    assert sorted(list(m.single_coord.numpy()) + [b + k for b in m.ball_coord.numpy() for k in range(4)]) == list(
+        range(sum(TWO_BALL_COORD_COUNTS))
+    )
+
+
+def test_zero_rotation_vector_scatters_to_identity_quaternion() -> None:
+    """The ``angle > 1e-9`` guard's else-branch -- taken on every reset of a passive ball joint at
+    ``default_joint_pos = 0`` -- must produce the identity quaternion, not ``0/0``."""
+    m = _map()
+    n_dofs, n_coords = sum(DOF_COUNTS), sum(COORD_COUNTS)
+    dofs = wp.zeros((1, n_dofs), dtype=wp.float32, device="cpu")
+    coords = wp.zeros((1, n_coords), dtype=wp.float32, device="cpu")
+    mask = wp.array(np.array([True]), dtype=wp.bool, device="cpu")
+
+    m.scatter(dofs, coords, mask)
+
+    ball_coord = int(m.ball_coord.numpy()[0])
+    np.testing.assert_array_equal(coords.numpy()[0, ball_coord : ball_coord + 4], [0.0, 0.0, 0.0, 1.0])
+
+
+@pytest.mark.parametrize("sign", [1.0, -1.0])
+def test_identity_quaternion_gathers_to_zero_rotation_vector(sign: float) -> None:
+    """The inverse of the guard above: the identity quaternion (either hemisphere) decodes to the
+    zero rotation vector, not a NaN from a degenerate axis normalization."""
+    m = _map()
+    n_dofs, n_coords = sum(DOF_COUNTS), sum(COORD_COUNTS)
+    coords_np = np.zeros((1, n_coords), dtype=np.float32)
+    ball_coord = int(m.ball_coord.numpy()[0])
+    coords_np[0, ball_coord : ball_coord + 4] = np.array([0.0, 0.0, 0.0, 1.0]) * sign
+    out = wp.zeros((1, n_dofs), dtype=wp.float32, device="cpu")
+
+    m.gather(wp.array(coords_np, dtype=wp.float32, device="cpu"), out)
+
+    ball_dof = int(m.ball_dof.numpy()[0])
+    np.testing.assert_array_equal(out.numpy()[0, ball_dof : ball_dof + 3], [0.0, 0.0, 0.0])
+
+
+def test_joint_pos_is_dof_shaped_on_a_ball_jointed_mock() -> None:
+    """Regression for the original bug: :attr:`ArticulationData.joint_pos` must be DOF-shaped
+    even when the underlying view's ``joint_q`` is wider (a ball joint). This exercises
+    ``_create_simulation_bindings`` end to end, unlike the ``JointCoordinateMap``-only tests
+    above -- it fails on the pre-fix binding, which read ``get_dof_positions()`` (coordinate
+    space) straight into ``joint_pos`` with no conversion, so ``joint_pos.shape[1]`` would be
+    ``sum(TWO_BALL_COORD_COUNTS) == 10`` instead of ``sum(TWO_BALL_DOF_COUNTS) == 8``.
+    """
+    import isaaclab_newton.assets.articulation.articulation_data as newton_data_module
+    from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
+    from isaaclab_newton.test.fixtures.views import MockNewtonArticulationView
+
+    num_instances = 2
+    num_dofs = sum(TWO_BALL_DOF_COUNTS)
+    num_bodies = len(TWO_BALL_DOF_COUNTS) + 1
+
+    mock_view = MockNewtonArticulationView(
+        num_instances=num_instances,
+        num_bodies=num_bodies,
+        num_joints=num_dofs,
+        device="cpu",
+        is_fixed_base=True,
+        joint_coord_counts=TWO_BALL_COORD_COUNTS,
+    )
+    mock_view.set_random_mock_data()
+    mock_view._noop_setters = True
+
+    mock_model = MagicMock()
+    mock_model.world_count = num_instances
+    mock_model.gravity = wp.array(
+        np.tile(np.array([[0.0, 0.0, -9.81]], dtype=np.float32), (num_instances + 1, 1)),
+        dtype=wp.vec3f,
+        device="cpu",
+    )
+    mock_model.articulation_count = num_instances
+    mock_model.max_joints_per_articulation = num_bodies
+    mock_model.max_dofs_per_articulation = num_dofs
+    mock_model.joint_dof_count = num_instances * num_dofs
+    mock_model.body_count = num_instances * num_bodies
+
+    mock_manager = MagicMock()
+    mock_manager.get_model.return_value = mock_model
+    mock_manager.get_state_0.return_value = MagicMock()
+    mock_manager.get_state_1.return_value = MagicMock()
+    mock_manager.get_control.return_value = MagicMock()
+
+    original_sim_manager = newton_data_module.SimulationManager
+    newton_data_module.SimulationManager = mock_manager
+    try:
+        data = ArticulationData(mock_view, "cpu")
+    finally:
+        newton_data_module.SimulationManager = original_sim_manager
+
+    assert data.joint_pos.torch.shape[1] == num_dofs
 
 
 def test_map_is_inert_without_ball_joints() -> None:

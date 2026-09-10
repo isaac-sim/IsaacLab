@@ -7,8 +7,6 @@ from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
-from isaaclab_tasks.utils import preset
-
 
 @configclass
 class DigitRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
@@ -34,8 +32,9 @@ class DigitRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         clip_param=0.2,
         # MJWarp is less forgiving of the action tail than PhysX: at 0.01 the policy settles around
         # std 0.59 on rough terrain against 0.40 here, and one seed in three hit a solver
-        # divergence past iteration 2000 while still tracking the command perfectly.
-        entropy_coef=preset(default=0.01, newton_mjwarp=0.005),
+        # divergence past iteration 2000 while still tracking the command perfectly. Applied on
+        # both backends -- consistent with #7607/#7612's direction of not special-casing PhysX.
+        entropy_coef=0.005,
         num_learning_epochs=5,
         num_mini_batches=4,
         learning_rate=1.0e-3,

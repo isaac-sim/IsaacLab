@@ -6,9 +6,11 @@
 """Conversion between Newton's joint coordinate space and Isaac Lab's DOF space.
 
 Newton stores a ball joint as a 4-component unit quaternion against 3 DOFs, so an articulation
-containing one has more joint coordinates than DOFs. Every other joint type Isaac Lab exposes has
-one coordinate per DOF, so the two spaces coincide for most assets and :class:`JointCoordinateMap`
-reports ``required = False`` for them.
+containing one has more joint coordinates than DOFs. Free and distance joints have the same kind
+of mismatch, but Isaac Lab's view excludes free joints and this module rejects distance joints, so
+ball is the only mismatched layout this map converts. Every other joint type has one coordinate
+per DOF, so the two spaces coincide for most assets and :class:`JointCoordinateMap` reports
+``required = False`` for them.
 
 Isaac Lab addresses joints by DOF index throughout -- ``joint_names``, ``find_joints``,
 ``SceneEntityCfg.joint_ids`` -- so joint positions have to be exposed in DOF space to stay
@@ -24,7 +26,8 @@ from __future__ import annotations
 import warp as wp
 
 _BALL_LAYOUT = (4, 3)
-"""``(coordinates, DOFs)`` of a ball joint -- the only pair Newton exposes where the two differ."""
+"""``(coordinates, DOFs)`` of a ball joint -- the only mismatched layout this map converts; free
+joints are excluded from Lab's view, and distance joints (7 against 6) are rejected."""
 
 
 @wp.kernel(enable_backward=False)
@@ -172,9 +175,10 @@ class JointCoordinateMap:
     def scatter(self, dofs: wp.array, coords: wp.array, env_mask: wp.array) -> None:
         """Write ``dofs`` back into ``coords`` for the selected environments.
 
-        Scoping this to the written environments matters: resets are staggered, so an
-        all-environment scatter would send every quaternion through a log-map round trip on almost
-        every step and add float32 noise to the loop-closure constraints.
+        Scoping this to the written environments matters: resets are staggered, and ``dofs`` for
+        the other environments only holds the last post-step gather. An all-environment scatter
+        would overwrite their live ``joint_q`` with an exp(log(q)) round trip of itself, perturbing
+        state that was never written.
 
         Args:
             dofs: DOF-space joint positions [rad or m, depending on joint type].
