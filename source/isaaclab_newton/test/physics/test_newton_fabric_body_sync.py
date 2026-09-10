@@ -558,6 +558,32 @@ def test_frame_view_pose_write_reaches_fabric():
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+def test_frame_view_pose_write_reaches_fabric_when_the_scope_raises():
+    """A write that lands in Newton must still be mirrored when the scope unwinds.
+
+    The Newton-side write is committed as soon as ``set_poses`` returns, so skipping the mirror on
+    the exception path would leave the renderer showing the old pose indefinitely.
+    """
+    device = "cuda:0"
+    frame_path = "/World/Frame"
+    target_position = torch.tensor([1.0, -0.5, 8.0])
+
+    with _frame_scene(frame_path, (0.0, 0.0, 2.0), device) as (sim, _, view):
+        positions = wp.from_torch(target_position.reshape(1, 3).to(device).contiguous(), dtype=wp.vec3f)
+        orientations = wp.from_torch(
+            torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device), dtype=wp.vec4f
+        )
+        with pytest.raises(RuntimeError, match="scope body failed"):  # noqa: PT012 -- the raise is the scenario
+            with view.xform_world_space_writer() as writer:
+                writer.set_poses(positions, orientations)
+                raise RuntimeError("scope body failed")
+        _render(sim, device)
+
+        _assert_position(_fabric_position(frame_path), target_position)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
 def test_frame_view_pose_write_on_body_child_survives_body_motion():
     """A pose write on a body-attached frame must render, and the frame must still track the body.
 
@@ -586,6 +612,43 @@ def test_frame_view_pose_write_on_body_child_survives_body_motion():
         expected = target_pose[0, :3].cpu() + (written_position - body_start)
         _assert_position(wp.to_torch(view.get_world_poses()[0].warp).cpu()[0], expected)
         _assert_position(_fabric_position(frame_path), expected)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+def test_first_frame_pose_write_after_body_move_leaves_the_body_rendered():
+    """Building the mirror must not reseed its prims from USD.
+
+    The mirror tags the frame *and its parent body*, and the body's Fabric transform is driven by
+    Newton, which never writes back to USD. Seeding it from USD when the mirror is built would snap
+    the rendered body back to its spawn pose -- and the body sync is a no-op at that point, so
+    nothing would put it back. Ordering matters: the body has to move and render *before* the first
+    frame write, which is what builds the mirror.
+    """
+    device = "cuda:0"
+    body_path = "/World/envs/env_0/Cube"
+    frame_path = f"{body_path}/Frame"
+
+    with _frame_scene(frame_path, (0.0, 0.0, 0.35), device) as (sim, scene, view):
+        body_start = torch.tensor([0.0, 0.0, 1.0])
+        body_target = torch.tensor([1.5, -0.75, 2.0])
+        target_pose = torch.zeros((1, 7), dtype=torch.float32, device=device)
+        target_pose[0, :3] = body_target.to(device)
+        target_pose[0, 6] = 1.0
+
+        # Move and render the body first, so its Fabric transform is current and USD is stale.
+        scene["cube"].write_root_link_pose_to_sim_index(root_pose=target_pose)
+        _render(sim, device)
+        _assert_position(_fabric_position(body_path), body_target)
+
+        # First frame write: this is what builds the mirror.
+        written_position = body_target + torch.tensor([0.5, 0.0, 0.0])
+        _write_frame_world_position(view, written_position.to(device))
+        _render(sim, device)
+
+        _assert_position(_fabric_position(body_path), body_target)
+        _assert_position(_fabric_position(frame_path), written_position)
+        assert not torch.allclose(_fabric_position(body_path), body_start, rtol=0.0, atol=1.0e-4)
 
 
 @pytest.mark.isaacsim_ci

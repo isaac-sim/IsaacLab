@@ -7,8 +7,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
+import sys
 
 import warp as wp
 from newton import ShapeFlags
@@ -265,6 +267,8 @@ class NewtonSiteFrameView(BaseFrameView):
         # Fabric mirror state, built on the first write (see :meth:`_mirror_to_fabric`).
         self._fabric_sel: FabricXformSelection | None = None
         self._mirror_disabled = False
+        # Set only on the pre-model path below; released again by :meth:`close`.
+        self._physics_ready_handle = None
         self._site_body: wp.array | None = None
         self._site_local: wp.array | None = None
         self._site_xform_scale: wp.array | None = None
@@ -678,11 +682,33 @@ class NewtonSiteFrameView(BaseFrameView):
         return True
 
     def close(self) -> None:
-        """Release the Fabric attributes authored by this view's mirror."""
+        """Release the Fabric attributes and model-ready callback owned by this view.
+
+        The view must not be used afterwards. Calling :meth:`close` again is a no-op. If
+        :meth:`close` is never called, the same cleanup runs best-effort from ``__del__`` --
+        collection timing is up to the interpreter, so only :meth:`close` is deterministic.
+        """
+        handle = self._physics_ready_handle
+        self._physics_ready_handle = None  # cleared first so a repeat close() cannot deregister twice
+        if handle is not None:
+            handle.deregister()
         if self._fabric_sel is not None:
             self._fabric_sel.close()
             self._fabric_sel = None
         self._mirror_disabled = True
+
+    def __del__(self, _sys=sys):
+        """Best-effort cleanup when the view is collected without :meth:`close`.
+
+        Follows the repo's shutdown-safe ``__del__`` idiom (see
+        :meth:`~isaaclab.envs.ManagerBasedEnv.__del__`): ``sys`` is bound as a default argument so it
+        survives module teardown, and nothing runs during interpreter finalization, when calling into
+        Kit can crash and the Fabric tags die with Fabric anyway.
+        """
+        if _sys.is_finalizing() or _sys.meta_path is None:
+            return
+        with contextlib.suppress(Exception):  # never propagate from __del__
+            self.close()
 
     @property
     def prims(self) -> list:
@@ -910,14 +936,45 @@ class NewtonSiteFrameView(BaseFrameView):
 # ----------------------------------------------------------------------
 
 
-class _NewtonWorldSpaceWriter(FrameViewWorldSpaceWriter):
-    """Newton world-space writer: pass-through to backend ``_apply_*`` hooks."""
+class _NewtonWriterMixin:
+    """Mirrors the scope's pose writes onto Fabric on exit.
+
+    The mirror is a full-view synchronization, so it runs only when the scope actually moved a site:
+    a getter-only scope, ``set_poses(None, None)``, and a scale-only scope all leave the mirrored
+    poses untouched (scale is deliberately not mirrored -- see :meth:`NewtonSiteFrameView._mirror_to_fabric`).
+
+    **Exception safety.** The mirror also runs while an exception unwinds, because the Newton-side
+    write is already committed: skipping it would strand the rendered prim at a stale pose until the
+    next successful write. If the mirror itself fails during unwinding (typically because the
+    original exception poisoned the CUDA stream) the failure is logged and the original exception
+    propagates -- masking it would hide the actual root cause.
+    """
+
+    def _enter_impl(self) -> None:
+        self._wrote_poses = False
 
     def _exit_impl(self, exc_type, exc_val, exc_tb) -> None:
-        if exc_type is None:
+        if not self._wrote_poses:
+            return
+        try:
             self._view._mirror_to_fabric()  # type: ignore[attr-defined]
+        except Exception as mirror_exc:  # noqa: BLE001 -- see the exception-safety note above
+            if exc_type is None:
+                raise
+            logger.error(
+                "Newton frame-view writer scope: best-effort Fabric mirror failed during exception "
+                "handling: %s. The rendered prim keeps its previous pose until the next pose write.",
+                mirror_exc,
+            )
+
+
+class _NewtonWorldSpaceWriter(_NewtonWriterMixin, FrameViewWorldSpaceWriter):
+    """Newton world-space writer: pass-through to backend ``_apply_*`` hooks."""
 
     def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        if positions is None and orientations is None:
+            return
+        self._wrote_poses = True
         self._view._apply_world_pose_write(positions, orientations, indices)  # type: ignore[attr-defined]
 
     def set_scales(self, scales, indices=None) -> None:
@@ -930,14 +987,13 @@ class _NewtonWorldSpaceWriter(FrameViewWorldSpaceWriter):
         return self._view._get_world_scales_impl(indices)  # type: ignore[attr-defined]
 
 
-class _NewtonLocalSpaceWriter(FrameViewLocalSpaceWriter):
+class _NewtonLocalSpaceWriter(_NewtonWriterMixin, FrameViewLocalSpaceWriter):
     """Newton local-space writer: pass-through to backend ``_apply_*`` hooks."""
 
-    def _exit_impl(self, exc_type, exc_val, exc_tb) -> None:
-        if exc_type is None:
-            self._view._mirror_to_fabric()  # type: ignore[attr-defined]
-
     def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        if positions is None and orientations is None:
+            return
+        self._wrote_poses = True
         self._view._apply_local_pose_write(positions, orientations, indices)  # type: ignore[attr-defined]
 
     def set_scales(self, scales, indices=None) -> None:
