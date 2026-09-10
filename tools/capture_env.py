@@ -14,7 +14,7 @@ extras rebuild the environment, and a short ``REPRODUCE.md``. It uses the standa
 never imports ``isaaclab``: the installation it describes frequently cannot import anything.
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001  (ruff's target-version predates tomllib in the stdlib)
 
 import argparse
 import json
@@ -22,6 +22,7 @@ import os
 import re
 import socket
 import subprocess
+import tomllib
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -119,8 +120,6 @@ def _requirement_nodes(requirements: list[dict]) -> set[str]:
 
 def parse_lock(lock: str) -> dict:
     """Return ``uv.lock`` as ``root`` plus ``packages``, each with ``versions``, ``requires``, ``extras``."""
-    import tomllib  # imported here so an interpreter without it still produces the rest of a capture
-
     packages: dict[str, dict] = {}
     root: str | None = None
     for entry in tomllib.loads(lock).get("package", []):
@@ -164,13 +163,9 @@ def select_sync_extras(extras: dict[str, set[str]], installed: set[str]) -> list
 
 def resolve_sync_plan(lock: str | None, distributions: list[dict]) -> dict:
     """Return the ``uv sync`` that rebuilds this environment, its extras derived from the lockfile."""
-    try:
-        graph = parse_lock(lock) if lock else None
-    except (ImportError, ValueError):
-        graph = None
-    if graph is None:
+    if not lock:
         return {"lock_available": False, "extras": [], "command": "uv sync --locked"}
-    extras = select_sync_extras(lock_extras(graph), {dist["key"] for dist in distributions})
+    extras = select_sync_extras(lock_extras(parse_lock(lock)), {dist["key"] for dist in distributions})
     command = "uv sync --locked" + "".join(f" --extra {name}" for name in extras)
     return {"lock_available": True, "extras": extras, "command": command}
 
