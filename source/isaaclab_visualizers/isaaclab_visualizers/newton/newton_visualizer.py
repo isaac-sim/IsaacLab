@@ -12,6 +12,7 @@ import logging
 import math
 import os
 import sys
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np  # noqa: F401 — used in type hints and colorization helpers
@@ -84,6 +85,26 @@ CONTACT_ARROW_COLOR = (0.0, 1.0, 0.0)
 
 CONTACT_ARROW_LENGTH = 0.1
 """Length of synthesized contact arrows in meters."""
+
+
+@dataclass(frozen=True)
+class _MeshSubmission:
+    """Mesh data staged for the next Newton viewer frame."""
+
+    name: str
+    points: wp.array
+    indices: wp.array
+    normals: wp.array | None
+    uvs: wp.array | None
+    texture: np.ndarray | str | None
+    hidden: bool
+    backface_culling: bool
+    color: tuple[float, float, float] | None
+    roughness: float | None
+    metallic: float | None
+    dynamic: bool
+    opacity: float | None
+
 
 if TYPE_CHECKING:
     from newton import State
@@ -615,6 +636,7 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         *args,
         metadata: dict | None = None,
         update_frequency: int = 1,
+        background_color: tuple[float, float, float] | None = None,
         render_settings: dict[str, Any] | None = None,
         **kwargs,
     ):
@@ -624,13 +646,17 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
             *args: Positional arguments forwarded to ``ViewerRTX``.
             metadata: Optional metadata shown in viewer panels.
             update_frequency: Viewer refresh cadence in simulation frames.
+            background_color: Optional solid background color RGB [0, 1].
             render_settings: Extra RTX attributes to author on the render product. See
                 :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`.
             **kwargs: Keyword arguments forwarded to ``ViewerRTX``.
         """
         # Assigned before super().__init__(): ViewerRTX reaches
         # _add_camera_lights_and_render_product() during initialization, and the override reads
-        # this. Copied so a caller's dict cannot mutate the viewer's settings afterwards.
+        # these values. The render settings are copied so a caller cannot mutate them afterwards.
+        self._background_color = (
+            tuple(float(value) for value in background_color) if background_color is not None else None
+        )
         self._render_settings = dict(render_settings or {})
 
         super().__init__(*args, **kwargs)
@@ -640,6 +666,7 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         self._metadata = metadata or {}
         self._update_frequency = update_frequency
         self._color_edit3_prefers_sequence: bool | None = None
+        self.particle_color: tuple[float, float, float] | None = None
 
         from isaaclab.utils.backend_utils import FactoryBase
 
@@ -653,6 +680,12 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
 
+    def log_points(self, name, points, radii=None, colors=None, hidden=False):
+        """Apply the configured color to Newton's canonical particle batch."""
+        if name == "/model/particles" and points is not None and self.particle_color is not None:
+            colors = self.particle_color
+        return super().log_points(name, points, radii, colors, hidden)
+
     def _add_camera_lights_and_render_product(self) -> None:
         """Author the configured RTX attributes onto the render product.
 
@@ -660,11 +693,16 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         reads that export, so later edits are ignored.
         """
         super()._add_camera_lights_and_render_product()
-        if not self._render_settings:
+        if self._background_color is None and not self._render_settings:
             return
-        from pxr import Sdf
+        from pxr import Gf, Sdf
 
         prim = self.stage.GetPrimAtPath(self._render_product_path)
+        if self._background_color is not None:
+            prim.CreateAttribute("omni:rtx:background:source:type", Sdf.ValueTypeNames.Token).Set("color")
+            prim.CreateAttribute("omni:rtx:background:source:color", Sdf.ValueTypeNames.Color3f).Set(
+                Gf.Vec3f(*self._background_color)
+            )
         for name, (type_name, value) in self._render_settings.items():
             value_type = getattr(Sdf.ValueTypeNames, type_name, None)
             if value_type is None:
@@ -990,6 +1028,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._scene_cameras: dict = {}
         self._scene_camera_names: list[str] = []
         self._active_camera_idx: int = 0
+        self._pending_mesh_submissions: dict[str, _MeshSubmission] = {}
 
     # ------------------------------------------------------------------
     # Shared lifecycle
@@ -1100,6 +1139,7 @@ class NewtonVisualizer(BaseVisualizer):
                 ("eye", current_eye),
                 ("lookat", self._last_camera_pose[1] if self._last_camera_pose else self.cfg.lookat),
                 ("focal_length", self.cfg.focal_length),
+                ("background_color", self.cfg.background_color),
                 ("streaming_view", self.cfg.streaming_view),
                 ("streaming_gt_types", list(self.cfg.streaming_gt_types)),
                 ("num_visualized_envs", num_visualized_envs),
@@ -1173,6 +1213,7 @@ class NewtonVisualizer(BaseVisualizer):
                     if self._state is not None:
                         body_q = getattr(self._state, "body_q", None)
                         if hasattr(body_q, "shape") and body_q.shape[0] == 0:
+                            self._log_pending_meshes()
                             return
                         self._viewer.log_state(self._state)
                         contacts = NewtonManager.get_contacts()
@@ -1188,6 +1229,7 @@ class NewtonVisualizer(BaseVisualizer):
                             )
                         self._log_streaming_image()
                         self._render_live_plots()
+                    self._log_pending_meshes()
                 finally:
                     self._viewer.end_frame()
                     if not self._viewer.is_running():
@@ -1287,6 +1329,7 @@ class NewtonVisualizer(BaseVisualizer):
         try:
             self._release_viewer()
         finally:
+            self._pending_mesh_submissions.clear()
             # A viewer that fails to close must not strand the camera prims or
             # leave the visualizer looking open; the failure still propagates
             # to the caller, which logs it and drops the visualizer.
@@ -1340,6 +1383,88 @@ class NewtonVisualizer(BaseVisualizer):
         self.cfg.eye = eye_t
         self.cfg.lookat = target_t
         self._apply_camera_pose((eye_t, target_t))
+
+    def log_mesh(
+        self,
+        name: str,
+        points: wp.array[wp.vec3],
+        indices: wp.array[wp.int32] | wp.array[wp.uint32],
+        normals: wp.array[wp.vec3] | None = None,
+        uvs: wp.array[wp.vec2] | None = None,
+        texture: np.ndarray | str | None = None,
+        hidden: bool = False,
+        backface_culling: bool = True,
+        color: tuple[float, float, float] | None = None,
+        roughness: float | None = None,
+        metallic: float | None = None,
+        dynamic: bool = False,
+        opacity: float | None = None,
+    ) -> None:
+        """Stage a mesh registration or update for the next Newton viewer frame.
+
+        Newton viewers require geometry updates between ``begin_frame()`` and
+        ``end_frame()``. Staging here keeps that lifecycle internal to the
+        visualizer and lets callers submit meshes before :meth:`step`.
+
+        Args:
+            name: Unique viewer path for the mesh.
+            points: Vertex positions [m].
+            indices: Flattened triangle vertex indices.
+            normals: Optional per-vertex normals.
+            uvs: Optional per-vertex texture coordinates.
+            texture: Optional texture path or image.
+            hidden: Whether to hide the mesh.
+            backface_culling: Whether to cull back-facing triangles.
+            color: Optional RGB base color in ``[0, 1]``.
+            roughness: Optional surface roughness in ``[0, 1]``.
+            metallic: Optional surface metallic value in ``[0, 1]``.
+            dynamic: Whether the mesh topology may change between updates.
+            opacity: Optional surface opacity in ``[0, 1]``.
+
+        Raises:
+            RuntimeError: If the Newton viewer has not been initialized.
+        """
+        if not self._is_initialized or self._viewer is None:
+            raise RuntimeError("Newton visualizer must be initialized before logging meshes.")
+        self._pending_mesh_submissions[name] = _MeshSubmission(
+            name=name,
+            points=points,
+            indices=indices,
+            normals=normals,
+            uvs=uvs,
+            texture=texture,
+            hidden=hidden,
+            backface_culling=backface_culling,
+            color=color,
+            roughness=roughness,
+            metallic=metallic,
+            dynamic=dynamic,
+            opacity=opacity,
+        )
+
+    def _log_pending_meshes(self) -> None:
+        """Publish staged meshes inside the active viewer frame."""
+        if self._viewer is None or not self._pending_mesh_submissions:
+            return
+
+        submissions = tuple(self._pending_mesh_submissions.values())
+        self._pending_mesh_submissions.clear()
+        for mesh in submissions:
+            self._viewer.log_mesh(
+                mesh.name,
+                mesh.points,
+                mesh.indices,
+                normals=mesh.normals,
+                uvs=mesh.uvs,
+                texture=mesh.texture,
+                hidden=mesh.hidden,
+                backface_culling=mesh.backface_culling,
+                color=mesh.color,
+                roughness=mesh.roughness,
+                metallic=mesh.metallic,
+                dynamic=mesh.dynamic,
+                opacity=mesh.opacity,
+            )
 
     # ------------------------------------------------------------------
     # Hook methods — override in subclasses
@@ -2036,11 +2161,17 @@ class NewtonGLVisualizer(NewtonVisualizer):
         self._viewer.scaling = 1.0
         self._viewer.particle_color = self.cfg.particle_color
         self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
-        self._viewer.renderer.draw_sky = self.cfg.enable_sky
         self._viewer.renderer.draw_wireframe = self.cfg.enable_wireframe
         # Accept list/tuple/array-like config colors; provide a stable tuple for nanobind conversion.
-        self._viewer.renderer.sky_upper = self._viewer._coerce_color3(self.cfg.sky_upper_color)
-        self._viewer.renderer.sky_lower = self._viewer._coerce_color3(self.cfg.sky_lower_color)
+        if self.cfg.background_color is None:
+            self._viewer.renderer.draw_sky = self.cfg.enable_sky
+            upper_color = self.cfg.sky_upper_color
+            lower_color = self.cfg.sky_lower_color
+        else:
+            self._viewer.renderer.draw_sky = False
+            upper_color = lower_color = self.cfg.background_color
+        self._viewer.renderer.sky_upper = self._viewer._coerce_color3(upper_color)
+        self._viewer.renderer.sky_lower = self._viewer._coerce_color3(lower_color)
         self._viewer.renderer._light_color = self._viewer._coerce_color3(self.cfg.light_color)
 
     def _apply_camera_pose(
@@ -2061,7 +2192,11 @@ class NewtonGLVisualizer(NewtonVisualizer):
         self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
 
     def _pump_paused(self) -> None:
-        self._viewer._update()
+        self._viewer.begin_frame(self._sim_time)
+        try:
+            self._log_pending_meshes()
+        finally:
+            self._viewer.end_frame()
 
     def render_rgb_array(self) -> np.ndarray:
         """Return the latest RGB frame rendered by the Newton GL viewer.
@@ -2090,6 +2225,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
                         self._resolved_visible_env_ids,
                         num_envs=NewtonManager.get_num_envs(),
                     )
+                self._log_pending_meshes()
             finally:
                 self._viewer.end_frame()
         return self._viewer.get_frame().numpy()
@@ -2169,10 +2305,8 @@ class NewtonRTXVisualizer(NewtonVisualizer):
     The tiled camera panel remains disabled because ``ViewerRTX.log_image`` has no
     display sink.
 
-    .. note::
-        RTX render quality settings (fps, lighting environment, denoiser, etc.)
-        use ``ViewerRTX`` defaults. These will be exposed in a future revision
-        consistently with other RTX-capable renderers.
+    A solid background can be configured through :class:`NewtonRTXVisualizerCfg`. Other RTX
+    settings use ``ViewerRTX`` defaults unless supplied through ``render_settings``.
     """
 
     def __init__(self, cfg: NewtonRTXVisualizerCfg):
@@ -2197,8 +2331,13 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
             environment=self.cfg.rtx_environment,
+            background_color=self.cfg.background_color,
             render_settings=self.cfg.render_settings,
         )
+
+    def _apply_viewer_post_init(self) -> None:
+        """Apply RTX-specific renderer settings after viewer construction."""
+        self._viewer.particle_color = self.cfg.particle_color
 
     def _apply_camera_pose(
         self,
@@ -2235,7 +2374,10 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         # samples on it, producing a progressively cleaner image while paused.
         # Note: full RTX render cost is incurred every tick even while paused.
         self._viewer.begin_frame(self._sim_time)
-        self._viewer.end_frame()
+        try:
+            self._log_pending_meshes()
+        finally:
+            self._viewer.end_frame()
 
     def render_rgb_array(self) -> np.ndarray | None:
         """Return the latest RGB frame rendered by the Newton RTX viewer.
@@ -2254,6 +2396,7 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             self._viewer.begin_frame(self._sim_time)
             try:
                 self._viewer.log_state(self._state)
+                self._log_pending_meshes()
             finally:
                 self._viewer.end_frame()
         return self._viewer.get_frame()

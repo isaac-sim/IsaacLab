@@ -5,8 +5,7 @@
 
 """Unit tests for SB3-specific LEAPP export helpers."""
 
-import importlib.util
-import sys
+import importlib
 import types
 from pathlib import Path
 
@@ -15,60 +14,34 @@ import numpy as np
 import pytest
 
 torch = pytest.importorskip("torch")
-stable_baselines3 = pytest.importorskip("stable_baselines3")
+pytest.importorskip("stable_baselines3")
 sb3_contrib = pytest.importorskip("sb3_contrib")
-
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_EXPORT_SCRIPT = _REPO_ROOT / "scripts" / "reinforcement_learning" / "leapp" / "sb3" / "export.py"
-_EXPORT_MODULE_NAME = "_isaaclab_sb3_leapp_export"
 
 
 def _load_export_module():
-    """Load SB3 export.py without importing Isaac Sim runtime modules."""
-    sys.modules.pop(_EXPORT_MODULE_NAME, None)
-    spec = importlib.util.spec_from_file_location(_EXPORT_MODULE_NAME, _EXPORT_SCRIPT)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[_EXPORT_MODULE_NAME] = module
-    spec.loader.exec_module(module)
-    module.torch = torch
+    """Load the installed SB3 exporter."""
+    from isaaclab_rl.entrypoints.backends import export_sb3 as module
+
     return module
 
 
-def test_sb3_export_args_use_common_defaults():
+def test_sb3_export_args_use_common_defaults(monkeypatch):
     """Use the shared export flags and omit training-only arguments."""
     export_module = _load_export_module()
-
-    original_modules = {
-        name: sys.modules.get(name) for name in ("isaaclab", "isaaclab.app", "isaaclab_tasks", "isaaclab_tasks.utils")
-    }
-    isaaclab_module = types.ModuleType("isaaclab")
-    isaaclab_app_module = types.ModuleType("isaaclab.app")
-    isaaclab_tasks_module = types.ModuleType("isaaclab_tasks")
-    isaaclab_tasks_utils_module = types.ModuleType("isaaclab_tasks.utils")
+    export_common = importlib.import_module("isaaclab_rl.entrypoints.backends.export_common")
 
     class _AppLauncher:
         @staticmethod
         def add_app_launcher_args(parser):
             return None
 
-    setattr(isaaclab_app_module, "AppLauncher", _AppLauncher)
-    setattr(
-        isaaclab_tasks_utils_module,
+    monkeypatch.setattr(export_common, "AppLauncher", _AppLauncher)
+    monkeypatch.setattr(
+        export_common,
         "setup_preset_cli",
         lambda parser, argv=None, **kwargs: parser.parse_known_args(argv),
     )
-    sys.modules["isaaclab"] = isaaclab_module
-    sys.modules["isaaclab.app"] = isaaclab_app_module
-    sys.modules["isaaclab_tasks"] = isaaclab_tasks_module
-    sys.modules["isaaclab_tasks.utils"] = isaaclab_tasks_utils_module
-    try:
-        args, _ = export_module.parse_export_args(["--task", "Isaac-Cartpole"])
-    finally:
-        for name, original_module in original_modules.items():
-            if original_module is None:
-                sys.modules.pop(name, None)
-            else:
-                sys.modules[name] = original_module
+    args, _ = export_module.parse_export_args(["--task", "Isaac-Cartpole"])
 
     assert args.agent == "sb3_cfg_entry_point"
     assert args.headless
@@ -158,7 +131,6 @@ def test_sb3_recurrent_policy_state_round_trip():
 def test_sb3_checkpoint_loader_selects_recurrent_ppo(tmp_path):
     """Select RecurrentPPO from the policy class serialized in the checkpoint."""
     export_module = _load_export_module()
-    from stable_baselines3.common.save_util import load_from_zip_file
 
     agent = sb3_contrib.RecurrentPPO(
         "MlpLstmPolicy",
@@ -171,9 +143,6 @@ def test_sb3_checkpoint_loader_selects_recurrent_ppo(tmp_path):
     agent.save(checkpoint_path)
     agent.env.close()
 
-    export_module.PPO = stable_baselines3.PPO
-    export_module.RecurrentPPO = sb3_contrib.RecurrentPPO
-    export_module.load_from_zip_file = load_from_zip_file
     loaded_agent = export_module._load_agent(str(checkpoint_path), device="cpu")
 
     assert isinstance(loaded_agent, sb3_contrib.RecurrentPPO)
