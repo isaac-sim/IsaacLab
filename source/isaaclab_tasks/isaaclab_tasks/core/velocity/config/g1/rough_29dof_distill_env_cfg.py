@@ -44,6 +44,7 @@ from .rough_29dof_dr_env_cfg import (
     G129DofRoughAirTime100DREnvCfg,
     _add_waist_l2,
 )
+from .rough_29dof_mjlab_env_cfg import G129DofRoughMjlabScaleEnvCfg
 from .rough_29dof_power_env_cfg import G129DofRoughWaist1Power2EnvCfg
 
 
@@ -143,6 +144,38 @@ class G129DofRoughWaist1Power2BlindDistillEnvCfg(G129DofRoughWaist1Power2EnvCfg)
 
     Note that ``cw`` is not the ``s3_robust`` teacher: self-collision is off here, since the arm was
     never trained with it.
+    """
+
+    observations: G129DofRoughAirTime100DistillObservationsCfg = G129DofRoughAirTime100DistillObservationsCfg()
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.observations.policy.base_lin_vel = None
+        self.observations.policy.height_scan = None
+        for term in _HISTORY_TERMS:
+            obs_term = getattr(self.observations.policy, term)
+            obs_term.history_length = _HISTORY_LENGTH
+            obs_term.flatten_history_dim = True
+        self.observations.teacher.enable_corruption = False
+
+
+@configclass
+class G129DofRoughMjlabScaleBlindDistillEnvCfg(G129DofRoughMjlabScaleEnvCfg):
+    """Distil ``yms`` into a proprioception-only student.
+
+    ``yms`` -- the per-joint action scale plus left-right mirror augmentation -- is the best gait
+    measured on this line: 0.990 success at sd 0.003, and on flat ground under a pinned straight
+    command a pelvis roll of 0.55 degrees against the control's 2.8, an airborne share ratio of 1.03
+    to 1.07 against 0.71, and a worst joint-pair asymmetry under one degree against three to six.
+
+    Its actor still reads 328 values, 190 of which the robot cannot produce -- ``height_scan`` (187)
+    and ``base_lin_vel`` (3) -- so it reaches ``g1_deploy`` only through a student. The environment
+    is ``yms``'s own, unchanged, because distilling in a different environment scored 0.476 against
+    0.930 on this line for the same behaviour loss.
+
+    The mirror augmentation is a property of how the teacher was trained, not of the environment, so
+    it does not appear here; whether the student inherits the symmetry is the thing to measure.
     """
 
     observations: G129DofRoughAirTime100DistillObservationsCfg = G129DofRoughAirTime100DistillObservationsCfg()
