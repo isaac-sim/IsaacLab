@@ -2274,7 +2274,7 @@ class Articulation(BaseArticulation):
         if env_ids is self._ALL_INDICES:
             return self._ALL_ENV_MASK
         if not isinstance(env_ids, wp.array):
-            env_ids = wp.from_torch(env_ids.contiguous())
+            env_ids = wp.from_torch(env_ids)
         mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
         wp.launch(self._build_env_mask_kernel, dim=env_ids.shape[0], inputs=[mask, env_ids], device=self.device)
         return mask

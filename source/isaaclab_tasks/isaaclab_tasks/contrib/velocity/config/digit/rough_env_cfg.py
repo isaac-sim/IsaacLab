@@ -45,6 +45,9 @@ _STABLE_ARMATURE_JOINT_NAMES = [
 ]
 _MIN_STABLE_ARMATURE = 0.10
 
+_ROUGH_NEWTON_MJWARP = RoughPhysicsCfg().newton_mjwarp
+"""Bound once so ``DigitPhysicsCfg`` does not construct ``RoughPhysicsCfg`` twice."""
+
 
 @configclass
 class DigitPhysicsCfg(PresetCfg):
@@ -59,9 +62,9 @@ class DigitPhysicsCfg(PresetCfg):
     # ``class_type`` is reset to ``None`` because ``NewtonCfg.__post_init__`` re-derives it from
     # ``solver_cfg`` and refuses an explicit value -- ``replace()`` would otherwise carry the
     # already-derived value from the source instance forward as one.
-    newton_mjwarp = RoughPhysicsCfg().newton_mjwarp.replace(
+    newton_mjwarp = _ROUGH_NEWTON_MJWARP.replace(
         class_type=None,
-        solver_cfg=RoughPhysicsCfg().newton_mjwarp.solver_cfg.replace(njmax=5000, nconmax=2000),
+        solver_cfg=_ROUGH_NEWTON_MJWARP.solver_cfg.replace(njmax=5000, nconmax=2000),
     )
     default = isaacsim_physx
 
