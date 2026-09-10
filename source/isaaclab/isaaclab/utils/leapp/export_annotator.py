@@ -382,6 +382,7 @@ class ExportPatcher:
                     method_resolution_cache=self._write_method_resolution_cache,
                     captured_write_term_names=self._captured_write_term_names,
                     data_proxy=data_proxy,
+                    controller_owned_write_methods=getattr(term, "controller_owned_write_methods", ()),
                 )
                 self._action_term_scene_keys[term_name] = scene_key
 

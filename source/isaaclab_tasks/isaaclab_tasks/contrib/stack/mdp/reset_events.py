@@ -972,8 +972,6 @@ class StackResetStateTable(ManagerTermBase):
         open_finger_position: float = 0.040,
         table_rows_per_layout: int = _TABLE_ROWS_PER_LAYOUT,
         fixed_recipe: int | None = None,
-        evaluation_recipe_ids: Sequence[int] = (),
-        evaluation_envs_per_recipe: int = 0,
         fixed_role_permutation: int | None = None,
         arm_joint_noise_range: float = 0.0,
         table_arm_joint_noise_range: float = 0.0,
@@ -989,14 +987,6 @@ class StackResetStateTable(ManagerTermBase):
         )
         if env_ids is None or env_ids.numel() == 0:
             return
-        if evaluation_envs_per_recipe < 0:
-            raise ValueError("evaluation_envs_per_recipe must be non-negative.")
-        resolved_evaluation_recipes = tuple(int(recipe) for recipe in evaluation_recipe_ids)
-        if any(not 0 <= recipe < len(StackResetRecipe) for recipe in resolved_evaluation_recipes):
-            raise ValueError("evaluation_recipe_ids contains an invalid stack reset recipe.")
-        evaluation_env_count = evaluation_envs_per_recipe * len(resolved_evaluation_recipes)
-        if evaluation_env_count > 0 and evaluation_env_count >= env.num_envs:
-            raise ValueError("Per-recipe evaluation prefixes leave no environments for training.")
         if (
             min(
                 arm_joint_noise_range,
@@ -1017,23 +1007,6 @@ class StackResetStateTable(ManagerTermBase):
             if recipe_rows.numel() == 0:
                 raise RuntimeError(f"Stack reset cache has no rows for recipe {fixed_recipe}.")
             row_ids = recipe_rows[torch.randint(recipe_rows.numel(), (env_ids.numel(),), device=self.device)]
-            state.row_ids[env_ids] = row_ids
-        if evaluation_envs_per_recipe > 0:
-            # Reserve one stable prefix block per recipe for deterministic
-            # closed-loop student evaluation. The algorithm uses this exact
-            # ordering and excludes the blocks from behavior-cloning losses.
-            for block_id, recipe in enumerate(resolved_evaluation_recipes):
-                first_env = block_id * evaluation_envs_per_recipe
-                last_env = first_env + evaluation_envs_per_recipe
-                evaluation_mask = (env_ids >= first_env) & (env_ids < last_env)
-                evaluation_ids = env_ids[evaluation_mask]
-                if evaluation_ids.numel() == 0:
-                    continue
-                recipe_rows = torch.nonzero(self._recipe_ids == recipe, as_tuple=False).flatten()
-                evaluation_rows = recipe_rows[
-                    torch.randint(recipe_rows.numel(), (evaluation_ids.numel(),), device=self.device)
-                ]
-                row_ids[evaluation_mask] = evaluation_rows
             state.row_ids[env_ids] = row_ids
         if fixed_role_permutation is None:
             permutation_ids = torch.randint(

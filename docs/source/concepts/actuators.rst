@@ -605,7 +605,9 @@ and emit a :class:`DeprecationWarning`:
 
 LEAPP-exported action terms must keep using the annotated articulation ``*_index`` or ``*_mask``
 setters until the exporter supports collection setters. Other runtime code should migrate to the
-collection API.
+collection API. If a write only models behavior supplied by the real controller, override
+:attr:`~isaaclab.managers.ActionTerm.controller_owned_write_methods`; LEAPP will execute that write
+while tracing the simulator but omit it from the exported policy outputs.
 
 The data accessors also moved: ``articulation.data.joint_pos_target`` becomes
 ``robot.actuators.target_command.position``, and ``data.computed_torque`` / ``data.applied_torque`` become

@@ -47,9 +47,7 @@ gym.register(
     id="IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": (
-            f"{__name__}.stack_camera_rl_env_cfg:FrankaCubeStackCameraDistillationEnvCfg"
-        ),
+        "env_cfg_entry_point": f"{__name__}.stack_camera_rl_env_cfg:FrankaCubeStackCameraRLEnvCfg",
         "rsl_rl_cfg_entry_point": (
             f"{agents.__name__}.rsl_rl_distillation_cfg:FrankaStackCameraDistillationRunnerCfg"
         ),

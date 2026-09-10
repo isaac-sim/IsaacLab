@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Camera observations and calibration randomization for stack policies."""
+"""Camera domain randomization for stack policies."""
 
 from __future__ import annotations
 
@@ -12,97 +12,85 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.noise import NoiseModel, NoiseModelCfg, UniformNoiseCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.managers import ObservationTermCfg
     from isaaclab.sensors import Camera
 
 
-def normalized_rgb_image(
-    env: ManagerBasedEnv,
-    sensor_cfg: SceneEntityCfg = SceneEntityCfg("base_camera"),
-) -> torch.Tensor:
-    """Return an RGB image in channel-first layout with stationary scaling.
+class EpisodeCameraNoise(NoiseModel):
+    """Apply episode-consistent photometric variation and per-frame sensor noise."""
 
-    A fixed affine map preserves absolute brightness and makes the observation
-    independent of the other environments in the batch. Per-frame or
-    per-batch mean subtraction would make the same physical image change when
-    unrelated environments reset, and is unsuitable for real-camera
-    deployment.
-
-    Args:
-        env: The stack environment containing the camera sensor.
-        sensor_cfg: Scene entity selecting the RGB camera.
-
-    Returns:
-        RGB images with shape ``(num_envs, 3, height, width)`` and values in
-        ``[-0.5, 0.5]``.
-    """
-    camera: Camera = env.scene.sensors[sensor_cfg.name]
-    # ObservationManager calls every term once while it is still being
-    # constructed to discover output shapes. Triggering a camera render at
-    # that point asks Newton to forward kinematics before manager startup and
-    # reset have completed. Return only a shape probe here; every observation
-    # after construction reads the real renderer output below.
-    if not hasattr(env, "observation_manager"):
-        return torch.zeros(
-            (env.num_envs, 3, camera.cfg.height, camera.cfg.width),
-            device=env.device,
+    def __init__(self, noise_model_cfg: EpisodeCameraNoiseCfg, num_envs: int, device: str):
+        super().__init__(noise_model_cfg, num_envs, device)
+        self._exposure_range = self._validate_range("exposure_range", noise_model_cfg.exposure_range, positive=True)
+        self._contrast_range = self._validate_range("contrast_range", noise_model_cfg.contrast_range, positive=True)
+        self._white_balance_range = self._validate_range(
+            "white_balance_range", noise_model_cfg.white_balance_range, positive=True
         )
-    image = camera.data.output["rgb"].float()
-    image = torch.nan_to_num(image, nan=0.0, posinf=255.0, neginf=0.0)
-    return (image / 255.0 - 0.5).permute(0, 3, 1, 2).contiguous()
+        self._brightness_range = self._validate_range("brightness_range", noise_model_cfg.brightness_range)
+        scalar_shape = (num_envs, 1, 1, 1)
+        self._exposure = torch.ones(scalar_shape, device=device)
+        self._contrast = torch.ones(scalar_shape, device=device)
+        self._white_balance = torch.ones((num_envs, 3, 1, 1), device=device)
+        self._brightness = torch.zeros(scalar_shape, device=device)
+        self.reset()
 
+    @staticmethod
+    def _validate_range(name: str, values: tuple[float, float], *, positive: bool = False) -> tuple[float, float]:
+        lower, upper = values
+        if lower > upper or (positive and lower <= 0.0):
+            qualifier = "positive and ordered" if positive else "ordered"
+            raise ValueError(f"{name} must be {qualifier}, got {values}.")
+        return float(lower), float(upper)
 
-class TemporalNormalizedRgbImage(ManagerTermBase):
-    """Return a short RGB history concatenated along the channel axis.
-
-    A single image cannot distinguish a supported cube from one that is
-    falling through the same pose. Keeping two frames makes that velocity
-    observable while retaining the ordinary ``NCHW`` interface expected by
-    RSL-RL's CNN models. Reset environments repeat their first new frame so a
-    policy never receives pixels from the preceding episode.
-    """
-
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
-        super().__init__(cfg, env)
-        self.history_length = int(cfg.params.get("history_length", 2))
-        if self.history_length < 2:
-            raise ValueError("Temporal RGB history_length must be at least two.")
-        self._frames: torch.Tensor | None = None
-        self._initialized = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
-
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None) -> None:
-        """Invalidate reset histories so the next frame is repeated."""
+    @staticmethod
+    def _resample(tensor: torch.Tensor, env_ids: Sequence[int] | None, value_range: tuple[float, float]) -> None:
         if env_ids is None:
-            self._initialized.zero_()
+            tensor.uniform_(*value_range)
         else:
-            resolved_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self._initialized.device).reshape(-1)
-            self._initialized[resolved_ids] = False
+            tensor[env_ids] = torch.empty_like(tensor[env_ids]).uniform_(*value_range)
 
-    def __call__(
-        self,
-        env: ManagerBasedEnv,
-        sensor_cfg: SceneEntityCfg = SceneEntityCfg("base_camera"),
-        history_length: int = 2,
-    ) -> torch.Tensor:
-        """Append the current frame and return oldest-to-newest channels."""
-        if history_length != self.history_length:
-            raise ValueError("Temporal RGB history_length changed after term construction.")
-        current = normalized_rgb_image(env, sensor_cfg=sensor_cfg)
-        expected_shape = (env.num_envs, self.history_length, *current.shape[1:])
-        if self._frames is None or self._frames.shape != expected_shape:
-            self._frames = current.unsqueeze(1).expand(expected_shape).clone()
-            self._initialized.fill_(hasattr(env, "observation_manager"))
-        else:
-            self._frames[:, :-1].copy_(self._frames[:, 1:].clone())
-            self._frames[:, -1].copy_(current)
-            uninitialized = ~self._initialized
-            self._frames[uninitialized] = current[uninitialized].unsqueeze(1)
-            self._initialized[uninitialized] = True
-        return self._frames.flatten(1, 2).clone()
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        """Resample photometric parameters for the selected environments."""
+        self._resample(self._exposure, env_ids, self._exposure_range)
+        self._resample(self._contrast, env_ids, self._contrast_range)
+        self._resample(self._white_balance, env_ids, self._white_balance_range)
+        self._resample(self._brightness, env_ids, self._brightness_range)
+
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+        """Apply photometric and sensor variation to NCHW RGB in the ``[0, 1]`` range."""
+        if data.ndim != 4 or data.shape[1] != 3:
+            raise ValueError(f"EpisodeCameraNoise expects NCHW RGB input, got shape {tuple(data.shape)}.")
+        data = (data - 0.5) * self._contrast + 0.5
+        data = data * self._exposure * self._white_balance + self._brightness
+        return self._noise_model_cfg.noise_cfg.func(data, self._noise_model_cfg.noise_cfg)
+
+
+@configclass
+class EpisodeCameraNoiseCfg(NoiseModelCfg):
+    """Episode-consistent camera randomization with small per-frame pixel noise."""
+
+    class_type: type[EpisodeCameraNoise] | str = EpisodeCameraNoise
+    """Noise-model implementation used by the observation manager."""
+
+    noise_cfg: UniformNoiseCfg = UniformNoiseCfg(n_min=-0.025, n_max=0.025)
+    """Per-frame additive pixel noise in normalized image units."""
+
+    exposure_range: tuple[float, float] = (0.75, 1.25)
+    """Uniform episode-level multiplicative exposure range."""
+
+    contrast_range: tuple[float, float] = (0.85, 1.15)
+    """Uniform episode-level contrast range around mid-gray."""
+
+    white_balance_range: tuple[float, float] = (0.90, 1.10)
+    """Uniform episode-level per-channel white-balance range."""
+
+    brightness_range: tuple[float, float] = (-0.05, 0.05)
+    """Uniform episode-level additive brightness range in normalized image units."""
 
 
 def randomize_camera_calibration(

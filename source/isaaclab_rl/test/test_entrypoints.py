@@ -616,13 +616,19 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
     assert _torch_backend_state() == caller_state
 
 
-def test_rsl_distillation_runner_loads_checkpoint_for_custom_algorithm() -> None:
-    """Distillation runners require a teacher checkpoint for custom algorithms too."""
-    from isaaclab_rl.entrypoints.backends.train_rsl_rl import _should_load_checkpoint
+def test_rsl_distillation_runner_requires_explicit_checkpoint() -> None:
+    """Distillation cannot accidentally search the student experiment for a teacher."""
+    from isaaclab_rl.entrypoints.backends.train_rsl_rl import _validate_checkpoint_request
 
-    assert _should_load_checkpoint(resume=False, runner_class_name="DistillationRunner")
-    assert not _should_load_checkpoint(resume=False, runner_class_name="OnPolicyRunner")
-    assert _should_load_checkpoint(resume=True, runner_class_name="OnPolicyRunner")
+    with pytest.raises(ValueError, match="explicit teacher checkpoint"):
+        _validate_checkpoint_request(None, runner_class_name="DistillationRunner", resume=False)
+    with pytest.raises(ValueError, match="cannot identify an initial distillation teacher"):
+        _validate_checkpoint_request("latest", runner_class_name="DistillationRunner", resume=False)
+
+    _validate_checkpoint_request("/path/to/teacher.pt", runner_class_name="DistillationRunner", resume=False)
+    _validate_checkpoint_request(None, runner_class_name="DistillationRunner", resume=True)
+    _validate_checkpoint_request("latest", runner_class_name="DistillationRunner", resume=True)
+    _validate_checkpoint_request(None, runner_class_name="OnPolicyRunner", resume=False)
 
 
 def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch) -> None:

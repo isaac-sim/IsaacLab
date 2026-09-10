@@ -82,3 +82,6 @@ class WorkspaceBoundedRelativeJointPositionActionCfg(JointActionCfg):
 
     gravity_compensation: bool = False
     """Whether to add model-based gravity feedforward to the controlled joints."""
+
+    controller_owns_gravity_compensation: bool = False
+    """Whether the deployment controller supplies gravity feedforward independently."""

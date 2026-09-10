@@ -15,7 +15,7 @@ import torch
 
 from isaaclab.managers import CurriculumTermCfg, ManagerTermBase
 
-from isaaclab_tasks.core.lift.mdp.events_cfg import SuccessMonitorCfg
+from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
 from .runtime_state import get_stack_reset_runtime_state
 
@@ -47,43 +47,43 @@ class StackResetTableCurriculum(ManagerTermBase):
         if not 0.0 < self._table_sampling_probability < 1.0:
             raise ValueError("table_sampling_probability must lie strictly between zero and one.")
         self._global_sampling = bool(cfg.params.get("global_sampling", False))
-        self._evaluation_env_count = int(cfg.params.get("evaluation_env_count", 0))
-        if not 0 <= self._evaluation_env_count < env.num_envs:
-            raise ValueError("evaluation_env_count must leave at least one curriculum-controlled environment.")
         table_recipe_id = reset_term.recipe_names.index("table")
         self._table_rows = reset_term.recipe_ids == table_recipe_id
         if not bool(torch.any(self._table_rows)) or bool(torch.all(self._table_rows)):
             raise RuntimeError("The stack reset table must contain both table and intermediate rows.")
         self._layout_count = reset_term.layout_count
-        self._recipe_rows = tuple(reset_term.recipe_ids == recipe for recipe in range(len(reset_term.recipe_names)))
+        self._metric_partitions: dict[str, tuple[tuple[str, torch.Tensor], ...]] = {
+            "recipe": tuple(
+                (name, reset_term.recipe_ids == recipe) for recipe, name in enumerate(reset_term.recipe_names)
+            )
+        }
         pair_ids = getattr(reset_term, "grasp_pair_ids", None)
-        self._grasp_pair_rows = (pair_ids == 0,) if pair_ids is not None else None
+        if pair_ids is not None:
+            self._metric_partitions["pair"] = (("index_thumb", pair_ids == 0),)
         orientation_ids = getattr(reset_term, "orientation_bin_ids", None)
-        self._orientation_rows = (
-            tuple(orientation_ids == orientation_id for orientation_id in range(8))
-            if orientation_ids is not None
-            else None
-        )
+        if orientation_ids is not None:
+            self._metric_partitions["orientation"] = tuple(
+                (str(orientation_id), orientation_ids == orientation_id) for orientation_id in range(8)
+            )
         resolved_tilt_azimuth_ids = getattr(reset_term, "tilt_azimuth_bin_ids", None)
         tilt_azimuth_ids = getattr(
             reset_term,
             "authored_tilt_azimuth_bin_ids",
             resolved_tilt_azimuth_ids,
         )
-        self._tilt_azimuth_rows = (
-            tuple(tilt_azimuth_ids == azimuth_id for azimuth_id in range(8)) if tilt_azimuth_ids is not None else None
-        )
-        self._resolved_tilt_azimuth_rows = (
-            tuple(resolved_tilt_azimuth_ids == azimuth_id for azimuth_id in range(8))
-            if hasattr(reset_term, "authored_tilt_azimuth_bin_ids")
-            else None
-        )
+        if tilt_azimuth_ids is not None:
+            self._metric_partitions["tilt_azimuth"] = tuple(
+                (str(azimuth_id), tilt_azimuth_ids == azimuth_id) for azimuth_id in range(8)
+            )
+        if hasattr(reset_term, "authored_tilt_azimuth_bin_ids"):
+            self._metric_partitions["resolved_tilt_azimuth"] = tuple(
+                (str(azimuth_id), resolved_tilt_azimuth_ids == azimuth_id) for azimuth_id in range(8)
+            )
         tilt_magnitude_ids = getattr(reset_term, "tilt_magnitude_bin_ids", None)
-        self._tilt_magnitude_rows = (
-            tuple(tilt_magnitude_ids == magnitude_id for magnitude_id in range(4))
-            if tilt_magnitude_ids is not None
-            else None
-        )
+        if tilt_magnitude_ids is not None:
+            self._metric_partitions["tilt_magnitude"] = tuple(
+                (str(magnitude_id), tilt_magnitude_ids == magnitude_id) for magnitude_id in range(4)
+            )
         self._continuation_attempts = torch.zeros((), dtype=torch.long, device=env.device)
         self._continuation_successes = torch.zeros((), dtype=torch.long, device=env.device)
         self._full_task_attempts_by_row = torch.zeros(reset_term.row_count, dtype=torch.long, device=env.device)
@@ -128,30 +128,24 @@ class StackResetTableCurriculum(ManagerTermBase):
         final_success_context_name: str = "progress_context",
         table_sampling_probability: float = 0.35,
         global_sampling: bool = False,
-        evaluation_env_count: int = 0,
     ) -> dict[str, torch.Tensor]:
         """Record training outcomes, select new rows, and report coverage."""
         del (
             success_monitor,
             table_sampling_probability,
             global_sampling,
-            evaluation_env_count,
         )
         ids = torch.as_tensor(env_ids, dtype=torch.long, device=env.device).flatten()
-        # A fixed prefix can be owned by deterministic student evaluation.
-        # Those rollouts are assigned directly by the reset event and must not
-        # affect either the adaptive sampler's evidence or its next-row draws.
-        training_ids = ids[ids >= self._evaluation_env_count]
         batch_success_rate = torch.zeros((), device=env.device)
         batch_full_task_success_rate = torch.zeros((), device=env.device)
         batch_table_full_task_success_rate = torch.zeros((), device=env.device)
         batch_table_full_task_attempts = torch.zeros((), device=env.device)
-        if training_ids.numel():
+        if ids.numel():
             state = get_stack_reset_runtime_state(env)
             initialized = state.initialized
             row_ids = state.row_ids
-            completed = initialized[training_ids] & (env.episode_length_buf[training_ids] > 0)
-            completed_ids = training_ids[completed]
+            completed = initialized[ids] & (env.episode_length_buf[ids] > 0)
+            completed_ids = ids[completed]
             if completed_ids.numel():
                 success_context = env.termination_manager.get_term_cfg(success_context_name).func
                 succeeded = success_context.ever_success[completed_ids]
@@ -179,8 +173,8 @@ class StackResetTableCurriculum(ManagerTermBase):
                 )
 
             probabilities, _ = self._sampling_distribution()
-            rows = torch.multinomial(probabilities, training_ids.numel(), replacement=True)
-            row_ids[training_ids] = rows
+            rows = torch.multinomial(probabilities, ids.numel(), replacement=True)
+            row_ids[ids] = rows
         else:
             probabilities, _ = self._sampling_distribution()
 
@@ -216,89 +210,26 @@ class StackResetTableCurriculum(ManagerTermBase):
             / self._full_task_attempts_by_row[self._table_rows].sum().clamp_min(1),
             "table_full_task_attempts": self._full_task_attempts_by_row[self._table_rows].sum().float(),
         }
-        for recipe, recipe_rows in enumerate(self._recipe_rows):
-            recipe_attempts = attempts[recipe_rows].sum()
-            recipe_full_task_attempts = self._full_task_attempts_by_row[recipe_rows].sum()
-            recipe_name = self._reset_term.recipe_names[recipe]
-            metrics[f"recipe_{recipe_name}_attempts"] = recipe_attempts
-            metrics[f"recipe_{recipe_name}_full_stack_attempts"] = recipe_full_task_attempts
-            metrics[f"recipe_{recipe_name}_curriculum_success"] = self._progress_successes[
-                recipe_rows
-            ].sum().float() / recipe_attempts.clamp_min(1)
-            metrics[f"recipe_{recipe_name}_full_stack_success"] = self._full_task_successes_by_row[
-                recipe_rows
-            ].sum().float() / recipe_full_task_attempts.clamp_min(1)
-            metrics[f"recipe_{self._reset_term.recipe_names[recipe]}_probability"] = probabilities[recipe_rows].sum()
-        pair_rows_by_id = getattr(self, "_grasp_pair_rows", None)
-        if pair_rows_by_id is not None:
-            for pair_rows, pair_name in zip(pair_rows_by_id, ("index_thumb",), strict=True):
-                pair_attempts = attempts[pair_rows].sum()
-                pair_full_attempts = self._full_task_attempts_by_row[pair_rows].sum()
-                metrics[f"pair_{pair_name}_probability"] = probabilities[pair_rows].sum()
-                metrics[f"pair_{pair_name}_curriculum_success"] = self._progress_successes[
-                    pair_rows
-                ].sum().float() / pair_attempts.clamp_min(1)
-                metrics[f"pair_{pair_name}_full_stack_success"] = self._full_task_successes_by_row[
-                    pair_rows
-                ].sum().float() / pair_full_attempts.clamp_min(1)
-        orientation_rows_by_id = getattr(self, "_orientation_rows", None)
-        if orientation_rows_by_id is not None:
-            for orientation_id, orientation_rows in enumerate(orientation_rows_by_id):
-                orientation_attempts = attempts[orientation_rows].sum()
-                orientation_full_attempts = self._full_task_attempts_by_row[orientation_rows].sum()
-                metrics[f"orientation_{orientation_id}_probability"] = probabilities[orientation_rows].sum()
-                metrics[f"orientation_{orientation_id}_curriculum_success"] = self._progress_successes[
-                    orientation_rows
-                ].sum().float() / orientation_attempts.clamp_min(1)
-                metrics[f"orientation_{orientation_id}_full_stack_success"] = self._full_task_successes_by_row[
-                    orientation_rows
-                ].sum().float() / orientation_full_attempts.clamp_min(1)
-        tilt_azimuth_rows_by_id = getattr(self, "_tilt_azimuth_rows", None)
-        if tilt_azimuth_rows_by_id is not None:
-            for azimuth_id, azimuth_rows in enumerate(tilt_azimuth_rows_by_id):
-                azimuth_attempts = attempts[azimuth_rows].sum()
-                azimuth_full_attempts = self._full_task_attempts_by_row[azimuth_rows].sum()
-                metrics[f"tilt_azimuth_{azimuth_id}_probability"] = probabilities[azimuth_rows].sum()
-                metrics[f"tilt_azimuth_{azimuth_id}_curriculum_success"] = self._progress_successes[
-                    azimuth_rows
-                ].sum().float() / azimuth_attempts.clamp_min(1)
-                metrics[f"tilt_azimuth_{azimuth_id}_full_stack_success"] = self._full_task_successes_by_row[
-                    azimuth_rows
-                ].sum().float() / azimuth_full_attempts.clamp_min(1)
-        resolved_azimuth_rows_by_id = getattr(self, "_resolved_tilt_azimuth_rows", None)
-        if resolved_azimuth_rows_by_id is not None:
-            for azimuth_id, azimuth_rows in enumerate(resolved_azimuth_rows_by_id):
-                azimuth_attempts = attempts[azimuth_rows].sum()
-                azimuth_full_attempts = self._full_task_attempts_by_row[azimuth_rows].sum()
-                metrics[f"resolved_tilt_azimuth_{azimuth_id}_probability"] = probabilities[azimuth_rows].sum()
-                metrics[f"resolved_tilt_azimuth_{azimuth_id}_curriculum_success"] = self._progress_successes[
-                    azimuth_rows
-                ].sum().float() / azimuth_attempts.clamp_min(1)
-                metrics[f"resolved_tilt_azimuth_{azimuth_id}_full_stack_success"] = self._full_task_successes_by_row[
-                    azimuth_rows
-                ].sum().float() / azimuth_full_attempts.clamp_min(1)
-        tilt_magnitude_rows_by_id = getattr(self, "_tilt_magnitude_rows", None)
-        if tilt_magnitude_rows_by_id is not None:
-            for magnitude_id, magnitude_rows in enumerate(tilt_magnitude_rows_by_id):
-                magnitude_attempts = attempts[magnitude_rows].sum()
-                magnitude_full_attempts = self._full_task_attempts_by_row[magnitude_rows].sum()
-                metrics[f"tilt_magnitude_{magnitude_id}_probability"] = probabilities[magnitude_rows].sum()
-                metrics[f"tilt_magnitude_{magnitude_id}_curriculum_success"] = self._progress_successes[
-                    magnitude_rows
-                ].sum().float() / magnitude_attempts.clamp_min(1)
-                metrics[f"tilt_magnitude_{magnitude_id}_full_stack_success"] = self._full_task_successes_by_row[
-                    magnitude_rows
-                ].sum().float() / magnitude_full_attempts.clamp_min(1)
+        for prefix, partitions in self._metric_partitions.items():
+            for name, rows in partitions:
+                partition_attempts = attempts[rows].sum()
+                full_task_attempts = self._full_task_attempts_by_row[rows].sum()
+                metric_prefix = f"{prefix}_{name}"
+                metrics[f"{metric_prefix}_attempts"] = partition_attempts
+                metrics[f"{metric_prefix}_full_stack_attempts"] = full_task_attempts
+                metrics[f"{metric_prefix}_probability"] = probabilities[rows].sum()
+                metrics[f"{metric_prefix}_curriculum_success"] = self._progress_successes[
+                    rows
+                ].sum().float() / partition_attempts.clamp_min(1)
+                metrics[f"{metric_prefix}_full_stack_success"] = self._full_task_successes_by_row[
+                    rows
+                ].sum().float() / full_task_attempts.clamp_min(1)
         return metrics
 
     def get_state(self) -> dict[str, torch.Tensor]:
         """Return monitor evidence and replay coverage for an RL checkpoint."""
-        history = self._progress_monitor.success_buf.bool()
         return {
-            "success_rates": self._progress_monitor.success_rate.clone(),
-            "success_history": history.clone(),
-            "history_pointer": self._progress_monitor.success_pointer.clone(),
-            "history_size": self._progress_monitor.success_size.clone(),
+            **self._progress_monitor.get_state(),
             "total_successes": self._progress_successes.clone(),
             "total_attempts": self._attempts.clone(),
             "continuation_attempts": self._continuation_attempts.clone(),
@@ -309,11 +240,8 @@ class StackResetTableCurriculum(ManagerTermBase):
 
     def set_state(self, state: dict[str, torch.Tensor]) -> None:
         """Restore adaptive evidence and replay coverage from an RL checkpoint."""
+        monitor_state_names = ("success_history", "history_pointer", "history_size")
         targets = {
-            "success_rates": self._progress_monitor.success_rate,
-            "success_history": self._progress_monitor.success_buf,
-            "history_pointer": self._progress_monitor.success_pointer,
-            "history_size": self._progress_monitor.success_size,
             "total_successes": self._progress_successes,
             "total_attempts": self._attempts,
             "continuation_attempts": self._continuation_attempts,
@@ -329,10 +257,6 @@ class StackResetTableCurriculum(ManagerTermBase):
                     f"Reset-table curriculum checkpoint '{name}' has shape {state[name].shape}; "
                     f"expected {target.shape}."
                 )
-        history_len = self._progress_monitor.cfg.monitored_history_len
-        if bool(torch.any((state["history_pointer"] < 0) | (state["history_pointer"] >= history_len))):
-            raise ValueError("Reset-table curriculum checkpoint contains an invalid history pointer.")
-        if bool(torch.any((state["history_size"] < 0) | (state["history_size"] > history_len))):
-            raise ValueError("Reset-table curriculum checkpoint contains an invalid history size.")
+        self._progress_monitor.set_state({name: state[name] for name in monitor_state_names if name in state})
         for name, target in targets.items():
             target.copy_(state[name].to(device=target.device, dtype=target.dtype))

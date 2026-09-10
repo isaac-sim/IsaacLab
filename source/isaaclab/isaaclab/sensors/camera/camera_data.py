@@ -7,14 +7,21 @@ from __future__ import annotations
 
 from typing import Any
 
+import torch
 import warp as wp
 
 # Re-exported as part of the public isaaclab.sensors.camera API
 from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
+from isaaclab.utils.leapp.leapp_semantics import leapp_tensor_semantics
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 __all__ = ["CameraData", "RenderBufferKind", "RenderBufferSpec"]
+
+
+def _camera_image_to_float(image: torch.Tensor) -> torch.Tensor:
+    """Match the float32 output contract of the ROS image converter."""
+    return image.float()
 
 
 class CameraData:
@@ -88,6 +95,22 @@ class CameraData:
         ``wp.array`` or ``.torch`` for a cached zero-copy ``torch.Tensor`` view.
         """
         return self._intrinsic_matrices
+
+    @property
+    @leapp_tensor_semantics(kind="state/camera/image", input_transform=_camera_image_to_float)
+    def rgb(self) -> ProxyArray:
+        """RGB image buffer exposed as a deployable camera input.
+
+        Shape is ``(N, H, W, 3)`` in channel-last layout and the simulation storage dtype is
+        ``wp.uint8``. LEAPP exposes this boundary as ``float32`` to match the
+        ``state/camera/image`` ROS converter while preserving the unscaled ``[0, 255]`` values.
+
+        Raises:
+            RuntimeError: If RGB output was not requested in the camera configuration.
+        """
+        if self._output is None or RenderBufferKind.RGB.value not in self._output:
+            raise RuntimeError("RGB output is unavailable. Add 'rgb' to CameraCfg.data_types.")
+        return self._output[RenderBufferKind.RGB.value]
 
     @property
     def output(self) -> dict[str, ProxyArray] | None:

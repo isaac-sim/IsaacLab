@@ -109,6 +109,16 @@ class ActionTerm(ManagerTermBase):
         """Whether to export the IO descriptor for the action term."""
         return self._export_IO_descriptor
 
+    @property
+    def controller_owned_write_methods(self) -> tuple[str, ...]:
+        """Asset write methods modeled in simulation but owned by the deployment controller.
+
+        LEAPP excludes these writes from the exported policy outputs while still executing
+        them during the trace. Action terms may override this property when simulation-side
+        feedforward or stabilization is supplied independently by the real controller.
+        """
+        return ()
+
     """
     Operations.
     """

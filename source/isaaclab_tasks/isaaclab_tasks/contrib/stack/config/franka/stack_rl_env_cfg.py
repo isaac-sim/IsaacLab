@@ -14,6 +14,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
@@ -28,6 +29,7 @@ from isaaclab_tasks.contrib.stack.constants import (
     FRANKA_STACK_ARM_WORKSPACE_UPPER,
 )
 from isaaclab_tasks.contrib.stack.spawners import ColoredCuboidCfg
+from isaaclab_tasks.utils import SuccessMonitorCfg
 
 from . import stack_joint_pos_env_cfg
 from .franka_robot_cfg import FRANKA_PANDA_DEXSUITE_CFG
@@ -75,11 +77,40 @@ class EventCfg:
             "table_cube_planar_translation_range": 0.015,
             "table_cube_rotation_range": 0.45,
             "fixed_recipe": None,
-            "evaluation_recipe_ids": (),
-            "evaluation_envs_per_recipe": 0,
             "fixed_role_permutation": None,
         },
     )
+
+
+@configclass
+class FrankaStackStateObservationCfg(ObsGroup):
+    """Canonical full-state interface for the Franka stack policy."""
+
+    joint_pos = ObsTerm(
+        func=mdp.joint_pos_rel,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
+    )
+    joint_vel = ObsTerm(
+        func=mdp.joint_vel_rel,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
+    )
+    joint_target = ObsTerm(func=mdp.joint_position_target)
+    actions = ObsTerm(func=mdp.last_action)
+    object = ObsTerm(func=mdp.role_conditioned_stack_obs)
+    gripper_pos = ObsTerm(func=mdp.gripper_pos)
+    eef_velocity = ObsTerm(func=mdp.franka_ee_velocity)
+    eef_axes = ObsTerm(func=mdp.franka_ee_axes)
+
+    def __post_init__(self) -> None:
+        self.enable_corruption = False
+        self.concatenate_terms = True
+
+
+@configclass
+class FrankaStackObservationsCfg:
+    """Observation groups for state-based Franka stacking."""
+
+    policy: FrankaStackStateObservationCfg = FrankaStackStateObservationCfg()
 
 
 @configclass
@@ -124,7 +155,7 @@ class CurriculumCfg:
             # Use the same shared rolling-success monitor as Lift and the
             # conveyor task. Its target-rate weights concentrate sampling near
             # 50% competence while retaining a floor at both extremes.
-            "success_monitor": mdp.SuccessMonitorCfg(
+            "success_monitor": SuccessMonitorCfg(
                 monitored_history_len=50,
                 target_success_rate=0.50,
                 kappa=1.0,
@@ -137,9 +168,6 @@ class CurriculumCfg:
             # Keep equal layout coverage by default. The KUKA task opts into
             # one flat target-rate distribution over its active rows.
             "global_sampling": False,
-            # Distillation tasks may reserve a prefix for held-out student
-            # rollouts. Zero keeps every environment in the training sampler.
-            "evaluation_env_count": 0,
         },
     )
 
@@ -148,6 +176,7 @@ class CurriculumCfg:
 class FrankaCubeStackRLEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
     """Train a color-order-invariant three-cube stack from physical reset rows."""
 
+    observations: FrankaStackObservationsCfg = FrankaStackObservationsCfg()
     rewards: RewardsCfg = RewardsCfg()
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg = CurriculumCfg()
@@ -190,8 +219,8 @@ class FrankaCubeStackRLEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
             ),
         )
         # Keep physical world gravity enabled for the arm and cubes. The arm
-        # action adds Newton's configuration-dependent g(q) as joint-effort
-        # feedforward on top of the DexSuite impedance controller.
+        # action models gravity compensation in simulation; each robot config
+        # explicitly declares whether its deployment controller owns that term.
         self.sim.gravity = (0.0, 0.0, -9.81)
         self.scene.robot.spawn.rigid_props.disable_gravity = False
 
@@ -252,6 +281,8 @@ class FrankaCubeStackRLEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
             workspace_lower=FRANKA_STACK_ARM_WORKSPACE_LOWER,
             workspace_upper=FRANKA_STACK_ARM_WORKSPACE_UPPER,
             gravity_compensation=True,
+            # The deployed FR3 controller supplies gravity compensation itself.
+            controller_owns_gravity_compensation=True,
         )
         self.actions.gripper_action = mdp.ResetBufferedGripperActionCfg(
             asset_name="robot",
@@ -277,19 +308,6 @@ class FrankaCubeStackRLEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
         # invariance as data augmentation without dynamically re-sorting input
         # slots at the critical grasp-to-lift transition.
         arm_cfg = SceneEntityCfg("robot", joint_names=["panda_joint.*"])
-        self.observations.policy.cube_positions = None
-        self.observations.policy.cube_orientations = None
-        self.observations.policy.eef_pos = None
-        self.observations.policy.eef_quat = None
-        self.observations.policy.joint_pos = ObsTerm(func=mdp.joint_pos_rel, params={"asset_cfg": arm_cfg})
-        self.observations.policy.joint_vel = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": arm_cfg})
-        self.observations.policy.object = ObsTerm(func=mdp.role_conditioned_stack_obs)
-        self.observations.policy.stack_state = None
-        self.observations.policy.eef_velocity = ObsTerm(func=mdp.franka_ee_velocity)
-        self.observations.policy.eef_axes = ObsTerm(func=mdp.franka_ee_axes)
-        self.observations.policy.concatenate_terms = True
-        self.observations.rgb_camera = None
-        self.observations.subtask_terms = None
         self.scene.ee_frame = None
 
         # Provide one backend-neutral camera hint. The selected Kit or Newton
@@ -410,6 +428,8 @@ class FrankaCubeStackRLEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
             raise ValueError(
                 "actions.arm_action.scale cannot exceed max_delta; hidden saturation aliases distinct PPO actions."
             )
+        if arm_action.controller_owns_gravity_compensation and not arm_action.gravity_compensation:
+            raise ValueError("Controller-owned gravity compensation requires gravity_compensation=True.")
         if len(arm_action.workspace_lower) != len(arm_action.workspace_upper) or not arm_action.workspace_lower:
             raise ValueError("The arm workspace bounds must have equal, non-zero lengths.")
         if any(
@@ -484,4 +504,8 @@ class FrankaCubeStackRLEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
         # Sample only from the randomized table partition. Avoid a brittle
         # numeric row ID so evaluation follows cache-size changes.
         self.events.reset_from_state_buffer.params["fixed_recipe"] = int(mdp.StackResetRecipe.TABLE)
+        # Evaluation and export start from table rows, so reset-only gripper
+        # assistance must not mask the policy action in the traced graph.
+        if isinstance(self.actions.gripper_action, mdp.ResetBufferedGripperActionCfg):
+            self.actions.gripper_action.force_close_steps = 0
         self.curriculum = None

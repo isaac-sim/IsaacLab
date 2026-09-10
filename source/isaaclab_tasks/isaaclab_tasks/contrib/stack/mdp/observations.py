@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Literal
 
 import torch
@@ -249,27 +250,28 @@ def franka_ee_axes(
     return tool_axes(env, robot_cfg=robot_cfg)
 
 
-def franka_ee_position(
-    env: ManagerBasedRLEnv,
-    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-) -> torch.Tensor:
-    """Return the Franka tool-center position relative to its environment.
-
-    This is a deployable kinematic quantity: on hardware it is computed from
-    joint encoders and the calibrated Franka model, just like the tool axes.
-    """
-    from .robot_state import end_effector_pose
-
-    tool_position, _ = end_effector_pose(env, robot_cfg=robot_cfg)
-    return tool_position - env.scene.env_origins
-
-
 def franka_ee_velocity(
     env: ManagerBasedRLEnv,
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Return the Franka tool-center linear/angular velocity."""
     return tool_velocity(env, robot_cfg=robot_cfg)
+
+
+def joint_position_target(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Return the position targets for the selected robot joints [m or rad, depending on joint type].
+
+    The legacy articulation-data alias is intentionally used until the actuator-collection
+    command view carries equivalent LEAPP input semantics.
+    """
+    robot: Articulation = env.scene[robot_cfg.name]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        target = robot.data.joint_pos_target.torch
+    return target[:, robot_cfg.joint_ids]
 
 
 def role_conditioned_stack_obs(
@@ -366,15 +368,6 @@ def role_conditioned_stack_obs(
         ),
         dim=1,
     )
-
-
-def stack_reset_recipe_one_hot(env: ManagerBasedRLEnv, recipe_count: int = 9) -> torch.Tensor:
-    """Return privileged reset-recipe labels used only to balance cloning loss."""
-    if recipe_count <= 0:
-        raise ValueError("recipe_count must be positive.")
-    reset_state = get_stack_reset_runtime_state(env)
-    recipe_ids = reset_state.recipes.long().clamp(min=0, max=recipe_count - 1)
-    return torch.nn.functional.one_hot(recipe_ids, num_classes=recipe_count).float()
 
 
 def role_conditioned_cube_x_axes(

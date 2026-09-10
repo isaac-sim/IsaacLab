@@ -69,9 +69,20 @@ def _check_rsl_rl_version() -> str:
     return installed_version
 
 
-def _should_load_checkpoint(resume: bool, runner_class_name: str) -> bool:
-    """Return whether the runner requires an input checkpoint."""
-    return resume or runner_class_name == "DistillationRunner"
+def _validate_checkpoint_request(checkpoint: str | None, runner_class_name: str, resume: bool) -> None:
+    """Validate whether a distillation checkpoint request is unambiguous."""
+    if runner_class_name != "DistillationRunner" or resume:
+        return
+    if not checkpoint:
+        raise ValueError(
+            "Initial distillation training requires an explicit teacher checkpoint; "
+            "pass --checkpoint PATH or configure resume=True for a distillation checkpoint."
+        )
+    if checkpoint in CHECKPOINT_SELECTORS:
+        raise ValueError(
+            f"Checkpoint selector {checkpoint!r} cannot identify an initial distillation teacher. "
+            "Pass a concrete teacher checkpoint, or configure resume=True to select a distillation run."
+        )
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -150,6 +161,7 @@ def _run(args_cli: argparse.Namespace) -> None:
             )
 
             agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
+            _validate_checkpoint_request(args_cli.checkpoint, agent_cfg.class_name, agent_cfg.resume)
 
             env_cfg.seed = agent_cfg.seed
             validate_distributed_device(args_cli)
@@ -188,9 +200,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
 
-            should_load_checkpoint = bool(args_cli.checkpoint) or _should_load_checkpoint(
-                agent_cfg.resume, agent_cfg.class_name
-            )
+            should_load_checkpoint = bool(args_cli.checkpoint) or agent_cfg.resume
             if args_cli.checkpoint in CHECKPOINT_SELECTORS:
                 resume_path = resolve_checkpoint_selector(
                     log_root_path,
@@ -208,7 +218,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 )
             elif args_cli.checkpoint:
                 resume_path = retrieve_file_path(args_cli.checkpoint)
-            elif should_load_checkpoint:
+            elif agent_cfg.resume:
                 resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
 
             env = wrap_training_capture(env, log_dir, args_cli)

@@ -5,34 +5,26 @@
 
 """Vision-policy variant of the reset-oriented Franka stack task."""
 
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
 import isaaclab.sim as sim_utils
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
+from isaaclab.utils import modifiers
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
-from isaaclab_tasks.contrib.stack import mdp, stack_env_cfg
+from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.stack_env_cfg import ObjectTableSceneCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-from .stack_rl_env_cfg import EventCfg, FrankaCubeStackRLEnvCfg
-
-
-@configclass
-class NewtonDefaultStackRendererCfg(MultiBackendRendererCfg):
-    """Multi-backend camera renderer with a kitless Newton default."""
-
-    default: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
+from .stack_rl_env_cfg import EventCfg, FrankaCubeStackRLEnvCfg, FrankaStackStateObservationCfg
 
 
 @configclass
 class FrankaStackCameraSceneCfg(ObjectTableSceneCfg):
-    """Franka stack scene with one fixed, real-world-deployable RGB camera."""
+    """Franka stack scene with one fixed, deployment-compatible RGB camera."""
 
     # The oblique view resolves both table-plane axes and keeps the complete
     # 0.40-0.56 m by -0.18-0.18 m reset workspace in frame. The quaternion is
@@ -42,7 +34,7 @@ class FrankaStackCameraSceneCfg(ObjectTableSceneCfg):
         update_period=0.0,
         # Four-centimeter cubes project to only 3--6 pixels at 64 px from this
         # deployment camera. At 128 px they retain enough edge and finger
-        # detail for the spatial-softmax encoder's final 12 x 12 feature map.
+        # detail for the CNN encoder's final 12 x 12 feature map.
         height=128,
         width=128,
         data_types=["rgb"],
@@ -57,7 +49,7 @@ class FrankaStackCameraSceneCfg(ObjectTableSceneCfg):
             rot=(0.4734479, 0.1600998, 0.2774602, 0.8205066),
             convention="opengl",
         ),
-        renderer_cfg=NewtonDefaultStackRendererCfg(),
+        renderer_cfg=MultiBackendRendererCfg(),
     )
 
 
@@ -80,13 +72,12 @@ class CameraEventCfg(EventCfg):
 
 @configclass
 class CameraObservationsCfg:
-    """Deployable actor observations and an asymmetric training critic."""
+    """Deployment-compatible actor observations and a full-state training critic."""
 
     @configclass
     class PolicyCfg(ObsGroup):
-        """Signals available from the real Franka controller."""
+        """Camera-policy signals available directly from the robot and policy runtime."""
 
-        actions = ObsTerm(func=mdp.last_action)
         joint_pos = ObsTerm(
             func=mdp.joint_pos_rel,
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
@@ -97,101 +88,50 @@ class CameraObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
             noise=Unoise(n_min=-0.05, n_max=0.05),
         )
+        joint_target = ObsTerm(
+            func=mdp.joint_position_target,
+            noise=Unoise(n_min=-0.005, n_max=0.005),
+        )
         gripper_pos = ObsTerm(
             func=mdp.gripper_pos,
             noise=Unoise(n_min=-0.001, n_max=0.001),
         )
-        # Both signals are computable from the real robot's joint encoders and
-        # kinematic model. Supplying them explicitly avoids asking the camera
-        # encoder to relearn Franka forward/differential kinematics.
-        eef_velocity = ObsTerm(func=mdp.franka_ee_velocity)
-        eef_axes = ObsTerm(func=mdp.franka_ee_axes)
-        eef_position = ObsTerm(func=mdp.franka_ee_position)
+        actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self) -> None:
             self.enable_corruption = True
             self.concatenate_terms = True
 
     @configclass
-    class PrivilegedCfg(ObsGroup):
-        """Simulator state used only to reduce critic variance while training."""
-
-        object = ObsTerm(func=mdp.role_conditioned_stack_obs)
-        eef_velocity = ObsTerm(func=mdp.franka_ee_velocity)
-        eef_axes = ObsTerm(func=mdp.franka_ee_axes)
-
-        def __post_init__(self) -> None:
-            self.enable_corruption = False
-            self.concatenate_terms = True
-
-    @configclass
     class BaseImageCfg(ObsGroup):
-        """Two-frame, channel-first RGB input for the visual encoder."""
+        """Single-frame, channel-first RGB input for the visual encoder.
+
+        The fixed ``uint8 / 255`` transform is independent of other
+        environments and matches the preprocessing expected at deployment.
+        Episode-consistent photometric variation models camera calibration and
+        lighting changes without inventing temporal flicker.
+        """
 
         rgb = ObsTerm(
-            func=mdp.TemporalNormalizedRgbImage,
-            params={"sensor_cfg": SceneEntityCfg("base_camera"), "history_length": 2},
-            clip=(-0.5, 0.5),
+            func=mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("base_camera"),
+                "data_type": "rgb",
+                "normalize": False,
+                "permute": True,
+            },
+            modifiers=[modifiers.ModifierCfg(func=modifiers.scale, params={"multiplier": 1.0 / 255.0})],
+            noise=mdp.EpisodeCameraNoiseCfg(),
+            clip=(0.0, 1.0),
         )
 
         def __post_init__(self) -> None:
-            self.enable_corruption = False
+            self.enable_corruption = True
             self.concatenate_terms = True
 
     policy: PolicyCfg = PolicyCfg()
-    privileged: PrivilegedCfg = PrivilegedCfg()
+    privileged: FrankaStackStateObservationCfg = FrankaStackStateObservationCfg()
     base_image: BaseImageCfg = BaseImageCfg()
-
-
-@configclass
-class FrankaStackTeacherObservationsCfg(stack_env_cfg.ObservationsCfg.PolicyCfg):
-    """Exact 100-value state interface used by the proven Franka teacher.
-
-    The inherited term order is intentionally preserved because the teacher's
-    empirical normalizer and first MLP layer are tied to this layout. This
-    group exists only in the distillation task and is never exposed to the
-    camera student.
-    """
-
-    joint_pos = ObsTerm(
-        func=mdp.joint_pos_rel,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
-    )
-    joint_vel = ObsTerm(
-        func=mdp.joint_vel_rel,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
-    )
-    object = ObsTerm(func=mdp.role_conditioned_stack_obs)
-    cube_positions = None
-    cube_orientations = None
-    eef_pos = None
-    eef_quat = None
-    stack_state = None
-    eef_velocity = ObsTerm(func=mdp.franka_ee_velocity)
-    eef_axes = ObsTerm(func=mdp.franka_ee_axes)
-
-    def __post_init__(self) -> None:
-        self.enable_corruption = False
-        self.concatenate_terms = True
-
-
-@configclass
-class DistillationContextCfg(ObsGroup):
-    """Privileged labels for balanced supervision, never consumed by the actor."""
-
-    recipe = ObsTerm(func=mdp.stack_reset_recipe_one_hot, params={"recipe_count": 9})
-
-    def __post_init__(self) -> None:
-        self.enable_corruption = False
-        self.concatenate_terms = True
-
-
-@configclass
-class CameraDistillationObservationsCfg(CameraObservationsCfg):
-    """Student camera observations plus a teacher-only simulator-state group."""
-
-    teacher: FrankaStackTeacherObservationsCfg = FrankaStackTeacherObservationsCfg()
-    distillation_context: DistillationContextCfg = DistillationContextCfg()
 
 
 @configclass
@@ -199,7 +139,10 @@ class FrankaCubeStackCameraRLEnvCfg(FrankaCubeStackRLEnvCfg):
     """Stack from RGB and proprioception with no actor-side object state."""
 
     scene: FrankaStackCameraSceneCfg = FrankaStackCameraSceneCfg(
-        num_envs=4096,
+        # A 32-step rollout at this resolution already stores roughly 1.5 GiB
+        # of float RGB before activations, optimizer state, and critic inputs.
+        # Scale the batch from the CLI only after profiling the target GPU.
+        num_envs=256,
         env_spacing=2.5,
         replicate_physics=True,
     )
@@ -208,12 +151,10 @@ class FrankaCubeStackCameraRLEnvCfg(FrankaCubeStackRLEnvCfg):
     def __post_init__(self) -> None:
         super().__post_init__()
 
-        # The parent reinstalls its state-task manager configs. Swap back only
-        # the camera-specific events and observation interface; physics,
-        # actions, rewards, reset rows, curriculum, and success logic remain
-        # byte-for-byte identical to the proven state task.
+        # The Franka demonstration parent reinstalls its own reset events.
+        # Restore the camera variant while sharing the state task's physics,
+        # actions, rewards, reset rows, curriculum, and success logic.
         self.events = CameraEventCfg()
-        self.observations = CameraObservationsCfg()
 
         # The state teacher receives an abstract base/first/second role order.
         # A camera actor cannot observe the reset-time permutation that used to
@@ -227,31 +168,3 @@ class FrankaCubeStackCameraRLEnvCfg(FrankaCubeStackRLEnvCfg):
         # episode sees the new state instead of another environment's final
         # frame.
         self.num_rerenders_on_reset = 1
-
-
-@configclass
-class FrankaCubeStackCameraDistillationEnvCfg(FrankaCubeStackCameraRLEnvCfg):
-    """Camera stack environment exposing state only to the frozen teacher."""
-
-    observations: CameraDistillationObservationsCfg = CameraDistillationObservationsCfg()
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        self.observations = CameraDistillationObservationsCfg()
-        # Establish the easiest possible supervised-transfer baseline first.
-        # Calibration and proprioceptive noise belong after the visual adapter
-        # reproduces the frozen controller, not in the initial sanity check.
-        self.events.camera_calibration.params["eye_position_noise"] = (0.0, 0.0, 0.0)
-        self.events.camera_calibration.params["lookat_position_noise"] = (0.0, 0.0, 0.0)
-        self.observations.policy.enable_corruption = False
-        self.observations.policy.joint_pos.noise = None
-        self.observations.policy.joint_vel.noise = None
-        self.observations.policy.gripper_pos.noise = None
-        # Reserve four deterministic student rollouts for every reset recipe on
-        # each rank. These slots never contribute to optimization and expose
-        # exactly which phase blocks end-to-end TABLE success.
-        self.events.reset_from_state_buffer.params["evaluation_recipe_ids"] = tuple(range(9))
-        self.events.reset_from_state_buffer.params["evaluation_envs_per_recipe"] = 4
-        # Keep the deterministic evaluation stream genuinely held out: its
-        # outcomes must neither train the student nor steer reset sampling.
-        self.curriculum.reset_sampling.params["evaluation_env_count"] = 9 * 4

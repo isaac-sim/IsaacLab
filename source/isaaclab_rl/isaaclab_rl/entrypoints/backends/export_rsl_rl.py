@@ -133,6 +133,26 @@ def actor_hidden_from_registered(registered_state, original_hidden):
     return registered_state
 
 
+def get_inference_observation_groups(agent_cfg) -> set[str]:
+    """Return environment observation groups consumed by the exported policy.
+
+    RSL-RL names the inference observation set ``actor`` for on-policy runners and
+    ``student`` for distillation runners. Teacher and critic groups are intentionally excluded
+    because their privileged inputs are unavailable after deployment.
+
+    Args:
+        agent_cfg: RSL-RL runner configuration containing ``class_name`` and ``obs_groups``.
+
+    Returns:
+        Names of environment observation groups required for inference.
+    """
+    obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
+    if not isinstance(obs_groups_cfg, Mapping):
+        return {"policy"}
+    inference_set = "student" if agent_cfg.class_name == "DistillationRunner" else "actor"
+    return set(obs_groups_cfg.get(inference_set, ["policy"]))
+
+
 def _update_agent_cfg_from_export_args(agent_cfg, args_cli: argparse.Namespace):
     """Apply export-relevant CLI overrides to the RSL-RL agent config."""
     if args_cli.seed is not None:
@@ -215,15 +235,10 @@ def export_rsl_rl_agent(
             export_method = "onnx-dynamo" if args_cli.export_method is None else args_cli.export_method
             # Patch only the observation groups consumed by the actor policy.
             # This filters out the critic and teacher observation groups.
-            obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
-            if isinstance(obs_groups_cfg, Mapping):
-                required_obs_groups = set(obs_groups_cfg.get("actor", ["policy"]))
-            else:
-                required_obs_groups = {"policy"}
             patch_env_for_export(
                 env,
                 export_method=export_method,
-                required_obs_groups=required_obs_groups,
+                required_obs_groups=get_inference_observation_groups(agent_cfg),
             )
         elif args_cli.export_method is not None:
             raise ValueError(
@@ -312,7 +327,7 @@ def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -
 
     try:
 
-        @hydra_task_config(args_cli.task, args_cli.agent)
+        @hydra_task_config(args_cli.task, args_cli.agent, play_mode=True)
         def _main(env_cfg, agent_cfg) -> None:
             nonlocal exported
             with launch_simulation(env_cfg, args_cli):

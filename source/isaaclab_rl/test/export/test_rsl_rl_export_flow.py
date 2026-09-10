@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -263,6 +264,58 @@ def test_recurrent_state_helpers_support_modular_rnn_model_lstm():
     assert export_module.get_actor_memory_module(policy) is policy.rnn
     assert export_module.get_actor_hidden_state(policy) is registered_state
     assert policy.rnn.hidden_state is registered_state
+
+
+@pytest.mark.parametrize(
+    ("runner_class", "obs_groups", "expected"),
+    [
+        pytest.param(
+            "OnPolicyRunner",
+            {"actor": ["policy", "base_image"], "critic": ["policy", "privileged"]},
+            {"policy", "base_image"},
+            id="on-policy-actor",
+        ),
+        pytest.param(
+            "DistillationRunner",
+            {"student": ["policy", "base_image"], "teacher": ["teacher"]},
+            {"policy", "base_image"},
+            id="distillation-student",
+        ),
+        pytest.param("DistillationRunner", None, {"policy"}, id="legacy-fallback"),
+    ],
+)
+def test_inference_observation_groups_exclude_privileged_inputs(runner_class, obs_groups, expected):
+    """The export patcher follows the deployed actor or student observation contract."""
+    export_module = _load_export_module()
+    agent_cfg = SimpleNamespace(class_name=runner_class, obs_groups=obs_groups)
+
+    assert export_module.get_inference_observation_groups(agent_cfg) == expected
+
+
+def test_export_hydra_resolution_uses_play_mode(monkeypatch: pytest.MonkeyPatch):
+    """Export resolves the inference environment without training-time randomization or curricula."""
+    export_module = _load_export_module()
+    captured = {}
+
+    def fake_hydra_task_config(task, agent, play_mode=False):
+        captured.update(task=task, agent=agent, play_mode=play_mode)
+
+        def decorator(func):
+            return lambda: func(SimpleNamespace(), SimpleNamespace())
+
+        return decorator
+
+    @contextlib.contextmanager
+    def fake_launch_simulation(_env_cfg, _args_cli):
+        yield
+
+    monkeypatch.setattr(export_module, "hydra_task_config", fake_hydra_task_config)
+    monkeypatch.setattr(export_module, "launch_simulation", fake_launch_simulation)
+    monkeypatch.setattr(export_module, "export_rsl_rl_agent", lambda *_args: True)
+    args_cli = SimpleNamespace(task="Isaac-Test", agent="test_agent")
+
+    assert export_module.run_export_with_hydra(args_cli, [])
+    assert captured == {"task": "Isaac-Test", "agent": "test_agent", "play_mode": True}
 
 
 def test_export_flow_fails_on_sim_traceback():

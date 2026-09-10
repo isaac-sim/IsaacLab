@@ -11,16 +11,16 @@ import gymnasium as gym
 import pytest
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from rsl_rl.algorithms import Distillation
+
+from isaaclab.utils import modifiers
+from isaaclab.utils.noise import UniformNoiseCfg
+
+from isaaclab_rl.rsl_rl import RslRlCNNModelCfg, RslRlDistillationAlgorithmCfg, RslRlMLPModelCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.stack import mdp
-from isaaclab_tasks.contrib.stack.config.franka.agents.rsl_rl_distillation_cfg import (
-    StackDistillationAlgorithmCfg,
-    StackVisualDistillationModelCfg,
-)
-from isaaclab_tasks.contrib.stack.config.franka.agents.rsl_rl_ppo_cfg import (
-    StackGaussianDistribution,
-)
+from isaaclab_tasks.contrib.stack.config.franka.agents.distillation import ClippedTeacherDistillation
 from isaaclab_tasks.contrib.stack.config.kuka_allegro.agents.rsl_rl_ppo_cfg import (
     KukaAllegroGaussianDistribution,
 )
@@ -47,7 +47,7 @@ KUKA_STATE_TASK = "IsaacContrib-Stack-Cube-KukaAllegro-RL"
         (FRANKA_CAMERA_TASK, "FrankaCubeStackCameraRLEnvCfg", "FrankaStackCameraPPORunnerCfg"),
         (
             FRANKA_DISTILLATION_TASK,
-            "FrankaCubeStackCameraDistillationEnvCfg",
+            "FrankaCubeStackCameraRLEnvCfg",
             "FrankaStackCameraDistillationRunnerCfg",
         ),
         (KUKA_STATE_TASK, "KukaAllegroCubeStackRLEnvCfg", "KukaAllegroStackPPORunnerCfg"),
@@ -65,6 +65,13 @@ def test_supported_tasks_are_registered(task_name: str, env_cfg_name: str, runne
 def test_obsolete_camera_fine_tune_task_is_not_registered():
     with pytest.raises(gym.error.Error):
         gym.spec("IsaacContrib-Stack-Cube-Franka-RL-Camera-Finetune")
+
+
+def test_camera_default_batch_is_memory_safe():
+    """The checked-in image rollout fits comfortably before CLI scaling."""
+    cfg = parse_env_cfg(FRANKA_CAMERA_TASK, device="cuda:0")
+
+    assert cfg.scene.num_envs == 256
 
 
 @pytest.fixture(scope="module")
@@ -89,6 +96,7 @@ def test_franka_state_task_exposes_the_training_contract(stack_cfgs):
     assert cfg.sim.physics.collision_decimation == 1
     assert cfg.decimation == cfg.sim.render_interval == 2
     assert cfg.actions.arm_action.gravity_compensation
+    assert cfg.actions.arm_action.controller_owns_gravity_compensation
     assert cfg.actions.arm_action.scale == cfg.actions.arm_action.max_delta == 0.05
     assert isinstance(cfg.actions.gripper_action, mdp.ResetBufferedGripperActionCfg)
     assert cfg.events.reset_from_state_buffer.func is mdp.StackResetStateTable
@@ -96,8 +104,9 @@ def test_franka_state_task_exposes_the_training_contract(stack_cfgs):
     assert cfg.terminations.progress_context.func is mdp.StableOrderInvariantStackGoal
     assert cfg.rewards.success.func is mdp.stack_success_pulse
     assert cfg.observations.policy.object.func is mdp.role_conditioned_stack_obs
-    assert cfg.observations.policy.cube_positions is None
-    assert cfg.observations.policy.cube_orientations is None
+    assert cfg.observations.policy.joint_target.func is mdp.joint_position_target
+    assert not hasattr(cfg.observations.policy, "cube_positions")
+    assert not hasattr(cfg.observations.policy, "cube_orientations")
     assert cfg.scene.cube_1.spawn.size == (0.04, 0.04, 0.04)
     assert cfg.scene.cube_1.spawn.physics_material.contact_stiffness == 1.0e4
     assert cfg.scene.table_contact_surface.spawn.physics_material.contact_stiffness == 1.0e4
@@ -106,34 +115,170 @@ def test_franka_state_task_exposes_the_training_contract(stack_cfgs):
 def test_camera_actor_has_only_deployable_observations(stack_cfgs):
     cfg = stack_cfgs[FRANKA_CAMERA_TASK]
     runner = load_cfg_from_registry(FRANKA_CAMERA_TASK, "rsl_rl_cfg_entry_point")
+    image = cfg.observations.base_image.rgb
 
     assert cfg.scene.base_camera.height == cfg.scene.base_camera.width == 128
     assert cfg.scene.base_camera.data_types == ["rgb"]
+    assert image.func is mdp.image
+    assert image.params["data_type"] == "rgb"
+    assert image.params["normalize"] is False
+    assert image.params["permute"] is True
+    assert len(image.modifiers) == 1
+    assert image.modifiers[0].func is modifiers.scale
+    assert image.modifiers[0].params["multiplier"] == pytest.approx(1.0 / 255.0)
+    assert isinstance(image.noise, mdp.EpisodeCameraNoiseCfg)
+    assert image.clip == (0.0, 1.0)
     assert cfg.num_rerenders_on_reset == 1
     assert cfg.events.reset_from_state_buffer.params["fixed_role_permutation"] == 0
+    assert cfg.observations.policy.joint_target.func is mdp.joint_position_target
     assert not hasattr(cfg.observations.policy, "object")
+    assert not hasattr(cfg.observations.policy, "eef_position")
+    assert not hasattr(cfg.observations.policy, "eef_axes")
+    assert not hasattr(cfg.observations.policy, "eef_velocity")
     assert hasattr(cfg.observations, "base_image")
     assert not hasattr(cfg.observations, "teacher")
     assert runner.obs_groups["actor"] == ["policy", "base_image"]
-    assert runner.obs_groups["critic"] == ["policy", "privileged"]
+    assert runner.obs_groups["critic"] == ["privileged"]
     assert "privileged" not in runner.obs_groups["actor"]
+
+
+def test_deployment_inputs_precede_recurrent_action_state(stack_cfgs):
+    """LEAPP sees a physical input before registering the previous-action state."""
+    for task_name in (FRANKA_STATE_TASK, FRANKA_CAMERA_TASK):
+        policy_terms = list(vars(stack_cfgs[task_name].observations.policy))
+        assert policy_terms.index("joint_pos") < policy_terms.index("actions")
 
 
 def test_distillation_task_adds_privileged_labels_without_changing_the_student(stack_cfgs):
     cfg = stack_cfgs[FRANKA_DISTILLATION_TASK]
+    state_cfg = stack_cfgs[FRANKA_STATE_TASK]
     runner = load_cfg_from_registry(FRANKA_DISTILLATION_TASK, "rsl_rl_cfg_entry_point")
+    camera_runner = load_cfg_from_registry(FRANKA_CAMERA_TASK, "rsl_rl_cfg_entry_point")
+    state_runner = load_cfg_from_registry(FRANKA_STATE_TASK, "rsl_rl_cfg_entry_point")
 
-    assert hasattr(cfg.observations, "teacher")
-    assert hasattr(cfg.observations, "distillation_context")
-    assert cfg.observations.distillation_context.recipe.func is mdp.stack_reset_recipe_one_hot
-    assert cfg.events.reset_from_state_buffer.params["evaluation_recipe_ids"] == tuple(range(9))
-    assert cfg.events.reset_from_state_buffer.params["evaluation_envs_per_recipe"] == 4
-    assert cfg.curriculum.reset_sampling.params["evaluation_env_count"] == 36
-    assert runner.obs_groups == {"student": ["policy", "base_image"], "teacher": ["teacher"]}
-    assert isinstance(runner.student, StackVisualDistillationModelCfg)
-    assert isinstance(runner.algorithm, StackDistillationAlgorithmCfg)
-    assert not hasattr(runner.algorithm, "stepwise_student_control")
-    assert not hasattr(runner.algorithm, "controller_warmup_updates")
+    assert hasattr(cfg.observations, "privileged")
+    assert not hasattr(cfg.observations, "teacher")
+    assert not hasattr(cfg.observations, "distillation_context")
+    assert runner.obs_groups == {"student": ["policy", "base_image"], "teacher": ["privileged"]}
+    assert type(runner.student) is type(camera_runner.actor)
+    assert runner.student.class_name == camera_runner.actor.class_name
+    assert runner.student.hidden_dims == camera_runner.actor.hidden_dims
+    assert runner.student.cnn_cfg == camera_runner.actor.cnn_cfg
+    assert runner.teacher.class_name == state_runner.actor.class_name
+    assert runner.teacher.hidden_dims == state_runner.actor.hidden_dims
+    assert runner.teacher.to_dict() == state_runner.actor.to_dict()
+    group_settings = {
+        "enable_corruption",
+        "concatenate_terms",
+        "history_length",
+        "flatten_history_dim",
+        "concatenate_dim",
+    }
+    state_terms = [name for name in vars(state_cfg.observations.policy) if name not in group_settings]
+    teacher_terms = [name for name in vars(cfg.observations.privileged) if name not in group_settings]
+    assert teacher_terms == state_terms
+    assert isinstance(runner.algorithm, RslRlDistillationAlgorithmCfg)
+    assert runner.algorithm.class_name.endswith(":ClippedTeacherDistillation")
+    assert runner.num_steps_per_env == 8
+    assert runner.init_at_random_ep_len is False
+
+
+def test_camera_noise_coefficients_are_stable_within_an_episode():
+    """Episode photometric coefficients remain fixed until reset."""
+    cfg = mdp.EpisodeCameraNoiseCfg(
+        noise_cfg=UniformNoiseCfg(n_min=0.0, n_max=0.0),
+        exposure_range=(0.5, 1.5),
+        contrast_range=(0.8, 1.2),
+        white_balance_range=(0.9, 1.1),
+        brightness_range=(-0.1, 0.1),
+    )
+    noise = mdp.EpisodeCameraNoise(cfg, num_envs=4, device="cpu")
+    image = torch.linspace(0.0, 1.0, 4 * 3 * 5 * 5).reshape(4, 3, 5, 5)
+
+    first = noise(image)
+    second = noise(image)
+
+    torch.testing.assert_close(first, second, rtol=0.0, atol=0.0)
+
+
+def test_camera_noise_reset_resamples_only_selected_environments():
+    """A partial reset preserves every unselected environment's calibration."""
+    with torch.random.fork_rng():
+        torch.manual_seed(7)
+        cfg = mdp.EpisodeCameraNoiseCfg(
+            noise_cfg=UniformNoiseCfg(n_min=0.0, n_max=0.0),
+            exposure_range=(0.5, 1.5),
+            contrast_range=(1.0, 1.0),
+            white_balance_range=(1.0, 1.0),
+            brightness_range=(0.0, 0.0),
+        )
+        noise = mdp.EpisodeCameraNoise(cfg, num_envs=4, device="cpu")
+        image = torch.ones((4, 3, 2, 2))
+        before = noise(image)
+
+        noise.reset(torch.tensor([1, 3]))
+        after = noise(image)
+
+    torch.testing.assert_close(after[[0, 2]], before[[0, 2]], rtol=0.0, atol=0.0)
+    assert not torch.equal(after[[1, 3]], before[[1, 3]])
+
+
+@pytest.mark.parametrize("shape", ((2, 4, 4, 3), (2, 3, 4)))
+def test_camera_noise_rejects_non_nchw_rgb_input(shape: tuple[int, ...]):
+    """Photometric randomization rejects non-NCHW RGB tensors."""
+    noise = mdp.EpisodeCameraNoise(mdp.EpisodeCameraNoiseCfg(), num_envs=2, device="cpu")
+
+    with pytest.raises(ValueError, match="expects NCHW RGB input"):
+        noise(torch.zeros(shape))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("exposure_range", (0.0, 1.0)),
+        ("contrast_range", (1.1, 0.9)),
+        ("white_balance_range", (-0.1, 1.0)),
+        ("brightness_range", (0.1, -0.1)),
+    ),
+)
+def test_camera_noise_rejects_invalid_ranges(field: str, value: tuple[float, float]):
+    """Photometric coefficient ranges must be ordered and physically valid."""
+    cfg = mdp.EpisodeCameraNoiseCfg()
+    setattr(cfg, field, value)
+
+    with pytest.raises(ValueError, match=field):
+        mdp.EpisodeCameraNoise(cfg, num_envs=2, device="cpu")
+
+
+def test_distillation_labels_match_executed_action_clip(monkeypatch: pytest.MonkeyPatch):
+    """Behavior cloning targets the teacher action after the environment clamp."""
+    algorithm = object.__new__(ClippedTeacherDistillation)
+    algorithm.transition = SimpleNamespace(privileged_actions=torch.tensor(((-2.0, 0.25, 3.0),)))
+    student_actions = torch.tensor(((0.1, 0.2, 0.3),))
+    monkeypatch.setattr(Distillation, "act", lambda self, obs: student_actions)
+
+    returned_actions = algorithm.act({})
+
+    assert returned_actions is student_actions
+    torch.testing.assert_close(algorithm.transition.privileged_actions, torch.tensor(((-1.0, 0.25, 1.0),)))
+
+
+def test_franka_policies_use_stock_rsl_rl_algorithms():
+    """The Franka policies keep their task-specific networks in maintained RSL-RL workflows."""
+    state_runner = load_cfg_from_registry(FRANKA_STATE_TASK, "rsl_rl_cfg_entry_point")
+    camera_runner = load_cfg_from_registry(FRANKA_CAMERA_TASK, "rsl_rl_cfg_entry_point")
+
+    assert state_runner.algorithm.class_name == camera_runner.algorithm.class_name == "PPO"
+    assert state_runner.init_at_random_ep_len is False
+    assert isinstance(camera_runner.actor, RslRlCNNModelCfg)
+    assert isinstance(state_runner.actor.distribution_cfg, RslRlMLPModelCfg.GaussianDistributionCfg)
+    assert isinstance(camera_runner.actor.distribution_cfg, RslRlMLPModelCfg.GaussianDistributionCfg)
+    assert state_runner.actor.distribution_cfg.class_name == "GaussianDistribution"
+    assert camera_runner.actor.distribution_cfg.class_name == "GaussianDistribution"
+    assert state_runner.actor.distribution_cfg.std_type == camera_runner.actor.distribution_cfg.std_type == "log"
+    assert (
+        state_runner.actor.distribution_cfg.std_range == camera_runner.actor.distribution_cfg.std_range == (0.05, 0.3)
+    )
 
 
 def test_kuka_task_has_one_complete_23_dof_state_policy(stack_cfgs):
@@ -142,6 +287,7 @@ def test_kuka_task_has_one_complete_23_dof_state_policy(stack_cfgs):
 
     assert cfg.events.reset_from_state_buffer.func is mdp.KukaAllegroResetStateTable
     assert cfg.actions.arm_action.gravity_compensation
+    assert not cfg.actions.arm_action.controller_owns_gravity_compensation
     assert cfg.actions.arm_action.scale == cfg.actions.arm_action.max_delta == 0.12
     assert isinstance(cfg.actions.gripper_action, mdp.ResetPreservingRelativeJointPositionActionCfg)
     assert tuple(cfg.actions.gripper_action.joint_names) == KUKA_ALLEGRO_ALL_HAND_JOINT_NAMES
@@ -170,20 +316,8 @@ def test_play_mode_uses_randomized_table_starts(task_name: str):
     assert cfg.events.reset_from_state_buffer.params["fixed_recipe"] == int(mdp.StackResetRecipe.TABLE)
     assert cfg.curriculum is None
     assert cfg.scene.num_envs == 4
-
-
-def test_mixed_franka_distribution_matches_the_physical_action_space():
-    distribution = StackGaussianDistribution(output_dim=8, init_std=0.45)
-    output = torch.zeros((256, 8))
-    distribution.update(output)
-
-    samples = distribution.sample()
-
-    assert samples.shape == (256, 8)
-    assert set(samples[:, -1].unique().tolist()) <= {-1.0, 1.0}
-    assert torch.equal(distribution.deterministic_output(output)[:, -1], torch.ones(256))
-    assert distribution.log_prob(samples).shape == (256,)
-    assert torch.isfinite(distribution.entropy).all()
+    if isinstance(cfg.actions.gripper_action, mdp.ResetBufferedGripperActionCfg):
+        assert cfg.actions.gripper_action.force_close_steps == 0
 
 
 def test_kuka_distribution_covers_all_arm_and_hand_actions():

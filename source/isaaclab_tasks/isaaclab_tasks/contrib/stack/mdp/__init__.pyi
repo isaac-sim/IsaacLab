@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "EpisodeCameraNoise",
+    "EpisodeCameraNoiseCfg",
     "KukaAllegroResetStateTable",
     "ResetBufferedGripperAction",
     "ResetBufferedGripperActionCfg",
@@ -16,8 +18,6 @@ __all__ = [
     "StackResetRuntimeState",
     "StackResetStateTable",
     "StackResetTableCurriculum",
-    "SuccessMonitorCfg",
-    "TemporalNormalizedRgbImage",
     "WorkspaceBoundedRelativeJointPositionAction",
     "WorkspaceBoundedRelativeJointPositionActionCfg",
     "action_term_l2",
@@ -34,7 +34,6 @@ __all__ = [
     "end_effector_velocity",
     "finite_joint_velocity_l2",
     "franka_ee_axes",
-    "franka_ee_position",
     "franka_ee_velocity",
     "grasp_pair_end_effector_pose",
     "grasp_pair_end_effector_velocity",
@@ -45,9 +44,9 @@ __all__ = [
     "instance_randomize_cube_positions_in_world_frame",
     "instance_randomize_object_obs",
     "irrecoverable_stack_failure",
+    "joint_position_target",
     "nonfinite_cube_state",
     "nonfinite_robot_state",
-    "normalized_rgb_image",
     "object_abs_obs_in_base_frame",
     "object_grasped",
     "object_obs",
@@ -56,14 +55,11 @@ __all__ = [
     "randomize_camera_calibration",
     "role_conditioned_cube_x_axes",
     "role_conditioned_stack_obs",
-    "stack_reset_recipe_one_hot",
     "stack_success_pulse",
     "success_after_minimum_horizon",
     "tool_axes",
     "tool_velocity",
 ]
-
-from isaaclab_tasks.core.lift.mdp.events_cfg import SuccessMonitorCfg
 
 from .actions import (
     ResetBufferedGripperAction,
@@ -75,7 +71,7 @@ from .actions_cfg import (
     ResetPreservingRelativeJointPositionActionCfg,
     WorkspaceBoundedRelativeJointPositionActionCfg,
 )
-from .camera import TemporalNormalizedRgbImage, normalized_rgb_image, randomize_camera_calibration
+from .camera import EpisodeCameraNoise, EpisodeCameraNoiseCfg, randomize_camera_calibration
 from .curriculums import StackResetTableCurriculum
 from .goal_context import StableFullHandOrderInvariantStackGoal, StableOrderInvariantStackGoal, StackResetLearningProgress
 from .observations import (
@@ -87,7 +83,6 @@ from .observations import (
     ee_frame_pose_in_base_frame,
     ee_frame_quat,
     franka_ee_axes,
-    franka_ee_position,
     franka_ee_velocity,
     grasp_pair_gripper_posture,
     grasp_pair_tool_velocity,
@@ -95,13 +90,13 @@ from .observations import (
     instance_randomize_cube_orientations_in_world_frame,
     instance_randomize_cube_positions_in_world_frame,
     instance_randomize_object_obs,
+    joint_position_target,
     object_abs_obs_in_base_frame,
     object_grasped,
     object_obs,
     object_stacked,
     role_conditioned_cube_x_axes,
     role_conditioned_stack_obs,
-    stack_reset_recipe_one_hot,
     tool_axes,
     tool_velocity,
 )
