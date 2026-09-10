@@ -14,7 +14,6 @@ import sys
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
-import torch
 
 if TYPE_CHECKING:
     from .simple_agents import PolicyName
@@ -55,6 +54,9 @@ def run_play_cli(argv: list[str] | None = None) -> int:
 
 def run_export_cli(argv: list[str] | None = None) -> int:
     """Dispatch unified LEAPP export command-line arguments to a backend."""
+    # imported locally so that importing train and play entrypoints stays lightweight
+    import torch
+
     # Task registration imports decorated Isaac Lab math helpers, so disable
     # TorchScript before resolving a task's default export backend.
     torch.jit._state.disable()
