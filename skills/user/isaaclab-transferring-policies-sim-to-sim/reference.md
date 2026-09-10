@@ -9,7 +9,7 @@
 - [Introducing domain randomization](#introducing-domain-randomization)
 - [Validate the full matrix](#validate-the-full-matrix)
 
-This reference follows the sections in the [sim-to-sim how-to](../../../docs/source/how-to/transfer_policies_between_physx_and_newton.rst).
+This reference follows the sections in the [sim-to-sim guide](../../../docs/source/concepts/transfer_policies_between_physx_and_newton.rst).
 
 ## Task Readiness And Checkpoint Compatibility
 
@@ -64,13 +64,13 @@ Setting only `joint_ordering` leaves bodies in backend order and mismatches any 
 | `Isaac-Velocity-Rough-G1` | Yes | PhysX groups by tree depth; MJWarp emits each limb depth-first. |
 | `Isaac-Velocity-Rough-AnymalD` | Yes | PhysX yields `LF_HAA, LH_HAA, RF_HAA, ...`; MJWarp yields `LF_HAA, LF_HFE, LF_KFE, ...`. |
 
-Confirm the resolved axes by comparing `joint_names` with `backend_joint_names` (and the body equivalents). An override that already matches the backend's native order normalizes to the zero-conversion identity, so it is free where unnecessary. Full contract: [joint and body ordering](../../../docs/source/overview/core-concepts/physical-backends/joint_and_body_ordering.rst).
+Confirm the resolved axes by comparing `joint_names` with `backend_joint_names` (and the body equivalents). An override that already matches the backend's native order normalizes to the zero-conversion identity, so it is free where unnecessary. Full contract: [joint and body ordering](../../../docs/source/concepts/joint_and_body_ordering.rst).
 
 ## Transferring Control Behavior
 
 Match nominal actuator response before policy tuning:
 
-- distinguish `velocity_limit` from `velocity_limit_sim`;
+- distinguish `actuator_velocity_limit` from `joint_velocity_limit`;
 - use per-joint effort, stiffness, damping, friction, and armature;
 - preserve `dt * decimation` and action hold;
 - keep targets away from hard stops; and
@@ -124,4 +124,4 @@ Drop the two ordering overrides only when the task's joint and body order alread
 
 ### Run The Franka Lift Transfer
 
-For Franka, use `Isaac-Lift-Franka` to train and infer. The play entry point applies the task's `play_mode` overrides and disables Franka gripper-closing-speed randomization automatically. Use the exact PP, PN, NN, and NP commands from the how-to.
+For Franka, use `Isaac-Lift-Franka` to train and infer. The play entry point applies the task's `play_mode` overrides and disables Franka gripper-closing-speed randomization automatically. Use the exact PP, PN, NN, and NP commands from the guide.

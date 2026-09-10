@@ -135,6 +135,10 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
 
     def __post_init__(self):
         """Post initialization."""
+        # This class overrides LocomanipulationG1EnvCfg.__post_init__, so preserve the
+        # contact reporting required by the inherited per-hand contact sensors.
+        self.scene.robot.spawn.activate_contact_sensors = True
+
         # general settings
         self.decimation = 4
         self.episode_length_s = 50.0
