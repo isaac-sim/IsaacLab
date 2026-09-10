@@ -192,6 +192,12 @@ We will now run the example script:
 
                LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5
 
+      .. note::
+
+         On aarch64 (DGX Spark), prefix direct Python commands that import Isaac Sim with
+         ``LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1``. See :ref:`installation-method-uv`
+         for details.
+
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
@@ -244,6 +250,12 @@ Now, let's look at how :class:`~app.AppLauncher` handles conflicting commands:
 
                LIVESTREAM=0 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
 
+      .. note::
+
+         On aarch64 (DGX Spark), prefix direct Python commands that import Isaac Sim with
+         ``LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1``. See :ref:`installation-method-uv`
+         for details.
+
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
@@ -289,6 +301,12 @@ Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.S
             .. code-block:: console
 
                LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
+
+      .. note::
+
+         On aarch64 (DGX Spark), prefix direct Python commands that import Isaac Sim with
+         ``LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1``. See :ref:`installation-method-uv`
+         for details.
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
