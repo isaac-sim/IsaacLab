@@ -1,0 +1,84 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Tests for the installed LEAPP commands."""
+
+import os
+import subprocess
+import sys
+from unittest import mock
+
+import pytest
+
+import isaaclab.cli as cli
+
+pytestmark = pytest.mark.unit
+
+
+def test_deploy_module_does_not_import_pxr_before_app_launch():
+    """Importing deploy must not load pxr before SimulationApp starts."""
+    env = os.environ.copy()
+    env.update({"ACCEPT_EULA": "Y", "OMNI_KIT_ACCEPT_EULA": "Y"})
+    result = subprocess.run(
+        [sys.executable, "-c", "import sys; import isaaclab.cli.commands.deploy; assert 'pxr' not in sys.modules"],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_export_dispatches_in_process():
+    """``isaaclab leapp export`` forwards arguments to the library dispatcher."""
+    args = ["--rl_library", "rsl_rl", "--task", "Isaac-Cartpole"]
+
+    with (
+        mock.patch.object(sys, "argv", ["isaaclab", "leapp", "export", *args]),
+        mock.patch("isaaclab_rl.entrypoints.run_export_cli", return_value=0) as run_export,
+    ):
+        cli.cli()
+
+    run_export.assert_called_once_with(args)
+
+
+def test_export_propagates_nonzero_dispatch_status():
+    """Export failures become the CLI process status."""
+    with mock.patch("isaaclab_rl.entrypoints.run_export_cli", return_value=1):
+        with pytest.raises(SystemExit) as exc_info:
+            cli.leapp(["export", "--rl_library", "rsl_rl"])
+
+    assert exc_info.value.code == 1
+
+
+def test_deploy_dispatches_in_process():
+    """``isaaclab leapp deploy`` forwards LEAPP deployment arguments."""
+    args = [
+        "--task",
+        "Isaac-Cartpole",
+        "--pipeline",
+        "exported/Isaac-Cartpole.yaml",
+        "physics=newton_mjwarp",
+    ]
+
+    deploy = mock.Mock(return_value=0)
+    deploy_module = mock.Mock(command_deploy_leapp=deploy)
+    with (
+        mock.patch.object(sys, "argv", ["isaaclab", "leapp", "deploy", *args]),
+        mock.patch.dict(sys.modules, {"isaaclab.cli.commands.deploy": deploy_module}),
+    ):
+        cli.cli()
+
+    deploy.assert_called_once_with(args)
+
+
+def test_deploy_propagates_nonzero_status():
+    """Deployment failures become the CLI process status."""
+    deploy_module = mock.Mock()
+    deploy_module.command_deploy_leapp.return_value = 3
+    with mock.patch.dict(sys.modules, {"isaaclab.cli.commands.deploy": deploy_module}):
+        with pytest.raises(SystemExit) as exc_info:
+            cli.leapp(["deploy", "--task", "Isaac-Cartpole", "--pipeline", "policy.yaml"])
+
+    assert exc_info.value.code == 3
