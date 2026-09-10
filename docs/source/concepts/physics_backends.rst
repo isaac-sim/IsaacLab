@@ -85,7 +85,7 @@ Configure scene-level fields with
 :class:`~isaaclab_physx.physics.PhysxCfg`; the generated API reference is the
 authoritative field list. Per-actor physical properties remain on the USD
 schema configuration described in
-:doc:`/source/overview/core-concepts/schema_cfgs`.
+:doc:`/source/concepts/schema_cfgs`.
 For a diagnose-first workflow covering solver selection, iterations, contacts,
 stability, and GPU capacities, see :ref:`physx-solver-tuning`.
 

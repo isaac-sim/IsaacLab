@@ -117,18 +117,18 @@ Table of Contents
    source/concepts/scene_data_providers
    source/concepts/visualization
    source/concepts/reinforcement_learning
-   source/overview/core-concepts/deformables
-   source/overview/core-concepts/schema_cfgs
-   source/overview/core-concepts/schema_fragments
-   source/overview/core-concepts/task_workflows
-   source/overview/core-concepts/motion_generators
+   source/concepts/deformables
+   source/concepts/schema_cfgs
+   source/concepts/schema_fragments
+   source/concepts/task_workflows
+   source/concepts/motion_generators
 
 
 .. toctree::
    :maxdepth: 2
    :caption: Features
 
-   source/overview/imitation-learning/index
+   source/features/imitation-learning/index
    source/features/isaac_teleop
    source/features/docker_cloud
    source/features/hydra

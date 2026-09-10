@@ -44,7 +44,7 @@ in the physics material assigned to them. Cables are a separate asset class with
 spawner, material, and state layout, and are covered in `Cables`_.
 
 Particle-based materials such as fluids and granular media are not deformables in this sense. They
-use a separate asset and solver; see :doc:`physical-backends/newton/using-mpm`.
+use a separate asset and solver; see :doc:`/source/concepts/using_mpm`.
 
 .. note::
     All three kinds are under active development. On Newton, deformables are implemented in
@@ -80,10 +80,10 @@ Backend support
 On Newton, deformables of every kind are simulated by the VBD solver, so a scene containing them
 must select a physics cfg whose solver is VBD. For the solver parameters, for running a rigid robot
 and a deformable in one scene, and for the tuning workflow, see
-:doc:`physical-backends/newton/using-vbd-solver` and :doc:`/source/concepts/coupled_solvers`.
+:doc:`/source/concepts/solver-tuning/tune_vbd` and :doc:`/source/concepts/coupled_solvers`.
 
 OvPhysX deformables carry further restrictions on node counts and startup cost. See
-:doc:`physical-backends/ovphysx/index`.
+:doc:`/source/concepts/ovphysx`.
 
 
 Volume and surface deformables
@@ -165,7 +165,7 @@ A surface deformable is authored the same way, with a 2D mesh spawner and a surf
 
 The material values above are the tuned ones from ``Isaac-Lift-Cloth-Franka`` rather than the
 defaults. For what each parameter does and what it defaults to, see
-:doc:`physical-backends/newton/using-vbd-solver`, which also covers cloth self-contact. Self-contact
+:doc:`/source/concepts/solver-tuning/tune_vbd`, which also covers cloth self-contact. Self-contact
 is off by default, so cloth passes through itself until it is enabled.
 
 ``edge_refinement`` sets the simulation resolution for both kinds: the maximum surface edge length
@@ -612,11 +612,11 @@ Related
 -------
 
 * :ref:`tutorial-interact-deformable-object` walks through a volume deformable step by step.
-* :doc:`physical-backends/newton/using-vbd-solver` covers the VBD solver parameters, the Newton
+* :doc:`/source/concepts/solver-tuning/tune_vbd` covers the VBD solver parameters, the Newton
   material tables, cloth self-contact, and the tuning workflow.
 * :doc:`/source/concepts/coupled_solvers` covers running a rigid robot and a deformable in one
   scene.
 * :ref:`migrating-deformables` covers the Isaac Lab 3.0 deformable API changes.
-* :doc:`physical-backends/ovphysx/index` covers the OvPhysX deformable limitations.
+* :doc:`/source/concepts/ovphysx` covers the OvPhysX deformable limitations.
 * :doc:`/source/api/lab/isaaclab.assets` and :doc:`/source/api/lab/isaaclab.sim.spawners` are the
   API references for the asset, spawner, and material classes used here.
