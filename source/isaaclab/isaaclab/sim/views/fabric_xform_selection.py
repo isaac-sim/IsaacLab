@@ -3,7 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Fabric prim tagging, selections, and view-to-slot mapping shared by the backend frame views."""
+"""Fabric prim tagging, selections, and view-to-slot mapping shared by the backend frame views.
+
+Internal to the frame-view implementations: the backend views own the lifetime of the selection they
+build, and nothing here is part of the public :mod:`isaaclab.sim.views` API.
+"""
 
 from __future__ import annotations
 
@@ -108,10 +112,10 @@ class FabricXformSelection:
             self.kept_indices = list(range(len(prim_paths)))
             self._prim_paths = list(prim_paths)
         self.count = len(self._prim_paths)
-        if self.count == 0:
-            self.unique_parent_paths = []
-            return
 
+        # A zero-prim selection is legal -- the owning views allow a pattern that matches nothing --
+        # and everything below degenerates to empty selections and zero-length buffers, which the
+        # accessors and their zero-dimension launches handle without a special case.
         child_parent_paths = [_parent_path(path) for path in self._prim_paths]
         self.unique_parent_paths = list(dict.fromkeys(child_parent_paths))
         parent_ordinal = {path: i for i, path in enumerate(self.unique_parent_paths)}
