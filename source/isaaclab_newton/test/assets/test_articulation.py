@@ -659,6 +659,24 @@ def test_prepare_native_actuators_does_not_zero_solver_gains(monkeypatch):
     assert gain_writes == []
 
 
+def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_path(monkeypatch):
+    """Keep implicit-only articulations on the unchanged solver-drive path."""
+    activation_calls = []
+    articulation = SimpleNamespace(_sim_cfg=SimpleNamespace(use_newton_actuators=True))
+    monkeypatch.setattr(SimulationManager, "activate_newton_actuator_path", lambda: activation_calls.append(True))
+
+    control = NewtonActuatorControl(articulation)
+    native_groups = control.prepare_native_actuators(
+        collection=None,
+        actuator_cfgs={"implicit": ImplicitActuatorCfg(joint_names_expr=["joint"], stiffness=10.0, damping=1.0)},
+    )
+
+    assert native_groups == set()
+    assert not control.native_actuator_path_active
+    assert not articulation._has_newton_actuators
+    assert activation_calls == []
+
+
 @pytest.mark.parametrize(
     ("actuator_cfg", "expected_mode", "expected_actuator_indices"),
     [
