@@ -293,7 +293,7 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     """Shape and particle BVHs are built and refit before a render task runs."""
 
     state = object()
-    status = {"shape_refit": False, "particle_refit": False, "rendered": False}
+    status = {"state_refreshed": False, "shape_refit": False, "particle_refit": False, "rendered": False}
 
     class FakeModel:
         shape_count = 1
@@ -320,14 +320,20 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     model = FakeModel()
 
     def render():
+        assert status["state_refreshed"]
         assert model.bvh_shapes is not None
         assert model.bvh_particles is not None
         assert status["shape_refit"]
         assert status["particle_refit"]
         status["rendered"] = True
 
+    def get_state(cls):
+        status["state_refreshed"] = True
+        return state
+
     monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
     monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
+    monkeypatch.setattr(NewtonManager, "get_state", classmethod(get_state))
     monkeypatch.setattr(NewtonManager, "_model", model, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_tasks", {}, raising=False)
     monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
@@ -342,6 +348,72 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     NewtonManager._update_sensor_tasks("render")
 
     assert status["rendered"]
+
+
+def test_non_graph_capturable_sensor_task_runs_eagerly(monkeypatch):
+    """Sensor tasks with allocation-backed work should not attempt CUDA graph capture."""
+    state = object()
+    model = SimpleNamespace(shape_count=0, particle_count=0, bvh_shapes=None, bvh_particles=None)
+    calls: list[str] = []
+
+    monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: model))
+    monkeypatch.setattr(NewtonManager, "get_state_0", classmethod(lambda cls: state))
+    monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: state))
+    monkeypatch.setattr(NewtonManager, "_model", model, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_tasks", {}, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_eager_tasks", set(), raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_state", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_state_dirty", True, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_graph", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_flags", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_flags_host", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_sensor_graph_capture_failed", False, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
+    monkeypatch.setattr(
+        NewtonManager,
+        "_capture_sensor_graph",
+        classmethod(lambda cls: pytest.fail("Non-graph-capturable task attempted CUDA graph capture.")),
+    )
+
+    NewtonManager._register_sensor_task("render", lambda: calls.append("render"), graph_capturable=False)
+    NewtonManager._update_sensor_tasks("render")
+
+    assert calls == ["render"]
+    assert NewtonManager._sensor_graph is None
+    assert NewtonManager._sensor_graph_capture_failed is False
+
+
+@pytest.mark.parametrize(
+    ("triangle_count", "expected_graph_capturable"),
+    [
+        pytest.param(None, True, id="no-triangle-array"),
+        pytest.param(0, True, id="empty-triangle-array"),
+        pytest.param(1, False, id="deformable-triangle-mesh"),
+    ],
+)
+def test_newton_warp_renderer_marks_triangle_mesh_refit_as_eager(
+    monkeypatch, triangle_count, expected_graph_capturable
+):
+    """Deformable triangle-mesh rendering should opt out of conditional CUDA graph capture."""
+    from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
+
+    registration: dict[str, object] = {}
+
+    def register_task(cls, name, update_fn, *, graph_capturable=True):
+        registration.update(name=name, update_fn=update_fn, graph_capturable=graph_capturable)
+
+    monkeypatch.setattr(NewtonManager, "_register_sensor_task", classmethod(register_task))
+    monkeypatch.setattr(NewtonManager, "_update_sensor_tasks", classmethod(lambda cls, *names: None))
+
+    tri_indices = None if triangle_count is None else SimpleNamespace(shape=(triangle_count, 3))
+    renderer = object.__new__(NewtonWarpRenderer)
+    renderer._newton_model = SimpleNamespace(tri_indices=tri_indices)
+    render_data = SimpleNamespace(sensor_task_name=None, ppisp_pipeline=None)
+
+    renderer.render(render_data)
+
+    assert registration["graph_capturable"] is expected_graph_capturable
 
 
 def test_sensor_bvh_shape_flags_are_fixed_before_builder_creation(monkeypatch):
@@ -516,12 +588,20 @@ _KAMINO_DYNAMICS_FIELD_VALUES = [
 @pytest.mark.parametrize("field_name, value", _KAMINO_PADMM_FIELD_VALUES)
 def test_kamino_solver_cfg_forwards_padmm_fields(field_name, value):
     """Every tunable P-ADMM cfg field round-trips into ``PADMMSolverConfig``."""
-    solver_cfg = KaminoPADMMSolverCfg(dynamics_solver_cfg=KaminoPADMMCfg(**{field_name: value}))
+    sparse_kwargs = {"sparse_jacobian": True, "sparse_dynamics": True} if field_name == "penalty_update_method" else {}
+    solver_cfg = KaminoPADMMSolverCfg(**sparse_kwargs, dynamics_solver_cfg=KaminoPADMMCfg(**{field_name: value}))
     newton_cfg = solver_cfg.to_solver_config()
     assert hasattr(newton_cfg.padmm, field_name), (
         f"{field_name!r} disappeared from PADMMSolverConfig — KaminoPADMMCfg needs to drop or rename it."
     )
     assert getattr(newton_cfg.padmm, field_name) == value
+
+
+def test_kamino_padmm_rejects_adaptive_penalties_with_dense_dynamics():
+    """Kamino's adaptive P-ADMM penalties require the sparse solver path."""
+    solver_cfg = KaminoPADMMSolverCfg(dynamics_solver_cfg=KaminoPADMMCfg(penalty_update_method="balanced"))
+    with pytest.raises(ValueError, match="sparse_dynamics=True"):
+        solver_cfg.to_solver_config()
 
 
 @pytest.mark.parametrize("field_name, value", _KAMINO_DVI_FIELD_VALUES)
@@ -590,6 +670,22 @@ def test_mpm_register_builder_attributes_is_idempotent():
     # Second call must be a no-op (no exceptions, attribute still present).
     NewtonMPMManager._register_builder_attributes(builder)
     assert builder.has_custom_attribute("mpm:young_modulus")
+
+
+def test_mjwarp_register_builder_attributes_is_idempotent():
+    """The MJWarp hook registers native MuJoCo entities exactly once."""
+    import newton
+
+    builder = newton.ModelBuilder()
+    assert not builder.has_custom_attribute("mujoco:actuator_gainprm")
+
+    NewtonMJWarpManager._register_builder_attributes(builder)
+    assert builder.has_custom_attribute("mujoco:actuator_gainprm")
+    assert "mujoco:actuator" in builder.custom_frequencies
+    assert "mujoco:tendon" in builder.custom_frequencies
+
+    NewtonMJWarpManager._register_builder_attributes(builder)
+    assert builder.has_custom_attribute("mujoco:actuator_gainprm")
 
 
 @pytest.mark.parametrize(
@@ -698,6 +794,135 @@ def test_active_manager_create_builder_registers_mpm_attributes():
         builder = sim.physics_manager.create_builder()
 
     assert builder.has_custom_attribute("mpm:young_modulus")
+
+
+@pytest.mark.parametrize("import_path", ["clone", "standalone"])
+@pytest.mark.parametrize(
+    ("manager_cls", "solver_cfg", "expected_friction", "expected_damping"),
+    [
+        pytest.param(NewtonMJWarpManager, MJWarpSolverCfg(), 0.11, 0.23, id="mjwarp"),
+        pytest.param(NewtonFeatherstoneManager, FeatherstoneSolverCfg(), 0.0, 0.0, id="featherstone"),
+    ],
+)
+def test_production_imports_scope_mujoco_joint_properties(
+    monkeypatch, import_path, manager_cls, solver_cfg, expected_friction, expected_damping
+):
+    """Only MJWarp imports MuJoCo joint properties through either production path."""
+    from isaaclab_newton.cloner.replicate import _build_newton_builder_from_mapping
+
+    from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    physics_prim_path = "/physicsScene"
+    UsdPhysics.Scene.Define(stage, physics_prim_path)
+
+    root_path = "/Sources/robot" if import_path == "clone" else "/World/robot"
+    root = UsdGeom.Cube.Define(stage, root_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+
+    child_path = f"{root_path}/child"
+    child = UsdGeom.Cube.Define(stage, child_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(child)
+
+    joint = UsdPhysics.RevoluteJoint.Define(stage, f"{child_path}/joint")
+    joint.CreateAxisAttr().Set("Z")
+    joint.CreateBody0Rel().SetTargets([root_path])
+    joint.CreateBody1Rel().SetTargets([child_path])
+    joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
+    joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
+
+    monkeypatch.setattr(
+        PhysicsManager,
+        "_sim",
+        SimpleNamespace(physics_manager=manager_cls, cfg=SimpleNamespace(physics_prim_path=physics_prim_path)),
+    )
+    monkeypatch.setattr(PhysicsManager, "_cfg", NewtonCfg(solver_cfg=solver_cfg))
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
+    monkeypatch.setattr(NewtonManager, "_builder", None)
+    monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
+    monkeypatch.setattr(NewtonManager, "_cl_pending_sites", {})
+    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [])
+    monkeypatch.setattr(NewtonManager, "_world_xforms", None)
+
+    if import_path == "clone":
+        builder, *_ = _build_newton_builder_from_mapping(
+            stage=stage,
+            sources=(root_path,),
+            destinations=("/World/envs/env_{}/robot",),
+            env_ids=np.array([0], dtype=np.int64),
+            mapping=np.ones((1, 1), dtype=np.bool_),
+            load_visual_shapes=False,
+        )
+    else:
+        monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda: stage)
+        monkeypatch.setattr(
+            newton_manager_module, "_restore_visible_colliders_without_visual_shapes", lambda *args: None
+        )
+        monkeypatch.setattr(newton_manager_module, "replace_newton_builder_shape_colors", lambda *args: None)
+        monkeypatch.setattr(newton_manager_module, "import_builder_visual_material_paths", lambda *args: None)
+        manager_cls.instantiate_builder_from_stage()
+        builder = NewtonManager._builder
+
+    model = builder.finalize(device="cpu")
+
+    assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)
+    assert model.joint_damping.numpy()[-1] == pytest.approx(expected_damping)
+
+
+@pytest.mark.parametrize(
+    ("manager_cls", "imports_mujoco"),
+    [
+        pytest.param(NewtonMJWarpManager, True, id="mjwarp"),
+        pytest.param(NewtonFeatherstoneManager, False, id="featherstone"),
+    ],
+)
+@pytest.mark.parametrize(
+    "author_newton_values",
+    [
+        pytest.param(False, id="physx-over-mjc"),
+        pytest.param(True, id="newton-over-physx-over-mjc"),
+    ],
+)
+def test_schema_resolver_policy_and_precedence(manager_cls, imports_mujoco, author_newton_values):
+    """Resolver precedence and MuJoCo fallback selection follow active solver needs."""
+    from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+
+    stage = Usd.Stage.CreateInMemory()
+    root_path = "/World/robot"
+    root = UsdGeom.Cube.Define(stage, root_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    child_path = f"{root_path}/child"
+    child = UsdGeom.Cube.Define(stage, child_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(child)
+    joint = UsdPhysics.RevoluteJoint.Define(stage, f"{child_path}/joint")
+    joint.CreateAxisAttr().Set("Z")
+    joint.CreateBody0Rel().SetTargets([root_path])
+    joint.CreateBody1Rel().SetTargets([child_path])
+    joint_prim = joint.GetPrim()
+    joint_prim.CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
+    joint_prim.CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
+    joint_prim.CreateAttribute("mjc:armature", Sdf.ValueTypeNames.Double, True).Set(0.12)
+    joint_prim.CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float, True).Set(0.21)
+    if author_newton_values:
+        joint_prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Double, True).Set(0.31)
+        joint_prim.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Double, True).Set(0.41)
+
+    schema_resolvers = manager_cls._get_usd_import_schema_resolvers()
+    builder = ModelBuilder()
+    manager_cls._register_builder_attributes(builder)
+    builder.add_usd(stage, schema_resolvers=schema_resolvers)
+    model = builder.finalize(device="cpu")
+
+    expected_friction = 0.31 if author_newton_values else (0.11 if imports_mujoco else 0.0)
+    expected_damping = 0.23 if imports_mujoco else 0.0
+    expected_armature = 0.41 if author_newton_values else 0.21
+    assert model.joint_friction.numpy()[-1] == pytest.approx(expected_friction)
+    assert model.joint_damping.numpy()[-1] == pytest.approx(expected_damping)
+    assert model.joint_armature.numpy()[-1] == pytest.approx(expected_armature)
 
 
 def test_mpm_end_to_end_with_particle_custom_attributes():

@@ -68,8 +68,7 @@ jobs:
         # ``UNKNOWN``, which license-exceptions.json keys on, and joins multi-license
         # strings unsorted. Cap below 6.0 until 6.x ships stable and is re-reviewed.
         bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" \
-          uv pip install "pip-licenses<6.0" pipdeptree \
-          -r tools/template/requirements.txt
+          uv pip install "pip-licenses<6.0" pipdeptree
         # Put the venv on PATH for later steps.
         echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 

@@ -493,10 +493,61 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any, *, apply_dev
     # --deterministic is an AppLauncher flag, so it only reaches carb settings on its own.
     # Record the request on the resolved physics config; each backend translates and validates
     # it when the simulation starts.
-    if getattr(args_cli, "deterministic", False):
-        physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
-        if physics_cfg is not None:
-            physics_cfg.deterministic = True
+    request_determinism(args_cli, env_cfg)
+
+
+def request_determinism(args_cli: argparse.Namespace, env_cfg: Any) -> None:
+    """Record a ``--deterministic`` request on the config tree and on Warp's global.
+
+    Call this before the environment is created: Warp reads its setting at module build time
+    and the scene BVH is built while the environment is constructed.
+
+    Args:
+        args_cli: Parsed command-line arguments.
+        env_cfg: Isaac Lab environment config.
+    """
+    if not getattr(args_cli, "deterministic", False):
+        return
+    physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    if physics_cfg is not None:
+        physics_cfg.deterministic = True
+    request_warp_determinism(physics_cfg)
+
+
+def request_warp_determinism(physics_cfg: Any) -> None:
+    """Ask Warp for deterministic atomics process-wide, matching the configured guarantee.
+
+    Newton's solvers take a ``deterministic`` argument and apply it as a per-module option, so a
+    solver-level request already covers the physics kernels. Its sensor and geometry modules take
+    no such argument and fall back to ``warp.config.deterministic``, which defaults to
+    ``NOT_GUARANTEED``. One of them, the BVH shape compaction in ``newton._src.geometry.bvh``,
+    claims output slots with ``wp.atomic_add``, so the enabled-shape order -- and with it the
+    order of the primitives the scene BVH is built over -- varies between processes. Ray queries
+    then break ties differently and a tiled camera renders a handful of pixels differently from
+    identical simulation state, which is enough to make an image-observation policy diverge.
+
+    A backend that names a stronger guarantee gets it here too: the strings accepted by
+    :attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode` are the
+    ``warp.DeterministicMode`` members lowercased, so ``"gpu_to_gpu"`` selects
+    ``GPU_TO_GPU`` rather than being weakened to ``RUN_TO_RUN``. Warp reads the setting at module
+    build time, so it must land before the first kernel launch; :func:`apply_env_overrides` runs
+    before the environment is created.
+
+    The modes are ordered by strength, and this only ever raises the setting. Reading the current
+    value cannot tell a deliberate choice from the shipped default, so rather than guess at intent
+    it never weakens a guarantee already in place -- whoever set it, they wanted at least that much.
+
+    Args:
+        physics_cfg: Resolved physics config, or ``None`` when the config tree carries none.
+    """
+    import warp as wp
+
+    requested = getattr(physics_cfg, "deterministic_mode", None)
+    mode = getattr(wp.DeterministicMode, requested.upper(), None) if isinstance(requested, str) else None
+    if mode is None or mode == wp.DeterministicMode.NOT_GUARANTEED:
+        mode = wp.DeterministicMode.RUN_TO_RUN
+    if wp.config.deterministic < mode:
+        wp.config.deterministic = mode
 
 
 def validate_distributed_device(args_cli: argparse.Namespace) -> None:
@@ -791,7 +842,14 @@ def pre_launch_video_config(env_cfg: Any, log_dir: str | None = None, args_cli: 
         pass
 
 
-def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespace, *, subdir: str = "train") -> None:
+def apply_video_recording(
+    env_cfg: Any,
+    log_dir: str,
+    args_cli: argparse.Namespace,
+    *,
+    subdir: str = "train",
+    checkpoint_path: str | None = None,
+) -> None:
     """Configure internal video recording on the environment config.
 
     Enables recording by ensuring ``env_cfg.video_recorders`` is non-empty, then applies
@@ -817,6 +875,8 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
         args_cli: Parsed command-line arguments.
         subdir: Sub-directory name appended to ``<log_dir>/videos/`` for the fallback output
             path.  Use ``"train"`` for training runs and ``"play"`` for evaluation.
+        checkpoint_path: Checkpoint loaded by a play run.  When set to a ``model_<N>.pt``
+            path with a numeric id, the checkpoint stem is appended to play video names.
     """
     if not getattr(args_cli, "video", False):
         return
@@ -899,7 +959,7 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
                     f"  ]\n\n"
                     "Frames can also be captured from a scene camera sensor without any visualizer:\n"
                     "  VideoRecorderCfg(source='sensor:<name>')   # add to env_cfg.video_recorders\n\n"
-                    "See: https://isaac-sim.github.io/IsaacLab/main/source/how-to/record_video.html"
+                    "See: https://isaac-sim.github.io/IsaacLab/main/source/features/record_video.html"
                 )
 
             # Use the first capture-capable visualizer as the recording source.
@@ -958,6 +1018,8 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
             cfg.video_length = video_length
         if video_interval is not None:
             cfg.video_interval = video_interval
+        if subdir == "play" and (label := _checkpoint_video_label(checkpoint_path)) is not None:
+            cfg.output_filename_prefix = _checkpoint_video_prefix(cfg.output_filename_prefix, label)
 
     print("[INFO] Video recording enabled.")
     for cfg in env_cfg.video_recorders:
@@ -970,6 +1032,22 @@ def apply_video_recording(env_cfg: Any, log_dir: str, args_cli: argparse.Namespa
             },
             nesting=4,
         )
+
+
+def _checkpoint_video_label(checkpoint_path: str | None) -> str | None:
+    if checkpoint_path is None:
+        return None
+
+    path = Path(checkpoint_path)
+    if re.fullmatch(r"model_\d+", path.stem) is None or path.suffix != ".pt":
+        return None
+    return path.stem
+
+
+def _checkpoint_video_prefix(prefix: str, label: str) -> str:
+    if prefix == label or prefix.endswith(f"_{label}"):
+        return prefix
+    return f"{prefix}_{label}"
 
 
 def wrap_record_video(env, log_dir: str, args_cli: argparse.Namespace):

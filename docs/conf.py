@@ -86,7 +86,7 @@ ovphysx_version = _pinned_versions["ovphysx"]
 
 # Short version strings used in external documentation URLs and badges.
 torch_docs_version = ".".join(torch_version.split(".")[:2])  # e.g. "2.11"
-isaacsim_docs_version = ".".join(isaacsim_version.split(".")[:3])  # e.g. "6.0.0"
+isaacsim_docs_version = ".".join(isaacsim_version.split(".")[:3])  # e.g. "6.1.0"
 
 # Copy buttons on highlighted code blocks (including nested directive output).
 copybutton_selector = "div.highlight pre"
@@ -188,7 +188,8 @@ intersphinx_mapping = {
     "trimesh": ("https://trimesh.org/", None),
     # pinned to the release version because /docs/stable/objects.inv currently 404s
     "torch": (f"https://docs.pytorch.org/docs/{torch_docs_version}/", None),
-    "isaacsim": (f"https://docs.isaacsim.omniverse.nvidia.com/{isaacsim_docs_version}/py/", None),
+    # Versioned documentation can lag a newly published Isaac Sim package release.
+    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/latest/py/", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
     # NOTE: pinned to /stable/ because /objects.inv at the root currently 404s
     "warp": ("https://nvidia.github.io/warp/stable/", None),
@@ -325,14 +326,18 @@ html_last_updated_fmt = ""  # to reveal the build date in the pages meta
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = [
-    "source/_static/css",
-    "source/_static/how-to",
-    "source/_static/tasks/previews",
-    "source/_static/benchmarks",
+html_static_path = ["source/_static"]
+html_css_files = [
+    "css/custom.css",
+    "css/environment-browser.css",
+    "css/demo-browser.css",
+    "css/guide-browser.css",
 ]
-html_css_files = ["custom.css", "environment-browser.css"]
-html_js_files = ["environment-browser.js"]
+html_js_files = [
+    "css/environment-browser.js",
+    "css/demo-browser.js",
+    "css/guide-browser.js",
+]
 
 html_theme_options = {
     "path_to_docs": "docs/",

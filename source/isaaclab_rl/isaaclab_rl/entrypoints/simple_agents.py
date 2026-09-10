@@ -67,7 +67,10 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
     # override with CLI arguments and reject unsupported configurations before
     # launching Kit or initializing a native physics backend.
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
-    env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+    if args_cli.device is not None:
+        env_cfg.sim.device = args_cli.device
+    # Pass the resolved task device through to AppLauncher.
+    args_cli.device = env_cfg.sim.device
     if args_cli.disable_fabric:
         env_cfg.sim.use_fabric = False
     try:
@@ -85,6 +88,10 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
         # reset environment
         env.reset()
         zero_action_policy = _create_zero_action_policy(env) if policy == "zero" else None
+        if policy == "zero":
+            print("[INFO] Zero agent is running, press Ctrl+C to exit...")
+        else:
+            print("[INFO] Random agent is running, press Ctrl+C to exit...")
         # simulate environment
         # keep running while any visualizer is open, and until the step budget is exhausted
         sim = env.unwrapped.sim
@@ -245,8 +252,8 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
     )
     # append AppLauncher cli args
     add_launcher_args(parser)
-    # simple agents should open Kit visualizer by default
-    parser.set_defaults(visualizer=["kit"])
+    # Let task configs select the simulation device and keep checkpoint-free agents on the kitless default path.
+    parser.set_defaults(device=None, visualizer=["newton_gl"])
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     sys.argv = [sys.argv[0]] + hydra_args
     return args_cli

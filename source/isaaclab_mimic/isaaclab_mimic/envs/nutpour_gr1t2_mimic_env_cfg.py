@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.pick_place.nutpour_gr1t2_pink_ik_env_cfg import NutPourGR1T2PinkIKEnvCfg
 
@@ -28,7 +28,6 @@ class NutPourGR1T2MimicEnvCfg(NutPourGR1T2PinkIKEnvCfg, MimicEnvCfg):
         self.datagen_config.generation_joint_pos = False
         self.datagen_config.generation_transform_first_robot_pose = False
         self.datagen_config.generation_interpolate_from_last_target_pose = True
-        self.datagen_config.max_num_failures = 25
         self.datagen_config.num_demo_to_render = 10
         self.datagen_config.num_fail_demo_to_render = 25
         self.datagen_config.seed = 10

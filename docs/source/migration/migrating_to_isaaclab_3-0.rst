@@ -37,7 +37,7 @@ your project does not use that feature.
    This part of the page is the source of truth for the ``isaaclab-migrating-2x-to-3x`` agent skill
    (`skills/user/migrate-2x-to-3x/ <../../../skills/user/migrate-2x-to-3x/SKILL.md>`__).
    When you change it, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 
 Installation
@@ -106,7 +106,7 @@ Understand the new package boundaries first, then make environment configuration
 
       .. code-block:: python
 
-         from isaaclab.utils.configclass import configclass
+         from isaaclab.utils import configclass
          from isaaclab_physx.physics import PhysxCfg
          from isaaclab_tasks.utils import PresetCfg
 
@@ -142,8 +142,9 @@ The concrete default remains task-specific so launching without an override stay
 Tasks can expose alternatives such as ``physics=physx``, ``physics=ovphysx``, or
 ``physics=newton_mjwarp`` without changing their asset import paths.
 
-For a comprehensive overview of the factory pattern, backend selection, and how to add a new
-backend, see :doc:`/source/overview/core-concepts/multi_backend_architecture`.
+For a comprehensive overview of the factory pattern and backend selection,
+see :doc:`/source/concepts/backend_architecture`. To add a new backend, see
+:doc:`/source/developer-tools/add_physics_backend`.
 
 
 .. rubric:: New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
@@ -427,7 +428,7 @@ when no CLI override is given. Other fields are named presets selectable with
 .. code-block:: python
 
    from isaaclab.physics import PhysxAutoCfg
-   from isaaclab.utils.configclass import configclass
+   from isaaclab.utils import configclass
    from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
@@ -1205,7 +1206,7 @@ The concrete ``root_view`` type is backend-specific. The
 ``get_material_properties()`` call above reads each rigid shape's static friction,
 dynamic friction, and restitution through the PhysX Tensor API; Newton selections
 and OvPhysX bindings use different access methods. See
-:doc:`/source/overview/core-concepts/physical-backends/direct-api-access/index`
+:doc:`/source/concepts/native-physics-api/index`
 before using ``root_view`` in backend-portable code.
 
 
@@ -1315,6 +1316,51 @@ If you need to track sensor poses in world frame, please use a dedicated sensor 
    ))
    sensor_pos = frame_transformer.data.target_pos_w
    sensor_quat = frame_transformer.data.target_quat_w
+
+
+.. rubric:: Contact force property names
+
+Contact sensor force properties now state whether they contain aggregate or filtered normal and
+friction forces. ``net_forces_w`` is the total contact force (normal + friction). Newton reports
+this quantity directly. PhysX and OVPhysX cannot compute a total force, so they return the
+corresponding normal-force quantity and warn. ``friction_forces_w`` is the aggregate friction
+force. Newton reports it as ``net_friction_forces_w``; PhysX and OVPhysX only provide filtered
+friction, so they return ``friction_force_matrix_w`` and warn.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Property
+     - Meaning
+     - PhysX / OVPhysX
+     - Newton
+   * - ``net_forces_w``
+     - Total contact force
+     - Returns ``net_normal_forces_w`` (cannot compute total force)
+     - Total force (``normal + friction``)
+   * - ``net_forces_w_history``
+     - Total contact-force history
+     - Returns ``net_normal_forces_w_history``
+     - Total-force history
+   * - ``force_matrix_w``
+     - Total filtered force matrix
+     - Returns ``normal_force_matrix_w``
+     - Total filtered matrix
+   * - ``force_matrix_w_history``
+     - Total filtered force history
+     - Returns ``normal_force_matrix_w_history``
+     - Total filtered-matrix history
+   * - ``friction_forces_w``
+     - Aggregate friction force
+     - Returns ``friction_force_matrix_w`` (filtered friction only)
+     - Aggregate friction (``net_friction_forces_w``)
+
+Prefer the explicit names ``net_normal_forces_w``, ``net_friction_forces_w``,
+``normal_force_matrix_w``, and ``friction_force_matrix_w`` (and their ``*_history`` variants)
+when the normal / friction split matters. Newton also exposes ``net_friction_forces_w_history``
+and ``friction_force_matrix_w_history``. PhysX cannot report an unfiltered aggregate friction
+force and raises ``NotImplementedError`` when ``net_friction_forces_w`` or
+``net_friction_forces_w_history`` is accessed; use the filtered friction matrix instead.
 
 
 .. rubric:: Articulation Joint Wrench Data Moved to ``JointWrenchSensor``
@@ -1872,12 +1918,12 @@ To use a data property as a ``torch.Tensor``, append ``.torch``:
    # After (Isaac Lab 3.x)
    root_pos = robot.data.root_pos_w              # ProxyArray
    joint_pos = robot.data.joint_pos              # ProxyArray
-   contact_forces = sensor.data.net_forces_w     # ProxyArray
+   contact_forces = sensor.data.net_normal_forces_w     # ProxyArray
 
    # To use with torch operations, access .torch
    root_pos_torch = robot.data.root_pos_w.torch        # torch.Tensor
    joint_pos_torch = robot.data.joint_pos.torch        # torch.Tensor
-   contact_torch = sensor.data.net_forces_w.torch      # torch.Tensor
+   contact_torch = sensor.data.net_normal_forces_w.torch      # torch.Tensor
 
 Common patterns that need updating:
 
@@ -2257,7 +2303,7 @@ In Isaac Lab 3.0, use ``--visualizer`` / ``--viz`` to determine whether viewer a
 with an Isaac Lab command. Without a visualizer, commands run headless by default.
 
 Visualizers are lightweight viewer apps for monitoring, debugging, and recording workflows
-(see :doc:`/source/overview/core-concepts/visualization`).
+(see :doc:`/source/concepts/visualization`).
 
 The details below describe how CLI visualizer arguments resolve together with
 ``SimulationCfg.visualizer_cfgs``.

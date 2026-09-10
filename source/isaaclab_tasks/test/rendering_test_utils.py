@@ -1556,7 +1556,7 @@ def rendering_test_shadow_hand(
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
@@ -1650,7 +1650,7 @@ def rendering_test_shadow_hand_yellow_bg(
     comparison_scores: list[dict],
 ) -> None:
     """Golden render test for the Shadow Hand environment with a yellow camera background (RGB only)."""
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
@@ -1708,7 +1708,7 @@ def rendering_test_cartpole(
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg, CartpoleTiledCameraCfg
 
@@ -1857,7 +1857,7 @@ def rendering_test_lift_kuka(
 
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import CameraCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     from isaaclab_tasks.core.lift.config.kuka_allegro.camera_cfg import (
         BASE_CAMERA_CFG,
@@ -2120,7 +2120,7 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[s
     from isaaclab.managers import ObservationGroupCfg as ObsGroup
     from isaaclab.managers import ObservationTermCfg as ObsTerm
     from isaaclab.managers import SceneEntityCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     @configclass
     class TestFrankaCameraObservationsCfg:
@@ -2145,12 +2145,29 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[s
     env_cfg.observations = TestFrankaCameraObservationsCfg()
 
 
-def _configure_franka_camera_test_env_cfg(env_cfg: Any, data_types: list[str]) -> None:
-    """Apply deterministic golden rendering test overrides to a resolved Franka camera config."""
+def _configure_franka_camera_test_env_cfg(
+    env_cfg: Any,
+    data_types: list[str],
+    command_name: str = "deformable_pose",
+    reset_event_name: str = "reset_deformable",
+) -> None:
+    """Apply deterministic golden rendering test overrides to a resolved Franka camera config.
+
+    Args:
+        env_cfg: Resolved Franka camera environment config to mutate in place.
+        data_types: Camera data types the golden capture requests.
+        command_name: Name of the pose command term whose success visualizer is disabled.
+        reset_event_name: Name of the reset event term whose position range is pinned to zero.
+    """
     _apply_franka_camera_golden_scene_overrides(env_cfg, data_types)
-    env_cfg.scene.table.spawn = env_cfg.commands.deformable_pose.success_visualizer_cfg.markers["failure"].copy()
-    env_cfg.commands.deformable_pose.debug_vis = False
-    env_cfg.events.reset_deformable.params["position_range"] = {
+    command_cfg = getattr(env_cfg.commands, command_name)
+    # The table spawns invisible because the success visualizer normally draws it; the goldens hide
+    # that visualizer, so paint the table itself with the marker material instead of replacing the
+    # spawn, which would drop task-specific physics overrides.
+    env_cfg.scene.table.spawn.visual_material = command_cfg.success_visualizer_cfg.markers["failure"].visual_material
+    env_cfg.scene.table.spawn.visible = True
+    command_cfg.debug_vis = False
+    getattr(env_cfg.events, reset_event_name).params["position_range"] = {
         "x": (0.0, 0.0),
         "y": (0.0, 0.0),
         "z": (0.0, 0.0),
@@ -2340,7 +2357,7 @@ def rendering_test_mpm_particles(
 
     import isaaclab.sim as sim_utils
     from isaaclab.sensors import CameraCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
 
     # The reset event calls back into UR10ParticlePushEnv.randomize_push_scene, which places the
     # pile, so the task's own env class is required here rather than a plain ManagerBasedRLEnv.
@@ -2468,18 +2485,14 @@ def rendering_test_franka_cable(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    env_cfg.events.reset_cable.params["position_range"] = {
-        "x": (0.0, 0.0),
-        "y": (0.0, 0.0),
-        "z": (0.0, 0.0),
-    }
+    _configure_franka_camera_test_env_cfg(
+        env_cfg, data_types, command_name="cable_pose", reset_event_name="reset_cable"
+    )
 
     # Training ramps gravity from ~0 → -9.81; without this, reset installs g≈0 and the cable floats.
     # Same as FrankaSoftEnvCfg.play_mode(): keep variable_gravity's fixed -9.81.
     if env_cfg.curriculum is not None:
         env_cfg.curriculum.gravity = None
-
-    _apply_franka_camera_golden_scene_overrides(env_cfg, data_types)
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, _motion_data_type(data_types))
 

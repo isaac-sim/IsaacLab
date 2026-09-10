@@ -20,8 +20,8 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
-from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from . import mdp
@@ -270,7 +270,7 @@ def _build_gr1t2_pickplace_pipeline():
 
 # The steering wheel USD authors its rigid body on a nested prim rather than at the
 # spawned ``Object`` root, so contact filtering must target that actor: filtering
-# against ``Object`` matches an empty Xform and force_matrix_w always reads zero.
+# against ``Object`` matches an empty Xform and normal_force_matrix_w always reads zero.
 _STEERING_WHEEL_BODY = "{ENV_REGEX_NS}/Object/Geometry/sm_steeringwheel_a01_01"
 
 
@@ -335,7 +335,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     # Per-finger contact sensors on all finger links of each hand, filtered against
-    # the wheel body so force_matrix_w reports each finger's grip force. This drives
+    # the wheel body so normal_force_matrix_w reports each finger's grip force. This drives
     # the per-finger haptic glove feedback (see GloveHapticFeedbackCfg below).
     # Contact reporting is already enabled on the robot by GR1T2_HIGH_PD_CFG
     # (``spawn.activate_contact_sensors=True``), so it is not set again here.
