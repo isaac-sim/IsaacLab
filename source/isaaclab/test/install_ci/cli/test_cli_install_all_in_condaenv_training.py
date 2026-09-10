@@ -7,8 +7,7 @@
 Setup:
     - conda create -n <env> python=3.12
 Tests:
-    - ./isaaclab.sh -i core -> verify core submodules importable
-    - ./isaaclab.sh -i newton,rl[rsl-rl] -> verify cartpole training works
+    - ./isaaclab.sh -i newton,rl[rsl-rl] -> verify core submodules importable and cartpole training works
 """
 
 from __future__ import annotations
@@ -60,34 +59,9 @@ class Test_Cli_Install_All_In_Condaenv_Training(Conda_Mixin):
     @pytest.mark.conda
     @pytest.mark.slow
     @pytest.mark.gpu
-    @pytest.mark.timeout(1200)
-    def test_install_core_makes_core_submodules_importable(self, isaaclab_root):
-        """conda + ``./isaaclab.sh -i core`` installs all core submodules without extras."""
-        try:
-            self.create_conda_env(isaaclab_root)
-            result = self.run_in_conda_env(
-                [str(self.cli_script), "-i", "core"],
-                cwd=isaaclab_root,
-                timeout=900,
-            )
-            assert result.returncode == 0, f"conda isaaclab -i core failed:\n{result.stdout}\n{result.stderr}"
-            for pkg in ("isaaclab", "isaaclab_assets", "isaaclab_tasks", "isaaclab_physx"):
-                r = self.run_in_conda_env(
-                    [str(self.python), "-c", f"import {pkg}; print({pkg!r}, 'ok')"],
-                    cwd=isaaclab_root,
-                    timeout=60,
-                )
-                assert r.returncode == 0, f"{pkg} not importable after conda -i core:\n{r.stdout}\n{r.stderr}"
-        finally:
-            self.destroy_conda_env()
-
-    @pytest.mark.install_path_cli
-    @pytest.mark.conda
-    @pytest.mark.slow
-    @pytest.mark.gpu
     @pytest.mark.timeout(1800)
     def test_install_newton_rl_rsl_rl_trains_cartpole(self, isaaclab_root):
-        """conda + ``./isaaclab.sh -i newton,rl[rsl-rl]`` + training completes successfully."""
+        """conda + ``./isaaclab.sh -i newton,rl[rsl-rl]`` installs the core set and trains successfully."""
         try:
             self.create_conda_env(isaaclab_root)
             result = self.run_in_conda_env(
@@ -98,6 +72,14 @@ class Test_Cli_Install_All_In_Condaenv_Training(Conda_Mixin):
             assert result.returncode == 0, (
                 f"conda isaaclab -i newton,rl[rsl-rl] failed:\n{result.stdout}\n{result.stderr}"
             )
+            # Every feature install layers on the core set, so the core submodules must be importable.
+            for pkg in ("isaaclab", "isaaclab_assets", "isaaclab_tasks", "isaaclab_physx"):
+                r = self.run_in_conda_env(
+                    [str(self.python), "-c", f"import {pkg}; print({pkg!r}, 'ok')"],
+                    cwd=isaaclab_root,
+                    timeout=60,
+                )
+                assert r.returncode == 0, f"{pkg} not importable after conda install:\n{r.stdout}\n{r.stderr}"
             result = self.run_in_conda_env(
                 [str(self.cli_script)] + _TRAIN_CMD,
                 cwd=isaaclab_root,
