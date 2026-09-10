@@ -224,7 +224,8 @@ def _run(args_cli: argparse.Namespace) -> None:
                     raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
                 report_activity(None)
 
-                # configure_seed must run after runner construction so torch determinism does not disturb its initialization
+                # configure_seed must run after runner construction so torch determinism does not disturb
+                # its initialization
                 if args_cli.deterministic:
                     configure_seed(env_cfg.seed, torch_deterministic=True)
 

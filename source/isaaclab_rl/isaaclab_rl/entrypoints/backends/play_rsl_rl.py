@@ -191,7 +191,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                     runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
                 else:
                     raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-                # configure_seed must run after runner construction so torch determinism does not disturb its initialization
+                # configure_seed must run after runner construction so torch determinism does not disturb
+                # its initialization
                 if args_cli.deterministic:
                     configure_seed(env_cfg.seed, torch_deterministic=True)
                 runner.load(resume_path)
