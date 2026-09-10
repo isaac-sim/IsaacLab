@@ -1,6 +1,6 @@
 # Newton/MJWarp Asset Migration Reference
 
-This reference follows the sections in the [asset migration guide](../../../docs/source/concepts/prepare_asset_for_newton.rst).
+This reference follows the sections in the [asset migration guide](../../../docs/source/how-to/prepare_asset_for_newton.rst).
 
 ## Contents
 
