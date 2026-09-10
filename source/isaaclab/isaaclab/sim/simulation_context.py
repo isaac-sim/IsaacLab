@@ -61,6 +61,22 @@ def _resolve_physics_cfg(physics_cfg: PhysicsCfg | None, use_isaac_sim: bool) ->
     return _resolve_physx_auto_cfg(physics_cfg, use_isaac_sim=use_isaac_sim)
 
 
+def _resolve_cuda_alias(device: str, cuda_device_setting: Any) -> str:
+    """Normalize a bare ``"cuda"`` device string to ``"cuda:<id>"``.
+
+    Args:
+        device: Device string from a :class:`SimulationCfg`, e.g. ``"cpu"``, ``"cuda"`` or ``"cuda:1"``.
+        cuda_device_setting: Value of the ``/physics/cudaDevice`` setting, or None when unavailable.
+
+    Returns:
+        The device string with an explicit CUDA ordinal, unchanged if it already carries one.
+    """
+    if "cuda" in device and ":" not in device:
+        device_id = max(0, int(cuda_device_setting) if cuda_device_setting is not None else 0)
+        return f"cuda:{device_id}"
+    return device
+
+
 class SettingsHelper:
     """Helper for typed settings access via SettingsManager."""
 
@@ -96,7 +112,9 @@ class SimulationContext:
     * Simulation state (play, pause, step, stop)
     * Rendering and visualization
 
-    The singleton instance can be accessed using the ``instance()`` class method.
+    The singleton instance can be accessed using the ``instance()`` class method. Constructing
+    the class again returns that instance and ignores the configuration passed in; call
+    :meth:`clear_instance` first to build a simulation from a new configuration.
     """
 
     # SINGLETON PATTERN
@@ -119,8 +137,12 @@ class SimulationContext:
 
         Args:
             cfg: Simulation configuration. Defaults to None (uses default config).
+
+        Raises:
+            RuntimeError: If an instance already exists and *cfg* requests a different device.
         """
         if type(self)._instance is not None:
+            self._check_reuse_request(cfg)
             return  # Already initialized
 
         from pxr import UsdUtils  # noqa: PLC0415
@@ -175,10 +197,7 @@ class SimulationContext:
         # Normalize "cuda" -> "cuda:<id>" now that the USD physics scene is initialized
         # and /physics/cudaDevice is available. Update cfg.device in-place so all
         # downstream code (physics backends, assets, sensors) sees a consistent value.
-        if "cuda" in self.cfg.device and ":" not in self.cfg.device:
-            cuda_device = self.get_setting("/physics/cudaDevice")
-            device_id = max(0, int(cuda_device) if cuda_device is not None else 0)
-            self.cfg.device = f"cuda:{device_id}"
+        self.cfg.device = _resolve_cuda_alias(self.cfg.device, self.get_setting("/physics/cudaDevice"))
 
         # Select the process device before constructing any physics, rendering, or visualization backend.
         if "cuda" in self.cfg.device:
@@ -243,6 +262,37 @@ class SimulationContext:
         )
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
+
+    def _check_reuse_request(self, cfg: SimulationCfg | None) -> None:
+        """Validate a configuration handed to an already-constructed singleton.
+
+        :meth:`__new__` returns the live instance, so a repeat construction cannot apply a new
+        configuration -- every field of *cfg* is dropped. Reject the case that would otherwise
+        move a running simulation, since silently ignoring a device request is harder to
+        diagnose than failing, and warn about the remaining fields.
+
+        Args:
+            cfg: Configuration passed to the repeat construction. None when the caller only
+                wants the existing instance, which is the supported way to reach it.
+
+        Raises:
+            RuntimeError: If *cfg* requests a device other than the one already in use.
+        """
+        if cfg is None or cfg is self.cfg:
+            return
+        requested_device = _resolve_cuda_alias(cfg.device, self.get_setting("/physics/cudaDevice"))
+        if requested_device != self.cfg.device:
+            raise RuntimeError(
+                f"SimulationContext is already running on {self.cfg.device!r} and cannot be re-created on"
+                f" {requested_device!r}: the singleton returns the existing instance, so the requested device"
+                " would be ignored. Call SimulationContext.clear_instance() before requesting a different"
+                " device."
+            )
+        logger.warning(
+            "SimulationContext already exists; the configuration passed to this construction is ignored."
+            " Use SimulationContext.instance() to reach the existing instance, or"
+            " SimulationContext.clear_instance() first to build one from a new configuration."
+        )
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
