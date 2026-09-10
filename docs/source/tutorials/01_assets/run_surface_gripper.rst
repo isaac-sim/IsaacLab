@@ -10,8 +10,8 @@ Interacting with a surface gripper
 
 This tutorial shows how to interact with an articulated robot with a surface gripper attached to its end-effector in
 the simulation. It is a continuation of the :ref:`tutorial-interact-articulation` tutorial, where we learned how to
-interact with an articulated robot. Note that as of IsaacSim 5.0 the surface gripper are only supported on the cpu
-backend.
+interact with an articulated robot. In Isaac Lab 3.0 with Isaac Sim 6.x, surface grippers support only CPU
+simulation. Run this tutorial with ``--device cpu``.
 
 
 The Code

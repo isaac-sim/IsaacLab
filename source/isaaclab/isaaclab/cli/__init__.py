@@ -31,7 +31,6 @@ from .utils import (
     run_python_command,
 )
 
-
 _TASK_ENTRY_POINT_GROUP = "isaaclab.tasks"
 
 
@@ -66,6 +65,30 @@ def play(args: list[str] | None = None) -> None:
     from isaaclab_rl.entrypoints import run_play_cli
 
     _exit_on_error(run_play_cli(args))
+
+
+def leapp(args: list[str] | None = None) -> None:
+    """Export or deploy a policy with LEAPP."""
+    parser = argparse.ArgumentParser(
+        description="Export or deploy policies with LEAPP.",
+        prog=f"{Path(sys.argv[0]).name} leapp",
+    )
+    parser.add_argument("command", choices=("export", "deploy"), help="LEAPP workflow to run.")
+    if args is None:
+        args = sys.argv[1:]
+    if not args or args[0] in ("-h", "--help"):
+        parser.parse_args(args)
+    parsed_args = parser.parse_args(args[:1])
+    command_args = args[1:]
+
+    if parsed_args.command == "export":
+        from isaaclab_rl.entrypoints import run_export_cli
+
+        _exit_on_error(run_export_cli(command_args))
+    else:
+        from isaaclab.cli.commands.deploy import command_deploy_leapp
+
+        _exit_on_error(command_deploy_leapp(command_args))
 
 
 def zero_agent(args: list[str] | None = None) -> None:
@@ -125,6 +148,7 @@ def cli() -> None:
     """Parse CLI arguments and run the requested command."""
     subcommands = {
         "benchmark": benchmark,
+        "leapp": leapp,
         "microbenchmark": microbenchmark,
         "train": train,
         "train_multigpu": train_multigpu,
@@ -151,6 +175,7 @@ def cli() -> None:
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
             "                  (append _multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"
+            "  leapp           Export or deploy a policy with LEAPP\n"
             "  train           Train an RL policy\n"
             "  train_multigpu  Train an RL policy across multiple GPUs\n"
             "  play            Play a trained RL policy\n"

@@ -217,7 +217,7 @@ For a multi-backend task, the preset wrapper belongs in
 
    from isaaclab.physics import PhysxAutoCfg
    from isaaclab.sim import SimulationCfg
-   from isaaclab.utils.configclass import configclass
+   from isaaclab.utils import configclass
    from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
    from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_physx.physics import PhysxCfg
@@ -261,5 +261,5 @@ Where to go next
   assets, and sensors dispatch across backends.
 - :ref:`physics-backends` compares physics backend runtime requirements,
   maturity, solver families, and intended uses.
-- :doc:`/source/overview/core-concepts/renderers` explains renderer selection and
+- :doc:`/source/concepts/renderers` explains renderer selection and
   implementation details.

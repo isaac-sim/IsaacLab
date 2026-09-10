@@ -190,7 +190,7 @@ double-buffered states, no collision pipeline, and no visualizer force input.
    from newton import Model
    from newton.solvers import SolverMySolver
 
-   from isaaclab.utils.configclass import configclass
+   from isaaclab.utils import configclass
    from isaaclab_newton.physics import NewtonManager, NewtonSolverCfg
 
 

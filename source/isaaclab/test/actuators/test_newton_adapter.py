@@ -15,7 +15,7 @@ from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDAc
 from isaaclab.actuators.newton import NewtonActuatorAdapter
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.schemas.schemas_actuators import _author_actuator_prims
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
 

@@ -12,7 +12,7 @@ from isaaclab.envs.mdp.actions.actions_cfg import (
 )
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack.stack_env_cfg import mdp
 
