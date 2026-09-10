@@ -12,6 +12,7 @@ from isaaclab_rl.rsl_rl import (
     RslRlMLPModelCfg,
     RslRlOnPolicyRunnerCfg,
     RslRlPpoAlgorithmCfg,
+    RslRlSymmetryCfg,
 )
 
 from isaaclab_tasks.utils import preset
@@ -55,6 +56,32 @@ class G1RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
     )
+
+
+@configclass
+class G1RoughSymmetryPPORunnerCfg(G1RoughPPORunnerCfg):
+    """The rough runner with every transition presented alongside its left-right mirror.
+
+    On flat ground under a straight command this line walks with one knee bent thirty degrees more
+    than the other and the pelvis rolled to one side, with the side chosen per seed -- see
+    :mod:`~isaaclab_tasks.core.velocity.mdp.symmetry.g1_29dof` for the measurements. Nothing in the
+    task states that the legs are interchangeable, so this states it in the only place that
+    constrains the policy rather than a statistic about it.
+
+    Data augmentation rather than the mirror loss: the loss adds a term whose weight is one more
+    thing to tune, while augmentation is exact and free of a coefficient. It doubles the batch, so
+    an iteration costs roughly twice the PPO update time; the rollout is unchanged.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        from isaaclab_tasks.core.velocity.mdp.symmetry import g1_29dof  # noqa: PLC0415
+
+        self.algorithm.symmetry_cfg = RslRlSymmetryCfg(
+            use_data_augmentation=True,
+            data_augmentation_func=g1_29dof.compute_symmetric_states,
+        )
 
 
 @configclass
