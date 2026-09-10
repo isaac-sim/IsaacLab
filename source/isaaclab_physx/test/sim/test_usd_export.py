@@ -243,3 +243,133 @@ def test_export_leaves_the_live_stage_untouched(sim, device, tmp_path):
         checked += 1
     assert checked > 0, "fixture produced no drivable joints; the test would be vacuous"
     assert articulation.root_view is not None and list(articulation.joint_names), "view unreadable after export"
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_complete_environment_round_trip(device, tmp_path):
+    """Fresh PhysX load of a selected multi-object environment without original task overrides."""
+    import numpy as np
+
+    from pxr import Sdf
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sim import export_environment_to_usd
+    from isaaclab.sim.usd_export import create_environment_snapshot
+    from isaaclab.test.utils.usd_export import assert_physics_structure_equal, capture_physics_structure
+
+    cfg = InteractiveSceneCfg(num_envs=2, env_spacing=4.0)
+    cfg.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    cfg.other_robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/OtherRobot")
+    cfg.other_robot.init_state.pos = (1.0, 0.0, 0.0)
+    for name in ("Box", "OtherBox"):
+        setattr(
+            cfg,
+            name,
+            RigidObjectCfg(
+                prim_path=f"{{ENV_REGEX_NS}}/{name}",
+                spawn=sim_utils.CuboidCfg(
+                    size=(0.2, 0.3, 0.4),
+                    rigid_props=sim_utils.RigidBodyBaseCfg(),
+                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                    collision_props=sim_utils.CollisionPropertiesCfg(),
+                ),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 1.0, 1.0)),
+            ),
+        )
+    cfg.table = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table",
+        spawn=sim_utils.CuboidCfg(size=(1.0, 1.0, 0.1), collision_props=sim_utils.CollisionPropertiesCfg()),
+    )
+    cfg.ground = AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg())
+    output = tmp_path / "environment.usda"
+    expected = {}
+    identities = {}
+    with build_simulation_context(device=device) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        scene.update(0.0)
+        for name, asset in {**scene.articulations, **scene.rigid_objects}.items():
+            articulation = name in scene.articulations
+            mass = asset.data.body_mass.torch.clone()
+            mass[0] = 2.0
+            mass[1] = 7.0
+            asset.set_masses_index(masses=mass)
+            inertia = asset.data.body_inertia.torch.clone()
+            inertia[1] *= 2.3
+            asset.set_inertias_index(inertias=inertia)
+            view = asset.root_view
+            if articulation:
+                asset.write_joint_stiffness_to_sim_index(
+                    stiffness=torch.full_like(asset.data.joint_stiffness.torch, 432.1), full_data=True
+                )
+                asset.write_joint_damping_to_sim_index(
+                    damping=torch.full_like(asset.data.joint_damping.torch, 12.3), full_data=True
+                )
+            import warp as wp
+
+            ids = wp.array([0, 1], dtype=wp.int32, device="cpu")
+            for getter, setter, value in (
+                (view.get_material_properties, view.set_material_properties, 0.31),
+                (view.get_contact_offsets, view.set_contact_offsets, 0.025),
+                (view.get_rest_offsets, view.set_rest_offsets, 0.003),
+            ):
+                buffer = getter()
+                values = buffer.numpy()
+                values[0] = value * 0.5
+                values[1] = value
+                buffer.assign(values)
+                setter(buffer, ids)
+            getters = [
+                "get_masses",
+                "get_inertias",
+                "get_coms",
+                "get_disable_gravities",
+                "get_material_properties",
+                "get_contact_offsets",
+                "get_rest_offsets",
+            ]
+            if articulation:
+                getters += [
+                    "get_dof_stiffnesses",
+                    "get_dof_dampings",
+                    "get_dof_limits",
+                    "get_dof_max_forces",
+                    "get_dof_max_velocities",
+                    "get_dof_armatures",
+                    "get_dof_friction_properties",
+                ]
+            if articulation:
+                identities[view.prim_paths[1]] = (view.link_paths[1], view.dof_paths[1])
+            expected[view.prim_paths[1]] = (
+                articulation,
+                {name: getattr(view, name)().numpy()[1].copy() for name in getters},
+            )
+        expected_structure = capture_physics_structure(create_environment_snapshot(scene, 1))
+        export_environment_to_usd(scene, str(output), env_index=1)
+    stage = Usd.Stage.Open(str(output))
+    assert_physics_structure_equal(expected_structure, capture_physics_structure(stage))
+    assert not stage.GetPrimAtPath("/World/envs/env_0")
+    assert stage.GetPrimAtPath("/World/envs/env_1/Table")
+    assert stage.GetPrimAtPath("/World/Ground")
+    # SimulationContext supplies lifecycle only. Replace its initial stage with the export before
+    # initialization; no assets, actuators, event terms or original task configuration are rebuilt.
+    with build_simulation_context(device=device) as fresh:
+        fresh.stage.GetRootLayer().TransferContent(Sdf.Layer.FindOrOpen(str(output)))
+        fresh.reset()
+        sim_view = fresh.physics_sim_view
+        for path, (articulation, properties) in expected.items():
+            view = sim_view.create_articulation_view(path) if articulation else sim_view.create_rigid_body_view(path)
+            assert view.count == 1
+            for name, value in properties.items():
+                actual = getattr(view, name)().numpy()[0]
+                if articulation and name not in ("get_material_properties", "get_contact_offsets", "get_rest_offsets"):
+                    is_joint = name.startswith("get_dof_")
+                    paths = view.dof_paths[0] if is_joint else view.link_paths[0]
+                    original = identities[path][1 if is_joint else 0]
+                    assert set(paths) == set(original)
+                    actual = actual[[paths.index(p) for p in original]]
+                if name == "get_coms":
+                    actual, value = actual[..., :3], value[..., :3]
+                np.testing.assert_allclose(actual, value, rtol=3e-4, atol=1e-5, err_msg=f"{path}: {name}")

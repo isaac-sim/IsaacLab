@@ -10,7 +10,7 @@ freedom came from -- it reports names and the articulation prims it matched. The
 resolved from the stage: the articulation root for the environment is taken from the view, and its
 subtree is indexed by prim name, which is what the backend's body and joint names are.
 
-Authoring the values is shared with the other stage-backed backends -- see
+Everything else is the shared :class:`~isaaclab.sim.usd_export.ArticulationExporter` -- see
 :mod:`isaaclab.sim.usd_export` for what is written and why the stage is patched rather than rebuilt.
 """
 
@@ -20,13 +20,20 @@ from typing import TYPE_CHECKING
 
 from pxr import Usd, UsdPhysics
 
-from isaaclab.sim import usd_export as shared
-from isaaclab.sim.usd_export import ArticulationPrimPaths
+from isaaclab.sim.usd_export import ArticulationExporter, ArticulationPrimPaths
 
 if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
+
     from isaaclab_ov.assets import Articulation
 
-__all__ = ["export_articulation_to_usd", "resolve_articulation_prim_paths", "write_articulation_state_to_stage"]
+__all__ = [
+    "export_articulation_to_usd",
+    "export_environment_to_usd",
+    "exporter",
+    "resolve_articulation_prim_paths",
+    "write_articulation_state_to_stage",
+]
 
 
 def _index_subtree_by_name(stage: Usd.Stage, root_path: str) -> tuple[dict[str, str], dict[str, str]]:
@@ -59,12 +66,15 @@ def _index_subtree_by_name(stage: Usd.Stage, root_path: str) -> tuple[dict[str, 
     return bodies, joints
 
 
-def resolve_articulation_prim_paths(articulation: Articulation, env_index: int = 0) -> ArticulationPrimPaths:
+def resolve_articulation_prim_paths(
+    articulation: Articulation, env_index: int = 0, *, stage: Usd.Stage | None = None
+) -> ArticulationPrimPaths:
     """Resolve one environment's body and joint prim paths from the stage.
 
     Args:
         articulation: The articulation whose prims to resolve. It must be initialized.
         env_index: Environment whose paths to take. Defaults to ``0``.
+        stage: Optional materialized scene snapshot for resolving kitless clone paths.
 
     Returns:
         The environment's prim paths, in backend index order.
@@ -74,14 +84,14 @@ def resolve_articulation_prim_paths(articulation: Articulation, env_index: int =
             articulation root -- which would otherwise export a partial articulation.
     """
     roots = articulation.root_view.prim_paths
-    if env_index >= len(roots):
+    if not 0 <= env_index < len(roots):
         raise ValueError(f"Environment {env_index} is out of range for a view matching {len(roots)} articulations.")
 
     # The view matches the prim carrying ArticulationRootAPI. Where that sits varies by asset: the
     # top-level Xform (Franka), or a link whose siblings are the other links (Ant's torso). Walk up
     # from it to the nearest ancestor whose subtree holds every body and joint name; that ancestor is
     # the articulation, whatever the asset called it.
-    stage = articulation.stage
+    stage = articulation.stage if stage is None else stage
     body_names, joint_names = articulation.backend_body_names, articulation.backend_joint_names
     prim = stage.GetPrimAtPath(roots[env_index])
     while True:
@@ -108,34 +118,58 @@ def resolve_articulation_prim_paths(articulation: Articulation, env_index: int =
     )
 
 
+def exporter(articulation: Articulation) -> ArticulationExporter:
+    """Exporter for an OVPhysX articulation, resolving prim paths from the stage."""
+    return ArticulationExporter(articulation, resolve_articulation_prim_paths)
+
+
 def write_articulation_state_to_stage(
     articulation: Articulation, env_index: int = 0, *, stage: Usd.Stage | None = None
 ) -> list[str]:
     """Author an OVPhysX articulation's simulated state onto the prims it was spawned from.
 
-    Args:
-        articulation: The articulation to read.
-        env_index: Environment to write. Defaults to ``0``.
-        stage: Stage to author onto; defaults to the live stage. See
-            :func:`isaaclab.sim.usd_export.write_articulation_state_to_stage`.
-
-    Returns:
-        The prim paths written, bodies first.
+    See :meth:`~isaaclab.sim.usd_export.ArticulationExporter.write_to_stage`.
     """
-    paths = resolve_articulation_prim_paths(articulation, env_index)
-    return shared.write_articulation_state_to_stage(articulation, paths, env_index=env_index, stage=stage)
+    return exporter(articulation).write_to_stage(env_index, stage=stage)
 
 
 def export_articulation_to_usd(articulation: Articulation, usd_path: str, env_index: int = 0) -> str:
     """Export one environment's OVPhysX articulation, as simulated, to a USD file.
 
-    Args:
-        articulation: The articulation to export.
-        usd_path: Destination path for the USD file.
-        env_index: Environment to export. Defaults to ``0``.
-
-    Returns:
-        The path the stage was written to.
+    See :meth:`~isaaclab.sim.usd_export.ArticulationExporter.export`.
     """
-    paths = resolve_articulation_prim_paths(articulation, env_index)
-    return shared.export_articulation_to_usd(articulation, paths, usd_path, env_index=env_index)
+    return exporter(articulation).export(usd_path, env_index)
+
+
+def export_environment_to_usd(scene: InteractiveScene, usd_path: str, env_index: int = 0) -> str:
+    """Export one OVPhysX environment; see :func:`isaaclab.sim.usd_export.export_environment_to_usd`."""
+    from isaaclab.sim.usd_export import export_stage_environment
+
+    from isaaclab_ov.physics import OvPhysxManager
+
+    return export_stage_environment(
+        scene,
+        usd_path,
+        env_index,
+        lambda asset, row, stage: resolve_articulation_prim_paths(asset, row, stage=stage),
+        _read_body_properties,
+        OvPhysxManager.get_gravity(),
+    )
+
+
+def _read_body_properties(asset, row: int, articulation: bool):
+    from isaaclab.sim.usd_export import RigidBodyExportProperties
+
+    from isaaclab_ov import tensor_types as TT
+
+    types = (
+        (TT.BODY_DISABLE_GRAVITY, TT.SHAPE_FRICTION_AND_RESTITUTION, TT.CONTACT_OFFSET, TT.REST_OFFSET)
+        if articulation
+        else (
+            TT.RIGID_BODY_DISABLE_GRAVITY,
+            TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION,
+            TT.RIGID_BODY_CONTACT_OFFSET,
+            TT.RIGID_BODY_REST_OFFSET,
+        )
+    )
+    return RigidBodyExportProperties(*(asset.root_view.get_attribute(token).numpy()[row] for token in types))

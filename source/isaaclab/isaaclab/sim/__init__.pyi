@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "export_environment_to_usd",
     "SimulationCfg",
     "SimulationContext",
     "build_simulation_context",
@@ -468,3 +469,5 @@ from .views import (
     UsdFrameView,
     XformPrimView,  # deprecated alias
 )
+
+from .usd_export import export_environment_to_usd

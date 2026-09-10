@@ -44,6 +44,7 @@ The following modules are available in the ``isaaclab`` extension:
    lab/isaaclab.sim.spawners
    lab/isaaclab.sim.views
    lab/isaaclab.sim.utils
+   lab/isaaclab.sim.usd_export
 
 
 isaaclab_rl extension
@@ -140,6 +141,7 @@ The following modules are available in the ``isaaclab_physx`` extension:
 
    lab_physx/isaaclab_physx.sim.schemas
    lab_physx/isaaclab_physx.sim.spawners
+   lab_physx/isaaclab_physx.sim.usd_export
 
 isaaclab_newton extension
 -------------------------
@@ -162,6 +164,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
    :hidden:
 
    lab_newton/isaaclab_newton.sim.spawners
+   lab_newton/isaaclab_newton.sim.usd_export
 
 isaaclab_ov extension
 ---------------------
@@ -250,5 +253,6 @@ The following public modules provide additional specialized APIs:
    lab_newton/isaaclab_newton.sim.views
    lab_ov/isaaclab_ov.sensors
    lab_ov/isaaclab_ov.sensors.ray_caster
+   lab_ov/isaaclab_ov.sim.usd_export
    lab_physx/isaaclab_physx.sim.views
    lab_ppisp/isaaclab_ppisp

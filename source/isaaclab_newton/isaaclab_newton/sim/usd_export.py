@@ -25,6 +25,11 @@ The importer normalizes as it reads -- it converts units, bakes shape scale into
 collapses fixed-joint chains -- so the exported stage differs from the source stage by
 construction. What must hold is that re-importing the export changes nothing further.
 
+The module is laid out in the order an export runs: geometry helpers that turn model arrays into USD
+values, the provenance layer that decides *where* each entity is authored
+(:func:`resolve_world_prim_paths`), the :class:`_StageAuthor` that writes one world onto a stage, and
+:func:`export_model_to_usd` tying them together.
+
 .. note::
     The export records **what is being simulated**, not the source art asset. Newton reduces convex
     collision meshes to a hull (capped at ``Mesh.MAX_HULL_VERTICES``) while *importing*, and the
@@ -63,9 +68,16 @@ import numpy as np
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
 
+from isaaclab.sim.usd_export import author_gravity, author_physics_material, author_world_transform
+from isaaclab.sim.usd_export import author_inertia as _author_inertia
+
 if TYPE_CHECKING:
     import warp as wp
     from newton import Model
+
+    from isaaclab.scene import InteractiveScene
+
+__all__ = ["WorldPrimPaths", "export_environment_to_usd", "export_model_to_usd", "resolve_world_prim_paths"]
 
 # USD authors angular quantities in degrees; Newton stores radians. The importer multiplies angles
 # by this factor and divides angular gains by it, so the exporter applies the inverse.
@@ -78,7 +90,17 @@ _LIMIT_SENTINEL = 1.0e9
 # Effort limits at or above this magnitude [N or N·m] are Newton's "unlimited" default.
 _EFFORT_SENTINEL = 1.0e6
 
-__all__ = ["export_model_to_usd"]
+_SUPPORTED_GEOMETRY = frozenset({"BOX", "SPHERE", "CAPSULE", "CYLINDER", "PLANE", "MESH", "CONVEX_MESH"})
+
+# ``ModelBuilder.approximate_meshes(keep_visual_shapes=True)`` -- which the importer runs on visible
+# meshes with a collision approximation -- copies the mesh as a visual-only shape labelled with this
+# suffix and turns the original into the collision-only shape. The copy has no prim of its own.
+_VISUAL_TWIN_SUFFIX = "_visual"
+
+
+# ---------------------------------------------------------------------------------------------------
+# Geometry helpers: model values to USD values. Pure functions of their arguments.
+# ---------------------------------------------------------------------------------------------------
 
 
 def _quat_to_gf(q) -> Gf.Quatf:
@@ -120,6 +142,12 @@ def _srgb_to_linear(color) -> tuple[float, float, float]:
     return tuple(channel(float(c)) for c in color[:3])
 
 
+def _dominant_axis(axis) -> str:
+    """Return the USD axis token (``"X"``/``"Y"``/``"Z"``) closest to ``axis``."""
+    magnitudes = [abs(float(axis[i])) for i in range(3)]
+    return "XYZ"[magnitudes.index(max(magnitudes))]
+
+
 def _geo_type_name(shape_type: int) -> str:
     """Return the :class:`newton.GeoType` member name for ``shape_type``."""
     try:
@@ -144,6 +172,7 @@ def _author_mesh_geometry(stage: Usd.Stage, path: str, source, convex: bool, col
         path: Prim path for the shape.
         source: The :class:`newton.Mesh` held by the model for this shape.
         convex: Whether the shape is a convex-hull approximation.
+        collides: Whether the shape is a collider; visual-only meshes carry no approximation.
 
     Returns:
         The defined mesh prim.
@@ -180,7 +209,7 @@ def _author_mesh_geometry(stage: Usd.Stage, path: str, source, convex: bool, col
 
 
 def _define_collision_geometry(stage: Usd.Stage, path: str, shape_type: int, scale, source=None, collides: bool = True):
-    """Define the collision gprim for a Newton shape.
+    """Define the gprim for a Newton shape.
 
     Args:
         stage: The stage to author on.
@@ -188,6 +217,7 @@ def _define_collision_geometry(stage: Usd.Stage, path: str, shape_type: int, sca
         shape_type: The :class:`newton.GeoType` value.
         scale: Newton's per-shape scale, interpreted per geometry type [m].
         source: The :class:`newton.Mesh` held by the model, for mesh-typed shapes.
+        collides: Whether the shape is a collider.
 
     Returns:
         A tuple of the defined prim and the scale the caller must author as a scale op, or ``None``
@@ -237,231 +267,24 @@ def _define_collision_geometry(stage: Usd.Stage, path: str, shape_type: int, sca
     return gprim.GetPrim(), None
 
 
-def _author_scene(stage: Usd.Stage, scene_path: str, stage_info: dict[str, Any] | None) -> None:
-    """Author the physics scene prim carrying solver settings.
+# ---------------------------------------------------------------------------------------------------
+# Provenance: which prim path each entity of a world is authored at.
+# ---------------------------------------------------------------------------------------------------
 
-    Solver configuration lives on the scene prim rather than in the model, so it is recovered from
-    the importer's ``stage_info`` when available.
+
+@dataclass(frozen=True)
+class WorldPrimPaths:
+    """Prim paths at which one world's entities are authored, keyed by model index.
+
+    Attributes:
+        bodies: Body index to the prim path it was imported from.
+        shapes: Shape index to the prim path its geometry is authored at.
+        joints: Joint index to the prim path it was imported from.
     """
-    scene = UsdPhysics.Scene.Define(stage, scene_path)
-    prim = scene.GetPrim()
-    if not stage_info:
-        return
-    physics_dt = stage_info.get("physics_dt")
-    if physics_dt:
-        prim.CreateAttribute("newton:timeStepsPerSecond", Sdf.ValueTypeNames.Int).Set(int(round(1.0 / physics_dt)))
-    max_iters = stage_info.get("max_solver_iterations")
-    if max_iters is not None and int(max_iters) >= 0:
-        prim.CreateAttribute("newton:maxSolverIterations", Sdf.ValueTypeNames.Int).Set(int(max_iters))
 
-
-def _author_inertia(mass_api: UsdPhysics.MassAPI, inertia) -> None:
-    """Author a full inertia tensor as USD principal moments plus a principal-axes rotation.
-
-    ``UsdPhysics.MassAPI`` stores inertia as a diagonal in a rotated frame, so a tensor carrying
-    products of inertia cannot be expressed by ``diagonalInertia`` alone. Authoring only the diagonal
-    silently discards the off-diagonal terms; this diagonalizes instead, which is lossless because
-    an inertia tensor is symmetric and therefore orthogonally diagonalizable.
-
-    Args:
-        mass_api: The mass API to author on.
-        inertia: The body inertia tensor [kg·m²], shape [3, 3].
-    """
-    tensor = np.asarray(inertia, dtype=np.float64)
-    diagonal = np.diag(tensor)
-    off_diagonal = np.max(np.abs(tensor - np.diag(diagonal)))
-
-    # An already-diagonal tensor is authored as-is. Diagonalizing it anyway would rotate the frame
-    # for no reason and lose precision, because USD stores the moments and axes at float32.
-    if off_diagonal <= 1e-9 * max(float(np.max(np.abs(diagonal))), 1e-30):
-        mass_api.GetDiagonalInertiaAttr().Set(Gf.Vec3f(*(float(m) for m in diagonal)))
-        return
-
-    moments, axes = np.linalg.eigh(tensor)
-    # eigh may return a reflection; USD requires a proper rotation for the principal-axes frame.
-    if np.linalg.det(axes) < 0.0:
-        axes[:, 0] = -axes[:, 0]
-    mass_api.GetDiagonalInertiaAttr().Set(Gf.Vec3f(*(float(m) for m in moments)))
-
-    rotation = Gf.Matrix3d(*(float(v) for v in axes.T.flatten())).GetOrthonormalized()
-    quat = rotation.ExtractRotation().GetQuat()
-    imaginary = quat.GetImaginary()
-    mass_api.GetPrincipalAxesAttr().Set(
-        Gf.Quatf(float(quat.GetReal()), float(imaginary[0]), float(imaginary[1]), float(imaginary[2]))
-    )
-
-
-def _author_body(stage: Usd.Stage, path: str, model: Model, body_index: int) -> Usd.Prim:
-    """Author one rigid body: transform, ``RigidBodyAPI`` and mass properties."""
-    prim = UsdGeom.Xform.Define(stage, path).GetPrim()
-    _author_transform(prim, model.body_q.numpy()[body_index])
-    UsdPhysics.RigidBodyAPI.Apply(prim)
-
-    mass_api = UsdPhysics.MassAPI.Apply(prim)
-    mass_api.GetMassAttr().Set(float(model.body_mass.numpy()[body_index]))
-    _author_inertia(mass_api, model.body_inertia.numpy()[body_index].reshape(3, 3))
-    com = model.body_com.numpy()[body_index]
-    mass_api.GetCenterOfMassAttr().Set(Gf.Vec3f(float(com[0]), float(com[1]), float(com[2])))
-    return prim
-
-
-def _author_shape(stage: Usd.Stage, path: str, model: Model, shape_index: int) -> None:
-    """Author one collision shape and its physics material."""
-    flags = int(model.shape_flags.numpy()[shape_index])
-    collides = bool(flags & int(newton.ShapeFlags.COLLIDE_SHAPES))
-    visible = bool(flags & int(newton.ShapeFlags.VISIBLE))
-
-    source = model.shape_source[shape_index] if shape_index < len(model.shape_source) else None
-    prim, extra_scale = _define_collision_geometry(
-        stage,
-        path,
-        model.shape_type.numpy()[shape_index],
-        model.shape_scale.numpy()[shape_index],
-        source,
-        collides=collides,
-    )
-    _author_transform(prim, model.shape_transform.numpy()[shape_index], scale=extra_scale)
-
-    # Visual-only shapes must not become colliders on reimport, and collision-only shapes must not
-    # become visible: Newton distinguishes the two through shape flags, and authoring every shape as
-    # a visible collider doubles the collision set.
-    if not visible:
-        UsdGeom.Imageable(prim).CreateVisibilityAttr().Set(UsdGeom.Tokens.invisible)
-
-    # Newton keeps ``shape_color`` in sRGB and reads ``displayColor`` as linear, converting on import
-    # (Isaac Lab's import path does the same through ``replace_newton_builder_shape_colors``), so the
-    # inverse is authored for a reimport to land on the same colour.
-    color = _srgb_to_linear(model.shape_color.numpy()[shape_index])
-    UsdGeom.Gprim(prim).CreateDisplayColorAttr().Set(Vt.Vec3fArray([Gf.Vec3f(*color)]))
-    # The physics material is authored for every shape, collider or not: Isaac Lab's randomization
-    # writes per-shape friction regardless of whether a shape can contact, and the round-trip is
-    # judged on the model, not on what the solver would use.
-    if collides:
-        UsdPhysics.CollisionAPI.Apply(prim)
-
-    material_prim = UsdShade.Material.Define(stage, f"{path}_physicsMaterial").GetPrim()
-    material = UsdPhysics.MaterialAPI.Apply(material_prim)
-    mu = float(model.shape_material_mu.numpy()[shape_index])
-    material.GetStaticFrictionAttr().Set(mu)
-    material.GetDynamicFrictionAttr().Set(mu)
-    material.GetRestitutionAttr().Set(float(model.shape_material_restitution.numpy()[shape_index]))
-    UsdShade.MaterialBindingAPI.Apply(prim).Bind(
-        UsdShade.Material(material_prim),
-        bindingStrength=UsdShade.Tokens.weakerThanDescendants,
-        materialPurpose="physics",
-    )
-
-
-def _author_joint(stage: Usd.Stage, path: str, model: Model, joint_index: int, body_paths: dict[int, str]) -> None:
-    """Author one joint with its limits, drive gains and Newton-specific extras.
-
-    Free joints are not authored: a floating body is expressed in USD by the absence of a joint, so
-    emitting one would add a joint the importer never created.
-    """
-    joint_type = int(model.joint_type.numpy()[joint_index])
-    type_name = newton.JointType(joint_type).name
-    if type_name == "FREE":
-        return
-
-    dof_start = int(model.joint_qd_start.numpy()[joint_index])
-    is_angular = type_name == "REVOLUTE"
-
-    if type_name == "REVOLUTE":
-        joint = UsdPhysics.RevoluteJoint.Define(stage, path)
-    elif type_name == "PRISMATIC":
-        joint = UsdPhysics.PrismaticJoint.Define(stage, path)
-    elif type_name == "FIXED":
-        joint = UsdPhysics.FixedJoint.Define(stage, path)
-    else:
-        raise NotImplementedError(
-            f"Exporting joint type '{type_name}' is not supported yet; supported types are REVOLUTE,"
-            " PRISMATIC and FIXED."
-        )
-
-    # A joint that closes a kinematic loop is kept out of the articulation tree; Newton records that
-    # as no articulation membership, USD as ``excludeFromArticulation``. Without it the reimport
-    # sees a cycle and rejects the whole model.
-    articulation_of = model.joint_articulation
-    if articulation_of is not None and int(articulation_of.numpy()[joint_index]) < 0:
-        joint.CreateExcludeFromArticulationAttr().Set(True)
-
-    parent = int(model.joint_parent.numpy()[joint_index])
-    child = int(model.joint_child.numpy()[joint_index])
-    if parent >= 0 and parent in body_paths:
-        joint.GetBody0Rel().SetTargets([body_paths[parent]])
-    if child >= 0 and child in body_paths:
-        joint.GetBody1Rel().SetTargets([body_paths[child]])
-
-    _author_joint_frames(joint, model, joint_index)
-
-    if type_name == "FIXED":
-        return
-
-    axis = model.joint_axis.numpy()[dof_start]
-    joint.GetAxisAttr().Set(_dominant_axis(axis))
-
-    angle_scale = 1.0 / _DEGREES_TO_RADIANS if is_angular else 1.0
-    lower = float(model.joint_limit_lower.numpy()[dof_start])
-    upper = float(model.joint_limit_upper.numpy()[dof_start])
-    if abs(lower) < _LIMIT_SENTINEL:
-        joint.GetLowerLimitAttr().Set(lower * angle_scale)
-    if abs(upper) < _LIMIT_SENTINEL:
-        joint.GetUpperLimitAttr().Set(upper * angle_scale)
-
-    # Drive gains: the importer divides angular gains by DEGREES_TO_RADIANS, so multiply here.
-    gain_scale = _DEGREES_TO_RADIANS if is_angular else 1.0
-    target_ke = float(model.joint_target_ke.numpy()[dof_start])
-    target_kd = float(model.joint_target_kd.numpy()[dof_start])
-    effort = float(model.joint_effort_limit.numpy()[dof_start])
-    # The effort limit lives on the drive but is independent of the gains: a torque-controlled joint
-    # has zero stiffness and damping yet still caps its effort, so the drive must be authored
-    # whenever any of the three is set.
-    if target_ke or target_kd or effort < _EFFORT_SENTINEL:
-        drive = UsdPhysics.DriveAPI.Apply(joint.GetPrim(), "angular" if is_angular else "linear")
-        drive.GetStiffnessAttr().Set(target_ke * gain_scale)
-        drive.GetDampingAttr().Set(target_kd * gain_scale)
-        if effort < _EFFORT_SENTINEL:
-            drive.GetMaxForceAttr().Set(effort)
-        # The drive target is the joint's commanded set-point. It is authored in degrees for angular
-        # joints, the inverse of the importer's radian conversion.
-        target_pos = model.joint_target_pos.numpy()[dof_start] if hasattr(model, "joint_target_pos") else None
-        if target_pos is not None:
-            drive.GetTargetPositionAttr().Set(float(target_pos) * angle_scale)
-
-    prim = joint.GetPrim()
-    armature = float(model.joint_armature.numpy()[dof_start])
-    if armature:
-        prim.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Float).Set(armature)
-    friction = float(model.joint_friction.numpy()[dof_start])
-    if friction:
-        prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(friction)
-
-
-def _author_joint_frames(joint, model: Model, joint_index: int) -> None:
-    """Author the joint's attachment frames relative to its parent and child bodies.
-
-    Newton stores these as ``joint_X_p`` (the joint frame in the parent body frame) and
-    ``joint_X_c`` (in the child body frame); USD spells them ``physics:localPos0``/``localRot0`` and
-    ``physics:localPos1``/``localRot1``. Leaving them unauthored collapses every joint to the body
-    origin with no rotation, which silently reassembles the robot in the wrong pose.
-
-    Args:
-        joint: The USD joint to author on.
-        model: The finalized Newton model.
-        joint_index: Index of the joint being authored.
-    """
-    for transform, position_attr, rotation_attr in (
-        (model.joint_X_p.numpy()[joint_index], joint.CreateLocalPos0Attr, joint.CreateLocalRot0Attr),
-        (model.joint_X_c.numpy()[joint_index], joint.CreateLocalPos1Attr, joint.CreateLocalRot1Attr),
-    ):
-        position_attr().Set(Gf.Vec3f(float(transform[0]), float(transform[1]), float(transform[2])))
-        rotation_attr().Set(_quat_to_gf(transform[3:7]))
-
-
-def _dominant_axis(axis) -> str:
-    """Return the USD axis token (``"X"``/``"Y"``/``"Z"``) closest to ``axis``."""
-    magnitudes = [abs(float(axis[i])) for i in range(3)]
-    return "XYZ"[magnitudes.index(max(magnitudes))]
+    bodies: dict[int, str]
+    shapes: dict[int, str]
+    joints: dict[int, str]
 
 
 def _canonical_paths(path_map: dict[str, int]) -> dict[int, str]:
@@ -484,30 +307,6 @@ def _canonical_paths(path_map: dict[str, int]) -> dict[int, str]:
         if current is None or (path.count("/"), path) < (current.count("/"), current):
             canonical[index] = path
     return canonical
-
-
-_SUPPORTED_GEOMETRY = frozenset({"BOX", "SPHERE", "CAPSULE", "CYLINDER", "PLANE", "MESH", "CONVEX_MESH"})
-
-
-def _reject_unsupported_geometry(model: Model, shape_indices: list[int]) -> None:
-    """Fail on geometry USD cannot carry before the provenance guard reports a bare count mismatch.
-
-    Heightfield terrain is generated in memory by the terrain importer and has no prim, so it also
-    has no path; without this check the shortfall surfaces as "N shapes but N-1 prim paths", which
-    hides the cause.
-
-    Raises:
-        NotImplementedError: Naming each unsupported geometry type present in the world.
-    """
-    types = model.shape_type.numpy()[shape_indices]
-    flags = model.shape_flags.numpy()[shape_indices]
-    present = {_geo_type_name(t) for t, f in zip(types, flags) if not (int(f) & int(newton.ShapeFlags.SITE))}
-    unsupported = sorted(present - _SUPPORTED_GEOMETRY)
-    if unsupported:
-        raise NotImplementedError(
-            f"Exporting shape geometry {unsupported} is not supported yet; supported types are"
-            f" {sorted(_SUPPORTED_GEOMETRY)}. Heightfield terrain and SDF shapes have no USD form here."
-        )
 
 
 def _world_member_indices(world_array: wp.array | None, entity_count: int, world: int) -> list[int]:
@@ -582,6 +381,47 @@ def _resolve_world_paths(
     return {index: path for index, path in lifted.items() if index not in exempt}
 
 
+def _reject_unsupported_geometry(model: Model, shape_indices: list[int]) -> None:
+    """Fail on geometry USD cannot carry before the provenance guard reports a bare count mismatch.
+
+    Heightfield terrain is generated in memory by the terrain importer and has no prim, so it also
+    has no path; without this check the shortfall surfaces as "N shapes but N-1 prim paths", which
+    hides the cause.
+
+    Raises:
+        NotImplementedError: Naming each unsupported geometry type present in the world.
+    """
+    types = model.shape_type.numpy()[shape_indices]
+    flags = model.shape_flags.numpy()[shape_indices]
+    present = {_geo_type_name(t) for t, f in zip(types, flags) if not (int(f) & int(newton.ShapeFlags.SITE))}
+    unsupported = sorted(present - _SUPPORTED_GEOMETRY)
+    if unsupported:
+        raise NotImplementedError(
+            f"Exporting shape geometry {unsupported} is not supported yet; supported types are"
+            f" {sorted(_SUPPORTED_GEOMETRY)}. Heightfield terrain and SDF shapes have no USD form here."
+        )
+
+
+def _visual_twins(model: Model, shape_indices: list[int]) -> dict[int, int]:
+    """Map each visual twin among ``shape_indices`` to the shape it was copied from."""
+    labels = getattr(model, "shape_label", None)
+    if labels is None:
+        return {}
+    flags = model.shape_flags.numpy()
+    bodies = model.shape_body.numpy()
+    collide = int(newton.ShapeFlags.COLLIDE_SHAPES)
+    by_label = {(labels[i], int(bodies[i])): i for i in shape_indices}
+    twins = {}
+    for i in shape_indices:
+        label = labels[i]
+        if not label.endswith(_VISUAL_TWIN_SUFFIX) or int(flags[i]) & collide:
+            continue
+        source = by_label.get((label[: -len(_VISUAL_TWIN_SUFFIX)], int(bodies[i])))
+        if source is not None and source != i:
+            twins[i] = source
+    return twins
+
+
 def _articulation_root_paths(body_paths: list[str]) -> list[str]:
     """Return the prim paths that should carry ``UsdPhysics.ArticulationRootAPI``.
 
@@ -612,47 +452,6 @@ def _articulation_root_paths(body_paths: list[str]) -> list[str]:
         return ["/" + "/".join(common)]
     # No shared ancestor: fall back to each distinct top-level prim.
     return sorted({"/" + parts[0] for parts in split_paths})
-
-
-@dataclass(frozen=True)
-class WorldPrimPaths:
-    """Prim paths at which one world's entities are authored, keyed by model index.
-
-    Attributes:
-        bodies: Body index to the prim path it was imported from.
-        shapes: Shape index to the prim path its geometry is authored at.
-        joints: Joint index to the prim path it was imported from.
-    """
-
-    bodies: dict[int, str]
-    shapes: dict[int, str]
-    joints: dict[int, str]
-
-
-# ``ModelBuilder.approximate_meshes(keep_visual_shapes=True)`` -- which the importer runs on visible
-# meshes with a collision approximation -- copies the mesh as a visual-only shape labelled with this
-# suffix and turns the original into the collision-only shape. The copy has no prim of its own.
-_VISUAL_TWIN_SUFFIX = "_visual"
-
-
-def _visual_twins(model: Model, shape_indices: list[int]) -> dict[int, int]:
-    """Map each visual twin among ``shape_indices`` to the shape it was copied from."""
-    labels = getattr(model, "shape_label", None)
-    if labels is None:
-        return {}
-    flags = model.shape_flags.numpy()
-    bodies = model.shape_body.numpy()
-    collide = int(newton.ShapeFlags.COLLIDE_SHAPES)
-    by_label = {(labels[i], int(bodies[i])): i for i in shape_indices}
-    twins = {}
-    for i in shape_indices:
-        label = labels[i]
-        if not label.endswith(_VISUAL_TWIN_SUFFIX) or int(flags[i]) & collide:
-            continue
-        source = by_label.get((label[: -len(_VISUAL_TWIN_SUFFIX)], int(bodies[i])))
-        if source is not None and source != i:
-            twins[i] = source
-    return twins
 
 
 def resolve_world_prim_paths(model: Model, stage_info: dict[str, Any] | None, world: int = 0) -> WorldPrimPaths:
@@ -725,6 +524,226 @@ def resolve_world_prim_paths(model: Model, stage_info: dict[str, Any] | None, wo
     return WorldPrimPaths(bodies=body_paths, shapes=shape_paths, joints=joint_paths)
 
 
+# ---------------------------------------------------------------------------------------------------
+# Authoring: one world of a model onto a stage.
+# ---------------------------------------------------------------------------------------------------
+
+
+class _StageAuthor:
+    """Writes one world of a finalized model onto a stage, at the prim paths provenance resolved.
+
+    Holds the stage, the model and the resolved paths so that the per-entity writers read like the
+    entities they author. Values are taken straight from the model arrays; unit conventions
+    (degrees on the stage, radians in the model) are applied here and nowhere else.
+
+    Args:
+        stage: The stage to author on.
+        model: The finalized Newton model.
+        paths: Prim paths of the world's entities, from :func:`resolve_world_prim_paths`.
+    """
+
+    def __init__(self, stage: Usd.Stage, model: Model, paths: WorldPrimPaths, world: int = 0) -> None:
+        self.stage = stage
+        self.model = model
+        self.paths = paths
+        self.world = world
+
+    def scene(self, scene_path: str, stage_info: dict[str, Any] | None) -> None:
+        """Author the physics scene prim carrying solver settings.
+
+        Solver configuration lives on the scene prim rather than in the model, so it is recovered from
+        the importer's ``stage_info`` when available.
+        """
+        author_gravity(self.stage, scene_path, self.model.gravity.numpy()[self.world if self.model.world_count else -1])
+        prim = UsdPhysics.Scene.Define(self.stage, scene_path).GetPrim()
+        if not stage_info:
+            return
+        physics_dt = stage_info.get("physics_dt")
+        if physics_dt:
+            prim.CreateAttribute("newton:timeStepsPerSecond", Sdf.ValueTypeNames.Int).Set(int(round(1.0 / physics_dt)))
+        max_iters = stage_info.get("max_solver_iterations")
+        if max_iters is not None and int(max_iters) >= 0:
+            prim.CreateAttribute("newton:maxSolverIterations", Sdf.ValueTypeNames.Int).Set(int(max_iters))
+
+    def body(self, body_index: int) -> Usd.Prim:
+        """Author one rigid body: transform, ``RigidBodyAPI`` and mass properties."""
+        model = self.model
+        prim = UsdGeom.Xform.Define(self.stage, self.paths.bodies[body_index]).GetPrim()
+        _author_transform(prim, model.body_q.numpy()[body_index])
+        UsdPhysics.RigidBodyAPI.Apply(prim)
+
+        mass_api = UsdPhysics.MassAPI.Apply(prim)
+        mass_api.GetMassAttr().Set(float(model.body_mass.numpy()[body_index]))
+        _author_inertia(mass_api, model.body_inertia.numpy()[body_index].reshape(3, 3))
+        com = model.body_com.numpy()[body_index]
+        mass_api.GetCenterOfMassAttr().Set(Gf.Vec3f(float(com[0]), float(com[1]), float(com[2])))
+        return prim
+
+    def shape(self, shape_index: int) -> None:
+        """Author one shape: geometry, transform, visibility, collision flag and physics material."""
+        model = self.model
+        path = self.paths.shapes[shape_index]
+        flags = int(model.shape_flags.numpy()[shape_index])
+        collides = bool(flags & int(newton.ShapeFlags.COLLIDE_SHAPES))
+        visible = bool(flags & int(newton.ShapeFlags.VISIBLE))
+
+        source = model.shape_source[shape_index] if shape_index < len(model.shape_source) else None
+        prim, extra_scale = _define_collision_geometry(
+            self.stage,
+            path,
+            model.shape_type.numpy()[shape_index],
+            model.shape_scale.numpy()[shape_index],
+            source,
+            collides=collides,
+        )
+        _author_transform(prim, model.shape_transform.numpy()[shape_index], scale=extra_scale)
+
+        # Visual-only shapes must not become colliders on reimport, and collision-only shapes must not
+        # become visible: Newton distinguishes the two through shape flags, and authoring every shape
+        # as a visible collider doubles the collision set.
+        if not visible:
+            UsdGeom.Imageable(prim).CreateVisibilityAttr().Set(UsdGeom.Tokens.invisible)
+        if collides:
+            UsdPhysics.CollisionAPI.Apply(prim)
+
+        # Newton keeps ``shape_color`` in sRGB and reads ``displayColor`` as linear, converting on
+        # import (Isaac Lab's import path does the same through ``replace_newton_builder_shape_colors``),
+        # so the inverse is authored for a reimport to land on the same colour.
+        color = _srgb_to_linear(model.shape_color.numpy()[shape_index])
+        UsdGeom.Gprim(prim).CreateDisplayColorAttr().Set(Vt.Vec3fArray([Gf.Vec3f(*color)]))
+
+        # The physics material is authored for every shape, collider or not: Isaac Lab's randomization
+        # writes per-shape friction regardless of whether a shape can contact, and the round-trip is
+        # judged on the model, not on what the solver would use.
+        material_prim = UsdShade.Material.Define(self.stage, f"{path}_physicsMaterial").GetPrim()
+        material = UsdPhysics.MaterialAPI.Apply(material_prim)
+        mu = float(model.shape_material_mu.numpy()[shape_index])
+        material.GetStaticFrictionAttr().Set(mu)
+        material.GetDynamicFrictionAttr().Set(mu)
+        material.GetRestitutionAttr().Set(float(model.shape_material_restitution.numpy()[shape_index]))
+        UsdShade.MaterialBindingAPI.Apply(prim).Bind(
+            UsdShade.Material(material_prim),
+            bindingStrength=UsdShade.Tokens.weakerThanDescendants,
+            materialPurpose="physics",
+        )
+
+        _author_shape_properties(prim, model, shape_index)
+
+    def joint(self, joint_index: int) -> None:
+        """Author one joint with its frames, limits, drive and Newton-specific extras.
+
+        Free joints are not authored: a floating body is expressed in USD by the absence of a joint,
+        so emitting one would add a joint the importer never created.
+        """
+        model = self.model
+        type_name = newton.JointType(int(model.joint_type.numpy()[joint_index])).name
+        if type_name == "FREE":
+            return
+
+        path = self.paths.joints[joint_index]
+        if type_name == "REVOLUTE":
+            joint = UsdPhysics.RevoluteJoint.Define(self.stage, path)
+        elif type_name == "PRISMATIC":
+            joint = UsdPhysics.PrismaticJoint.Define(self.stage, path)
+        elif type_name == "FIXED":
+            joint = UsdPhysics.FixedJoint.Define(self.stage, path)
+        else:
+            raise NotImplementedError(
+                f"Exporting joint type '{type_name}' is not supported yet; supported types are REVOLUTE,"
+                " PRISMATIC and FIXED."
+            )
+
+        # A joint that closes a kinematic loop is kept out of the articulation tree; Newton records
+        # that as no articulation membership, USD as ``excludeFromArticulation``. Without it the
+        # reimport sees a cycle and rejects the whole model.
+        articulation_of = model.joint_articulation
+        if articulation_of is not None and int(articulation_of.numpy()[joint_index]) < 0:
+            joint.CreateExcludeFromArticulationAttr().Set(True)
+
+        parent = int(model.joint_parent.numpy()[joint_index])
+        child = int(model.joint_child.numpy()[joint_index])
+        if parent >= 0 and parent in self.paths.bodies:
+            joint.GetBody0Rel().SetTargets([self.paths.bodies[parent]])
+        if child >= 0 and child in self.paths.bodies:
+            joint.GetBody1Rel().SetTargets([self.paths.bodies[child]])
+        joint.CreateJointEnabledAttr().Set(bool(model.joint_enabled.numpy()[joint_index]))
+        joint.CreateCollisionEnabledAttr().Set(True)
+        self._joint_frames(joint, joint_index)
+
+        if type_name == "FIXED":
+            return
+        self._joint_dof(joint, joint_index, is_angular=type_name == "REVOLUTE")
+
+    def _joint_frames(self, joint, joint_index: int) -> None:
+        """Author the joint's attachment frames relative to its parent and child bodies.
+
+        Newton stores these as ``joint_X_p`` (the joint frame in the parent body frame) and
+        ``joint_X_c`` (in the child body frame); USD spells them ``physics:localPos0``/``localRot0``
+        and ``physics:localPos1``/``localRot1``. Leaving them unauthored collapses every joint to the
+        body origin with no rotation, which silently reassembles the robot in the wrong pose.
+        """
+        model = self.model
+        for transform, position_attr, rotation_attr in (
+            (model.joint_X_p.numpy()[joint_index], joint.CreateLocalPos0Attr, joint.CreateLocalRot0Attr),
+            (model.joint_X_c.numpy()[joint_index], joint.CreateLocalPos1Attr, joint.CreateLocalRot1Attr),
+        ):
+            position_attr().Set(Gf.Vec3f(float(transform[0]), float(transform[1]), float(transform[2])))
+            rotation_attr().Set(_quat_to_gf(transform[3:7]))
+
+    def _joint_dof(self, joint, joint_index: int, *, is_angular: bool) -> None:
+        """Author the single degree of freedom of a revolute or prismatic joint."""
+        model = self.model
+        dof_start = int(model.joint_qd_start.numpy()[joint_index])
+        joint.GetAxisAttr().Set(_dominant_axis(model.joint_axis.numpy()[dof_start]))
+
+        angle_scale = 1.0 / _DEGREES_TO_RADIANS if is_angular else 1.0
+        lower = float(model.joint_limit_lower.numpy()[dof_start])
+        upper = float(model.joint_limit_upper.numpy()[dof_start])
+        joint.CreateLowerLimitAttr().Set(lower * angle_scale if abs(lower) < _LIMIT_SENTINEL else -float("inf"))
+        joint.CreateUpperLimitAttr().Set(upper * angle_scale if abs(upper) < _LIMIT_SENTINEL else float("inf"))
+
+        # Drive gains: the importer divides angular gains by DEGREES_TO_RADIANS, so multiply here.
+        gain_scale = _DEGREES_TO_RADIANS if is_angular else 1.0
+        target_ke = float(model.joint_target_ke.numpy()[dof_start])
+        target_kd = float(model.joint_target_kd.numpy()[dof_start])
+        effort = float(model.joint_effort_limit.numpy()[dof_start])
+        # The effort limit lives on the drive but is independent of the gains: a torque-controlled
+        # joint has zero stiffness and damping yet still caps its effort, so the drive must be
+        # authored whenever any of the three is set.
+        if (
+            target_ke
+            or target_kd
+            or effort < _EFFORT_SENTINEL
+            or joint.GetPrim().HasAPI(UsdPhysics.DriveAPI, "angular" if is_angular else "linear")
+        ):
+            drive = UsdPhysics.DriveAPI.Apply(joint.GetPrim(), "angular" if is_angular else "linear")
+            drive.GetStiffnessAttr().Set(target_ke * gain_scale)
+            drive.GetDampingAttr().Set(target_kd * gain_scale)
+            drive.CreateMaxForceAttr().Set(effort)
+            # The drive target is the joint's commanded set-point. It is authored in degrees for
+            # angular joints, the inverse of the importer's radian conversion.
+            target_pos = model.joint_target_pos.numpy()[dof_start] if hasattr(model, "joint_target_pos") else None
+            if target_pos is not None:
+                drive.GetTargetPositionAttr().Set(float(target_pos) * angle_scale)
+
+        prim = joint.GetPrim()
+        armature = float(model.joint_armature.numpy()[dof_start])
+        prim.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Float).Set(armature)
+        friction = float(model.joint_friction.numpy()[dof_start])
+        prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(friction)
+        for name, values, scale in (
+            ("newton:limitStiffness", model.joint_limit_ke, gain_scale),
+            ("newton:limitDamping", model.joint_limit_kd, gain_scale),
+            ("newton:velocityLimit", model.joint_velocity_limit, angle_scale),
+        ):
+            prim.CreateAttribute(name, Sdf.ValueTypeNames.Float).Set(float(values.numpy()[dof_start]) * scale)
+
+
+# ---------------------------------------------------------------------------------------------------
+# Entry point.
+# ---------------------------------------------------------------------------------------------------
+
+
 def export_model_to_usd(
     model: Model,
     usd_path: str,
@@ -770,20 +789,205 @@ def export_model_to_usd(
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
     UsdGeom.SetStageMetersPerUnit(stage, 1.0)
 
-    body_path_list = list(stage_info["path_body_map"])
     root_paths = (
-        [articulation_root_path] if articulation_root_path is not None else _articulation_root_paths(body_path_list)
+        [articulation_root_path]
+        if articulation_root_path is not None
+        else _articulation_root_paths(list(stage_info["path_body_map"]))
     )
     for root_path in root_paths:
         UsdPhysics.ArticulationRootAPI.Apply(UsdGeom.Xform.Define(stage, root_path).GetPrim())
-    _author_scene(stage, f"{root_paths[0]}/physicsScene" if root_paths else "/physicsScene", stage_info)
 
-    for body_index, path in sorted(paths.bodies.items()):
-        _author_body(stage, path, model, body_index)
-    for shape_index, path in sorted(paths.shapes.items()):
-        _author_shape(stage, path, model, shape_index)
-    for joint_index, path in sorted(paths.joints.items()):
-        _author_joint(stage, path, model, joint_index, paths.bodies)
+    author = _StageAuthor(stage, model, paths, world)
+    author.scene(f"{root_paths[0]}/physicsScene" if root_paths else "/physicsScene", stage_info)
+    for body_index in sorted(paths.bodies):
+        author.body(body_index)
+    for shape_index in sorted(paths.shapes):
+        author.shape(shape_index)
+    for joint_index in sorted(paths.joints):
+        author.joint(joint_index)
 
+    _author_collision_filters(stage, model, paths)
     stage.GetRootLayer().Save()
     return str(usd_path)
+
+
+def _author_collision_filters(
+    stage: Usd.Stage, model: Model, paths: WorldPrimPaths, contact_pairs: np.ndarray | None = None
+) -> None:
+    """Express effective exclusions by shape identity, including collision-group semantics."""
+    groups = model.shape_collision_group.numpy()
+    flags = model.shape_flags.numpy()
+    colliders = [i for i in paths.shapes if int(flags[i]) & int(newton.ShapeFlags.COLLIDE_SHAPES)]
+    excluded = {tuple(map(int, pair)) for pair in model.shape_collision_filter_pairs}
+    if contact_pairs is None and model.shape_contact_pairs is not None:
+        contact_pairs = model.shape_contact_pairs.numpy()
+    allowed = None if contact_pairs is None else {tuple(sorted(map(int, pair))) for pair in contact_pairs}
+    for offset, first in enumerate(colliders):
+        targets = []
+        for second in colliders[offset + 1 :]:
+            a, b = int(groups[first]), int(groups[second])
+            interacts = a != 0 and b != 0 and ((a == b or b < 0) if a > 0 else a != b)
+            pair = tuple(sorted((first, second)))
+            filtered = pair not in allowed if allowed is not None else not interacts or pair in excluded
+            if filtered:
+                targets.append(Sdf.Path(paths.shapes[second]))
+        UsdPhysics.FilteredPairsAPI.Apply(stage.GetPrimAtPath(paths.shapes[first])).CreateFilteredPairsRel().SetTargets(
+            targets
+        )
+
+
+def export_environment_to_usd(scene: InteractiveScene, usd_path: str, env_index: int = 0) -> str:
+    """Export one Newton environment while retaining its authored scene content.
+
+    Unlike :func:`export_model_to_usd`, this entry point retains the scene's visual assets,
+    materials, lights and shared resources. Model labels resolve current clone identities;
+    ClonePlan supplies source variants, never effective runtime properties.
+    """
+    from isaaclab.sim.usd_export import check_body_coverage, create_environment_snapshot, save_environment_snapshot
+
+    manager = scene.sim.physics_manager
+    model = manager.get_model()
+    snapshot = create_environment_snapshot(scene, env_index)
+    if UsdGeom.GetStageMetersPerUnit(snapshot) != 1.0 or UsdPhysics.GetStageKilogramsPerUnit(snapshot) != 1.0:
+        raise NotImplementedError("Newton environment export currently requires SI stage units.")
+    env_ids = (
+        list(range(scene.clone_plan.clone_mask.shape[1]))
+        if scene.clone_plan.env_ids is None
+        else list(scene.clone_plan.env_ids)
+    )
+    world = env_ids.index(env_index)
+    maps = []
+    for kind in ("body", "shape", "joint"):
+        indices = _world_member_indices(getattr(model, f"{kind}_world"), getattr(model, f"{kind}_count"), world)
+        labels = getattr(model, f"{kind}_label")
+        paths = {}
+        for index in indices:
+            if kind == "joint" and int(model.joint_type.numpy()[index]) == int(newton.JointType.FREE):
+                continue
+            if kind == "shape" and int(model.shape_flags.numpy()[index]) & int(newton.ShapeFlags.SITE):
+                continue
+            path = labels[index]
+            if not Sdf.Path.IsValidPathString(path) or not path.startswith("/"):
+                raise RuntimeError(f"No stable USD identity for {kind} {index}: {path!r}")
+            if not snapshot.GetPrimAtPath(path):
+                if kind != "shape" or not path.endswith(_VISUAL_TWIN_SUFFIX):
+                    raise RuntimeError(f"Selected {kind} {index} has no source prim at {path}.")
+            paths[index] = path
+        if len(set(paths.values())) != len(paths):
+            raise RuntimeError(f"Ambiguous {kind} provenance: multiple entities share a USD path.")
+        maps.append(paths)
+    paths = WorldPrimPaths(*maps)
+    _reject_unsupported_geometry(model, list(paths.shapes))
+    # Source filters may refer to an earlier runtime configuration. Rebuild exclusions from the
+    # model after all geometry is present; keep the other authored relationships intact.
+    for prim in snapshot.Traverse():
+        if prim.HasAPI(UsdPhysics.FilteredPairsAPI):
+            UsdPhysics.FilteredPairsAPI(prim).CreateFilteredPairsRel().SetTargets([])
+        if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+            prim.CreateAttribute("newton:selfCollisionEnabled", Sdf.ValueTypeNames.Bool).Set(True)
+    author = _StageAuthor(snapshot, model, paths, world)
+    info = {"physics_dt": manager.get_physics_dt()}
+    if not math.isclose(1.0 / info["physics_dt"], round(1.0 / info["physics_dt"]), rel_tol=1e-6):
+        raise NotImplementedError("Newton USD timeStepsPerSecond cannot represent this timestep exactly.")
+    # Only XPBD exposes the iteration count with the semantics of the USD scene setting.
+    from newton.solvers import SolverXPBD
+
+    if isinstance(manager._solver, SolverXPBD):
+        info["max_solver_iterations"] = manager._solver.iterations
+    author.scene(scene.physics_scene_path, info)
+    for index in paths.bodies:
+        # Source USD owns the hierarchy and appearance; only replace mass properties here.
+        prim = snapshot.GetPrimAtPath(paths.bodies[index])
+        api = UsdPhysics.MassAPI.Apply(prim)
+        api.CreateMassAttr().Set(float(model.body_mass.numpy()[index]))
+        _author_inertia(api, model.body_inertia.numpy()[index])
+        api.CreateCenterOfMassAttr().Set(Gf.Vec3f(*map(float, model.body_com.numpy()[index])))
+    for index in paths.shapes:
+        prim = snapshot.GetPrimAtPath(paths.shapes[index])
+        if not prim:
+            # Import-generated visual twins are already represented by the source visual mesh.
+            continue
+        if int(model.shape_flags.numpy()[index]) & int(newton.ShapeFlags.COLLIDE_SHAPES):
+            author_physics_material(
+                prim,
+                (
+                    model.shape_material_mu.numpy()[index],
+                    model.shape_material_mu.numpy()[index],
+                    model.shape_material_restitution.numpy()[index],
+                ),
+            )
+            _author_shape_properties(prim, model, index)
+            _write_effective_geometry(snapshot, model, paths, index)
+    for index in paths.joints:
+        author.joint(index)
+    pipeline = manager._collision_pipeline
+    contact_pairs = None
+    if pipeline is not None:
+        if pipeline.shape_pairs_filtered is None:
+            raise NotImplementedError(
+                "Newton runtime filter export currently requires the explicit collision pipeline."
+            )
+        contact_pairs = pipeline.shape_pairs_filtered.numpy()
+    _author_collision_filters(snapshot, model, paths, contact_pairs)
+    check_body_coverage(snapshot, set(paths.bodies.values()))
+    return save_environment_snapshot(snapshot, usd_path)
+
+
+def _author_shape_properties(prim: Usd.Prim, model: Model, index: int) -> None:
+    """Author Newton contact parameters which have no standard USD counterpart."""
+    for attribute, buffer in (("newton:contactGap", "shape_gap"), ("newton:contactMargin", "shape_margin")):
+        prim.CreateAttribute(attribute, Sdf.ValueTypeNames.Float).Set(float(getattr(model, buffer).numpy()[index]))
+    material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
+    if material:
+        for attribute, buffer in (
+            ("newton:contactStiffness", "shape_material_ke"),
+            ("newton:contactDamping", "shape_material_kd"),
+            ("newton:contactFrictionGain", "shape_material_kf"),
+            ("newton:contactAdhesion", "shape_material_ka"),
+            ("newton:torsionalFriction", "shape_material_mu_torsional"),
+            ("newton:rollingFriction", "shape_material_mu_rolling"),
+        ):
+            material.GetPrim().CreateAttribute(attribute, Sdf.ValueTypeNames.Float).Set(
+                float(getattr(model, buffer).numpy()[index])
+            )
+
+
+def _write_effective_geometry(stage: Usd.Stage, model: Model, paths: WorldPrimPaths, index: int) -> None:
+    """Update effective primitive geometry without discarding visual materials or scene hierarchy."""
+    shape_type = int(model.shape_type.numpy()[index])
+    path = paths.shapes[index]
+    is_mesh = newton.GeoType(shape_type).name in ("MESH", "CONVEX_MESH")
+    if is_mesh:
+        original = stage.GetPrimAtPath(path)
+        if original.HasAPI(UsdPhysics.RigidBodyAPI):
+            raise NotImplementedError(
+                f"Separate body and mesh prims are required to preserve visual geometry at {path}."
+            )
+        # Keep the source's full visual mesh, UVs, subsets and shader bindings. The original
+        # collider keeps its stable identity and receives the effective backend collision mesh.
+        visual_path = path + _VISUAL_TWIN_SUFFIX
+        if not stage.GetPrimAtPath(visual_path):
+            Sdf.CopySpec(stage.GetRootLayer(), path, stage.GetRootLayer(), visual_path)
+            visual = stage.GetPrimAtPath(visual_path)
+            visual.RemoveAPI(UsdPhysics.CollisionAPI)
+            visual.RemoveAPI(UsdPhysics.MeshCollisionAPI)
+            visual.RemoveAPI(UsdPhysics.FilteredPairsAPI)
+    prim, scale = _define_collision_geometry(
+        stage, path, shape_type, model.shape_scale.numpy()[index], model.shape_source[index]
+    )
+    if is_mesh:
+        UsdGeom.Imageable(prim).CreateVisibilityAttr().Set(UsdGeom.Tokens.invisible)
+
+    def matrix(pose):
+        result = Gf.Matrix4d(1.0)
+        result.SetRotate(Gf.Quatd(_quat_to_gf(pose[3:7])))
+        result.SetTranslateOnly(Gf.Vec3d(*map(float, pose[:3])))
+        return result
+
+    transform = matrix(model.shape_transform.numpy()[index])
+    if scale is not None:
+        transform = Gf.Matrix4d().SetScale(Gf.Vec3d(*map(float, scale))) * transform
+    body = int(model.shape_body.numpy()[index])
+    if body >= 0:
+        transform = transform * matrix(model.body_q.numpy()[body])
+    author_world_transform(prim, transform)

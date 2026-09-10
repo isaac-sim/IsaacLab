@@ -15,3 +15,8 @@ Added
   :class:`~isaaclab_newton.sim.usd_export.WorldPrimPaths` that maps one world's bodies, shapes and
   joints to the prim paths the export authors them at. Visual copies the importer makes when
   approximating a mesh for collision are authored as visual-only ``<prim>_visual`` siblings.
+
+* Added scene-level environment export preserving source visuals and shared dependencies
+  while writing effective collision geometry, contact filtering, gravity, XPBD iterations and
+  body/joint properties. Added a fresh-backend round-trip with heterogeneous sources and
+  different runtime overrides in two environments.

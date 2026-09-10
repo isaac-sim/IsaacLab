@@ -290,3 +290,221 @@ def test_resolves_floating_base_with_colliding_body_and_joint_names(sim, device)
     assert len(set(paths.bodies) | set(paths.joints)) == len(paths.bodies) + len(paths.joints), (
         "a prim was resolved twice"
     )
+
+
+def test_complete_environment_round_trip_cpu(tmp_path):
+    """Reload two articulations and two rigid objects without applying the task's overrides again."""
+    import numpy as np
+    import ovphysx
+    import ovstage
+    from isaaclab_ov import tensor_types as TT
+    from isaaclab_ov.physics import OvPhysxManager
+    from isaaclab_ov.sim.views import OvPhysxView
+    from isaaclab_ov.stage import create_ovstage
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sim import export_environment_to_usd
+    from isaaclab.sim.usd_export import create_environment_snapshot
+    from isaaclab.test.utils.usd_export import assert_physics_structure_equal, capture_physics_structure
+
+    cfg = InteractiveSceneCfg(num_envs=2, env_spacing=4.0)
+    cfg.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    cfg.other_robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/OtherRobot")
+    cfg.other_robot.init_state.pos = (1.0, 0.0, 0.0)
+    for name, position in (("box", (0.0, 1.0, 1.0)), ("ball", (1.0, 1.0, 1.0))):
+        spawn = sim_utils.CuboidCfg(size=(0.2, 0.3, 0.4)) if name == "box" else sim_utils.SphereCfg(radius=0.15)
+        spawn.rigid_props = sim_utils.RigidBodyPropertiesCfg()
+        spawn.mass_props = sim_utils.MassPropertiesCfg(mass=0.5)
+        spawn.collision_props = sim_utils.CollisionPropertiesCfg()
+        setattr(
+            cfg,
+            name,
+            RigidObjectCfg(
+                prim_path=f"{{ENV_REGEX_NS}}/{name}",
+                spawn=spawn,
+                init_state=RigidObjectCfg.InitialStateCfg(pos=position),
+            ),
+        )
+    cfg.table = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table",
+        spawn=sim_utils.CuboidCfg(size=(1.0, 1.0, 0.1), collision_props=sim_utils.CollisionPropertiesCfg()),
+    )
+    cfg.ground = AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg())
+    cfg.collection = RigidObjectCollectionCfg(
+        rigid_objects={
+            name: RigidObjectCfg(
+                prim_path=f"{{ENV_REGEX_NS}}/Collected{name}",
+                spawn=sim_utils.SphereCfg(
+                    radius=0.1,
+                    rigid_props=sim_utils.RigidBodyBaseCfg(),
+                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                    collision_props=sim_utils.CollisionBaseCfg(),
+                ),
+            )
+            for name in ("First", "Second")
+        }
+    )
+    output = tmp_path / "environment.usda"
+    expected = {}
+    identities = {}
+    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device="cpu", gravity=(0.0, 0.0, -9.81))
+    with build_simulation_context(device="cpu", sim_cfg=sim_cfg) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        scene.update(0.0)
+        for number, (name, asset) in enumerate({**scene.articulations, **scene.rigid_objects}.items()):
+            is_art = name in scene.articulations
+            view = asset.root_view
+            mass = asset.data.body_mass.torch.clone()
+            mass[0] = 2.0 + number
+            mass[1] = 7.0 + number
+            asset.set_masses_index(masses=mass)
+            inertia = asset.data.body_inertia.torch.clone()
+            inertia[0] *= 1.2
+            inertia[1] *= 2.3
+            asset.set_inertias_index(inertias=inertia)
+            com = asset.data.body_com_pose_b.torch.clone()
+            com[1, :, :3] += torch.tensor([0.01, -0.02, 0.03])
+            asset.set_coms_index(coms=com)
+            if is_art:
+                asset.write_joint_stiffness_to_sim_index(
+                    stiffness=torch.full_like(asset.data.joint_stiffness.torch, 432.1)
+                )
+                asset.write_joint_damping_to_sim_index(damping=torch.full_like(asset.data.joint_damping.torch, 12.3))
+            prefix = "ARTICULATION" if is_art else "RIGID_BODY"
+            for suffix, value in (
+                ("SHAPE_FRICTION_AND_RESTITUTION", 0.31),
+                ("CONTACT_OFFSET", 0.025),
+                ("REST_OFFSET", 0.003),
+            ):
+                token = getattr(TT.TensorType, f"{prefix}_{suffix}")
+                buffer = view.get_attribute(token)
+                values = buffer.numpy()
+                values[0] = value * 0.5
+                values[1] = value
+                buffer.assign(values)
+                view.set_attribute(token, buffer)
+            token = TT.BODY_DISABLE_GRAVITY if is_art else TT.RIGID_BODY_DISABLE_GRAVITY
+            buffer = view.get_attribute(token)
+            values = buffer.numpy()
+            values[1] = 1
+            buffer.assign(values)
+            view.set_attribute(token, buffer)
+            properties = (
+                [
+                    TT.BODY_MASS,
+                    TT.BODY_INERTIA,
+                    TT.BODY_COM_POSE,
+                    TT.BODY_DISABLE_GRAVITY,
+                    TT.DOF_STIFFNESS,
+                    TT.DOF_DAMPING,
+                    TT.DOF_LIMIT,
+                    TT.DOF_MAX_VELOCITY,
+                    TT.DOF_MAX_FORCE,
+                    TT.DOF_ARMATURE,
+                    TT.DOF_FRICTION_PROPERTIES,
+                    TT.SHAPE_FRICTION_AND_RESTITUTION,
+                    TT.CONTACT_OFFSET,
+                    TT.REST_OFFSET,
+                ]
+                if is_art
+                else [
+                    TT.RIGID_BODY_MASS,
+                    TT.RIGID_BODY_INERTIA,
+                    TT.RIGID_BODY_COM_POSE,
+                    TT.RIGID_BODY_DISABLE_GRAVITY,
+                    TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION,
+                    TT.RIGID_BODY_CONTACT_OFFSET,
+                    TT.RIGID_BODY_REST_OFFSET,
+                ]
+            )
+            if is_art:
+                identities[view.prim_paths[1]] = (view.body_names, view.dof_names)
+            expected[view.prim_paths[1]] = (
+                is_art,
+                {token: view.get_attribute(token).numpy()[1].copy() for token in properties},
+            )
+        collection = scene.rigid_object_collections["collection"]
+        import warp as wp
+
+        collection.set_masses_index(masses=wp.array([[2.0, 3.0], [7.0, 11.0]], dtype=wp.float32, device="cpu"))
+        view = collection.root_view
+        properties = [
+            TT.RIGID_BODY_MASS,
+            TT.RIGID_BODY_INERTIA,
+            TT.RIGID_BODY_COM_POSE,
+            TT.RIGID_BODY_DISABLE_GRAVITY,
+            TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION,
+            TT.RIGID_BODY_CONTACT_OFFSET,
+            TT.RIGID_BODY_REST_OFFSET,
+        ]
+        for row, path in enumerate(view.prim_paths):
+            if "/env_1/" in path:
+                expected[path] = (False, {token: view.get_attribute(token).numpy()[row].copy() for token in properties})
+        OvPhysxManager.set_gravity((0.25, -0.5, -3.0))
+        before = sim.stage.GetRootLayer().ExportToString()
+        expected_structure = capture_physics_structure(create_environment_snapshot(scene, 1))
+        export_environment_to_usd(scene, str(output), env_index=1)
+        assert sim.stage.GetRootLayer().ExportToString() == before
+    stage = Usd.Stage.Open(str(output))
+    assert_physics_structure_equal(expected_structure, capture_physics_structure(stage))
+    assert not stage.GetPrimAtPath("/World/envs/env_0")
+    assert stage.GetPrimAtPath("/World/envs/env_1/Table")
+    assert stage.GetPrimAtPath("/World/Ground")
+    assert len([p for p in stage.Traverse() if p.HasAPI(UsdPhysics.ArticulationRootAPI)]) == 2
+    # Check every relationship and shader connection, not just named scalar attributes.
+    for prim in stage.Traverse():
+        for prop in prim.GetProperties():
+            targets = prop.GetTargets() if isinstance(prop, Usd.Relationship) else prop.GetConnections()
+            assert all(stage.GetPrimAtPath(p.GetPrimPath()) for p in targets), prop.GetPath()
+    gravity = UsdPhysics.Scene(next(p for p in stage.Traverse() if p.IsA(UsdPhysics.Scene)))
+    np.testing.assert_allclose(
+        np.array(gravity.GetGravityDirectionAttr().Get()) * gravity.GetGravityMagnitudeAttr().Get(),
+        [0.25, -0.5, -3.0],
+        rtol=1e-6,
+    )
+    # Direct runtime import: no SimulationCfg, asset spawn config, actuator config or event terms.
+    fresh_stage = create_ovstage("export_round_trip")
+    fresh = ovphysx.PhysX()
+    try:
+        ovstage.population.open_usd_from_string(
+            fresh_stage, stage.ExportToString(), ordinal=1, domains=ovstage.PopulationDomain.ALL
+        )
+        fresh_stage.advance_write_floor(ordinal=1).wait()
+        fresh.attach_ovstage(fresh_stage, read_ordinal=1)
+        for path, (is_art, properties) in expected.items():
+            view = OvPhysxView(fresh, prim_paths=[path], device="cpu", tensor_types=list(properties), eager=True)
+            try:
+                assert view.count == 1
+                for token, value in properties.items():
+                    actual = view.get_attribute(token).numpy()[0]
+                    if is_art and token.name.startswith(("ARTICULATION_BODY_", "ARTICULATION_DOF_")):
+                        is_body = token.name.startswith("ARTICULATION_BODY_")
+                        names = view.body_names if is_body else view.dof_names
+                        original = identities[path][0 if is_body else 1]
+                        assert set(names) == set(original)
+                        actual = actual[[names.index(name) for name in original]]
+                    if token in (TT.BODY_COM_POSE, TT.RIGID_BODY_COM_POSE):
+                        # Principal axes may be permuted or sign-flipped. The full inertia tensor
+                        # above compares the physical orientation independently of that choice.
+                        actual, value = actual[..., :3], value[..., :3]
+                    if np.asarray(value).dtype.kind in "biu":
+                        np.testing.assert_array_equal(actual, value, err_msg=f"{path}: {token.name}")
+                    else:
+                        np.testing.assert_allclose(actual, value, rtol=3e-4, atol=1e-5, err_msg=f"{path}: {token.name}")
+            finally:
+                view.close()
+        for path in expected:
+            with pytest.raises(OvPhysxView.AttributeUnavailable):
+                OvPhysxView(
+                    fresh,
+                    prim_paths=[path.replace("env_1", "env_0")],
+                    device="cpu",
+                    tensor_types=[TT.BODY_MASS if expected[path][0] else TT.RIGID_BODY_MASS],
+                    eager=True,
+                )
+    finally:
+        fresh.release()
+        fresh_stage.destroy()

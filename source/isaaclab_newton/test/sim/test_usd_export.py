@@ -683,3 +683,218 @@ def test_loop_closing_joint_round_trips(tmp_path):
     m2, _ = _load(out)  # would raise "Joint graph contains a cycle" without the attribute
     assert m2.joint_count == m1.joint_count
     np.testing.assert_array_equal(m2.joint_articulation.numpy(), m1.joint_articulation.numpy())
+
+
+def test_complete_environment_round_trip(tmp_path):
+    """Validate a real initialized scene with divergent worlds against a fresh backend model."""
+    from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sim import export_environment_to_usd
+
+    robot_file = tmp_path / "robot.usda"
+    _author_source_stage(str(robot_file), root="/Robot", mesh_shape=True)
+    stage = Usd.Stage.Open(str(robot_file))
+    stage.SetDefaultPrim(stage.GetPrimAtPath("/Robot"))
+    stage.RemovePrim("/Robot/physicsScene")
+    stage.GetRootLayer().Save()
+    cfg = InteractiveSceneCfg(num_envs=2, env_spacing=5.0)
+    cfg.robot = ArticulationCfg(
+        prim_path="{ENV_REGEX_NS}/Robot", spawn=sim_utils.UsdFileCfg(usd_path=str(robot_file)), actuators={}
+    )
+    cfg.other_robot = cfg.robot.replace(prim_path="{ENV_REGEX_NS}/OtherRobot")
+    for name, position in (("Box", (0.0, 1.0, 1.0)), ("OtherBox", (1.0, 1.0, 1.0))):
+        setattr(
+            cfg,
+            name,
+            RigidObjectCfg(
+                prim_path=f"{{ENV_REGEX_NS}}/{name}",
+                spawn=sim_utils.CuboidCfg(
+                    size=(0.2, 0.3, 0.4),
+                    rigid_props=sim_utils.RigidBodyBaseCfg(),
+                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                    collision_props=sim_utils.CollisionPropertiesCfg(),
+                ),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=position),
+            ),
+        )
+    cfg.table = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table",
+        spawn=sim_utils.CuboidCfg(size=(1.0, 1.0, 0.1), collision_props=sim_utils.CollisionPropertiesCfg()),
+    )
+    cfg.Box.spawn = sim_utils.MultiAssetSpawnerCfg(
+        assets_cfg=[
+            cfg.Box.spawn,
+            sim_utils.SphereCfg(
+                radius=0.25,
+                rigid_props=sim_utils.RigidBodyBaseCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.5),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+            ),
+        ]
+    )
+    cfg.ground = AssetBaseCfg(prim_path="/World/Ground", spawn=sim_utils.GroundPlaneCfg())
+    sim_cfg = sim_utils.SimulationCfg(physics=NewtonCfg(solver_cfg=XPBDSolverCfg()), device="cpu", dt=1.0 / 240.0)
+    output = tmp_path / "environment.usda"
+    with sim_utils.build_simulation_context(device="cpu", sim_cfg=sim_cfg) as sim:
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        scene.update(0.0)
+        model = sim.physics_manager.get_model()
+        worlds = model.body_world.numpy()
+        masses = model.body_mass.numpy()
+        masses[worlds == 0] *= 1.2
+        masses[worlds == 1] *= 2.4
+        model.body_mass.assign(masses)
+        inertia = model.body_inertia.numpy()
+        inertia[worlds == 0] *= 1.2
+        inertia[worlds == 1] *= 2.4
+        model.body_inertia.assign(inertia)
+        com = model.body_com.numpy()
+        com[worlds == 1] += [0.01, -0.02, 0.03]
+        model.body_com.assign(com)
+        # Zero overrides must erase authored source values, including finite limits and drives.
+        for joint in np.flatnonzero(model.joint_world.numpy() == 1):
+            if int(model.joint_type.numpy()[joint]) == int(newton.JointType.FREE):
+                continue
+            start, end = model.joint_qd_start.numpy()[joint : joint + 2]
+            for field, value in (
+                ("joint_target_ke", 0.0),
+                ("joint_target_kd", 0.0),
+                ("joint_armature", 0.0),
+                ("joint_friction", 0.0),
+                ("joint_limit_lower", -1e6),
+                ("joint_limit_upper", 1e6),
+                ("joint_effort_limit", 1e6),
+                ("joint_target_mode", int(newton.JointTargetMode.EFFORT)),
+            ):
+                array = getattr(model, field)
+                values = array.numpy()
+                values[start:end] = value
+                array.assign(values)
+        model.set_gravity((0.5, -0.25, -3.0), world=1)
+        shape_worlds = model.shape_world.numpy()
+        scale = model.shape_scale.numpy()
+        scale[shape_worlds == 1] *= 1.1
+        model.shape_scale.assign(scale)
+        for name in ("shape_material_mu", "shape_material_restitution", "shape_material_ke", "shape_material_kd"):
+            values = getattr(model, name).numpy()
+            values[shape_worlds == 0] *= 0.75
+            values[shape_worlds == 1] *= 1.25
+            getattr(model, name).assign(values)
+        pipeline = sim.physics_manager._collision_pipeline
+        pairs = pipeline.shape_pairs_filtered.numpy()
+        selected_pairs = np.flatnonzero(np.any(shape_worlds[pairs] == 1, axis=1))
+        assert len(selected_pairs) > 1
+        # Replace one candidate with a duplicate, removing an actual runtime interaction.
+        pairs[selected_pairs[0]] = pairs[selected_pairs[1]]
+        pipeline.shape_pairs_filtered.assign(pairs)
+        sim.physics_manager._solver.iterations = 17
+        expected = _capture_environment_physics(model, world=1, contact_pairs=pairs)
+        export_environment_to_usd(scene, str(output), env_index=1)
+        assert not Usd.Stage.Open(str(output)).GetPrimAtPath("/World/envs/env_0")
+    # Fresh import has no original task configuration or event terms.
+    builder = newton.ModelBuilder()
+    info = builder.add_usd(str(output))
+    fresh = builder.finalize(device="cpu")
+    actual = _capture_environment_physics(fresh, world=0)
+    assert actual.keys() == expected.keys(), (actual.keys() - expected.keys(), expected.keys() - actual.keys())
+    for key, value in expected.items():
+        other = actual[key]
+        if isinstance(value, np.ndarray):
+            if value.dtype.kind in "biu":
+                np.testing.assert_array_equal(other, value, err_msg=str(key))
+            else:
+                np.testing.assert_allclose(other, value, rtol=3e-4, atol=1e-6, err_msg=str(key))
+        else:
+            assert other == value, key
+    assert info["physics_dt"] == pytest.approx(sim_cfg.dt)
+    solver = newton.solvers.SolverXPBD(fresh, iterations=info["max_solver_iterations"])
+    assert solver.iterations == 17
+
+
+def _capture_environment_physics(model, world, contact_pairs=None):
+    """Canonical physical configuration, keyed by entity identity rather than backend ordering."""
+    result = {}
+    indices = {}
+    for kind in ("body", "joint", "shape"):
+        worlds = getattr(model, f"{kind}_world").numpy()
+        indices[kind] = [i for i, w in enumerate(worlds) if w < 0 or w == world]
+    names = {kind: getattr(model, f"{kind}_label") for kind in indices}
+    fields = {
+        "body": ("body_mass", "body_inertia", "body_com", "body_flags"),
+        "joint": ("joint_type", "joint_X_p", "joint_X_c", "joint_enabled"),
+        "shape": (
+            "shape_type",
+            "shape_transform",
+            "shape_scale",
+            "shape_margin",
+            "shape_gap",
+            "shape_material_mu",
+            "shape_material_restitution",
+            "shape_material_ke",
+            "shape_material_kd",
+            "shape_material_kf",
+            "shape_material_ka",
+            "shape_material_mu_torsional",
+            "shape_material_mu_rolling",
+        ),
+    }
+    for kind, selected in indices.items():
+        for index in selected:
+            if kind == "joint" and int(model.joint_type.numpy()[index]) == int(newton.JointType.FREE):
+                continue
+            if kind == "shape" and not int(model.shape_flags.numpy()[index]) & int(newton.ShapeFlags.COLLIDE_SHAPES):
+                continue
+            path = names[kind][index]
+            for field in fields[kind]:
+                value = getattr(model, field).numpy()[index]
+                result[kind, path, field] = np.asarray(value).copy()
+            if kind == "joint":
+                for field in ("joint_parent", "joint_child"):
+                    body = int(getattr(model, field).numpy()[index])
+                    result[kind, path, field] = names["body"][body] if body >= 0 else "world"
+                start, end = model.joint_qd_start.numpy()[index : index + 2]
+                for field in (
+                    "joint_axis",
+                    "joint_target_ke",
+                    "joint_target_kd",
+                    "joint_limit_lower",
+                    "joint_limit_upper",
+                    "joint_limit_ke",
+                    "joint_limit_kd",
+                    "joint_armature",
+                    "joint_friction",
+                    "joint_effort_limit",
+                    "joint_velocity_limit",
+                    "joint_target_mode",
+                ):
+                    result[kind, path, field] = getattr(model, field).numpy()[start:end].copy()
+            if kind == "shape":
+                body = int(model.shape_body.numpy()[index])
+                result[kind, path, "body"] = names["body"][body] if body >= 0 else "world"
+                flags = int(model.shape_flags.numpy()[index])
+                result[kind, path, "collision"] = bool(flags & int(newton.ShapeFlags.COLLIDE_SHAPES))
+                source = model.shape_source[index]
+                if source is not None and hasattr(source, "vertices"):
+                    result[kind, path, "vertices"] = np.asarray(source.vertices).copy()
+                    result[kind, path, "indices"] = np.asarray(source.indices).copy()
+    included = {
+        i for i in indices["shape"] if int(model.shape_flags.numpy()[i]) & int(newton.ShapeFlags.COLLIDE_SHAPES)
+    }
+    if contact_pairs is None:
+        contact_pairs = model.shape_contact_pairs.numpy()
+    allowed = {tuple(sorted(map(int, pair))) for pair in contact_pairs}
+    pairs = set()
+    selected = sorted(included)
+    for offset, first in enumerate(selected):
+        for second in selected[offset + 1 :]:
+            if (first, second) not in allowed or (
+                model.shape_body.numpy()[first] < 0 and model.shape_body.numpy()[second] < 0
+            ):
+                pairs.add(tuple(sorted((names["shape"][first], names["shape"][second]))))
+    result["filters"] = pairs
+    result["gravity"] = model.gravity.numpy()[world if model.world_count else -1].copy()
+    return result

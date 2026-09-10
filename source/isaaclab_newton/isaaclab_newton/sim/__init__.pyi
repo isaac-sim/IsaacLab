@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "export_environment_to_usd",
     "NewtonDeformableBodyPropertiesCfg",
     "NewtonDeformableBodyMaterialCfg",
     "NewtonDeformableMaterialCfg",
@@ -30,4 +31,4 @@ from .spawners.materials import (
     NewtonSurfaceDeformableBodyMaterialCfg,
 )
 from .spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg, MPMParticleSpawnerCfg, MPMPointsCfg
-from .usd_export import WorldPrimPaths, export_model_to_usd, resolve_world_prim_paths
+from .usd_export import WorldPrimPaths, export_environment_to_usd, export_model_to_usd, resolve_world_prim_paths

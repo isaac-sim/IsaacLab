@@ -6,9 +6,9 @@
 """Export a running PhysX articulation, as simulated, to USD.
 
 PhysX records prim-path provenance on its tensor view: the view knows the prim every link and degree
-of freedom was built from, so the paths are read straight off it. Authoring the values is shared
-with the other stage-backed backends -- see :mod:`isaaclab.sim.usd_export` for what is written and
-why the stage is patched rather than rebuilt.
+of freedom was built from, so the paths are read straight off it. Everything else is the shared
+:class:`~isaaclab.sim.usd_export.ArticulationExporter` -- see :mod:`isaaclab.sim.usd_export` for what
+is written and why the stage is patched rather than rebuilt.
 """
 
 from __future__ import annotations
@@ -17,13 +17,20 @@ from typing import TYPE_CHECKING
 
 from pxr import Usd
 
-from isaaclab.sim import usd_export as shared
-from isaaclab.sim.usd_export import ArticulationPrimPaths
+from isaaclab.sim.usd_export import ArticulationExporter, ArticulationPrimPaths
 
 if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
+
     from isaaclab_physx.assets import Articulation
 
-__all__ = ["export_articulation_to_usd", "resolve_articulation_prim_paths", "write_articulation_state_to_stage"]
+__all__ = [
+    "export_articulation_to_usd",
+    "export_environment_to_usd",
+    "exporter",
+    "resolve_articulation_prim_paths",
+    "write_articulation_state_to_stage",
+]
 
 
 def resolve_articulation_prim_paths(articulation: Articulation, env_index: int = 0) -> ArticulationPrimPaths:
@@ -40,7 +47,7 @@ def resolve_articulation_prim_paths(articulation: Articulation, env_index: int =
         ValueError: If the view holds no such environment.
     """
     view = articulation.root_view
-    if env_index >= len(view.link_paths):
+    if not 0 <= env_index < len(view.link_paths):
         raise ValueError(f"Environment {env_index} is out of range for a view with {len(view.link_paths)} rows.")
     return ArticulationPrimPaths(
         bodies=[str(path) for path in view.link_paths[env_index]],
@@ -48,34 +55,57 @@ def resolve_articulation_prim_paths(articulation: Articulation, env_index: int =
     )
 
 
+def exporter(articulation: Articulation) -> ArticulationExporter:
+    """Exporter for a PhysX articulation, resolving prim paths off its tensor view."""
+    return ArticulationExporter(articulation, resolve_articulation_prim_paths)
+
+
 def write_articulation_state_to_stage(
     articulation: Articulation, env_index: int = 0, *, stage: Usd.Stage | None = None
 ) -> list[str]:
     """Author a PhysX articulation's simulated state onto the prims it was spawned from.
 
-    Args:
-        articulation: The articulation to read.
-        env_index: Environment to write. Defaults to ``0``.
-        stage: Stage to author onto; defaults to the live stage. See
-            :func:`isaaclab.sim.usd_export.write_articulation_state_to_stage`.
-
-    Returns:
-        The prim paths written, bodies first.
+    See :meth:`~isaaclab.sim.usd_export.ArticulationExporter.write_to_stage`.
     """
-    paths = resolve_articulation_prim_paths(articulation, env_index)
-    return shared.write_articulation_state_to_stage(articulation, paths, env_index=env_index, stage=stage)
+    return exporter(articulation).write_to_stage(env_index, stage=stage)
 
 
 def export_articulation_to_usd(articulation: Articulation, usd_path: str, env_index: int = 0) -> str:
     """Export one environment's PhysX articulation, as simulated, to a USD file.
 
-    Args:
-        articulation: The articulation to export.
-        usd_path: Destination path for the USD file.
-        env_index: Environment to export. Defaults to ``0``.
-
-    Returns:
-        The path the stage was written to.
+    See :meth:`~isaaclab.sim.usd_export.ArticulationExporter.export`.
     """
-    paths = resolve_articulation_prim_paths(articulation, env_index)
-    return shared.export_articulation_to_usd(articulation, paths, usd_path, env_index=env_index)
+    return exporter(articulation).export(usd_path, env_index)
+
+
+def export_environment_to_usd(scene: InteractiveScene, usd_path: str, env_index: int = 0) -> str:
+    """Export one PhysX environment; see :func:`isaaclab.sim.usd_export.export_environment_to_usd`."""
+    from isaaclab.sim.usd_export import export_stage_environment
+
+    from isaaclab_physx.physics import PhysxManager
+
+    return export_stage_environment(
+        scene,
+        usd_path,
+        env_index,
+        lambda asset, row, _stage: resolve_articulation_prim_paths(asset, row),
+        _read_body_properties,
+        PhysxManager.get_physics_sim_view().get_gravity(),
+    )
+
+
+def _read_body_properties(asset, row: int, articulation: bool):
+    from isaaclab.sim.usd_export import RigidBodyExportProperties
+
+    view = asset.root_view
+    return RigidBodyExportProperties(
+        *(
+            getter().numpy()[row]
+            for getter in (
+                view.get_disable_gravities,
+                view.get_material_properties,
+                view.get_contact_offsets,
+                view.get_rest_offsets,
+            )
+        )
+    )
