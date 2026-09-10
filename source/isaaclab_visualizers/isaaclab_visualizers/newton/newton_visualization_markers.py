@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -42,15 +43,47 @@ class _NewtonMarkerSpec:
     preloaded_mesh: Any | None = field(default=None, hash=False, compare=False)
 
 
-def render_newton_visualization_markers(viewer: ViewerBase, visible_env_ids: list[int] | None, num_envs: int) -> None:
-    """Render all active Newton visualization marker groups into a Newton-family viewer."""
+def render_newton_visualization_markers(
+    viewer: ViewerBase,
+    visible_env_ids: list[int] | None,
+    num_envs: int,
+    sanitize_group_ids: bool = False,
+) -> None:
+    """Render all active Newton visualization marker groups into a Newton-family viewer.
+
+    Args:
+        viewer: The Newton-family viewer the marker groups are logged into.
+        visible_env_ids: The env ids to draw markers for, or None for all envs.
+        num_envs: The number of environments the marker state is batched over.
+        sanitize_group_ids: Rewrite each marker group id into a valid USD prim path
+            before rendering. The RTX viewer overlays markers on a USD stage that
+            rejects the ``::`` and other characters the registry key carries, so it
+            needs sanitized ids while the GL viewer renders the raw ids directly.
+    """
     sim = sim_utils.SimulationContext.instance()
     if sim is None:
         return
 
     for marker in sim.vis_marker_registry.get_groups().values():
-        if isinstance(marker, NewtonVisualizationMarkers):
+        if not isinstance(marker, NewtonVisualizationMarkers):
+            continue
+        if not sanitize_group_ids:
             marker.render(viewer, visible_env_ids=visible_env_ids, num_envs=num_envs)
+            continue
+        # The registry is keyed on the original group id and remove_group() removes
+        # it by that key, so render under a sanitized id and restore the original.
+        original_group_id = marker.group_id
+        marker.group_id = _sanitize_newton_marker_group_id(original_group_id)
+        try:
+            marker.render(viewer, visible_env_ids=visible_env_ids, num_envs=num_envs)
+        finally:
+            marker.group_id = original_group_id
+
+
+def _sanitize_newton_marker_group_id(group_id: str) -> str:
+    """Rewrite a marker group id into a USD-safe prim path for the RTX viewer."""
+    sanitized = re.sub(r"[^A-Za-z0-9_/]+", "_", group_id)
+    return sanitized if sanitized.startswith("/") else f"/{sanitized}"
 
 
 class NewtonVisualizationMarkers:
