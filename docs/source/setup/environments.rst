@@ -97,35 +97,13 @@ Task Preview
 Benchmarks
 ----------
 
-Measured at each task's configured training-default environment count on one
-NVIDIA RTX PRO 6000 Blackwell Server Edition GPU. The same task-specific count
-is used for Collection and Training; runs at other counts are excluded.
-Collection and Training use two metrics from the same successful training run:
-Collection FPS measures rollouts (environment stepping and policy inference), and
-Training FPS includes policy updates. Both modes therefore use the same task,
-presets, count, library, measurement date, and source record.
-
-Release shows the current September 9, 2026 baseline as EA 3.0. Develop shows
-August 14, August 28, and the identical current baseline. Current configurations
-use the latest available run through September 9, including older camera runs;
-historical points require a run ingested on the displayed date. August 14 has no
-qualifying default-count runs, so its table cells show "Not available" and no
-points are plotted. Missing measurements are not interpolated.
-
-The table shows exact FPS for each configuration and snapshot; scroll to see more
-camera configurations. Release lists actual measurement dates, and Develop exposes
-them in FPS tooltips. Missing environments use the benchmark-unavailable placeholder.
-Kamino is excluded. See the
-`coverage report <../../_static/benchmarks/COVERAGE.md>`__ for missing defaults,
-OV PhysX coverage, historical gaps, and source-data issues.
-
 .. raw:: html
 
    <div class="environment-browser" data-environment-benchmarks
         data-benchmark-release-source="../../_static/benchmarks/environment-performance-release.csv"
         data-benchmark-develop-source="../../_static/benchmarks/environment-performance-develop.csv"
         data-benchmark-release-dates="2026-09-09"
-        data-benchmark-develop-dates="2026-08-14,2026-08-28,2026-09-09">
+        data-benchmark-develop-dates="2026-08-28,2026-09-09">
      <section class="environment-benchmark-panel">
        <div class="environment-benchmark-toolbar">
          <div class="environment-benchmark-switch" role="group" aria-label="Benchmark channel">
@@ -137,6 +115,7 @@ OV PhysX coverage, historical gaps, and source-data issues.
            <button type="button" data-benchmark-workload="training" aria-pressed="false">Training</button>
          </div>
        </div>
+       <div class="environment-benchmark-legend" aria-label="Benchmark series"></div>
        <div class="environment-benchmark-results">
          <div class="environment-benchmark-chart" data-benchmark-chart></div>
          <div class="environment-benchmark-table" data-benchmark-table tabindex="0"
@@ -146,10 +125,9 @@ OV PhysX coverage, historical gaps, and source-data issues.
          <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
          <div>
            <strong>Benchmark data is not available yet</strong>
-           <p>No measurements are available at this task's default environment count for the selected channel and workload.</p>
          </div>
        </div>
-       <p class="environment-benchmark-error" data-benchmark-error hidden>Benchmark data could not be loaded.</p>
+       <div class="environment-benchmark-error" data-benchmark-error hidden>Benchmark data could not be loaded.</div>
      </section>
    </div>
 

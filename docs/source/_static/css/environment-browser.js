@@ -803,19 +803,29 @@
         return svg;
     };
 
+    const renderBenchmarkLegend = (rows) => {
+        const legend = benchmarks.querySelector(".environment-benchmark-legend");
+        const entries = benchmarkSeries(rows).map((row) => {
+            const entry = document.createElement("span");
+            const swatch = document.createElement("i");
+            swatch.className = `environment-legend-swatch ${backendClass(row.physics_backend)}`;
+            swatch.style.setProperty("--environment-series-color", seriesColor(row, rows));
+            swatch.setAttribute("aria-hidden", "true");
+            entry.title = seriesLabel(row);
+            entry.append(swatch, [backendLabels[row.physics_backend], rendererLabels[row.rendering_backend],
+                row.task_presets ? row.task_presets.split(",").join(", ") : ""].filter(Boolean).join(" · "));
+            return entry;
+        });
+        legend.replaceChildren(...entries);
+    };
+
     const renderBenchmarkTable = (rows) => {
         const container = benchmarks.querySelector("[data-benchmark-table]");
         container.hidden = rows.length === 0;
         const table = document.createElement("table");
-        const caption = table.createCaption();
-        caption.textContent = `${state.task} · ${benchmarkMetricLabel()}`;
-        const dates = benchmarkDates();
-        const historical = state.benchmarkChannel === "develop";
+        table.setAttribute("aria-label", `${state.task} · ${benchmarkMetricLabel()}`);
         const header = table.createTHead().insertRow();
-        const labels = historical ? ["Configuration", ...dates.map((date) => new Date(`${date}T00:00:00Z`)
-            .toLocaleDateString(undefined, {month: "short", day: "numeric", timeZone: "UTC"}))]
-            : ["Configuration", "Mean FPS", "Measured"];
-        for (const label of labels) {
+        for (const label of ["Configuration", "Mean FPS"]) {
             const cell = document.createElement("th");
             cell.scope = "col";
             cell.textContent = label;
@@ -845,34 +855,26 @@
             swatch.style.setProperty("--environment-series-color", representative.missing
                 ? "var(--environment-muted)" : seriesColor(representative, rows));
             swatch.setAttribute("aria-hidden", "true");
-            label.append(swatch, representative.missing
-                ? [backendLabels[representative.physics_backend], rendererLabels[representative.rendering_backend],
-                    "Default-count run unavailable"].filter(Boolean).join(" · ")
-                : seriesLabel(representative));
+            label.append(swatch, backendLabels[representative.physics_backend]);
+            configuration.title = representative.missing
+                ? `${rendererLabels[representative.rendering_backend] || ""} Default-count run unavailable`.trim()
+                : seriesLabel(representative);
             configuration.appendChild(label);
             entry.appendChild(configuration);
-            for (const date of dates) {
-                const row = rows.find((candidate) => seriesKey(candidate) === seriesKey(representative)
-                    && benchmarkDate(candidate) === date);
-                const value = entry.insertCell();
-                if (!row) {
-                    value.textContent = "Not available";
-                    value.className = "environment-benchmark-missing";
-                    if (!historical) {
-                        entry.insertCell().textContent = "—";
-                    }
-                    continue;
-                }
-                value.textContent = benchmarkFps(row).toLocaleString(undefined, {
-                    minimumFractionDigits: 2, maximumFractionDigits: 2,
-                });
-                const measuredDate = (row.measurement_timestamp || row.recorded_at_utc).slice(0, 10);
-                value.title = `Measured ${measuredDate} · source record ${row.source_record_id} · ${row.source_entry_key} · commit ${row.git_commit}`;
-                if (!historical) {
-                    entry.insertCell().textContent = measuredDate;
-                }
+            const row = rows.filter((candidate) => seriesKey(candidate) === seriesKey(representative))
+                .sort((left, right) => benchmarkDate(right).localeCompare(benchmarkDate(left))
+                    || right.recorded_at_utc.localeCompare(left.recorded_at_utc))[0];
+            const value = entry.insertCell();
+            if (!row) {
+                value.textContent = "Not available";
+                value.className = "environment-benchmark-missing";
+                continue;
             }
+            value.textContent = Math.round(benchmarkFps(row)).toLocaleString();
+            const measuredDate = (row.measurement_timestamp || row.recorded_at_utc).slice(0, 10);
+            value.title = `Measured ${measuredDate} · source record ${row.source_record_id} · ${row.source_entry_key} · commit ${row.git_commit}`;
         }
+
         container.replaceChildren(table);
     };
 
@@ -889,6 +891,7 @@
         chart.hidden = rows.length === 0;
         empty.hidden = rows.length !== 0 || failed;
         benchmarks.querySelector("[data-benchmark-error]").hidden = !failed;
+        renderBenchmarkLegend(rows);
         renderBenchmarkTable(rows);
         chart.replaceChildren(...(rows.length ? [renderBenchmarkChart(rows, maximum)] : []));
     };

@@ -16,14 +16,14 @@ Standalone runtime measurements are not mixed into either mode.
 ## Snapshots
 
 - Release: 87 current records across 36 environments, labeled EA 3.0.
-- Develop: August 14, August 28, and September 9. August 14 has no qualifying
-  default-count training records and therefore no CSV rows. August 28 has 64
+- Develop: August 28 and September 9. August 14 was investigated but removed
+  from the graph because it has no qualifying default-count records. August 28 has 64
   records across 30 environments. The current 87 rows are identical to Release.
 
 Historical dates use exact database ingestion dates. The current baseline selects
 latest eligible measurements through September 9, falling back to older runs per
-configuration: 64 from September 9 and 23 from August 24–27. The graph's explicit
-snapshot calendar preserves empty dates. Missing values are not zeroed,
+configuration: 64 from September 9 and 23 from August 24–27. The graph shows the
+two available snapshot dates. Missing values are not zeroed,
 interpolated, or backfilled into historical snapshots.
 
 ## Selection contract
@@ -68,10 +68,15 @@ is retained as an older unused snapshot.
 - [Coverage report](COVERAGE.md): corrected interpretation, dates, OV PhysX,
   missing default-count runs, full current pair matrix, and collection plan.
 - [Environment defaults](coverage-environment-defaults.csv): per-task/per-date flags.
-- [Configuration coverage](coverage-configurations.csv): all 156 pairs per date,
+- [Configuration coverage](coverage-configurations.csv): all 156 pairs per displayed date,
   statuses for both metrics, alternative counts, and source IDs/dates.
 - [Observed profiles](coverage-observed-profiles.csv): selected paired configurations.
 - [Preset selectors](coverage-preset-selectors.csv): explicitly recorded individual
   selectors, not a validated Cartesian compatibility matrix.
 - [Data issues](coverage-data-issues.csv): training-entry metadata problems and
   recovered identities across the queried window.
+
+The compact FPS table shows only the latest available value per configuration in
+both channels, rounded to a whole number and labeled with the backend name.
+Actual measurement dates and detailed configurations remain in tooltips. The
+legend above the graph identifies plotted series; the CSV retains full precision.

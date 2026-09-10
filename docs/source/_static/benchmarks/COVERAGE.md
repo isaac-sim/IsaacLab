@@ -16,14 +16,17 @@ Collection and Training now have identical configuration/date coverage.
 
 | Snapshot | Training records, each containing both metrics | Environments | Covered backend/renderer pairs |
 | --- | ---: | ---: | ---: |
-| August 14 | 0 | 0 / 44 | 0 / 156 |
 | August 28 | 64 | 30 / 44 | 64 / 156 |
 | Current (September 9 baseline) | 87 | 36 / 44 | 70 / 156 |
 
 Release contains only the 87 current records (**174 metric points**, 87 in each
 mode). Develop contains 151 records (**302 metric points**, 151 in each mode):
-August 28 plus the identical current records. August 14 is an explicit missing
-snapshot, not a fabricated row or a zero FPS result.
+August 28 plus the identical current records. August 14 was removed from the
+graph because there are no qualifying runs.
+
+The table displays only the latest FPS per configuration, rounded to an integer,
+with backend names only. Dates and full configurations remain in tooltips; the
+legend appears above the graph. Historical results remain visible in the graph.
 
 Historical snapshots require the exact ingestion date. The current baseline keeps
 the latest eligible run through September 9: 64 records ingested September 9,
@@ -42,7 +45,7 @@ training records covered only:
 | Isaac-Reorient-Cube-Shadow-Camera-Direct | 8,192; 16,384 | 1,225 |
 | Isaac-Velocity-Rough-G1 | 16,384 | 4,096 |
 
-The August 14 tick remains on Develop and its FPS cells say **Not available**.
+August 14 is omitted from the Develop graph and table.
 Historical values are not backfilled from later dates or borrowed from other
 counts. Lines do not bridge an explicitly missing intermediate snapshot.
 
@@ -61,7 +64,7 @@ and August 28 tables:
 Most other tasks default to 4,096; Cartpole cameras default to 512, Shadow cameras
 to 1,225, and handover to 2,048. Their OV PhysX runs cannot be plotted as matching
 default-count comparisons. Missing supported pairs now have an explicit
-**Default-count run unavailable** row in the FPS table, rather than disappearing.
+**Not available** value in the FPS table, with the reason in a tooltip.
 
 Some older records have null database backend/renderer columns but explicit
 selectors in `benchmark_info.presets` or the matching successful WARM task preset.
@@ -76,52 +79,52 @@ least one backend/renderer profile has a usable paired record; it does not mean
 all backends or all domain presets are covered. All plotted rows use the default
 count; alternative counts remain audit information only.
 
-| Environment | Default envs | Aug 14 | Aug 28 | Current |
-| --- | ---: | --- | --- | --- |
-| Isaac-Ant-Direct | 4096 | MISSING | present | present |
-| Isaac-Ant | 4096 | MISSING | present | present |
-| Isaac-Cartpole-Direct | 4096 | MISSING | present | present |
-| Isaac-Cartpole | 4096 | MISSING | present | present |
-| Isaac-Cartpole-Camera-Direct | 512 | MISSING | MISSING | present |
-| Isaac-Cartpole-Camera | 512 | MISSING | MISSING | present |
-| Isaac-Humanoid-Direct | 4096 | MISSING | present | present |
-| Isaac-Humanoid | 4096 | MISSING | present | present |
-| Isaac-Lift-Cable-Franka | 8192 | MISSING | MISSING | MISSING |
-| Isaac-Lift-Cable-Franka-Camera | 128 | MISSING | MISSING | MISSING |
-| Isaac-Lift-Cloth-Franka | 2048 | MISSING | MISSING | MISSING |
-| Isaac-Lift-Cloth-Franka-Camera | 128 | MISSING | MISSING | MISSING |
-| Isaac-Lift-Franka | 4096 | MISSING | present | present |
-| Isaac-Lift-KukaAllegro | 4096 | MISSING | present | present |
-| Isaac-Lift-KukaAllegro-Camera | 4096 | MISSING | MISSING | present |
-| Isaac-Lift-Soft-Franka | 2048 | MISSING | MISSING | MISSING |
-| Isaac-Lift-Soft-Franka-Camera | 128 | MISSING | MISSING | MISSING |
-| Isaac-Open-Drawer-Franka-Direct | 4096 | MISSING | present | present |
-| Isaac-Open-Drawer-Franka | 4096 | MISSING | present | present |
-| Isaac-Pendulum-MARL-Direct | 4096 | MISSING | MISSING | MISSING |
-| Isaac-Reach-Franka | 4096 | MISSING | present | present |
-| Isaac-Reach-Franka-OSC | 4096 | MISSING | present | present |
-| Isaac-Reach-UR10 | 4096 | MISSING | present | present |
-| Isaac-Reorient-Cube-Allegro-Direct | 8192 | MISSING | present | present |
-| Isaac-Reorient-Cube-Allegro | 8192 | MISSING | present | present |
-| Isaac-Reorient-Cube-Shadow-Direct | 8192 | MISSING | present | present |
-| Isaac-Reorient-Cube-Shadow | 8192 | MISSING | present | present |
-| Isaac-Reorient-Cube-Shadow-Camera-Direct | 1225 | MISSING | MISSING | present |
-| Isaac-Reorient-Cube-Shadow-Camera | 1225 | MISSING | MISSING | present |
-| Isaac-Reorient-Franka | 4096 | MISSING | present | present |
-| Isaac-Reorient-KukaAllegro | 4096 | MISSING | present | present |
-| Isaac-Reorient-KukaAllegro-Camera | 4096 | MISSING | MISSING | present |
-| Isaac-Shadow-Handover-Direct | 2048 | MISSING | present | present |
-| Isaac-Shadow-Handover | 2048 | MISSING | MISSING | MISSING |
-| Isaac-Velocity-Flat-AnymalD | 4096 | MISSING | present | present |
-| Isaac-Velocity-Flat-Cassie | 4096 | MISSING | present | present |
-| Isaac-Velocity-Flat-G1 | 4096 | MISSING | present | present |
-| Isaac-Velocity-Flat-H1 | 4096 | MISSING | present | present |
-| Isaac-Velocity-Flat-UnitreeGo2 | 4096 | MISSING | present | present |
-| Isaac-Velocity-Rough-AnymalD | 4096 | MISSING | present | present |
-| Isaac-Velocity-Rough-Cassie | 4096 | MISSING | present | present |
-| Isaac-Velocity-Rough-G1 | 4096 | MISSING | present | present |
-| Isaac-Velocity-Rough-H1 | 4096 | MISSING | present | present |
-| Isaac-Velocity-Rough-UnitreeGo2 | 4096 | MISSING | present | present |
+| Environment | Default envs | Aug 28 | Current |
+| --- | ---: | --- | --- |
+| Isaac-Ant-Direct | 4096 | present | present |
+| Isaac-Ant | 4096 | present | present |
+| Isaac-Cartpole-Direct | 4096 | present | present |
+| Isaac-Cartpole | 4096 | present | present |
+| Isaac-Cartpole-Camera-Direct | 512 | MISSING | present |
+| Isaac-Cartpole-Camera | 512 | MISSING | present |
+| Isaac-Humanoid-Direct | 4096 | present | present |
+| Isaac-Humanoid | 4096 | present | present |
+| Isaac-Lift-Cable-Franka | 8192 | MISSING | MISSING |
+| Isaac-Lift-Cable-Franka-Camera | 128 | MISSING | MISSING |
+| Isaac-Lift-Cloth-Franka | 2048 | MISSING | MISSING |
+| Isaac-Lift-Cloth-Franka-Camera | 128 | MISSING | MISSING |
+| Isaac-Lift-Franka | 4096 | present | present |
+| Isaac-Lift-KukaAllegro | 4096 | present | present |
+| Isaac-Lift-KukaAllegro-Camera | 4096 | MISSING | present |
+| Isaac-Lift-Soft-Franka | 2048 | MISSING | MISSING |
+| Isaac-Lift-Soft-Franka-Camera | 128 | MISSING | MISSING |
+| Isaac-Open-Drawer-Franka-Direct | 4096 | present | present |
+| Isaac-Open-Drawer-Franka | 4096 | present | present |
+| Isaac-Pendulum-MARL-Direct | 4096 | MISSING | MISSING |
+| Isaac-Reach-Franka | 4096 | present | present |
+| Isaac-Reach-Franka-OSC | 4096 | present | present |
+| Isaac-Reach-UR10 | 4096 | present | present |
+| Isaac-Reorient-Cube-Allegro-Direct | 8192 | present | present |
+| Isaac-Reorient-Cube-Allegro | 8192 | present | present |
+| Isaac-Reorient-Cube-Shadow-Direct | 8192 | present | present |
+| Isaac-Reorient-Cube-Shadow | 8192 | present | present |
+| Isaac-Reorient-Cube-Shadow-Camera-Direct | 1225 | MISSING | present |
+| Isaac-Reorient-Cube-Shadow-Camera | 1225 | MISSING | present |
+| Isaac-Reorient-Franka | 4096 | present | present |
+| Isaac-Reorient-KukaAllegro | 4096 | present | present |
+| Isaac-Reorient-KukaAllegro-Camera | 4096 | MISSING | present |
+| Isaac-Shadow-Handover-Direct | 2048 | present | present |
+| Isaac-Shadow-Handover | 2048 | MISSING | MISSING |
+| Isaac-Velocity-Flat-AnymalD | 4096 | present | present |
+| Isaac-Velocity-Flat-Cassie | 4096 | present | present |
+| Isaac-Velocity-Flat-G1 | 4096 | present | present |
+| Isaac-Velocity-Flat-H1 | 4096 | present | present |
+| Isaac-Velocity-Flat-UnitreeGo2 | 4096 | present | present |
+| Isaac-Velocity-Rough-AnymalD | 4096 | present | present |
+| Isaac-Velocity-Rough-Cassie | 4096 | present | present |
+| Isaac-Velocity-Rough-G1 | 4096 | present | present |
+| Isaac-Velocity-Rough-H1 | 4096 | present | present |
+| Isaac-Velocity-Rough-UnitreeGo2 | 4096 | present | present |
 
 The eight environments missing from the current baseline are:
 
@@ -202,7 +205,7 @@ Kamino, the Kamino-only Fourbar task, and incompatible P/R and O/I pairs are exc
 | Isaac-Velocity-Rough-UnitreeGo2 | 4096 | O |
 
 [Configuration CSV](coverage-configurations.csv) contains the full matrix for
-**all three snapshots**, the paired metric statuses, source IDs/dates, and
+**both displayed snapshots**, the paired metric statuses, source IDs/dates, and
 alternative environment counts. [Observed profiles](coverage-observed-profiles.csv)
 retains full measured configurations. [Preset selectors](coverage-preset-selectors.csv)
 flags explicitly recorded domain selectors. That checklist is not a claim that
