@@ -6,9 +6,16 @@ Added
   own configuration through ``checkpoint_name`` and ``checkpoint_glob``, and the tooling finds every
   declaration by walking the resolved environment configuration, so a task lists nothing. Each is
   published beside the policy as ``<policy stem>_<name><extension>`` and downloaded into the same
-  directory, which playback uses as the run log directory. :func:`~isaaclab_rl.utils.pretrained_checkpoint.get_declared_checkpoints`
-  and :func:`~isaaclab_rl.utils.pretrained_checkpoint.get_declared_checkpoint_path` expose the same
+  directory, and the fetch records each downloaded file on the configuration that declared it, so the
+  component loads it without depending on the log directory its RL workflow derives.
+  :func:`~isaaclab_rl.utils.pretrained_checkpoint.get_declared_checkpoints` and
+  :func:`~isaaclab_rl.utils.pretrained_checkpoint.get_declared_checkpoint_path` expose the same
   declarations to other tooling.
+
+* Added declared-checkpoint retrieval to ``play`` for every RL workflow. ``rl_games``, ``sb3`` and
+  ``skrl`` now pass the resolved environment configuration to
+  :func:`~isaaclab_rl.utils.pretrained_checkpoint.get_published_pretrained_checkpoint` as ``rsl_rl``
+  does, so a policy published for any of them arrives with the checkpoints its components declare.
 
 Changed
 ^^^^^^^

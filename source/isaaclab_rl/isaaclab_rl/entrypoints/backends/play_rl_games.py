@@ -38,7 +38,6 @@ from isaaclab_rl.entrypoints.common import (
 )
 from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 from isaaclab_rl.utils.pretrained_checkpoint import (
-    get_pretrained_checkpoint_backend_names,
     get_published_pretrained_checkpoint,
 )
 
@@ -122,8 +121,7 @@ def main():
             log_root_path = os.path.abspath(log_root_path)
             print(f"[INFO] Loading experiment from directory: {log_root_path}")
             if args_cli.checkpoint == "pretrained":
-                backend_names = get_pretrained_checkpoint_backend_names(env_cfg)
-                resume_path = get_published_pretrained_checkpoint("rl_games", train_task_name, *backend_names)
+                resume_path = get_published_pretrained_checkpoint("rl_games", train_task_name, env_cfg=env_cfg)
                 if not resume_path:
                     return
             elif args_cli.checkpoint in CHECKPOINT_SELECTORS:

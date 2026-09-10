@@ -401,11 +401,11 @@ def get_published_pretrained_checkpoint(
             instance because the local cache directory is not writable. The originating
             error is chained as the cause.
     """
-    declared_checkpoints = {}
+    declaring_cfgs = []
     if env_cfg is not None:
         if physics_backend is None and render_backend is None:
             physics_backend, render_backend = get_pretrained_checkpoint_backend_names(env_cfg)
-        declared_checkpoints = get_declared_checkpoints(env_cfg)
+        declaring_cfgs = _find_declaring_cfgs(env_cfg)
     if preset_names is None and physics_backend is not None and render_backend is not None:
         preset_names = get_pretrained_checkpoint_preset_names(task_name)
     elif preset_names is None:
@@ -448,10 +448,13 @@ def get_published_pretrained_checkpoint(
         return None
     except Exception as exc:
         raise _download_error(ov_path, download_dir, exc) from exc
-    for name, run_glob in declared_checkpoints.items():
-        declared_path = get_declared_checkpoint_path(ov_path, workflow, name, run_glob)
+    for cfg in declaring_cfgs:
+        name = cfg.checkpoint_name
+        declared_path = get_declared_checkpoint_path(ov_path, workflow, name, cfg.checkpoint_glob)
         try:
-            retrieve_file_path(declared_path, download_dir)
+            # hand the file to the component: each workflow derives its log directory differently,
+            # and rl_games and skrl derive one a level above where the download lands
+            cfg.checkpoint_path = retrieve_file_path(declared_path, download_dir)
         except FileNotFoundError as exc:
             # the policy alone cannot play, so report the incomplete pair here rather than
             # letting the component fail later on a file the fetch already knew was missing

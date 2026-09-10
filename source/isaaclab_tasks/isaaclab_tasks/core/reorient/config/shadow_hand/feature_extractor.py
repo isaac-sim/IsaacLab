@@ -128,6 +128,13 @@ class FeatureExtractorCfg:
     checkpoint_glob: str = "cnn_*.pth"
     """Glob of the file :meth:`step` saves, matched in the log directory when loading."""
 
+    checkpoint_path: str | None = None
+    """Local file to load, set by the tooling that fetched a published copy.
+
+    Takes precedence over both search paths: each RL workflow derives its log directory
+    differently, so the fetch hands the file over instead of relying on where it landed.
+    """
+
     train: bool = True
     """If True, the feature extractor model is trained during the rollout process. Default is True."""
 
@@ -220,10 +227,13 @@ class FeatureExtractor:
     def _resolve_checkpoint(self) -> str:
         """Return the CNN weights to load from :attr:`log_dir`.
 
-        Playback points the log directory at the pretrained-checkpoint cache, where the published
-        copy carries the policy stem; a training run writes the native name instead. The two never
-        share a directory, so ``or`` picks whichever convention is present.
+        A copy handed over by the fetch wins. Otherwise playback points the log directory at the
+        pretrained-checkpoint cache, where the published copy carries the policy stem, and a
+        training run writes the native name instead. The two never share a directory, so ``or``
+        picks whichever convention is present.
         """
+        if self.cfg.checkpoint_path is not None:
+            return self.cfg.checkpoint_path
         published = glob.glob(os.path.join(self.log_dir, f"*_{self.cfg.checkpoint_name}.pth"))
         candidates = published or glob.glob(os.path.join(self.log_dir, self.cfg.checkpoint_glob))
         if not candidates:

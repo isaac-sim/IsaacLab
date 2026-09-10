@@ -33,6 +33,7 @@ class _ExtractorCfg:
 
     checkpoint_name: str = "feature_extractor"
     checkpoint_glob: str = "cnn_*.pth"
+    checkpoint_path: str | None = None
 
 
 @configclass
@@ -247,6 +248,41 @@ def test_get_published_pretrained_checkpoint_downloads_the_feature_extractor(
     assert path is not None
     declared = Path(path).parent / f"{stem}_feature_extractor.pth"
     assert declared.is_file()
+
+
+def test_get_published_pretrained_checkpoint_hands_the_file_to_the_component(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """The fetch must record the downloaded file on the config that declared it.
+
+    Each workflow derives its log directory differently, so the component cannot rely on the
+    file landing anywhere it would search.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    published_root = "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl"
+    stem = "Isaac-Reorient-Cube-Shadow-Camera_physx_rtx_rsl_rl"
+    _install_fake_retrieve(
+        monkeypatch, {f"{published_root}/{stem}.pt", f"{published_root}/{stem}_feature_extractor.pth"}
+    )
+    # read the config back out of the tree: configclass deep-copies constructor values, and the
+    # env is handed the tree, not the value passed in
+    env_cfg = _EnvCfg(extractor=_ExtractorCfg())
+    assert env_cfg.extractor.checkpoint_path is None
+
+    pretrained_checkpoint.get_published_pretrained_checkpoint(
+        "rsl_rl",
+        "Isaac-Reorient-Cube-Shadow-Camera",
+        "physx",
+        "rtx",
+        env_cfg=env_cfg,
+    )
+
+    handed_over = env_cfg.extractor.checkpoint_path
+    assert handed_over is not None
+    assert Path(handed_over).name == f"{stem}_feature_extractor.pth"
+    assert Path(handed_over).is_file()
 
 
 def test_get_published_pretrained_checkpoint_rejects_an_incomplete_pair(

@@ -288,6 +288,23 @@ def test_published_feature_extractor_checkpoint_is_loaded_over_the_run_files(tmp
     assert not torch.equal(published["linear.0.weight"], stale["linear.0.weight"])
 
 
+def test_a_handed_over_checkpoint_is_loaded_from_outside_the_log_directory(tmp_path):
+    """A file the fetch handed over must load even when the log directory holds another one."""
+    log_dir = str(tmp_path / "run")
+    elsewhere = tmp_path / "cache" / "Isaac-Task_physx_rtx_rl_games_feature_extractor.pth"
+    elsewhere.parent.mkdir(parents=True)
+    handed_over = _make_feature_extractor(log_dir, load_checkpoint=False).feature_extractor.state_dict()
+    stale = _make_feature_extractor(log_dir, load_checkpoint=False).feature_extractor.state_dict()
+    torch.save(handed_over, elsewhere)
+    torch.save(stale, os.path.join(log_dir, "cnn_100_0.1.pth"))
+    cfg = FeatureExtractorCfg(train=False, load_checkpoint=True, checkpoint_path=str(elsewhere))
+
+    loaded = FeatureExtractor(cfg, device="cpu", data_types=["rgb"], log_dir=log_dir)
+
+    assert torch.equal(loaded.feature_extractor.state_dict()["linear.0.weight"], handed_over["linear.0.weight"])
+    assert not torch.equal(handed_over["linear.0.weight"], stale["linear.0.weight"])
+
+
 def test_saved_checkpoint_name_matches_the_declared_glob():
     """The file a run writes must match the glob the task publishes, or nothing gets collected."""
     saved = "cnn_50000_0.001.pth"  # the name FeatureExtractor.step writes
