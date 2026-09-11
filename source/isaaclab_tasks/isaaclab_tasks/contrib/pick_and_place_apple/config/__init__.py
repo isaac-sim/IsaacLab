@@ -13,12 +13,12 @@ from isaaclab_tasks.contrib.h2_sharpa.camera_config import CameraBaseCfg, Camera
 from isaaclab_tasks.contrib.h2_sharpa.metadata import H2_DEFAULT_JOINT_POS, H2_PNP_APPLE_CUSTOM_JOINT_POS
 from isaaclab_tasks.contrib.h2_sharpa.robot_config import H2RobotPresets, make_h2_sharpa_cfg
 
-# Hosted in a private Hugging Face repository; direct URL access needs the repository to be
+# Hosted in a private Hugging Face dataset repository; direct URL access needs the repository to be
 # public. Until then, point the environment variable at a local mirror that keeps the same
 # Props/LightWheel/ layout (the Isaac Healthcare bundle layout), e.g. a `snapshot_download` of the repo.
 PICK_AND_PLACE_APPLE_ASSET_ROOT: str = os.environ.get(
     "ISAACLAB_PICK_AND_PLACE_APPLE_ASSET_ROOT",
-    "https://huggingface.co/LiFanxing/isaaclab-rlinf-assets/resolve/main/Props/LightWheel",
+    "https://huggingface.co/datasets/LiFanxing/IsaacLabRLinfDemo/resolve/main/assets/Props/LightWheel",
 )
 
 TABLE_USD = f"{PICK_AND_PLACE_APPLE_ASSET_ROOT}/Assets/Table256/Table256_cloth.usd"
