@@ -18,6 +18,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.h2_sharpa.metadata import H2_ACTION_JOINT_ORDER
+from isaaclab_tasks.contrib.h2_sharpa.robot_config import h2_body_joint_offsets
 
 from . import mdp
 from .config import (
@@ -180,6 +181,7 @@ class H2ActionsCfg:
         joint_names=h2_joint_names,
         scale=1.0,
         use_default_offset=False,
+        offset=h2_body_joint_offsets(H2_PNP_APPLE_CUSTOM_JOINT_POS),
         preserve_order=True,
     )
 
@@ -194,6 +196,7 @@ class H2RLActionsCfg:
         joint_names=h2_joint_names,
         scale=1.0,
         use_default_offset=False,
+        offset=h2_body_joint_offsets(H2_PNP_APPLE_CUSTOM_JOINT_POS),
         preserve_order=True,
     )
 
