@@ -5,8 +5,6 @@
 
 """Script to export a checkpoint if an RL agent from RSL-RL."""
 
-# ruff: noqa: E402, I001
-
 from __future__ import annotations
 
 import argparse
@@ -18,42 +16,13 @@ import sys
 import time
 from collections.abc import Mapping
 
-import torch
-
-# LEAPP traces Isaac Lab's Python tensor operations, so disable TorchScript before
-# importing task or environment modules that compile decorated helpers.
-torch.jit._state.disable()
-
-import gymnasium as gym
-import leapp
-from leapp import annotate
-from packaging import version
-from rsl_rl.runners import DistillationRunner, OnPolicyRunner
-
-from isaaclab.app import launch_simulation
-from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.leapp import patch_env_for_export
-from isaaclab.utils.leapp.utils import ensure_env_spec_id
-
-from isaaclab_rl.entrypoints.backends.export_common import (
-    add_common_export_args,
-    create_graph_configs,
-    finalize_export_args,
-    get_checkpoint_path,
-)
-from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
-from isaaclab_rl.utils.pretrained_checkpoint import (
-    get_pretrained_checkpoint_backend_names,
-    get_published_pretrained_checkpoint,
-)
-
-from isaaclab_tasks.utils.hydra import hydra_task_config
-
 RSL_RL_MIN_VERSION = "5.0.1"
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
     """Parse export arguments and return remaining Hydra overrides."""
+    from isaaclab_rl.entrypoints.backends.export_common import add_common_export_args, finalize_export_args
+
     parser = argparse.ArgumentParser(description="Export an RL agent with RSL-RL.")
     add_common_export_args(parser, agent_default="rsl_rl_cfg_entry_point")
     parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment.")
@@ -95,6 +64,7 @@ def set_actor_hidden_state(policy, actor_hidden) -> None:
 
 def ensure_actor_hidden_state_initialized(policy, batch_size: int, device, dtype):
     """Initialize and return the actor hidden state when a recurrent policy has not created it yet."""
+    import torch as torch_module
 
     actor_state = get_actor_hidden_state(policy)
     if actor_state is not None:
@@ -106,8 +76,8 @@ def ensure_actor_hidden_state_initialized(policy, batch_size: int, device, dtype
 
     num_layers = memory.rnn.num_layers
     hidden_size = memory.rnn.hidden_size
-    zeros = torch.zeros(num_layers, batch_size, hidden_size, device=device, dtype=dtype)
-    if isinstance(memory.rnn, torch.nn.LSTM):
+    zeros = torch_module.zeros(num_layers, batch_size, hidden_size, device=device, dtype=dtype)
+    if isinstance(memory.rnn, torch_module.nn.LSTM):
         actor_state = (zeros.clone(), zeros.clone())
     else:
         actor_state = zeros
@@ -153,9 +123,26 @@ def export_rsl_rl_agent(
     simulation_app=None,
 ) -> bool:
     """Export a RSL-RL agent."""
-    # Concrete environment classes load simulation modules, so import them
-    # only after launch_simulation has initialized the selected backend.
+    import gymnasium as gym
+    import leapp
+    import torch
+    from leapp import annotate
+    from packaging import version
+    from rsl_rl.runners import DistillationRunner, OnPolicyRunner
+
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.utils.assets import retrieve_file_path
+    from isaaclab.utils.leapp import patch_env_for_export
+    from isaaclab.utils.leapp.utils import ensure_env_spec_id
+
+    from isaaclab_rl.entrypoints.backends.export_common import create_graph_configs, get_checkpoint_path
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+    from isaaclab_rl.utils.pretrained_checkpoint import (
+        get_pretrained_checkpoint_backend_names,
+        get_published_pretrained_checkpoint,
+    )
+
+    import isaaclab_tasks  # noqa: F401
 
     installed_version = metadata.version("rsl-rl-lib")
     if version.parse(installed_version) < version.parse(RSL_RL_MIN_VERSION):
@@ -304,6 +291,9 @@ def export_rsl_rl_agent(
 
 def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -> bool:
     """Resolve Hydra task configuration and export one RSL-RL policy."""
+    from isaaclab.app import launch_simulation
+
+    from isaaclab_tasks.utils.hydra import hydra_task_config
 
     original_argv = sys.argv
     # Hydra reads the preset tokens (physics=/renderer=/presets=) from sys.argv directly.
