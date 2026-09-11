@@ -788,3 +788,56 @@ def test_newton_asset_dir_uses_environment_override(tmp_path, monkeypatch):
     finally:
         monkeypatch.delenv("NEWTON_ASSET_DIR", raising=False)
         importlib.reload(assets_utils)
+
+
+def test_prewarm_opens_the_remote_connection_once(monkeypatch):
+    """Test that routing precedes one cancellable request to a remote asset root."""
+    root = "https://example.com/Assets/Isaac/6.0"
+    monkeypatch.setattr(assets_utils, "NUCLEUS_ASSET_ROOT_DIR", root)
+    monkeypatch.setattr(assets_utils, "_prewarm_started", False)
+    monkeypatch.setattr(assets_utils, "_prewarm_request", None)
+    events = []
+    stop_calls = []
+
+    request = SimpleNamespace(stop=lambda: stop_calls.append(True))
+
+    def stat_with_callback(url, _callback):
+        events.append(("requested", url))
+        return request
+
+    def get_configured_client():
+        events.append(("configured", root))
+        return SimpleNamespace(stat_with_callback=stat_with_callback)
+
+    monkeypatch.setattr(assets_utils, "_get_omni_client", get_configured_client)
+
+    assets_utils._prewarm_asset_server()
+    assets_utils._prewarm_asset_server()
+
+    assert events == [("configured", root), ("requested", root)]
+    assert assets_utils._prewarm_started is True
+    assert assets_utils._prewarm_request is request
+
+    assets_utils._cancel_asset_server_prewarm()
+    assets_utils._cancel_asset_server_prewarm()
+
+    assert stop_calls == [True]
+    assert assets_utils._prewarm_request is None
+
+
+@pytest.mark.parametrize("root", ["/tmp/isaacsim_assets/Assets/Isaac/6.0", "C:\\assets\\Assets\\Isaac\\6.0"])
+def test_prewarm_leaves_a_local_asset_root_alone(monkeypatch, root):
+    """Test that a run configured against local assets opens no connection."""
+    monkeypatch.setattr(assets_utils, "NUCLEUS_ASSET_ROOT_DIR", root)
+    monkeypatch.setattr(assets_utils, "_prewarm_started", False)
+    monkeypatch.setattr(assets_utils, "_prewarm_request", None)
+    monkeypatch.setattr(
+        assets_utils,
+        "_get_omni_client",
+        lambda: pytest.fail("a local asset root must not initialize OmniClient"),
+    )
+
+    assets_utils._prewarm_asset_server()
+
+    assert assets_utils._prewarm_started is False
+    assert assets_utils._prewarm_request is None

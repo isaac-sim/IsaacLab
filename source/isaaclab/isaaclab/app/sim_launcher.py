@@ -573,12 +573,18 @@ def launch_simulation(
             )
 
     exit_code = 0
+    cancel_asset_server_prewarm = None
     try:
         # The import stays after the Kit launch decision. With no selected profile this is a
         # no-op; with one, it installs process-wide OmniClient routing before user code runs.
         from isaaclab.utils.assets import configure_storage_profile
 
         configure_storage_profile()
+        if not needs_kit:
+            from isaaclab.utils.assets import _cancel_asset_server_prewarm, _prewarm_asset_server
+
+            cancel_asset_server_prewarm = _cancel_asset_server_prewarm
+            _prewarm_asset_server()
         yield physics_cfg
     except Exception:
         exit_code = 1
@@ -587,6 +593,8 @@ def launch_simulation(
         traceback.print_exc()
         raise
     finally:
+        if cancel_asset_server_prewarm is not None:
+            cancel_asset_server_prewarm()
         if close_fn is not None:
             if exit_code:
                 close_fn(exit_code=exit_code)

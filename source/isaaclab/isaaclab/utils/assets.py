@@ -24,7 +24,7 @@ import subprocess
 import tempfile
 import uuid
 from types import ModuleType
-from typing import Literal, NotRequired, TypedDict
+from typing import Literal, NotRequired, Protocol, TypedDict
 from urllib.parse import urlparse
 
 from filelock import FileLock
@@ -244,6 +244,64 @@ _MIRRORED_URLS: dict[str, str] = {}
 from its path, so a cache path is never inferred from a directory that merely looks like one."""
 
 _GIT_SSH_RE = re.compile(r"^[^@/:]+@[^:]+:.+")
+
+_prewarm_started = False
+"""Whether a prewarm has been started, so at most one is."""
+
+
+class _CancelableRequest(Protocol):
+    """Request that can be cancelled before OmniClient shuts down."""
+
+    def stop(self) -> None: ...
+
+
+_prewarm_request: _CancelableRequest | None = None
+"""Pending asset-server prewarm request, retained so launcher teardown can cancel it."""
+
+
+def _prewarm_asset_server() -> None:
+    """Open the connection to the asset server ahead of the first asset lookup.
+
+    Each lookup is one round trip on a kept-alive connection, but the first one also pays DNS
+    resolution and the TCP and TLS handshakes -- several round trips that do not depend on
+    which asset is wanted. Starting an asynchronous request before anything asks for an asset
+    overlaps them with the rest of startup.
+
+    Does nothing unless the asset root names a host, so a run configured against a local root
+    never opens a connection, and nothing beyond the first call.
+
+    A failure here is not reported: the lookups that follow contact the same server and
+    surface an unreachable one themselves.
+    """
+    global _prewarm_request, _prewarm_started
+    parsed = urlparse(NUCLEUS_ASSET_ROOT_DIR)
+    # A host is what distinguishes a remote URL from a Windows drive letter, which
+    # ``urlparse`` also reports as a scheme.
+    if _prewarm_started or not parsed.scheme or not parsed.netloc:
+        return
+    _prewarm_started = True
+
+    try:
+        # Apply a selected storage profile before the first request so the connection uses
+        # the same endpoint and CDN routing as the asset lookups that follow.
+        omni_client = _get_omni_client()
+        _prewarm_request = omni_client.stat_with_callback(NUCLEUS_ASSET_ROOT_DIR, lambda _result, _entry: None)
+    except Exception as exc:  # noqa: BLE001 - a run must not fail because a prewarm did
+        _prewarm_request = None
+        logger.debug("Could not open the asset server connection ahead of use: %s", exc)
+
+
+def _cancel_asset_server_prewarm() -> None:
+    """Cancel a pending asset-server prewarm before the runtime shuts down."""
+    global _prewarm_request
+    request, _prewarm_request = _prewarm_request, None
+    if request is None:
+        return
+
+    try:
+        request.stop()
+    except Exception as exc:  # noqa: BLE001 - cleanup must not prevent runtime shutdown
+        logger.debug("Could not cancel the asset server prewarm during shutdown: %s", exc)
 
 
 def retrieve_git_asset_path(
