@@ -18,8 +18,8 @@ Install the root ``rlinf`` extra first, then run this script::
 Every step is idempotent and skips work that is already done, so the script can be re-run to repair a
 partial install. Afterwards, train and evaluate with::
 
-    ./isaaclab.sh train --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar
-    ./isaaclab.sh play --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar --video
+    uv run --no-sync isaaclab train --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar
+    uv run --no-sync isaaclab play --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar --video
 """
 
 from __future__ import annotations
@@ -288,7 +288,7 @@ def main(argv: list[str] | None = None) -> int:
         download_checkpoint(args.checkpoint_dir.resolve(), CHECKPOINT_REPO_ID)
 
     print_info("RLinf demo setup complete. Train with:")
-    print_info("  ./isaaclab.sh train --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar")
+    print_info("  uv run --no-sync isaaclab train --rl_library rlinf --config_name isaaclab_ppo_gr00t_assemble_trocar")
     return 0
 
 
