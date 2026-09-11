@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+17.0.1 (2026-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the pinned Newton version from ``1.5.1`` to ``1.5.2``. Existing installations update
+  automatically.
+* Changed :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to ``True`` by default so
+  supported explicit actuator models use the native Newton actuator path. Set it to ``False``
+  to restore the deprecated Isaac Lab execution path.
+
+
 17.0.0 (2026-09-10)
 ~~~~~~~~~~~~~~~~~~~
 
