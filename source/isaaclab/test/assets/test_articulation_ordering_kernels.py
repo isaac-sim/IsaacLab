@@ -15,6 +15,7 @@ from isaaclab.assets.articulation.ordering_kernels import (
     reorder_2d_user_to_backend,
     reorder_3d_backend_to_user,
     reorder_body_state_backend_to_user,
+    reorder_generalized_vector_backend_to_user,
     reorder_joint_state_backend_to_user,
     write_2d_user_to_backend_with_indices,
     write_2d_user_to_backend_with_mask,
@@ -685,3 +686,35 @@ def test_joint_state_writer_accepts_selector_widths(env_dtype: type, joint_dtype
 
     np.testing.assert_array_equal(user_position.numpy(), [[121.0, 0.0, 120.0], [111.0, 0.0, 110.0]])
     np.testing.assert_array_equal(backend_position.numpy(), [[120.0, 121.0, 0.0], [110.0, 111.0, 0.0]])
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("num_base_dofs", [0, 6])
+@pytest.mark.parametrize("correct_signs", [False, True])
+def test_generalized_force_ordering_with_optional_signs(device, num_base_dofs, correct_signs):
+    """Preserve floating-base forces and optionally correct actuated-joint signs."""
+    if device.startswith("cuda") and not wp.is_cuda_available():
+        pytest.skip("CUDA is unavailable")
+    joint_order = np.array([2, 0, 1], dtype=np.int32)
+    signs = np.array([1, -1, 1], dtype=np.int32)
+    values = np.arange(1, 2 * (num_base_dofs + len(joint_order)) + 1, dtype=np.float32).reshape(2, -1)
+    backend = wp.array(values, dtype=wp.float32, device=device)
+    result = wp.zeros_like(backend)
+    wp.launch(
+        reorder_generalized_vector_backend_to_user,
+        dim=result.shape,
+        inputs=[
+            backend,
+            wp.array(joint_order, dtype=wp.int32, device=device),
+            wp.array(signs, dtype=wp.int32, device=device) if correct_signs else None,
+            num_base_dofs,
+            True,
+        ],
+        outputs=[result],
+        device=device,
+    )
+    expected = values.copy()
+    expected[:, num_base_dofs:] = values[:, num_base_dofs:][:, joint_order]
+    if correct_signs:
+        expected[:, num_base_dofs:] *= signs[joint_order]
+    np.testing.assert_array_equal(result.numpy(), expected)

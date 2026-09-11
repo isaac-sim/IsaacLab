@@ -69,6 +69,13 @@ def _list_tasks() -> None:
 
 def run(argv: list[str]) -> None:
     """Launch RLinf training."""
+    # Ray 2.47+ automatically turns the current project into a ``working_dir``
+    # runtime environment when the driver is launched through ``uv run``. An
+    # Isaac Lab checkout commonly contains a large ``.venv`` and local model
+    # checkpoints, which exceed Ray's 500 MiB upload limit. RLinf already
+    # selects the Python executable for each worker, so this upload is neither
+    # needed nor desirable.
+    os.environ.setdefault("RAY_ENABLE_UV_RUN_RUNTIME_ENV", "0")
     os.environ.setdefault("RLINF_EXT_MODULE", "isaaclab_contrib.rl.rlinf.extension")
     args_cli = _parse_args(argv)
 

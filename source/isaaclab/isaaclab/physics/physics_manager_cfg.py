@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab_ov.physics import OvPhysxCfg
@@ -33,6 +33,19 @@ class PhysicsCfg:
 
     class_type: type[PhysicsManager] | Any = MISSING
     """The physics manager class to use. Must be set by subclasses."""
+
+    deterministic: bool = False
+    """Whether to request reproducible physics from the backend. Defaults to False.
+
+    This is the backend-agnostic form of the request, set by the ``--deterministic`` command-line
+    flag. Each physics manager translates it into its own settings when the simulation starts, and
+    raises when its configuration cannot provide the guarantee. A backend-specific determinism
+    attribute set explicitly, such as
+    :attr:`~isaaclab_newton.physics.NewtonCfg.deterministic_mode`, is the more specific instruction
+    and takes precedence.
+
+    Deterministic execution can increase memory use and reduce simulation performance.
+    """
 
 
 @configclass

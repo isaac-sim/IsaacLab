@@ -15,16 +15,7 @@ marker templates) stay module-level constants.
 import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkersCfg
 
-from isaaclab_assets.robots.shadow_hand import (
-    SHADOW_ACTUATED_JOINT_NAMES as ACTUATED_JOINT_NAMES,
-)
-from isaaclab_assets.robots.shadow_hand import (
-    SHADOW_FINGERTIP_BODY_NAMES as FINGERTIP_BODY_NAMES,
-)
-
 __all__ = [
-    "ACTUATED_JOINT_NAMES",
-    "FINGERTIP_BODY_NAMES",
     "GOAL_MARKER_CFG",
     "GOAL_POSITION_OFFSET",
     "OBJECT_RADIUS",

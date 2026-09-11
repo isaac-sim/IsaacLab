@@ -1,17 +1,19 @@
+:orphan:
+
 Transfer Policies Between PhysX and Newton
 ===========================================
 
 .. seealso::
 
-   This how-to is the source of truth for the
+   This guide is the source of truth for the
    ``isaaclab-transferring-policies-sim-to-sim`` agent skill
    (`skill source
    <../../../skills/user/isaaclab-transferring-policies-sim-to-sim/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
    First make every robot and object MJWarp-clean by following
-   :doc:`/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton`
+   :doc:`/source/how-to/prepare_asset_for_newton`
    and the ``isaaclab-preparing-assets-for-newton``
    `skill
    <https://github.com/isaac-sim/IsaacLab/blob/develop/skills/user/prepare-assets-for-newton/SKILL.md>`__.
@@ -108,7 +110,7 @@ playback, set **both** ``joint_ordering`` and ``body_ordering`` to the backend u
 ``physics=`` still selects the target backend. The task table below lists which tasks need the
 overrides and which do not.
 
-See :doc:`/source/overview/core-concepts/physical-backends/joint_and_body_ordering` for the full
+See :doc:`/source/concepts/joint_and_body_ordering` for the full
 ordering contract, accepted values, and troubleshooting.
 
 A scrambled axis has a distinctive signature: a locomotion policy falls within a few dozen steps
@@ -134,8 +136,8 @@ position policy can alternate saturated commands and exploit one solver's drive 
 limit response. Armature is equally important in MJWarp: it adds reflected inertia to the
 generalized mass matrix and prevents small contact or drive impulses from producing excessive
 joint or angular velocity. Retune damping after increasing armature because the effective natural
-frequency and damping ratio change. See the asset migration guide for the equations, physical
-sourcing rules, and the zero-gravity object case.
+frequency and damping ratio change. See :ref:`prepare-asset-for-newton` for the actuator audit and
+physical sourcing guidance.
 
 
 Introducing domain randomization
@@ -300,7 +302,7 @@ They do not represent full PP/PN/NN/NP validation. The backends are shown side b
 .. raw:: html
 
    <video controls preload="metadata" style="width:100%; max-width:960px; margin-bottom:1.5em;">
-     <source src="../../_static/sim2sim_anymal_d_transfer.mp4" type="video/mp4">
+     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_anymal_d_transfer_10s_trimmed.mp4" type="video/mp4">
    </video>
 
 **Allegro hand cube reorientation** (``Isaac-Reorient-Cube-Allegro``, PhysX-to-Newton direction only)
@@ -308,7 +310,7 @@ They do not represent full PP/PN/NN/NP validation. The backends are shown side b
 .. raw:: html
 
    <video controls preload="metadata" style="width:100%; max-width:960px; margin-bottom:1.5em;">
-     <source src="../../_static/sim2sim_allegro_transfer.mp4" type="video/mp4">
+     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_allegro_transfer_trimmed.mp4" type="video/mp4">
    </video>
 
 .. tip::
@@ -321,8 +323,8 @@ They do not represent full PP/PN/NN/NP validation. The backends are shown side b
 See also
 --------
 
-* :doc:`/source/overview/reinforcement-learning/rl_existing_scripts`
+* :doc:`/source/concepts/reinforcement_learning`
 * :doc:`/source/features/hydra`
-* :doc:`/source/overview/core-concepts/physical-backends/joint_and_body_ordering`
-* :doc:`/source/overview/core-concepts/physical-backends/newton/mjwarp-solver`
-* :doc:`/source/overview/core-concepts/physical-backends/newton/supported-features`
+* :doc:`/source/concepts/joint_and_body_ordering`
+* :doc:`/source/concepts/solver-tuning/tune_mjwarp`
+* :ref:`physics-backends-newton`

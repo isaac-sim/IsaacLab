@@ -56,6 +56,7 @@ def manager_module(monkeypatch):
         "_atexit_registered": False,
         "_scene_data_backend": None,
         "_physx_schemas_registered": False,
+        "_gravity": None,
     }
     for name, value in test_state.items():
         monkeypatch.setattr(manager, name, value)
@@ -71,41 +72,61 @@ def _fake_ovphysx_module(bootstrap):
 
 
 @pytest.mark.parametrize(
-    ("registered_names", "expected_paths"),
+    ("registered_names", "expected_paths", "schema_root", "has_registration_api"),
     [
-        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"]),
-        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], []),
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", True),
+        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], "/schemas", True),
+        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], None, True),
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", False),
+        pytest.param(
+            ["physxSchema"],
+            ["/schemas/OmniUsdPhysicsDeformableSchema/resources"],
+            "/schemas",
+            None,
+            id="ovstage-import-unavailable",
+        ),
     ],
 )
 def test_schema_registration_skips_providers_already_supplied_by_host(
-    monkeypatch, manager_module, registered_names, expected_paths
+    monkeypatch, manager_module, registered_names, expected_paths, schema_root, has_registration_api
 ):
     manager = manager_module.OvPhysxManager
     schema_paths = [
         Path("/schemas/PhysxSchema/resources"),
         Path("/schemas/OmniUsdPhysicsDeformableSchema/resources"),
     ]
-    registrations = []
+    host_registrations = []
+    ovstage_registrations = []
 
     fake_ovphysx = ModuleType("ovphysx")
     fake_ovphysx.codeless_schema_paths = lambda: schema_paths
+    if schema_root is not None:
+        fake_ovphysx.codeless_schema_root = lambda: Path(schema_root)
+
+    fake_ovstage = ModuleType("ovstage")
+    fake_ovstage.population = SimpleNamespace()
+    if has_registration_api:
+        fake_ovstage.population.register_usd_schemas = ovstage_registrations.append
 
     class FakeRegistry:
         def GetAllPlugins(self):
             return [SimpleNamespace(name=name) for name in registered_names]
 
         def RegisterPlugins(self, paths):
-            registrations.append(list(paths))
+            host_registrations.append(list(paths))
 
     fake_pxr = ModuleType("pxr")
     fake_pxr.Plug = type("FakePlug", (), {"Registry": staticmethod(FakeRegistry)})
     monkeypatch.setitem(sys.modules, "ovphysx", fake_ovphysx)
+    # A None entry makes importing OVStage raise ModuleNotFoundError.
+    monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage if has_registration_api is not None else None)
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
 
     manager._ensure_physx_schemas_registered()
     manager._ensure_physx_schemas_registered()
 
-    assert registrations == ([expected_paths] if expected_paths else [])
+    assert ovstage_registrations == ([schema_root] if schema_root is not None and has_registration_api else [])
+    assert host_registrations == ([expected_paths] if expected_paths else [])
 
 
 def test_construct_physx_bootstraps_each_runtime_without_replacing_pxr(monkeypatch, manager_module):
@@ -305,15 +326,20 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
     monkeypatch.setattr(manager, "_ovstage", FakeStage())
     monkeypatch.setattr(manager, "_physx", FakePhysX())
-    monkeypatch.setattr(manager, "_sim", SimpleNamespace(cfg=SimpleNamespace(physics_prim_path="/World/physicsScene")))
+    monkeypatch.setattr(
+        manager,
+        "_sim",
+        SimpleNamespace(cfg=SimpleNamespace(physics_prim_path="/World/physicsScene", gravity=(0.0, 0.0, -9.81))),
+    )
+    monkeypatch.setattr(manager, "_gravity", (0.0, 0.0, -9.81))
 
     if failure is None:
-        manager.set_gravity((0.0, 0.0, -9.81))
+        manager.set_gravity((0.0, 0.0, -3.72))
         expected_calls = [
             ("paths", ["/World/physicsScene"]),
             ("query", "physics-scene-paths"),
             ("write", "physics-scene-query", "physics:gravityDirection", 2, [[0.0, 0.0, -1.0]], False),
-            ("write", "physics-scene-query", "physics:gravityMagnitude", 2, [pytest.approx(9.81)], False),
+            ("write", "physics-scene-query", "physics:gravityMagnitude", 2, [pytest.approx(3.72)], False),
             ("seal", 2),
             ("update", 2, 2),
             ("release_query", "physics-scene-query"),
@@ -322,7 +348,7 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
         ]
     else:
         with pytest.raises(RuntimeError, match=f"{failure} failed"):
-            manager.set_gravity((0.0, 0.0, -9.81))
+            manager.set_gravity((0.0, 0.0, -3.72))
         expected_calls = [
             ("paths", ["/World/physicsScene"]),
             ("query", "physics-scene-paths"),
@@ -342,6 +368,12 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
         )
 
     assert calls == expected_calls
+    # ``get_gravity`` must report what the scene is actually running with: the new vector
+    # once the ordinal was applied, and the previous one when the update failed.
+    expected_gravity = (0.0, 0.0, -3.72) if failure is None else (0.0, 0.0, -9.81)
+    assert manager.get_gravity() == pytest.approx(expected_gravity)
+    # ``cfg.gravity`` stays the nominal base that randomization terms resample from.
+    assert manager._sim.cfg.gravity == (0.0, 0.0, -9.81)
 
 
 def _retained_binding_script() -> str:

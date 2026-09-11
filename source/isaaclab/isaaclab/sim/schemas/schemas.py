@@ -1629,18 +1629,49 @@ Fixed tendon properties.
 """
 
 
-def _is_fixed_tendon_target(prim: Usd.Prim) -> bool:
-    """Whether a prim carries a fixed-tendon representation (PhysX multi-apply instance or MjcTendon prim)."""
-    if prim.GetTypeName() == "MjcTendon":
+_FIXED_TENDON_SCHEMAS = ("PhysxTendonAxisRootAPI", "PhysxTendonAxisAPI")
+_SPATIAL_TENDON_SCHEMAS = ("PhysxTendonAttachmentRootAPI",)
+
+
+def _write_tendon_properties(prim, values, schema_type):
+    authored = False
+    for schema in prim.GetAppliedSchemas():
+        applied_type, instance = Usd.SchemaRegistry.GetTypeNameAndInstance(str(schema))
+        if applied_type != schema_type or not instance:
+            continue
+        authored = True
+        for name, value in values.items():
+            attribute = f"physxTendon:{instance}:{to_camel_case(name, 'cC')}"
+            safe_set_attribute_on_usd_prim(prim, attribute, value, camel_case=False)
+    return authored
+
+
+def _apply_tendon_fragments(prim_path_expr, fragments, schema_types, prim_types, family, stage):
+    fragments = list(fragments)
+    if stage is None:
+        stage = get_current_stage()
+    if not fragments:
         return True
-    return any("PhysxTendonAxisRootAPI" in s for s in prim.GetAppliedSchemas())
-
-
-def _is_spatial_tendon_target(prim: Usd.Prim) -> bool:
-    """Whether a prim carries a spatial-tendon multi-apply instance."""
-    return any(
-        "PhysxTendonAttachmentRootAPI" in s or "PhysxTendonAttachmentLeafAPI" in s for s in prim.GetAppliedSchemas()
+    targets, _, any_skipped = _match_fragment_targets(
+        prim_path_expr,
+        lambda prim: prim.GetTypeName() in prim_types
+        or any(
+            Usd.SchemaRegistry.GetTypeNameAndInstance(str(schema))[0] in schema_types
+            for schema in prim.GetAppliedSchemas()
+        ),
+        stage,
     )
+    if not targets:
+        logger.warning("No %s-tendon targets matched expression '%s'; nothing was authored.", family, prim_path_expr)
+        return False
+    success = not any_skipped
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        fragment_hit = False
+        for target in targets:
+            fragment_hit |= bool(func(cfg, target.GetPath().pathString, stage))
+        success = fragment_hit and success
+    return success
 
 
 def apply_fixed_tendon_properties(
@@ -1651,8 +1682,8 @@ def apply_fixed_tendon_properties(
     The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
     ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
     selects one path segment and ``/World/Robot/.*`` every descendant of a prim. A matched prim is a
-    fixed-tendon target when it carries an applied ``PhysxTendonAxisRootAPI`` multi-apply
-    instance or is a ``MjcTendon`` prim.
+    fixed-tendon target when it carries an applied ``PhysxTendonAxisRootAPI`` or
+    ``PhysxTendonAxisAPI`` instance, or is a ``MjcTendon`` prim.
 
     Fixed tendons are a *tune-not-apply* family: the tendon topology is authored in the source
     asset, so this writer never creates instances -- it only dispatches each fragment via its
@@ -1675,26 +1706,7 @@ def apply_fixed_tendon_properties(
     Returns:
         True if every fragment tuned at least one target and no instanced prim was skipped.
     """
-    fragments = list(fragments)
-    if stage is None:
-        stage = get_current_stage()
-    if not fragments:
-        return True
-    targets, _, any_skipped = _match_fragment_targets(prim_path_expr, _is_fixed_tendon_target, stage)
-    if not targets:
-        logger.warning("No fixed-tendon targets matched expression '%s'; nothing was authored.", prim_path_expr)
-        return False
-    # per-fragment any-target aggregation: a fragment fails only when it tuned no target at all,
-    # since each backend's func legitimately no-ops on the other backend's tendon prims.
-    success = not any_skipped
-    for cfg in fragments:
-        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        fragment_hit = False
-        for target in targets:
-            if func(cfg, target.GetPath().pathString, stage):
-                fragment_hit = True
-        success = fragment_hit and success
-    return success
+    return _apply_tendon_fragments(prim_path_expr, fragments, _FIXED_TENDON_SCHEMAS, ("MjcTendon",), "fixed", stage)
 
 
 @apply_nested
@@ -1735,36 +1747,12 @@ def modify_fixed_tendon_properties(
     if stage is None:
         stage = get_current_stage()
 
-    # get USD prim
     tendon_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has fixed tendon applied on it or if the mjc tendon prim exiss
-    applied_schemas = tendon_prim.GetAppliedSchemas()
-    prim_type = tendon_prim.GetTypeName()
-    if not any("PhysxTendonAxisRootAPI" in s for s in applied_schemas) and prim_type != "MjcTendon":
-        return False
-
-    # resolve all available instances of the schema since it is multi-instance
-    cfg = cfg.to_dict()
-    if prim_type != "MjcTendon":
-        for schema_name in applied_schemas:
-            if "PhysxTendonAxisRootAPI" not in schema_name:
-                continue
-            # set into PhysX API by attribute prefix schema_name: (e.g. PhysxTendonAxisRootAPI:default:stiffness)
-            for attr_name, value in cfg.items():
-                safe_set_attribute_on_usd_prim(
-                    tendon_prim,
-                    f"{schema_name}:{to_camel_case(attr_name, 'cC')}",
-                    value,
-                    camel_case=False,
-                )
-    else:
-        # NOTE: ``mjc:*`` branch (``MjcTendon`` prim) kept inline; future split candidate into isaaclab_newton.
-        # only stiffness and damping in the cfg map to mjc attributes
-        for attr_name, value in cfg.items():
-            safe_set_attribute_on_usd_prim(
-                tendon_prim, f"mjc:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
-            )
-    # success
+    values = cfg.to_dict()
+    if tendon_prim.GetTypeName() != "MjcTendon":
+        return _write_tendon_properties(tendon_prim, values, "PhysxTendonAxisRootAPI")
+    for name in ("stiffness", "damping"):
+        safe_set_attribute_on_usd_prim(tendon_prim, f"mjc:{name}", values.get(name), camel_case=False)
     return True
 
 
@@ -1781,8 +1769,7 @@ def apply_spatial_tendon_properties(
     The prims to author on are matched with :func:`~isaaclab.sim.utils.find_matching_prims`:
     ``prim_path_expr`` is a plain regular expression over whole prim paths, so ``[^/]+``
     selects one path segment and ``/World/Robot/.*`` every descendant of a prim. A matched prim is a
-    spatial-tendon target when it carries an applied ``PhysxTendonAttachmentRootAPI`` or
-    ``PhysxTendonAttachmentLeafAPI`` multi-apply instance.
+    spatial-tendon target when it carries an applied ``PhysxTendonAttachmentRootAPI`` instance.
 
     Spatial tendons are a *tune-not-apply* family: the tendon topology is authored in the
     source asset, so this writer never creates instances -- it only dispatches each fragment
@@ -1805,26 +1792,7 @@ def apply_spatial_tendon_properties(
     Returns:
         True if every fragment tuned at least one target and no instanced prim was skipped.
     """
-    fragments = list(fragments)
-    if stage is None:
-        stage = get_current_stage()
-    if not fragments:
-        return True
-    targets, _, any_skipped = _match_fragment_targets(prim_path_expr, _is_spatial_tendon_target, stage)
-    if not targets:
-        logger.warning("No spatial-tendon targets matched expression '%s'; nothing was authored.", prim_path_expr)
-        return False
-    # per-fragment any-target aggregation: a fragment fails only when it tuned no target at all,
-    # since each backend's func legitimately no-ops on the other backend's tendon prims.
-    success = not any_skipped
-    for cfg in fragments:
-        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        fragment_hit = False
-        for target in targets:
-            if func(cfg, target.GetPath().pathString, stage):
-                fragment_hit = True
-        success = fragment_hit and success
-    return success
+    return _apply_tendon_fragments(prim_path_expr, fragments, _SPATIAL_TENDON_SCHEMAS, (), "spatial", stage)
 
 
 @apply_nested
@@ -1837,16 +1805,14 @@ def modify_spatial_tendon_properties(
     through length and limit constraints. For instance, it can be used to set up an equality constraint
     between a driven and passive revolute joints.
 
-    The schema comprises of attributes that belong to the `PhysxTendonAxisRootAPI`_ schema.
+    The schema comprises attributes that belong to the `PhysxTendonAttachmentRootAPI`_ schema.
 
     .. note::
         This function is decorated with :func:`apply_nested` that sets the properties to all the prims
         (that have the schema applied on them) under the input prim path.
 
     .. _spatial tendon: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxArticulationSpatialTendon.html
-    .. _PhysxTendonAxisRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_root_a_p_i.html
     .. _PhysxTendonAttachmentRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_root_a_p_i.html
-    .. _PhysxTendonAttachmentLeafAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_leaf_a_p_i.html
 
     Args:
         prim_path: The prim path to the tendon attachment.
@@ -1866,29 +1832,8 @@ def modify_spatial_tendon_properties(
     # obtain stage
     if stage is None:
         stage = get_current_stage()
-    # get USD prim
     tendon_prim = stage.GetPrimAtPath(prim_path)
-    # check if prim has spatial tendon applied on it
-    applied_schemas = tendon_prim.GetAppliedSchemas()
-    has_spatial = any(
-        "PhysxTendonAttachmentRootAPI" in s or "PhysxTendonAttachmentLeafAPI" in s for s in applied_schemas
-    )
-    if not has_spatial:
-        return False
-
-    cfg = cfg.to_dict()
-    for schema_name in applied_schemas:
-        if "PhysxTendonAttachmentRootAPI" not in schema_name and "PhysxTendonAttachmentLeafAPI" not in schema_name:
-            continue
-        for attr_name, value in cfg.items():
-            safe_set_attribute_on_usd_prim(
-                tendon_prim,
-                f"{schema_name}:{to_camel_case(attr_name, 'cC')}",
-                value,
-                camel_case=False,
-            )
-    # success
-    return True
+    return _write_tendon_properties(tendon_prim, cfg.to_dict(), "PhysxTendonAttachmentRootAPI")
 
 
 """
@@ -2063,6 +2008,7 @@ def define_deformable_body_properties(
     stage: Usd.Stage | None = None,
     deformable_type: str = "volume",
     sim_mesh_prim_path: str | None = None,
+    tetrahedralization_edge_length_fac: float = 0.1,
 ):
     """Apply the deformable body schema on the input prim and set its properties. The input prim should
     have a visual surface mesh as child. Volume deformables will have their simulation tetrahedral mesh
@@ -2092,6 +2038,8 @@ def define_deformable_body_properties(
         sim_mesh_prim_path: Optional override for the simulation mesh creation prim path.
             Ignored when pre-tetrahedralized mesh is found for volume deformables.
             If None, it is set to ``{prim_path}/sim_mesh``.
+        tetrahedralization_edge_length_fac: Relative target edge length for automatic tetrahedralization.
+            Defaults to ``0.1``.
 
     Raises:
         ValueError: When the prim path is not valid.
@@ -2221,7 +2169,7 @@ def define_deformable_body_properties(
             tet_mesh_points, tet_mesh_indices = tetrahedralize(
                 vertices,
                 faces.reshape(-1, 3),
-                edge_length_fac=0.1,
+                edge_length_fac=tetrahedralization_edge_length_fac,
                 simplify=False,
                 epsilon=1e-2,
                 coarsen=True,

@@ -156,7 +156,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
     )
     cfg_cloth = sim_utils.MeshRectangleCfg(
         size=(1.5, 1.0),
-        resolution=(21, 21),
+        edge_refinement=21,
         deformable_props=DeformableBodyPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(),
         physics_material=SurfaceDeformableMaterialCfg(),
@@ -195,7 +195,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
             obj_cfg.physics_material.tri_ke = random.uniform(5e3, 5e4)
             obj_cfg.physics_material.tri_ka = random.uniform(5e3, 5e4)
         else:
-            youngs_modulus = random.uniform(5e5, 1e8)
+            youngs_modulus = random.uniform(5e5, 1e7)
             poissons_ratio = random.uniform(0.25, 0.45)
             if args_cli.physics == "newton_vbd":
                 obj_cfg.physics_material.k_mu = youngs_modulus / (2.0 * (1.0 + poissons_ratio))
@@ -265,11 +265,12 @@ def main():
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
         # tune the CLI-selected backend for this demo
         if args_cli.physics == "newton_vbd":
-            physics_cfg.solver_cfg.iterations = 5
+            physics_cfg.solver_cfg.iterations = 20
             physics_cfg.solver_cfg.particle_enable_self_contact = True
             physics_cfg.solver_cfg.particle_self_contact_radius = 0.0001
             physics_cfg.solver_cfg.particle_self_contact_margin = 0.1
             physics_cfg.num_substeps = 4
+            physics_cfg.collision_decimation = 1
             physics_cfg.soft_contact_cfg = NewtonSoftContactCfg(
                 soft_contact_ke=1.0e5,
                 soft_contact_kd=1.0e0,

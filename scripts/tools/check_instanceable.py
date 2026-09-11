@@ -6,14 +6,16 @@
 """
 This script uses the cloner API to check if asset has been instanced properly.
 
+An asset path may be a local file or a Nucleus/HTTPS URL; remote assets are downloaded before use.
+
 Usage with different inputs (replace `<Asset-Path>` and `<Asset-Path-Instanced>` with the path to the
 original asset and the instanced asset respectively):
 
 ```bash
-uv run python source/tools/check_instanceable.py <Asset-Path> -n 4096 --physics
-uv run python source/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096 --physics
-uv run python source/tools/check_instanceable.py <Asset-Path> -n 4096
-uv run python source/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096
+uv run python scripts/tools/check_instanceable.py <Asset-Path> -n 4096 --physics
+uv run python scripts/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096 --physics
+uv run python scripts/tools/check_instanceable.py <Asset-Path> -n 4096
+uv run python scripts/tools/check_instanceable.py <Asset-Path-Instanced> -n 4096
 ```
 
 Output from the above commands:
@@ -42,7 +44,6 @@ Output from the above commands:
 
 import argparse
 import contextlib
-import os
 
 from isaaclab.app import AppLauncher
 
@@ -73,7 +74,7 @@ from isaacsim.core.cloner import GridCloner
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils import Timer
-from isaaclab.utils.assets import check_file_path
+from isaaclab.utils.assets import check_file_path, retrieve_file_path
 
 
 def main():
@@ -99,8 +100,10 @@ def main():
     # Spawn things into stage
     sim_utils.create_prim("/World/Light", "DistantLight")
 
-    # Everything under the namespace "/World/envs/env_0" will be cloned
-    sim_utils.create_prim("/World/envs/env_0/Asset", "Xform", usd_path=os.path.abspath(args_cli.input))
+    # Everything under the namespace "/World/envs/env_0" will be cloned.
+    # Resolve through retrieve_file_path so Nucleus/HTTPS inputs are downloaded first; applying
+    # os.path.abspath() to a URL would prepend the working directory and corrupt it.
+    sim_utils.create_prim("/World/envs/env_0/Asset", "Xform", usd_path=retrieve_file_path(args_cli.input))
     # Clone the scene
     num_clones = args_cli.num_clones
 

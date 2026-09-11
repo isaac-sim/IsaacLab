@@ -163,6 +163,8 @@ class NewtonVisualizationMarkers:
         if translations is None:
             return
 
+        device = viewer.device
+
         for proto_index, (name, marker_cfg) in enumerate(self.cfg.markers.items()):
             newton_cfg = self._marker_specs[name]
             batch_name = f"{self.group_id}/{name}"
@@ -215,10 +217,10 @@ class NewtonVisualizationMarkers:
                 viewer.log_instances(
                     batch_name,
                     mesh_name,
-                    wp.array(xforms.astype(np.float32), dtype=wp.transform),
-                    wp.array(selected_scales.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
-                    wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
-                    wp.array(materials.detach().cpu().numpy().astype(np.float32), dtype=wp.vec4),
+                    wp.array(xforms.astype(np.float32), dtype=wp.transform, device=device),
+                    wp.array(selected_scales.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
+                    wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
+                    wp.array(materials.detach().cpu().numpy().astype(np.float32), dtype=wp.vec4, device=device),
                     hidden=False,
                 )
             elif newton_cfg.renderer == "frame":
@@ -226,9 +228,9 @@ class NewtonVisualizationMarkers:
                 width = max(float(selected_scales.mean().item()) * 0.05, 0.0025)
                 viewer.log_lines(
                     batch_name,
-                    wp.array(starts.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
-                    wp.array(ends.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
-                    wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3),
+                    wp.array(starts.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
+                    wp.array(ends.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
+                    wp.array(colors.detach().cpu().numpy().astype(np.float32), dtype=wp.vec3, device=device),
                     width=width,
                     hidden=False,
                 )
@@ -252,14 +254,17 @@ class NewtonVisualizationMarkers:
         mesh = _create_mesh(newton_cfg)
         normals_arr = mesh.normals
         uvs_arr = mesh.uvs
+        device = viewer.device
         viewer.log_mesh(
             mesh_name,
-            wp.array(mesh.vertices.astype(np.float32), dtype=wp.vec3),
-            wp.array(mesh.indices.astype(np.int32), dtype=wp.int32),
-            normals=wp.array(normals_arr.astype(np.float32), dtype=wp.vec3)
+            wp.array(mesh.vertices.astype(np.float32), dtype=wp.vec3, device=device),
+            wp.array(mesh.indices.astype(np.int32), dtype=wp.int32, device=device),
+            normals=wp.array(normals_arr.astype(np.float32), dtype=wp.vec3, device=device)
             if normals_arr is not None and normals_arr.size
             else None,
-            uvs=wp.array(uvs_arr.astype(np.float32), dtype=wp.vec2) if uvs_arr is not None and uvs_arr.size else None,
+            uvs=wp.array(uvs_arr.astype(np.float32), dtype=wp.vec2, device=device)
+            if uvs_arr is not None and uvs_arr.size
+            else None,
             texture=newton_cfg.texture,
             hidden=True,
         )

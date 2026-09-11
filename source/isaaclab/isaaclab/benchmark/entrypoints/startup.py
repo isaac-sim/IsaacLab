@@ -25,7 +25,7 @@ Usage example::
         --num_envs 16 \\
         presets=newton_mjwarp
 
-Use ``isaaclab benchmark startup-multigpu`` to profile rank 0 while every GPU launches
+Use ``isaaclab benchmark startup_multigpu`` to profile rank 0 while every GPU launches
 concurrently; see :mod:`isaaclab.benchmark.entrypoints.multigpu`.
 """
 

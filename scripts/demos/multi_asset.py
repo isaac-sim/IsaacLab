@@ -10,14 +10,14 @@
     # Usage with default PhysX physics and default kit visualizer.
     uv run --extra isaacsim python scripts/demos/multi_asset.py --num_envs 1024
 
-    # Usage with Newton visualizer and default PhysX physics.
-    uv run --extra isaacsim python scripts/demos/multi_asset.py --visualizer newton --num_envs 1024
+    # Usage with Newton GL visualizer and default PhysX physics.
+    uv run --extra isaacsim python scripts/demos/multi_asset.py --visualizer newton_gl --num_envs 1024
 
     # Usage with Newton (MJWarp) physics and default kit visualizer.
     uv run --extra isaacsim python scripts/demos/multi_asset.py --physics newton_mjwarp --num_envs 1024
 
-    # Usage with Newton visualizer and Newton (MJWarp) physics.
-    uv run python scripts/demos/multi_asset.py --visualizer newton --physics newton_mjwarp --num_envs 1024
+    # Usage with Newton GL visualizer and Newton (MJWarp) physics.
+    uv run python scripts/demos/multi_asset.py --visualizer newton_gl --physics newton_mjwarp --num_envs 1024
 
 """
 
@@ -56,9 +56,8 @@ from isaaclab.scene import InteractiveSceneCfg
 
 from isaaclab_assets.robots.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG  # isort: skip
 
-from isaaclab.utils import Timer
+from isaaclab.utils import Timer, configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection

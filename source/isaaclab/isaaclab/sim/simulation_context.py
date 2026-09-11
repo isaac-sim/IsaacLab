@@ -11,9 +11,10 @@ import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
@@ -23,7 +24,6 @@ from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from isaaclab.physics.physics_manager_cfg import _resolve_physx_auto_cfg
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
-from isaaclab.sim.service_locator import ServiceLocator
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
@@ -39,6 +39,9 @@ from .simulation_cfg import SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
+
+
+_BackendT = TypeVar("_BackendT")
 
 # Visualizer type names (CLI and config). App launcher parses CSV and stores as a space-separated setting.
 _VISUALIZER_TYPES = ("newton_gl", "newton_rtx", "rerun", "viser", "kit")
@@ -124,6 +127,7 @@ class SimulationContext:
 
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
+        self._backend_registry: dict[type[object], object] = {}
 
         use_isaac_sim = has_kit()
         self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
@@ -176,6 +180,11 @@ class SimulationContext:
             device_id = max(0, int(cuda_device) if cuda_device is not None else 0)
             self.cfg.device = f"cuda:{device_id}"
 
+        # Select the process device before constructing any physics, rendering, or visualization backend.
+        if "cuda" in self.cfg.device:
+            torch.cuda.set_device(self.cfg.device)
+        wp.set_device(self.cfg.device)
+
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         # Must be set before physics_manager.initialize() so that any render callbacks
         # registered during initialize() (e.g. PhysxManager's headless video pump) succeed.
@@ -190,9 +199,8 @@ class SimulationContext:
         # Set by the visualizers and renderers in use; read by the scene data provider.
         self.requires_usd_stage = False
         self.requires_newton_model = False
-        # Clone plan published by InteractiveScene after cloning. Providers (e.g. the
-        # Newton visualizer model rebuilder on a PhysX backend) consume this to derive
-        # their own backend args. None until a replication session publishes a plan.
+        # Clone plan published before cfg-owned scene construction. Constructors and
+        # backends therefore consume the same immutable layout through one lifecycle.
         self._clone_plan: ClonePlan | None = None
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -233,8 +241,6 @@ class SimulationContext:
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
-
-        self._services = ServiceLocator()
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
@@ -685,14 +691,13 @@ class SimulationContext:
     def get_clone_plan(self) -> ClonePlan | None:
         """Return the clone plan published by the scene.
 
-        Set after replication. Consumed by scene data providers that build backend models
-        (e.g. Newton visualizer model on a PhysX backend) from the same plan the cloner used.
-        ``None`` until the scene replicates.
+        Set before cfg-owned scene construction and retained through backend replication.
+        ``None`` until a clone lifecycle begins.
         """
         return self._clone_plan
 
     def set_clone_plan(self, plan: ClonePlan | None) -> None:
-        """Set the cloner's clone plan."""
+        """Set the cloner's active clone plan."""
         self._clone_plan = plan
 
     @property
@@ -948,21 +953,23 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
-    # ------------------------------------------------------------------
-    # Service locator
-    # ------------------------------------------------------------------
+    def get_or_create_backend(self, backend_type: type[_BackendT], *args: Any, **kwargs: Any) -> _BackendT:
+        """Return the simulation-scoped native backend for a type.
 
-    @property
-    def services(self) -> ServiceLocator:
-        """Typed service registry for backend-specific singletons.
+        Consumers that register the same backend type resolve one shared native resource
+        instead of constructing state to synchronize.
 
-        Usage::
+        Args:
+            backend_type: Backend class to construct when the resource does not exist.
+            *args: Positional arguments used only when constructing the resource.
+            **kwargs: Keyword arguments used only when constructing the resource.
 
-            sim_context.services[FabricStageCache] = cache
-            cache = sim_context.services[FabricStageCache]
-            del sim_context.services[FabricStageCache]  # closes and removes
+        Returns:
+            The existing or newly constructed native backend.
         """
-        return self._services
+        if backend_type not in self._backend_registry:
+            self._backend_registry[backend_type] = backend_type(*args, **kwargs)
+        return cast(_BackendT, self._backend_registry[backend_type])
 
     @classmethod
     def clear_instance(cls) -> None:
@@ -990,10 +997,10 @@ class SimulationContext:
                     run_cleanup(viz.close)
                 instance._visualizers.clear()
 
-                # Close and drop all registered singleton services.
-                service_errors: list[Exception] = []
-                run_cleanup(lambda: instance._services.close_all(caught_exceptions=service_errors))
-                teardown_errors.extend(service_errors)
+                for resource in instance._backend_registry.values():
+                    if (clear := getattr(resource, "clear", None)) is not None:
+                        run_cleanup(clear)
+                instance._backend_registry.clear()
 
                 # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
                 # close_stage() + app shutdown destroy the entire stage at once.

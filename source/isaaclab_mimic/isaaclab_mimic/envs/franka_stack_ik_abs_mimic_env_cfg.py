@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack.config.franka.stack_ik_abs_env_cfg import FrankaCubeStackEnvCfg
 
@@ -27,7 +27,6 @@ class FrankaCubeStackIKAbsMimicEnvCfg(FrankaCubeStackEnvCfg, MimicEnvCfg):
         self.datagen_config.generation_select_src_per_subtask = True
         self.datagen_config.generation_transform_first_robot_pose = False
         self.datagen_config.generation_interpolate_from_last_target_pose = True
-        self.datagen_config.max_num_failures = 25
         self.datagen_config.seed = 1
 
         # The following are the subtask configurations for the stack task.
