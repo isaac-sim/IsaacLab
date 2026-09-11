@@ -197,10 +197,12 @@
         mode: "train",
         scope: "core",
         task: "Isaac-Cartpole",
-        benchmarkWorkload: "runtime",
+        benchmarkWorkload: "collection",
+        benchmarkChannel: "release",
     };
     const rlLibraryExtras = {rl_games: "rl-games", sb3: "sb3", skrl: "skrl", rlinf: "rlinf"};
     let benchmarkRows = [];
+    const benchmarkErrors = new Set();
 
     const categoryFor = (task) => {
         if (/Velocity|Navigation|TrackPosition|Locomanip|Humanoid/.test(task)) {
@@ -486,7 +488,10 @@
         preview.querySelector("[data-preview-renderer]").textContent = fields.renderer.value || "Default";
         preview.querySelector("[data-preview-presets]").textContent = fields.presets.value || "Default";
         const latestVramRows = benchmarkRows
+            .filter((row) => row.channel === state.benchmarkChannel)
             .filter((row) => row.task === state.task && row.physics_backend === fields.physics.value)
+            .filter((row) => !selectedTask().renderer.length || row.rendering_backend === fields.renderer.value)
+            .filter((row) => row.rl_library === fields.rl.value)
             .sort((left, right) => right.recorded_at_utc.localeCompare(left.recorded_at_utc));
         const latestTraining = latestVramRows.find((row) => row.workload === "training");
         const vram = preview.querySelector("[data-preview-vram]");
@@ -661,13 +666,47 @@
             .find((candidate) => candidate >= paddedValue);
     };
     const backendLabels = {
-        isaacsim_physx: "Isaac Sim PhysX",
-        newton_kamino: "Newton Kamino",
-        newton_mjwarp: "Newton MJWarp",
-        ovphysx: "OV PhysX",
+        isaacsim_physx: "physx",
+        newton_mjwarp: "mjwarp",
+        newton_mjwarp_vbd_proxy: "mjwarp + vbd",
+        ovphysx: "ovphysx",
     };
     const backendOrder = Object.keys(backendLabels);
     const backendClass = (backend) => `environment-chart-backend-${backend.replaceAll("_", "-")}`;
+    const rendererLabels = {
+        isaacsim_rtx: "rtx",
+        newton_renderer: "newton",
+        ovrtx: "ovrtx",
+    };
+    // Snapshots contain one fixed camera profile per physics/renderer pair.
+    const seriesKey = (row) => JSON.stringify([row.physics_backend, row.rendering_backend]);
+    const configurationLabel = (row) => [
+        backendLabels[row.physics_backend] || row.physics_backend,
+        rendererLabels[row.rendering_backend],
+    ].filter(Boolean).join(" + ");
+    const seriesLabel = (row) => [
+        backendLabels[row.physics_backend] || row.physics_backend,
+        rendererLabels[row.rendering_backend]
+            || (row.task.includes("Camera") ? "Unspecified renderer" : ""),
+        row.task_presets ? row.task_presets.split(",").join(", ")
+            : (row.task.includes("Camera") ? "Presets not recorded" : ""),
+        row.camera_resolution ? `${row.camera_resolution} px` : "",
+        `${Number(row.num_envs).toLocaleString()} envs`,
+        row.rl_library,
+    ].filter(Boolean).join(" · ");
+    const benchmarkSeries = (rows) => [...new Map(rows.map((row) => [seriesKey(row), row])).values()]
+        .sort((left, right) => backendOrder.indexOf(left.physics_backend) - backendOrder.indexOf(right.physics_backend)
+            || seriesKey(left).localeCompare(seriesKey(right)));
+    const seriesColor = (row, rows) => {
+        const index = benchmarkSeries(rows).findIndex((candidate) => seriesKey(candidate) === seriesKey(row));
+        return `hsl(${(index * 137.508 + 30) % 360} 65% 42%)`;
+    };
+
+    const benchmarkDate = (row) => (row.snapshot_date_utc || row.benchmark_date_utc).slice(0, 10);
+    const benchmarkDates = () => benchmarks.getAttribute(`data-benchmark-${state.benchmarkChannel}-dates`).split(",");
+    const benchmarkFps = (row) => Number(row[state.benchmarkWorkload === "collection"
+        ? "collection_fps_mean" : "total_fps_mean"]);
+    const benchmarkMetricLabel = () => state.benchmarkWorkload === "collection" ? "Collection FPS" : "Training FPS";
 
     const renderBenchmarkChart = (rows, maximum) => {
         const namespace = "http://www.w3.org/2000/svg";
@@ -678,19 +717,18 @@
             }
             return element;
         };
-        const svg = createSvgElement("svg", {viewBox: "0 0 900 400", role: "img"});
-        const workloadLabel = state.benchmarkWorkload === "runtime" ? "collection" : "training";
+        const svg = createSvgElement("svg", {viewBox: "0 0 600 360", role: "img"});
+        const workloadLabel = state.benchmarkWorkload === "collection" ? "collection" : "training";
         svg.setAttribute("aria-label", `${state.task} ${workloadLabel} throughput history in frames per second`);
-        const width = 900;
-        const height = 400;
-        const margins = {top: 38, right: 38, bottom: 60, left: 82};
+        const width = 600;
+        const height = 360;
+        const margins = {top: 38, right: 50, bottom: 60, left: 65};
         const plotWidth = width - margins.left - margins.right;
         const plotHeight = height - margins.top - margins.bottom;
-        const benchmarkDate = (row) => (row.benchmark_date_utc || row.recorded_at_utc).slice(0, 10);
-        const dateKeys = [...new Set(rows.map(benchmarkDate))].sort();
+        const dateKeys = benchmarkDates();
         const latestBySeriesAndDate = new Map();
         for (const row of rows) {
-            const key = `${row.physics_backend}:${benchmarkDate(row)}`;
+            const key = `${seriesKey(row)}:${benchmarkDate(row)}`;
             if (!latestBySeriesAndDate.has(key) || latestBySeriesAndDate.get(key).recorded_at_utc < row.recorded_at_utc) {
                 latestBySeriesAndDate.set(key, row);
             }
@@ -717,7 +755,7 @@
             x: 15, y: margins.top + plotHeight / 2, class: "environment-chart-axis-title",
             transform: `rotate(-90 15 ${margins.top + plotHeight / 2})`, "text-anchor": "middle",
         });
-        axisTitle.textContent = "Total FPS";
+        axisTitle.textContent = benchmarkMetricLabel();
         svg.appendChild(axisTitle);
 
         const visibleDateIndexes = dateKeys.length <= 4
@@ -728,44 +766,49 @@
             const label = createSvgElement("text", {
                 x: xPosition(date), y: height - 15, class: "environment-chart-axis-label", "text-anchor": "middle",
             });
-            label.textContent = new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, {
+            label.textContent = state.benchmarkChannel === "release" ? "EA 3.0" : new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, {
                 month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
             });
             svg.appendChild(label);
         }
 
-        const backends = [...new Set(plottedRows.map((row) => row.physics_backend))]
-            .sort((left, right) => backendOrder.indexOf(left) - backendOrder.indexOf(right));
-        for (const backend of backends) {
+        const configurations = benchmarkSeries(plottedRows);
+        for (const representative of configurations) {
             const series = plottedRows
-                .filter((row) => row.physics_backend === backend)
+                .filter((row) => seriesKey(row) === seriesKey(representative))
                 .sort((left, right) => benchmarkDate(left).localeCompare(benchmarkDate(right)));
-            const seriesClass = backendClass(backend);
-            if (series.length > 1) {
-                const points = series.map((row) => {
-                    const date = benchmarkDate(row);
-                    return `${xPosition(date)},${yPosition(Number(row.total_fps_mean))}`;
-                }).join(" ");
-                svg.appendChild(createSvgElement("polyline", {
-                    points, class: `environment-chart-line ${seriesClass}`,
+            const seriesClass = backendClass(representative.physics_backend);
+            const style = `--environment-series-color: ${seriesColor(representative, rows)}`;
+            // Do not draw a trend through a snapshot with no measurement.
+            for (let index = 1; index < series.length; index += 1) {
+                const previous = series[index - 1];
+                const current = series[index];
+                if (dateKeys.indexOf(benchmarkDate(current)) - dateKeys.indexOf(benchmarkDate(previous)) !== 1) {
+                    continue;
+                }
+                svg.appendChild(createSvgElement("line", {
+                    x1: xPosition(benchmarkDate(previous)), y1: yPosition(benchmarkFps(previous)),
+                    x2: xPosition(benchmarkDate(current)), y2: yPosition(benchmarkFps(current)),
+                    class: `environment-chart-line ${seriesClass}`, style,
                 }));
             }
             for (const [index, row] of series.entries()) {
                 const date = benchmarkDate(row);
-                const value = Number(row.total_fps_mean);
+                const value = benchmarkFps(row);
                 const x = xPosition(date);
                 const y = yPosition(value);
                 const circle = createSvgElement("circle", {
-                    cx: x, cy: y, r: 5, class: `environment-chart-point ${seriesClass}`,
+                    cx: x, cy: y, r: 5, class: `environment-chart-point ${seriesClass}`, style,
                 });
                 const title = createSvgElement("title");
-                const tooltipWorkload = state.benchmarkWorkload === "runtime" ? "Collection" : "Training";
-                title.textContent = `${backendLabels[backend] || backend} · ${tooltipWorkload}: ${Math.round(value).toLocaleString()} FPS on ${date}`;
+                const tooltipWorkload = state.benchmarkWorkload === "collection" ? "Collection" : "Training";
+                title.textContent = `${seriesLabel(row)} · ${tooltipWorkload}: ${Math.round(value).toLocaleString()} FPS · measured ${(row.measurement_timestamp || row.recorded_at_utc).slice(0, 10)}`;
                 circle.appendChild(title);
                 svg.appendChild(circle);
-                if (index === series.length - 1) {
+                // Dense camera charts expose exact values in tooltips without overlapping labels.
+                if (index === series.length - 1 && configurations.length <= 3) {
                     const valueLabel = createSvgElement("text", {
-                        x, y: y - 11, class: `environment-chart-value ${seriesClass}`, "text-anchor": "middle",
+                        x, y: y - 11, class: `environment-chart-value ${seriesClass}`, "text-anchor": "middle", style,
                     });
                     valueLabel.textContent = formatFps(value);
                     svg.appendChild(valueLabel);
@@ -777,31 +820,93 @@
 
     const renderBenchmarkLegend = (rows) => {
         const legend = benchmarks.querySelector(".environment-benchmark-legend");
-        const backends = [...new Set(rows.map((row) => row.physics_backend))]
-            .sort((left, right) => backendOrder.indexOf(left) - backendOrder.indexOf(right));
-        const entries = backends.map((backend) => {
+        const entries = benchmarkSeries(rows).map((row) => {
             const entry = document.createElement("span");
-            entry.innerHTML = `<i class="environment-legend-swatch ${backendClass(backend)}"></i>`;
-            entry.append(backendLabels[backend] || backend);
+            const swatch = document.createElement("i");
+            swatch.className = `environment-legend-swatch ${backendClass(row.physics_backend)}`;
+            swatch.style.setProperty("--environment-series-color", seriesColor(row, rows));
+            swatch.setAttribute("aria-hidden", "true");
+            entry.title = seriesLabel(row);
+            entry.append(swatch, configurationLabel(row));
             return entry;
         });
         legend.replaceChildren(...entries);
+    };
+
+    const renderBenchmarkTable = (rows) => {
+        const container = benchmarks.querySelector("[data-benchmark-table]");
+        container.hidden = rows.length === 0;
+        const table = document.createElement("table");
+        table.setAttribute("aria-label", `${state.task} · ${benchmarkMetricLabel()}`);
+        const header = table.createTHead().insertRow();
+        for (const label of ["Configuration", "Mean FPS"]) {
+            const cell = document.createElement("th");
+            cell.scope = "col";
+            cell.textContent = label;
+            header.appendChild(cell);
+        }
+        const body = table.createTBody();
+        const configurations = benchmarkSeries(rows);
+        for (const physics of selectedTask().physics.filter((value) => value !== "newton_kamino")) {
+            for (const renderer of selectedTask().renderer.length ? selectedTask().renderer : ["none"]) {
+                if ((physics === "isaacsim_physx" && renderer === "ovrtx")
+                    || (physics === "ovphysx" && renderer === "isaacsim_rtx")) {
+                    continue;
+                }
+                if (!rows.some((row) => row.physics_backend === physics
+                    && (renderer === "none" || row.rendering_backend === renderer))) {
+                    configurations.push({physics_backend: physics, rendering_backend: renderer, missing: true});
+                }
+            }
+        }
+        for (const representative of configurations) {
+            const entry = body.insertRow();
+            const configuration = document.createElement("th");
+            configuration.scope = "row";
+            const label = document.createElement("span");
+            const swatch = document.createElement("i");
+            swatch.className = `environment-legend-swatch ${backendClass(representative.physics_backend)}`;
+            swatch.style.setProperty("--environment-series-color", representative.missing
+                ? "var(--environment-muted)" : seriesColor(representative, rows));
+            swatch.setAttribute("aria-hidden", "true");
+            label.append(swatch, configurationLabel(representative));
+            configuration.title = representative.missing
+                ? `${rendererLabels[representative.rendering_backend] || ""} 8,192-environment matching-profile run unavailable`.trim()
+                : seriesLabel(representative);
+            configuration.appendChild(label);
+            entry.appendChild(configuration);
+            const row = rows.filter((candidate) => seriesKey(candidate) === seriesKey(representative))
+                .sort((left, right) => benchmarkDate(right).localeCompare(benchmarkDate(left))
+                    || right.recorded_at_utc.localeCompare(left.recorded_at_utc))[0];
+            const value = entry.insertCell();
+            if (!row) {
+                value.textContent = "Not available";
+                value.className = "environment-benchmark-missing";
+                continue;
+            }
+            value.textContent = Math.round(benchmarkFps(row)).toLocaleString();
+            const measuredDate = (row.measurement_timestamp || row.recorded_at_utc).slice(0, 10);
+            value.title = `Measured ${measuredDate} · source record ${row.source_record_id} · ${row.source_entry_key} · commit ${row.git_commit}`;
+        }
+
+        container.replaceChildren(table);
     };
 
     const updateBenchmark = () => {
         if (!benchmarks) {
             return;
         }
-        const taskRows = benchmarkRows.filter((row) => row.task === state.task);
-        const rows = taskRows.filter((row) => row.workload === state.benchmarkWorkload);
+        const taskRows = benchmarkRows.filter((row) => row.task === state.task && row.channel === state.benchmarkChannel);
+        const rows = taskRows;
         const chart = benchmarks.querySelector("[data-benchmark-chart]");
         const empty = benchmarks.querySelector("[data-benchmark-empty]");
-        const toolbar = benchmarks.querySelector(".environment-benchmark-toolbar");
-        const maximum = standardFpsScale(Math.max(...taskRows.map((row) => Number(row.total_fps_mean))));
+        const failed = benchmarkErrors.has(state.benchmarkChannel);
+        const maximum = standardFpsScale(Math.max(...taskRows.flatMap((row) => [Number(row.collection_fps_mean), Number(row.total_fps_mean)])));
         chart.hidden = rows.length === 0;
-        empty.hidden = rows.length !== 0;
-        toolbar.hidden = taskRows.length === 0;
+        empty.hidden = rows.length !== 0 || failed;
+        benchmarks.querySelector("[data-benchmark-error]").hidden = !failed;
         renderBenchmarkLegend(rows);
+        renderBenchmarkTable(rows);
         chart.replaceChildren(...(rows.length ? [renderBenchmarkChart(rows, maximum)] : []));
     };
 
@@ -809,21 +914,28 @@
         if (!benchmarks) {
             return;
         }
-        try {
-            const source = new URL(benchmarks.dataset.benchmarkSource, window.location.href);
-            const response = await fetch(source);
-            if (!response.ok) {
-                throw new Error(`Benchmark request failed with ${response.status}`);
+        benchmarkRows = (await Promise.all(["release", "develop"].map(async (channel) => {
+            try {
+                const source = new URL(benchmarks.getAttribute(`data-benchmark-${channel}-source`), window.location.href);
+                const response = await fetch(source);
+                if (!response.ok) {
+                    throw new Error(`Benchmark request failed with ${response.status}`);
+                }
+                return parseCsv(await response.text())
+                    .filter((row) => row.data_origin === "measured" && row.workload === "training")
+                    .filter((row) => [row.collection_fps_mean, row.total_fps_mean]
+                        .every((value) => Number.isFinite(Number(value)) && Number(value) > 0))
+                    .filter((row) => row.task.startsWith("Isaac-") && row.physics_backend !== "newton_kamino")
+                    .filter((row) => !(row.physics_backend === "isaacsim_physx" && row.rendering_backend === "ovrtx")
+                        && !(row.physics_backend === "ovphysx" && row.rendering_backend === "isaacsim_rtx"))
+                    .map((row) => ({...row, channel}));
+            } catch (error) {
+                benchmarkErrors.add(channel);
+                console.error(error);
+                return [];
             }
-            benchmarkRows = parseCsv(await response.text()).filter((row) => row.data_origin === "measured");
-            updatePreview();
-        } catch (error) {
-            benchmarks.querySelector("[data-benchmark-chart]").hidden = true;
-            benchmarks.querySelector("[data-benchmark-empty]").hidden = true;
-            benchmarks.querySelector(".environment-benchmark-toolbar").hidden = true;
-            benchmarks.querySelector("[data-benchmark-error]").hidden = false;
-            console.error(error);
-        }
+        }))).flat();
+        updatePreview();
     };
 
     fields.task.addEventListener("change", () => {
@@ -889,6 +1001,17 @@
         updateCommand();
         updatePreview();
     });
+    for (const button of benchmarks?.querySelectorAll("[data-benchmark-channel]") || []) {
+        button.addEventListener("click", () => {
+            state.benchmarkChannel = button.dataset.benchmarkChannel;
+            for (const channelButton of benchmarks.querySelectorAll("[data-benchmark-channel]")) {
+                const isActive = channelButton === button;
+                channelButton.classList.toggle("is-active", isActive);
+                channelButton.setAttribute("aria-pressed", String(isActive));
+            }
+            updatePreview();
+        });
+    }
     for (const button of benchmarks?.querySelectorAll("[data-benchmark-workload]") || []) {
         button.addEventListener("click", () => {
             state.benchmarkWorkload = button.dataset.benchmarkWorkload;
