@@ -399,7 +399,9 @@ class LeappDeploymentEnv:
                 while assets_loading():
                     self.sim.render()
 
-        self.inference.reset()
+        # Persistent state created by run_policy() can contain inference tensors.
+        with torch.inference_mode():
+            self.inference.reset()
 
         return self._read_inputs()
 
