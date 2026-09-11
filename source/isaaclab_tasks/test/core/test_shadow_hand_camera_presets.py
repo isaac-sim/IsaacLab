@@ -8,8 +8,8 @@
 Two test suites are provided:
 
 1. **Validation unit tests** — use lightweight ``types.SimpleNamespace`` mocks.
-   These exercise :meth:`ShadowHandCameraEnvCfg.validate_config` directly and
-   do not require Isaac Sim.
+   These exercise generic camera validation followed by Shadow Hand's task-specific
+   feature-extractor validation and do not require Isaac Sim.
 
 2. **Preset resolution tests** — verify that each named preset in
    :class:`ShadowHandTiledCameraCfg` and
@@ -52,14 +52,26 @@ def _make_cfg(renderer_type: str | None, data_types: list[str], feature_extracto
     The mock reuses the real validation logic from :class:`ShadowHandCameraEnvCfg`.
     """
     cfg = types.SimpleNamespace()
+    if renderer_type == "newton_warp":
+        renderer_cfg = NewtonWarpRendererCfg()
+    elif renderer_type == "isaac_rtx":
+        renderer_cfg = IsaacRtxRendererCfg()
+    else:
+        renderer_cfg = RendererCfg(renderer_type=renderer_type) if renderer_type is not None else None
     cfg.tiled_camera = CameraCfg(
         prim_path="/Camera",
-        renderer_cfg=RendererCfg(renderer_type=renderer_type) if renderer_type is not None else None,
+        renderer_cfg=renderer_cfg,
         data_types=data_types,
     )
     cfg.feature_extractor = types.SimpleNamespace(enabled=feature_extractor_enabled)
     cfg.validate_config = lambda: ShadowHandCameraEnvCfg.validate_config(cfg)
     return cfg
+
+
+def _validate_cfg(cfg) -> None:
+    """Run camera and task hooks for the intentionally incomplete lightweight mock."""
+    cfg.tiled_camera.validate_config()
+    cfg.validate_config()
 
 
 # ---------------------------------------------------------------------------
@@ -81,8 +93,11 @@ _VALID_COMBOS = [
     ("isaac_rtx", ["simple_shading_full_mdl"], True),
     ("isaac_rtx", ["rgb", "depth", "semantic_segmentation"], True),
     ("isaac_rtx", ["depth"], False),
-    # ── Warp renderer: rgb, depth, and semantic_segmentation are supported ──
+    # ── Warp renderer: all published color, depth, and segmentation outputs are supported ──
     ("newton_warp", ["rgb"], True),
+    ("newton_warp", ["rgba"], True),
+    ("newton_warp", ["rgb_hdr"], True),
+    ("newton_warp", ["albedo"], True),
     ("newton_warp", ["depth"], False),  # depth-only OK when CNN disabled
     ("newton_warp", ["rgb", "depth"], True),  # multiple supported types
     ("newton_warp", ["rgb", "depth", "semantic_segmentation"], True),
@@ -92,7 +107,7 @@ _VALID_COMBOS = [
 @pytest.mark.parametrize("renderer_type,data_types,enabled", _VALID_COMBOS)
 def test_valid_combinations_do_not_raise(renderer_type, data_types, enabled):
     cfg = _make_cfg(renderer_type, data_types, enabled)
-    cfg.validate_config()  # must not raise
+    _validate_cfg(cfg)  # must not raise
 
 
 # ---------------------------------------------------------------------------
@@ -101,13 +116,7 @@ def test_valid_combinations_do_not_raise(renderer_type, data_types, enabled):
 
 _INVALID_COMBOS = [
     # renderer_type, data_types, enabled, substring expected in error message
-    # ── Warp does not support colour-space data types ──
-    (
-        "newton_warp",
-        ["albedo"],
-        True,
-        "albedo",
-    ),
+    # ── Warp does not support RTX simple-shading outputs ──
     (
         "newton_warp",
         ["simple_shading_constant_diffuse"],
@@ -152,7 +161,7 @@ _INVALID_COMBOS = [
 def test_invalid_combinations_raise_value_error(renderer_type, data_types, enabled, match):
     cfg = _make_cfg(renderer_type, data_types, enabled)
     with pytest.raises(ValueError, match=match):
-        cfg.validate_config()
+        _validate_cfg(cfg)
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +243,7 @@ _WARP_CAMERA_PRESETS = [
     ("depth", False),
     ("default", False),
     ("full", False),
-    ("albedo", True),
+    ("albedo", False),
     ("simple_shading_constant_diffuse", True),
     ("simple_shading_diffuse_mdl", True),
     ("simple_shading_full_mdl", True),
@@ -250,9 +259,9 @@ def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_pre
     cfg = _make_cfg(warp_cfg.renderer_type, camera_cfg.data_types, enabled)
     if raises:
         with pytest.raises(ValueError):
-            cfg.validate_config()
+            _validate_cfg(cfg)
     else:
-        cfg.validate_config()
+        _validate_cfg(cfg)
 
 
 @pytest.mark.parametrize(

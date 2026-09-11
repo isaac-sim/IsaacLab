@@ -108,6 +108,7 @@ def test_ovrtx_supported_output_types_key_set():
     renderer = _make_ovrtx_renderer_without_backend()
     specs = renderer.supported_output_types()
 
+    assert specs == renderer.cfg.supported_output_types()
     assert set(specs.keys()) == {
         RenderBufferKind.RGB,
         RenderBufferKind.RGBA,
