@@ -242,7 +242,7 @@ rollout:
     trust_remote_code: ${actor.model.trust_remote_code}
     is_lora: ${actor.model.is_lora}
     rl_head_config: ${actor.model.rl_head_config}
-    model_path: ".pretrained_checkpoints/rlinf/pnp_apple/checkpoint-test-2"
+    model_path: ".pretrained_checkpoints/rlinf/pnp_apple/gen_data_SFT_l40s-2/checkpoint-30000"
     # Qwen3-VL / Cosmos-Reason2-2B backbone; must be a local dir (offline load).
     backbone_model_path: ".pretrained_checkpoints/rlinf/Cosmos-Reason2-2B"
     precision: ${actor.model.precision}
@@ -293,7 +293,7 @@ actor:
 
   model:
     model_type: "gr00t_n1d7"
-    model_path: ".pretrained_checkpoints/rlinf/pnp_apple/checkpoint-test-2"
+    model_path: ".pretrained_checkpoints/rlinf/pnp_apple/gen_data_SFT_l40s-2/checkpoint-30000"
     backbone_model_path: ".pretrained_checkpoints/rlinf/Cosmos-Reason2-2B"
     precision: "bf16"
     trust_remote_code: True
