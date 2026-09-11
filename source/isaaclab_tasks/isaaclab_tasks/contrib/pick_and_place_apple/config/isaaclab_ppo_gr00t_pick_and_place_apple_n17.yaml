@@ -1,0 +1,393 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# ===========================================================================
+# GR00T N1.7 co-train (PPO + SFT) config for pnp_apple (Unitree H2 + Sharpa).
+#
+# Differences from the N1.5 config (isaaclab_ppo_gr00t_pnp_apple.yaml):
+#   * model_type:        gr00t  ->  gr00t_n1d7
+#   * backbone:          Eagle2.5-VL (bundled)  ->  Qwen3-VL / Cosmos-Reason2-2B
+#                        (must be provided separately via backbone_model_path)
+#   * action horizon:    16 (N1.5 dataset)  ->  32 (N1.7 dataset delta indices)
+#   * SFT data pipeline: LeRobotSingleDataset + BaseDataConfig.transform()
+#                        ->  ShardedSingleStepDataset + Gr00tN1d7Processor
+#                        (handled in the fsdp_actor_worker override)
+#   * data_config_class: intentionally OMITTED. For N1.7 the model loads its
+#                        processor from the checkpoint's processor/ dir and the
+#                        modality config is registered by importing
+#                        sim2real.embodiments.unitree.h2.gr00t_n17. Setting
+#                        data_config_class would (wrongly) route get_model to
+#                        the N1.5 loader in the isaaclab extension.
+#
+# Requires: RLinf c90951a0+ (gr00t_n1d7) and sim2real SFT overrides, plus an
+# Isaac-GR00T pinned to n1.7-release. See setup/uv.sh isaaclab-n17.
+# ===========================================================================
+
+defaults:
+  - override hydra/job_logging: stdout
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+
+cluster:
+  num_nodes: 1
+  component_placement:
+      actor,env,rollout: all
+
+runner:
+  task_type: embodied
+  logger:
+    log_path: "../results"
+    project_name: rlinf
+    experiment_name: "gr00t_pnp_apple_n17"
+    logger_backends: ["tensorboard"]  # wandb needs a login; keep the demo self-contained
+
+  max_epochs: 1000
+  max_steps: -1
+
+  only_eval: False
+  eval_policy_path: null
+  val_check_interval: -1
+  save_interval: 3
+  seq_length: 4096
+  max_prompt_length: 30
+
+  resume_dir: null
+
+algorithm:
+  normalize_advantages: True
+  kl_penalty: kl
+  group_size: 1
+  reward_coef: 1.0
+  # Per-rank rollout samples (must divide global_batch_size // num_gpus):
+  # (128 envs / 8 ranks) * (384 steps / 16 chunks) * 1 epoch = 384/rank.
+  # With global_batch_size=1024 → 128 samples/rank/step; 384 % 128 == 0 (3 minibatches).
+  rollout_epoch: 1
+  eval_rollout_epoch: 1
+
+  reward_type: chunk_level
+  logprob_type: action_level
+  entropy_type: chunk_level
+
+  # Bump to 2 after cutting rollout_epoch 2→1 so each collected batch is reused once
+  # more (PPO-style), partially offsetting the smaller buffer (3×2=6 opts vs old ~8).
+  update_epoch: 2
+  adv_type: gae
+  loss_type: actor_critic
+  loss_agg_func: "token-mean"
+  kl_beta: 0.0
+  entropy_bonus: 0
+  clip_ratio_high: 0.2
+  clip_ratio_low: 0.2
+  clip_ratio_c: 3.0
+  value_clip: 0.2
+  huber_delta: 10.0
+
+  gamma: 0.99
+  gae_lambda: 0.95
+
+  filter_rewards: False
+  rewards_lower_bound: 0.1
+  rewards_upper_bound: 0.9
+
+  sampling_params:
+    do_sample: True
+    temperature_train: 1.0
+    temperature_eval: 0.6
+    top_k: 50
+    top_p: 1.0
+    repetition_penalty: 1.0
+    add_BOS: False
+
+  length_params:
+    max_new_token: null
+    max_length: 1024
+    min_length: 1
+
+# ---------------------------------------------------------------------------
+# Environment
+# ---------------------------------------------------------------------------
+env:
+  group_name: "EnvGroup"
+  channel:
+    name: "env_buffer_list"
+    queue_name: "obs_buffer"
+    queue_size: 0
+  enable_offload: False
+
+  train:
+    env_type: isaaclab
+    total_num_envs: 128
+    auto_reset: False
+    ignore_terminations: False
+    use_rel_reward: True
+    seed: 0
+    group_size: 1
+    reward_coef: 1.0
+    use_fixed_reset_state_ids: True
+    max_steps_per_rollout_epoch: 384
+    max_episode_steps: 384
+    video_cfg:
+      save_video: False
+      info_on_video: True
+      video_base_dir: ${runner.logger.log_path}/video/train
+    init_params:
+      id: "IsaacContrib-Pick-And-Place-Apple-H2-Sharpa"
+      num_envs: null
+      max_episode_steps: ${env.train.max_episode_steps}
+      task_description: "place the apple in the plate"
+
+    isaaclab: &isaaclab_config
+      task_description: "place the apple in the plate"
+
+      # Match IsaacLab camera render resolution (240x320). No extra downsample
+      # needed here; the processor applies its own crop/resize afterward.
+      gpu_resize_height: 240
+      gpu_resize_width: 320
+      gpu_crop_scale: 0.0
+      gpu_crop_random: false
+
+      main_images: "front_camera"
+      extra_view_images:
+        - "left_wrist_camera"
+        - "right_wrist_camera"
+      states:
+        - key: "robot_policy_joint_pos"
+
+      gr00t_mapping:
+        video:
+          main_images: "video.high"
+          extra_view_images:
+            - "video.left_wrist_view"
+            - "video.right_wrist_view"
+        state:
+          - gr00t_key: "state.left_arm"
+            slice: [0, 7]
+          - gr00t_key: "state.right_arm"
+            slice: [7, 14]
+          - gr00t_key: "state.left_hand"
+            slice: [14, 36]
+          - gr00t_key: "state.right_hand"
+            slice: [36, 58]
+
+      action_mapping:
+        prefix_pad: 17
+        suffix_pad: 0
+
+      # IsaacLab resets a done sub-environment inside env.step(). Hold the
+      # freshly reset arm/hand pose for the remainder of the current action
+      # chunk so stale actions from the previous episode cannot hit it.
+      hold_pose_on_midchunk_reset: true
+
+      obs_converter_type: "h2_sharpa"
+      # N1.7 takes no data_config_class; this module registers the H2 modalities instead.
+      modality_config_module: "isaaclab_tasks.contrib.h2_sharpa.gr00t_n17"
+      embodiment_tag: "new_embodiment"
+      embodiment_tag_id: 31
+      # NB: data_config_class intentionally NOT set for N1.7 (see header).
+
+  eval:
+    env_type: isaaclab
+    total_num_envs: 32
+    auto_reset: false
+    ignore_terminations: false
+    use_rel_reward: True
+    seed: 0
+    group_size: 1
+    reward_coef: 1.0
+    use_fixed_reset_state_ids: True
+    max_steps_per_rollout_epoch: 384
+    max_episode_steps: 384
+    video_cfg:
+      save_video: True
+      info_on_video: True
+      video_base_dir: ${runner.logger.log_path}/video/eval
+    init_params:
+      id: "IsaacContrib-Pick-And-Place-Apple-H2-Sharpa-Eval"
+      num_envs: null
+      max_episode_steps: ${env.eval.max_episode_steps}
+      task_description: "place the apple in the plate"
+    isaaclab:
+      <<: *isaaclab_config
+      gpu_crop_random: false
+
+# ---------------------------------------------------------------------------
+# Rollout
+# ---------------------------------------------------------------------------
+rollout:
+  group_name: "RolloutGroup"
+  channel:
+    name: ${env.channel.name}
+    queue_name: "action_buffer"
+    queue_size: 0
+  mode: "colocate"
+  backend: "huggingface"
+  enable_offload: True
+  pipeline_stage_num: 1
+
+  model:
+    # Fields accessed by validate_embodied_cfg via `model_cfg` when running in
+    # eval-only mode (`only_eval=True`). Alias them off actor.model so training
+    # and eval agree on the same values.
+    model_type: ${actor.model.model_type}
+    num_action_chunks: ${actor.model.num_action_chunks}
+    policy_setup: ${actor.model.policy_setup}
+    action_dim: ${actor.model.action_dim}
+    denoising_steps: ${actor.model.denoising_steps}
+    add_value_head: ${actor.model.add_value_head}
+    trust_remote_code: ${actor.model.trust_remote_code}
+    is_lora: ${actor.model.is_lora}
+    rl_head_config: ${actor.model.rl_head_config}
+    model_path: ".pretrained_checkpoints/rlinf/pnp_apple/checkpoint-test-2"
+    # Qwen3-VL / Cosmos-Reason2-2B backbone; must be a local dir (offline load).
+    backbone_model_path: ".pretrained_checkpoints/rlinf/Cosmos-Reason2-2B"
+    precision: ${actor.model.precision}
+    obs_converter_type: ${env.train.isaaclab.obs_converter_type}
+    embodiment_tag: ${env.train.isaaclab.embodiment_tag}
+
+# ---------------------------------------------------------------------------
+# Actor
+# ---------------------------------------------------------------------------
+actor:
+  group_name: "ActorGroup"
+  channel:
+    name: ${env.channel.name}
+    queue_name: "replay_buffer"
+    queue_size: 0
+  training_backend: "fsdp"
+  # micro_batch_size=64 OOMs on H100 80G: N1.7's Qwen3-VL backbone + padding_value
+  # 2048 (3x256 image tokens) is far heavier than N1.5's Eagle (850), and rollout
+  # is colocated on the same GPU. Batch 32 still OOMs after reducing cameras to
+  # 240x320 and envs to 128 (jobs 465720, 466010). Batch 16 passed forward but
+  # OOMed during backward (job 469511), so use batch 8.
+  # Match 384-step / rollout_epoch=1: 384 samples/rank; global_batch_size=1024
+  # → 1024/8/8=16 accumulation steps; 384 % (1024/8) == 0.
+  micro_batch_size: 4
+  global_batch_size: 1024
+  seed: 1234
+  enable_offload: False
+
+  # ---- SFT co-training (PPO + β·SFT) ------------------------------------
+  # The GR00T_N1D7 branch of the fsdp_actor_worker override builds the SFT
+  # loader from ShardedSingleStepDataset + Gr00tN1d7Processor (N1.7 pipeline).
+  enable_sft_co_train: True
+  sft_loss_weight: 0.1
+  # Keep co-training on the real-data component used to train the v8 checkpoint.
+  # The checkpoint processor supplies normalization statistics for real30 +
+  # sim_align_v1; using older real43/real46 data causes a distribution mismatch.
+  sft_data_path: "/workspace/datasets/pnp_apple_real30"
+  # Keep SFT micro-batch aligned with PPO: 8 samples * 16 accumulation steps = 128
+  # SFT samples per rank per optimizer update.
+  sft_batch_size: 4
+  # N1.7-specific SFT-loader knobs (consumed by the worker override):
+  sft_shard_size: 1024
+  sft_episode_sampling_rate: 1.0
+  sft_num_shards_per_epoch: 1000
+  sft_num_workers: 2
+
+  model:
+    model_type: "gr00t_n1d7"
+    model_path: ".pretrained_checkpoints/rlinf/pnp_apple/checkpoint-test-2"
+    backbone_model_path: ".pretrained_checkpoints/rlinf/Cosmos-Reason2-2B"
+    precision: "bf16"
+    trust_remote_code: True
+    is_lora: false
+    action_dim: 58
+    # Rollout/execution cadence. The N1.7 checkpoint's action_horizon is 32
+    # (dataset delta indices); output_action_chunks<=action_horizon is fine.
+    num_action_chunks: 16
+    denoising_steps: 4
+    policy_setup: "widowx_bridge"
+    obs_converter_type: ${env.train.isaaclab.obs_converter_type}
+    embodiment_tag: ${env.train.isaaclab.embodiment_tag}
+    add_value_head: True
+    rl_head_config:
+      joint_logprob: False
+      noise_method: "flow_sde"
+      ignore_last: False
+      safe_get_logprob: False
+      noise_anneal: False
+      noise_params: [0.7, 0.3, 400]
+      # Official RLinf N1.7 defaults (noise_level=0.5, action_noise_scale=0.1) were
+      # validated on LIBERO (action_dim=7, single-arm gripper). Our H2 dual-arm +
+      # dexterous-hand task has action_dim=58: the same per-dimension noise in
+      # normalized [-1,1] space compounds across far more independently-noised
+      # joints and looked like erratic flailing in rollout videos. Local ablation
+      # (frame-diff spike counts on 4-env smoke rollouts) confirmed
+      # action_noise_scale was the dominant cause (spikes in ~51% of frames at
+      # 0.1 vs ~0.2% at 0.0), with residual flow_sde noise_level=0.5 spikes
+      # (~1.2% of frames) cleared by dropping noise_level to 0.1 as well —
+      # matching the precedent set by our own N1.5 assemble_trocar config, which
+      # also reduces noise_level to 0.1 for a comparable dual-arm+hand task.
+      noise_level: 0.1
+      action_noise_scale: 0.0
+      add_value_head: ${actor.model.add_value_head}
+      chunk_critic_input: False
+      detach_critic_input: True
+      disable_dropout: True
+      use_vlm_value: False
+      value_vlm_mode: "mean_token"
+      # IMPORTANT: N1.7 uses the Qwen3-VL tokenizer; the tokenized prompt length
+      # (text + image placeholder tokens for 3 x 224x224 views) differs from
+      # N1.5's Eagle (~850). padding_value MUST be >= the max tokenized length
+      # or default_forward raises. Verify against the actual checkpoint/processor
+      # (e.g. print normalized_input["input_ids"].shape[-1] once) and tighten.
+      padding_value: 2048
+
+  optim:
+    lr: 1e-5
+    value_lr: 1e-4
+    adam_beta1: 0.9
+    adam_beta2: 0.95
+    adam_eps: 1.0e-08
+    clip_grad: 1.0
+    weight_decay: 0.01
+    critic_warmup_steps: 5
+
+  fsdp_config:
+    strategy: "fsdp"
+    sharding_strategy: "full_shard"
+    gradient_checkpointing: True
+    cpu_offload: False
+    offload_pin_memory: False
+    reshard_after_forward: True
+    enable_gradient_accumulation: True
+    forward_prefetch: False
+    limit_all_gathers: False
+    backward_prefetch: null
+    use_orig_params: True
+    use_liger_kernel: False
+    fsdp_size: -1
+    mixed_precision:
+      param_dtype: ${actor.model.precision}
+      reduce_dtype: ${actor.model.precision}
+      buffer_dtype: ${actor.model.precision}
+    amp:
+      enabled: False
+      precision: "bf16"
+      use_grad_scaler: False
+
+reward:
+  use_reward_model: False
+
+critic:
+  use_critic_model: False
+
+# Required by RLinf c90951a0+ (see examples/embodiment/config/weight_syncer/patch_syncer.yaml).
+weight_syncer:
+  type: patch
+  patch:
+    snapshot_device: cpu
+    delta_encoding: True
+    compression: none
+    init_sync:
+      enabled: True
+      prefixes: null
+      bucket_size: 134217728
+
+zimage:
+  enabled: False
