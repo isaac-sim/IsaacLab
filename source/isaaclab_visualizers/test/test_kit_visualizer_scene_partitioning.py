@@ -5,11 +5,13 @@
 
 """Tests for Kit visualizer scene-partition behavior."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer_module
 import pytest
 import torch
+from isaaclab_visualizers.kit import KitVisualizerCfg
 from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
@@ -52,7 +54,7 @@ def test_viewport_camera_partition_follows_global_view_setting(
     camera = UsdGeom.Camera.Define(stage, "/OmniverseKit_Persp")
     camera.GetPrim().CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set("env_0")
 
-    visualizer = object.__new__(KitVisualizer)
+    visualizer = KitVisualizer(KitVisualizerCfg())
     visualizer._controlled_camera_path = "/OmniverseKit_Persp"
     visualizer._resolved_visible_env_ids = [2]
     settings = MagicMock()
@@ -125,3 +127,24 @@ def test_marker_environment_ids_are_sticky_until_count_changes() -> None:
     )
 
     assert not primvar.GetAttr().HasAuthoredValueOpinion()
+
+
+def test_viewport_partition_updates_after_center_camera_selection(monkeypatch):
+    from isaaclab.sim import SimulationContext
+
+    stage = Usd.Stage.CreateInMemory()
+    env_prim = stage.DefinePrim("/World/envs/env_0", "Xform")
+    env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set("env_0")
+    camera = UsdGeom.Camera.Define(stage, "/OmniverseKit_Persp")
+    camera.GetPrim().CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set("env_0")
+    viz = KitVisualizer(KitVisualizerCfg(origin_type="env", origin_env_index="center"))
+    viz._controlled_camera_path = "/OmniverseKit_Persp"
+    viz._resolved_visible_env_ids = [0, 1, 2]
+    viz._scene_data_provider = SimpleNamespace(usd_stage=stage, num_envs=3)
+    scene = SimpleNamespace(num_envs=3, env_origins=torch.tensor([[-10.0, 0, 0], [10.0, 0, 0], [0.0, 0, 0]]))
+    monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(_interactive_scene=scene))
+    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: SimpleNamespace(get=lambda *args: False))
+    monkeypatch.setattr(viz, "set_camera_view", lambda *args: None)
+    viz._update_camera_tracking()
+    assert viz.camera_env_index == 2
+    assert camera.GetPrim().GetAttribute("omni:scenePartition").Get() == "env_2"

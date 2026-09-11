@@ -34,6 +34,7 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
+from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.velocity.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
@@ -362,6 +363,16 @@ class LocomotionVelocityRoughEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 0.005
         self.sim.render_interval = self.decimation
+        self.sim.default_visualizer_cfg = VisualizerCfg(
+            eye=(1.8, -3.0, 1.1),
+            lookat=(0.15, 0.0, 0.0),
+            focal_length=26.0,
+            origin_type="asset",
+            origin_env_index="center",
+            origin_track_path="robot",
+            origin_follow_heading=True,
+            origin_heading_smoothing_time_constant=0.2,
+        )
         self.sim.physics_material = self.scene.terrain.physics_material
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)

@@ -17,6 +17,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -63,7 +64,18 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
     state_space = -1
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=PendulumPhysicsCfg())
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 120,
+        render_interval=decimation,
+        physics=PendulumPhysicsCfg(),
+        default_visualizer_cfg=VisualizerCfg(
+            eye=(8.0, 0.0, 2.3),
+            lookat=(0.0, 0.0, 2.3),
+            focal_length=24.0,
+            origin_type="env",
+            origin_env_index="center",
+        ),
+    )
 
     # robot
     robot_cfg: ArticulationCfg = CART_DOUBLE_PENDULUM_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")

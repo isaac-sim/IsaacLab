@@ -22,6 +22,7 @@ from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -65,7 +66,21 @@ class AntEnvCfg(DirectRLEnvCfg):
     state_space = 0
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=AntPhysicsCfg())
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 120,
+        render_interval=decimation,
+        physics=AntPhysicsCfg(),
+        default_visualizer_cfg=VisualizerCfg(
+            eye=(3.5, -1.0, 2.8),
+            lookat=(0.0, 0.0, 0.0),
+            focal_length=26.0,
+            origin_type="asset",
+            origin_env_index="center",
+            origin_track_path="robot",
+            origin_follow_heading=True,
+            origin_heading_smoothing_time_constant=0.5,
+        ),
+    )
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",

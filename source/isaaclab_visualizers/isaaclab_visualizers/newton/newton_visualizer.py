@@ -1157,6 +1157,7 @@ class NewtonVisualizer(BaseVisualizer):
                 " rigid-body force input."
             )
         self._is_initialized = True
+        self._update_camera_tracking()
         # Inform the viewer whether contact data is available so the UI can grey
         # out "Show Contacts" when neither native Newton contacts nor a ContactSensor
         # exists in the scene.
@@ -1185,6 +1186,7 @@ class NewtonVisualizer(BaseVisualizer):
         if not self._is_initialized or self._is_closed:
             return
 
+        self._update_camera_tracking(dt)
         self._sim_time += dt
         self._step_counter += 1
 
@@ -1380,8 +1382,7 @@ class NewtonVisualizer(BaseVisualizer):
         """
         eye_t = (float(eye[0]), float(eye[1]), float(eye[2]))
         target_t = (float(target[0]), float(target[1]), float(target[2]))
-        self.cfg.eye = eye_t
-        self.cfg.lookat = target_t
+        self._set_camera_pose_cfg(eye_t, target_t)
         self._apply_camera_pose((eye_t, target_t))
 
     def log_mesh(

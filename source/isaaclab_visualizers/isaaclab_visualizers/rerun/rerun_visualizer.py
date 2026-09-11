@@ -428,6 +428,7 @@ class RerunVisualizer(BaseVisualizer):
 
         self._setup_streaming_view(num_envs)
         self._is_initialized = True
+        self._update_camera_tracking()
         atexit.register(self.close)
 
     def step(self, dt: float) -> None:
@@ -441,6 +442,7 @@ class RerunVisualizer(BaseVisualizer):
         if not self._is_initialized or self._is_closed or self._viewer is None:
             return
 
+        self._update_camera_tracking(dt)
         self._sim_time += dt
         self._step_counter += 1
 
@@ -688,6 +690,10 @@ class RerunVisualizer(BaseVisualizer):
         # the streaming blueprint (Spatial2DView) from _get_blueprint() would be replaced
         # by a 3D view, hiding the streaming composite panel entirely.
         if self._streaming_view_active:
+            return
+        if self._viewer._live_plot_manager_names:
+            rr.send_blueprint(self._viewer._get_blueprint())
+            self._last_camera_pose = pose
             return
         panel_states = [rrb.TimePanel(state="hidden")]
         rr.send_blueprint(

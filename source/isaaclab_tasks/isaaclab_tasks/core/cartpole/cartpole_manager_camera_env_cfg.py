@@ -11,7 +11,6 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
-from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.cartpole.mdp as mdp
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg, ObservationsCfg
@@ -172,8 +171,6 @@ class CartpoleCameraEnvCfg(PresetCfg):
             # remove ground as it obstructs the camera
             self.scene.ground = None
             self.events.reset_pole_position.params["position_range"] = (-0.125 * math.pi, 0.125 * math.pi)
-            # visualizer camera settings
-            self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0), lookat=(0.0, 0.0, 0.0))
 
     rgb = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("rgb"))
     depth = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("depth"))

@@ -51,6 +51,51 @@ the environment config:
 See `Source types`_ for the full list of recordable sources and `Clip control`_ for length and
 interval options.
 
+Task-owned Camera Views
+-----------------------
+
+Set ``sim.default_visualizer_cfg`` in a task to share its recording view across Kit,
+Newton GL/RTX, Rerun, and Viser. Explicit backend customizations take precedence;
+policy camera sensors are unaffected. For example, follow a robot's position and yaw:
+
+.. code-block:: python
+
+    from isaaclab.visualizers import VisualizerCfg
+
+    self.sim.default_visualizer_cfg = VisualizerCfg(
+        origin_type="asset",
+        origin_env_index="center",
+        origin_track_path="robot",
+        origin_follow_heading=True,
+        origin_heading_smoothing_time_constant=0.2,
+        eye=(-3.0, -3.0, 2.0),
+        lookat=(0.5, 0.0, 0.0),
+    )
+
+``eye`` and ``lookat`` are offsets in meters. Use ``origin_type="env"`` for a fixed view,
+``"asset"`` to track an asset (or a body such as ``"robot/base"``), or ``"world"`` for
+absolute coordinates. Heading following rotates offsets with yaw only, keeping the horizon
+level; disabling it follows position with world-aligned offsets. The smoothing time constant
+is in seconds; zero disables filtering. Core locomotion views use 0.2 seconds, or 0.5 for
+Ant and Humanoid. Position tracking remains immediate.
+
+``origin_env_index="center"`` selects the visible environment nearest the horizontal bounding-box
+center of all environment origins, breaking ties by lowest index (27 for a standard 64-env grid).
+The selection survives resets and terrain relocation; ``visualizer.camera_env_index`` exposes it.
+An explicit index must be in range and visible. Existing Kit camera settings remain compatible.
+
+Record through the normal play command, using the task's camera automatically:
+
+.. code-block:: bash
+
+    uv run --extra video isaaclab play --rl_library rsl_rl --task Isaac-Ant \
+        --checkpoint /path/to/checkpoint.pt --num_envs 1 \
+        --viz newton_rtx --video --video_length 600
+
+Clips go to ``videos/play/`` beside the resolved checkpoint. Length is in environment steps
+(600 is 10 seconds for Ant). On Linux, prefix with ``env -u DISPLAY`` for headless OVRTX.
+See :ref:`reinforcement-learning` for checkpoint selection.
+
 
 Overview
 --------

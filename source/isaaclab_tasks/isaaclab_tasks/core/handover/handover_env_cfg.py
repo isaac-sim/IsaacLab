@@ -177,7 +177,13 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
         physics=PhysicsCfg(),
         # Frame both hands and the object between them. Without this the visualizer looks at the
         # origin from its default 4 m away, which renders the pair a few pixels wide.
-        default_visualizer_cfg=VisualizerCfg(eye=(1.15, -1.65, 1.15), lookat=(0.0, -0.5, 0.55), focal_length=35.0),
+        default_visualizer_cfg=VisualizerCfg(
+            eye=(1.15, -1.65, 1.15),
+            lookat=(0.0, -0.5, 0.55),
+            focal_length=35.0,
+            origin_type="env",
+            origin_env_index="center",
+        ),
     )
 
     # robot
