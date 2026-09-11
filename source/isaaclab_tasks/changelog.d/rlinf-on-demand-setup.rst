@@ -12,6 +12,9 @@ Added
 * Added GR00T N1.7 configurations ``isaaclab_ppo_gr00t_pick_and_place_apple_n17`` and
   ``isaaclab_ppo_gr00t_pack_agx_orin_n17``, and ``isaaclab_tasks.contrib.h2_sharpa.gr00t_n17``
   registering the H2 + Sharpa modality layout for N1.7 checkpoints.
+* Changed the N1.7 configurations to plain PPO (``enable_sft_co_train: False``): RLinf has no SFT
+  dataloader for ``gr00t_n1d7``, so co-training fails at actor start. Re-enable it only with an N1.7
+  SFT dataloader registered in RLinf.
 * Added ``ISAACLAB_H2_SHARPA_ASSET_ROOT`` and ``ISAACLAB_PICK_AND_PLACE_APPLE_ASSET_ROOT`` to point
   the H2 + Sharpa tasks at a local mirror of their scene and robot assets, which are hosted outside
   the Isaac asset server.
