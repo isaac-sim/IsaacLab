@@ -434,6 +434,25 @@ def test_retained_binding_preserves_uncaught_failure_exit_status():
     _assert_no_atexit_errors(output)
 
 
+@pytest.mark.parametrize("device", ["cpu", "gpu"])
+@pytest.mark.parametrize(("override", "expected"), [(None, True), (False, False), (True, True)])
+def test_scene_external_forces_every_iteration(monkeypatch, manager_module, device, override, expected):
+    """Default TGS force integration and explicit overrides reach the USD physics scene."""
+    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
+
+    from pxr import Usd
+
+    from isaaclab.physics import PhysicsManager
+
+    cfg = OvPhysxCfg() if override is None else OvPhysxCfg(enable_external_forces_every_iteration=override)
+    assert cfg.enable_external_forces_every_iteration is expected
+    monkeypatch.setattr(PhysicsManager, "_sim", None)
+    stage = Usd.Stage.CreateInMemory()
+    prim = stage.DefinePrim("/World/PhysicsScene", "PhysicsScene")
+    manager_module.OvPhysxManager._configure_physx_scene_prim(prim, cfg, device)
+    assert prim.GetAttribute("physxScene:enableExternalForcesEveryIteration").Get() is expected
+
+
 def test_construct_physx_passes_the_configured_cooked_collider_cache_dir(monkeypatch, manager_module, tmp_path):
     """The configured cache directory reaches ``PhysXConfig``; without a config the default does."""
     from isaaclab_ov.physics.ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxCfg
