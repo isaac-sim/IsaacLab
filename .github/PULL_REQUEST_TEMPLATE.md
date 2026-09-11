@@ -1,5 +1,10 @@
 # Description
 
+> [!IMPORTANT]
+> Confirm the pull request base before submitting. Target `develop` for all
+> contributions. The `release/3.0.0` branch is a stable release landing
+> branch and is not used for ongoing feature development.
+
 <!--
 Thank you for your interest in sending a pull request. Please make sure to check the contribution guidelines.
 

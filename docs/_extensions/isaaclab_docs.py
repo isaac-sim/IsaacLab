@@ -338,7 +338,7 @@ def _quickstart_isaacsim(branch: str, platform: str, isaacsim_version: str, torc
 
 def setup(app):
     """Register Isaac Lab documentation directives."""
-    app.add_config_value("isaaclab_latest_branch", "develop", "env")
+    app.add_config_value("isaaclab_latest_branch", "release/3.0.0", "env")
     app.add_config_value("isaacsim_version", "", "env")
     app.add_config_value("torch_version", "", "env")
     app.add_config_value("torchvision_version", "", "env")

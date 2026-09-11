@@ -7,7 +7,7 @@
 # manifest digest and open (or refresh) a draft PR against ``develop``.
 #
 # Scheduled workflows register only from the default branch, so this file
-# must be present on the current default, ``release/3.0.0-beta2``. The job
+# must be present on the current default, ``release/3.0.0``. The job
 # deliberately checks out ``develop`` because that is where the CI image pin
 # is maintained.
 #

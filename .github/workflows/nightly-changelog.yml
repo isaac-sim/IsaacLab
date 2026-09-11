@@ -10,7 +10,7 @@
 # branch's changelog current without requiring a maintainer to run
 # ``compile`` by hand.
 #
-# Scheduled workflow — must live on the default branch (``main``) for the
+# Scheduled workflow — must live on the repository's default branch for the
 # cron to register. See ``.github/workflows/README.md``.
 #
 # Adding a branch to the nightly set is a one-line edit to ``env.CRON_BRANCHES``
@@ -36,7 +36,7 @@ name: Nightly Changelog Compilation
 # isaaclab-bot App must be in its branch-ruleset bypass list.
 # Surrounding whitespace per entry is stripped by the resolver below.
 env:
-  CRON_BRANCHES: develop,release/3.0.0-beta2
+  CRON_BRANCHES: develop,release/3.0.0
 
 on:
   schedule:
@@ -51,7 +51,7 @@ on:
         # develop) without needing to update the workflow. A branch
         # that lacks ``tools/changelog/cli.py`` fails the verify step
         # below with a clear error, which is the desired failure mode.
-        description: 'Branch to compile (e.g. develop, release/3.0.0-beta2). Must carry tools/changelog/cli.py.'
+        description: 'Branch to compile (e.g. develop, release/3.0.0). Must carry tools/changelog/cli.py.'
         required: true
         type: string
       dry_run:
@@ -109,7 +109,7 @@ jobs:
     strategy:
       # Independent branches: one failing shouldn't cancel the others.
       # Each matrix entry shows up as a separate job tile in the Actions
-      # UI, so ``release/3.0.0-beta2`` failing doesn't hide ``develop``'s
+      # UI, so ``release/3.0.0`` failing doesn't hide ``develop``'s
       # success (and ``gh run rerun --failed`` re-runs only the failed
       # entry). Mirrors ``daily-compatibility.yml``'s matrix style.
       fail-fast: false
