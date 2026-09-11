@@ -1164,12 +1164,13 @@ def derive_body_acceleration_from_body_com_velocities(
 
 @wp.kernel
 def _body_wrench_to_world(
-    force_b: wp.array(dtype=wp.vec3f, ndim=2),
-    torque_b: wp.array(dtype=wp.vec3f, ndim=2),
+    force_in: wp.array(dtype=wp.vec3f, ndim=2),
+    torque_in: wp.array(dtype=wp.vec3f, ndim=2),
     poses: wp.array(dtype=wp.transformf, ndim=2),
+    wrench_is_world: bool,
     wrench_out: wp.array(dtype=wp.float32, ndim=3),
 ):
-    """Rotate body-frame force/torque to world frame and pack into a flat output array.
+    """Rotate a force/torque to world frame and pack into a flat output array.
 
     Output layout per ``(i, j)`` slice (9 floats total):
 
@@ -1178,15 +1179,21 @@ def _body_wrench_to_world(
     * ``[6:9]`` -- world-frame link position ``[m]``
 
     Args:
-        force_b: Body-frame applied forces ``[N]``. Shape is ``(N, L)``.
-        torque_b: Body-frame applied torques ``[N*m]``. Shape is ``(N, L)``.
+        force_in: Applied forces ``[N]`` in the frame selected by ``wrench_is_world``. Shape is ``(N, L)``.
+        torque_in: Applied torques ``[N*m]`` in the frame selected by ``wrench_is_world``. Shape is ``(N, L)``.
         poses: Link poses in world frame. Shape is ``(N, L)``.
+        wrench_is_world: Whether the input wrench is already in the world frame, in which case no
+            rotation is applied.
         wrench_out: Output packed wrench array. Shape is ``(N, L, 9)``.
     """
     i, j = wp.tid()
-    q = wp.transform_get_rotation(poses[i, j])
-    f_w = wp.quat_rotate(q, force_b[i, j])
-    t_w = wp.quat_rotate(q, torque_b[i, j])
+    if wrench_is_world:
+        f_w = force_in[i, j]
+        t_w = torque_in[i, j]
+    else:
+        q = wp.transform_get_rotation(poses[i, j])
+        f_w = wp.quat_rotate(q, force_in[i, j])
+        t_w = wp.quat_rotate(q, torque_in[i, j])
     wrench_out[i, j, 0] = f_w[0]
     wrench_out[i, j, 1] = f_w[1]
     wrench_out[i, j, 2] = f_w[2]
@@ -1201,16 +1208,17 @@ def _body_wrench_to_world(
 
 @wp.kernel
 def _body_wrench_to_world_ordered(
-    force_b: wp.array(dtype=wp.vec3f, ndim=2),
-    torque_b: wp.array(dtype=wp.vec3f, ndim=2),
+    force_in: wp.array(dtype=wp.vec3f, ndim=2),
+    torque_in: wp.array(dtype=wp.vec3f, ndim=2),
     poses: wp.array(dtype=wp.transformf, ndim=2),
     user_to_backend: wp.array(dtype=wp.int32),
     has_ordering: bool,
+    wrench_is_world: bool,
     wrench_out: wp.array(dtype=wp.float32, ndim=3),
 ):
     """Rotate public-order body wrenches to world frame and write them in backend order.
 
-    The wrench (``force_b`` / ``torque_b``) is indexed in public body order while the
+    The wrench (``force_in`` / ``torque_in``) is indexed in public body order while the
     link ``poses`` are read directly from the backend-order ``LINK_POSE`` buffer. The
     public body ``user_body_id`` and the backend body ``backend_body_id`` address the
     same physical body, so its world-frame orientation and position are identical in
@@ -1218,12 +1226,16 @@ def _body_wrench_to_world_ordered(
     pose shadow (no per-substep reorder launch).
 
     Args:
-        force_b: Body-frame applied forces ``[N]`` in public body order. Shape is ``(N, L)``.
-        torque_b: Body-frame applied torques ``[N*m]`` in public body order. Shape is ``(N, L)``.
+        force_in: Applied forces ``[N]`` in public body order, in the frame selected by
+            ``wrench_is_world``. Shape is ``(N, L)``.
+        torque_in: Applied torques ``[N*m]`` in public body order, in the frame selected by
+            ``wrench_is_world``. Shape is ``(N, L)``.
         poses: Link poses in world frame in backend body order (identity when
             ``has_ordering`` is False). Shape is ``(N, L)``.
         user_to_backend: Map from public body index to backend body index. Shape is ``(L,)``.
         has_ordering: Whether the public-to-backend body map is nonidentity.
+        wrench_is_world: Whether the input wrench is already in the world frame, in which case no
+            rotation is applied.
         wrench_out: Output packed wrench array in backend body order. Shape is ``(N, L, 9)``
             with ``[0:3]`` world force ``[N]``, ``[3:6]`` world torque ``[N*m]``, ``[6:9]``
             world link position ``[m]``.
@@ -1232,9 +1244,13 @@ def _body_wrench_to_world_ordered(
     backend_body_id = user_body_id
     if has_ordering:
         backend_body_id = user_to_backend[user_body_id]
-    q = wp.transform_get_rotation(poses[i, backend_body_id])
-    f_w = wp.quat_rotate(q, force_b[i, user_body_id])
-    t_w = wp.quat_rotate(q, torque_b[i, user_body_id])
+    if wrench_is_world:
+        f_w = force_in[i, user_body_id]
+        t_w = torque_in[i, user_body_id]
+    else:
+        q = wp.transform_get_rotation(poses[i, backend_body_id])
+        f_w = wp.quat_rotate(q, force_in[i, user_body_id])
+        t_w = wp.quat_rotate(q, torque_in[i, user_body_id])
     wrench_out[i, backend_body_id, 0] = f_w[0]
     wrench_out[i, backend_body_id, 1] = f_w[1]
     wrench_out[i, backend_body_id, 2] = f_w[2]

@@ -14,12 +14,15 @@ The setup is a bit convoluted so that we can run these tests without requiring I
 """
 
 import warnings
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 import torch
 import warp as wp
 from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
+
+from isaaclab.utils.wrench_composer import WrenchComposer
 
 pytestmark = pytest.mark.integration
 
@@ -2839,3 +2842,150 @@ class TestArticulationWritersTendonToSim:
         art.write_spatial_tendon_properties_to_sim_mask(
             spatial_tendon_mask=_make_item_mask(num_spatial_tendons, [0], device)
         )
+
+
+@pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
+class TestPhysXArticulationSubmissionFrame:
+    """PhysX submits an eligible global-at-CoM wrench in the world frame, without composing."""
+
+    @_default_devices
+    def test_global_at_com_submits_world_frame(self, device):
+        num_instances, num_bodies = 2, 3
+        art, root_view = get_articulation(
+            "physx", num_instances=num_instances, num_joints=2, num_bodies=num_bodies, device=device
+        )
+        root_view.get_link_transforms = MagicMock(side_effect=AssertionError("unexpected body-pose read"))
+        root_view.apply_forces_and_torques_at_position = MagicMock()
+
+        forces = torch.zeros((num_instances, num_bodies, 3), device=device)
+        forces[:, 1, 2] = torch.tensor([3.0, 7.0], device=device)
+        art.permanent_wrench_composer.set_forces_and_torques_index(forces=forces, is_global=True)
+
+        art.write_data_to_sim()
+
+        call = root_view.apply_forces_and_torques_at_position.call_args.kwargs
+        assert call["is_global"] is True
+        assert call["position_data"] is None
+        actual = wp.to_torch(call["force_data"]).reshape(num_instances, num_bodies, 3)
+        torch.testing.assert_close(actual, forces)
+
+    @_default_devices
+    def test_local_frame_submits_body_frame(self, device):
+        num_instances, num_bodies = 2, 3
+        art, root_view = get_articulation(
+            "physx", num_instances=num_instances, num_joints=2, num_bodies=num_bodies, device=device
+        )
+        root_view.get_link_transforms = MagicMock(side_effect=AssertionError("unexpected body-pose read"))
+        root_view.apply_forces_and_torques_at_position = MagicMock()
+
+        forces = torch.zeros((num_instances, num_bodies, 3), device=device)
+        forces[:, 1, 0] = torch.tensor([1.0, 2.0], device=device)
+        art.permanent_wrench_composer.set_forces_and_torques_index(forces=forces, is_global=False)
+
+        art.write_data_to_sim()
+
+        call = root_view.apply_forces_and_torques_at_position.call_args.kwargs
+        assert call["is_global"] is False
+        actual = wp.to_torch(call["force_data"]).reshape(num_instances, num_bodies, 3)
+        torch.testing.assert_close(actual, forces)
+
+
+@pytest.mark.skipif("newton" not in BACKENDS, reason="Newton backend unavailable")
+class TestNewtonArticulationSubmissionFrame:
+    """Newton always consumes a body-frame wrench, and skips composition for local content."""
+
+    @_default_devices
+    def test_local_frame_skips_composition(self, device):
+        num_instances, num_bodies = 2, 3
+        art, _ = get_articulation(
+            "newton", num_instances=num_instances, num_joints=2, num_bodies=num_bodies, device=device
+        )
+        composer = art.permanent_wrench_composer
+        forces = torch.zeros((num_instances, num_bodies, 3), device=device)
+        forces[:, 1, 0] = torch.tensor([1.0, 2.0], device=device)
+        composer.set_forces_and_torques_index(forces=forces, is_global=False)
+
+        calls = []
+        composer._get_com_pos_fn = lambda: calls.append("com")
+        composer._get_link_quat_fn = lambda: calls.append("quat")
+
+        art.write_data_to_sim()
+
+        assert calls == [], "Newton read body poses for an all-local wrench"
+
+
+@pytest.mark.skipif("ovphysx" not in BACKENDS, reason="OvPhysX backend unavailable")
+class TestOvPhysxArticulationSubmissionFrame:
+    """OvPhysX packs the same world-frame wrench whether or not it takes the rotation path.
+
+    ``_body_wrench_to_world_ordered`` keeps the wrench indexed in public body order while reading
+    poses -- and writing the packed output -- in backend body order. A nonidentity ``body_ordering``
+    is required so that a user/backend body-id mix-up in that kernel would show up as a wrench
+    applied to the wrong body instead of passing silently.
+    """
+
+    @_default_devices
+    def test_global_at_com_matches_composed_path_under_body_ordering(self, device):
+        from isaaclab_ov import tensor_types as TT
+
+        num_instances, num_joints, num_bodies = 2, 1, 3
+        # Nonidentity ordering: exercises the user_body_id / backend_body_id split.
+        body_ordering = ("body_2", "body_1", "body_0")
+
+        forces = torch.zeros((num_instances, num_bodies, 3), device=device)
+        torques = torch.zeros((num_instances, num_bodies, 3), device=device)
+        for body in range(num_bodies):
+            forces[:, body, 0] = torch.tensor([10.0 * env + body + 1.0 for env in range(num_instances)], device=device)
+            # Torque on a different axis than the force so an axis mix-up cannot hide.
+            torques[:, body, 2] = torch.tensor([10.0 * env + body + 0.5 for env in range(num_instances)], device=device)
+
+        # Reference: force the rotation path by denying world-frame support.
+        ref, ref_bindings = get_articulation(
+            "ovphysx",
+            num_instances=num_instances,
+            num_joints=num_joints,
+            num_bodies=num_bodies,
+            device=device,
+            body_ordering=body_ordering,
+        )
+        object.__setattr__(ref, "_permanent_wrench_composer", WrenchComposer(ref, supports_world_at_com=False))
+        ref.permanent_wrench_composer.set_forces_and_torques_index(forces=forces, torques=torques, is_global=True)
+        ref._wrench_buf.zero_()
+        ref.write_data_to_sim()
+        # Only the force/torque slice ([:6]) is compared: the packed [6:9] link position comes
+        # from the mock's randomized pose, which is independent per constructed object and is
+        # identical on both paths by construction, so it adds no coverage here.
+        expected = ref_bindings.bindings[TT.LINK_WRENCH]._data.copy()[..., :6]
+
+        obj, obj_bindings = get_articulation(
+            "ovphysx",
+            num_instances=num_instances,
+            num_joints=num_joints,
+            num_bodies=num_bodies,
+            device=device,
+            body_ordering=body_ordering,
+        )
+        composer = obj.permanent_wrench_composer
+        assert composer._supports_world_at_com is True
+        composer.set_forces_and_torques_index(forces=forces, torques=torques, is_global=True)
+        calls = []
+        composer._get_com_pos_fn = lambda: calls.append("com")
+        composer._get_link_quat_fn = lambda: calls.append("quat")
+        obj._wrench_buf.zero_()
+        obj.write_data_to_sim()
+
+        assert calls == [], "OvPhysX read body poses for a global-at-CoM wrench"
+        actual = obj_bindings.bindings[TT.LINK_WRENCH]._data.copy()[..., :6]
+        np.testing.assert_allclose(actual, expected, atol=1e-5, rtol=1e-5)
+
+        # Confirm the ordering subtlety is actually exercised: the configured body_ordering is
+        # nonidentity, and the packed backend-order wrench lands on the permuted body slots, not
+        # the public-order ones.
+        user_to_backend = np.asarray(obj.body_ordering.user_to_backend_indices, dtype=np.int64)
+        assert not np.array_equal(user_to_backend, np.arange(num_bodies))
+        expected_backend_force = np.zeros((num_instances, num_bodies, 3), dtype=np.float32)
+        expected_backend_torque = np.zeros((num_instances, num_bodies, 3), dtype=np.float32)
+        expected_backend_force[:, user_to_backend] = forces.cpu().numpy()
+        expected_backend_torque[:, user_to_backend] = torques.cpu().numpy()
+        np.testing.assert_allclose(actual[..., :3], expected_backend_force, atol=1e-5, rtol=1e-5)
+        np.testing.assert_allclose(actual[..., 3:6], expected_backend_torque, atol=1e-5, rtol=1e-5)
