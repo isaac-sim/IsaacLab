@@ -314,6 +314,18 @@ run_tests() {
       -e TEST_WHEELHOUSE_MANIFEST=/tmp/ovphysx-wheelhouse-manifest.json \
       -e TEST_WHEELHOUSE_PACKAGES"
     echo "Mounting wheelhouse at /tmp/ovphysx-wheelhouse"
+
+    # ovrtx_extensions carries the crash reporter, so upload can only be asked for
+    # where the wheelhouse installs it. The variable is read by the renderer itself,
+    # in the pytest process, because carb settings are process-local: a setup step
+    # that applied them would take them down with it and leave the process that
+    # actually crashes unconfigured.
+    case " $wheelhouse_packages " in
+      *" ovrtx-extensions "*)
+        docker_env_vars="$docker_env_vars -e ISAACLAB_OVRTX_CRASH_UPLOAD=1"
+        echo "Enabling OVRTX crash-report upload"
+        ;;
+    esac
   fi
 
   echo "Docker environment variables: '$docker_env_vars'"
