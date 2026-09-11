@@ -26,7 +26,7 @@ from isaaclab.envs import ManagerBasedRLEnv  # noqa: E402
 from isaaclab.sensors import Camera  # noqa: E402
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled  # noqa: E402
 
-from isaaclab_tasks.core.lift.config.franka_soft.franka_cable_env_cfg import (  # noqa: E402
+from isaaclab_tasks.benchmark.franka_deformable_camera.franka_deformable_camera_env_cfg import (  # noqa: E402
     FrankaCableCameraEnvCfg,
 )
 from isaaclab_tasks.utils.hydra import resolve_presets  # noqa: E402
