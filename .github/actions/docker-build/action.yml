@@ -65,6 +65,8 @@ runs:
 
     - name: Setup docker config and login to nvcr.io
       uses: ./.github/actions/_lib/setup-docker-config
+      with:
+        base-image-ref: ${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}
 
     ##### 2: Host disk snapshot (pre) #####
 
