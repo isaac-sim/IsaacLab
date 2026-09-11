@@ -9,9 +9,10 @@ Added
 Fixed
 ^^^^^
 
-* Fixed ``--rl_model_path`` being silently ignored by the RLinf play entrypoint. The flag was parsed
-  and read by the RLinf extension, but never written into the config, so evaluating an RL-finetuned
-  checkpoint silently evaluated the base model instead.
+* Fixed ``--checkpoint`` being silently ignored by the RLinf play entrypoint. It was written to
+  ``runner.eval_policy_path``, which RLinf does not read; the RL-finetuned weights are now loaded
+  through the RLinf extension instead. A ``global_step_<N>`` directory is resolved to the
+  ``full_weights.pt`` it contains.
 * Fixed relative ``model_path`` values in RLinf configs resolving against the Ray worker's working
   directory instead of the launcher's. Both the train and play entrypoints now make the path absolute
   before the config reaches the workers.
