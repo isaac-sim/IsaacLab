@@ -72,41 +72,61 @@ def _fake_ovphysx_module(bootstrap):
 
 
 @pytest.mark.parametrize(
-    ("registered_names", "expected_paths"),
+    ("registered_names", "expected_paths", "schema_root", "has_registration_api"),
     [
-        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"]),
-        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], []),
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", True),
+        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], "/schemas", True),
+        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], None, True),
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", False),
+        pytest.param(
+            ["physxSchema"],
+            ["/schemas/OmniUsdPhysicsDeformableSchema/resources"],
+            "/schemas",
+            None,
+            id="ovstage-import-unavailable",
+        ),
     ],
 )
 def test_schema_registration_skips_providers_already_supplied_by_host(
-    monkeypatch, manager_module, registered_names, expected_paths
+    monkeypatch, manager_module, registered_names, expected_paths, schema_root, has_registration_api
 ):
     manager = manager_module.OvPhysxManager
     schema_paths = [
         Path("/schemas/PhysxSchema/resources"),
         Path("/schemas/OmniUsdPhysicsDeformableSchema/resources"),
     ]
-    registrations = []
+    host_registrations = []
+    ovstage_registrations = []
 
     fake_ovphysx = ModuleType("ovphysx")
     fake_ovphysx.codeless_schema_paths = lambda: schema_paths
+    if schema_root is not None:
+        fake_ovphysx.codeless_schema_root = lambda: Path(schema_root)
+
+    fake_ovstage = ModuleType("ovstage")
+    fake_ovstage.population = SimpleNamespace()
+    if has_registration_api:
+        fake_ovstage.population.register_usd_schemas = ovstage_registrations.append
 
     class FakeRegistry:
         def GetAllPlugins(self):
             return [SimpleNamespace(name=name) for name in registered_names]
 
         def RegisterPlugins(self, paths):
-            registrations.append(list(paths))
+            host_registrations.append(list(paths))
 
     fake_pxr = ModuleType("pxr")
     fake_pxr.Plug = type("FakePlug", (), {"Registry": staticmethod(FakeRegistry)})
     monkeypatch.setitem(sys.modules, "ovphysx", fake_ovphysx)
+    # A None entry makes importing OVStage raise ModuleNotFoundError.
+    monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage if has_registration_api is not None else None)
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
 
     manager._ensure_physx_schemas_registered()
     manager._ensure_physx_schemas_registered()
 
-    assert registrations == ([expected_paths] if expected_paths else [])
+    assert ovstage_registrations == ([schema_root] if schema_root is not None and has_registration_api else [])
+    assert host_registrations == ([expected_paths] if expected_paths else [])
 
 
 def test_construct_physx_bootstraps_each_runtime_without_replacing_pxr(monkeypatch, manager_module):
