@@ -1,6 +1,44 @@
 Changelog
 ---------
 
+3.0.3 (2026-09-11)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.get_local_scales`
+  and :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.get_world_scales`,
+  which delegate to the internal :class:`~isaaclab.sim.views.UsdFrameView`.
+  Scale writes go through the writer scope (see the ``xform-space-writer``
+  fragment).
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView` now ships
+  pass-through ``FrameViewWorldSpaceWriter`` / ``FrameViewLocalSpaceWriter``
+  implementations so writes follow the new
+  :meth:`~isaaclab.sim.views.BaseFrameView.xform_world_space_writer` /
+  :meth:`~isaaclab.sim.views.BaseFrameView.xform_local_space_writer` context API.
+  ``set_world_poses`` / ``set_local_poses`` shims still work (one-time
+  ``DeprecationWarning`` per class).  Scale writes inside the writer scope
+  delegate to the internal :class:`~isaaclab.sim.views.UsdFrameView` and
+  land in the USD stage (no propagation to OVPhysX-side collision-shape
+  scales).
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.get_scales` and
+  :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.set_scales`.  For reads,
+  use the explicit ``get_local_scales`` (operates on ``xformOp:scale``) or
+  ``get_world_scales``.  For writes, use the writer scope's
+  ``set_scales``.  The deprecated methods still work but emit a
+  ``DeprecationWarning`` and default to local scales, preserving prior
+  behavior.
+
+
 3.0.2 (2026-06-11)
 ~~~~~~~~~~~~~~~~~~
 
