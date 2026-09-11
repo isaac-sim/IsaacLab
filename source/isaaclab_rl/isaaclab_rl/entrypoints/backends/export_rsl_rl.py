@@ -17,29 +17,6 @@ import time
 from collections.abc import Mapping
 
 RSL_RL_MIN_VERSION = "5.0.1"
-_RUNTIME_IMPORTS_LOADED = False
-
-# Keep heavy/runtime-sensitive imports out of module import time. The CLI needs
-# to parse launcher arguments and start Isaac Sim/Kit before importing torch,
-# LEAPP, RSL-RL, and task modules; importing them earlier causes launcher
-# import-order failures in the Isaac Sim 6.1 runtime.
-torch = None
-leapp = None
-annotate = None
-gym = None
-DistillationRunner = None
-OnPolicyRunner = None
-ManagerBasedRLEnv = None
-RslRlVecEnvWrapper = None
-handle_deprecated_rsl_rl_cfg = None
-retrieve_file_path = None
-patch_env_for_export = None
-ensure_env_spec_id = None
-get_published_pretrained_checkpoint = None
-get_pretrained_checkpoint_backend_names = None
-get_checkpoint_path = None
-installed_version = None
-create_graph_configs = None
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
@@ -56,75 +33,6 @@ def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace
     # remainder still carries typed selectors (physics=/renderer=/presets=)
     # verbatim for run_export_with_hydra to fold before invoking Hydra.
     return finalize_export_args(parser, argv)
-
-
-def _load_runtime_dependencies() -> None:
-    """Import runtime dependencies after Isaac Sim has been launched."""
-    global _RUNTIME_IMPORTS_LOADED
-    global annotate, leapp, torch
-    global DistillationRunner, ManagerBasedRLEnv, OnPolicyRunner, RslRlVecEnvWrapper, get_checkpoint_path, gym
-    global ensure_env_spec_id, get_pretrained_checkpoint_backend_names, get_published_pretrained_checkpoint
-    global handle_deprecated_rsl_rl_cfg
-    global installed_version
-    global patch_env_for_export, retrieve_file_path
-    global create_graph_configs
-
-    if _RUNTIME_IMPORTS_LOADED:
-        return
-
-    try:
-        import leapp as leapp_module
-    except ImportError as e:
-        raise ImportError("LEAPP package is required for policy export. Install with: pip install leapp") from e
-    annotate_module = getattr(leapp_module, "annotate")
-
-    import gymnasium as gym_module
-    import torch as torch_module
-    from packaging import version as packaging_version_module
-    from rsl_rl.runners import DistillationRunner as DistillationRunnerCls
-    from rsl_rl.runners import OnPolicyRunner as OnPolicyRunnerCls
-
-    from isaaclab.envs import ManagerBasedRLEnv as ManagerBasedRLEnvCls
-    from isaaclab.utils.assets import retrieve_file_path as retrieve_file_path_fn
-    from isaaclab.utils.leapp import patch_env_for_export as patch_env_for_export_fn
-    from isaaclab.utils.leapp.utils import ensure_env_spec_id as ensure_env_spec_id_fn
-
-    from isaaclab_rl.entrypoints.backends.export_common import create_graph_configs as create_graph_configs_fn
-    from isaaclab_rl.entrypoints.backends.export_common import get_checkpoint_path as get_checkpoint_path_fn
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper as RslRlVecEnvWrapperCls
-    from isaaclab_rl.rsl_rl import handle_deprecated_rsl_rl_cfg as handle_deprecated_rsl_rl_cfg_fn
-    from isaaclab_rl.utils.pretrained_checkpoint import (
-        get_pretrained_checkpoint_backend_names as get_pretrained_checkpoint_backend_names_fn,
-    )
-    from isaaclab_rl.utils.pretrained_checkpoint import (
-        get_published_pretrained_checkpoint as get_published_pretrained_checkpoint_fn,
-    )
-
-    __import__("isaaclab_tasks")
-    installed_version = metadata.version("rsl-rl-lib")
-    if packaging_version_module.parse(installed_version) < packaging_version_module.parse(RSL_RL_MIN_VERSION):
-        print(
-            f"[WARNING] LEAPP RSL-RL export is validated with rsl-rl-lib {RSL_RL_MIN_VERSION} or newer. "
-            f"Installed version is '{installed_version}'."
-        )
-
-    torch = torch_module
-    leapp = leapp_module
-    annotate = annotate_module
-    gym = gym_module
-    DistillationRunner = DistillationRunnerCls
-    OnPolicyRunner = OnPolicyRunnerCls
-    ManagerBasedRLEnv = ManagerBasedRLEnvCls
-    RslRlVecEnvWrapper = RslRlVecEnvWrapperCls
-    handle_deprecated_rsl_rl_cfg = handle_deprecated_rsl_rl_cfg_fn
-    retrieve_file_path = retrieve_file_path_fn
-    patch_env_for_export = patch_env_for_export_fn
-    ensure_env_spec_id = ensure_env_spec_id_fn
-    get_pretrained_checkpoint_backend_names = get_pretrained_checkpoint_backend_names_fn
-    get_published_pretrained_checkpoint = get_published_pretrained_checkpoint_fn
-    get_checkpoint_path = get_checkpoint_path_fn
-    create_graph_configs = create_graph_configs_fn
-    _RUNTIME_IMPORTS_LOADED = True
 
 
 def get_actor_memory_module(policy):
@@ -215,7 +123,33 @@ def export_rsl_rl_agent(
     simulation_app=None,
 ) -> bool:
     """Export a RSL-RL agent."""
-    _load_runtime_dependencies()
+    import gymnasium as gym
+    import leapp
+    import torch
+    from leapp import annotate
+    from packaging import version
+    from rsl_rl.runners import DistillationRunner, OnPolicyRunner
+
+    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.utils.assets import retrieve_file_path
+    from isaaclab.utils.leapp import patch_env_for_export
+    from isaaclab.utils.leapp.utils import ensure_env_spec_id
+
+    from isaaclab_rl.entrypoints.backends.export_common import create_graph_configs, get_checkpoint_path
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+    from isaaclab_rl.utils.pretrained_checkpoint import (
+        get_pretrained_checkpoint_backend_names,
+        get_published_pretrained_checkpoint,
+    )
+
+    import isaaclab_tasks  # noqa: F401
+
+    installed_version = metadata.version("rsl-rl-lib")
+    if version.parse(installed_version) < version.parse(RSL_RL_MIN_VERSION):
+        print(
+            f"[WARNING] LEAPP RSL-RL export is validated with rsl-rl-lib {RSL_RL_MIN_VERSION} or newer. "
+            f"Installed version is '{installed_version}'."
+        )
 
     task_name = args_cli.task.split(":")[-1]
     checkpoint_task_name = task_name.replace("-Play", "")
@@ -359,12 +293,7 @@ def run_export_with_hydra(args_cli: argparse.Namespace, hydra_args: list[str]) -
     """Resolve Hydra task configuration and export one RSL-RL policy."""
     from isaaclab.app import launch_simulation
 
-    from isaaclab_rl.entrypoints.backends.export_common import disable_torchscript_for_export
-
     from isaaclab_tasks.utils.hydra import hydra_task_config
-
-    # Must run before task modules are imported during Hydra config resolution.
-    disable_torchscript_for_export()
 
     original_argv = sys.argv
     # Hydra reads the preset tokens (physics=/renderer=/presets=) from sys.argv directly.
