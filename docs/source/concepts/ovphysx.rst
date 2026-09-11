@@ -90,8 +90,9 @@ the repository root with:
 
 .. code-block:: bash
 
-    uv sync --extra ovphysx
+    uv sync --inexact --extra ovphysx
 
+The ``--inexact`` flag preserves packages installed through other extras.
 Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The legacy
 Isaac Lab installer also supports ``./isaaclab.sh -i 'ov[ovphysx]'`` and
 ``./isaaclab.sh -i 'ov[all]'``.
