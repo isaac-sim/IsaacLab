@@ -84,6 +84,10 @@ The tasks target different GR00T generations, which install as the same ``gr00t`
 incompatible APIs. One Python environment therefore holds one generation at a time; re-running
 Step 2 with the other ``--gr00t`` value swaps it.
 
+The N1.7 configurations run plain PPO. RLinf ships no SFT dataloader for GR00T N1.7, so
+``actor.enable_sft_co_train`` stays ``False``; the ``sft_*`` keys document how co-training would be
+wired once such a dataloader is registered.
+
 .. list-table::
    :header-rows: 1
    :widths: 40 15 45
