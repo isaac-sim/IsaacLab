@@ -14,7 +14,7 @@ from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.utils.configclass import configclass
 
-from .metadata import H2_DEFAULT_JOINT_POS
+from .metadata import H2_ACTION_JOINT_ORDER, H2_DEFAULT_JOINT_POS, POLICY_58_ORDER
 
 # Hosted in a private Hugging Face dataset repository; direct URL access needs the repository to be
 # public. Until then, point the environment variable at a local mirror that keeps the same
@@ -183,6 +183,27 @@ def make_h2_sharpa_cfg(
             joint_vel={".*": 0.0},
         ),
     )
+
+
+def h2_body_joint_offsets(custom_joint_pos: dict[str, float] | None = None) -> dict[str, float]:
+    """Action offsets that park the joints GR00T does not predict at the robot's default pose.
+
+    The policy emits only ``POLICY_58_ORDER`` (arms and hands); the legs, waist and head entries of
+    the action vector are zero-filled by the GR00T action converter. Without an offset those joints
+    are driven to 0 rad, which tips the head up from its 0.6 rad default and points the front
+    camera at the wall instead of the table.
+
+    Args:
+        custom_joint_pos: Per-task overrides merged onto ``H2_DEFAULT_JOINT_POS``, matching the
+            ``custom_joint_pos`` passed to :func:`make_h2_sharpa_cfg`.
+
+    Returns:
+        Mapping from body joint name to its default position [rad].
+    """
+    joint_pos = dict(H2_DEFAULT_JOINT_POS)
+    if custom_joint_pos:
+        joint_pos.update(custom_joint_pos)
+    return {name: joint_pos[name] for name in H2_ACTION_JOINT_ORDER if name not in POLICY_58_ORDER}
 
 
 @configclass

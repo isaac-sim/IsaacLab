@@ -25,6 +25,7 @@ from isaaclab_tasks.contrib.h2_sharpa.metadata import (
     H2_ACTION_JOINT_ORDER,
     POLICY_58_ORDER,
 )
+from isaaclab_tasks.contrib.h2_sharpa.robot_config import h2_body_joint_offsets
 
 from . import mdp
 from .config import (
@@ -261,6 +262,7 @@ class H2PackAgxOrinActionsCfg:
         joint_names=H2_ACTION_JOINT_ORDER,
         scale=1.0,
         use_default_offset=False,
+        offset=h2_body_joint_offsets(H2_PACK_AGX_ORIN_CUSTOM_JOINT_POS),
         preserve_order=True,
     )
 
@@ -275,6 +277,7 @@ class H2PackAgxOrinRLActionsCfg:
         joint_names=H2_ACTION_JOINT_ORDER,
         scale=1.0,
         use_default_offset=False,
+        offset=h2_body_joint_offsets(H2_PACK_AGX_ORIN_CUSTOM_JOINT_POS),
         preserve_order=True,
     )
 
