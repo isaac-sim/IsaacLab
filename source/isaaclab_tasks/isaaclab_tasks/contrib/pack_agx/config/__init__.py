@@ -12,12 +12,12 @@ import os
 from isaaclab_tasks.contrib.h2_sharpa.camera_config import CameraPresets
 from isaaclab_tasks.contrib.h2_sharpa.robot_config import H2RobotPresets
 
-# Hosted in a private Hugging Face repository; direct URL access needs the repository to be public.
+# Hosted in a private Hugging Face dataset repository; direct URL access needs the repository to be public.
 # Until then, point the environment variable at a local mirror that keeps the same Props/LightWheel/
 # layout (the Isaac Healthcare bundle layout), e.g. a `snapshot_download` of the repo.
 PACK_AGX_ASSET_ROOT: str = os.environ.get(
     "ISAACLAB_PACK_AGX_ASSET_ROOT",
-    "https://huggingface.co/LiFanxing/isaaclab-rlinf-assets/resolve/main/Props/LightWheel",
+    "https://huggingface.co/datasets/LiFanxing/IsaacLabRLinfDemo/resolve/main/assets/Props/LightWheel",
 )
 
 TABLE_USD = f"{PACK_AGX_ASSET_ROOT}/Assets/Table256/Table256.usd"
