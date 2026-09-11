@@ -20,7 +20,7 @@ INSTALL_REQUIRES = []
 
 EXTRAS_REQUIRE = {
     "newton": [
-        "newton[importers,sim]>=1.2.1,<2",
+        "newton[sim]==1.5.0",
     ],
 }
 

@@ -34,6 +34,20 @@ INSTALL_REQUIRES = [
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
     "warp-lang>=1.13.0,<2",
+    # Import and mesh-processing packages used by Newton. Declared explicitly rather than by
+    # selecting `newton[importers]`: requesting an extra the Isaac Sim prebundle does not carry
+    # makes pip reinstall Newton over the prebundled copy, stranding the symlinks other Isaac Sim
+    # extensions share into it (nvbugs 6343978), which aborts the Docker install.
+    "requests>=2.25.0",
+    "scipy>=1.11.0",
+    "coacd>=1.0.7",
+    "fast-simplification>=0.1.11",
+    "alphashape>=1.3.1",
+    "meshio>=5.3.5",
+    "pycollada>=0.9",
+    "resolve-robotics-uri-py>=0.4.0",
+    "newton-usd-schemas>=0.4.1",
+    "open3d>=0.19.0 ; python_version < '3.13' and (sys_platform != 'linux' or platform_machine != 'aarch64')",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
     # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).

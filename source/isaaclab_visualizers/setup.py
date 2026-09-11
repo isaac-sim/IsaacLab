@@ -13,9 +13,10 @@ INSTALL_REQUIRES = [
     "numpy",
 ]
 
-# Every Newton declaration in the repo must use the SAME extra spec (`newton[importers,sim]`).
+# Every Newton declaration in the repo must use the SAME extra spec (`newton[sim]`), matching the
+# version and extras of the copy Isaac Sim prebundles so pip leaves it in place.
 # Pip resolves a git-URL requirement once per URL: if any package declares bare
-# `newton @ git+...` while another declares `newton[importers,sim] @ git+...`, the
+# `newton @ git+...` while another declares `newton[sim] @ git+...`, the
 # first resolution wins and silently drops the extras. That breaks `isaaclab_newton`
 # because the solver and USD schema packages go missing. So even the rerun/viser
 # extras must use the same range to stay consistent with `isaaclab_newton`.
@@ -23,7 +24,7 @@ EXTRAS_REQUIRE = {
     "kit": [],
     "newton": [
         "warp-lang",
-        "newton[importers,sim]>=1.2.1,<2",
+        "newton[sim]==1.5.0",
         "PyOpenGL-accelerate",
         "pyglet>=2.1.6,<3",
         "imgui-bundle>=1.92.601",
@@ -31,12 +32,12 @@ EXTRAS_REQUIRE = {
         "pydantic>=2.7,<2.12",
     ],
     "rerun": [
-        "newton[importers,sim]>=1.2.1,<2",
+        "newton[sim]==1.5.0",
         "rerun-sdk>=0.29.0",
         "pyarrow==23.0.1",
     ],
     "viser": [
-        "newton[importers,sim]>=1.2.1,<2",
+        "newton[sim]==1.5.0",
         "viser>=1.0.16",
     ],
 }
