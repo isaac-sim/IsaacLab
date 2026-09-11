@@ -48,19 +48,20 @@ if not _MISSING_MODULES:
 # The renderer stops supplying distinct tiles past this count, so anything above it is a regression case.
 _MAX_CORRECT_TILE_COUNT = 4096
 
-_SKIP_ABOVE_TILE_LIMIT = pytest.mark.skip(
+_XFAIL_ABOVE_TILE_LIMIT = pytest.mark.xfail(
     reason=(
         f"ovrtx renders only {_MAX_CORRECT_TILE_COUNT} tiles when more are requested; the tiling reshape"
-        " then assigns environments the wrong tiles. Remove this skip once the upstream renderer fix is"
+        " then assigns environments the wrong tiles. Remove this xfail once the upstream renderer fix is"
         " merged -- the test itself is expected to pass at these counts."
-    )
+    ),
+    strict=True,
 )
 
 _TILE_COUNTS = [
     pytest.param(1024, id="1024"),
     pytest.param(_MAX_CORRECT_TILE_COUNT, id="4096"),
-    pytest.param(8192, marks=_SKIP_ABOVE_TILE_LIMIT, id="8192"),
-    pytest.param(16384, marks=_SKIP_ABOVE_TILE_LIMIT, id="16384"),
+    pytest.param(8192, marks=_XFAIL_ABOVE_TILE_LIMIT, id="8192"),
+    pytest.param(16384, marks=_XFAIL_ABOVE_TILE_LIMIT, id="16384"),
 ]
 
 

@@ -15,8 +15,15 @@ This builds a scene where each environment is *visually identifiable*: every env
 raised to one of ``num_levels`` heights chosen from the environment index. Each camera sees only its own
 cube, so the vertical position of the bright pixels in a tile encodes the level of the environment that
 tile belongs to. Grouping the measured positions by assigned level must therefore produce cleanly
-separated bands. Under a correct mapping the bands are a pixel or so wide and separated by ~10 px; if the
-tiles are permuted, duplicated, or truncated, every band fills with a mixture of levels and they overlap.
+separated bands. Under a correct mapping the bands are a pixel or so wide and separated by ~10 px; if
+tiles cross a level boundary -- permuted, duplicated, or truncated between environments assigned different
+levels -- every band fills with a mixture of levels and they overlap.
+
+Only ``num_levels`` heights are used, shared across every environment at that level, so this does not
+prove tile ``i`` holds exactly environment ``i``'s pixels: a swap or duplication between two tiles that
+happen to share a level leaves the bands clean. The guarantee is narrower -- it catches layout errors that
+move a tile across a level boundary, which is what the 4096-tile regression this module targets does (see
+:mod:`test_tiled_camera_tile_identity_ovrtx`).
 
 The measurement is renderer-agnostic (it uses the per-row pixel spread rather than assuming a black
 background), so the same helper serves the OVRTX and Isaac RTX camera backends.
