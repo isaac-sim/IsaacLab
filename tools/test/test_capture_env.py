@@ -26,7 +26,9 @@ def _bootstrap_paths() -> None:
 
 _bootstrap_paths()
 
+import capture_env  # noqa: E402
 from capture_env import (  # noqa: E402
+    build_manifest,
     collect_isaac_sim,
     collect_repo,
     lock_extras,
@@ -309,6 +311,32 @@ class TestIsaacSimInstall:
 
         assert section["install_method"] == "none"
         assert section["path"] is None
+
+
+class TestGpuInventory:
+    """nvidia-smi reports a dead driver on the same channel as the CSV, and a bundle still has to come out."""
+
+    @staticmethod
+    def _gpu(monkeypatch, tmp_path, output: str) -> dict:
+        """Return the manifest's gpu section for an nvidia-smi that printed ``output``."""
+        monkeypatch.delenv("ISAAC_PATH", raising=False)
+        monkeypatch.setattr(capture_env, "_run", lambda *args, **kwargs: output)
+        return build_manifest(tmp_path, tmp_path)[0]["gpu"]
+
+    def test_a_driver_that_cannot_be_reached_still_produces_a_manifest(self, tmp_path, monkeypatch):
+        """The failure banner is not a CSV row, and reading a field off it used to abort the capture."""
+        banner = "NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver.\n"
+
+        assert self._gpu(monkeypatch, tmp_path, banner) == {"devices": [], "driver_version": None}
+
+    def test_a_warning_printed_beside_the_csv_is_not_counted_as_a_device(self, tmp_path, monkeypatch):
+        """A one-GPU host that also warns must not be described as having two."""
+        output = "WARNING: infoROM is corrupted\n0, NVIDIA L40S, GPU-abc, 550.54.15, 95.02.66.00.01, 46068 MiB\n"
+
+        gpu = self._gpu(monkeypatch, tmp_path, output)
+
+        assert [device["name"] for device in gpu["devices"]] == ["NVIDIA L40S"]
+        assert gpu["driver_version"] == "550.54.15"
 
 
 class TestDocument:

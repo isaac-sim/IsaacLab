@@ -242,9 +242,17 @@ def build_manifest(
     manifest["environment"], files = collect_environment()
     artifacts.update(files)
     query = "index,name,uuid,driver_version,vbios_version,memory.total"
-    rows = (_run(["nvidia-smi", f"--query-gpu={query}", "--format=csv,noheader"]) or "").splitlines()
-    devices = [dict(zip(query.split(","), [value.strip() for value in row.split(",")])) for row in rows]
-    manifest["gpu"] = {"devices": devices, "driver_version": devices[0]["driver_version"] if devices else None}
+    fields = query.split(",")
+    try:
+        rows = (_run(["nvidia-smi", f"--query-gpu={query}", "--format=csv,noheader"]) or "").splitlines()
+        # A driver that cannot be reached makes nvidia-smi print its failure on the same channel as
+        # the CSV, so a row is a device only when it carries every field that was asked for.
+        cells = ([value.strip() for value in row.split(",")] for row in rows)
+        devices = [dict(zip(fields, values)) for values in cells if len(values) == len(fields)]
+        driver_version = devices[0]["driver_version"] if devices else None
+    except (KeyError, IndexError, ValueError):  # a bundle without the GPU beats no bundle at all
+        devices, driver_version = [], None
+    manifest["gpu"] = {"devices": devices, "driver_version": driver_version}
     site_packages = next((p for p in (venv or Path()).glob("[Ll]ib*/**/site-packages") if p.is_dir()), None)
     manifest["python"] = {"venv": str(venv) if venv else None, "distributions": []}
     if site_packages is not None:
