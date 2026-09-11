@@ -21,7 +21,7 @@ Usage:
 .. code-block:: bash
 
     ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export_displayport_insertion.py \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0 \
+        --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference \
         --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run>/model_<n>.pt \
         --task_space_contract
 """

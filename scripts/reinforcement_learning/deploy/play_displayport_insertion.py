@@ -22,8 +22,8 @@ Example (recommended shipping task, RSL-RL checkpoint):
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/deploy/play_displayport_insertion.py \\
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \\
+    uv run python scripts/reinforcement_learning/deploy/play_displayport_insertion.py \\
+        --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference \\
         --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run>/model_1500.pt \\
         --num_envs 1 \\
         --socket_pos 0.476 0.127 0.07 \\
@@ -36,8 +36,8 @@ LEAPP-exported policy (ONNX + deploy YAML). Pass a YAML path or the export direc
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/deploy/play_displayport_insertion.py \\
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \\
+    uv run python scripts/reinforcement_learning/deploy/play_displayport_insertion.py \\
+        --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference \\
         --leapp_model logs/rsl_rl/dp_exps/displayport_default_model900 \\
         --num_envs 1 \\
         --socket_pos 0.476 0.127 0.07 \\
@@ -49,8 +49,8 @@ Open-loop replay of a real (or sim) ``policy_io`` CSV:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/deploy/play_displayport_insertion.py \\
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \\
+    uv run python scripts/reinforcement_learning/deploy/play_displayport_insertion.py \\
+        --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference \\
         --replay_csv rollouts/sim_real_compare/real_policy.csv \\
         --socket_pos 0.475 0.125 0.07 \\
         --log_dir rollouts/sim_real_compare/replay_run \\
@@ -61,8 +61,8 @@ Closed-loop policy with the **exact** first observation from a real/sim CSV
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/deploy/play_displayport_insertion.py \\
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \\
+    uv run python scripts/reinforcement_learning/deploy/play_displayport_insertion.py \\
+        --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference \\
         --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run>/model_1500.pt \\
         --init_obs_csv rollouts/sim_real_compare/real_policy_gt_sock.csv \\
         --socket_pos 0.475 0.125 0.07 \\
@@ -147,7 +147,7 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 
 from success_utils import SuccessTracker  # isort: skip
 
-_DEFAULT_TASK = "Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0"
+_DEFAULT_TASK = "IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference"
 
 # -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(

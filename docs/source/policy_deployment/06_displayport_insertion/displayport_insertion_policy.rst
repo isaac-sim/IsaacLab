@@ -733,23 +733,23 @@ exported and deployed with Isaac ROS without swapping configurations.
 
    * - Environment ID
      - Purpose
-   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0``
+   * - ``IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference``
      - **Task-space training and deployment — recommended.** Carries the ROS / LEAPP export contract.
-   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-v0``
+   * - ``IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace``
      - Task-space training without deployment metadata (ablations, experiments)
-   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-Play-v0``
+   * - ``IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-Play``
      - Task-space evaluation / visualization (observation corruption disabled)
-   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0``
+   * - ``IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference``
      - **Joint-space training and deployment.** Carries the ROS / LEAPP export contract (14-dim actor obs).
-   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0``
+   * - ``IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel``
      - Joint-space training without deployment metadata
-   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-Play-v0``
+   * - ``IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-Play``
      - Evaluation / visualization (observation corruption disabled)
-   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-ROS-Inference-v0``
+   * - ``IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-ROS-Inference``
      - Joint-space ROS inference with joint velocity in actor obs (21-dim)
-   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-v0``
+   * - ``IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav``
      - Training with joint velocity in actor obs (21-dim)
-   * - ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-Play-v0``
+   * - ``IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-Play``
      - Evaluation with joint velocity in actor obs
 
 The plain training ids remain useful when you are experimenting and do not intend to deploy that particular
@@ -758,9 +758,19 @@ it against the matching ``-ROS-Inference-v0`` id so the traced layout matches de
 
 .. note::
 
+   **Running the commands.** ``uv`` is the recommended workflow (see
+   :ref:`isaaclab-installation-root`), and the commands below use it. The main training and
+   export commands also show the ``isaaclab.sh`` form in a second tab. Elsewhere the mapping is
+   a direct substitution: ``uv run isaaclab train ...`` is ``./isaaclab.sh train ...``, and
+   ``uv run python <script>`` is ``./isaaclab.sh -p <script>``. Add ``--extra`` options for
+   optional integrations — ``--extra leapp`` for the export scripts, ``--extra video`` when
+   recording video, ``--extra isaacsim`` for full Isaac Sim support.
+
+.. note::
+
    Training and play use the **unified RL entrypoints**. You must pass ``--rl_library rsl_rl``.
    The older path ``scripts/reinforcement_learning/rsl_rl/train.py`` no longer exists; use
-   ``./isaaclab.sh train ...`` or ``./isaaclab.sh -p scripts/reinforcement_learning/train.py --rl_library rsl_rl ...``.
+   ``uv run isaaclab train ...`` or ``uv run python scripts/reinforcement_learning/train.py --rl_library rsl_rl ...``.
    DisplayPort-specific inference lives under ``scripts/reinforcement_learning/deploy/``
    (not the removed ``scripts/reinforcement_learning/rsl_rl/`` directory).
 
@@ -775,29 +785,57 @@ for the control space you intend to deploy — task space is the recommended cho
 
    .. tab-item:: Joint space
 
-      .. code-block:: bash
+      .. tab-set::
 
-          ./isaaclab.sh train --rl_library rsl_rl \
-              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \
-              --num_envs 4 \
-              --max_iterations 100 \
-              --visualizer kit
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+                uv run isaaclab train --rl_library rsl_rl \
+                    --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference \
+                    --num_envs 4 \
+                    --max_iterations 100 \
+                    --visualizer kit
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+                ./isaaclab.sh train --rl_library rsl_rl \
+                    --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference \
+                    --num_envs 4 \
+                    --max_iterations 100 \
+                    --visualizer kit
 
    .. tab-item:: Task space
 
-      .. code-block:: bash
+      .. tab-set::
 
-          ./isaaclab.sh train --rl_library rsl_rl \
-              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0 \
-              --num_envs 4 \
-              --max_iterations 100 \
-              --visualizer kit
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+                uv run isaaclab train --rl_library rsl_rl \
+                    --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference \
+                    --num_envs 4 \
+                    --max_iterations 100 \
+                    --visualizer kit
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+                ./isaaclab.sh train --rl_library rsl_rl \
+                    --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference \
+                    --num_envs 4 \
+                    --max_iterations 100 \
+                    --visualizer kit
 
 Equivalent form, invoking the unified trainer directly (substitute either task id):
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/train.py --rl_library rsl_rl \
+    uv run python scripts/reinforcement_learning/train.py --rl_library rsl_rl \
         --task <TASK_ID> \
         --num_envs 4 \
         --max_iterations 100 \
@@ -823,29 +861,57 @@ Launch full training in headless mode with video recording:
 
    .. tab-item:: Joint space
 
-      .. code-block:: bash
+      .. tab-set::
 
-          ./isaaclab.sh train --rl_library rsl_rl \
-              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \
-              --num_envs 256 \
-              --viz none \
-              --video --video_length 200 --video_interval 76800
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+                uv run isaaclab train --rl_library rsl_rl \
+                    --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference \
+                    --num_envs 256 \
+                    --viz none \
+                    --video --video_length 200 --video_interval 76800
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+                ./isaaclab.sh train --rl_library rsl_rl \
+                    --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference \
+                    --num_envs 256 \
+                    --viz none \
+                    --video --video_length 200 --video_interval 76800
 
    .. tab-item:: Task space
 
-      .. code-block:: bash
+      .. tab-set::
 
-          ./isaaclab.sh train --rl_library rsl_rl \
-              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0 \
-              --num_envs 256 \
-              --viz none \
-              --video --video_length 200 --video_interval 76800
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+                uv run isaaclab train --rl_library rsl_rl \
+                    --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference \
+                    --num_envs 256 \
+                    --viz none \
+                    --video --video_length 200 --video_interval 76800
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+                ./isaaclab.sh train --rl_library rsl_rl \
+                    --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference \
+                    --num_envs 256 \
+                    --viz none \
+                    --video --video_length 200 --video_interval 76800
 
 **Multi-GPU (distributed) training** — for example on a cluster / OSMO workflow (substitute either task id):
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p -m torch.distributed.run --nnodes=1 --nproc_per_node=<NUM_GPUS> \
+    uv run python -m torch.distributed.run --nnodes=1 --nproc_per_node=<NUM_GPUS> \
         scripts/reinforcement_learning/train.py --rl_library rsl_rl \
         --task <TASK_ID> \
         --num_envs <NUM_ENVS> \
@@ -877,7 +943,7 @@ Training uses a recurrent PPO agent (LSTM, 1500 max iterations, 512 steps per en
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p -m tensorboard.main --logdir logs/rsl_rl/displayport_insertion_rizon4s
+    uv run python -m tensorboard.main --logdir logs/rsl_rl/displayport_insertion_rizon4s
 
 Monitor ``Metrics/success_rate`` and reward curves to confirm learning. The curriculum anneals over the first 500 iterations — expect success rate to rise as the at-goal reset probability decreases.
 
@@ -958,11 +1024,13 @@ Export with LEAPP (Recommended)
 
 `LEAPP <https://github.com/nvidia-isaac/leapp>`__ (Lightweight Export Annotations for Policy Pipelines) is the **default and recommended** path from a trained checkpoint to real-robot inference. It packages the policy together with input/output semantics (observation ordering, action scaling, recurrent LSTM state) so Isaac ROS deployment does not need to reimplement Isaac Lab preprocessing by hand.
 
-**Prerequisites:** ``leapp>=0.5.2`` and a trained NoJointVel checkpoint.
+**Prerequisites:** a trained checkpoint, and the ``leapp`` optional dependency. With ``uv`` it is
+pulled in by the ``leapp`` extra, so no separate install step is needed — just pass
+``--extra leapp`` on the export command. In a self-managed environment, install it directly:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p -m pip install leapp
+    pip install leapp
 
 **Export the policy:**
 
@@ -972,22 +1040,47 @@ Export with LEAPP (Recommended)
 
       Uses the generic RSL-RL exporter:
 
-      .. code-block:: bash
+      .. tab-set::
 
-          ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \
-              --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp>/model_<iteration>.pt
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+                uv run --extra leapp python scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+                    --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference \
+                    --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp>/model_<iteration>.pt
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+                ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
+                    --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference \
+                    --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp>/model_<iteration>.pt
 
    .. tab-item:: Task space
 
       Uses the DisplayPort exporter with ``--task_space_contract`` (see :ref:`export-taskspace-leapp`):
 
-      .. code-block:: bash
+      .. tab-set::
 
-          ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export_displayport_insertion.py \
-              --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0 \
-              --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp>/model_<iteration>.pt \
-              --task_space_contract
+         .. tab-item:: uv (Recommended)
+
+            .. code-block:: bash
+
+                uv run --extra leapp python scripts/reinforcement_learning/leapp/rsl_rl/export_displayport_insertion.py \
+                    --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference \
+                    --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp>/model_<iteration>.pt \
+                    --task_space_contract
+
+         .. tab-item:: isaaclab.sh / isaaclab.bat
+
+            .. code-block:: bash
+
+                ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export_displayport_insertion.py \
+                    --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference \
+                    --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp>/model_<iteration>.pt \
+                    --task_space_contract
 
 Replace ``<run_timestamp>`` and ``<iteration>`` with your training log path.
 
@@ -1012,7 +1105,7 @@ and write ``policy_io.csv`` for sim/real overlay:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/deploy/play_displayport_insertion.py \
+    uv run python scripts/reinforcement_learning/deploy/play_displayport_insertion.py \
         --task <ROS_INFERENCE_TASK_ID> \
         --leapp_model logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp> \
         --num_envs 1 \
@@ -1032,8 +1125,8 @@ Generic LEAPP deploy (no DP pose / logging knobs):
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/leapp/deploy.py \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \
+    uv run python scripts/reinforcement_learning/leapp/deploy.py \
+        --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference \
         --leapp_model logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp>/<exported_leapp_yaml> \
         --viz kit
 
@@ -1051,7 +1144,7 @@ The ROS inference environments define the deployment metadata LEAPP traces durin
 
    .. tab-item:: Joint space
 
-      ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0``
+      ``IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference``
 
       - ``obs_order``: ``["arm_dof_pos", "socket_pos", "socket_quat"]``
       - ``policy_action_space``: ``"joint"``
@@ -1063,7 +1156,7 @@ The ROS inference environments define the deployment metadata LEAPP traces durin
 
    .. tab-item:: Task space
 
-      ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0``
+      ``IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference``
 
       - ``obs_order``: ``["eef_pos", "eef_rot_6d", "socket_kp_pos", "socket_kp_rot_6d"]``
       - ``policy_action_space``: ``"task"`` (``pose_rel``)
@@ -1086,8 +1179,8 @@ generic entry point stays task-agnostic:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export_displayport_insertion.py \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0 \
+    uv run python scripts/reinforcement_learning/leapp/rsl_rl/export_displayport_insertion.py \
+        --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference \
         --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run_timestamp>/model_<iteration>.pt \
         --export_save_path <output_dir> \
         --task_space_contract
@@ -1174,8 +1267,8 @@ substitute ``...-Grav-TaskSpace-ROS-Inference-v0`` for the ``--task`` id and poi
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/deploy/play_displayport_insertion.py \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \
+    uv run python scripts/reinforcement_learning/deploy/play_displayport_insertion.py \
+        --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference \
         --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run>/model_<iteration>.pt \
         --num_envs 1 \
         --socket_pos 0.476 0.127 0.07 \
@@ -1189,8 +1282,8 @@ chosen row as the first policy input, then continues with live sim observations)
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/deploy/play_displayport_insertion.py \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \
+    uv run python scripts/reinforcement_learning/deploy/play_displayport_insertion.py \
+        --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference \
         --checkpoint logs/rsl_rl/displayport_insertion_rizon4s/<run>/model_<iteration>.pt \
         --init_obs_csv rollouts/sim_real_compare/real_policy_gt_sock.csv \
         --socket_pos 0.475 0.125 0.07 \
@@ -1209,8 +1302,8 @@ scene starts aligned. Use ``--init_obs_step N`` to pick a non-zero row. Works wi
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/deploy/play_displayport_insertion.py \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0 \
+    uv run python scripts/reinforcement_learning/deploy/play_displayport_insertion.py \
+        --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference \
         --replay_csv rollouts/sim_real_compare/real_policy.csv \
         --socket_pos 0.475 0.125 0.07 \
         --log_dir rollouts/sim_real_compare/replay_run \
@@ -1230,8 +1323,8 @@ Generic play (no DP pose / CSV knobs) still works for a quick smoke test:
 
 .. code-block:: bash
 
-    ./isaaclab.sh play --rl_library rsl_rl \
-        --task Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-Play-v0 \
+    uv run isaaclab play --rl_library rsl_rl \
+        --task IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-Play \
         --num_envs 1 \
         --checkpoint <path_to_model.pt>
 

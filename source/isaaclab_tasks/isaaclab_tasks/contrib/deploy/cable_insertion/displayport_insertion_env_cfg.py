@@ -13,9 +13,11 @@ plain :class:`~isaaclab.sim.UsdFileCfg` at ``scale=(1,1,1)``.
 import os
 from dataclasses import MISSING
 
+import torch
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
+import isaaclab.utils.math as math_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ActionTermCfg as ActionTerm
@@ -42,30 +44,28 @@ _DISPLAY_ASSETS_STAGING_ROOT = "https://omniverse-content-staging.s3-us-west-2.a
 DISPLAY_ASSETS_DIR = f"{_DISPLAY_ASSETS_STAGING_ROOT}/Props/Factory/display_port_cable_assets"
 
 
-def _quat_rotate_vec(q_xyzw, v):
-    """Apply quaternion rotation to a 3D vector."""
-    qx, qy, qz, qw = q_xyzw
-    vx, vy, vz = v
-    tx = 2.0 * (qy * vz - qz * vy)
-    ty = 2.0 * (qz * vx - qx * vz)
-    tz = 2.0 * (qx * vy - qy * vx)
-    return (
-        vx + qw * tx + qy * tz - qz * ty,
-        vy + qw * ty + qz * tx - qx * tz,
-        vz + qw * tz + qx * ty - qy * tx,
-    )
+# The asset offsets below are plain Python tuples evaluated at import time, while
+# :mod:`isaaclab.utils.math` operates on tensors. These two adapters only convert between the
+# two representations - the quaternion math itself is Isaac Lab's. Both sides use the same
+# ``(x, y, z, w)`` ordering, so no convention conversion is needed.
 
 
-def _quat_mul(q1_xyzw, q2_xyzw):
-    """Multiply two quaternions in (x, y, z, w) format."""
-    x1, y1, z1, w1 = q1_xyzw
-    x2, y2, z2, w2 = q2_xyzw
-    return (
-        w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
-        w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
-        w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
-        w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+def _quat_apply_tuple(q_xyzw, v):
+    """Rotate tuple ``v`` by the ``(x, y, z, w)`` quaternion ``q_xyzw``."""
+    rotated = math_utils.quat_apply(
+        torch.tensor(q_xyzw, dtype=torch.float64),
+        torch.tensor(v, dtype=torch.float64),
     )
+    return tuple(rotated.flatten().tolist())
+
+
+def _quat_mul_tuple(q1_xyzw, q2_xyzw):
+    """Multiply two ``(x, y, z, w)`` quaternion tuples."""
+    product = math_utils.quat_mul(
+        torch.tensor(q1_xyzw, dtype=torch.float64),
+        torch.tensor(q2_xyzw, dtype=torch.float64),
+    )
+    return tuple(product.flatten().tolist())
 
 
 # Asset geometry offsets expressed in each body's local frame.
@@ -82,7 +82,7 @@ def compute_socket_root(geometry_pos, socket_rot):
     Inverts :data:`SOCKET_INSERTION_OFFSET` (expressed in the socket's local
     frame) for a given world-frame socket rotation.
     """
-    rotated = _quat_rotate_vec(socket_rot, SOCKET_INSERTION_OFFSET)
+    rotated = _quat_apply_tuple(socket_rot, SOCKET_INSERTION_OFFSET)
     return (
         geometry_pos[0] - rotated[0],
         geometry_pos[1] - rotated[1],
@@ -97,8 +97,8 @@ def compute_plug_pose(geometry_pos, socket_rot, z_clearance=0.0):
     lands at ``geometry_pos`` (plus optional vertical clearance) with the
     correct goal orientation relative to the socket.
     """
-    plug_rot = _quat_mul(socket_rot, tuple(PLUG_GOAL_ROT))
-    plug_offset_world = _quat_rotate_vec(plug_rot, PLUG_INSERTION_OFFSET)
+    plug_rot = _quat_mul_tuple(socket_rot, tuple(PLUG_GOAL_ROT))
+    plug_offset_world = _quat_apply_tuple(plug_rot, PLUG_INSERTION_OFFSET)
     plug_root = (
         geometry_pos[0] - plug_offset_world[0],
         geometry_pos[1] - plug_offset_world[1],

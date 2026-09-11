@@ -17,7 +17,7 @@ _INSERTION_ENV_ENTRY = (
 
 # Flexiv Rizon 4s - Joint space
 gym.register(
-    id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-v0",
+    id="IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav",
     entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
@@ -28,7 +28,7 @@ gym.register(
 
 # Flexiv Rizon 4s - Joint space Play
 gym.register(
-    id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-Play-v0",
+    id="IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-Play",
     entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
@@ -39,7 +39,7 @@ gym.register(
 
 # Flexiv Rizon 4s - Joint space without joint velocity
 gym.register(
-    id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0",
+    id="IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel",
     entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
@@ -50,7 +50,7 @@ gym.register(
 
 # Flexiv Rizon 4s - Joint space without joint velocity Play
 gym.register(
-    id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-Play-v0",
+    id="IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-Play",
     entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
@@ -61,7 +61,7 @@ gym.register(
 
 # Flexiv Rizon 4s - Joint space ROS Inference without joint velocity
 gym.register(
-    id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0",
+    id="IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference",
     entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
@@ -74,7 +74,7 @@ gym.register(
 
 # Flexiv Rizon 4s - Joint space ROS Inference
 gym.register(
-    id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-ROS-Inference-v0",
+    id="IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-ROS-Inference",
     entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
@@ -85,7 +85,7 @@ gym.register(
 
 # Flexiv Rizon 4s - Task space (Operational Space Control)
 gym.register(
-    id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-v0",
+    id="IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace",
     entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
@@ -96,7 +96,7 @@ gym.register(
 
 # Flexiv Rizon 4s - Task space Play
 gym.register(
-    id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-Play-v0",
+    id="IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-Play",
     entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
@@ -107,7 +107,7 @@ gym.register(
 
 # Flexiv Rizon 4s - Task space ROS Inference
 gym.register(
-    id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0",
+    id="IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference",
     entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={

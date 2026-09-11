@@ -2,7 +2,7 @@ Added
 ^^^^^
 
 * Added a task-space (Operational Space Control) variant of the DisplayPort cable-insertion environment for the
-  Flexiv Rizon 4S, registered as ``Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-v0`` along with its
+  Flexiv Rizon 4S, registered as ``IsaacContrib-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace`` along with its
   ``-TaskSpace-Play-v0`` and ``-TaskSpace-ROS-Inference-v0`` variants.
 * Added LEAPP-exportable deploy action wrappers
   :class:`~isaaclab_tasks.contrib.deploy.mdp.DeployOperationalSpaceControllerActionCfg`,
