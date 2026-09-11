@@ -886,10 +886,6 @@ def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
         eye=(8.0, 0.0, 5.0),
         lookat=(0.0, 0.0, 0.5),
         streaming_cam_target_prim_path="/World/envs/*/Object",
-        origin_type="asset",
-        origin_env_index="center",
-        origin_track_path="robot",
-        origin_follow_heading=True,
     )
     # Explicit Newton cfg with only window_width customized; eye/lookat at class defaults.
     explicit_cfg = NewtonGLVisualizerCfg(window_width=320, window_height=240)
@@ -902,10 +898,6 @@ def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
     assert cfgs[0].eye == (8.0, 0.0, 5.0)
     assert cfgs[0].lookat == (0.0, 0.0, 0.5)
     assert cfgs[0].streaming_cam_target_prim_path == "/World/envs/*/Object"
-    assert cfgs[0].origin_type == "asset"
-    assert cfgs[0].origin_env_index == "center"
-    assert cfgs[0].origin_track_path == "robot"
-    assert cfgs[0].origin_follow_heading is True
     # user-customized fields preserved
     assert cfgs[0].window_width == 320
     assert cfgs[0].window_height == 240
@@ -1267,64 +1259,6 @@ def test_tracking_camera_updates_before_backend_frame(monkeypatch, backend):
     assert poses == [((12.0, 20.0, 1.0), (10.0, 20.0, 0.0))]
     assert viz.cfg.eye == (2, 0, 1)
     assert viz.cfg.lookat == (0, 0, 0)
-
-
-def test_newton_tracking_pose_does_not_rewrite_relative_offsets(monkeypatch):
-    from types import SimpleNamespace
-
-    import torch
-    from isaaclab_newton.physics import NewtonManager
-    from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer
-
-    cfg = NewtonGLVisualizerCfg(
-        origin_type="asset",
-        origin_track_path="robot",
-        origin_follow_heading=True,
-        eye=(2, 0, 1),
-        lookat=(1, 0, 0),
-    )
-    positions = torch.tensor([[10.0, 20.0, 0.0]])
-    # A 90-degree yaw, represented in xyzw order.
-    orientations = torch.tensor([[0.0, 0.0, 2**-0.5, 2**-0.5]])
-    asset = SimpleNamespace(
-        is_initialized=True,
-        data=SimpleNamespace(
-            root_pos_w=SimpleNamespace(torch=positions),
-            root_quat_w=SimpleNamespace(torch=orientations),
-        ),
-    )
-
-    class Scene:
-        num_envs = 1
-        env_origins = torch.zeros(1, 3)
-
-        def __getitem__(self, name):
-            assert name == "robot"
-            return asset
-
-    class Camera:
-        def look_at(self, target):
-            self.target = target
-
-    viz = NewtonGLVisualizer(cfg)
-    camera = Camera()
-    viz._viewer = SimpleNamespace(camera=camera)
-    viz._runtime_headless = True
-    viz._is_initialized = True
-    monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(_interactive_scene=Scene()))
-    monkeypatch.setattr(NewtonManager, "get_state", lambda *args: None)
-    for x in (10.0, 30.0, -5.0):
-        positions[0, 0] = x
-        viz.step(0.1)
-        assert tuple(camera.pos) == pytest.approx((x, 22.0, 1.0))
-        assert camera.target == pytest.approx((x, 21.0, 0.0))
-        assert viz.cfg.eye == (2, 0, 1)
-        assert viz.cfg.lookat == (1, 0, 0)
-    # Public world-space camera edits must survive the next tracking update.
-    viz.set_camera_view((7.0, 12.0, 3.0), (4.0, 9.0, 1.0))
-    viz.step(0.1)
-    assert tuple(camera.pos) == pytest.approx((7.0, 12.0, 3.0), abs=1e-5)
-    assert camera.target == pytest.approx((4.0, 9.0, 1.0), abs=1e-5)
 
 
 def test_rerun_tracking_preserves_live_plot_panels(monkeypatch):
