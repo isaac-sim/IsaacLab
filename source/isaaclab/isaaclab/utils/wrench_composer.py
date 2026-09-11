@@ -596,7 +596,8 @@ class WrenchComposer:
             return self._local_force_b, self._local_torque_b, self.Frame.BODY
         if self._supports_world_at_com and self._content == self._Content.GLOBAL_AT_COM:
             return self._global_force_at_com_w, self._global_torque_w, self.Frame.WORLD_AT_COM
-        self._ensure_composed()
+        # The fallback depends on the live body pose, even when the input buffers are unchanged.
+        self.compose_to_body_frame()
         return self._out_force_b, self._out_torque_b, self.Frame.BODY
 
     def reset(

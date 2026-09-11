@@ -1888,6 +1888,33 @@ def test_resolve_submission_positioned_global_force_composes(device: str):
 
 
 @pytest.mark.parametrize("device", test_devices())
+def test_resolve_submission_recomposes_pose_dependent_wrench(device: str):
+    """A body-frame submission is recomposed when the body pose changes."""
+    asset = create_mock_asset(1, 1, device)
+    composer = WrenchComposer(asset, supports_world_at_com=True)
+    composer.add_forces_and_torques_index(
+        forces=torch.tensor([[[1.0, 0.0, 0.0]]], device=device),
+        positions=torch.tensor([[[0.0, 1.0, 0.0]]], device=device),
+        is_global=True,
+    )
+
+    force, torque, frame = composer.resolve_submission()
+
+    assert frame is WrenchComposer.Frame.BODY
+    np.testing.assert_allclose(force.numpy(), [[[1.0, 0.0, 0.0]]], atol=1e-6)
+    np.testing.assert_allclose(torque.numpy(), [[[0.0, 0.0, -1.0]]], atol=1e-6)
+
+    quat_180_z = torch.tensor([[[0.0, 0.0, 1.0, 0.0]]], device=device)
+    asset.data.body_link_quat_w = ProxyArray(wp.from_torch(quat_180_z, dtype=wp.quatf))
+
+    force, torque, frame = composer.resolve_submission()
+
+    assert frame is WrenchComposer.Frame.BODY
+    np.testing.assert_allclose(force.numpy(), [[[-1.0, 0.0, 0.0]]], atol=1e-6)
+    np.testing.assert_allclose(torque.numpy(), [[[0.0, 0.0, -1.0]]], atol=1e-6)
+
+
+@pytest.mark.parametrize("device", test_devices())
 def test_resolve_submission_fast_paths_read_no_body_pose(device: str):
     """Neither fast path may touch body poses; that read is the cost this change removes."""
     asset = create_mock_asset(2, 1, device)
