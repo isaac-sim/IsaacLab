@@ -11,6 +11,8 @@ Changed
   :class:`~isaaclab_newton.sim.MPMPointsCfg` to author schema-valid USD points,
   explicit particle masses, and bound Newton MPM materials for Newton's standard
   USD import path.
+* Standardized :class:`~isaaclab_newton.physics.MPMSolverCfg` rheology solver
+  values on the canonical tokens defined by ``NewtonMPMSceneAPI``.
 * **Breaking:** Standardized grid jitter as one deterministic asset-local particle
   distribution shared by USD clones. Use reset events or domain randomization for
   independent per-environment distributions.

@@ -1950,6 +1950,7 @@ class NewtonManager(PhysicsManager):
 
         from pxr import UsdGeom
 
+        # MPMObject imports NewtonManager, so defer this reciprocal import until model construction.
         from isaaclab_newton.assets.mpm_object.mpm_object import (  # noqa: PLC0415
             record_registered_mpm_particle_ranges,
             reset_registered_mpm_particle_ranges,

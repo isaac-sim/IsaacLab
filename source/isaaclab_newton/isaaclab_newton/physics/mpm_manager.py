@@ -36,24 +36,6 @@ if TYPE_CHECKING:
     from isaaclab.sim import SimulationContext
 
 
-_RHEOLOGY_SOLVER_USD_NAMES = {
-    "auto": "auto",
-    "gs": "gauss-seidel",
-    "gauss-seidel": "gauss-seidel",
-    "gs-soa": "gauss-seidel-soa",
-    "gauss-seidel-soa": "gauss-seidel-soa",
-    "gs-batched": "gauss-seidel-batched",
-    "gauss-seidel-batched": "gauss-seidel-batched",
-    "jacobi": "jacobi",
-    "cg": "conjugate-gradient",
-    "conjugate-gradient": "conjugate-gradient",
-    "cr": "conjugate-residual",
-    "conjugate-residual": "conjugate-residual",
-    "gmres": "generalized-minimal-residual",
-    "generalized-minimal-residual": "generalized-minimal-residual",
-}
-
-
 def _canonical_collider_velocity_mode(solver_cfg: MPMSolverCfg) -> str:
     """Resolve deprecated collider-velocity aliases used by older configurations."""
     collider_velocity_mode = solver_cfg.collider_velocity_mode
@@ -116,11 +98,7 @@ def _author_mpm_scene_config(scene_prim: Usd.Prim, solver_cfg: MPMSolverCfg) -> 
     if not scene_prim.AddAppliedSchema("NewtonMPMSceneAPI"):
         raise RuntimeError(f"Failed to apply NewtonMPMSceneAPI to '{scene_prim.GetPath()}'.")
 
-    solvers = (solver_cfg.solver,) if isinstance(solver_cfg.solver, str) else solver_cfg.solver
-    try:
-        rheology_solvers = [_RHEOLOGY_SOLVER_USD_NAMES[solver] for solver in solvers]
-    except KeyError as error:
-        raise ValueError(f"Unsupported MPM rheology solver {error.args[0]!r}.") from error
+    rheology_solvers = (solver_cfg.solver,) if isinstance(solver_cfg.solver, str) else solver_cfg.solver
 
     attributes = {
         "newton:maxSolverIterations": solver_cfg.max_iterations,

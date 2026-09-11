@@ -131,6 +131,7 @@ def test_mpm_config_imports_do_not_load_pxr():
     "module",
     [
         "scripts.demos.mpm.newton_mpm_granular",
+        "scripts.demos.mpm.newton_mpm_twoway_coupling",
         "scripts.demos.mpm.snowball_smash",
         "scripts.demos.mpm.teapot_fill",
     ],

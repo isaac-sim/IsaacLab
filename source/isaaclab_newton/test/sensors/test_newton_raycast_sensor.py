@@ -140,12 +140,7 @@ def test_rays_hit_ground_plane(sim, global_world_only):
     normals = sensor.data.ray_normals_w.torch
     assert hits.shape == (2, sensor.num_rays, 3)
     torch.testing.assert_close(hits[..., 2], torch.zeros_like(hits[..., 2]), atol=1e-3, rtol=0)
-    torch.testing.assert_close(
-        distances,
-        torch.full_like(distances, RAY_START_HEIGHT),
-        atol=1.0e-3 + torch.finfo(distances.dtype).eps,
-        rtol=0,
-    )
+    torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT), atol=1e-3, rtol=0)
     expected_normal = torch.tensor([0.0, 0.0, 1.0], device=normals.device).expand_as(normals)
     torch.testing.assert_close(normals, expected_normal, atol=1e-3, rtol=0)
 
@@ -287,12 +282,7 @@ def test_renderer_and_raycast_share_newton_manager_graph(sim):
     depth = scene["camera"].data.output["depth"].torch
     distances = scene["raycast"].data.ray_distances.torch
     assert abs(depth[0, 24, 32].item() - RAY_START_HEIGHT) < 5e-3
-    torch.testing.assert_close(
-        distances,
-        torch.full_like(distances, RAY_START_HEIGHT),
-        atol=1.0e-3 + torch.finfo(distances.dtype).eps,
-        rtol=0,
-    )
+    torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT), atol=1e-3, rtol=0)
 
     task_names = sorted(NewtonManager._sensor_tasks)
     assert any(name.startswith("newton_raycast:") for name in task_names)

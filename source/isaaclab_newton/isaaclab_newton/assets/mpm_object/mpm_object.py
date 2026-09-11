@@ -41,6 +41,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# TODO: Remove this range registry once https://github.com/newton-physics/newton/issues/4225
+# exposes composed MPM ranges.
 @dataclass
 class MPMObjectRegistryEntry:
     """Particle ranges imported for an MPM object."""
@@ -116,6 +118,7 @@ def _restore_imported_mpm_transform(
     points_path: str,
 ) -> None:
     """Apply the rotation that Newton builder merging omits for particles."""
+    # TODO: Remove this workaround when https://github.com/newton-physics/newton/issues/4115 is fixed.
     particle_count = source_end - source_start
     destination_end = destination_start + particle_count
     if source_start < 0 or source_end > source_builder.particle_count:
@@ -409,6 +412,7 @@ class MPMObject(BaseDeformableObject):
 
     def _create_particle_visualization(self) -> None:
         """Create renderer-agnostic ``UsdGeom.Points`` prims for visible particles."""
+        # TODO: Remove this duplicate render path once https://github.com/isaac-sim/IsaacLab/issues/7758 lands.
         if not self.cfg.spawn.visible:
             return
 

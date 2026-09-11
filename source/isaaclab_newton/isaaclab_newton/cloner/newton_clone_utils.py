@@ -118,7 +118,7 @@ def build_source_builders(
     ignore_paths: Sequence[str] | None = None,
     load_visual_shapes: bool = True,
     skip_mesh_approximation: bool = False,
-    import_results: dict[str, dict[str, Any]] | None = None,
+    import_results_out: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, ModelBuilder]:
     """Build one Newton builder for each clone source prim path.
 
@@ -136,8 +136,8 @@ def build_source_builders(
             USD parse time and memory that only pays off when the shapes are rendered
             or ray cast.
         skip_mesh_approximation: Whether to skip collision mesh approximation during import.
-        import_results: Optional output mapping populated with each source's USD
-            import result.
+        import_results_out: Optional caller-owned output mapping populated in place with each
+            source's USD import result.
     """
     builders = {}
     for source in sources:
@@ -151,8 +151,8 @@ def build_source_builders(
             skip_mesh_approximation,
         )
         builders[source] = builder
-        if import_results is not None:
-            import_results[source] = import_result
+        if import_results_out is not None:
+            import_results_out[source] = import_result
     return builders
 
 

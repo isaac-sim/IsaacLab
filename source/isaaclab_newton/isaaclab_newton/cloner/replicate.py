@@ -103,6 +103,7 @@ def _build_newton_builder_from_mapping(
     global_paths: tuple[str, ...] = (),
 ) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder], list[tuple[str, int]]]:
     """Build a Newton model builder from clone mapping inputs and retain its source builders."""
+    # MPMObject imports NewtonManager, so defer this reciprocal import until model construction.
     from isaaclab_newton.assets.mpm_object.mpm_object import (  # noqa: PLC0415
         record_registered_mpm_particle_ranges,
         reset_registered_mpm_particle_ranges,
@@ -154,7 +155,7 @@ def _build_newton_builder_from_mapping(
                 if any(pattern.fullmatch(child_path) for pattern in deformable_patterns):
                     deformable_ignore_paths.append(child_path)
 
-    source_import_results: dict[str, dict] = {}
+    source_import_results: dict[str, dict[str, Any]] = {}
     source_builders = build_source_builders(
         stage,
         sources,
@@ -162,7 +163,7 @@ def _build_newton_builder_from_mapping(
         schema_resolvers,
         ignore_paths=deformable_ignore_paths or None,
         load_visual_shapes=load_visual_shapes,
-        import_results=source_import_results,
+        import_results_out=source_import_results,
     )
 
     # Inject registered sites into source builders (and global sites into main builder).

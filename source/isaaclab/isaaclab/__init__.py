@@ -126,10 +126,14 @@ def _expose_mujoco_usd_schemas():
 def _expose_newton_usd_schemas():
     """Put Newton's codeless USD schemas on OpenUSD's plugin search path.
 
-    OpenUSD builds its schema registry once. Exposing the installed plugin before
-    a standalone stage or Kit starts lets Newton schemas work without importing
-    ``newton_usd_schemas`` (and therefore ``pxr``) during configuration loading.
+    OpenUSD discovers codeless plugins from this path when it builds the schema
+    registry. Expose the installed plugin during core initialization so kitless
+    processes find it without importing ``newton_usd_schemas``, which eagerly
+    imports ``pxr``. Core is the only lifecycle point guaranteed to precede both
+    direct OpenUSD use and AppLauncher.
     """
+    # TODO: Replace this wheel-layout probe with the host-safe discovery from
+    # https://github.com/newton-physics/newton-usd-schemas/issues/90.
     spec = importlib.util.find_spec("newton_usd_schemas")
     if spec is None or spec.origin is None:
         return
