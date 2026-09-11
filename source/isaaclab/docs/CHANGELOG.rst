@@ -1,6 +1,40 @@
 Changelog
 ---------
 
+24.2.0 (2026-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``isaaclab leapp export`` as the unified LEAPP policy export entry point.
+* Added ``isaaclab leapp deploy`` as the installed LEAPP deployment entry point.
+
+Changed
+^^^^^^^
+
+* Updated the default ground plane to a metric off-white and grey checker with NVIDIA-green landmarks every 2 m,
+  with its roughness map authored for renderers that support PBR textures.
+* Added the shared ``VisualizerCfg.background_color`` setting with a solid sky-blue default.
+* **Breaking:** Removed ``scripts/reinforcement_learning/leapp/deploy.py``. Use
+  ``isaaclab leapp deploy --task <TASK> --pipeline <PIPELINE_YAML>``; the old
+  ``--leapp_model`` option was replaced by ``--pipeline``.
+* Changed :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` to ``True`` by default so
+  supported explicit actuator models use the native Newton actuator path. Set it to ``False``
+  to restore the deprecated Isaac Lab execution path.
+
+Fixed
+^^^^^
+
+* Fixed benign ``[omni.rtx] FindAppliedAPIPrimDefinition(...) returned nothing`` /
+  ``Could not find UsdPrimDefinition for 'OmniRtx...API'`` error logs printed the first time
+  the ``newton_rtx`` visualizer opens its render product with ``physics=ovphysx`` by registering
+  the OVRTX schemas before physics initializes USD.
+* Disabled Kit's overlapping editor grid and camera axis by default so they do not obscure the ground-plane material.
+* Fixed play benchmarks failing on ``DirectMARLEnv`` tasks by creating and converting environments
+  with the same backend-specific rules as training.
+
+
 24.1.2 (2026-09-10)
 ~~~~~~~~~~~~~~~~~~~
 
