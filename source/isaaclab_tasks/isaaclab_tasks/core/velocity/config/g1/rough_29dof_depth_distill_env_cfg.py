@@ -49,7 +49,10 @@ from .rough_29dof_distill_env_cfg import (
     G129DofRoughAirTime100DistillObservationsCfg,
 )
 from .rough_29dof_dr_env_cfg import _HISTORY_LENGTH, _HISTORY_TERMS
-from .rough_29dof_mjlab_env_cfg import G129DofRoughMjlabScaleEnvCfg
+from .rough_29dof_mjlab_env_cfg import (
+    G129DofRoughMjlabScaleEnvCfg,
+    G129DofRoughMjlabScaleHipKneeEnvCfg,
+)
 from .rough_29dof_posture_env_cfg import G129DofRoughHipL2AirTime100EnvCfg
 from .rough_29dof_power_env_cfg import G129DofRoughWaist1Power2HipPitchLightEnvCfg
 from .rough_29dof_waistonly_env_cfg import G129DofRoughAirTime100WaistWarmupEnvCfg
@@ -298,6 +301,31 @@ class G129DofRoughYmsDepthDistillEnvCfg(G129DofRoughMjlabScaleEnvCfg):
     The environment is ``yms``'s own. The mirror augmentation lives in how the teacher was trained,
     not in the environment, so the student does not inherit it -- whether the symmetry survives the
     distillation is a thing to measure on the student rather than assume.
+    """
+
+    observations: G129DofRoughAirTime100DepthDistillObservationsCfg = (
+        G129DofRoughAirTime100DepthDistillObservationsCfg()
+    )
+
+    def __post_init__(self):
+        super().__post_init__()
+        _wire_depth_student(self)
+
+
+@configclass
+class G129DofRoughYhkDepthDistillEnvCfg(G129DofRoughMjlabScaleHipKneeEnvCfg):
+    """The depth student under ``yhk``'s environment.
+
+    ``yhk`` is ``yms``'s action-scale table with hip pitch and knee handed back the blanket 0.5, on
+    the same mirror augmentation. It is the arm built to fix what killed ``ymsd`` on hardware: the
+    full mjlab table leaves the hip 4.5 times less angular authority than the ankle, and the student
+    of it stops stepping below roughly 0.3 m/s and goes over backwards. Measured on flat ground at
+    0.8 m/s, three seeds: success 0.881 / 0.945 / 0.966, single-stance 0.794 / 0.911 / 0.834, flight
+    under 0.006, pelvis roll 0.62 to 0.77 degrees, no falls.
+
+    As with the others the environment is the teacher's own -- the mirror augmentation lives in how
+    the teacher was trained, not in the environment, so whether the symmetry survives distillation
+    is measured on the student rather than assumed.
     """
 
     observations: G129DofRoughAirTime100DepthDistillObservationsCfg = (
