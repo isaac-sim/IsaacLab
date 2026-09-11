@@ -298,6 +298,14 @@ accepts ``latest`` and ``best``; both select the newest saved RLinf checkpoint.
    GPU has spare memory, increase ``env.train.total_num_envs`` (default: ``4``)
    in the task YAML.
 
+.. note::
+
+   RLinf requires the rollout size (``total_num_envs * max_steps_per_rollout_epoch /
+   num_action_chunks`` per rollout epoch) to be a multiple of ``actor.global_batch_size``, which in
+   turn must be a multiple of ``actor.micro_batch_size``. Passing ``--num_envs`` alone can break
+   this: the H2 + Sharpa configs are sized for 96 environments, so shrinking them for a smoke test
+   means lowering the batch sizes in a copy of the YAML passed via ``--config_path``.
+
 .. tip::
 
    Each checkpoint can be several gigabytes. To avoid filling up disk space,
