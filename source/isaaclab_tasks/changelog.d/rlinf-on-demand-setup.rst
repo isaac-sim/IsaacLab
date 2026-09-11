@@ -6,6 +6,9 @@ Added
   task on the Unitree H2 + Sharpa Wave embodiment.
 * Added ``isaaclab_tasks.contrib.h2_sharpa``, holding the joint-order metadata, articulation presets
   and camera presets shared by the H2 + Sharpa tasks.
+* Added ``ISAACLAB_H2_SHARPA_ASSET_ROOT`` and ``ISAACLAB_PICK_AND_PLACE_APPLE_ASSET_ROOT`` to point
+  the H2 + Sharpa tasks at a local mirror of their scene and robot assets, which are hosted outside
+  the Isaac asset server.
 
 Changed
 ^^^^^^^
