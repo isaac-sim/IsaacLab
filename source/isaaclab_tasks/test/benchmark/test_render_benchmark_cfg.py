@@ -20,7 +20,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab.physics import PhysxAutoCfg
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.core.render_benchmark.render_benchmark_env import RenderBenchmarkEnv
+from isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env import RenderBenchmarkEnv
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
@@ -35,7 +35,7 @@ def test_task_registered_with_direct_entry_point():
     spec = gym.spec(_TASK)
 
     assert spec.kwargs["env_cfg_entry_point"] == (
-        "isaaclab_tasks.core.render_benchmark.render_benchmark_env_cfg:RenderBenchmarkFrankaCabinetEnvCfg"
+        "isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env_cfg:RenderBenchmarkFrankaCabinetEnvCfg"
     )
     assert spec.disable_env_checker is True
 
