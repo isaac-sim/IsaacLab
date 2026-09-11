@@ -210,9 +210,11 @@ actor:
   seed: 1234
   enable_offload: False
 
-  enable_sft_co_train: True
+  # Stock RLinf has no SFT dataloader for gr00t_n1d7, so the demo runs pure PPO. Co-training
+  # needs an N1.7 SFT dataloader registered with RLinf before this can be enabled.
+  enable_sft_co_train: False
   sft_loss_weight: 0.1
-  sft_data_path: "/workspace/datasets/mimicGen_lerobot"
+  sft_data_path: "datasets/mimicGen_lerobot"
   sft_batch_size: 4
   sft_shard_size: 1024
   sft_episode_sampling_rate: 1.0

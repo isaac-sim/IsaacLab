@@ -274,12 +274,14 @@ actor:
   # ---- SFT co-training (PPO + β·SFT) ------------------------------------
   # The GR00T_N1D7 branch of the fsdp_actor_worker override builds the SFT
   # loader from ShardedSingleStepDataset + Gr00tN1d7Processor (N1.7 pipeline).
-  enable_sft_co_train: True
+  # Stock RLinf has no SFT dataloader for gr00t_n1d7, so the demo runs pure PPO. Co-training
+  # needs an N1.7 SFT dataloader registered with RLinf before this can be enabled.
+  enable_sft_co_train: False
   sft_loss_weight: 0.1
   # Keep co-training on the real-data component used to train the v8 checkpoint.
   # The checkpoint processor supplies normalization statistics for real30 +
   # sim_align_v1; using older real43/real46 data causes a distribution mismatch.
-  sft_data_path: "/workspace/datasets/pnp_apple_real30"
+  sft_data_path: "datasets/pnp_apple_real30"
   # Keep SFT micro-batch aligned with PPO: 8 samples * 16 accumulation steps = 128
   # SFT samples per rank per optimizer update.
   sft_batch_size: 4
