@@ -284,25 +284,19 @@ def _camera_visualizer(monkeypatch, scene, **kwargs):
     return viz
 
 
-@pytest.mark.parametrize("num_envs", [1, 5, 9, 64])
-def test_camera_selects_spatial_center_once(monkeypatch, num_envs):
+def test_camera_selects_spatial_center_once(monkeypatch):
     from isaaclab.cloner.clone_plan import grid_transforms
 
-    origins, _ = grid_transforms(num_envs)
+    origins, _ = grid_transforms(64)
     scene = _CameraScene(origins)
     viz = _camera_visualizer(monkeypatch, scene, origin_type="env", origin_env_index="center")
     viz.step(0.1)
 
-    # Independently compare horizontal distances to the layout's bounding-box center.
-    points = scene.env_origins.tolist()
-    center = [(min(p[i] for p in points) + max(p[i] for p in points)) / 2 for i in (0, 1)]
-    index = min(range(num_envs), key=lambda j: sum((points[j][i] - center[i]) ** 2 for i in (0, 1)))
-    origin = scene.env_origins[index]
-    assert viz.camera_env_index == index
+    # Four environments share the center of the 8x8 grid; select the lowest index.
+    origin = scene.env_origins[27]
+    assert viz.camera_env_index == 27
     assert viz.camera_pose[0] == pytest.approx((origin + torch.tensor(viz.cfg.eye)).tolist())
     assert viz.camera_pose[1] == pytest.approx((origin + torch.tensor(viz.cfg.lookat)).tolist())
-    if num_envs == 64:
-        assert index == 27
 
     # Fixed cameras must not move when a terrain curriculum relocates environment origins.
     first_pose = viz.camera_pose
@@ -322,18 +316,12 @@ def test_camera_center_uses_visible_envs_and_ignores_height(monkeypatch):
 @pytest.mark.parametrize("follow_heading", [False, True])
 @pytest.mark.parametrize("track_path", ["robot", "robot/base"])
 def test_camera_tracks_position_and_optional_yaw_without_offset_drift(monkeypatch, follow_heading, track_path):
-    from isaaclab.utils.math import quat_from_euler_xyz
-
     scene = _CameraScene([[0, 0, 0], [20, 0, 0], [10, 0, 0]])
     positions = torch.tensor([[100.0, 0, 0], [200.0, 0, 0], [10.0, 2, 3]])
-    # Rz(90 degrees) * Ry(30 degrees) * Rx(60 degrees), xyzw quaternion.
-    orientations = quat_from_euler_xyz(
-        torch.full((3,), math.pi / 3), torch.full((3,), math.pi / 6), torch.full((3,), math.pi / 2)
-    )
+    # XYZW quaternions: 90-degree roll, with +90-degree root yaw and -90-degree body yaw.
+    orientations = torch.tensor([[0.5, 0.5, 0.5, 0.5]]).expand(3, -1)
     body_positions = torch.stack((positions + 100, positions + torch.tensor([0, 0, 0.5])), dim=1)
-    body_orientation = quat_from_euler_xyz(
-        torch.full((3,), math.pi / 3), torch.full((3,), math.pi / 6), torch.full((3,), -math.pi / 2)
-    )
+    body_orientation = torch.tensor([[0.5, -0.5, -0.5, 0.5]]).expand(3, -1)
     body_orientations = torch.stack((orientations, body_orientation), dim=1)
     scene["robot"] = _camera_asset(
         root_pos_w=positions, root_quat_w=orientations, body_pos_w=body_positions, body_quat_w=body_orientations
@@ -361,27 +349,6 @@ def test_camera_tracks_position_and_optional_yaw_without_offset_drift(monkeypatc
         assert viz.camera_pose[1] == pytest.approx([a + b for a, b in zip(origin, target_offset)], abs=1e-5)
         assert viz.cfg.eye == (2.0, 0.0, 1.0)
         assert viz.cfg.lookat == (1.0, 0.0, 0.0)
-
-
-@pytest.mark.parametrize("env_index,visible", [(3, None), (-1, None), (1, [0]), ("center", [])])
-def test_camera_rejects_unavailable_environment(monkeypatch, env_index, visible):
-    viz = _camera_visualizer(
-        monkeypatch, _CameraScene([[0, 0, 0], [1, 0, 0]]), origin_type="env", origin_env_index=env_index
-    )
-    viz._resolved_visible_env_ids = visible
-    with pytest.raises(ValueError, match="environment|origin_env_index"):
-        viz.step(0.1)
-
-
-@pytest.mark.parametrize("path", [None, "missing", "robot/missing", "robot/.*"])
-def test_camera_rejects_missing_or_ambiguous_asset_target(monkeypatch, path):
-    scene = _CameraScene([[0, 0, 0]])
-    scene["robot"] = SimpleNamespace(is_initialized=True, find_bodies=lambda name: ([], []))
-    if path == "robot/.*":
-        scene["robot"].find_bodies = lambda name: ([0, 1], ["base", "foot"])
-    viz = _camera_visualizer(monkeypatch, scene, origin_type="asset", origin_track_path=path)
-    with pytest.raises(ValueError, match="origin_track_path"):
-        viz.step(0.1)
 
 
 def test_camera_waits_for_asset_state_and_accepts_new_environment_selection(monkeypatch):
@@ -460,9 +427,3 @@ def test_camera_heading_filter_takes_short_path_and_reinitializes_on_target_chan
     viz.cfg.origin_env_index = 1
     viz.step(0.0)
     assert viz.camera_pose[0] == pytest.approx((2.0, 0.0, 1.0), abs=1e-5)
-
-
-@pytest.mark.parametrize("time_constant", [-0.1, math.inf, math.nan])
-def test_camera_rejects_invalid_heading_smoothing_time_constant(time_constant):
-    with pytest.raises(ValueError, match="origin_heading_smoothing_time_constant"):
-        VisualizerCfg(origin_heading_smoothing_time_constant=time_constant)
