@@ -6,6 +6,7 @@ REM Command file to build Sphinx documentation
 
 set SOURCEDIR=.
 set BUILDDIR=_build
+if "%DOCS_DEFAULT_REF%" == "" set DOCS_DEFAULT_REF=main
 
 REM Check if a specific target was passed
 if "%1" == "multi-docs" (
@@ -26,10 +27,18 @@ if "%1" == "multi-docs" (
 		exit /b 1
 	)
 	%SPHINXBUILD% %SOURCEDIR% %BUILDDIR% %SPHINXOPTS% %O%
+	if errorlevel 1 exit /b 1
 
-	REM Copy the redirect index.html to the build directory
-	copy _redirect\index.html %BUILDDIR%\index.html
-	goto end
+	if not exist "%BUILDDIR%\%DOCS_DEFAULT_REF%\index.html" (
+		echo Default docs ref '%DOCS_DEFAULT_REF%' was not built
+		exit /b 1
+	)
+
+	REM Render the redirect index.html using the selected default docs ref
+	powershell -NoProfile -Command "$ErrorActionPreference = 'Stop'; $template = [System.IO.File]::ReadAllText('_redirect\index.html'); $output = $template.Replace('__DOCS_DEFAULT_REF__', $env:DOCS_DEFAULT_REF); [System.IO.File]::WriteAllText('%BUILDDIR%\index.html', $output); exit 0"
+	if errorlevel 1 exit /b 1
+	popd
+	exit /b 0
 )
 
 if "%1" == "current-docs" (
@@ -63,3 +72,4 @@ echo.
 
 :end
 popd
+exit /b 0
