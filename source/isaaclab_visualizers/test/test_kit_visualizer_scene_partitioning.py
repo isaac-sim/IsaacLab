@@ -11,7 +11,6 @@ from unittest.mock import MagicMock
 import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer_module
 import pytest
 import torch
-from isaaclab_visualizers.kit import KitVisualizerCfg
 from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
