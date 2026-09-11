@@ -57,10 +57,11 @@ manifest, the ``--command`` string as you typed it, and the values of allowliste
 as ``PYTHONPATH`` and ``LD_LIBRARY_PATH``. Read ``REPRODUCE.md`` and ``env/environment.txt`` from the
 bundle before attaching it to a public issue.
 
-Nothing about the working tree is captured beyond the commit it sits on. Uncommitted changes, the
-diff against them, and the configured remotes are all left out, so a dirty tree cannot carry code you
-are not free to share and a fork's URL cannot name a host or an organisation. The clone step names
-Isaac Lab itself; a commit that is not reachable from it came from a fork and has to come from you.
+No source diff and no configured remotes are captured, so a fork's URL cannot name a host or an
+organisation. The working tree is not otherwise untouched, though: ``pyproject.toml``, ``uv.lock``,
+``pyvenv.cfg`` and the ``.pth`` files are copied verbatim, dirty or not, so an uncommitted index URL
+or a local path edited into any of them travels with the bundle. The clone step names Isaac Lab
+itself; a commit that is not reachable from it came from a fork and has to come from you.
 
 
 Reproducing a Reported Environment
