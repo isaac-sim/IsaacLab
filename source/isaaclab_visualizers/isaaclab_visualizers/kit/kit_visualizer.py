@@ -419,20 +419,6 @@ class KitVisualizer(BaseVisualizer):
         """KitVisualizer calls app.update() in step(), so render() should not do it again."""
         return True
 
-    def set_camera_view(
-        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
-    ) -> None:
-        """Set active viewport camera eye/target.
-
-        Args:
-            eye: Camera eye position.
-            target: Camera look-at target.
-        """
-        if not self._is_initialized:
-            logger.debug("[KitVisualizer] set_camera_view() ignored because visualizer is not initialized.")
-            return
-        self._set_viewport_camera(tuple(eye), tuple(target))
-
     def render_tiled_rgb_array(self) -> np.ndarray | None:
         """Return the last composited streaming frame (all GT types side-by-side).
 
@@ -1245,6 +1231,8 @@ class KitVisualizer(BaseVisualizer):
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
         """Apply a world-space pose to both the viewport and the recording renderer."""
+        if not self._is_initialized:
+            return
         eye, target = pose
         env_index = self.camera_env_index if self.cfg.origin_type != "world" else None
         if env_index != self._camera_partition_env_index:
@@ -1252,7 +1240,7 @@ class KitVisualizer(BaseVisualizer):
             if stage is not None:
                 self._apply_viewport_camera_scene_partition(stage, self._scene_data_provider.num_envs)
                 self._camera_partition_env_index = env_index
-        self.set_camera_view(eye, target)
+        self._set_viewport_camera(eye, target)
         # Keep the Isaac RTX renderer camera in sync (no-op if isaaclab_physx is not installed).
         try:
             from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view  # noqa: PLC0415

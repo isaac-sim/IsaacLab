@@ -2,4 +2,5 @@ Changed
 ^^^^^^^
 
 * Shared fixed and tracking cameras, including yaw smoothing, across Kit, Newton, Rerun, and
-  Viser. Existing Kit camera fields and defaults remained compatible; no migration was required.
+  Viser. Preserved runtime camera edits across backends and kept Rerun layouts intact during tracking.
+  Existing Kit camera fields and defaults remained compatible; no migration was required.

@@ -78,6 +78,8 @@ absolute coordinates. Heading following rotates offsets with yaw only, keeping t
 level; disabling it follows position with world-aligned offsets. The smoothing time constant
 is in seconds; zero disables filtering. Core locomotion views use 0.2 seconds, or 0.5 for
 Ant and Humanoid. Position tracking remains immediate.
+``visualizer.set_camera_view(eye, target)`` accepts world coordinates and preserves the edit
+as offsets for subsequent tracking.
 
 ``origin_env_index="center"`` selects the visible environment nearest the horizontal bounding-box
 center of all environment origins, breaking ties by lowest index (27 for a standard 64-env grid).

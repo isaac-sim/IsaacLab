@@ -140,7 +140,8 @@ def test_viewport_partition_updates_after_center_camera_selection(monkeypatch):
     scene = SimpleNamespace(num_envs=3, env_origins=torch.tensor([[-10.0, 0, 0], [10.0, 0, 0], [0.0, 0, 0]]))
     viz._scene_data_provider = SimpleNamespace(usd_stage=stage, num_envs=3, get_interactive_scene=lambda: scene)
     monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: SimpleNamespace(get=lambda *args: False))
-    monkeypatch.setattr(viz, "set_camera_view", lambda *args: None)
+    viz._is_initialized = True
+    monkeypatch.setattr(viz, "_set_viewport_camera", lambda *args: None)
     viz._update_camera_tracking()
     assert viz.camera_env_index == 2
     assert camera.GetPrim().GetAttribute("omni:scenePartition").Get() == "env_2"

@@ -445,9 +445,6 @@ class BaseEnvWindow:
         lookat = [self.ui_window_elements["viewer_lookat"][i].get_value_as_float() for i in range(3)]
         viz.set_camera_view(eye, lookat)
 
-        # Preserve world-space slider edits in the camera's configured tracking frame.
-        viz._set_camera_pose_cfg(tuple(eye), tuple(lookat))
-
     def _set_viewer_env_index_fn(self, model: omni.ui.SimpleIntModel):
         """Sets the environment index and updates the camera if in 'env' origin mode."""
         viz = self._get_kit_visualizer()

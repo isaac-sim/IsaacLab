@@ -87,8 +87,8 @@ class _DummyVisualizer(BaseVisualizer):
     def step(self, dt: float) -> None:
         self._update_camera_tracking(dt)
 
-    def set_camera_view(self, eye, target) -> None:
-        self.camera_pose = (eye, target)
+    def _apply_camera_pose(self, pose) -> None:
+        self.camera_pose = pose
 
     def close(self) -> None:
         self._is_closed = True
@@ -354,7 +354,7 @@ def test_camera_waits_for_asset_state_and_accepts_new_environment_selection():
     viz = _camera_visualizer(scene, origin_type="asset", origin_track_path="robot")
     viz.step(0.1)
     assert not hasattr(viz, "camera_pose")
-    viz._set_camera_pose_cfg((7.0, 12.0, 3.0), (4.0, 9.0, 1.0))
+    viz.set_camera_view((7.0, 12.0, 3.0), (4.0, 9.0, 1.0))
     asset.is_initialized = True
     asset.data = SimpleNamespace(root_pos_w=SimpleNamespace(torch=scene.env_origins))
     viz.step(0.1)
@@ -389,7 +389,7 @@ def test_camera_heading_filter_uses_elapsed_time_and_keeps_position_tracking(sub
     viz.step(0.0)
     assert viz.camera_pose == pose
     # UI edits are converted through the filtered heading, without a jump while paused.
-    viz._set_camera_pose_cfg((7.0, 12.0, 3.0), (4.0, 9.0, 1.0))
+    viz.set_camera_view((7.0, 12.0, 3.0), (4.0, 9.0, 1.0))
     viz.step(0.0)
     assert viz.camera_pose[0] == pytest.approx((7.0, 12.0, 3.0), abs=1e-5)
     assert viz.camera_pose[1] == pytest.approx((4.0, 9.0, 1.0), abs=1e-5)

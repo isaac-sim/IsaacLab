@@ -1371,20 +1371,6 @@ class NewtonVisualizer(BaseVisualizer):
             return False
         return self._viewer.is_rendering_paused()
 
-    def set_camera_view(
-        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
-    ) -> None:
-        """Set active viewer camera eye/target.
-
-        Args:
-            eye: Camera eye position.
-            target: Camera look-at target.
-        """
-        eye_t = (float(eye[0]), float(eye[1]), float(eye[2]))
-        target_t = (float(target[0]), float(target[1]), float(target[2]))
-        self._set_camera_pose_cfg(eye_t, target_t)
-        self._apply_camera_pose((eye_t, target_t))
-
     def log_mesh(
         self,
         name: str,

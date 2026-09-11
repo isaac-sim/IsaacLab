@@ -308,14 +308,19 @@ class BaseVisualizer(ABC):
         """
         return None
 
-    def set_camera_view(self, eye: tuple, target: tuple) -> None:
-        """Set camera view position.
+    def set_camera_view(
+        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
+    ) -> None:
+        """Set a world-space camera view and preserve it as offsets for subsequent tracking.
 
         Args:
-            eye: Camera eye position.
-            target: Camera target position.
+            eye: Camera eye position in world coordinates [m].
+            target: Camera look-at target in world coordinates [m].
         """
-        pass
+        eye = tuple(float(v) for v in eye)
+        target = tuple(float(v) for v in target)
+        self._set_camera_pose_cfg(eye, target)
+        self._apply_camera_pose((eye, target))
 
     def _update_camera_tracking(self, dt: float = 0.0) -> None:
         """Apply the task camera before rendering, without rewriting configured offsets."""
@@ -366,7 +371,7 @@ class BaseVisualizer(ABC):
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
         """Apply a world-space pose; backends must preserve the configured camera offsets."""
-        self.set_camera_view(*pose)
+        pass
 
     def _resolve_cfg_camera_pose(
         self, _visualizer_name: str

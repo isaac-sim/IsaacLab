@@ -445,7 +445,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
         "_resolve_initial_camera_pose",
         lambda self: ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0)),
     )
-    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_set_viser_camera_view", lambda self, pose: None)
+    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_apply_camera_pose", lambda self, pose: None)
 
     cfg = ViserVisualizerCfg(
         max_visible_envs=cfg_max_visible_envs,
@@ -1259,9 +1259,15 @@ def test_tracking_camera_updates_before_backend_frame(monkeypatch, backend):
     assert poses == [((12.0, 20.0, 1.0), (10.0, 20.0, 0.0))]
     assert viz.cfg.eye == (2, 0, 1)
     assert viz.cfg.lookat == (0, 0, 0)
+    viz.set_camera_view((15, 22, 3), (10, 21, 0))
+    viz._update_camera_tracking(0.0)
+    assert poses[-1] == ((15.0, 22.0, 3.0), (10.0, 21.0, 0.0))
+    assert viz.cfg.eye == (5, 2, 3)
+    assert viz.cfg.lookat == (0, 1, 0)
 
 
 def test_rerun_tracking_preserves_live_plot_panels(monkeypatch):
+    import numpy as np
     import rerun.blueprint as rrb
 
     viewer = object.__new__(rerun_visualizer.NewtonViewerRerun)
@@ -1272,6 +1278,8 @@ def test_rerun_tracking_preserves_live_plot_panels(monkeypatch):
     viz = rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())
     viz._viewer = viewer
     blueprints = []
+    camera_updates = []
+    monkeypatch.setattr(rerun_visualizer.rr, "log", lambda path, data, **kwargs: camera_updates.append((path, data)))
     monkeypatch.setattr(rerun_visualizer.rr, "send_blueprint", blueprints.append)
     for eye in ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0)):
         viz._apply_camera_pose((eye, (0.0, 0.0, 0.0)))
@@ -1285,6 +1293,14 @@ def test_rerun_tracking_preserves_live_plot_panels(monkeypatch):
         if root is not None:
             yield from views(root)
 
-    assert len(blueprints) == 2
+    assert len(blueprints) == 1
+    assert len(camera_updates) == 2
+    for (path, transform), eye in zip(camera_updates, ((1, 2, 3), (4, 5, 6))):
+        assert path == "viewer/camera"
+        assert transform.translation.as_arrow_array().to_pylist() == [list(eye)]
+        rotation = np.array(transform.mat3x3.as_arrow_array().to_pylist()[0]).reshape(3, 3).T
+        assert rotation @ [0, 0, -1] == pytest.approx(-np.array(eye) / np.linalg.norm(eye))
     for blueprint in blueprints:
         assert {view.name for view in views(blueprint)} >= {"reward", "termination"}
+        camera_view = next(view for view in views(blueprint) if isinstance(view, rrb.Spatial3DView))
+        assert camera_view.origin == "viewer/camera"

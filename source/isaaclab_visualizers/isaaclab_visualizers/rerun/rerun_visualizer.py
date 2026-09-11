@@ -20,8 +20,10 @@ import newton
 import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
+import torch
 from newton.viewer import ViewerRerun
 
+from isaaclab.utils.math import create_rotation_matrix_from_view
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
@@ -195,8 +197,7 @@ class NewtonViewerRerun(ViewerRerun):
         When streaming is **not** active the standard 3D Newton view is used,
         with live-plot time-series views appended when registered.
 
-        The stored :attr:`_camera_pose` is forwarded to
-        :class:`~rerun.blueprint.EyeControls3D` when the 3D view is included.
+        The 3D view follows a logged camera frame so pose updates preserve the viewer layout.
         """
         manager_views = (
             [rrb.TimeSeriesView(name=name, origin=f"/{name}") for name in self._live_plot_manager_names]
@@ -226,15 +227,11 @@ class NewtonViewerRerun(ViewerRerun):
             )
 
         # Standard 3D blueprint (no streaming).
-        eye_controls = (
-            rrb.EyeControls3D(position=self._camera_pose[0], look_target=self._camera_pose[1])
-            if self._camera_pose
-            else None
-        )
-        view_3d = (
-            rrb.Spatial3DView(name="3D View", origin="/", eye_controls=eye_controls)
-            if eye_controls
-            else rrb.Spatial3DView(name="3D View", origin="/")
+        view_3d = rrb.Spatial3DView(
+            name="3D View",
+            origin="viewer/camera",
+            contents=["+ /**", "- /viewer/**"],
+            eye_controls=rrb.EyeControls3D(position=(0, 0, 0), look_target=(0, 0, -1), eye_up=(0, 1, 0)),
         )
         if manager_views:
             return rrb.Blueprint(
@@ -247,7 +244,13 @@ class NewtonViewerRerun(ViewerRerun):
                 collapse_panels=True,
             )
         return rrb.Blueprint(
-            view_3d,
+            rrb.Vertical(
+                view_3d,
+                rrb.TextDocumentView(
+                    name=f"Physics: {getattr(self, '_backend_display', 'unknown')}", origin="info/physics_backend"
+                ),
+                row_shares=[20, 1],
+            ),
             *panel_states,
             collapse_panels=True,
         )
@@ -396,6 +399,7 @@ class RerunVisualizer(BaseVisualizer):
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
         backend = self.physics_backend or "unknown"
         self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
+        self._viewer._backend_display = self._backend_display
         initial_pose = self._resolve_initial_camera_pose()
         self._apply_camera_pose(initial_pose)
         self._viewer.up_axis = 2
@@ -686,51 +690,17 @@ class RerunVisualizer(BaseVisualizer):
             return
         cam_pos, cam_target = pose
         self._viewer._camera_pose = pose
-        # Do not send a Spatial3DView blueprint when the streaming composite is active:
-        # the streaming blueprint (Spatial2DView) from _get_blueprint() would be replaced
-        # by a 3D view, hiding the streaming composite panel entirely.
+        # Preserve the sensor-composite view when streaming is active.
         if self._streaming_view_active:
             return
-        if self._viewer._live_plot_manager_names:
+        rotation = create_rotation_matrix_from_view(
+            torch.tensor([cam_pos], dtype=torch.float32), torch.tensor([cam_target], dtype=torch.float32)
+        )[0].numpy()
+        # The view stays in this moving frame; only camera data changes on tracking frames.
+        rr.log("viewer/camera", rr.Transform3D(translation=cam_pos, mat3x3=rotation), static=True)
+        if self._last_camera_pose is None:
             rr.send_blueprint(self._viewer._get_blueprint())
-            self._last_camera_pose = pose
-            return
-        panel_states = [rrb.TimePanel(state="hidden")]
-        rr.send_blueprint(
-            rrb.Blueprint(
-                rrb.Vertical(
-                    rrb.Spatial3DView(
-                        name="3D View",
-                        origin="/",
-                        eye_controls=rrb.EyeControls3D(
-                            position=cam_pos,
-                            look_target=cam_target,
-                        ),
-                    ),
-                    rrb.TextDocumentView(
-                        name=f"Physics: {self._backend_display or 'unknown'}",
-                        origin="info/physics_backend",
-                    ),
-                    row_shares=[20, 1],
-                ),
-                *panel_states,
-                collapse_panels=True,
-            )
-        )
-        self._last_camera_pose = (cam_pos, cam_target)
-
-    def set_camera_view(
-        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
-    ) -> None:
-        """Set the 3D view's camera eye/target.
-
-        Args:
-            eye: Camera eye position.
-            target: Camera look-at target.
-        """
-        eye_t = (float(eye[0]), float(eye[1]), float(eye[2]))
-        target_t = (float(target[0]), float(target[1]), float(target[2]))
-        self._apply_camera_pose((eye_t, target_t))
+        self._last_camera_pose = pose
 
     def supports_markers(self) -> bool:
         """Rerun backend supports Isaac Lab markers through Newton viewer primitives."""
