@@ -10,7 +10,6 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaaclab import cloner
 from isaaclab.envs import DirectRLEnv
 from isaaclab.utils.math import quat_apply
 
@@ -23,6 +22,8 @@ class HumanoidAmpEnv(DirectRLEnv):
 
     def __init__(self, cfg: HumanoidAmpEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+
+        self.robot = self.scene["robot"]
 
         # action offset and scale
         soft_joint_pos_limits = self.robot.data.soft_joint_pos_limits.torch
@@ -48,17 +49,6 @@ class HumanoidAmpEnv(DirectRLEnv):
         self.amp_observation_buffer = torch.zeros(
             (self.num_envs, self.cfg.num_amp_observations, self.cfg.amp_observation_space), device=self.device
         )
-
-    def _setup_scene(self):
-        asset_cfgs = (self.cfg.robot, self.cfg.ground, self.cfg.light)
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        self.robot, _, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        self.scene.articulations["robot"] = self.robot
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[self.cfg.ground.prim_path])
 
     def _pre_physics_step(self, actions: torch.Tensor):
         self.actions = actions.clone()

@@ -10,7 +10,6 @@ from collections.abc import Sequence
 
 import torch
 
-from isaaclab import cloner
 from isaaclab.envs import DirectMARLEnv
 from isaaclab.utils.math import sample_uniform
 
@@ -29,6 +28,7 @@ class PendulumMARLEnv(DirectMARLEnv):
     def __init__(self, cfg: PendulumMARLEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
+        self.robot = self.scene["robot"]
         self._cart_dof_idx, _ = self.robot.find_joints(self.cfg.cart_dof_name)
         self._pole_dof_idx, _ = self.robot.find_joints(self.cfg.pole_dof_name)
         self._pendulum_dof_idx, _ = self.robot.find_joints(self.cfg.pendulum_dof_name)
@@ -37,17 +37,6 @@ class PendulumMARLEnv(DirectMARLEnv):
         self.joint_vel = self.robot.data.joint_vel.torch
         self._success_required_steps = round(self.cfg.success_duration_s / self.step_dt)
         self._consecutive_upright_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
-
-    def _setup_scene(self):
-        asset_cfgs = self.cfg.robot_cfg, self.cfg.ground_cfg, self.cfg.light_cfg
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        self.robot, _, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions()
-        self.scene.articulations["robot"] = self.robot
 
     def _pre_physics_step(self, actions: dict[str, torch.Tensor]) -> None:
         self.actions = actions

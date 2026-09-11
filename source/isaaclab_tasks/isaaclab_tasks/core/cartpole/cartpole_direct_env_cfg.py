@@ -55,6 +55,21 @@ class CartpolePhysicsCfg(PresetCfg):
 
 
 @configclass
+class CartpoleSceneCfg(InteractiveSceneCfg):
+    """Cartpole assets constructed and cloned as one scene."""
+
+    ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+    cartpole: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    light = AssetBaseCfg(
+        prim_path="/World/Light",
+        spawn=sim_utils.DistantLightCfg(intensity=2000.0),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            rot=(-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
+        ),
+    )
+
+
+@configclass
 class CartpoleEnvCfg(DirectRLEnvCfg):
     # env
     decimation = 2
@@ -67,17 +82,11 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=CartpolePhysicsCfg())
 
-    # robot
-    robot_cfg: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    ground_cfg: AssetBaseCfg = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
-    light_cfg: AssetBaseCfg = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DistantLightCfg(intensity=2000.0))
-    # orientation for Euler angles (roll, pitch, yaw) = (0, -45, -45) degrees
-    light_cfg.init_state.rot = (-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
+    scene: CartpoleSceneCfg = CartpoleSceneCfg(
         num_envs=4096, env_spacing=4.0, replicate_physics=True, clone_in_fabric=True
     )
 

@@ -25,8 +25,7 @@ features, and provides a less abstracted framework that makes it easier to find 
 pieces of code.
 
 In this tutorial, we will configure the cartpole environment using the direct workflow implementation to create a task
-for balancing the pole upright. We will learn how to specify the task using by implementing functions
-for scene creation, actions, resets, rewards and observations.
+for balancing the pole upright. We will declare its scene and implement actions, resets, rewards, and observations.
 
 
 The Code
@@ -95,16 +94,20 @@ including functions for applying actions, computing resets, rewards, and observa
 Scene Creation
 --------------
 
-In contrast to manager-based environments where the scene creation is taken care of by the framework,
-the direct workflow implementation provides flexibility for users to implement their own scene creation
-function. This includes adding actors into the stage, cloning the environments, filtering collisions
-between the environments, adding the actors into the scene, and adding any additional props to the
-scene, such as ground plane and lights. These operations should be implemented in the
-``_setup_scene(self)`` method.
+Direct and manager-based environments use the same declarative scene lifecycle. Define the
+assets and sensors on an :class:`~isaaclab.scene.InteractiveSceneCfg` subclass:
 
-.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env.py
+.. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env_cfg.py
    :language: python
-   :pyobject: CartpoleEnv._setup_scene
+   :pyobject: CartpoleSceneCfg
+
+Assign that configuration to the task's ``scene`` field. :class:`~isaaclab.envs.DirectRLEnv`
+constructs the scene and completes its one clone lifecycle before the task constructor resumes.
+Task code can then keep a convenient reference to a declared entity:
+
+.. code-block:: python
+
+   self.cartpole = self.scene["cartpole"]
 
 Defining Rewards
 ----------------
@@ -348,8 +351,9 @@ to specify an additive Gaussian distribution that adds the sampled noise to the 
 
 
 
-In this tutorial, we learnt how to create a direct workflow task environment for reinforcement learning. We do this
-by extending the base environment to include the scene setup, actions, dones, reset, reward and observaion functions.
+In this tutorial, we learnt how to create a direct workflow task environment for reinforcement learning. We declared
+the scene in configuration and extended the base environment with actions, dones, reset, reward, and observation
+functions.
 
 While it is possible to manually create an instance of :class:`~isaaclab.envs.DirectRLEnv` class for a desired task,
 this is not scalable as it requires specialized scripts for each task. Thus, we exploit the

@@ -10,7 +10,6 @@ from collections.abc import Sequence
 
 import torch
 
-from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectMARLEnv
 from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, saturate, scale_transform, unscale_transform
@@ -31,6 +30,9 @@ class HandoverEnv(DirectMARLEnv):
 
     def __init__(self, cfg: HandoverEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+        self.right_hand, self.left_hand, self.object, self.goal_markers = [
+            self.scene[name] for name in ("right_robot", "left_robot", "object", "goal_object")
+        ]
 
         self.num_hand_dofs = self.right_hand.num_joints
 
@@ -97,22 +99,6 @@ class HandoverEnv(DirectMARLEnv):
         # unit tensors for sampling goal/object rotations about the x and y axes
         self.x_unit_tensor = torch.tensor([1, 0, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
-
-    def _setup_scene(self):
-        asset_cfgs = self.cfg.right_robot_cfg, self.cfg.left_robot_cfg, self.cfg.object_cfg
-        asset_cfgs += self.cfg.ground_cfg, self.cfg.light_cfg, self.cfg.goal_object_cfg
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        assets = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        self.right_hand, self.left_hand, self.object, _, _, self.goal_markers = assets
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[self.cfg.ground_cfg.prim_path])
-        # add articulation to scene - we must register to scene to randomize with EventManager
-        self.scene.articulations["right_robot"] = self.right_hand
-        self.scene.articulations["left_robot"] = self.left_hand
-        self.scene.rigid_objects["object"] = self.object
 
     def _pre_physics_step(self, actions: dict[str, torch.Tensor]) -> None:
         self.actions = actions

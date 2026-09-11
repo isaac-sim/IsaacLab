@@ -156,7 +156,8 @@ For example, for the configuration of the Cartpole camera environment:
 The configuration declares the single-frame channel count and a default spatial size.
 At environment initialization, ``CartpoleCameraEnv`` rebuilds ``observation_space`` from
 the resolved camera: the default ``frame_stack=2`` expands channels, and height/width are
-taken from ``tiled_camera``. So ``env.tiled_camera.width=128 env.tiled_camera.height=128``
+taken from ``scene.tiled_camera``. So
+``env.scene.tiled_camera.width=128 env.scene.tiled_camera.height=128``
 alone yields an effective stacked shape of ``[6,128,128]`` without also overriding
 ``env.observation_space``. The channel entry in ``observation_space`` must still match the
 camera data type (for example ``[1, ...]`` with ``presets=depth``); presets already set this.

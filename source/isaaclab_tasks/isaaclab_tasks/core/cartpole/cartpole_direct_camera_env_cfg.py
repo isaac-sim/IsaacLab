@@ -8,12 +8,11 @@ from __future__ import annotations
 import math
 
 import isaaclab.sim as sim_utils
-from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
+from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
@@ -45,13 +44,19 @@ class CartpoleTiledCameraCfg(PresetCfg):
 
 
 @configclass
+class CartpoleCameraSceneCfg(CartpoleSceneCfg):
+    """Cartpole scene with a selectable camera and no view-obstructing ground plane."""
+
+    ground = None
+    tiled_camera: CartpoleTiledCameraCfg = CartpoleTiledCameraCfg()
+
+
+@configclass
 class CartpoleCameraEnvCfg(PresetCfg):
     @configclass
     class BaseCartpoleCameraEnvCfg(CartpoleEnvCfg):
         """Camera variant of :class:`CartpoleEnvCfg` — only the fields that differ are overridden."""
 
-        # camera
-        tiled_camera: CartpoleTiledCameraCfg = CartpoleTiledCameraCfg()
         write_image_to_file = False
 
         frame_stack: int = 2
@@ -67,7 +72,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
         state_space = 4
 
         # scene: fewer, more-spaced envs and no fabric cloning so the camera renders cleanly
-        scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
+        scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
 
         # reset: smaller initial pole angle than the proprioceptive task
         initial_pole_angle_range = (-0.125 * math.pi, 0.125 * math.pi)  # [rad]

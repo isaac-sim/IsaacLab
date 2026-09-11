@@ -8,7 +8,6 @@ from __future__ import annotations
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 
-from isaaclab import cloner
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.utils.string import resolve_matching_names_values
 
@@ -435,6 +434,9 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
 
     def __init__(self, cfg: DirectRLEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+        self.robot, self.terrain, self.joint_wrench = [
+            self.scene[name] for name in ("robot", "terrain", "joint_wrench")
+        ]
 
         self.action_scale = self.cfg.action_scale
         # resolve the gears by joint name, since the joint ordering differs across physics backends.
@@ -522,18 +524,6 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         self.torch_reset_terminated = wp.to_torch(self.reset_terminated)
         self.torch_reset_time_outs = wp.to_torch(self.reset_time_outs)
         self.torch_episode_length_buf = self.episode_length_buf  # already a torch tensor via wp.to_torch
-
-    def _setup_scene(self) -> None:
-        self.cfg.terrain.num_envs = self.cfg.scene.num_envs
-        self.cfg.terrain.env_spacing = self.cfg.scene.env_spacing
-        asset_cfgs = self.cfg.robot, self.cfg.terrain, self.cfg.joint_wrench, self.cfg.light_cfg
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        self.robot, self.terrain, self.joint_wrench, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        self.scene.articulations["robot"] = self.robot
-        self.scene.sensors["joint_wrench"] = self.joint_wrench
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
 
     def _pre_physics_step(self, actions: wp.array) -> None:
         self.actions.assign(actions)

@@ -11,8 +11,6 @@ import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 from isaaclab_experimental.utils.warp.utils import wrap_to_pi
 
-from isaaclab import cloner
-
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 
@@ -191,6 +189,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
 
     def __init__(self, cfg: CartpoleEnvCfg, render_mode: str | None = None, **kwargs) -> None:
         super().__init__(cfg, render_mode, **kwargs)
+        self.cartpole = self.scene["cartpole"]
 
         # Get the indices (develop API: find_joints returns (indices, names))
         self._cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name)
@@ -227,18 +226,6 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         self.torch_reset_terminated = wp.to_torch(self.reset_terminated)
         self.torch_reset_time_outs = wp.to_torch(self.reset_time_outs)
         self.torch_episode_length_buf = self.episode_length_buf  # already a torch tensor via wp.to_torch
-
-    def _setup_scene(self) -> None:
-        asset_cfgs = self.cfg.robot_cfg, self.cfg.ground_cfg, self.cfg.light_cfg
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        self.cartpole, _, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        self.scene.articulations["cartpole"] = self.cartpole
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        # we need to explicitly filter collisions for CPU simulation
-        if self.device == "cpu":
-            self.scene.filter_collisions()
 
     def _pre_physics_step(self, actions: wp.array) -> None:
         wp.launch(

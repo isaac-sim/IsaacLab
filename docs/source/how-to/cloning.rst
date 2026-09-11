@@ -209,24 +209,18 @@ need every variant behind a template. Note that environment ids are not mask col
 column ``j`` stands for ``env_ids[j]``, and the queries speak ids throughout.
 
 A plan is the *what*. Putting one together and handing it to the backends is
-the *how*, and Isaac Lab exposes two idiomatic ways to do that. Both end
-in the same ``cloner.replicate(plan)`` call, so the choice between
-them is purely about ergonomics:
-
-* The first wraps both phases in a context manager and is what
-  :class:`~isaaclab.scene.InteractiveScene` runs under the hood. Reach for it
-  when you want the lifecycle hidden and you are authoring assets through a
-  scene config.
-* The second is a cfg-first shortcut for the case where every env is one copy
-  of env_0. Reach for it in :class:`~isaaclab.envs.DirectRLEnv` and homogeneous
-  standalone workflows.
+the *how*. Both Manager-based and Direct environments normally declare their
+assets on :class:`~isaaclab.scene.InteractiveSceneCfg`; the scene owns the one
+clone lifecycle. The lower-level APIs remain available to standalone tools and
+tests that deliberately do not depend on :class:`~isaaclab.scene.InteractiveScene`.
 
 ``ReplicateSession``
 ~~~~~~~~~~~~~~~~~~~~
 
-:class:`~isaaclab.cloner.ReplicateSession` is a context manager that brackets the
-whole cloning lifecycle. Entering the block builds and publishes the plan, the body
-constructs assets at their planned source paths, and exiting dispatches that same plan:
+:class:`~isaaclab.cloner.ReplicateSession` is the context manager used by
+:class:`~isaaclab.scene.InteractiveScene` to bracket the whole cloning lifecycle.
+Entering the block builds and publishes the plan, the body constructs assets at
+their planned source paths, and exiting dispatches that same plan:
 
 .. code-block:: python
 
@@ -257,28 +251,22 @@ When envs need to differ across the population, use
 ``clone_plan_from_env_0`` + ``replicate``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Shortcut for the case where every env is one copy of env_0. Pass the declared
-:class:`~isaaclab.cloner.CloneCfg` and a flat tuple of asset and sensor cfgs;
-:func:`~isaaclab.cloner.clone_plan_from_env_0` publishes the plan and assigns
-their prototype spawn paths before construction. This is the pattern used by
-homogeneous :class:`~isaaclab.envs.DirectRLEnv` subclasses:
+For a standalone homogeneous workflow where every env is one copy of env_0,
+pass a :class:`~isaaclab.cloner.CloneCfg` and a flat tuple of asset and sensor
+cfgs. :func:`~isaaclab.cloner.clone_plan_from_env_0` publishes the plan and
+assigns prototype spawn paths before construction:
 
 .. code-block:: python
 
-    def _setup_scene(self):
-        asset_cfgs = (self.cfg.robot_cfg, self.cfg.ground_cfg, self.cfg.light_cfg)
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        self.cartpole, _, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        self.scene.articulations["cartpole"] = self.cartpole
+    asset_cfgs = (robot_cfg, ground_cfg, light_cfg)
+    plan = cloner.clone_plan_from_env_0(clone_cfg, asset_cfgs, num_envs=128, env_spacing=2.0)
+    robot, _, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
+    cloner.replicate(plan, replicate_physics=clone_cfg.replicate_physics)
 
-Every env receives the same prototype. When envs need to differ, use
-:class:`~isaaclab.cloner.ReplicateSession` directly or declare their assets on
-:class:`~isaaclab.scene.InteractiveSceneCfg` so the scene owns that lifecycle.
-The tuple is deliberately flat: the cloner does not inspect a task or scene cfg
-tree, and ``None`` is allowed for an optional declared participant.
+Every env receives the same prototype. The tuple is deliberately flat: the
+cloner does not inspect a task or scene cfg tree, and ``None`` is allowed for an
+optional declared participant. Prefer :class:`~isaaclab.scene.InteractiveSceneCfg`
+for environment implementations and heterogeneous scenes.
 
 
 Under the Hood

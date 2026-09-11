@@ -11,7 +11,6 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
 from isaaclab.envs import DirectRLEnv
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.math import (
@@ -37,9 +36,14 @@ class DisassemblyEnv(DirectRLEnv):
         cfg.observation_space = sum([OBS_DIM_CFG[obs] for obs in cfg.obs_order])
         cfg.state_space = sum([STATE_DIM_CFG[state] for state in cfg.state_order])
         self.cfg_task = cfg.tasks[cfg.task_name]
+        cfg.scene.fixed_asset = self.cfg_task.fixed_asset
+        cfg.scene.held_asset = self.cfg_task.held_asset
 
         super().__init__(cfg, render_mode, **kwargs)
 
+        self._robot, self._fixed_asset, self._held_asset = [
+            self.scene[name] for name in ("robot", "fixed_asset", "held_asset")
+        ]
         self._set_body_inertias()
         self._init_tensors()
         self._set_default_dynamics_parameters()
@@ -166,19 +170,6 @@ class DisassemblyEnv(DirectRLEnv):
         disassembly_dists = [disassembly_dist_dict[f"asset_{self.cfg_task.assembly_id}"] for i in range(self.num_envs)]
 
         return torch.as_tensor(plug_grasps).to(self.device), torch.as_tensor(disassembly_dists).to(self.device)
-
-    def _setup_scene(self):
-        asset_cfgs = self.cfg.ground, self.cfg.table, self.cfg.light, self.cfg.robot
-        asset_cfgs += self.cfg_task.fixed_asset, self.cfg_task.held_asset
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        _, _, _, self._robot, self._fixed_asset, self._held_asset = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        self.scene.articulations["robot"] = self._robot
-        self.scene.articulations["fixed_asset"] = self._fixed_asset
-        self.scene.rigid_objects["held_asset"] = self._held_asset
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        self.scene.filter_collisions()
 
     def _compute_intermediate_values(self, dt):
         """Get values computed from raw tensors. This includes adding noise."""

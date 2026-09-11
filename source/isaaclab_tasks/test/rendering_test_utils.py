@@ -1538,6 +1538,7 @@ def make_cartpole_rendering_test_env(env_cfg: Any) -> Any:
 
             super(CartpoleCameraEnv, self).__init__(cfg)
 
+            self._tiled_camera = self.scene["tiled_camera"]
             self._stack = None
             if frame_stack > 1:
                 self._stack = CircularBuffer(
@@ -1561,6 +1562,7 @@ def rendering_test_shadow_hand(
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
         ShadowHandCameraEnvCfg,
+        ShadowHandCameraSceneCfg,
         ShadowHandTiledCameraCfg,
         _ShadowHandBaseTiledCameraCfg,
     )
@@ -1575,8 +1577,12 @@ def rendering_test_shadow_hand(
         motion_vectors = _ShadowHandBaseTiledCameraCfg(data_types=["motion_vectors"])
 
     @configclass
-    class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
+    class _ShadowHandCameraTestSceneCfg(ShadowHandCameraSceneCfg):
         tiled_camera = _ShadowHandTiledCameraTestCfg()
+
+    @configclass
+    class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
+        scene = _ShadowHandCameraTestSceneCfg()
 
     override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_types[0]}"]
 
@@ -1584,7 +1590,7 @@ def rendering_test_shadow_hand(
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
-    env_cfg.tiled_camera.data_types = data_types
+    env_cfg.scene.tiled_camera.data_types = data_types
 
     motion_data_type = _motion_data_type(data_types)
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, motion_data_type)
@@ -1655,6 +1661,7 @@ def rendering_test_shadow_hand_yellow_bg(
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env import ShadowHandCameraEnv
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
         ShadowHandCameraEnvCfg,
+        ShadowHandCameraSceneCfg,
         ShadowHandTiledCameraCfg,
         _ShadowHandBaseTiledCameraCfg,
     )
@@ -1672,8 +1679,12 @@ def rendering_test_shadow_hand_yellow_bg(
         rgb: _YellowBgCameraCfg = _YellowBgCameraCfg()
 
     @configclass
-    class _YellowBgEnvCfg(ShadowHandCameraEnvCfg):
+    class _YellowBgSceneCfg(ShadowHandCameraSceneCfg):
         tiled_camera: _YellowBgTiledCameraCfg = _YellowBgTiledCameraCfg()
+
+    @configclass
+    class _YellowBgEnvCfg(ShadowHandCameraEnvCfg):
+        scene: _YellowBgSceneCfg = _YellowBgSceneCfg()
 
     env_cfg = _YellowBgEnvCfg()
     env_cfg.feature_extractor.enabled = False
@@ -1710,7 +1721,11 @@ def rendering_test_cartpole(
 
     from isaaclab.utils import configclass
 
-    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg, CartpoleTiledCameraCfg
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import (
+        CartpoleCameraEnvCfg,
+        CartpoleCameraSceneCfg,
+        CartpoleTiledCameraCfg,
+    )
 
     from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
@@ -1728,37 +1743,28 @@ def rendering_test_cartpole(
         motion_vectors = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["motion_vectors"])
 
     @configclass
-    class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
-        robot_cfg = CARTPOLE_CFG.replace(
+    class _CartpoleCameraTestSceneCfg(CartpoleCameraSceneCfg):
+        cartpole = CARTPOLE_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
         )
+        tiled_camera = _CartpoleTiledCameraTestCfg()
+
+    @configclass
+    class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
+        scene = _CartpoleCameraTestSceneCfg(num_envs=4, env_spacing=20.0, replicate_physics=True)
 
     @configclass
     class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
         # Use the semantically-tagged robot (class:cartpole) so semantic_segmentation produces a non-trivial
         # idToLabels mapping; the base env's semantic_segmentation variant leaves the robot untagged.
-        semantic_segmentation = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        distance_to_camera = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        distance_to_image_plane = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[1, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        normals = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[3, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        instance_segmentation = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
-            observation_space=[4, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
-        motion_vectors = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
-            observation_space=[2, 96, 96], tiled_camera=_CartpoleTiledCameraTestCfg()
-        )
+        semantic_segmentation = _BaseCartpoleCameraEnvTestCfg(observation_space=[4, 96, 96])
+        distance_to_camera = _BaseCartpoleCameraEnvTestCfg(observation_space=[1, 96, 96])
+        distance_to_image_plane = _BaseCartpoleCameraEnvTestCfg(observation_space=[1, 96, 96])
+        normals = _BaseCartpoleCameraEnvTestCfg(observation_space=[3, 96, 96])
+        instance_segmentation = _BaseCartpoleCameraEnvTestCfg(observation_space=[4, 96, 96])
+        instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(observation_space=[4, 96, 96])
+        motion_vectors = _BaseCartpoleCameraEnvTestCfg(observation_space=[2, 96, 96])
 
     preset_data_type = "semantic_segmentation" if "semantic_segmentation" in data_types else data_types[0]
     env_cfg = _CartpoleCameraTestEnvCfg()
@@ -1766,10 +1772,9 @@ def rendering_test_cartpole(
         env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},{preset_data_type}"]
     )
 
-    env_cfg.scene.num_envs = 4
-    env_cfg.tiled_camera.data_types = data_types
-    if getattr(env_cfg.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
-        env_cfg.tiled_camera.renderer_cfg.render_order = "pixel_priority"
+    env_cfg.scene.tiled_camera.data_types = data_types
+    if getattr(env_cfg.scene.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
+        env_cfg.scene.tiled_camera.renderer_cfg.render_order = "pixel_priority"
 
     motion_data_type = _motion_data_type(data_types)
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, motion_data_type)

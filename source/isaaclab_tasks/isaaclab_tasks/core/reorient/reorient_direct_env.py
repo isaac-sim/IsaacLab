@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab import cloner
 from isaaclab.envs import DirectRLEnv
 from isaaclab.utils.math import (
     quat_conjugate,
@@ -110,7 +109,11 @@ class ReorientDirectEnv(DirectRLEnv):
     cfg: AllegroHandEnvCfg | ShadowHandEnvCfg
 
     def __init__(self, cfg: AllegroHandEnvCfg | ShadowHandEnvCfg, render_mode: str | None = None, **kwargs):
+        if cfg.asymmetric_obs and cfg.scene.joint_wrench is None:
+            raise ValueError("Asymmetric observations require cfg.scene.joint_wrench to declare a wrench sensor.")
         super().__init__(cfg, render_mode, **kwargs)
+        self.hand, self.object, self.goal_markers = [self.scene[name] for name in ("robot", "object", "goal_object")]
+        self._joint_wrench_sensor = self.scene.sensors.get("joint_wrench")
 
         # -- robot introspection: joints, bodies, limits --
         self.num_hand_dofs = self.hand.num_joints
@@ -127,7 +130,7 @@ class ReorientDirectEnv(DirectRLEnv):
             )
         self.num_fingertips = len(self.finger_bodies)
         self.finger_wrench_bodies = []
-        if getattr(self, "_joint_wrench_sensor", None) is not None:
+        if self._joint_wrench_sensor is not None:
             for body_name in fingertip_body_names:
                 self.finger_wrench_bodies.append(self._joint_wrench_sensor.body_names.index(body_name))
             self.finger_wrench_bodies.sort()
@@ -168,26 +171,6 @@ class ReorientDirectEnv(DirectRLEnv):
         self._write_obj_root_vel = self.object.write_root_velocity_to_sim_index
         self._write_hand_joint_pos = self.hand.write_joint_position_to_sim_index
         self._write_hand_joint_vel = self.hand.write_joint_velocity_to_sim_index
-
-    def _setup_scene(self):
-        asset_cfgs = self.cfg.robot_cfg, self.cfg.object_cfg, self.cfg.ground_cfg
-        asset_cfgs += self.cfg.light_cfg, self.cfg.goal_object_cfg
-        if self.cfg.asymmetric_obs:
-            asset_cfgs += (self.cfg.joint_wrench,)
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        assets = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        self.hand, self.object, _, _, self.goal_markers, *joint_wrench = assets
-        self._joint_wrench_sensor = joint_wrench[0] if joint_wrench else None
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[self.cfg.ground_cfg.prim_path])
-        # add articulation to scene - we must register to scene to randomize with EventManager
-        self.scene.articulations["robot"] = self.hand
-        self.scene.rigid_objects["object"] = self.object
-        if self._joint_wrench_sensor is not None:
-            self.scene.sensors["joint_wrench"] = self._joint_wrench_sensor
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = actions.clone()
@@ -235,7 +218,7 @@ class ReorientDirectEnv(DirectRLEnv):
 
     def _update_fingertip_force_sensors(self) -> None:
         """Update fingertip force/torque observations from the joint-wrench sensor."""
-        if getattr(self, "_joint_wrench_sensor", None) is None:
+        if self._joint_wrench_sensor is None:
             self.fingertip_force_sensors = torch.zeros(
                 self.num_envs, len(self.finger_bodies), 6, dtype=torch.float32, device=self.device
             )

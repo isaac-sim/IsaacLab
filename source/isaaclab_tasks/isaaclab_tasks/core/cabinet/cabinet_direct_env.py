@@ -25,6 +25,7 @@ class CabinetDirectEnv(DirectRLEnv):
     def __init__(self, cfg: CabinetDirectEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
+        self._robot, self._cabinet = self.scene["robot"], self.scene["cabinet"]
         self.arm_joint_ids, _ = self._robot.find_joints(self.cfg.arm_joint_names)
         self.finger_joint_ids, _ = self._robot.find_joints(self.cfg.finger_joint_names)
         self.ee_body_idx = self._robot.find_bodies(self.cfg.ee_body_name)[0][0]
@@ -81,10 +82,6 @@ class CabinetDirectEnv(DirectRLEnv):
                 "joint_vel",
             )
         }
-
-    def _setup_scene(self) -> None:
-        self._robot = self.scene["robot"]
-        self._cabinet = self.scene["cabinet"]
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.previous_actions[:] = self.actions

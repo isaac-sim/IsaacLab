@@ -13,8 +13,6 @@ import torch
 import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 
-from isaaclab import cloner
-
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
 
@@ -551,6 +549,7 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
     # def __init__(self, cfg: AllegroHandEnvCfg | ShadowHandEnvCfg, render_mode: str | None = None, **kwargs):
     def __init__(self, cfg: AllegroHandEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+        self.hand, self.object, self.goal_markers = [self.scene[name] for name in ("robot", "object", "goal_object")]
 
         # ---------------------------------------------------------------------
         # Constants
@@ -672,17 +671,6 @@ class ReorientDirectWarpEnv(DirectRLEnvWarp):
         self.torch_reset_terminated = wp.to_torch(self.reset_terminated)
         self.torch_reset_time_outs = wp.to_torch(self.reset_time_outs)
         self.torch_episode_length_buf = self.episode_length_buf  # already a torch tensor via wp.to_torch
-
-    def _setup_scene(self):
-        asset_cfgs = self.cfg.robot_cfg, self.cfg.object_cfg, self.cfg.ground_cfg
-        asset_cfgs += self.cfg.light_cfg, self.cfg.goal_object_cfg
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        self.hand, self.object, _, _, self.goal_markers = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        self.scene.articulations["robot"] = self.hand
-        self.scene.rigid_objects["object"] = self.object
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
 
     def _pre_physics_step(self, actions: wp.array) -> None:
         # Store actions in a persistent Warp buffer (analogous to `actions.clone()` in the Torch env).

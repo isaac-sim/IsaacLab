@@ -52,10 +52,12 @@ def _make_cfg(renderer_type: str | None, data_types: list[str], feature_extracto
     The mock reuses the real validation logic from :class:`ShadowHandCameraEnvCfg`.
     """
     cfg = types.SimpleNamespace()
-    cfg.tiled_camera = CameraCfg(
-        prim_path="/Camera",
-        renderer_cfg=RendererCfg(renderer_type=renderer_type) if renderer_type is not None else None,
-        data_types=data_types,
+    cfg.scene = types.SimpleNamespace(
+        tiled_camera=CameraCfg(
+            prim_path="/Camera",
+            renderer_cfg=RendererCfg(renderer_type=renderer_type) if renderer_type is not None else None,
+            data_types=data_types,
+        )
     )
     cfg.feature_extractor = types.SimpleNamespace(enabled=feature_extractor_enabled)
     cfg.validate_config = lambda: ShadowHandCameraEnvCfg.validate_config(cfg)
@@ -182,7 +184,7 @@ _CAMERA_DATA_TYPE_PRESETS = [
 @pytest.mark.parametrize("preset_name,expected_data_types", _CAMERA_DATA_TYPE_PRESETS)
 def test_camera_presets_resolve_to_valid_configs(shadow_hand_camera_presets, preset_name, expected_data_types):
     """Camera presets must be discoverable, request data, and have valid dimensions."""
-    camera_presets = shadow_hand_camera_presets["tiled_camera"]
+    camera_presets = shadow_hand_camera_presets["scene.tiled_camera"]
     assert preset_name in camera_presets, f"Preset '{preset_name}' not found in tiled_camera presets"
     resolved = camera_presets[preset_name]
     assert resolved.data_types == expected_data_types, (
@@ -210,7 +212,7 @@ _RENDERER_PRESETS = [
 @pytest.mark.parametrize("preset_name,expected_class", _RENDERER_PRESETS)
 def test_renderer_presets_resolve_to_expected_configs(shadow_hand_camera_presets, preset_name, expected_class):
     """Renderer presets must resolve to the expected configuration and renderer type."""
-    renderer_presets = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]
+    renderer_presets = shadow_hand_camera_presets["scene.tiled_camera.renderer_cfg"]
     assert preset_name in renderer_presets, f"Preset '{preset_name}' not found in renderer presets"
     resolved = renderer_presets[preset_name]
     assert isinstance(resolved, expected_class), (
@@ -244,8 +246,8 @@ _WARP_CAMERA_PRESETS = [
 @pytest.mark.parametrize("camera_preset,raises", _WARP_CAMERA_PRESETS)
 def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_preset, raises):
     """Warp support must match the camera preset's requested data types."""
-    camera_cfg = shadow_hand_camera_presets["tiled_camera"][camera_preset]
-    warp_cfg = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
+    camera_cfg = shadow_hand_camera_presets["scene.tiled_camera"][camera_preset]
+    warp_cfg = shadow_hand_camera_presets["scene.tiled_camera.renderer_cfg"]["newton_renderer"]
     enabled = camera_cfg.data_types != ["depth"]
     cfg = _make_cfg(warp_cfg.renderer_type, camera_cfg.data_types, enabled)
     if raises:

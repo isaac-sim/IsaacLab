@@ -23,6 +23,7 @@ from isaaclab import cloner
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, Asset, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.cloner import CloneCfg
+from isaaclab.markers import SPHERE_MARKER_CFG, VisualizationMarkers
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import build_simulation_context
@@ -66,6 +67,27 @@ class StaticSceneCfg(InteractiveSceneCfg):
     """Scene with one authoring-only asset."""
 
     light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DistantLightCfg())
+
+
+@configclass
+class MarkerSceneCfg(InteractiveSceneCfg):
+    """Scene with one global visualization marker."""
+
+    goal = SPHERE_MARKER_CFG.replace(prim_path="/Visuals/Goal")
+
+
+@configclass
+class DeferredMarkerAssetCfg(AssetBaseCfg):
+    """Authoring-only asset whose optional visualization starts disabled."""
+
+    visualizer_cfg = SPHERE_MARKER_CFG.replace(prim_path="/Visuals/Deferred")
+
+
+@configclass
+class DeferredMarkerSceneCfg(InteractiveSceneCfg):
+    """Scene that owns a marker even before its visualization is enabled."""
+
+    prop = DeferredMarkerAssetCfg(prim_path="/World/Prop", spawn=sim_utils.DistantLightCfg(), debug_vis=False)
 
 
 @pytest.fixture
@@ -223,6 +245,23 @@ def test_scene_constructs_authoring_only_assets():
         assert isinstance(scene["light"], Asset)
         assert scene["light"].cfg.prim_path == "/World/Light"
         assert scene["light"].prim == scene.stage.GetPrimAtPath("/World/Light")
+
+
+def test_scene_constructs_plan_owned_markers():
+    """Scene markers are constructed while their global root belongs to the clone plan."""
+    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
+        scene = InteractiveScene(MarkerSceneCfg(num_envs=1, env_spacing=1.0))
+
+        assert isinstance(scene["goal"], VisualizationMarkers)
+        assert sim.get_clone_plan().global_paths == ("/Visuals/Goal",)
+
+
+def test_scene_plans_markers_before_debug_visualization_is_enabled():
+    """A marker declared on a disabled debug owner still belongs to the immutable plan."""
+    with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
+        InteractiveScene(DeferredMarkerSceneCfg(num_envs=1, env_spacing=1.0))
+
+        assert sim.get_clone_plan().global_paths == ("/World/Prop", "/Visuals/Deferred")
 
 
 def test_empty_scene_leaves_clone_lifecycle_to_caller():

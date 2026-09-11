@@ -24,6 +24,20 @@ from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO
 
 
 @configclass
+class AllegroHandSceneCfg(InteractiveSceneCfg):
+    """Allegro Hand, in-hand object, and shared scene assets."""
+
+    ground = AssetBaseCfg(prim_path="/World/ground", collision_group=-1, spawn=sim_utils.GroundPlaneCfg())
+    robot: ArticulationCfg = ALLEGRO_HAND_ROBOT_CFG
+    object: RigidObjectCfg = CUBE_CFG
+    joint_wrench: JointWrenchSensorCfg | None = None
+    goal_object: VisualizationMarkersCfg = GOAL_OBJECT_CFG
+    light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
+
+
+@configclass
 class AllegroHandEnvCfg(DirectRLEnvCfg):
     # env
     decimation = 4
@@ -41,23 +55,11 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
     )
-    # robot
-    robot_cfg: ArticulationCfg = ALLEGRO_HAND_ROBOT_CFG
-
     actuated_joint_names = ALLEGRO_ACTUATED_JOINT_NAMES
     fingertip_body_names = ALLEGRO_FINGERTIP_BODY_NAMES
 
-    # in-hand object
-    object_cfg: RigidObjectCfg = CUBE_CFG
-    joint_wrench: JointWrenchSensorCfg = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
-    ground_cfg: AssetBaseCfg = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
-    light_cfg: AssetBaseCfg = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-    )
-    # goal object
-    goal_object_cfg: VisualizationMarkersCfg = GOAL_OBJECT_CFG
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
+    scene: AllegroHandSceneCfg = AllegroHandSceneCfg(
         num_envs=8192,
         env_spacing=0.75,
         replicate_physics=True,

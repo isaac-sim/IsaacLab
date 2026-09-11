@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab import cloner
 from isaaclab.utils.math import scale_transform
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor
@@ -26,39 +25,23 @@ class ShadowHandCameraEnv(ShadowHandDirectEnv):
 
     def __init__(self, cfg: ShadowHandCameraEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+        self._tiled_camera = self.scene["tiled_camera"]
         # Derive CNN input data types from the resolved camera config so that any camera
         # preset (e.g. presets=rgb, presets=albedo) automatically configures the right
         # network input channels without requiring a separate env config class.
         self.feature_extractor = FeatureExtractor(
             self.cfg.feature_extractor,
             self.device,
-            self.cfg.tiled_camera.data_types,
+            self.cfg.scene.tiled_camera.data_types,
             self.cfg.log_dir,
-            height=self.cfg.tiled_camera.height,
-            width=self.cfg.tiled_camera.width,
+            height=self.cfg.scene.tiled_camera.height,
+            width=self.cfg.scene.tiled_camera.width,
         )
         # hide goal cubes
         self.goal_pos[:, :] = torch.tensor((-0.2, 0.1, 0.6), device=self.device)  # inside the tiled camera frustum
         # keypoints buffer
         self.gt_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
         self.goal_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
-
-    def _setup_scene(self):
-        asset_cfgs = self.cfg.robot_cfg, self.cfg.object_cfg, self.cfg.joint_wrench
-        asset_cfgs += self.cfg.tiled_camera, self.cfg.light_cfg, self.cfg.goal_object_cfg
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        assets = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        self.hand, self.object, self._joint_wrench_sensor, self._tiled_camera, _, self.goal_markers = assets
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions()
-        # add articulation to scene - we must register to scene to randomize with EventManager
-        self.scene.articulations["robot"] = self.hand
-        self.scene.rigid_objects["object"] = self.object
-        self.scene.sensors["joint_wrench"] = self._joint_wrench_sensor
-        self.scene.sensors["tiled_camera"] = self._tiled_camera
 
     def _compute_image_observations(self):
         # generate ground truth keypoints for in-hand cube

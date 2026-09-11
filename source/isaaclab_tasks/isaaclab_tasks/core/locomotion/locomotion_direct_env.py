@@ -9,7 +9,6 @@ from collections.abc import Sequence
 
 import torch
 
-from isaaclab import cloner
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.utils.math import (
     euler_xyz_from_quat,
@@ -35,6 +34,9 @@ class LocomotionDirectEnv(DirectRLEnv):
     def __init__(self, cfg: DirectRLEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
+        self.robot, self.terrain, self.joint_wrench = [
+            self.scene[name] for name in ("robot", "terrain", "joint_wrench")
+        ]
         self.action_scale = self.cfg.action_scale
         # resolve the gears by joint name, since the joint ordering differs across physics backends.
         # joints the table does not match keep a unit gear, matching the manager-based action term
@@ -54,20 +56,6 @@ class LocomotionDirectEnv(DirectRLEnv):
         )
         self.potentials = torch.zeros(self.num_envs, dtype=torch.float32, device=self.sim.device)
         self.prev_potentials = torch.zeros_like(self.potentials)
-
-    def _setup_scene(self):
-        self.cfg.terrain.num_envs = self.cfg.scene.num_envs
-        self.cfg.terrain.env_spacing = self.cfg.scene.env_spacing
-        asset_cfgs = self.cfg.robot, self.cfg.terrain, self.cfg.joint_wrench, self.cfg.light_cfg
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        self.robot, self.terrain, self.joint_wrench, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
-        self.scene.articulations["robot"] = self.robot
-        self.scene.sensors["joint_wrench"] = self.joint_wrench
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = actions.clone()

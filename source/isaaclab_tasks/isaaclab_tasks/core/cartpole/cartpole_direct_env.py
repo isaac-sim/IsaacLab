@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab import cloner
 from isaaclab.envs import DirectRLEnv
 from isaaclab.utils.math import sample_uniform, wrap_to_pi
 
@@ -26,23 +25,13 @@ class CartpoleEnv(DirectRLEnv):
     def __init__(self, cfg: CartpoleEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
+        self.cartpole = self.scene["cartpole"]
         self._cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name)
         self._pole_dof_idx, _ = self.cartpole.find_joints(self.cfg.pole_dof_name)
         self.action_scale = self.cfg.action_scale
 
         self.joint_pos = self.cartpole.data.joint_pos.torch
         self.joint_vel = self.cartpole.data.joint_vel.torch
-
-    def _setup_scene(self):
-        asset_cfgs = self.cfg.robot_cfg, self.cfg.ground_cfg, self.cfg.light_cfg
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        self.cartpole, _, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions()
-        self.scene.articulations["cartpole"] = self.cartpole
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = self.action_scale * actions.clone()

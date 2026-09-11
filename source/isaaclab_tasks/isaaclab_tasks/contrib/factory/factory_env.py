@@ -9,7 +9,6 @@ import torch
 import carb
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
 from isaaclab.envs import DirectRLEnv
 from isaaclab.utils import math as torch_utils
 
@@ -27,9 +26,19 @@ class FactoryEnv(DirectRLEnv):
         cfg.observation_space += cfg.action_space
         cfg.state_space += cfg.action_space
         self.cfg_task = cfg.task
+        cfg.scene.fixed_asset = self.cfg_task.fixed_asset
+        cfg.scene.held_asset = self.cfg_task.held_asset
+        if self.cfg_task.name == "gear_mesh":
+            cfg.scene.small_gear = self.cfg_task.small_gear_cfg
+            cfg.scene.large_gear = self.cfg_task.large_gear_cfg
 
         super().__init__(cfg, render_mode, **kwargs)
 
+        self._robot, self._fixed_asset, self._held_asset = [
+            self.scene[name] for name in ("robot", "fixed_asset", "held_asset")
+        ]
+        if self.cfg_task.name == "gear_mesh":
+            self._small_gear_asset, self._large_gear_asset = [self.scene[name] for name in ("small_gear", "large_gear")]
         factory_utils.set_body_inertias(self._robot)
         self._init_tensors()
         self._set_default_dynamics_parameters()
@@ -78,29 +87,6 @@ class FactoryEnv(DirectRLEnv):
 
         self.ep_succeeded = torch.zeros((self.num_envs,), dtype=torch.long, device=self.device)
         self.ep_success_times = torch.zeros((self.num_envs,), dtype=torch.long, device=self.device)
-
-    def _setup_scene(self):
-        asset_cfgs = self.cfg.ground, self.cfg.table, self.cfg.light, self.cfg.robot
-        asset_cfgs += self.cfg_task.fixed_asset, self.cfg_task.held_asset
-        if self.cfg_task.name == "gear_mesh":
-            asset_cfgs += self.cfg_task.small_gear_cfg, self.cfg_task.large_gear_cfg
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        _, _, _, self._robot, self._fixed_asset, self._held_asset, *gears = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        if self.cfg_task.name == "gear_mesh":
-            self._small_gear_asset, self._large_gear_asset = gears
-
-        self.scene.articulations["robot"] = self._robot
-        self.scene.articulations["fixed_asset"] = self._fixed_asset
-        self.scene.articulations["held_asset"] = self._held_asset
-        if self.cfg_task.name == "gear_mesh":
-            self.scene.articulations["small_gear"] = self._small_gear_asset
-            self.scene.articulations["large_gear"] = self._large_gear_asset
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions()
 
     def _compute_intermediate_values(self, dt):
         """Get values computed from raw tensors. This includes adding noise."""

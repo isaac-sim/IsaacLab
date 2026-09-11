@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab import cloner
 from isaaclab.sensors import save_images_to_file
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.images import is_rgb_like, normalize_camera_image
@@ -31,16 +30,17 @@ class CartpoleCameraEnv(CartpoleEnv):
         if isinstance(cfg.observation_space, list):
             cfg.observation_space = [
                 int(cfg.observation_space[0]) * cfg.frame_stack,
-                int(cfg.tiled_camera.height),
-                int(cfg.tiled_camera.width),
+                int(cfg.scene.tiled_camera.height),
+                int(cfg.scene.tiled_camera.width),
             ]
 
         super().__init__(cfg, render_mode, **kwargs)
 
-        if len(self.cfg.tiled_camera.data_types) != 1:
+        self._tiled_camera = self.scene["tiled_camera"]
+        if len(self.cfg.scene.tiled_camera.data_types) != 1:
             raise ValueError(
                 "The Cartpole camera environment only supports one image type at a time but the following were"
-                f" provided: {self.cfg.tiled_camera.data_types}"
+                f" provided: {self.cfg.scene.tiled_camera.data_types}"
             )
 
         self._stack: CircularBuffer | None = None
@@ -51,22 +51,8 @@ class CartpoleCameraEnv(CartpoleEnv):
                 max_len=self.cfg.frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1
             )
 
-    def _setup_scene(self):
-        """Setup the scene with the cartpole and camera (no ground plane, which obstructs the view)."""
-        asset_cfgs = self.cfg.robot_cfg, self.cfg.tiled_camera, self.cfg.light_cfg
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        self.cartpole, self._tiled_camera, _ = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions()
-        self.scene.articulations["cartpole"] = self.cartpole
-        self.scene.sensors["tiled_camera"] = self._tiled_camera
-
     def _get_observations(self) -> dict:
-        data_type = self.cfg.tiled_camera.data_types[0]
+        data_type = self.cfg.scene.tiled_camera.data_types[0]
         camera_data = self._tiled_camera.data.output[data_type]
 
         rgb_like = is_rgb_like(data_type)

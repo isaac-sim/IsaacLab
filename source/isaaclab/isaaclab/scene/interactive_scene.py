@@ -38,6 +38,7 @@ from isaaclab.assets import (
     VisualMaterial,
     VisualMaterialCfg,
 )
+from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
 from isaaclab.sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, RayCasterCfg, SensorBase, SensorBaseCfg
 from isaaclab.sim import SimulationContext
@@ -138,7 +139,7 @@ class InteractiveScene:
         self._sensors = dict()
         self._surface_grippers = dict()
         self._visual_materials = dict()
-        self._extras = dict()
+        self._extras: dict[str, Asset | VisualizationMarkers] = {}
         # get stage handle
         self.sim = SimulationContext.instance()
         self.stage = get_current_stage()
@@ -214,9 +215,10 @@ class InteractiveScene:
         scene_asset_names = [name for name, _ in items]
         flat_items: list[tuple[str, Any]] = []
         for asset_name, asset_cfg in items:
-            children = (
+            children = list(
                 asset_cfg.rigid_objects.values() if isinstance(asset_cfg, RigidObjectCollectionCfg) else [asset_cfg]
             )
+            children.extend(value for value in vars(asset_cfg).values() if isinstance(value, VisualizationMarkersCfg))
             for child in children:
                 child.prim_path = cloner.expand_env_regex_ns(child.prim_path, self._env_fmt)
                 flat_items.append((asset_name, child))
@@ -438,12 +440,10 @@ class InteractiveScene:
         return self.sim.get_clone_plan()
 
     @property
-    def extras(self) -> dict[str, Asset]:
-        """A dictionary of authored assets without runtime simulation views.
+    def extras(self) -> dict[str, Asset | VisualizationMarkers]:
+        """A dictionary of scene entities without runtime simulation views.
 
-        The keys are the names of the miscellaneous objects, and the values are their
-        authoring-only asset instances. Their configuration and spawned prim are available
-        through :attr:`Asset.cfg` and :attr:`Asset.prim`.
+        The keys are the names of miscellaneous authoring-only assets or visualization markers.
 
         As an example, lights or other props in the scene that do not have any attributes or properties that you
         want to alter at runtime can be added to this dictionary.
@@ -884,7 +884,7 @@ class InteractiveScene:
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, VisualMaterialCfg):
                 self._visual_materials[asset_name] = asset_cfg.class_type(asset_cfg)
-            elif isinstance(asset_cfg, AssetBaseCfg):
+            elif isinstance(asset_cfg, (VisualizationMarkersCfg, AssetBaseCfg)):
                 self._extras[asset_name] = asset_cfg.class_type(asset_cfg)
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")

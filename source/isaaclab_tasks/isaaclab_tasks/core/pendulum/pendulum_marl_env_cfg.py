@@ -52,6 +52,18 @@ class PendulumPhysicsCfg(PresetCfg):
 
 
 @configclass
+class PendulumSceneCfg(InteractiveSceneCfg):
+    """Cart-double-pendulum assets constructed and cloned as one scene."""
+
+    ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+    robot: ArticulationCfg = CART_DOUBLE_PENDULUM_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot.actuators["pendulum_actuator"].armature = 0.05
+    light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
+
+
+@configclass
 class PendulumMARLEnvCfg(DirectMARLEnvCfg):
     """Configuration for the multi-agent cart-double-pendulum balancing environment."""
 
@@ -66,19 +78,12 @@ class PendulumMARLEnvCfg(DirectMARLEnvCfg):
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=PendulumPhysicsCfg())
 
-    # robot
-    robot_cfg: ArticulationCfg = CART_DOUBLE_PENDULUM_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    robot_cfg.actuators["pendulum_actuator"].armature = 0.05
-    ground_cfg: AssetBaseCfg = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
-    light_cfg: AssetBaseCfg = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-    )
     cart_dof_name = "slider_to_cart"
     pole_dof_name = "cart_to_pole"
     pendulum_dof_name = "pole_to_pendulum"
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+    scene: PendulumSceneCfg = PendulumSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
 
     # reset
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]

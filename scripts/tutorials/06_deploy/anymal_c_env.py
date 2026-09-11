@@ -11,7 +11,6 @@ import gymnasium as gym
 import torch
 import warp as wp
 
-from isaaclab import cloner
 from isaaclab.envs import DirectRLEnv
 
 from .anymal_c_env_cfg import AnymalCFlatEnvCfg, AnymalCRoughEnvCfg
@@ -23,6 +22,11 @@ class AnymalCEnv(DirectRLEnv):
 
     def __init__(self, cfg: AnymalCFlatEnvCfg | AnymalCRoughEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+        self._robot, self._contact_sensor, self._terrain = [
+            self.scene[name] for name in ("robot", "contact_sensor", "terrain")
+        ]
+        if isinstance(self.cfg, AnymalCRoughEnvCfg):
+            self._height_scanner = self.scene["height_scanner"]
 
         self._actions = torch.zeros(self.num_envs, gym.spaces.flatdim(self.single_action_space), device=self.device)
         self._previous_actions = torch.zeros(
@@ -49,26 +53,6 @@ class AnymalCEnv(DirectRLEnv):
         self._base_id, _ = self._contact_sensor.find_sensors("base")
         self._feet_ids, _ = self._contact_sensor.find_sensors(".*FOOT")
         self._undesired_contact_body_ids, _ = self._contact_sensor.find_sensors(".*THIGH")
-
-    def _setup_scene(self):
-        self.cfg.terrain.num_envs = self.cfg.scene.num_envs
-        self.cfg.terrain.env_spacing = self.cfg.scene.env_spacing
-        asset_cfgs = self.cfg.robot, self.cfg.contact_sensor, self.cfg.terrain, self.cfg.light
-        if isinstance(self.cfg, AnymalCRoughEnvCfg):
-            asset_cfgs += (self.cfg.height_scanner,)
-        plan = cloner.clone_plan_from_env_0(
-            self.cfg.scene.clone_cfg, asset_cfgs, self.cfg.scene.num_envs, self.cfg.scene.env_spacing
-        )
-        assets = [cfg.class_type(cfg) for cfg in asset_cfgs]
-        self._robot, self._contact_sensor, self._terrain, _, *height_scanner = assets
-        if isinstance(self.cfg, AnymalCRoughEnvCfg):
-            (self._height_scanner,) = height_scanner
-            self.scene.sensors["height_scanner"] = self._height_scanner
-        self.scene.articulations["robot"] = self._robot
-        self.scene.sensors["contact_sensor"] = self._contact_sensor
-        cloner.replicate(plan, replicate_physics=self.cfg.scene.replicate_physics)
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
 
     def _pre_physics_step(self, actions: torch.Tensor):
         self._actions = actions.clone()
