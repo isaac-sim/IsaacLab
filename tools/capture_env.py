@@ -371,7 +371,7 @@ def main(argv: list[str] | None = None) -> int:
     stem = f"isaaclab-env-{socket.gethostname()}-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}"
     bundle = Path(args.output_dir).resolve() / f"{stem}.zip"
     write_bundle(bundle, manifest, artifacts, document)
-    bundle.with_suffix(".md").write_text(document)
+    bundle.with_suffix(".md").write_text(document, encoding="utf-8")
     print(document.split("## Rebuilding")[0].strip(), "\n\nbundle:", bundle)
     print("Review it before sending: paths, hostnames, and usernames are captured as-is.")
     return 0
