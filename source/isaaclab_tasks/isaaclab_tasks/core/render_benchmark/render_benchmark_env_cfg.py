@@ -15,6 +15,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
@@ -31,7 +32,8 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
 class RenderBenchmarkPhysicsCfg(PresetCfg):
     """Physics backend presets.
 
-    Pick via ``presets=newton_mjwarp`` (default) or ``presets=physx`` (requires Isaac Sim).
+    Pick via ``presets=newton_mjwarp`` (default) or ``presets=physx``, which resolves to the
+    concrete PhysX backend at launch. Use ``presets=isaacsim_physx`` to pin Isaac Sim PhysX.
     The BVH constructors are read from the environment so ``benchmark_renderer.py`` can sweep
     them without a separate preset per combination.
     """
@@ -44,7 +46,8 @@ class RenderBenchmarkPhysicsCfg(PresetCfg):
         bvh_constructor_scene=os.getenv("NEWTON_BVH_SCENE", "sah"),
         use_cuda_graph=os.getenv("NEWTON_USE_CUDA_GRAPH", "0") == "1",
     )
-    physx: PhysxCfg = PhysxCfg()
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
     default = newton_mjwarp
 
 

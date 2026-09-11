@@ -17,6 +17,8 @@ from isaaclab_newton.physics import NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 
+from isaaclab.physics import PhysxAutoCfg
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.render_benchmark.render_benchmark_env import RenderBenchmarkEnv
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
@@ -50,7 +52,12 @@ def test_default_scene_and_articulations():
 
 @pytest.mark.parametrize(
     ("presets", "expected_type"),
-    [((), NewtonCfg), (("newton_mjwarp",), NewtonCfg), (("physx",), PhysxCfg)],
+    [
+        ((), NewtonCfg),
+        (("newton_mjwarp",), NewtonCfg),
+        (("physx",), PhysxAutoCfg),
+        (("isaacsim_physx",), PhysxCfg),
+    ],
 )
 def test_physics_presets_resolve_to_expected_backend(presets, expected_type):
     cfg = resolve_presets(_load_cfg(), selected=presets)
