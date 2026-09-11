@@ -199,7 +199,7 @@ rollout:
   pipeline_stage_num: 1
 
   model:
-    model_path: "/models/pnp_apple_n15_sft_ckpt"
+    model_path: ".pretrained_checkpoints/rlinf/pnp_apple_n15_sft_ckpt"
     precision: ${actor.model.precision}
     obs_converter_type: ${env.train.isaaclab.obs_converter_type}
     embodiment_tag: ${env.train.isaaclab.embodiment_tag}
@@ -229,7 +229,7 @@ actor:
 
   model:
     model_type: "gr00t"
-    model_path: "/models/pnp_apple_n15_sft_ckpt"
+    model_path: ".pretrained_checkpoints/rlinf/pnp_apple_n15_sft_ckpt"
     precision: "bf16"
     trust_remote_code: True
     is_lora: false
