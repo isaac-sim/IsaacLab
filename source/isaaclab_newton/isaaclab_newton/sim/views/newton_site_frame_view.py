@@ -7,8 +7,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
+import sys
 
 import warp as wp
 from newton import ShapeFlags
@@ -19,9 +21,11 @@ import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
+from isaaclab.sim.views.fabric_xform_selection import FabricXformSelection
 from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
+from isaaclab.utils.warp import fabric as fabric_utils
 
 from isaaclab_newton.physics.newton_manager import NewtonManager
 
@@ -38,6 +42,30 @@ _REGEX_TOKENS = frozenset(".*[]()+?|\\^$")
 def _has_regex_tokens(pattern: str) -> bool:
     """Return whether ``pattern`` contains regex metacharacters (i.e. is not a literal path)."""
     return any(token in _REGEX_TOKENS for token in pattern)
+
+
+# One resolved site registration: (body_patterns, local transform, xform scale, per_world, env_ids,
+# destination prim paths).  The prim paths follow this spec's expansion order, and are ``None`` when
+# that expansion is a regex over bodies whose destination paths are not yet known.
+_SiteSpec = tuple[
+    tuple[str, ...] | None,
+    wp.transform,
+    tuple[float, float, float],
+    bool,
+    tuple[int, ...] | None,
+    tuple[str, ...] | None,
+]
+
+
+def _destination_prim_paths(
+    prim_path: str, source_root: str | None, destination_template: str | None, env_ids: tuple[int, ...] | None
+) -> tuple[str, ...]:
+    """Map a clone source prim to its per-environment destination paths, or to itself when it is not
+    part of a clone plan row."""
+    if source_root is None or destination_template is None or env_ids is None:
+        return (prim_path,)
+    suffix = prim_path if source_root == "/" else prim_path[len(source_root) :]
+    return tuple(destination_template.format(env_id) + suffix for env_id in env_ids)
 
 
 @wp.kernel
@@ -114,6 +142,25 @@ def _write_site_local_from_local_poses(
     l_pos = local_pos[i]
     l_q = local_quat[i]
     site_local[si] = wp.transform(l_pos, wp.quatf(l_q[0], l_q[1], l_q[2], l_q[3]))
+
+
+@wp.kernel(enable_backward=False)
+def _gather_mirrored_site_poses(
+    site_positions: wp.array(dtype=wp.vec3f),
+    site_orientations: wp.array(dtype=wp.vec4f),
+    site_indices: wp.array(dtype=wp.int32),
+    out_positions: wp.array(dtype=wp.float32, ndim=2),
+    out_orientations: wp.array(dtype=wp.float32, ndim=2),
+):
+    """Gather the mirrored sites' world poses into the flat layout the Fabric kernels expect."""
+    i = wp.tid()
+    site = site_indices[i]
+    position = site_positions[site]
+    orientation = site_orientations[site]
+    for axis in range(3):
+        out_positions[i, axis] = position[axis]
+    for component in range(4):
+        out_orientations[i, component] = orientation[component]
 
 
 @wp.kernel
@@ -214,6 +261,14 @@ class NewtonSiteFrameView(BaseFrameView):
         self._site_specs = self._resolve_site_specs(stage, validate_xform_ops)
         self._site_labels: list[str] = []
         self._site_label_scales: list[tuple[float, float, float]] = []
+        # Destination prim paths per label, in expansion order; ``None`` when that is not yet known.
+        self._site_label_prim_paths: list[tuple[str, ...] | None] = []
+        self._site_prim_paths: list[str] | None = None
+        # Fabric mirror state, built on the first write (see :meth:`_mirror_to_fabric`).
+        self._fabric_sel: FabricXformSelection | None = None
+        self._mirror_disabled = False
+        # Set only on the pre-model path below; released again by :meth:`close`.
+        self._physics_ready_handle = None
         self._site_body: wp.array | None = None
         self._site_local: wp.array | None = None
         self._site_xform_scale: wp.array | None = None
@@ -234,21 +289,21 @@ class NewtonSiteFrameView(BaseFrameView):
         if model is not None:
             self._initialize_from_specs(model)
         else:
-            for body_patterns, xform, scale, per_world, _env_ids in self._site_specs:
+            for body_patterns, xform, scale, per_world, _env_ids, spec_paths in self._site_specs:
                 if body_patterns is None:
                     self._site_labels.append(NewtonManager.cl_register_site(None, xform, per_world=per_world))
                     self._site_label_scales.append(scale)
+                    self._site_label_prim_paths.append(spec_paths)
                 else:
                     for body_pattern in body_patterns:
                         self._site_labels.append(NewtonManager.cl_register_site(body_pattern, xform))
                         self._site_label_scales.append(scale)
+                        self._site_label_prim_paths.append(spec_paths)
             self._physics_ready_handle = NewtonManager.register_callback(
                 self._on_physics_ready, PhysicsEvent.PHYSICS_READY, name=f"site_view_{self._prim_path}"
             )
 
-    def _resolve_site_specs(
-        self, stage, validate_xform_ops: bool
-    ) -> list[tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]]:
+    def _resolve_site_specs(self, stage, validate_xform_ops: bool) -> list[_SiteSpec]:
         """Resolve source prims into Newton site registration specs."""
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         model = NewtonManager.get_model()
@@ -256,9 +311,7 @@ class NewtonSiteFrameView(BaseFrameView):
         shape_labels = list(model.shape_label) if model is not None else ()
         shape_flags = None
         use_clone_body_pattern = model is None
-        specs: list[
-            tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]
-        ] = []
+        specs: list[_SiteSpec] = []
 
         for path_expr in self._prim_paths:
             if resolve_matching_names(path_expr, body_labels, raise_when_no_match=False)[1]:
@@ -322,9 +375,10 @@ class NewtonSiteFrameView(BaseFrameView):
         env_ids: tuple[int, ...] | None,
         use_clone_body_pattern: bool,
         stage,
-    ) -> tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]:
-        """Resolve one source prim into body patterns, local frame, and xform scale."""
+    ) -> _SiteSpec:
+        """Resolve one source prim into body patterns, local frame, xform scale, and destination paths."""
         prim_path = prim.GetPath().pathString
+        dest_paths = _destination_prim_paths(prim_path, source_root, destination_template, env_ids)
         if prim.HasAPI(UsdPhysics.CollisionAPI):
             raise ValueError(
                 f"FrameView prim '{prim_path}' is a Newton collision shape. "
@@ -366,7 +420,14 @@ class NewtonSiteFrameView(BaseFrameView):
                                 raise RuntimeError(
                                     f"FrameView destination root '{destination_root}' does not end with '{suffix}'."
                                 )
-                            return (destination_root[: -len(suffix)],), wp.transform(pos, quat), scale, False, env_ids
+                            return (
+                                (destination_root[: -len(suffix)],),
+                                wp.transform(pos, quat),
+                                scale,
+                                False,
+                                env_ids,
+                                dest_paths,
+                            )
                         body_patterns = []
                         for env_id in env_ids:
                             destination_root = destination_template.format(env_id)
@@ -375,7 +436,7 @@ class NewtonSiteFrameView(BaseFrameView):
                                     f"FrameView destination root '{destination_root}' does not end with '{suffix}'."
                                 )
                             body_patterns.append(destination_root[: -len(suffix)])
-                        return tuple(body_patterns), wp.transform(pos, quat), scale, False, env_ids
+                        return tuple(body_patterns), wp.transform(pos, quat), scale, False, env_ids, dest_paths
                     else:
                         raise RuntimeError(f"FrameView source body '{body_path}' is not under '{source_root}'.")
                     if use_clone_body_pattern:
@@ -384,7 +445,7 @@ class NewtonSiteFrameView(BaseFrameView):
                         body_patterns = tuple(destination_template.format(env_id) + suffix for env_id in env_ids)
                 else:
                     body_patterns = (body_path,)
-                return body_patterns, wp.transform(pos, quat), scale, False, env_ids
+                return body_patterns, wp.transform(pos, quat), scale, False, env_ids, dest_paths
             body_prim = body_prim.GetParent()
 
         ref_path = source_root
@@ -395,7 +456,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 ref_path = source_root[: -len(source_suffix)] if source_suffix else source_root
         ref_prim = stage.GetPrimAtPath(ref_path) if ref_path is not None else None
         pos, quat = sim_utils.resolve_prim_pose(prim, ref_prim if ref_prim and ref_prim.IsValid() else None)
-        return None, wp.transform(pos, quat), scale, source_root is not None, env_ids
+        return None, wp.transform(pos, quat), scale, source_root is not None, env_ids, dest_paths
 
     def _on_physics_ready(self, _event) -> None:
         """Callback invoked when the Newton model becomes available."""
@@ -409,8 +470,11 @@ class NewtonSiteFrameView(BaseFrameView):
         site_bodies: list[int] = []
         site_locals: list[list[float]] = []
         site_scales: list[tuple[float, float, float]] = []
+        site_prim_paths: list[str] | None = []
 
-        for site_label, scale in zip(self._site_labels, self._site_label_scales, strict=True):
+        for site_label, scale, label_paths in zip(
+            self._site_labels, self._site_label_scales, self._site_label_prim_paths, strict=True
+        ):
             global_idx, per_world = site_map[site_label]
             site_indices = (
                 [global_idx] if per_world is None else [site_idx for sites in per_world for site_idx in sites]
@@ -419,8 +483,13 @@ class NewtonSiteFrameView(BaseFrameView):
                 site_bodies.append(int(body_t[site_idx].item()))
                 site_locals.append([float(v) for v in xform_t[site_idx].tolist()])
                 site_scales.append(scale)
+            if site_prim_paths is not None:
+                if label_paths is None or len(label_paths) != len(site_indices):
+                    site_prim_paths = None
+                else:
+                    site_prim_paths.extend(label_paths)
 
-        self._create_buffers(site_bodies, site_locals, site_scales)
+        self._create_buffers(site_bodies, site_locals, site_scales, site_prim_paths)
 
     def _initialize_from_specs(self, model) -> None:
         """Initialize arrays directly from resolved specs and Newton body labels."""
@@ -435,7 +504,19 @@ class NewtonSiteFrameView(BaseFrameView):
         site_locals: list[list[float]] = []
         site_scales: list[tuple[float, float, float]] = []
 
-        for body_patterns, xform, scale, per_world, env_ids in self._site_specs:
+        site_prim_paths: list[str] | None = []
+
+        def record_paths(spec_paths: tuple[str, ...] | None, expected: int) -> None:
+            """Append this spec's destination paths, or give up on mirroring if they do not line up."""
+            nonlocal site_prim_paths
+            if site_prim_paths is None:
+                return
+            if spec_paths is None or len(spec_paths) != expected:
+                site_prim_paths = None
+            else:
+                site_prim_paths.extend(spec_paths)
+
+        for body_patterns, xform, scale, per_world, env_ids, spec_paths in self._site_specs:
             if body_patterns is None:
                 if per_world:
                     if NewtonManager._world_xforms is None:
@@ -446,13 +527,15 @@ class NewtonSiteFrameView(BaseFrameView):
                         site_bodies.append(WORLD_BODY_INDEX)
                         site_locals.append([float(v) for v in wp.transform_multiply(world_xform, xform)])
                         site_scales.append(scale)
+                    record_paths(spec_paths, len(world_ids))
                 else:
                     site_bodies.append(WORLD_BODY_INDEX)
                     site_locals.append([float(v) for v in xform])
                     site_scales.append(scale)
+                    record_paths(spec_paths, 1)
                 continue
 
-            for body_pattern in body_patterns:
+            for index, body_pattern in enumerate(body_patterns):
                 exact_index = label_to_index.get(body_pattern) if not _has_regex_tokens(body_pattern) else None
                 if exact_index is not None:
                     matched_indices = [exact_index]
@@ -467,17 +550,27 @@ class NewtonSiteFrameView(BaseFrameView):
                     site_bodies.append(body_idx)
                     site_locals.append([float(v) for v in xform])
                     site_scales.append(scale)
+                record_paths(None if spec_paths is None else (spec_paths[index],), len(matched_indices))
 
-        self._create_buffers(site_bodies, site_locals, site_scales)
+        self._create_buffers(site_bodies, site_locals, site_scales, site_prim_paths)
 
     def _create_buffers(
         self,
         site_bodies: list[int],
         site_locals: list[list[float]],
         site_scales: list[tuple[float, float, float]],
+        site_prim_paths: list[str] | None = None,
     ) -> None:
-        """Allocate view buffers from body indices and local transforms."""
+        """Allocate view buffers from body indices, local transforms, and destination prim paths."""
         self._count = len(site_bodies)
+        self._site_prim_paths = (
+            site_prim_paths if site_prim_paths is not None and len(site_prim_paths) == self._count else None
+        )
+        if self._site_prim_paths is None and self._count:
+            logger.warning(
+                f"FrameView '{self._prim_path}' could not pair its sites with destination prims; pose writes"
+                " will update Newton state but will not be visible to the renderer."
+            )
         device = self._device
         self._site_body = wp.array(site_bodies, dtype=wp.int32, device=device)
         self._site_local = wp.array([wp.transform(*x) for x in site_locals], dtype=wp.transformf, device=device)
@@ -493,6 +586,120 @@ class NewtonSiteFrameView(BaseFrameView):
         self._local_pos_ta = ProxyArray(self._local_pos_buf)
         self._local_quat_ta = ProxyArray(self._local_quat_buf)
         self._scale_ta = ProxyArray(self._site_xform_scale)
+
+    def _mirror_to_fabric(self) -> None:
+        """Stamp the current site world poses onto the Fabric transforms the renderer reads.
+
+        The local matrix is written too because Newton's body sync ends in a hierarchy pass that
+        forward-propagates ``parent * local``, which would otherwise overwrite the world matrix for
+        frames under a body. The empty scale input tells the kernel to keep each matrix's existing
+        (accumulated parent) scale, matching how the body sync treats authored USD scale.
+        """
+        if self._fabric_sel is None and not self._initialize_fabric_mirror():
+            return
+
+        # Bodies sync to Fabric only at render cadence, so after a ``render=False`` step the local
+        # derivation below would read a parent still at its last rendered pose. No-op when clean.
+        NewtonManager.sync_transforms_to_usd()
+
+        count = self._fabric_sel.count
+        pos_ta, quat_ta = self._get_world_poses_impl(None)
+        wp.launch(
+            _gather_mirrored_site_poses,
+            dim=count,
+            inputs=[pos_ta.warp, quat_ta.warp, self._mirror_site_indices],
+            outputs=[self._mirror_positions, self._mirror_orientations],
+            device=self._device,
+        )
+        world_ifa, local_ifa = self._fabric_sel.child_ifas()
+        wp.launch(
+            fabric_utils.compose_indexed_fabric_transforms,
+            dim=count,
+            inputs=[
+                world_ifa,
+                self._mirror_positions,
+                self._mirror_orientations,
+                self._mirror_empty_scales,
+                False,
+                False,
+                False,
+                self._fabric_sel.view_indices,
+            ],
+            device=self._device,
+        )
+        wp.launch(
+            fabric_utils.update_indexed_local_matrix_from_world,
+            dim=count,
+            inputs=[world_ifa, self._fabric_sel.parent_world_ifa(), local_ifa, self._fabric_sel.view_indices],
+            device=self._device,
+        )
+
+    def _initialize_fabric_mirror(self) -> bool:
+        """Build the Fabric selection backing :meth:`_mirror_to_fabric`, returning whether there is
+        anything to mirror (a ``False`` result is sticky).
+
+        Seeding from USD is off because Newton never writes poses back, so it would reset the prim to
+        its spawn pose. Coverage can be partial: Newton clones physics without cloning USD, so a site
+        can be real while its destination prim exists on no stage, and those have nothing to draw.
+        """
+        if self._mirror_disabled or self._site_prim_paths is None or self._count == 0:
+            self._mirror_disabled = True
+            return False
+        try:
+            selection = FabricXformSelection(
+                self._site_prim_paths,
+                self._device,
+                owner=type(self).__name__,
+                seed_from_usd=False,
+                skip_missing_prims=True,
+            )
+        except ImportError:
+            # No Fabric runtime (kitless run): the site state is still correct, nothing consumes it.
+            self._mirror_disabled = True
+            logger.info("Fabric runtime unavailable; Newton site poses will not be mirrored to prims.")
+            return False
+
+        count = selection.count
+        if count == 0:
+            self._mirror_disabled = True
+            return False
+        if count != len(self._site_prim_paths):
+            logger.info(
+                f"FrameView '{self._prim_path}' mirrors {count} of {len(self._site_prim_paths)} sites to Fabric;"
+                " the rest have no prim on the stage (physics-only clones) and nothing to render."
+            )
+
+        # Refreshing the read-write selection is what notifies the renderer: a write through the
+        # read-only one lands in Fabric, but the image keeps showing the old pose.
+        selection.read_write = True
+        self._fabric_sel = selection
+        self._mirror_site_indices = wp.array(selection.kept_indices, dtype=wp.int32, device=self._device)
+        self._mirror_positions = wp.empty((count, 3), dtype=wp.float32, device=self._device)
+        self._mirror_orientations = wp.empty((count, 4), dtype=wp.float32, device=self._device)
+        self._mirror_empty_scales = wp.zeros((0, 0), dtype=wp.float32, device=self._device)
+        return True
+
+    def close(self) -> None:
+        """Release the Fabric attributes and the model-ready callback authored by this view."""
+        handle = self._physics_ready_handle
+        self._physics_ready_handle = None  # cleared first so a repeat close() cannot deregister twice
+        if handle is not None:
+            handle.deregister()
+        if self._fabric_sel is not None:
+            self._fabric_sel.close()
+            self._fabric_sel = None
+        self._mirror_disabled = True
+
+    def __del__(self, _sys=sys):
+        """Best-effort cleanup when the view is collected without :meth:`close`.
+
+        The repo's shutdown-safe idiom: ``sys`` is bound as a default argument so it survives module
+        teardown, and nothing runs during finalization, when the tags die with Fabric anyway.
+        """
+        if _sys.is_finalizing() or _sys.meta_path is None:
+            return
+        with contextlib.suppress(Exception):  # never propagate from __del__
+            self.close()
 
     @property
     def prims(self) -> list:
@@ -720,10 +927,35 @@ class NewtonSiteFrameView(BaseFrameView):
 # ----------------------------------------------------------------------
 
 
-class _NewtonWorldSpaceWriter(FrameViewWorldSpaceWriter):
+class _NewtonWriterMixin:
+    """Mirrors the scope's pose writes onto Fabric on exit.
+
+    The mirror is a full-view sync, so it runs only when a pose actually changed -- and it runs on the
+    exception path too, since the Newton-side write is already committed. A mirror that fails while an
+    exception unwinds is logged rather than raised, so it cannot mask the original exception.
+    """
+
+    def _enter_impl(self) -> None:
+        self._wrote_poses = False
+
+    def _exit_impl(self, exc_type, exc_val, exc_tb) -> None:
+        if not self._wrote_poses:
+            return
+        try:
+            self._view._mirror_to_fabric()  # type: ignore[attr-defined]
+        except Exception as mirror_exc:  # noqa: BLE001 -- see the docstring
+            if exc_type is None:
+                raise
+            logger.error("Fabric mirror failed while a writer scope unwound: %s", mirror_exc)
+
+
+class _NewtonWorldSpaceWriter(_NewtonWriterMixin, FrameViewWorldSpaceWriter):
     """Newton world-space writer: pass-through to backend ``_apply_*`` hooks."""
 
     def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        if positions is None and orientations is None:
+            return
+        self._wrote_poses = True
         self._view._apply_world_pose_write(positions, orientations, indices)  # type: ignore[attr-defined]
 
     def set_scales(self, scales, indices=None) -> None:
@@ -736,10 +968,13 @@ class _NewtonWorldSpaceWriter(FrameViewWorldSpaceWriter):
         return self._view._get_world_scales_impl(indices)  # type: ignore[attr-defined]
 
 
-class _NewtonLocalSpaceWriter(FrameViewLocalSpaceWriter):
+class _NewtonLocalSpaceWriter(_NewtonWriterMixin, FrameViewLocalSpaceWriter):
     """Newton local-space writer: pass-through to backend ``_apply_*`` hooks."""
 
     def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        if positions is None and orientations is None:
+            return
+        self._wrote_poses = True
         self._view._apply_local_pose_write(positions, orientations, indices)  # type: ignore[attr-defined]
 
     def set_scales(self, scales, indices=None) -> None:

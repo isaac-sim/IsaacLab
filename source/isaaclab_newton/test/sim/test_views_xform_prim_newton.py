@@ -195,6 +195,26 @@ def test_clone_plan_view_uses_source_child_without_destination_usd(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_close_before_reset_cancels_deferred_initialization(device):
+    """A view closed before the Newton model exists must not initialize on ``PHYSICS_READY``."""
+    num_envs = 3
+    ctx = _sim_context(device, num_envs=num_envs)
+    sim = ctx.__enter__()
+    sim._app_control_on_stop_handle = None
+    InteractiveScene(_SceneCfg(num_envs=num_envs, env_spacing=2.0))
+    sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
+
+    view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
+    assert view.count == 0, "the model already exists; this is not the deferred path"
+    view.close()
+
+    sim.reset()
+
+    assert view.count == 0, "a closed view still initialized from the physics-ready callback"
+    ctx.__exit__(None, None, None)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_view_can_resolve_from_body_labels_after_reset(device):
     """FrameView can resolve a body-local frame directly from Newton body labels."""
     num_envs = 3
