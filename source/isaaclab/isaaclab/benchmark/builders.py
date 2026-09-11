@@ -18,6 +18,7 @@ from datetime import datetime
 
 from isaaclab.benchmark.metrics import ema, mean_std_peak
 from isaaclab.benchmark.schema import (
+    CameraResolution,
     EnvironmentStepTiming,
     Hardware,
     Learning,
@@ -42,6 +43,7 @@ def build_run_config(
     physics_backend: str,
     rendering_backend: str = "none",
     presets: Sequence[str] | None = None,
+    camera_resolutions: dict[str, CameraResolution] | None = None,
 ) -> RunConfig:
     """Assemble a :class:`~isaaclab.benchmark.schema.RunConfig`.
 
@@ -52,6 +54,8 @@ def build_run_config(
             with no camera sensors.
         presets: Active Hydra preset tokens (e.g. ``["rgb"]``).  ``None``
             is treated as an empty list.
+        camera_resolutions: Resolved camera image dimensions keyed by config
+            path. ``None`` is treated as an empty mapping.
 
     Returns:
         Populated :class:`~isaaclab.benchmark.schema.RunConfig`.
@@ -60,6 +64,7 @@ def build_run_config(
         physics_backend=physics_backend,
         rendering_backend=rendering_backend,
         presets=list(presets) if presets else [],
+        camera_resolutions=dict(camera_resolutions) if camera_resolutions else {},
     )
 
 

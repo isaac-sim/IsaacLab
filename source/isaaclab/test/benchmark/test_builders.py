@@ -13,6 +13,7 @@ import pytest
 
 from isaaclab.benchmark import builders
 from isaaclab.benchmark.schema import (
+    CameraResolution,
     GpuDeviceInfo,
     Hardware,
     MeanStd,
@@ -66,6 +67,12 @@ def _resources():
 def test_run_config_presets_default_empty():
     assert builders.build_run_config("physx").presets == []
     assert builders.build_run_config("newton_mjwarp", presets=["rgb"]).presets == ["rgb"]
+
+
+def test_run_config_camera_resolutions_default_empty():
+    assert builders.build_run_config("physx").camera_resolutions == {}
+    resolutions = {"env.scene.camera": CameraResolution(width=640, height=480)}
+    assert builders.build_run_config("physx", camera_resolutions=resolutions).camera_resolutions == resolutions
 
 
 def test_run_identity_computes_duration():

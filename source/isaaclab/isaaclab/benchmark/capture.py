@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from isaaclab.benchmark.schema import (
+    CameraResolution,
     GpuDeviceInfo,
     GpuResources,
     Hardware,
@@ -278,6 +279,90 @@ def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
     return physics, rendering
 
 
+def _camera_resolution(node: object) -> tuple[int, int] | None:
+    """Return the resolved ``(width, height)`` for one camera configuration."""
+    width = getattr(node, "width", None)
+    height = getattr(node, "height", None)
+    if not isinstance(width, int) or isinstance(width, bool) or not isinstance(height, int) or isinstance(height, bool):
+        pattern_cfg = getattr(node, "pattern_cfg", None)
+        width = getattr(pattern_cfg, "width", None)
+        height = getattr(pattern_cfg, "height", None)
+    if (
+        not isinstance(width, int)
+        or isinstance(width, bool)
+        or width <= 0
+        or not isinstance(height, int)
+        or isinstance(height, bool)
+        or height <= 0
+    ):
+        return None
+    return width, height
+
+
+def camera_resolutions_from_env_cfg(env_cfg: object) -> dict[str, dict[str, int]]:
+    """Collect resolved image dimensions from camera configurations in an environment config.
+
+    The returned keys are config paths rooted at ``env`` so benchmark results identify the
+    exact camera field that was resolved by Hydra. RTX camera configurations expose dimensions
+    directly, while ray-cast cameras expose them through their pattern configuration.
+
+    Args:
+        env_cfg: Concrete task environment configuration after command-line overrides are applied.
+
+    Returns:
+        Camera config paths mapped to their resolved image width and height in pixels.
+    """
+    # Keep these imports local so importing benchmark capture does not eagerly load sensor dependencies.
+    from isaaclab.sensors import CameraCfg, RayCasterCameraCfg
+
+    camera_cfg_types = (CameraCfg, RayCasterCameraCfg)
+    resolutions: dict[str, dict[str, int]] = {}
+    stack: list[tuple[str, object, frozenset[int]]] = [("env", env_cfg, frozenset())]
+
+    while stack:
+        path, node, ancestors = stack.pop()
+        if node is None or isinstance(node, (str, bytes, int, float, bool, type)):
+            continue
+
+        if isinstance(node, camera_cfg_types):
+            resolution = _camera_resolution(node)
+            if resolution is not None:
+                width, height = resolution
+                resolutions[path] = {"width": width, "height": height}
+            continue
+
+        if id(node) in ancestors:
+            continue
+        child_ancestors = ancestors | {id(node)}
+
+        if isinstance(node, dict):
+            children = [(f"{path}.{key}", value) for key, value in node.items()]
+        elif isinstance(node, (list, tuple)):
+            children = [(f"{path}[{index}]", value) for index, value in enumerate(node)]
+        else:
+            try:
+                children = [(f"{path}.{name}", value) for name, value in vars(node).items() if not name.startswith("_")]
+            except TypeError:
+                continue
+        stack.extend((child_path, child, child_ancestors) for child_path, child in reversed(children))
+
+    return dict(sorted(resolutions.items()))
+
+
+def camera_resolution_metadata_from_env_cfg(env_cfg: object) -> list[dict[str, object]]:
+    """Build workflow metadata containing resolved camera resolutions, when present.
+
+    Args:
+        env_cfg: Concrete task environment configuration after command-line overrides are applied.
+
+    Returns:
+        A workflow metadata entry for ``camera_resolutions``, or an empty list when the task has no
+        configured cameras with concrete image dimensions.
+    """
+    resolutions = camera_resolutions_from_env_cfg(env_cfg)
+    return [{"name": "camera_resolutions", "data": resolutions}] if resolutions else []
+
+
 def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
     """Build a :class:`~isaaclab.benchmark.RunConfig` from a concrete task config.
 
@@ -298,6 +383,10 @@ def run_config_from_env_cfg(env_cfg: object) -> RunConfig:
     return RunConfig(
         physics_backend=physics,
         rendering_backend=rendering or "none",
+        camera_resolutions={
+            path: CameraResolution(width=dimensions["width"], height=dimensions["height"])
+            for path, dimensions in camera_resolutions_from_env_cfg(env_cfg).items()
+        },
     )
 
 

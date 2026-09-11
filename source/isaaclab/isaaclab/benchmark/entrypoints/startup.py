@@ -357,6 +357,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
                         {"name": "num_envs", "data": args.num_envs},
                         {"name": "top_n", "data": args.top_n},
                         {"name": "world_size", "data": distributed.world_size},
+                        *capture.camera_resolution_metadata_from_env_cfg(env_cfg),
                     ]
                 },
             )
