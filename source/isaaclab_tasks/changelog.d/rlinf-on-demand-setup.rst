@@ -6,6 +6,12 @@ Added
   task on the Unitree H2 + Sharpa Wave embodiment.
 * Added ``isaaclab_tasks.contrib.h2_sharpa``, holding the joint-order metadata, articulation presets
   and camera presets shared by the H2 + Sharpa tasks.
+* Added the ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa`` and ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa-Eval``
+  environments, an RLinf GR00T N1.7 task packing an AGX Orin into its protective box with the
+  Unitree H2 + Sharpa Wave embodiment.
+* Added GR00T N1.7 configurations ``isaaclab_ppo_gr00t_pick_and_place_apple_n17`` and
+  ``isaaclab_ppo_gr00t_pack_agx_orin_n17``, and ``isaaclab_tasks.contrib.h2_sharpa.gr00t_n17``
+  registering the H2 + Sharpa modality layout for N1.7 checkpoints.
 * Added ``ISAACLAB_H2_SHARPA_ASSET_ROOT`` and ``ISAACLAB_PICK_AND_PLACE_APPLE_ASSET_ROOT`` to point
   the H2 + Sharpa tasks at a local mirror of their scene and robot assets, which are hosted outside
   the Isaac asset server.
