@@ -325,6 +325,37 @@ class G129DofRoughMjlabScaleEnvCfg(G129DofRoughStandUpEnvCfg):
         self.actions.joint_pos.scale = dict(_MJLAB_ACTION_SCALE)
 
 
+_MJLAB_ACTION_SCALE_HIPKNEE = {
+    **_MJLAB_ACTION_SCALE,
+    ".*_hip_pitch_joint": 0.5,
+    ".*_knee_joint": 0.5,
+}
+"""The mjlab table with hip pitch and knee handed back the blanket 0.5.
+
+mjlab's rule is ``0.25 * effort_limit / stiffness``, and on this robot the ankle carries kp 20
+against 200 at the hip pitch and knee, so the rule gives the ankle 0.625 and the hip pitch 0.110 --
+the ankle ends up with 5.7 times the per-unit angular authority of the hip. Measured on the depth
+student of that arm, on flat ground under a pinned command: at 0.5 m/s it walks (single-stance
+0.889) but at 0.1 m/s it stops stepping altogether, 95% of the time on both feet, and on hardware it
+goes over backwards at low speed because there is no swing leg to catch the lean. The blanket-0.5
+student in the same environment keeps stepping at 0.1 m/s (single-stance 0.601) and stands 6 cm
+taller.
+
+This arm keeps the ankle's 0.625 -- that is the part of mjlab's table that plausibly earns the
+crisper gait -- and restores 0.5 on the two joints that swing the leg. One variable against
+``yms``: nothing else in the environment differs.
+"""
+
+
+@configclass
+class G129DofRoughMjlabScaleHipKneeEnvCfg(G129DofRoughStandUpEnvCfg):
+    """One change against ``ms``: hip pitch and knee go back to the blanket 0.5."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.actions.joint_pos.scale = dict(_MJLAB_ACTION_SCALE_HIPKNEE)
+
+
 @configclass
 class G129DofRoughMjlabGaitScaleEnvCfg(G129DofRoughMjlabGaitEnvCfg):
     """Both of the above, to see whether they need each other."""
