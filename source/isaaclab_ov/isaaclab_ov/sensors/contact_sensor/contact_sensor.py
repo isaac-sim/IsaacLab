@@ -29,7 +29,8 @@ from .kernels import (
     compute_first_transition_kernel,
     reset_contact_sensor_kernel,
     split_flat_pose_to_pos_quat,
-    unpack_contact_buffer_data,  # noqa: F401  -- reserved for v2 contact-points support
+    unpack_contact_buffer_data,
+    update_filtered_force_history_kernel,
     update_net_forces_ovphysx_kernel,
 )
 
@@ -55,15 +56,13 @@ class ContactSensor(BaseContactSensor):
       :meth:`ContactBinding.read_force_matrix`.
     * ``track_air_time`` — air/contact time tracking and
       :meth:`compute_first_contact` / :meth:`compute_first_air`.
+    * ``track_contact_points`` — average contact positions [m] per sensor/filter pair.
+    * ``track_friction_forces`` — summed friction forces [N] per sensor/filter pair, including history.
 
-    The following config flags are not supported on the ovphysx backend yet
-    (the underlying ovphysx APIs do not expose tensor-friendly per-sensor
-    reads — see ``docs/superpowers/specs/2026-04-27-ovphysx-contact-api-gaps.md``):
-
-    * ``track_contact_points``
-    * ``track_friction_forces``
-
-    Setting either flag raises :class:`NotImplementedError` at initialization.
+    Contact-point and friction-force tracking require non-empty filters and a positive
+    ``max_contact_data_count_per_prim``. Aggregate friction forces are not supported.
+    Detailed reads raise :class:`RuntimeError` if the configured contact capacity is exceeded;
+    increase the capacity before recreating the sensor. No incomplete measurements are published.
     """
 
     cfg: ContactSensorCfg
@@ -80,14 +79,7 @@ class ContactSensor(BaseContactSensor):
         """
         super().__init__(cfg)
 
-        # Reject the v1 unsupported optional features early, before USD discovery.
-        if cfg.track_contact_points or cfg.track_friction_forces:
-            raise NotImplementedError(
-                "ovphysx ContactSensor does not yet support 'track_contact_points' or 'track_friction_forces'."
-                " ovphysx 0.3.7 lacks tensor-friendly per-sensor read APIs for these features."
-                " See docs/superpowers/specs/2026-04-27-ovphysx-contact-api-gaps.md for the maintainer asks."
-            )
-
+        # Validate detailed-contact options after initializing handles needed by teardown.
         self._data: ContactSensorData = ContactSensorData()
         # Backend handles, populated in _initialize_impl.
         self._physx_instance: Any = None
@@ -100,6 +92,8 @@ class ContactSensor(BaseContactSensor):
         self._net_forces_flat_buf: wp.array | None = None
         self._force_matrix_flat_buf: wp.array | None = None
         self._poses_flat_buf: wp.array | None = None
+        self._contact_data_buffers: tuple[wp.array, ...] | None = None
+        self._friction_data_buffers: tuple[wp.array, ...] | None = None
         # Body names (resolved during init).
         self._body_names: list[str] = []
         # Default backend tunables matching the PhysX backend.
@@ -107,6 +101,15 @@ class ContactSensor(BaseContactSensor):
             self.cfg.max_contact_data_count_per_prim = 4
         if self.cfg.force_threshold is None:
             self.cfg.force_threshold = 1.0
+        if self.cfg.track_contact_points or self.cfg.track_friction_forces:
+            if not self.cfg.filter_prim_paths_expr:
+                raise ValueError(
+                    "'filter_prim_paths_expr' must be non-empty to track contact points or friction forces."
+                )
+            if self.cfg.max_contact_data_count_per_prim < 1:
+                raise ValueError(
+                    "'max_contact_data_count_per_prim' must be positive to track contact points or friction forces."
+                )
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -330,6 +333,19 @@ class ContactSensor(BaseContactSensor):
         else:
             self._force_matrix_flat_buf = None
 
+        capacity = self._contact_binding.max_contact_data_count
+        pair_shape = (flat_count, self._num_filter_shapes)
+        self._contact_data_buffers = None
+        self._friction_data_buffers = None
+        if self.cfg.track_contact_points:
+            self._contact_data_buffers = tuple(
+                wp.zeros((capacity, width), dtype=wp.float32, device=self._device) for width in (1, 3, 3, 1)
+            ) + tuple(wp.zeros(pair_shape, dtype=wp.uint32, device=self._device) for _ in range(2))
+        if self.cfg.track_friction_forces:
+            self._friction_data_buffers = tuple(
+                wp.zeros((capacity, 3), dtype=wp.float32, device=self._device) for _ in range(2)
+            ) + tuple(wp.zeros(pair_shape, dtype=wp.uint32, device=self._device) for _ in range(2))
+
         # Pose buffer: [S, 7] for RIGID_BODY_POSE (px,py,pz,qx,qy,qz,qw).
         if self.cfg.track_pose:
             self._poses_flat_buf = wp.zeros((flat_count, 7), dtype=wp.float32, device=self._device)
@@ -340,8 +356,14 @@ class ContactSensor(BaseContactSensor):
         """Read contact data from ovphysx and update sensor buffers."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
 
+        if self._contact_data_buffers is not None:
+            self._contact_binding.read_contact_data(*self._contact_data_buffers)
+        if self._friction_data_buffers is not None:
+            self._contact_binding.read_friction_data(*self._friction_data_buffers)
+
         # Pull aggregate forces into the pre-allocated flat buffer:
         # shape [num_envs * num_sensors, 3] float32 -> [num_envs * num_sensors] vec3f.
+        assert self._net_forces_flat_buf is not None
         self._contact_binding.read_net_forces(self._net_forces_flat_buf)
         net_forces_flat = self._net_forces_flat_buf.view(wp.vec3f)
 
@@ -379,8 +401,44 @@ class ContactSensor(BaseContactSensor):
             device=self._device,
         )
 
+        for buffers, output, average in (
+            (self._contact_data_buffers, self._data._contact_pos_w, True),
+            (self._friction_data_buffers, self._data._friction_force_matrix_w, False),
+        ):
+            if buffers is not None:
+                values = buffers[1] if average else buffers[0]
+                wp.launch(
+                    unpack_contact_buffer_data,
+                    dim=(self._num_envs, self._num_sensors, self._num_filter_shapes),
+                    inputs=[
+                        values.view(wp.vec3f),
+                        buffers[-2],
+                        buffers[-1],
+                        env_mask,
+                        self._num_envs,
+                        average,
+                        float("nan") if average else 0.0,
+                    ],
+                    outputs=[output],
+                    device=self._device,
+                )
+        if self._friction_data_buffers is not None:
+            wp.launch(
+                update_filtered_force_history_kernel,
+                dim=(self._num_envs, self._num_sensors, self._num_filter_shapes),
+                inputs=[
+                    env_mask,
+                    self._history_length,
+                    self._data._friction_force_matrix_w,
+                    self._data._friction_force_matrix_w_history,
+                ],
+                device=self._device,
+            )
+
         if self.cfg.track_pose:
             # Read pose into [num_envs * num_sensors, 7] float32 -> view as transformf.
+            assert self._root_view is not None
+            assert self._poses_flat_buf is not None
             self._root_view.read_into(TT.RIGID_BODY_POSE, self._poses_flat_buf)
             poses_flat = self._poses_flat_buf.view(wp.transformf)
             wp.launch(
@@ -539,3 +597,5 @@ class ContactSensor(BaseContactSensor):
         # would keep a destroyed handle reachable. _initialize_impl rebuilds a fresh view on play.
         self._root_view = None
         self._physx_instance = None
+        self._contact_data_buffers = None
+        self._friction_data_buffers = None
