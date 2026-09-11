@@ -336,17 +336,34 @@ class ContactSensor(BaseContactSensor):
         else:
             self._poses_flat_buf = None
 
+    def _fetch_ovphysx_buffers(self, include_pose: bool = True) -> None:
+        """Read the contact (and optionally pose) data from ovphysx into the flat buffers.
+
+        The ovphysx bindings write into the tensors allocated once in :meth:`_create_buffers`,
+        so the buffers are refreshed in place on every call.
+
+        Args:
+            include_pose: Whether to also read the body poses when ``track_pose`` is enabled.
+                The per-step refresh in :meth:`update` skips them since only the contact
+                buffers carry the contact-loss transient. Defaults to True.
+        """
+        # Pull aggregate forces into the pre-allocated flat buffer:
+        # shape [num_envs * num_sensors, 3] float32.
+        self._contact_binding.read_net_forces(self._net_forces_flat_buf)
+        if self._force_matrix_flat_buf is not None:
+            self._contact_binding.read_force_matrix(self._force_matrix_flat_buf)
+        if self.cfg.track_pose and include_pose:
+            # Read pose into [num_envs * num_sensors, 7] float32.
+            self._root_view.read_into(TT.RIGID_BODY_POSE, self._poses_flat_buf)
+
     def _update_buffers_impl(self, env_mask: wp.array | None = None) -> None:
         """Read contact data from ovphysx and update sensor buffers."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
+        self._fetch_ovphysx_buffers()
 
-        # Pull aggregate forces into the pre-allocated flat buffer:
-        # shape [num_envs * num_sensors, 3] float32 -> [num_envs * num_sensors] vec3f.
-        self._contact_binding.read_net_forces(self._net_forces_flat_buf)
+        # [num_envs * num_sensors, 3] float32 -> [num_envs * num_sensors] vec3f.
         net_forces_flat = self._net_forces_flat_buf.view(wp.vec3f)
-
         if self._force_matrix_flat_buf is not None:
-            self._contact_binding.read_force_matrix(self._force_matrix_flat_buf)
             force_matrix_flat = self._force_matrix_flat_buf.view(wp.vec3f)
         else:
             force_matrix_flat = None
@@ -380,8 +397,6 @@ class ContactSensor(BaseContactSensor):
         )
 
         if self.cfg.track_pose:
-            # Read pose into [num_envs * num_sensors, 7] float32 -> view as transformf.
-            self._root_view.read_into(TT.RIGID_BODY_POSE, self._poses_flat_buf)
             poses_flat = self._poses_flat_buf.view(wp.transformf)
             wp.launch(
                 split_flat_pose_to_pos_quat,
@@ -394,6 +409,27 @@ class ContactSensor(BaseContactSensor):
     """
     Operations
     """
+
+    def update(self, dt: float, force_recompute: bool = False) -> None:
+        """Advances the sensor timestamp and refreshes the ovphysx contact buffers.
+
+        PhysX zeroes the net contact force of a body only on the physics step where its contact
+        is lost. A sensor that is refreshed lazily (on data access) would skip that step and keep
+        reporting the last in-contact force until the next touchdown, so the ovphysx bindings are
+        read on every physics step. The warp kernels that turn those buffers into sensor data
+        remain lazy and only run when :attr:`data` is accessed. The body poses have no such
+        transient and are only read on data access.
+
+        Args:
+            dt: Time elapsed since the previous sensor update [s].
+            force_recompute: Whether to recompute the sensor buffers regardless of their
+                configured update period. Defaults to False.
+        """
+        super().update(dt, force_recompute=force_recompute)
+        # Skip the read if the base class already refreshed the buffers on this step, which it
+        # does when the sensor carries a history buffer.
+        if self._is_initialized and self._data_generation != self._data_generation_last_update:
+            self._fetch_ovphysx_buffers(include_pose=False)
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
