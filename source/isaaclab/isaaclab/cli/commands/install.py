@@ -305,7 +305,7 @@ def _ensure_cuda_torch() -> None:
     if is_arm():
         cuda_ver = "130"
     else:
-        cuda_ver = "128"
+        cuda_ver = "126"
 
     cuda_tag = f"cu{cuda_ver}"
     index_url = f"{base_index}/{cuda_tag}"

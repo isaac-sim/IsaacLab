@@ -215,12 +215,23 @@ RUN ${ISAACLAB_PATH}/isaaclab.sh -p -c \
 ENV UV_PYTHON=${VENV_PATH_ARG}/bin/python
 
 # cuRobo builds CUDA extensions against the torch already in the venv, so build isolation
-# stays off; it is pinned to a commit rather than a release. ``--seed`` only provides pip on
-# 3.12, so the build backend has to be installed for the isolation-free build to import it.
+# stays off; it is pinned to a commit rather than a release. PyTorch 2.12 builds extensions as
+# C++20, where cuRobo's scalar lerp overload conflicts with the equivalent std::lerp. Remove
+# only that overload while retaining cuRobo's float2/3/4 overloads. ``--seed`` only provides
+# pip on 3.12, so the build backend has to be installed for the isolation-free build to import it.
+ARG CUROBO_COMMIT=ebb71702f3f70e767f40fd8e050674af0288abe8
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install setuptools wheel && \
-    uv pip install --no-build-isolation \
-      "nvidia-curobo @ git+https://github.com/NVlabs/curobo.git@ebb71702f3f70e767f40fd8e050674af0288abe8" \
+    git -c init.defaultBranch=main init /tmp/curobo && \
+    git -C /tmp/curobo remote add origin https://github.com/NVlabs/curobo.git && \
+    git -C /tmp/curobo fetch --depth 1 origin ${CUROBO_COMMIT} && \
+    git -C /tmp/curobo checkout --detach FETCH_HEAD && \
+    test "$(grep -c '^inline __device__ __host__ float lerp(float a, float b, float t)$' \
+      /tmp/curobo/src/curobo/curobolib/cpp/helper_math.h)" -eq 1 && \
+    sed -i '/^inline __device__ __host__ float lerp(float a, float b, float t)$/,+3d' \
+      /tmp/curobo/src/curobo/curobolib/cpp/helper_math.h && \
+    uv pip install --no-build-isolation /tmp/curobo && \
+    rm -rf /tmp/curobo \
  && find ${VIRTUAL_ENV} \! -user isaaclab \
       -exec chown isaaclab:isaaclab {} + -exec chmod a+rwX {} +
 
