@@ -34,8 +34,6 @@ from newton.solvers import SolverMuJoCo
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 
-from ._mjwarp_view_compat import ensure_newton_custom_frequency_api
-
 if TYPE_CHECKING:
     from newton import Control, Model
     from newton.selection import ArticulationView
@@ -66,9 +64,7 @@ class MjWarpTendonControl:
         Returns:
             The adapter, or None when the articulation's tendons are all passive.
         """
-        # Single compatibility seam: on Newton 1.6 this returns both unchanged. Everything below,
-        # and every other module, is written against 1.6 only.
-        view, model = ensure_newton_custom_frequency_api(articulation.root_view, model)
+        view = articulation.root_view
         mapping = resolve_fixed_tendon_actuator_columns(view, model)
         if mapping is None or mapping[0].size == 0:
             return None

@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.8.1 (2026-09-11)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :attr:`SHADOW_HAND_PHYSX_CFG` and :attr:`SHADOW_HAND_NEWTON_CFG` to select the
+  Shadow Hand asset's ``Colliders="simplified"`` variant. Set ``spawn.variants["Colliders"]``
+  to ``"full"`` to use the previous collision model.
+
+
 0.8.0 (2026-09-06)
 ~~~~~~~~~~~~~~~~~~
 

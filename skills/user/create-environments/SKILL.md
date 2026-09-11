@@ -50,14 +50,14 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/overview/core-concepts/task_workflows.rst`, the environment tutorials under `docs/source/tutorials/03_envs/`, and maintained task examples under `source/isaaclab_tasks/isaaclab_tasks/`. If workflow documentation is missing or stale, update the docs or examples first and keep this skill focused on choosing the right path.
+Keep this skill synchronized with `docs/source/concepts/task_workflows.rst`, the environment tutorials under `docs/source/tutorials/03_envs/`, and maintained task examples under `source/isaaclab_tasks/isaaclab_tasks/`. If workflow documentation is missing or stale, update the docs or examples first and keep this skill focused on choosing the right path.
 
 ## References
 
 - [Evaluations](evaluations.md)
 - [Examples](examples.md)
 - [Manipulation planning skill](../plan-manipulation-tasks/SKILL.md)
-- [Task workflows](../../../docs/source/overview/core-concepts/task_workflows.rst)
+- [Task workflows](../../../docs/source/concepts/task_workflows.rst)
 - [Create manager-based base environment tutorial](../../../docs/source/tutorials/03_envs/create_manager_base_env.rst)
 - [Create manager-based RL environment tutorial](../../../docs/source/tutorials/03_envs/create_manager_rl_env.rst)
 - [Register Gym environment tutorial](../../../docs/source/tutorials/03_envs/register_rl_env_gym.rst)

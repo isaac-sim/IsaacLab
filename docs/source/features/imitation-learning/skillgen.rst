@@ -59,10 +59,11 @@ cuRobo provides the motion planning capabilities for SkillGen. It is compiled fr
          sudo apt-get update
          sudo apt-get -y install cuda-toolkit-12-8
 
-      Then build and install cuRobo into the Isaac Lab environment. Run this from the root of your Isaac Lab repository, after completing Step 1 so that PyTorch is available in the environment for the build (``uv pip`` does not support editable installs from Git URLs, so the repository is cloned first):
+      Then build and install cuRobo into the Isaac Lab environment. Run this from the root of your Isaac Lab repository. The ``uv sync`` step creates the project's virtual environment (``.venv``) if it does not already exist and makes PyTorch available for the build; the cuRobo repository is cloned first because ``uv pip`` does not support editable installs from Git URLs:
 
       .. code:: bash
 
+         uv sync && \
          export CUDA_HOME=/usr/local/cuda-12.8 && \
          export PATH="$CUDA_HOME/bin:$PATH" && \
          export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$LD_LIBRARY_PATH" && \
@@ -90,6 +91,8 @@ cuRobo provides the motion planning capabilities for SkillGen. It is compiled fr
    * CUDA 12.8's ``nvcc`` requires a host compiler older than GCC 14. The default system GCC on supported Ubuntu versions (GCC 11 on 22.04, GCC 13 on 24.04) is compatible. In the conda flow, the ``CC``/``CXX``/``CUDAHOSTCXX`` exports are required because installing ``cuda-toolkit`` through Conda also pulls a Conda GCC toolchain (currently GCC 14) into the environment, which would otherwise be used and fail the build.
 
    * cuRobo is installed from source and is editable installed. This means that the cuRobo source code will be cloned in the current directory under ``src/nvidia-curobo``. Users can choose their working directory to install cuRobo.
+
+   * In the uv flow, cuRobo is not part of the project's lockfile, so running ``uv sync`` after installing cuRobo removes it from the environment again. If that happens, re-run the ``uv pip install -e ./src/nvidia-curobo --no-build-isolation`` command to reinstall it. ``uv run`` does not remove cuRobo and can be used normally.
 
    * ``TORCH_CUDA_ARCH_LIST`` in the above command should match your GPU's CUDA compute capability (e.g., ``8.0`` for A100, ``8.6`` for many RTX 30‑series, ``8.9`` for RTX 4090); the ``+PTX`` suffix embeds PTX for forward compatibility so newer GPUs can JIT‑compile when native SASS isn’t included.
 

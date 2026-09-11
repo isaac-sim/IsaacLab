@@ -18,7 +18,7 @@ import time
 from isaaclab.benchmark.entrypoints.backends.rl_games.registry import register_scoped_rl_games_environment
 from isaaclab.benchmark.entrypoints.training import _resolve_training_checkpoint_path
 
-from isaaclab_rl.entrypoints import common as _common
+from isaaclab_rl.entrypoints import common
 
 
 def _close_rl_games_writer(observer: Any) -> None:
@@ -51,8 +51,8 @@ def _parse_args(argv: list[str]):
 
     from isaaclab_tasks.utils import setup_preset_cli
 
-    add_common_train_args = _common.add_common_train_args
-    enable_cameras_for_video = _common.enable_cameras_for_video
+    add_common_train_args = common.add_common_train_args
+    enable_cameras_for_video = common.enable_cameras_for_video
 
     parser = argparse.ArgumentParser(description="Benchmark RL training with RL-Games.")
     add_common_train_args(
@@ -156,7 +156,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
 
     from isaaclab_tasks.utils import resolve_task_config
 
-    apply_env_overrides = _common.apply_env_overrides
+    apply_env_overrides = common.apply_env_overrides
     from isaaclab.benchmark.entrypoints.early_stop import (
         RlGamesEarlyStopObserver,
         build_success_kwargs,
@@ -179,7 +179,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     with launch_simulation(env_cfg, args_cli):
         with contextlib.ExitStack() as cleanup:
             cleanup.enter_context(
-                _common.scoped_torch_backend_flags(
+                common.scoped_torch_backend_flags(
                     cuda_matmul_allow_tf32=True,
                     cudnn_allow_tf32=True,
                     cudnn_deterministic=False,
@@ -197,7 +197,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             if args_cli.max_iterations is not None:
                 agent_cfg["params"]["config"]["max_epochs"] = args_cli.max_iterations
 
-            _common.validate_distributed_device(args_cli)
+            common.validate_distributed_device(args_cli)
             if distributed.enabled:
                 # Mirror the regular training entrypoint: the launcher pinned this rank to its own
                 # device, and offsetting the seed by the rank decorrelates exploration across ranks.
@@ -247,18 +247,18 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             # RL-Games silences logging on every rank but global rank 0, so only that rank has a
             # populated run directory to describe.
             if distributed.is_main:
-                _common.write_run_manifest(
+                common.write_run_manifest(
                     run_log_dir, library="rl_games", task=args_cli.task, metadata={"agent": args_cli.agent}
                 )
             env_cfg.log_dir = run_log_dir
-            _common.apply_video_recording(env_cfg, run_log_dir, args_cli, subdir="benchmark")
+            common.apply_video_recording(env_cfg, run_log_dir, args_cli, subdir="benchmark")
 
             rl_device = agent_cfg["params"]["config"]["device"]
             clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
             clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
 
             env_t0 = time.perf_counter_ns()
-            env = _common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
+            env = common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
             env_t1 = time.perf_counter_ns()
 
