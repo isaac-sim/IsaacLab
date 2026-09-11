@@ -96,35 +96,6 @@ Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The legacy
 Isaac Lab installer also supports ``./isaaclab.sh -i 'ov[ovphysx]'`` and
 ``./isaaclab.sh -i 'ov[all]'``.
 
-Internal OvPhysX 0.6.2
-^^^^^^^^^^^^^^^^^^^^^^
-
-OvPhysX 0.6.2 is also supported, but currently requires NVIDIA internal package
-access. The public installation and CI do not require that access. To try 0.6.2,
-set ``OVPHYSX_INDEX_URL`` to the internal Omniverse Python package index and use
-``uv run --with`` to layer the matching native stack over the public environment:
-
-.. code-block:: bash
-
-    uv sync --extra ov --extra test
-    uv run --no-sync \
-        --index "$OVPHYSX_INDEX_URL" \
-        --with ovphysx==0.6.2 \
-        --with ovstage==0.2.0.377349 \
-        --with omniverseclient==2.74.0 \
-        --with ovrtx==0.5.0.377615 \
-        python -c "import ovphysx.types; import ovrtx; print('OvPhysX 0.6 stack OK')"
-
-Keep these ``--with`` arguments when replacing the Python command with a test
-or simulation command. The overrides apply to that invocation; the project
-pins and public environment remain unchanged. Upgrade all four native packages
-together because OvPhysX 0.6 and OVRTX 0.5 require the matching OVStage stack.
-
-Isaac Lab retains the reversed-joint Jacobian and mass-matrix sign correction
-on 0.5.11 and automatically disables it on the 0.6 release line, including
-development builds. Gravity compensation forces already use the public joint
-basis on both versions. Custom joint and body ordering works with either stack.
-
 Testing the Installation
 ------------------------
 

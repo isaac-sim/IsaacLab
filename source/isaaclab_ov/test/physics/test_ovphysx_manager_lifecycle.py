@@ -78,6 +78,13 @@ def _fake_ovphysx_module(bootstrap):
         (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], "/schemas", True),
         (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], None, True),
         (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", False),
+        pytest.param(
+            ["physxSchema"],
+            ["/schemas/OmniUsdPhysicsDeformableSchema/resources"],
+            "/schemas",
+            None,
+            id="ovstage-import-unavailable",
+        ),
     ],
 )
 def test_schema_registration_skips_providers_already_supplied_by_host(
@@ -111,7 +118,8 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
     fake_pxr = ModuleType("pxr")
     fake_pxr.Plug = type("FakePlug", (), {"Registry": staticmethod(FakeRegistry)})
     monkeypatch.setitem(sys.modules, "ovphysx", fake_ovphysx)
-    monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
+    # A None entry makes importing OVStage raise ModuleNotFoundError.
+    monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage if has_registration_api is not None else None)
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
 
     manager._ensure_physx_schemas_registered()

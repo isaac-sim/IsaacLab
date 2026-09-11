@@ -500,15 +500,19 @@ class OvPhysxManager(PhysicsManager):
             return
         try:
             import ovphysx  # noqa: PLC0415
-            import ovstage  # noqa: PLC0415
 
             from pxr import Plug  # noqa: PLC0415
         except ImportError:
             return
-        schema_root = getattr(ovphysx, "codeless_schema_root", None)
-        register_ovstage_schemas = getattr(getattr(ovstage, "population", None), "register_usd_schemas", None)
-        if callable(schema_root) and callable(register_ovstage_schemas):
-            register_ovstage_schemas(str(schema_root()))
+        try:
+            import ovstage  # noqa: PLC0415
+        except ImportError:
+            pass  # Host USD schemas can still be registered without OVStage.
+        else:
+            schema_root = getattr(ovphysx, "codeless_schema_root", None)
+            register_ovstage_schemas = getattr(getattr(ovstage, "population", None), "register_usd_schemas", None)
+            if callable(schema_root) and callable(register_ovstage_schemas):
+                register_ovstage_schemas(str(schema_root()))
         registry = Plug.Registry()
         registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
         # The wheel documents ``<module>/resources`` as its stable layout and its
