@@ -62,16 +62,61 @@ runs:
         deps_manifest_pattern='(setup\.py|pyproject\.toml|setup\.cfg|extension\.toml|requirements[^/]*\.txt|uv\.lock)$'
 
         # Resolve the actual base image digest so a new push of a mutable tag
-        # (e.g. latest-develop) invalidates the deps cache automatically.
-        base_image_digest=$(docker buildx imagetools inspect \
-          "${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}" \
-          --format '{{json .Manifest.Digest}}' 2>/dev/null | tr -d '"' || true)
-        if [ -n "${base_image_digest}" ]; then
-          base_image_uniq_id="${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}:${base_image_digest}"
-        else
-          echo "🟠 Could not resolve base image digest, falling back to tag string"
-          base_image_uniq_id="${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}"
-        fi
+        # (e.g. latest-develop) invalidates the deps cache. A tag that already
+        # carries a digest is its own identity, so it is used directly.
+        case "${ISAACSIM_VERSION}" in
+          *@sha256:*)
+            base_image_digest="${ISAACSIM_VERSION##*@}"
+            if ! printf '%s' "${base_image_digest}" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
+              echo "::error::Base image tag ${ISAACSIM_VERSION} carries a malformed digest pin."
+              exit 1
+            fi
+            echo "🔵 Base image tag is digest-pinned; using it as the cache identity"
+            ;;
+          *)
+            # Reading the manifest can fail transiently, so retry. Failing hard
+            # afterwards is deliberate: falling back to the tag string drops the
+            # digest from the cache key and hides an unreadable manifest until a
+            # later, far less obvious build error. stderr is kept off stdout so
+            # a warning can never be concatenated into the digest.
+            base_image_digest=""
+            inspect_err="$(mktemp)"
+            attempts=5
+            attempt=1
+            while [ "${attempt}" -le "${attempts}" ]; do
+              inspect_out=$(docker buildx imagetools inspect \
+                "${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}" \
+                --format '{{json .Manifest.Digest}}' 2>"${inspect_err}" || true)
+              candidate=$(printf '%s' "${inspect_out}" | tr -d '"')
+              # A digest is exactly sha256: plus 64 hex characters. Anything
+              # looser lets stray stdout into the cache key, and a stable
+              # diagnostic string would then stop a changed base image from
+              # invalidating it.
+              if printf '%s' "${candidate}" | grep -Eq '^sha256:[0-9a-f]{64}$'; then
+                base_image_digest="${candidate}"
+                break
+              fi
+              echo "🟠 Base image manifest read attempt ${attempt}/${attempts} failed: $(tr '\n' ' ' < "${inspect_err}")"
+              # An authorization refusal will not clear on its own, so stop
+              # retrying and report it as the configuration error it is.
+              if grep -Eqi 'denied|unauthorized|forbidden|insufficient_scope|401|403' "${inspect_err}"; then
+                echo "::error::${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION} cannot be read with the credentials available to this job."
+                rm -f "${inspect_err}"
+                exit 1
+              fi
+              if [ "${attempt}" -lt "${attempts}" ]; then
+                sleep $((attempt * 5))
+              fi
+              attempt=$((attempt + 1))
+            done
+            rm -f "${inspect_err}"
+            if [ -z "${base_image_digest}" ]; then
+              echo "::error::Cannot read the manifest for ${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION} after ${attempts} attempts (see the attempt logs above)."
+              exit 1
+            fi
+            ;;
+        esac
+        base_image_uniq_id="${ISAACSIM_BASE_IMAGE}:${ISAACSIM_VERSION}:${base_image_digest}"
 
         mapfile -t manifest_files < <(git ls-files | grep -E "${deps_manifest_pattern}" || true)
         file_hash=$(git ls-files -s "${deps_files[@]}" "${manifest_files[@]}" 2>/dev/null \
