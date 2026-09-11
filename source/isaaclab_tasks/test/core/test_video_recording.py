@@ -189,6 +189,39 @@ def test_kit_physx_records_moving_clip():
         _assert_clip_has_content(os.path.join(output_dir, "kit_0000.mp4"), "kit-physx")
 
 
+def test_multiple_headless_kit_recorders_simultaneous(monkeypatch):
+    """Multiple capture-only Kit recorders can share one visualizer."""
+    from isaaclab_visualizers.kit import KitVisualizerCfg
+
+    captured_clips: dict[str, list[np.ndarray]] = {}
+
+    class _FrameCaptureClip:
+        def __init__(self, frames: list[np.ndarray], fps: int):
+            self.frames = [frame.copy() for frame in frames]
+            self.fps = fps
+
+        def write_videofile(self, path: str, **_kwargs) -> None:
+            captured_clips[os.path.basename(path)] = self.frames
+
+    monkeypatch.setattr("isaaclab.envs.utils.video_recorder.ImageSequenceClip", _FrameCaptureClip)
+
+    with tempfile.TemporaryDirectory() as output_dir:
+        env_cfg = _cartpole_cfg(num_envs=1)
+        env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(headless=True, window_width=320, window_height=240)]
+        env_cfg.video_recorders = [
+            _recorder_cfg(output_dir, "visualizer:kit", prefix="first"),
+            _recorder_cfg(output_dir, "visualizer:kit", prefix="second"),
+        ]
+        _run_cartpole(env_cfg)
+
+    assert set(captured_clips) == {"first_0000.mp4", "second_0000.mp4"}
+    for frames in captured_clips.values():
+        stack = np.stack(frames).astype(np.float32)
+        assert len(frames) == _CLIP
+        assert max(np.count_nonzero(frame) / frame.size for frame in stack) >= _MIN_NONZERO_RATIO
+        assert stack.std(axis=0).mean() >= _MIN_MOTION_STD
+
+
 def test_kit_newton_logs_warning_on_capture(caplog):
     """source='visualizer:kit' + Newton → logs a warning and capture proceeds.
 
