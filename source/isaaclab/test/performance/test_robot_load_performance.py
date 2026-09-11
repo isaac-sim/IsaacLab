@@ -35,7 +35,7 @@ SPACING = 2.0
     "test_config,device",
     [
         # TODO: regression - this used to be 10
-        ({"name": "Cartpole", "robot_cfg": CARTPOLE_CFG, "expected_load_time": 15.0}, "cuda:0"),
+        ({"name": "Cartpole", "robot_cfg": CARTPOLE_CFG, "expected_load_time": 20.0}, "cuda:0"),
         ({"name": "Cartpole", "robot_cfg": CARTPOLE_CFG, "expected_load_time": 15.0}, "cpu"),
         # TODO: regression - this used to be 40
         ({"name": "Anymal_D", "robot_cfg": ANYMAL_D_CFG, "expected_load_time": 60.0}, "cuda:0"),

@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+5.4.1 (2026-09-11)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed native Newton actuator initialization in non-cloned and heterogeneous scenes after a previous simulation.
+* Fixed Newton-backed visualizers unnecessarily running collision mesh approximation for
+  render-only shadow models.
+
+
 5.4.0 (2026-09-10)
 ~~~~~~~~~~~~~~~~~~
 

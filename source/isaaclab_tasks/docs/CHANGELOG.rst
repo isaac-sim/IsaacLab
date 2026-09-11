@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+18.0.1 (2026-09-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Used the legacy instanceable Franka asset for PhysX Reach tasks to preserve link collisions without
+  de-instancing or large-environment performance regressions.
+
+
 18.0.0 (2026-09-10)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -495,7 +495,12 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertIs(result, builder)
         self.assertEqual(shadow_entities, [])
         self.assertEqual(registry_groups, [])
-        builder.add_usd.assert_called_once_with(stage, schema_resolvers=["newton", "physx"], ignore_paths=None)
+        builder.add_usd.assert_called_once_with(
+            stage,
+            schema_resolvers=["newton", "physx"],
+            ignore_paths=None,
+            skip_mesh_approximation=True,
+        )
 
     def test_visualization_builder_disables_collision_pairs(self):
         stage = Usd.Stage.CreateInMemory()
