@@ -93,7 +93,7 @@ PROFILES: dict[str, Gr00tProfile] = {
         needs_pytorch3d=False,
         gr00t_dirname="Isaac-GR00T-N1.7",
         checkpoints=(
-            ("LiFanxing/pnp_apple", "checkpoint-test-2"),
+            ("LiFanxing/pnp_apple", "gen_data_SFT_l40s-2/checkpoint-30000"),
             ("LiFanxing/pack_agx", "pack_agx_mimicgen_sft_l40s-1/checkpoint-40000"),
             (COSMOS_BACKBONE_REPO_ID, None),
         ),
