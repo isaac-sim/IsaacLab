@@ -167,10 +167,6 @@ class CartpoleCameraEnvCfg(PresetCfg):
         # scene: fewer, more-spaced envs so each camera renders cleanly
         scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0)
 
-        def validate_config(self):
-            """Check for invalid preset combinations after resolution."""
-            self.scene.tiled_camera.validate_config()
-
         def __post_init__(self):
             super().__post_init__()
             # remove ground as it obstructs the camera

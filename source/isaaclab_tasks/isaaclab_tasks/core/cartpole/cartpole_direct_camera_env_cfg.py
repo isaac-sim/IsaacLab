@@ -72,10 +72,6 @@ class CartpoleCameraEnvCfg(PresetCfg):
         # reset: smaller initial pole angle than the proprioceptive task
         initial_pole_angle_range = (-0.125 * math.pi, 0.125 * math.pi)  # [rad]
 
-        def validate_config(self):
-            """Check for invalid preset combinations after resolution."""
-            self.tiled_camera.validate_config()
-
         def __post_init__(self):
             self.sim.default_visualizer_cfg = VisualizerCfg(eye=(20.0, 20.0, 20.0))
 

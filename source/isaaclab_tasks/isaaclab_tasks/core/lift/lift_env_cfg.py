@@ -534,14 +534,6 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg | None = CurriculumCfg()
 
-    def validate_config(self):
-        """Check for invalid preset combinations after resolution."""
-        for cam_attr in ("base_camera", "wrist_camera"):
-            cam = getattr(self.scene, cam_attr, None)
-            if cam is None:
-                continue
-            cam.validate_config()
-
     def __post_init__(self):
         """Post initialization."""
         # general settings

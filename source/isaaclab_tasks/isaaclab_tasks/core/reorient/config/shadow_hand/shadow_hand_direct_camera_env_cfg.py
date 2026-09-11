@@ -42,8 +42,6 @@ def validate_shadow_hand_camera_settings(
             f"Shadow Hand camera validation requires a concrete RendererCfg or None, got {type(renderer_cfg).__name__}."
         )
 
-    tiled_camera.validate_config()
-
     non_depth_data_types = set(tiled_camera.data_types).difference(
         {"depth", "distance_to_image_plane", "distance_to_camera"}
     )

@@ -8,8 +8,8 @@
 Two test suites are provided:
 
 1. **Validation unit tests** — use lightweight ``types.SimpleNamespace`` mocks.
-   These exercise :meth:`ShadowHandCameraEnvCfg.validate_config` directly and
-   do not require Isaac Sim.
+   These exercise generic camera validation followed by Shadow Hand's task-specific
+   feature-extractor validation and do not require Isaac Sim.
 
 2. **Preset resolution tests** — verify that each named preset in
    :class:`ShadowHandTiledCameraCfg` and
@@ -68,6 +68,12 @@ def _make_cfg(renderer_type: str | None, data_types: list[str], feature_extracto
     return cfg
 
 
+def _validate_cfg(cfg) -> None:
+    """Run camera and task hooks for the intentionally incomplete lightweight mock."""
+    cfg.tiled_camera.validate_config()
+    cfg.validate_config()
+
+
 # ---------------------------------------------------------------------------
 # Valid combinations — must not raise
 # ---------------------------------------------------------------------------
@@ -101,7 +107,7 @@ _VALID_COMBOS = [
 @pytest.mark.parametrize("renderer_type,data_types,enabled", _VALID_COMBOS)
 def test_valid_combinations_do_not_raise(renderer_type, data_types, enabled):
     cfg = _make_cfg(renderer_type, data_types, enabled)
-    cfg.validate_config()  # must not raise
+    _validate_cfg(cfg)  # must not raise
 
 
 # ---------------------------------------------------------------------------
@@ -155,7 +161,7 @@ _INVALID_COMBOS = [
 def test_invalid_combinations_raise_value_error(renderer_type, data_types, enabled, match):
     cfg = _make_cfg(renderer_type, data_types, enabled)
     with pytest.raises(ValueError, match=match):
-        cfg.validate_config()
+        _validate_cfg(cfg)
 
 
 # ---------------------------------------------------------------------------
@@ -253,9 +259,9 @@ def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_pre
     cfg = _make_cfg(warp_cfg.renderer_type, camera_cfg.data_types, enabled)
     if raises:
         with pytest.raises(ValueError):
-            cfg.validate_config()
+            _validate_cfg(cfg)
     else:
-        cfg.validate_config()
+        _validate_cfg(cfg)
 
 
 @pytest.mark.parametrize(
