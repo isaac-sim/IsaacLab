@@ -774,12 +774,11 @@ Integrating 3D Gaussian Splatting into SDG
 
 This section extends
 :ref:`locomanipulation SDG <generate-the-dataset-with-manipulation-and-point-to-point-navigation>`
-by replacing the synthetic background with a 3D Gaussian Splatting (NuRec) scene. As in the
-base pipeline, the workflow takes a manipulation dataset as input and produces a combined
-navigation and manipulation dataset as an HDF5 file — but here the robot navigates and
-manipulates objects inside a neurally-rendered environment, and an ego-centric camera
-captures the result, producing more realistic training data than a purely synthetic scene.
-NVIDIA Isaac Sim renders 3DGS models stored as USD assets; see
+by replacing the synthetic background with a 3D Gaussian Splatting (NuRec) scene. The workflow
+takes a manipulation dataset as input and produces a combined navigation and manipulation
+dataset as an HDF5 file. The navigation replay happens in a neurally-reconstructed environment,
+and an ego-centric camera captures the result, producing more realistic training data.
+For more info on NuRec rendering in Isaac Sim, see
 `Neural Volume Rendering <https://docs.isaacsim.omniverse.nvidia.com/latest/assets/usd_assets_nurec.html>`__
 for details.
 
@@ -805,20 +804,16 @@ Log in to Hugging Face:
 
    hf auth login --token <your_huggingface_access_token>
 
-Download the required USDZ stage files and occupancy maps:
+Download the required USDZ stage file and occupancy maps:
 
 .. code:: bash
 
    hf download nvidia/PhysicalAI-Robotics-NuRec \
-      hand_hold-voyager-babyboom/stage_volume.usdz \
-      hand_hold-voyager-babyboom/stage_particle.usdz \
+      hand_hold-voyager-babyboom/particle_sh_optimized.usdz \
       hand_hold-voyager-babyboom/occupancy_map.png \
       hand_hold-voyager-babyboom/occupancy_map.yaml \
       --repo-type dataset \
       --local-dir <PATH_TO_USD_ASSET>
-
-The sample includes both a volume-based USD (``stage_volume.usdz``) and a particle-field USD
-(``stage_particle.usdz``). Either can be used as the background asset.
 
 Asset requirements
 """"""""""""""""""
@@ -831,11 +826,6 @@ compatible with the SDG pipeline:
   object placement.
 - An occupancy map is required for path planning.
 
-  - If your scene was reconstructed using the `Stereo Workflow <https://docs.nvidia.com/nurec/robotics/neural_reconstruction_stereo.html>`__,
-    the occupancy map is generated via ``nvblox``.
-  - If your background includes a mesh, use the `Occupancy Map Generator <https://docs.isaacsim.omniverse.nvidia.com/latest/digital_twin/ext_isaacsim_asset_generator_occupancy_map.html>`__
-    to create a map via physical simulation.
-
 Generating the dataset
 """"""""""""""""""""""
 
@@ -843,13 +833,7 @@ Before proceeding, ensure you have generated a manipulation dataset or downloade
 dataset provided in the
 :ref:`Generate the manipulation dataset <generate-the-manipulation-dataset>` section.
 
-Once you have gathered:
-
-- A manipulation dataset
-- A background USD asset
-- A matched occupancy map
-
-you can run the generation command. At runtime, the script adds a ground plane at ``z=0`` to
+At runtime, the script adds a ground plane at ``z=0`` to
 the scene. It then proceeds through four stages:
 
 1. **Pick**: The robot picks up an object at the start location by replaying the manipulation
@@ -873,18 +857,20 @@ Run the generation command:
        --num_runs 1 \
        --lift_step 60 \
        --navigate_step 130 \
-       --output_file <DATASET_FOLDER>/generated_dataset_g1_locomanipulation_sdg_gaussian_background.hdf5 \
-       --visualizer kit \
-       --background_usd_path <PATH_TO_USD_ASSET>/stage_particle.usdz \
-       --background_occupancy_yaml_file <PATH_TO_USD_ASSET>/occupancy_map.yaml \
-       --randomize_placement \
+       --output_file <DATASET_FOLDER>/generated_dataset_g1_locomanipulation_sdg_nurec.hdf5 \
+       --background_usd_path <PATH_TO_USD_ASSET>/hand_hold-voyager-babyboom/particle_sh_optimized.usdz \
+       --background_occupancy_yaml_file <PATH_TO_USD_ASSET>/hand_hold-voyager-babyboom/occupancy_map.yaml \
        --high_res_video
+
+To inspect the run in the GUI, add ``--viz kit``; adjust the perspective camera, or switch
+the viewport to the robot camera view for clearer visualization.
 
 The key parameters are:
 
-- ``--background_usd_path``: Path to the 3D Gaussian background USD asset.
-- ``--background_occupancy_yaml_file``: Path to the occupancy map file.
-- ``--high_res_video``: Capture the ego-centric camera at 960×540 instead of the default
+- ``--background_usd_path``: Path to the 3D Gaussian NuRec USD asset.
+- ``--background_occupancy_yaml_file``: Path to the NuRec occupancy map file.
+- Placement randomization is enabled automatically when a NuRec scene is used.
+- ``--high_res_video``: Capture the ego-centric camera at 512×320 instead of the default
   256×160.
 
 When the run completes successfully, an HDF5 dataset is generated containing camera
@@ -892,23 +878,15 @@ observations. You can convert the ego-centric camera view to MP4:
 
 .. code:: bash
 
-   uv run python scripts/tools/hdf5_to_mp4.py \
-      --input_file <DATASET_FOLDER>/generated_dataset_g1_locomanipulation_sdg_gaussian_background.hdf5 \
+   uv run --extra mimic python scripts/tools/hdf5_to_mp4.py \
+      --input_file <DATASET_FOLDER>/generated_dataset_g1_locomanipulation_sdg_nurec.hdf5 \
       --output_dir <DATASET_FOLDER>/ \
       --input_keys robot_pov_cam \
-      --video_width 960 \
-      --video_height 540
+      --video_width 512 \
+      --video_height 320
 
 Set ``--video_width`` and ``--video_height`` to match the resolution captured during
-generation: 960×540 with ``--high_res_video``, or 256×160 without it.
-
-To play the generated MP4 video on Ubuntu, install the following multimedia packages:
-
-.. code:: bash
-
-   sudo apt update
-   sudo apt install libavcodec-extra gstreamer1.0-libav gstreamer1.0-plugins-ugly
-
+generation: 512×320 with ``--high_res_video``, or 256×160 without it.
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation_sdg_gaussian_background_2x.webp
    :width: 100%
