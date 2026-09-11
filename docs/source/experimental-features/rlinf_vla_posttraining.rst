@@ -76,14 +76,36 @@ From the Isaac Lab root directory:
    # Step 1: Install the dependencies the resolver can handle
    ./isaaclab.sh -i contrib[rlinf]
 
-   # Step 2: Fetch and install everything else on demand
-   ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/setup_rlinf.py
+   # Step 2: Fetch and install everything else on demand, for one GR00T generation
+   ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/setup_rlinf.py --gr00t n15   # assemble_trocar
+   ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/setup_rlinf.py --gr00t n17   # H2 + Sharpa tasks
+
+The tasks target different GR00T generations, which install as the same ``gr00t`` package with
+incompatible APIs. One Python environment therefore holds one generation at a time; re-running
+Step 2 with the other ``--gr00t`` value swaps it.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 15 45
+
+   * - Task
+     - GR00T
+     - Config
+   * - ``IsaacContrib-Assemble-Trocar-G129-Dex3``
+     - N1.5
+     - ``isaaclab_ppo_gr00t_assemble_trocar``
+   * - ``IsaacContrib-Pick-And-Place-Apple-H2-Sharpa``
+     - N1.7
+     - ``isaaclab_ppo_gr00t_pick_and_place_apple_n17``
+   * - ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa``
+     - N1.7
+     - ``isaaclab_ppo_gr00t_pack_agx_orin_n17``
 
 Step 2 covers what :file:`pyproject.toml` cannot express. It
 
 - installs the RLinf, ``transformers``, and ``tokenizers`` pins with ``--no-deps`` so they bypass the
   resolver instead of clashing with the pins Isaac Sim has already resolved,
-- builds ``pytorch3d`` from source, which GR00T's state/action transforms import. RLinf pins the
+- builds ``pytorch3d`` from source for N1.5, whose state/action transforms import it. RLinf pins the
   ``pipablepytorch3d`` wheel for this, but that distribution supports Python 3.11 and older, so it
   cannot be installed on the Python 3.12 interpreter Isaac Lab ships,
 - clones `Isaac-GR00T <https://github.com/NVIDIA/Isaac-GR00T>`_ at a pinned commit and installs it in
@@ -91,9 +113,9 @@ Step 2 covers what :file:`pyproject.toml` cannot express. It
   ``data_config`` module that the task's :file:`gr00t_config.py` imports,
 - installs ``flash-attn``, falling back to :ref:`the PyTorch SDPA patch <rlinf-skipping-flash-attn>`
   when the build fails, and
-- downloads the ``nvidia/Assemble_Trocar`` checkpoint into
-  :file:`.pretrained_checkpoints/rlinf/Assemble_Trocar`, which is the default ``model_path`` in the
-  task YAML.
+- downloads the profile's pretrained checkpoints under :file:`.pretrained_checkpoints/rlinf/`, which
+  the task YAMLs point at by default. The N1.7 profile also fetches the gated
+  ``nvidia/Cosmos-Reason2-2B`` backbone, so the Hugging Face login must have access to it.
 
 Every step is idempotent and skips work that is already done, so the script can be re-run to repair a
 partial install. Useful options:
@@ -239,6 +261,10 @@ Here ``--model_path`` points to the HuggingFace-format base model (with
 directory (the ``global_step_<N>`` folder). The script loads the model
 architecture from the base model and overlays the RL-finetuned weights
 (``full_weights.pt``) from the checkpoint.
+
+For GR00T N1.7 tasks the same flag hands ``full_weights.pt`` to RLinf's native loader. An RL run that
+was exported to Hugging Face format (``model-*.safetensors`` with a processor config) is a complete
+model and loads through ``--model_path`` directly.
 
 .. note::
 

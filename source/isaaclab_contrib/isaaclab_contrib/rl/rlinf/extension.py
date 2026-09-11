@@ -41,6 +41,7 @@ Usage:
 from __future__ import annotations
 
 import collections.abc
+import importlib
 import logging
 import os
 from enum import Enum
@@ -113,6 +114,14 @@ def _load_full_cfg() -> dict:
     return _full_cfg_cache
 
 
+def _gr00t_model_type() -> str:
+    """Return ``actor.model.model_type`` from the cached config (``gr00t`` when unset).
+
+    RLinf dispatches on this value; ``gr00t_n1d7`` selects the GR00T N1.7 code paths.
+    """
+    return str(_load_full_cfg().get("actor", {}).get("model", {}).get("model_type", "gr00t"))
+
+
 def _get_isaaclab_cfg() -> dict:
     """Return the ``env.train.isaaclab`` section from the cached full config.
 
@@ -179,6 +188,10 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
         logger.info("No data_config_class specified, using RLinf's default get_model")
         return
 
+    if _gr00t_model_type() == "gr00t_n1d7":
+        logger.info("model_type=gr00t_n1d7: RLinf's native N1.7 loader reads the checkpoint processor")
+        return
+
     import rlinf.models.embodiment.gr00t as rlinf_gr00t_mod
 
     def patched_get_model(model_cfg, torch_dtype=None) -> object:
@@ -201,7 +214,11 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
 
         # Handle custom embodiment (we only get here if tag was not natively supported)
         from gr00t.experiment.data_config import load_data_config
-        from rlinf.models.embodiment.gr00t.gr00t_action_model import GR00T_N1_5_ForRLActionPrediction
+
+        try:
+            from rlinf.models.embodiment.gr00t.gr00t_n1d5.gr00t_action_model import GR00T_N1_5_ForRLActionPrediction
+        except ImportError:  # RLinf < 0.3 kept the N1.5 model at the package root
+            from rlinf.models.embodiment.gr00t.gr00t_action_model import GR00T_N1_5_ForRLActionPrediction
         from rlinf.models.embodiment.gr00t.utils import replace_dropout_with_identity
         from rlinf.utils.patcher import Patcher
 
@@ -269,6 +286,26 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
     logger.info(f"Patched get_model for data_config_class='{data_config_class}'")
 
 
+def _resolve_action_converter(cfg: dict):
+    """Return the GR00T -> IsaacLab action converter for this task.
+
+    GR00T N1.7 checkpoints take no ``data_config_class``; a task instead names a
+    ``modality_config_module`` whose import registers the embodiment's modality layout with GR00T.
+    When that module also defines ``convert_gr00t_to_isaaclab_action``, it replaces the generic
+    prefix/suffix-padding converter. The module is only imported for ``gr00t_n1d7`` because it
+    depends on the N1.7 release of ``gr00t``.
+
+    Args:
+        cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
+    """
+    module_name = cfg.get("modality_config_module", "")
+    if not module_name or _gr00t_model_type() != "gr00t_n1d7":
+        return _convert_gr00t_to_isaaclab_action
+    module = importlib.import_module(module_name)
+    logger.info(f"Imported GR00T N1.7 modality config module: {module_name}")
+    return getattr(module, "convert_gr00t_to_isaaclab_action", _convert_gr00t_to_isaaclab_action)
+
+
 def _register_gr00t_converters(cfg: dict) -> None:
     """Register GR00T obs/action converters for IsaacLab tasks.
 
@@ -287,9 +324,13 @@ def _register_gr00t_converters(cfg: dict) -> None:
         simulation_io.OBS_CONVERSION[obs_converter_type] = _convert_isaaclab_obs_to_gr00t
         logger.info(f"Registered obs converter: {obs_converter_type}")
 
-    if obs_converter_type not in simulation_io.ACTION_CONVERSION:
-        simulation_io.ACTION_CONVERSION[obs_converter_type] = _convert_gr00t_to_isaaclab_action
-        logger.info(f"Registered action converter: {obs_converter_type}")
+    action_converter = _resolve_action_converter(cfg)
+    # RLinf < 0.3 keeps one ACTION_CONVERSION table; newer versions split it per GR00T generation.
+    for registry_name in ("ACTION_CONVERSION", "ACTION_CONVERSION_N1D5", "ACTION_CONVERSION_N1D7"):
+        registry = getattr(simulation_io, registry_name, None)
+        if isinstance(registry, dict) and obs_converter_type not in registry:
+            registry[obs_converter_type] = action_converter
+            logger.info(f"Registered action converter into {registry_name}: {obs_converter_type}")
 
 
 def _convert_isaaclab_obs_to_gr00t(env_obs: dict) -> dict:
@@ -345,6 +386,10 @@ def _convert_isaaclab_obs_to_gr00t(env_obs: dict) -> dict:
 
     # Pass through task descriptions
     groot_obs["annotation.human.action.task_description"] = env_obs.get("task_descriptions", [])
+    # N1.7's processor reads the non-action annotation key, while N1.5's transform asserts that exactly
+    # one ``annotation.*`` key is present, so the extra key is only added for N1.7.
+    if _gr00t_model_type() == "gr00t_n1d7":
+        groot_obs["annotation.human.task_description"] = groot_obs["annotation.human.action.task_description"]
 
     return groot_obs
 

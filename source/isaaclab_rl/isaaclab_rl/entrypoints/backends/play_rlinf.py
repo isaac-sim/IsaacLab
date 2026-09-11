@@ -115,7 +115,15 @@ def main():
                 config_name=config_name,
             )
             # Resolved against the launcher's cwd, which the Ray workers do not share.
-            cfg.actor.model.rl_model_path = str(Path(rl_weights).expanduser().resolve())
+            rl_weights = str(Path(rl_weights).expanduser().resolve())
+            if cfg.actor.model.get("model_type", "gr00t") == "gr00t_n1d7":
+                # RLinf builds N1.7 models natively, so hand it the weights through its own hook.
+                cfg.runner.ckpt_path = rl_weights
+            else:
+                # The RLinf extension overlays these onto the N1.5 model it constructs. Older RLinf
+                # builds the rollout model from actor.model, newer ones from rollout.model in eval mode.
+                cfg.actor.model.rl_model_path = rl_weights
+                cfg.rollout.model.rl_model_path = rl_weights
 
         if args_cli.video:
             cfg.env.eval.video_cfg.save_video = True
@@ -131,6 +139,13 @@ def main():
             cfg.actor.seed = args_cli.seed
         if args_cli.num_episodes is not None:
             cfg.algorithm.eval_rollout_epoch = args_cli.num_episodes
+
+        # RLinf builds the eval rollout model from ``rollout.model`` (older releases deep-copied
+        # ``actor.model``), so give it every actor key the YAML leaves out: model_type,
+        # rl_head_config, denoising_steps and the rest are all read at worker init.
+        for key, value in cfg.actor.model.items():
+            if key not in cfg.rollout.model:
+                cfg.rollout.model[key] = value
 
         # Ray workers do not inherit the launcher's working directory, so a relative
         # checkpoint path from the YAML must be made absolute before it reaches them.

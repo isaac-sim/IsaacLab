@@ -148,6 +148,13 @@ def run(argv: list[str]) -> None:
             )
             cfg.runner.resume_dir = str(Path(checkpoint_path).parent)
 
+        # RLinf builds the eval rollout model from ``rollout.model`` (older releases deep-copied
+        # ``actor.model``), so give it every actor key the YAML leaves out: model_type,
+        # rl_head_config, denoising_steps and the rest are all read at worker init.
+        for key, value in cfg.actor.model.items():
+            if key not in cfg.rollout.model:
+                cfg.rollout.model[key] = value
+
         # Ray workers do not inherit the launcher's working directory, so a relative
         # checkpoint path from the YAML must be made absolute before it reaches them.
         for model_cfg in (cfg.actor.model, cfg.rollout.model):
