@@ -111,7 +111,6 @@ class KukaAllegroCubeStackRLEnvCfg(FrankaCubeStackRLEnvCfg):
         )
         self.scene.robot.spawn.semantic_tags = robot_semantic_tags
         self.scene.robot.spawn.rigid_props.disable_gravity = False
-        self.scene.plane = None
         self.scene.ee_frame = None
 
         self.sim.physics = NewtonCfg(

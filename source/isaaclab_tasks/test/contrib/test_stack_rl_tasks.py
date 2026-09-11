@@ -13,6 +13,7 @@ import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from rsl_rl.algorithms import Distillation
 
+from isaaclab.sim.spawners.from_files import GroundPlaneCfg
 from isaaclab.utils import modifiers
 from isaaclab.utils.noise import UniformNoiseCfg
 
@@ -110,6 +111,21 @@ def test_franka_state_task_exposes_the_training_contract(stack_cfgs):
     assert cfg.scene.cube_1.spawn.size == (0.04, 0.04, 0.04)
     assert cfg.scene.cube_1.spawn.physics_material.contact_stiffness == 1.0e4
     assert cfg.scene.table_contact_surface.spawn.physics_material.contact_stiffness == 1.0e4
+
+
+@pytest.mark.parametrize("task_name", (FRANKA_STATE_TASK, KUKA_STATE_TASK))
+def test_state_stack_tasks_use_default_ground_plane(stack_cfgs, task_name):
+    """State-policy scenes should retain the current shared ground plane."""
+    plane = stack_cfgs[task_name].scene.plane
+    default = GroundPlaneCfg()
+
+    assert plane is not None
+    assert plane.init_state.pos == [0, 0, -1.05]
+    assert isinstance(plane.spawn, GroundPlaneCfg)
+    assert plane.spawn.usd_path == default.usd_path
+    assert plane.spawn.size == default.size
+    assert plane.spawn.color == default.color
+    assert plane.spawn.physics_material == default.physics_material
 
 
 def test_camera_actor_has_only_deployable_observations(stack_cfgs):

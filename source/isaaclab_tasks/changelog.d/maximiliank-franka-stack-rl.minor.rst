@@ -39,6 +39,8 @@ Changed
 * Configured the KUKA-Allegro policy to observe the complete hand state,
   fingertip geometry, and continuous cube orientation while reset-authored
   grasps use the validated index-thumb pinch.
+* Kept the shared default checker ground plane in both Franka and KUKA-Allegro
+  stack scenes.
 
 Fixed
 ^^^^^
