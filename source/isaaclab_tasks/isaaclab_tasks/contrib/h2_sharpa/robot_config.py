@@ -16,12 +16,12 @@ from isaaclab.utils.configclass import configclass
 
 from .metadata import H2_DEFAULT_JOINT_POS
 
-# Hosted in a private Hugging Face repository; direct URL access needs the repository to be
+# Hosted in a private Hugging Face dataset repository; direct URL access needs the repository to be
 # public. Until then, point the environment variable at a local mirror that keeps the same
 # Robots/ layout (the Isaac Healthcare bundle layout), e.g. a `snapshot_download` of the repo.
 H2_SHARPA_ASSET_ROOT: str = os.environ.get(
     "ISAACLAB_H2_SHARPA_ASSET_ROOT",
-    "https://huggingface.co/LiFanxing/isaaclab-rlinf-assets/resolve/main/Robots",
+    "https://huggingface.co/datasets/LiFanxing/IsaacLabRLinfDemo/resolve/main/assets/Robots",
 )
 H2_SHARPA_USD_PATH: str = f"{H2_SHARPA_ASSET_ROOT}/h2_with_sharpa/H2_with_sharpa_flat.usd"
 
