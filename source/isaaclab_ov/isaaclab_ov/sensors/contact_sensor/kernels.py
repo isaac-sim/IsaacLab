@@ -46,7 +46,7 @@ def unpack_contact_buffer_data(
     buffer_count: wp.array2d(dtype=wp.uint32),
     buffer_start_indices: wp.array2d(dtype=wp.uint32),
     mask: wp.array(dtype=wp.bool),
-    num_bodies: wp.int32,
+    num_envs: wp.int32,
     avg: bool,
     default_val: wp.float32,
     dst: wp.array3d(dtype=wp.vec3f),
@@ -59,10 +59,10 @@ def unpack_contact_buffer_data(
 
     Args:
         contact_data: Flat buffer of contact data. Shape is (total_contacts,) vec3f.
-        buffer_count: Count of contacts per (env*body, filter). Shape is (N*B, M) uint32.
-        buffer_start_indices: Start indices per (env*body, filter). Shape is (N*B, M) uint32.
+        buffer_count: Count of contacts per (body*env, filter). Shape is (B*N, M) uint32.
+        buffer_start_indices: Start indices per (body*env, filter). Shape is (B*N, M) uint32.
         mask: Boolean mask for which environments to update. Shape is (N,).
-        num_bodies: Number of bodies per environment.
+        num_envs: Number of environments.
         avg: If True, average the data; if False, sum it.
         default_val: Default value for groups with zero contacts (e.g. NaN or 0.0).
         dst: Destination buffer. Shape is (N, B, M).
@@ -72,7 +72,7 @@ def unpack_contact_buffer_data(
         if not mask[env]:
             return
 
-    flat_idx = env * num_bodies + sensor
+    flat_idx = sensor * num_envs + env
     count = wp.int32(buffer_count[flat_idx, contact])
     start = wp.int32(buffer_start_indices[flat_idx, contact])
 
@@ -169,7 +169,31 @@ def reset_contact_sensor_kernel(
 
     if contact_pos_w:
         for f in range(num_filter_objects):
-            contact_pos_w[env, sensor, f] = wp.vec3f(0.0)
+            contact_pos_w[env, sensor, f] = wp.vec3f(wp.nan)
+
+
+@wp.kernel
+def update_filtered_force_history_kernel(
+    mask: wp.array(dtype=wp.bool),
+    history_length: int,
+    forces: wp.array3d(dtype=wp.vec3f),
+    history: wp.array4d(dtype=wp.vec3f),
+):
+    """Record filtered forces [N] for selected environments, with the newest sample at index zero.
+
+    Args:
+        mask: Environment selection, shape (N,).
+        history_length: Number of history slots.
+        forces: Filtered forces [N], shape (N, B, F).
+        history: Force history [N], shape (N, H, B, F).
+    """
+    env, sensor, partner = wp.tid()
+    if mask:
+        if not mask[env]:
+            return
+    for i in range(history_length - 1, 0, -1):
+        history[env, i, sensor, partner] = history[env, i - 1, sensor, partner]
+    history[env, 0, sensor, partner] = forces[env, sensor, partner]
 
 
 @wp.kernel
