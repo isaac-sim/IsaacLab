@@ -73,7 +73,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_cloth_env_cfg:FrankaClothCameraEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaDeformableCameraPPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaClothCameraPPORunnerCfg",
         "default_agent": "rsl_rl",
     },
 )
