@@ -79,9 +79,14 @@ class HandoverEnv(DirectMARLEnv):
         self.num_fingertips = len(self.finger_bodies)
 
         # joint limits
-        joint_pos_limits = self.right_hand.data.joint_limits.torch
-        self.hand_dof_lower_limits = joint_pos_limits[..., 0]
-        self.hand_dof_upper_limits = joint_pos_limits[..., 1]
+        # Static model properties, so read them once per hand: on backends that keep them
+        # host-side (OvPhysX) each read stages through a pinned buffer and copies to device.
+        # Cached for the episode: limits written after setup (e.g. ``randomize_joint_parameters``)
+        # are NOT picked up here.
+        self.right_hand_dof_limits = self.right_hand.data.joint_limits.torch
+        self.left_hand_dof_limits = self.left_hand.data.joint_limits.torch
+        self.hand_dof_lower_limits = self.right_hand_dof_limits[..., 0]
+        self.hand_dof_upper_limits = self.right_hand_dof_limits[..., 1]
 
         # default goal positions
         self.goal_rot = torch.zeros((self.num_envs, 4), dtype=torch.float, device=self.device)
@@ -299,7 +304,7 @@ class HandoverEnv(DirectMARLEnv):
 
         # reset right hand
         default_dof_pos = self.right_hand.data.default_joint_pos.torch[env_ids]
-        dof_limits = self.right_hand.data.joint_limits.torch[env_ids]
+        dof_limits = self.right_hand_dof_limits[env_ids]
         dof_pos = sample_joint_positions_within_limits(default_dof_pos, dof_limits, self.cfg.reset_dof_pos_noise)
 
         dof_vel_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
@@ -314,7 +319,7 @@ class HandoverEnv(DirectMARLEnv):
 
         # reset left hand
         default_dof_pos = self.left_hand.data.default_joint_pos.torch[env_ids]
-        dof_limits = self.left_hand.data.joint_limits.torch[env_ids]
+        dof_limits = self.left_hand_dof_limits[env_ids]
         dof_pos = sample_joint_positions_within_limits(default_dof_pos, dof_limits, self.cfg.reset_dof_pos_noise)
 
         dof_vel_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)

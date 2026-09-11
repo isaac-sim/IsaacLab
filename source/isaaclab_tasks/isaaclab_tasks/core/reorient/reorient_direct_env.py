@@ -136,9 +136,13 @@ class ReorientDirectEnv(DirectRLEnv):
             for body_name in fingertip_body_names:
                 self.finger_wrench_bodies.append(self._joint_wrench_sensor.body_names.index(body_name))
             self.finger_wrench_bodies.sort()
-        joint_pos_limits = self.hand.data.joint_limits.torch.to(self.device)
-        self.hand_dof_lower_limits = joint_pos_limits[..., 0]
-        self.hand_dof_upper_limits = joint_pos_limits[..., 1]
+        # Joint limits are a static model property, so read them once: on backends that keep
+        # them host-side (OvPhysX) each read stages through a pinned buffer and copies to device.
+        # Cached for the episode: limits written after setup (e.g. ``randomize_joint_parameters``)
+        # are NOT picked up here.
+        self.hand_dof_limits = self.hand.data.joint_limits.torch.to(self.device)
+        self.hand_dof_lower_limits = self.hand_dof_limits[..., 0]
+        self.hand_dof_upper_limits = self.hand_dof_limits[..., 1]
 
         # -- actuation targets (EMA-smoothed joint position targets) --
         self.prev_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
@@ -368,7 +372,7 @@ class ReorientDirectEnv(DirectRLEnv):
 
         # reset hand
         default_dof_pos = self.hand.data.default_joint_pos.torch[env_ids]
-        dof_limits = self.hand.data.joint_limits.torch[env_ids]
+        dof_limits = self.hand_dof_limits[env_ids]
         dof_pos = sample_joint_positions_within_limits(default_dof_pos, dof_limits, self.cfg.reset_dof_pos_noise)
 
         dof_vel_noise = sample_uniform(-1.0, 1.0, (len(env_ids), self.num_hand_dofs), device=self.device)
