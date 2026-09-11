@@ -3,6 +3,8 @@ Added
 
 * Exposed the RSL-RL Gaussian distribution's standard-deviation range in the
   model configuration.
+* Added configurable relative and absolute tolerances for LEAPP export parity
+  validation.
 
 Fixed
 ^^^^^

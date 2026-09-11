@@ -234,6 +234,8 @@ def export_rl_games_agent(
         leapp.compile_graph(
             visualize=not args_cli.disable_graph_visualization,
             validate=validate,
+            rtol=args_cli.validation_rtol,
+            atol=args_cli.validation_atol,
             graph_configs=create_graph_configs(env_cfg),
         )
     finally:
