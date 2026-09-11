@@ -129,8 +129,6 @@ def test_marker_environment_ids_are_sticky_until_count_changes() -> None:
 
 
 def test_viewport_partition_updates_after_center_camera_selection(monkeypatch):
-    from isaaclab.sim import SimulationContext
-
     stage = Usd.Stage.CreateInMemory()
     env_prim = stage.DefinePrim("/World/envs/env_0", "Xform")
     env_prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set("env_0")
@@ -139,9 +137,8 @@ def test_viewport_partition_updates_after_center_camera_selection(monkeypatch):
     viz = KitVisualizer(KitVisualizerCfg(origin_type="env", origin_env_index="center"))
     viz._controlled_camera_path = "/OmniverseKit_Persp"
     viz._resolved_visible_env_ids = [0, 1, 2]
-    viz._scene_data_provider = SimpleNamespace(usd_stage=stage, num_envs=3)
     scene = SimpleNamespace(num_envs=3, env_origins=torch.tensor([[-10.0, 0, 0], [10.0, 0, 0], [0.0, 0, 0]]))
-    monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(_interactive_scene=scene))
+    viz._scene_data_provider = SimpleNamespace(usd_stage=stage, num_envs=3, get_interactive_scene=lambda: scene)
     monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: SimpleNamespace(get=lambda *args: False))
     monkeypatch.setattr(viz, "set_camera_view", lambda *args: None)
     viz._update_camera_tracking()

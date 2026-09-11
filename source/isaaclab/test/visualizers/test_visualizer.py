@@ -274,22 +274,19 @@ def _camera_asset(**state):
     )
 
 
-def _camera_visualizer(monkeypatch, scene, **kwargs):
-    from isaaclab.sim import SimulationContext
-
-    monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(_interactive_scene=scene))
+def _camera_visualizer(scene, **kwargs):
     cfg = VisualizerCfg(eye=(2.0, 0.0, 1.0), lookat=(1.0, 0.0, 0.0), **kwargs)
     viz = _DummyVisualizer(cfg)
-    viz.initialize(_FakeProvider(scene.num_envs))
+    viz.initialize(SimpleNamespace(get_interactive_scene=lambda: scene))
     return viz
 
 
-def test_camera_selects_spatial_center_once(monkeypatch):
+def test_camera_selects_spatial_center_once():
     from isaaclab.cloner.clone_plan import grid_transforms
 
     origins, _ = grid_transforms(64)
     scene = _CameraScene(origins)
-    viz = _camera_visualizer(monkeypatch, scene, origin_type="env", origin_env_index="center")
+    viz = _camera_visualizer(scene, origin_type="env", origin_env_index="center")
     viz.step(0.1)
 
     # Four environments share the center of the 8x8 grid; select the lowest index.
@@ -305,9 +302,9 @@ def test_camera_selects_spatial_center_once(monkeypatch):
     assert viz.camera_pose == first_pose
 
 
-def test_camera_center_uses_visible_envs_and_ignores_height(monkeypatch):
+def test_camera_center_uses_visible_envs_and_ignores_height():
     scene = _CameraScene([[-4, 0, 0], [0, 0, 100], [1, 0, 0], [4, 0, 0]])
-    viz = _camera_visualizer(monkeypatch, scene, origin_type="env", origin_env_index="center")
+    viz = _camera_visualizer(scene, origin_type="env", origin_env_index="center")
     viz._resolved_visible_env_ids = [3, 1]
     viz.step(0.1)
     assert viz.camera_pose == ((2.0, 0.0, 101.0), (1.0, 0.0, 100.0))
@@ -315,7 +312,7 @@ def test_camera_center_uses_visible_envs_and_ignores_height(monkeypatch):
 
 @pytest.mark.parametrize("follow_heading", [False, True])
 @pytest.mark.parametrize("track_path", ["robot", "robot/base"])
-def test_camera_tracks_position_and_optional_yaw_without_offset_drift(monkeypatch, follow_heading, track_path):
+def test_camera_tracks_position_and_optional_yaw_without_offset_drift(follow_heading, track_path):
     scene = _CameraScene([[0, 0, 0], [20, 0, 0], [10, 0, 0]])
     positions = torch.tensor([[100.0, 0, 0], [200.0, 0, 0], [10.0, 2, 3]])
     # XYZW quaternions: 90-degree roll, with +90-degree root yaw and -90-degree body yaw.
@@ -328,7 +325,6 @@ def test_camera_tracks_position_and_optional_yaw_without_offset_drift(monkeypatc
     )
     scene["robot"].find_bodies = lambda name: ([1], ["base"]) if name == "base" else ([], [])
     viz = _camera_visualizer(
-        monkeypatch,
         scene,
         origin_type="asset",
         origin_env_index="center",
@@ -351,11 +347,11 @@ def test_camera_tracks_position_and_optional_yaw_without_offset_drift(monkeypatc
         assert viz.cfg.lookat == (1.0, 0.0, 0.0)
 
 
-def test_camera_waits_for_asset_state_and_accepts_new_environment_selection(monkeypatch):
+def test_camera_waits_for_asset_state_and_accepts_new_environment_selection():
     scene = _CameraScene([[10, 20, 0], [30, 20, 0]])
     asset = SimpleNamespace(is_initialized=False)
     scene["robot"] = asset
-    viz = _camera_visualizer(monkeypatch, scene, origin_type="asset", origin_track_path="robot")
+    viz = _camera_visualizer(scene, origin_type="asset", origin_track_path="robot")
     viz.step(0.1)
     assert not hasattr(viz, "camera_pose")
     viz._set_camera_pose_cfg((7.0, 12.0, 3.0), (4.0, 9.0, 1.0))
@@ -369,13 +365,12 @@ def test_camera_waits_for_asset_state_and_accepts_new_environment_selection(monk
 
 
 @pytest.mark.parametrize("substeps", [1, 5, 20])
-def test_camera_heading_filter_uses_elapsed_time_and_keeps_position_tracking(monkeypatch, substeps):
+def test_camera_heading_filter_uses_elapsed_time_and_keeps_position_tracking(substeps):
     scene = _CameraScene([[0, 0, 0]])
     positions = torch.zeros((1, 3))
     orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]])
     scene["robot"] = _camera_asset(root_pos_w=positions, root_quat_w=orientations)
     viz = _camera_visualizer(
-        monkeypatch,
         scene,
         origin_type="asset",
         origin_track_path="robot",
@@ -400,7 +395,7 @@ def test_camera_heading_filter_uses_elapsed_time_and_keeps_position_tracking(mon
     assert viz.camera_pose[1] == pytest.approx((4.0, 9.0, 1.0), abs=1e-5)
 
 
-def test_camera_heading_filter_takes_short_path_and_reinitializes_on_target_change(monkeypatch):
+def test_camera_heading_filter_takes_short_path_and_reinitializes_on_target_change():
     scene = _CameraScene([[0, 0, 0], [0, 0, 0]])
     orientations = torch.tensor(
         [
@@ -410,7 +405,6 @@ def test_camera_heading_filter_takes_short_path_and_reinitializes_on_target_chan
     )
     scene["robot"] = _camera_asset(root_pos_w=scene.env_origins, root_quat_w=orientations)
     viz = _camera_visualizer(
-        monkeypatch,
         scene,
         origin_type="asset",
         origin_track_path="robot",

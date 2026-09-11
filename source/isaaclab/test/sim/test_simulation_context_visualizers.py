@@ -1233,7 +1233,6 @@ def test_tracking_camera_updates_before_backend_frame(monkeypatch, backend):
     cfg = cfg_type(origin_type="env", origin_env_index=0, eye=(2, 0, 1), lookat=(0, 0, 0), enable_markers=False)
     viz = viz_type(cfg)
     scene = SimpleNamespace(num_envs=1, env_origins=torch.tensor([[10.0, 20, 0]]))
-    monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(_interactive_scene=scene))
     monkeypatch.setattr(NewtonManager, "get_state", lambda *args: None)
     monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
     poses = []
@@ -1250,6 +1249,7 @@ def test_tracking_camera_updates_before_backend_frame(monkeypatch, backend):
 
     viz._viewer = Viewer()
     viz._scene_data_provider = _FakeProvider(1)
+    viz._scene_data_provider.get_interactive_scene = lambda: scene
     viz._is_initialized = True
     if backend in ("kit", "newton_gl", "newton_rtx"):
         viz._runtime_headless = True

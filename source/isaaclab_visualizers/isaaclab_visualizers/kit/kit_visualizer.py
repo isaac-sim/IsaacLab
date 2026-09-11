@@ -1240,14 +1240,8 @@ class KitVisualizer(BaseVisualizer):
         if self.cfg.origin_type == "world":
             self._viewer_origin = torch.zeros(3)
             self._apply_camera_pose(self._resolve_cfg_camera_pose("KitVisualizer"))
-        elif self.cfg.origin_type == "env":
-            self._update_camera_tracking()
-        elif self.cfg.origin_type == "asset":
-            if not self.cfg.origin_track_path:
-                raise ValueError("origin_type='asset' requires origin_track_path to be set.")
-            self._update_camera_tracking()
         else:
-            raise ValueError(f"Unknown camera origin_type: {self.cfg.origin_type!r}.")
+            self._update_camera_tracking()
 
     def _apply_camera_pose(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> None:
         """Apply a world-space pose to both the viewport and the recording renderer."""

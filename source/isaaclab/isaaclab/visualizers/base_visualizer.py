@@ -324,24 +324,21 @@ class BaseVisualizer(ABC):
             self._camera_controller = None
             self._camera_origin_spec = origin_spec
         if self.cfg.origin_type == "world":
-            if self._pending_world_camera_pose is not None:
-                pose = self._pending_world_camera_pose
-                self._set_camera_pose_cfg(*pose)
-                self._apply_camera_pose(pose)
-            return
-        if self._camera_controller is None:
-            # Visualizers may initialize before the interactive scene and asset state exist.
-            from isaaclab.sim import SimulationContext
+            pose = self._pending_world_camera_pose
+        else:
+            if self._camera_controller is None:
+                # The scene and asset state may become available after visualizer initialization.
+                from .camera_controller import _CameraController
 
-            from .camera_controller import _CameraController
-
-            scene = getattr(SimulationContext.instance(), "_interactive_scene", None)
-            if scene is None:
-                return
-            self._camera_controller = _CameraController(
-                self.cfg, scene, getattr(self, "_resolved_visible_env_ids", None)
-            )
-        pose = self._camera_controller.update(dt)
+                if self._scene_data_provider is None:
+                    return
+                scene = self._scene_data_provider.get_interactive_scene()
+                if scene is None:
+                    return
+                self._camera_controller = _CameraController(
+                    self.cfg, scene, getattr(self, "_resolved_visible_env_ids", None)
+                )
+            pose = self._camera_controller.update(dt)
         if pose is not None:
             if self._pending_world_camera_pose is not None:
                 pose = self._pending_world_camera_pose

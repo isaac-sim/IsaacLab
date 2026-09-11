@@ -108,16 +108,8 @@ class CabinetSimCfg(PresetCfg):
     physx: SimulationCfg = isaacsim_physx.replace(
         physics=PhysxAutoCfg(isaacsim_physx=isaacsim_physx.physics, ovphysx=ovphysx.physics)
     )
-    newton_mjwarp: SimulationCfg = SimulationCfg(
+    newton_mjwarp: SimulationCfg = isaacsim_physx.replace(
         dt=1 / 600,
-        render_interval=1,
-        default_visualizer_cfg=VisualizerCfg(
-            eye=(-1.8, 2.0, 1.6),
-            lookat=(0.55, 0.0, 0.5),
-            focal_length=28.0,
-            origin_type="env",
-            origin_env_index="center",
-        ),
         physics=NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=90,
