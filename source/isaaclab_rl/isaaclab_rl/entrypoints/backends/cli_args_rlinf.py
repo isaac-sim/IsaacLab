@@ -61,7 +61,9 @@ def _resolve_rlinf_checkpoint(
 
     checkpoint_path = Path(checkpoint)
     if checkpoint_path.is_dir():
-        checkpoint_path = checkpoint_path / "full_weights.pt"
+        # RLinf writes full_weights.pt under actor/model_state_dict/ inside each global_step_<N> directory.
+        nested = checkpoint_path / "actor" / "model_state_dict" / "full_weights.pt"
+        checkpoint_path = nested if nested.exists() else checkpoint_path / "full_weights.pt"
     return str(checkpoint_path)
 
 

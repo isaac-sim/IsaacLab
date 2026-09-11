@@ -105,21 +105,17 @@ def main():
 
         if args_cli.model_path:
             cfg.rollout.model.model_path = args_cli.model_path
+        # RLinf never reads runner.eval_policy_path. The extension overlays the weights while building the
+        # rollout model, whose config the rollout worker copies from actor.model.
         if args_cli.checkpoint:
-            cfg.runner.eval_policy_path = cli_args._resolve_rlinf_checkpoint(
+            rl_weights = cli_args._resolve_rlinf_checkpoint(
                 args_cli.checkpoint,
                 log_root_path=str(Path("logs") / "rlinf"),
                 task=args_cli.task or task_id,
                 config_name=config_name,
             )
-
-        # Read back by the RLinf extension, which overlays full_weights.pt onto the base model. The
-        # rollout worker builds its model config from ``actor.model``, carrying over only precision
-        # and model_path, so the key has to be set on both nodes to survive.
-        if args_cli.rl_model_path:
-            rl_model_path = str(Path(args_cli.rl_model_path).expanduser().resolve())
-            cfg.actor.model.rl_model_path = rl_model_path
-            cfg.rollout.model.rl_model_path = rl_model_path
+            # Resolved against the launcher's cwd, which the Ray workers do not share.
+            cfg.actor.model.rl_model_path = str(Path(rl_weights).expanduser().resolve())
 
         if args_cli.video:
             cfg.env.eval.video_cfg.save_video = True

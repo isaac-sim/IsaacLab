@@ -148,16 +148,16 @@ def run(argv: list[str]) -> None:
             )
             cfg.runner.resume_dir = str(Path(checkpoint_path).parent)
 
+        # Ray workers do not inherit the launcher's working directory, so a relative
+        # checkpoint path from the YAML must be made absolute before it reaches them.
+        for model_cfg in (cfg.actor.model, cfg.rollout.model):
+            model_cfg.model_path = str(Path(model_cfg.model_path).expanduser().resolve())
+
     from isaaclab_rl.entrypoints.common import write_run_manifest
 
     write_run_manifest(
         str(log_dir), library="rlinf", task=args_cli.task or task_id, metadata={"config_name": config_name}
     )
-
-        # Ray workers do not inherit the launcher's working directory, so a relative
-        # checkpoint path from the YAML must be made absolute before it reaches them.
-        for model_cfg in (cfg.actor.model, cfg.rollout.model):
-            model_cfg.model_path = str(Path(model_cfg.model_path).expanduser().resolve())
 
     cfg = validate_cfg(cfg)
 
