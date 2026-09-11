@@ -7,3 +7,5 @@ Added
   runtimes can reorder controller commands safely.
 * Added an action-term contract for simulation writes that are owned by the deployment
   controller and therefore omitted from policy outputs.
+* Applied declared LEAPP input transforms during simulation deployment so camera RGB
+  buffers match the exported model's input dtype.

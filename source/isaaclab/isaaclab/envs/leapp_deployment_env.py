@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -47,6 +48,7 @@ class StateInputSpec:
     entity_name: str
     property_name: str
     joint_ids: list[int] | None = None
+    input_transform: Callable[[torch.Tensor], torch.Tensor] | None = None
 
 
 @dataclass
@@ -129,6 +131,18 @@ def _first_param_name(method: Any) -> str:
     if not params:
         raise TypeError(f"{method} has no parameters")
     return params[0].name
+
+
+def _resolve_input_transform(data: Any, property_name: str) -> Callable[[torch.Tensor], torch.Tensor] | None:
+    """Resolve an inherited LEAPP input transform for a data property."""
+    for data_cls in type(data).__mro__:
+        prop = data_cls.__dict__.get(property_name)
+        if not isinstance(prop, property) or prop.fget is None:
+            continue
+        semantics = getattr(prop.fget, "_leapp_semantics", None)
+        if semantics is not None:
+            return semantics.input_transform
+    return None
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -265,6 +279,7 @@ class LeappDeploymentEnv:
                         entity_name=entity_name,
                         property_name=prop_name,
                         joint_ids=jids,
+                        input_transform=_resolve_input_transform(entity.data, prop_name),
                     )
                 elif conn_type == "command":
                     command_name = parts[1]
@@ -317,6 +332,14 @@ class LeappDeploymentEnv:
             if isinstance(spec, StateInputSpec):
                 entity = self.scene[spec.entity_name]
                 value = getattr(entity.data, spec.property_name).torch
+                if spec.input_transform is not None:
+                    transformed = spec.input_transform(value)
+                    if transformed.shape != value.shape:
+                        raise ValueError(
+                            "LEAPP input transforms must preserve tensor shape: "
+                            f"got {tuple(value.shape)} -> {tuple(transformed.shape)} for '{key}'."
+                        )
+                    value = transformed
                 if spec.joint_ids is not None:
                     value = value[:, spec.joint_ids]
                 inputs[key] = value
