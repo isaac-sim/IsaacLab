@@ -1535,15 +1535,18 @@ class AppLauncher:
 
         * Normal exit: the ``atexit`` hook closes the app once; a pending unhandled
           exception turns into exit code 1.
-        * ``SIGTERM`` / ``kill -ABRT``: ``close(exit_code=128 + signum)`` — full
-          teardown before exiting on isaacsim.simulation_app >= 2.18.5, truthful
-          status either way; if ``close()`` returns (fast shutdown disabled),
-          re-raise the signal with the default action.
+        * ``SIGTERM``: ``close(exit_code=128 + signum)``; full teardown before
+          exiting on isaacsim.simulation_app >= 2.18.5, truthful status either way;
+          if ``close()`` returns (fast shutdown disabled), re-raise the signal with
+          the default action.
         * Signal during a running close: fall back to the default action instead of
           re-entering ``close()``, which previously recursed until stack overflow.
-        * ``SIGSEGV``: not intercepted — a Python handler cannot run for main-thread
-          faults, reports success for worker-thread faults, and suppresses the carb
-          crash reporter's minidumps.
+        * ``SIGSEGV`` / ``SIGABRT``: not intercepted; dispositions are left
+          untouched (default or carb's crash handler). a python ``SIGSEGV``
+          handler that returns re-faults forever and suppresses carb crash
+          minidumps. the former ``SIGABRT`` handler restored ``SIG_DFL`` and
+          re-raised, so skipping registration leaves abort to the existing
+          disposition instead of a graceful-teardown path.
         * ``SIGINT``: Python's default handler, so Ctrl-C unwinds user code and
           exits nonzero.
 
@@ -1579,8 +1582,11 @@ class AppLauncher:
             # close on normal exit so Kit shuts down cleanly instead of via __del__
             atexit.register(self._close_at_exit)
             signal.signal(signal.SIGTERM, self._on_abort_signal)
-            signal.signal(signal.SIGABRT, self._on_abort_signal)
-            # no SIGSEGV handler and default SIGINT — see the class docstring
+            # leave SIGSEGV/SIGABRT untouched (default or carb's crash handler);
+            # skipping signal.signal does not install SIG_DFL. a python SIGSEGV
+            # handler that returns re-executes the fault forever; the former
+            # SIGABRT handler restored SIG_DFL and re-raised.
+            # restore default SIGINT so ctrl-c unwinds user code; see the class docstring
             signal.signal(signal.SIGINT, signal.default_int_handler)
 
         def _close_at_exit(self):
@@ -1593,7 +1599,7 @@ class AppLauncher:
                 self._close_app(exit_code)
 
         def _on_abort_signal(self, signum, frame):
-            """Handle SIGTERM/SIGABRT: close the app once, then die by the signal."""
+            """Handle SIGTERM: close the app once, then die by the signal."""
             if self._closing:
                 signal.signal(signum, signal.SIG_DFL)
                 signal.raise_signal(signum)
