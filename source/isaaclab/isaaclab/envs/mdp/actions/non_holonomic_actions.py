@@ -161,7 +161,7 @@ class NonHolonomicAction(ActionTerm):
         self._IO_descriptor.action_type = "non holonomic actions"
         self._IO_descriptor.scale = self._scale
         self._IO_descriptor.offset = self._offset
-        self._IO_descriptor.clip = self._clip
+        self._IO_descriptor.clip = self._clip if self.cfg.clip is not None else None
         self._IO_descriptor.body_name = self._body_name
         self._IO_descriptor.x_joint_name = self._joint_names[0]
         self._IO_descriptor.y_joint_name = self._joint_names[1]
