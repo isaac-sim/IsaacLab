@@ -102,9 +102,14 @@ view or ``warp`` for the underlying Warp array:
 .. code-block:: python
 
    camera_data = scene["front_camera"].data
-   rgb = camera_data.output["rgb"].torch
+   rgb = camera_data.rgb.torch
    depth = camera_data.output["depth"].torch
    intrinsics = camera_data.intrinsic_matrices.torch
+
+``rgb`` is also the semantic boundary used by LEAPP policy export. The exported input keeps the
+camera's ``(N, H, W, C)`` layout and is converted to ``float32`` without changing its ``[0, 255]``
+range, matching the Isaac ROS Deploy image converter. Other render outputs remain available through
+the ``output`` mapping.
 
 Camera pose and intrinsic buffers are also ``ProxyArray`` objects. ``pos_w`` has shape ``(N, 3)``,
 ``intrinsic_matrices`` has shape ``(N, 3, 3)``, and camera quaternions have shape ``(N, 4)`` in

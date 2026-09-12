@@ -54,6 +54,9 @@ class RslRlMLPModelCfg:
         init_std: float = MISSING
         """The initial standard deviation of the output distribution."""
 
+        std_range: tuple[float, float] = (1.0e-6, 1.0e6)
+        """Minimum and maximum standard deviation. Defaults to the RSL-RL range."""
+
         std_type: Literal["scalar", "log"] = "scalar"
         """The parameterization type of the output distribution's standard deviation. Default is scalar."""
 
@@ -314,7 +317,8 @@ class RslRlBaseRunnerCfg:
     resume: bool = False
     """Whether to resume a previous training. Defaults to False.
 
-    This flag will be ignored for distillation.
+    For distillation, this selects a previous distillation checkpoint instead of an initial
+    teacher-policy checkpoint.
     """
 
     load_run: str = ".*"

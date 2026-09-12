@@ -95,3 +95,45 @@ class SuccessMonitor:
         weights = self.target_weights().view(self.num_partitions, self.partition_size)
         slots = torch.multinomial(weights[partition_ids], 1).view(-1)
         return partition_ids * self.partition_size + slots
+
+    def get_state(self) -> dict[str, torch.Tensor]:
+        """Return the rolling outcome history for checkpointing."""
+        return {
+            "success_history": self.success_buf.clone(),
+            "history_pointer": self.success_pointer.clone(),
+            "history_size": self.success_size.clone(),
+        }
+
+    def set_state(self, state: dict[str, torch.Tensor]) -> None:
+        """Restore rolling outcome history from a checkpoint.
+
+        Args:
+            state: State previously returned by :meth:`get_state`.
+
+        Raises:
+            KeyError: If a required state tensor is missing.
+            ValueError: If a tensor has an incompatible shape or contains an
+                invalid ring-buffer pointer or size.
+        """
+        targets = {
+            "success_history": self.success_buf,
+            "history_pointer": self.success_pointer,
+            "history_size": self.success_size,
+        }
+        for name, target in targets.items():
+            if name not in state:
+                raise KeyError(f"Success-monitor checkpoint is missing '{name}'.")
+            if state[name].shape != target.shape:
+                raise ValueError(
+                    f"Success-monitor checkpoint '{name}' has shape {state[name].shape}; expected {target.shape}."
+                )
+
+        history_length = self.cfg.monitored_history_len
+        if bool(torch.any((state["history_pointer"] < 0) | (state["history_pointer"] >= history_length))):
+            raise ValueError("Success-monitor checkpoint contains an invalid history pointer.")
+        if bool(torch.any((state["history_size"] < 0) | (state["history_size"] > history_length))):
+            raise ValueError("Success-monitor checkpoint contains an invalid history size.")
+
+        for name, target in targets.items():
+            target.copy_(state[name].to(device=target.device, dtype=target.dtype))
+        self.success_rate[:] = self.success_buf.sum(dim=1) / self.success_size.clamp(min=1)

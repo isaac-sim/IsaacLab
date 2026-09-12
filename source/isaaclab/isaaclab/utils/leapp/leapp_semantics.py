@@ -44,6 +44,7 @@ class LeappTensorSemantics:
     kind: Any = None
     element_names: list[str] | list[list[str]] | None = None
     element_names_resolver: Callable | None = None
+    input_transform: Callable[[Any], Any] | None = None
     const: bool = False
 
 
@@ -78,14 +79,29 @@ def leapp_tensor_semantics(
     kind: Any = None,
     element_names: list[str] | list[list[str]] | None = None,
     element_names_resolver: Callable | None = None,
+    input_transform: Callable[[Any], Any] | None = None,
     const: bool = False,
 ) -> Callable:
-    """Attach LEAPP semantic metadata to a raw tensor-producing function."""
+    """Attach LEAPP semantic metadata to a raw tensor-producing function.
+
+    Args:
+        kind: Deployment signal kind used to select a converter.
+        element_names: Static names for tensor elements.
+        element_names_resolver: Callable that resolves element names from the data object.
+        input_transform: Optional conversion applied before registering the deployment input.
+            The transformed value must preserve the tensor shape. This is useful when a simulator
+            buffer's storage dtype differs from the corresponding deployment converter output.
+        const: Whether the tensor is a simulator constant rather than a deployment input.
+
+    Returns:
+        Decorator that attaches the metadata to a tensor-producing function.
+    """
 
     semantics = LeappTensorSemantics(
         kind=kind,
         element_names=element_names,
         element_names_resolver=element_names_resolver,
+        input_transform=input_transform,
         const=const,
     )
 

@@ -459,6 +459,7 @@ class _ArticulationWriteProxy:
         method_resolution_cache: dict[tuple[type, str], tuple[Callable, Any, inspect.Signature] | None],
         captured_write_term_names: set[str],
         data_proxy: _DataProxy,
+        controller_owned_write_methods: tuple[str, ...] = (),
     ):
         object.__setattr__(self, "_real_asset", real_asset)
         object.__setattr__(self, "_entity_name", entity_name)
@@ -467,6 +468,7 @@ class _ArticulationWriteProxy:
         object.__setattr__(self, "_method_resolution_cache", method_resolution_cache)
         object.__setattr__(self, "_captured_write_term_names", captured_write_term_names)
         object.__setattr__(self, "_data_proxy", data_proxy)
+        object.__setattr__(self, "_controller_owned_write_methods", frozenset(controller_owned_write_methods))
 
     @property
     def data(self):
@@ -491,6 +493,11 @@ class _ArticulationWriteProxy:
 
         def interceptor(*args, **kwargs):
             result = original_method(*args, **kwargs)
+            if name in object.__getattribute__(self, "_controller_owned_write_methods"):
+                # Treat the term as handled so processed-action fallback cannot
+                # re-expose a write intentionally owned by the controller.
+                captured_write_term_names.add(term_name)
+                return result
             bound_args = signature.bind_partial(real_asset, *args, **kwargs)
             target = bound_args.arguments.get("target")
 

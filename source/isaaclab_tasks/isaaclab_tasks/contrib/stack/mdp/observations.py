@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Literal
 
 import torch
@@ -12,6 +13,8 @@ import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
+
+from .runtime_state import get_stack_reset_runtime_state
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject, RigidObjectCollection
@@ -174,6 +177,261 @@ def object_obs(
             cube_1_to_3,
         ),
         dim=1,
+    )
+
+
+def tool_axes(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    tool_body_name: str = "panda_hand",
+    tool_offset: tuple[float, float, float] = (0.0, 0.0, 0.1034),
+) -> torch.Tensor:
+    """Return continuous configured-tool x/z axes."""
+    from .robot_state import end_effector_pose
+
+    _, orientation = end_effector_pose(
+        env,
+        robot_cfg=robot_cfg,
+        body_name=tool_body_name,
+        body_offset=tool_offset,
+    )
+    rotation = math_utils.matrix_from_quat(orientation)
+    return torch.cat((rotation[:, :, 0], rotation[:, :, 2]), dim=1)
+
+
+def tool_velocity(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    tool_body_name: str = "panda_hand",
+    tool_offset: tuple[float, float, float] = (0.0, 0.0, 0.1034),
+) -> torch.Tensor:
+    """Return the configured tool-center linear/angular velocity."""
+    from .robot_state import end_effector_velocity
+
+    return end_effector_velocity(
+        env,
+        robot_cfg=robot_cfg,
+        body_name=tool_body_name,
+        body_offset=tool_offset,
+    )
+
+
+def body_positions_relative_to_tool(
+    env: ManagerBasedRLEnv,
+    body_cfg: SceneEntityCfg,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    tool_body_name: str = "panda_hand",
+    tool_offset: tuple[float, float, float] = (0.0, 0.0, 0.1034),
+) -> torch.Tensor:
+    """Return selected articulation-body positions relative to a configured tool center.
+
+    The selected body origins are kept in the configured ``body_cfg`` order and
+    expressed as world-aligned displacement vectors from the tool center. This
+    provides compact fingertip geometry without requiring contact sensors.
+    """
+    from .robot_state import end_effector_pose
+
+    robot: Articulation = env.scene[body_cfg.name]
+    body_positions = robot.data.body_pos_w.torch[:, body_cfg.body_ids]
+    tool_position, _ = end_effector_pose(
+        env,
+        robot_cfg=robot_cfg,
+        body_name=tool_body_name,
+        body_offset=tool_offset,
+    )
+    return (body_positions - tool_position.unsqueeze(1)).flatten(start_dim=1)
+
+
+def franka_ee_axes(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Return continuous Franka tool x/z axes."""
+    return tool_axes(env, robot_cfg=robot_cfg)
+
+
+def franka_ee_velocity(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Return the Franka tool-center linear/angular velocity."""
+    return tool_velocity(env, robot_cfg=robot_cfg)
+
+
+def joint_position_target(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Return the position targets for the selected robot joints [m or rad, depending on joint type].
+
+    The legacy articulation-data alias is intentionally used until the actuator-collection
+    command view carries equivalent LEAPP input semantics.
+    """
+    robot: Articulation = env.scene[robot_cfg.name]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        target = robot.data.joint_pos_target.torch
+    return target[:, robot_cfg.joint_ids]
+
+
+def role_conditioned_stack_obs(
+    env: ManagerBasedRLEnv,
+    cube_cfgs: tuple[SceneEntityCfg, ...] = (
+        SceneEntityCfg("cube_1"),
+        SceneEntityCfg("cube_2"),
+        SceneEntityCfg("cube_3"),
+    ),
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    cube_height: float = 0.04,
+    tool_body_name: str = "panda_hand",
+    tool_offset: tuple[float, float, float] = (0.0, 0.0, 0.1034),
+    grasp_pair_tool_offsets: tuple[tuple[float, float, float], ...] | None = None,
+    xy_threshold: float = 0.025,
+    height_threshold: float = 0.012,
+    role_order: tuple[int, int, int] = (0, 1, 2),
+) -> torch.Tensor:
+    """Return stable base/side-role tracks with randomized cube colors.
+
+    The reset table stores one episode-long mapping from physical stack roles
+    to cube assets. Gathering through that mapping makes the input exactly
+    invariant to reset-time color permutations while keeping each role in a
+    stable slot through grasp, lift, and placement. Role zero is the spatially
+    central base; roles one and two are interchangeable side cubes.
+
+    The 64-entry layout contains role-local positions, tool-relative
+    positions, up axes, spatial velocities, every directed pair-placement
+    error, and stack progress.
+    """
+    from .rewards import order_invariant_stack_progress
+    from .robot_state import end_effector_pose, grasp_pair_end_effector_pose
+
+    reset_state = get_stack_reset_runtime_state(env)
+
+    cubes: tuple[RigidObject, ...] = tuple(env.scene[cfg.name] for cfg in cube_cfgs)
+    positions = torch.stack(tuple(cube.data.root_pos_w.torch for cube in cubes), dim=1)
+    quaternions = torch.stack(tuple(cube.data.root_quat_w.torch for cube in cubes), dim=1)
+    velocities = torch.stack(tuple(cube.data.root_vel_w.torch for cube in cubes), dim=1)
+    if tuple(sorted(role_order)) != (0, 1, 2):
+        raise ValueError("role_order must be a permutation of (0, 1, 2).")
+    role_to_cube = reset_state.role_to_cube.long()
+    role_to_cube = role_to_cube[:, role_to_cube.new_tensor(role_order)]
+
+    def by_role(values: torch.Tensor) -> torch.Tensor:
+        gather_index = role_to_cube.view(env.num_envs, 3, *([1] * (values.ndim - 2))).expand_as(values)
+        return torch.gather(values, 1, gather_index)
+
+    local_positions = by_role(positions) - env.scene.env_origins.unsqueeze(1)
+    role_quaternions = by_role(quaternions)
+    role_velocities = by_role(velocities)
+    if grasp_pair_tool_offsets is None:
+        tool_position, _ = end_effector_pose(
+            env,
+            robot_cfg=robot_cfg,
+            body_name=tool_body_name,
+            body_offset=tool_offset,
+        )
+    else:
+        tool_position, _ = grasp_pair_end_effector_pose(
+            env,
+            robot_cfg=robot_cfg,
+            body_name=tool_body_name,
+            tool_offsets_by_pair=grasp_pair_tool_offsets,
+        )
+    rotation = math_utils.matrix_from_quat(role_quaternions.flatten(end_dim=1)).view(env.num_envs, 3, 3, 3)
+    up_axes = rotation[..., 2]
+    tool_relative = local_positions - (tool_position - env.scene.env_origins).unsqueeze(1)
+
+    pair_errors = []
+    vertical_offset = local_positions.new_tensor((0.0, 0.0, cube_height))
+    for upper_id in range(3):
+        for lower_id in range(3):
+            if upper_id != lower_id:
+                pair_errors.append(local_positions[:, lower_id] + vertical_offset - local_positions[:, upper_id])
+    progress = (
+        order_invariant_stack_progress(
+            env,
+            cube_cfgs=cube_cfgs,
+            xy_threshold=xy_threshold,
+            height_threshold=height_threshold,
+            cube_height=cube_height,
+        ).unsqueeze(1)
+        / 2.0
+    )
+    return torch.cat(
+        (
+            local_positions.flatten(start_dim=1),
+            tool_relative.flatten(start_dim=1),
+            up_axes.flatten(start_dim=1),
+            role_velocities.flatten(start_dim=1),
+            torch.cat(pair_errors, dim=1),
+            progress,
+        ),
+        dim=1,
+    )
+
+
+def role_conditioned_cube_x_axes(
+    env: ManagerBasedRLEnv,
+    cube_cfgs: tuple[SceneEntityCfg, ...] = (
+        SceneEntityCfg("cube_1"),
+        SceneEntityCfg("cube_2"),
+        SceneEntityCfg("cube_3"),
+    ),
+) -> torch.Tensor:
+    """Return each role-assigned cube's local x-axis in world coordinates.
+
+    :func:`role_conditioned_stack_obs` already supplies each cube's local
+    z-axis. Adding the x-axis makes yaw observable while preserving the same
+    episode-long physical-role mapping and its permutation invariance.
+    """
+    reset_state = get_stack_reset_runtime_state(env)
+
+    cubes: tuple[RigidObject, ...] = tuple(env.scene[cfg.name] for cfg in cube_cfgs)
+    quaternions = torch.stack(tuple(cube.data.root_quat_w.torch for cube in cubes), dim=1)
+    role_to_cube = reset_state.role_to_cube.long()
+    gather_index = role_to_cube.unsqueeze(-1).expand_as(quaternions)
+    role_quaternions = torch.gather(quaternions, 1, gather_index)
+    rotation = math_utils.matrix_from_quat(role_quaternions.flatten(end_dim=1)).view(env.num_envs, 3, 3, 3)
+    return rotation[..., 0].flatten(start_dim=1)
+
+
+def grasp_pair_gripper_posture(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    *,
+    joint_names_by_pair: tuple[tuple[str, ...], ...],
+    open_joint_positions_by_pair: tuple[tuple[float, ...], ...],
+    closed_joint_positions_by_pair: tuple[tuple[float, ...], ...],
+    finger_joint_counts: tuple[int, int] = (4, 4),
+) -> torch.Tensor:
+    """Return normalized closure of the episode's active two-finger pair."""
+    from .robot_state import grasp_pair_posture_closure
+
+    return grasp_pair_posture_closure(
+        env,
+        robot_cfg=robot_cfg,
+        joint_names_by_pair=joint_names_by_pair,
+        open_joint_positions_by_pair=open_joint_positions_by_pair,
+        closed_joint_positions_by_pair=closed_joint_positions_by_pair,
+        finger_joint_counts=finger_joint_counts,
+    )
+
+
+def grasp_pair_tool_velocity(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    tool_body_name: str = "palm_link",
+    *,
+    tool_offsets_by_pair: tuple[tuple[float, float, float], ...],
+) -> torch.Tensor:
+    """Return active grasp-pair tool-center linear/angular velocity."""
+    from .robot_state import grasp_pair_end_effector_velocity
+
+    return grasp_pair_end_effector_velocity(
+        env,
+        robot_cfg=robot_cfg,
+        body_name=tool_body_name,
+        tool_offsets_by_pair=tool_offsets_by_pair,
     )
 
 

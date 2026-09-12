@@ -33,6 +33,14 @@ class TracedProxyArray(ProxyArray):
     ) -> None:
         super().__init__(proxy_array.warp)
         astorch = super().torch
+        if semantics_meta.input_transform is not None:
+            transformed = semantics_meta.input_transform(astorch)
+            if transformed.shape != astorch.shape:
+                raise ValueError(
+                    "LEAPP input transforms must preserve tensor shape: "
+                    f"got {tuple(astorch.shape)} -> {tuple(transformed.shape)} for '{input_name}'."
+                )
+            astorch = transformed
         sem = TensorSemantics(
             name=input_name,
             ref=astorch,

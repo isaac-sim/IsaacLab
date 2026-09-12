@@ -55,8 +55,18 @@ def test_sb3_export_args_use_common_defaults(monkeypatch):
         "export_method",
         "export_save_path",
         "validation_steps",
+        "validation_rtol",
+        "validation_atol",
         "disable_graph_visualization",
     }.issubset(vars(args))
+    assert args.validation_rtol == 1e-3
+    assert args.validation_atol == 1e-5
+
+    args, _ = export_module.parse_export_args(
+        ["--task", "Isaac-Cartpole", "--validation_rtol", "0.02", "--validation_atol", "0.001"]
+    )
+    assert args.validation_rtol == 0.02
+    assert args.validation_atol == 0.001
 
 
 def test_sb3_vec_normalize_path_matches_play_convention():

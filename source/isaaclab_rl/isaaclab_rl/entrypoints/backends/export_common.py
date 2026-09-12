@@ -82,6 +82,18 @@ def add_common_export_args(parser: argparse.ArgumentParser, *, agent_default: st
         help="Number of steps to validate the exported model",
     )
     parser.add_argument(
+        "--validation_rtol",
+        type=float,
+        default=1e-3,
+        help="Relative tolerance for LEAPP output parity validation",
+    )
+    parser.add_argument(
+        "--validation_atol",
+        type=float,
+        default=1e-5,
+        help="Absolute tolerance for LEAPP output parity validation",
+    )
+    parser.add_argument(
         "--disable_graph_visualization",
         action="store_true",
         default=False,

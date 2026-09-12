@@ -408,6 +408,20 @@ class TestV5:
         assert cfg.actor.distribution_cfg.init_std == 2.0
         assert cfg.actor.distribution_cfg.std_type == "log"
 
+    def test_keeps_configured_gaussian_std_range(self):
+        a = _mlp_model()
+        a.distribution_cfg = RslRlMLPModelCfg.GaussianDistributionCfg(
+            init_std=0.2,
+            std_range=(0.05, 0.3),
+            std_type="log",
+        )
+        cfg = _on_policy_runner(algorithm=_ppo_algo(), actor=a)
+
+        handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
+
+        assert cfg.actor.distribution_cfg.std_range == (0.05, 0.3)
+        assert cfg.actor.to_dict()["distribution_cfg"]["std_range"] == (0.05, 0.3)
+
     def test_non_stochastic_no_distribution(self):
         a = _mlp_model()
         a.stochastic = False
