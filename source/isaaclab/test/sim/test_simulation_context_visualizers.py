@@ -445,7 +445,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
         "_resolve_initial_camera_pose",
         lambda self: ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0)),
     )
-    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_set_viser_camera_view", lambda self, pose: None)
+    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_apply_camera_pose", lambda self, pose: None)
 
     cfg = ViserVisualizerCfg(
         max_visible_envs=cfg_max_visible_envs,
@@ -819,6 +819,10 @@ def test_default_visualizer_cfg_applies_to_cli_created_configs():
     default_cfg = VisualizerCfg(
         background_color=(0.1, 0.2, 0.3),
         streaming_cam_target_prim_path="/World/envs/*/Object",
+        origin_type="asset",
+        origin_env_index="center",
+        origin_track_path="robot",
+        origin_follow_heading=True,
         streaming_cam_eye=(1.0, -1.0, 0.5),
     )
     ctx = _make_context_with_settings(settings, default_visualizer_cfg=default_cfg)
@@ -829,6 +833,10 @@ def test_default_visualizer_cfg_applies_to_cli_created_configs():
     assert isinstance(cfgs[0], NewtonVisualizerCfg)
     assert cfgs[0].background_color == (0.1, 0.2, 0.3)
     assert cfgs[0].streaming_cam_target_prim_path == "/World/envs/*/Object"
+    assert cfgs[0].origin_type == "asset"
+    assert cfgs[0].origin_env_index == "center"
+    assert cfgs[0].origin_track_path == "robot"
+    assert cfgs[0].origin_follow_heading is True
     assert cfgs[0].streaming_cam_eye == (1.0, -1.0, 0.5)
 
 
@@ -1204,3 +1212,95 @@ def test_rerun_visualizer_setup_streaming_view_sets_flag_and_blueprint_includes_
     assert any(isinstance(item, rrb.Spatial2DView) for item in flat), (
         "_get_blueprint with streaming_view_active=True must include a Spatial2DView panel"
     )
+
+
+@pytest.mark.parametrize("backend", ["kit", "newton_gl", "newton_rtx", "viser", "rerun"])
+def test_tracking_camera_updates_before_backend_frame(monkeypatch, backend):
+    from types import SimpleNamespace
+
+    import torch
+    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_visualizers.newton.newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
+
+    classes = {
+        "kit": (kit_visualizer.KitVisualizer, KitVisualizerCfg),
+        "newton_gl": (NewtonGLVisualizer, NewtonGLVisualizerCfg),
+        "newton_rtx": (NewtonRTXVisualizer, NewtonRTXVisualizerCfg),
+        "viser": (viser_visualizer.ViserVisualizer, ViserVisualizerCfg),
+        "rerun": (rerun_visualizer.RerunVisualizer, RerunVisualizerCfg),
+    }
+    viz_type, cfg_type = classes[backend]
+    cfg = cfg_type(origin_type="env", origin_env_index=0, eye=(2, 0, 1), lookat=(0, 0, 0), enable_markers=False)
+    viz = viz_type(cfg)
+    scene = SimpleNamespace(num_envs=1, env_origins=torch.tensor([[10.0, 20, 0]]))
+    monkeypatch.setattr(NewtonManager, "get_state", lambda *args: None)
+    monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
+    poses = []
+    # Capture the output boundary; the real step and camera controller run unchanged.
+    monkeypatch.setattr(viz, "_apply_camera_pose", lambda pose: poses.append(pose))
+
+    class Viewer(_DummyViserViewer):
+        def is_paused(self):
+            return False
+
+        def begin_frame(self, sim_time):
+            assert poses == [((12.0, 20.0, 1.0), (10.0, 20.0, 0.0))]
+            super().begin_frame(sim_time)
+
+    viz._viewer = Viewer()
+    viz._scene_data_provider = _FakeProvider(1)
+    viz._scene_data_provider.get_interactive_scene = lambda: scene
+    viz._is_initialized = True
+    if backend in ("kit", "newton_gl", "newton_rtx"):
+        viz._runtime_headless = True
+    if backend in ("viser", "rerun"):
+        monkeypatch.setattr(viz, "_push_streaming_frame", lambda: None)
+    viz.step(0.1)
+    assert poses == [((12.0, 20.0, 1.0), (10.0, 20.0, 0.0))]
+    assert viz.cfg.eye == (2, 0, 1)
+    assert viz.cfg.lookat == (0, 0, 0)
+    viz.set_camera_view((15, 22, 3), (10, 21, 0))
+    viz._update_camera_tracking(0.0)
+    assert poses[-1] == ((15.0, 22.0, 3.0), (10.0, 21.0, 0.0))
+    assert viz.cfg.eye == (5, 2, 3)
+    assert viz.cfg.lookat == (0, 1, 0)
+
+
+def test_rerun_tracking_preserves_live_plot_panels(monkeypatch):
+    import numpy as np
+    import rerun.blueprint as rrb
+
+    viewer = object.__new__(rerun_visualizer.NewtonViewerRerun)
+    viewer._live_plot_manager_names = ["reward", "termination"]
+    viewer._streaming_view_active = False
+    viewer._camera_pose = None
+    viewer._has_scalars = True
+    viz = rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())
+    viz._viewer = viewer
+    blueprints = []
+    camera_updates = []
+    monkeypatch.setattr(rerun_visualizer.rr, "log", lambda path, data, **kwargs: camera_updates.append((path, data)))
+    monkeypatch.setattr(rerun_visualizer.rr, "send_blueprint", blueprints.append)
+    for eye in ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0)):
+        viz._apply_camera_pose((eye, (0.0, 0.0, 0.0)))
+
+    def views(node):
+        if isinstance(node, rrb.View):
+            yield node
+        for child in getattr(node, "contents", []):
+            yield from views(child)
+        root = getattr(node, "root_container", None)
+        if root is not None:
+            yield from views(root)
+
+    assert len(blueprints) == 1
+    assert len(camera_updates) == 2
+    for (path, transform), eye in zip(camera_updates, ((1, 2, 3), (4, 5, 6))):
+        assert path == "viewer/camera"
+        assert transform.translation.as_arrow_array().to_pylist() == [list(eye)]
+        rotation = np.array(transform.mat3x3.as_arrow_array().to_pylist()[0]).reshape(3, 3).T
+        assert rotation @ [0, 0, -1] == pytest.approx(-np.array(eye) / np.linalg.norm(eye))
+    for blueprint in blueprints:
+        assert {view.name for view in views(blueprint)} >= {"reward", "termination"}
+        camera_view = next(view for view in views(blueprint) if isinstance(view, rrb.Spatial3DView))
+        assert camera_view.origin == "viewer/camera"

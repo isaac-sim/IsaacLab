@@ -77,6 +77,7 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        self.sim.default_visualizer_cfg.eye = (2.5, -3.5, 1.3)
 
         # scene
         self.scene.robot = H1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")

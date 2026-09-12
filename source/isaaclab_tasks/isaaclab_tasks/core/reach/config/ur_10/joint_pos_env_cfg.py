@@ -26,6 +26,8 @@ class UR10ReachEnvCfg(ReachEnvCfg):
     def __post_init__(self) -> None:
         # post init of parent
         super().__post_init__()
+        self.sim.default_visualizer_cfg.eye = (2.2, -2.2, 1.6)
+        self.sim.default_visualizer_cfg.lookat = (0.3, 0.0, 0.45)
 
         # switch robot to ur10
         self.scene.robot = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
