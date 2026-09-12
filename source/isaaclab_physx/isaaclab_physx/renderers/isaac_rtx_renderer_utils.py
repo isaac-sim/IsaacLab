@@ -54,6 +54,7 @@ _RTX_FIELD_TO_SETTING = {
 _last_render_update_key: tuple[int, int, int] = (0, -1, -1)
 
 _STREAMING_WAIT_TIMEOUT_S: float = 30.0
+_PLAY_SIMULATIONS_SETTING = "/app/player/playSimulations"
 
 
 def _setting_path_from_key(key: str) -> str:
@@ -195,9 +196,9 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
             requested. Defaults to ``False``.
 
     Safe to call from multiple ``Camera`` instances per step —
-    only the first call triggers ``app.update()``.  Subsequent calls are no-ops
-    because the module-level ``_last_render_update_key`` already matches the
-    current ``(id(sim), step_count, render_generation)`` tuple.
+    only the first call triggers ``app.update()`` while backend state is unchanged.
+    A pending Kit update bypasses the module-level ``_last_render_update_key``
+    so a tensor pose write can produce another frame in the same public physics step.
 
     The key is a ``(sim_instance_id, step_count, render_generation)`` tuple so that:
     - creating a new ``SimulationContext`` invalidates stale stamps, and
@@ -209,8 +210,8 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     subsystem reports idle (or a timeout is reached).
 
     No-op conditions:
-        * Already called this step (dedup across camera instances).
-        * A visualizer already pumps ``app.update()`` (e.g. KitVisualizer).
+        * Already called this step with no pending backend synchronization.
+        * A visualizer already pumps ``app.update()`` and no backend synchronization is pending.
         * Rendering is not active and ``force`` is ``False``.
     """
     global _last_render_update_key
@@ -221,8 +222,11 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
 
     render_generation = getattr(sim, "render_generation", getattr(sim, "_render_generation", 0))
     key = (id(sim), sim._physics_step_count, render_generation)
+    pending_kit_update: bool | None = None
     if _last_render_update_key == key:
-        return  # Already pumped this step (by another camera or a visualizer)
+        pending_kit_update = sim.physics_manager.has_pending_kit_app_update()
+        if not pending_kit_update:
+            return  # Already pumped this step (by another camera or a visualizer)
 
     # If a visualizer already pumps the Kit app loop, mark as done and skip.
     # However, on the very first call for a new SimulationContext, the visualizer
@@ -230,8 +234,11 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     # must perform the initial app.update() ourselves to populate annotator buffers.
     first_call_for_sim = _last_render_update_key[0] != id(sim)
     if not first_call_for_sim and any(viz.pumps_app_update() for viz in sim.visualizers):
-        _last_render_update_key = key
-        return
+        if pending_kit_update is None:
+            pending_kit_update = sim.physics_manager.has_pending_kit_app_update()
+        if not pending_kit_update:
+            _last_render_update_key = key
+            return
 
     # Pump when continuous rendering is active (GUI/RTX sensors/visualizers/XR). ``is_rendering``
     # excludes headless offscreen rendering so the per-step loop does not pump between frames.
@@ -241,6 +248,9 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     if not force and not sim.is_rendering:
         return
 
+    # Flush tensor pose writes before the frame consumes PhysX/Fabric transforms.
+    sim.physics_manager.before_kit_app_update()
+
     # Sync physics results → Fabric so RTX sees updated positions.
     # physics_manager.step() only runs simulate()/fetch_results() and does NOT
     # call _update_fabric(), so without this the render would lag one frame behind.
@@ -248,13 +258,15 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
 
     import omni.kit.app
 
-    sim.set_setting("/app/player/playSimulations", False)
-    omni.kit.app.get_app().update()
+    play_flag = sim.get_setting(_PLAY_SIMULATIONS_SETTING)
+    sim.set_setting(_PLAY_SIMULATIONS_SETTING, False)
+    try:
+        omni.kit.app.get_app().update()
 
-    if _get_stage_streaming_busy():
-        _wait_for_streaming_complete()
-
-    sim.set_setting("/app/player/playSimulations", True)
+        if _get_stage_streaming_busy():
+            _wait_for_streaming_complete()
+    finally:
+        sim.set_setting(_PLAY_SIMULATIONS_SETTING, bool(play_flag) if play_flag is not None else True)
 
     _last_render_update_key = key
 
