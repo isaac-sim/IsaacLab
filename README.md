@@ -71,11 +71,10 @@ dependency versions for Isaac Sim.
 | Isaac Lab Version             | Isaac Sim Version         |
 | ----------------------------- | ------------------------- |
 | `release/3.0.0` branch        | Isaac Sim 6.1             |
-| `release/3.0.0-beta2` branch  | Isaac Sim 6.0             |
 | `develop` branch              | Isaac Sim 6.1             |
 | `main` branch                 | Isaac Sim 4.5 / 5.0 / 5.1 |
 | `v3.0.0-EA` tag               | Isaac Sim 6.1             |
-| `v3.0.0-beta2*` tags          | Isaac Sim 6.0             |
+| `v3.0.0-beta2` tag            | Isaac Sim 6.0             |
 | `v2.3.X`                      | Isaac Sim 4.5 / 5.0 / 5.1 |
 | `v2.2.X`                      | Isaac Sim 4.5 / 5.0       |
 | `v2.1.X`                      | Isaac Sim 4.5             |
