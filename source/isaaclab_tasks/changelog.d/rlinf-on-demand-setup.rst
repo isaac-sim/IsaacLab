@@ -23,6 +23,7 @@ Added
 Changed
 ^^^^^^^
 
+* Changed ``isaaclab_ppo_gr00t_pack_agx_orin_n17`` to evaluate over 448-step episodes, matching the evaluation the task's reference checkpoints were scored with. ``env.train`` keeps its 416-step rollout, which ``global_batch_size`` is sized for.
 * Changed the default ``model_path`` in ``isaaclab_ppo_gr00t_assemble_trocar.yaml`` from an absolute
   container-specific path to ``.pretrained_checkpoints/rlinf/Assemble_Trocar``, the location that
   ``scripts/reinforcement_learning/rlinf/setup_rlinf.py`` downloads the checkpoint to. Pass
