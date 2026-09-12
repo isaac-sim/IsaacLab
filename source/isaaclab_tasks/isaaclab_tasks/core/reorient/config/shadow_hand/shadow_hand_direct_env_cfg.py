@@ -9,7 +9,7 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
     CUBE_CFG,

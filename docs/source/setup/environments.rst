@@ -55,6 +55,9 @@ Command Builder
          This environment does not support RL training or playback. The command runs it with the
          zero-action agent instead.
        </p>
+       <p class="environment-backend-warning" data-backend-warning role="status" hidden>
+         OV and Isaac Sim can't be mixed. Choose matching physics and renderer backends.
+       </p>
        <div class="environment-command-output">
          <code data-command-output></code>
          <div class="environment-command-actions">
@@ -100,24 +103,35 @@ Benchmarks
 .. raw:: html
 
    <div class="environment-browser" data-environment-benchmarks
-        data-benchmark-source="../../_static/environment-performance.csv">
+        data-benchmark-release-source="../../_static/benchmarks/environment-performance-release.csv"
+        data-benchmark-develop-source="../../_static/benchmarks/environment-performance-develop.csv"
+        data-benchmark-release-dates="2026-09-09"
+        data-benchmark-develop-dates="2026-08-28,2026-09-09">
      <section class="environment-benchmark-panel">
        <div class="environment-benchmark-toolbar">
-         <div class="environment-benchmark-legend" aria-label="Benchmark series"></div>
+         <div class="environment-benchmark-switch" role="group" aria-label="Benchmark channel">
+           <button type="button" class="is-active" data-benchmark-channel="release" aria-pressed="true">Release</button>
+           <button type="button" data-benchmark-channel="develop" aria-pressed="false">Develop</button>
+         </div>
+         <div class="environment-benchmark-count"><code>num_envs = 8192</code></div>
          <div class="environment-benchmark-switch" role="group" aria-label="Benchmark workload">
-           <button type="button" class="is-active" data-benchmark-workload="runtime" aria-pressed="true">Collection</button>
+           <button type="button" class="is-active" data-benchmark-workload="collection" aria-pressed="true">Collection</button>
            <button type="button" data-benchmark-workload="training" aria-pressed="false">Training</button>
          </div>
        </div>
-       <div class="environment-benchmark-chart" data-benchmark-chart></div>
+       <div class="environment-benchmark-legend" aria-label="Benchmark series"></div>
+       <div class="environment-benchmark-results">
+         <div class="environment-benchmark-chart" data-benchmark-chart></div>
+         <div class="environment-benchmark-table" data-benchmark-table tabindex="0"
+              role="region" aria-label="Benchmark FPS measurements, scroll for more configurations" hidden></div>
+       </div>
        <div class="environment-benchmark-stub" data-benchmark-empty hidden>
          <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
          <div>
            <strong>Benchmark data is not available yet</strong>
-           <p>Performance history will appear here when benchmark collection is enabled.</p>
          </div>
        </div>
-       <p class="environment-benchmark-error" data-benchmark-error hidden>Benchmark data could not be loaded.</p>
+       <div class="environment-benchmark-error" data-benchmark-error hidden>Benchmark data could not be loaded.</div>
      </section>
    </div>
 

@@ -1,6 +1,37 @@
 Changelog
 ---------
 
+7.1.3 (2026-09-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.sensors.ContactSensor` reporting the last in-contact force forever after a
+  body left contact on GPU (issue #7613), when the sensor was configured with ``history_length=0`` and its
+  data was read less often than every physics step (for example once per policy step with
+  ``lazy_sensor_update=True``). PhysX zeroes the net contact force of a body only on the exact physics step
+  where its contact is lost, so a lazily refreshed sensor skipped that step. The PhysX getters are now
+  called on every physics step regardless of the history length, while the warp kernels that consume the
+  fetched buffers stay lazy. As a consequence, :meth:`~isaaclab_physx.sensors.ContactSensor.update` now
+  raises a ``RuntimeError`` for such sensors when called inside an outer CUDA graph capture, as it already
+  did for history-bearing sensors: update the sensor outside the capture.
+
+
+7.1.2 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a SIGSEGV crash when calling ``SimulationContext.play()`` a second time after
+  ``SimulationContext.stop()`` without an intervening ``reset()``, e.g. registering a raw
+  ``omni.timeline`` event subscription and cycling play/stop twice on the GPU PhysX pipeline.
+  ``PhysxManager`` now detaches the PhysX stage on ``stop()`` so the next play's automatic
+  re-warmup reattaches cleanly instead of calling ``attach_stage`` on a stage that PhysX still
+  considered attached, which corrupted its internal view registry.
+
+
 7.1.1 (2026-09-09)
 ~~~~~~~~~~~~~~~~~~
 

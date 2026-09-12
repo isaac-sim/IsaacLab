@@ -8,6 +8,7 @@
 import os
 import tempfile
 
+import cv2
 import h5py
 import numpy as np
 import pytest
@@ -27,6 +28,12 @@ def temp_hdf5_file():
             # Create RGB frames (2 frames per demo)
             rgb_data = np.random.randint(0, 255, (2, 704, 1280, 3), dtype=np.uint8)
             demo_group.create_dataset("table_cam", data=rgb_data)
+
+            # Create RGB frames stored as floats in [0, 1]
+            checkerboard = (np.indices((16, 16)).sum(axis=0) % 2).astype(np.float32)
+            rgb_float_data = np.stack([checkerboard, 1.0 - checkerboard], axis=0)
+            rgb_float_data = np.repeat(rgb_float_data[..., None], 3, axis=-1)
+            demo_group.create_dataset("table_cam_float", data=rgb_float_data)
 
             # Create segmentation frames
             seg_data = np.random.randint(0, 255, (2, 704, 1280, 4), dtype=np.uint8)
@@ -71,6 +78,28 @@ class TestHDF5ToMP4:
         output_file = os.path.join(temp_output_dir, "demo_0_table_cam.mp4")
         assert os.path.exists(output_file)
         assert os.path.getsize(output_file) > 0
+
+    def test_write_demo_to_mp4_float_rgb(self, temp_hdf5_file, temp_output_dir):
+        """Test writing float RGB frames to MP4."""
+        write_demo_to_mp4(temp_hdf5_file, 0, "data/demo_0/obs", "table_cam_float", temp_output_dir, 12, 20)
+
+        output_file = os.path.join(temp_output_dir, "demo_0_table_cam_float.mp4")
+        assert os.path.exists(output_file)
+        assert os.path.getsize(output_file) > 0
+
+        video = cv2.VideoCapture(output_file)
+        decoded_frames = []
+        while True:
+            success, frame = video.read()
+            if not success:
+                break
+            decoded_frames.append(frame)
+        video.release()
+
+        assert len(decoded_frames) == 2
+        decoded_frames = np.stack(decoded_frames)
+        assert decoded_frames.shape[1:3] == (12, 20)
+        assert 60.0 < decoded_frames.mean() < 195.0
 
     def test_write_demo_to_mp4_segmentation(self, temp_hdf5_file, temp_output_dir):
         """Test writing segmentation frames to MP4."""

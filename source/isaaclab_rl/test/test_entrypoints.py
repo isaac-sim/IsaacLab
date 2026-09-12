@@ -12,6 +12,7 @@ import runpy
 import subprocess
 import sys
 import types
+from pathlib import Path
 from types import SimpleNamespace
 
 import gymnasium as gym
@@ -30,6 +31,10 @@ from isaaclab_rl.entrypoints.simple_agents import _create_zero_action_policy
         ("import isaaclab_rl", ["isaaclab_rl.entrypoints", "torch"]),
         ("import isaaclab_rl.entrypoints", ["isaaclab_rl.entrypoints.multigpu", "torch"]),
         ("import isaaclab_rl.entrypoints.backends", ["torch"]),
+        (
+            "import isaaclab_rl.entrypoints.backends.export_rsl_rl",
+            ["torch", "leapp", "rsl_rl", "isaaclab.envs", "isaaclab_tasks"],
+        ),
         ("import isaaclab_rl.rl_games", ["isaaclab_rl.rl_games.rl_games", "rl_games", "torch"]),
         ("import isaaclab_rl.rl_games.pbt", ["isaaclab_rl.rl_games.pbt.pbt", "rl_games", "torch"]),
         ("import isaaclab_rl.rsl_rl", ["isaaclab_rl.rsl_rl.vecenv_wrapper", "rsl_rl", "torch"]),
@@ -469,6 +474,24 @@ def test_train_dispatches_selected_backend(monkeypatch) -> None:
     }
 
 
+def test_export_dispatches_selected_backend(monkeypatch) -> None:
+    """The unified export dispatcher forwards backend arguments and its status."""
+    received: dict[str, object] = {}
+
+    def _fake_run_backend(module_name: str, argv: list[str], *, run_as_script: bool) -> int:
+        received.update(module_name=module_name, argv=argv, run_as_script=run_as_script)
+        return 1
+
+    monkeypatch.setattr(dispatch, "_run_backend", _fake_run_backend)
+
+    assert dispatch.run_export_cli(["--rl_library", "rsl_rl", "--task", "Isaac-Cartpole"]) == 1
+    assert received == {
+        "module_name": "isaaclab_rl.entrypoints.backends.export_rsl_rl",
+        "argv": ["--task", "Isaac-Cartpole"],
+        "run_as_script": False,
+    }
+
+
 def test_dispatch_uses_task_registered_default_backend(monkeypatch) -> None:
     """A task registry default selects the backend when the CLI omits it."""
     task_name = "Isaac-DefaultAgentDispatchTest"
@@ -651,12 +674,70 @@ def test_skrl_training_restores_jax_backend(monkeypatch) -> None:
     assert not hasattr(skrl.config.jax, "backend")
 
 
+def test_skrl_agent_config_selection_is_explicit() -> None:
+    """SKRL uses the canonical task config unless the user explicitly selects another source."""
+    from isaaclab_rl.skrl import resolve_skrl_agent_cfg_entry_point as resolve
+
+    assert resolve(None, None) == resolve(None, "PPO") == "skrl_cfg_entry_point"
+    assert resolve(None, "AMP") == "skrl_amp_cfg_entry_point"
+    assert resolve("skrl_custom_cfg_entry_point", None) == "skrl_custom_cfg_entry_point"
+
+
+def test_skrl_algorithm_comes_from_resolved_config() -> None:
+    """The resolved agent class, rather than the registry-key spelling, owns algorithm identity."""
+    from isaaclab_rl.skrl import resolve_skrl_algorithm
+
+    assert resolve_skrl_algorithm({"agent": {"class": "AMP"}}) == "amp"
+    assert resolve_skrl_algorithm({"agent": {"class": "PPO"}}, "PPO") == "ppo"
+    with pytest.raises(ValueError, match="does not match the resolved agent.class"):
+        resolve_skrl_algorithm({"agent": {"class": "AMP"}}, "PPO")
+    with pytest.raises(ValueError, match="must define a non-empty 'agent.class'"):
+        resolve_skrl_algorithm({})
+
+
+def test_skrl_training_parser_leaves_algorithm_implicit(monkeypatch) -> None:
+    """The canonical task config decides the algorithm when the CLI omits both selectors."""
+    from isaaclab_rl.entrypoints.backends import train_skrl
+
+    monkeypatch.setattr(sys, "argv", ["train_skrl.py"])
+    args = train_skrl._parse_args(["--task", "Isaac-Cartpole"])
+
+    assert args.agent is None
+    assert args.algorithm is None
+
+
+@pytest.mark.parametrize("motion", ["Dance", "Run", "Walk"])
+def test_humanoid_amp_tasks_register_canonical_skrl_config(motion) -> None:
+    """SKRL-only AMP tasks work through the same canonical entry point as other tasks."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import load_cfg_from_registry
+
+    spec = gym.spec(f"IsaacContrib-Humanoid-AMP-{motion}-Direct")
+
+    assert spec.kwargs["default_agent"] == "skrl"
+    assert spec.kwargs["skrl_cfg_entry_point"] == spec.kwargs["skrl_amp_cfg_entry_point"]
+    assert load_cfg_from_registry(spec.id, "skrl_cfg_entry_point")["agent"]["class"] == "AMP"
+
+
+def test_skrl_entrypoints_do_not_infer_algorithm_from_registry_key() -> None:
+    """Registry-key spelling is a config-source concern, never an algorithm identity."""
+    root = Path(__file__).parents[3]
+    paths = list(root.glob("source/isaaclab*/**/*skrl.py"))
+    for path in paths:
+        source = path.read_text()
+
+        assert 'split("_cfg")' not in source, path
+        assert 'agent_library="skrl"' not in source, path
+
+
 def test_skrl_play_main_restores_jax_backend(monkeypatch) -> None:
     """Direct SKRL play calls remove the JAX backend setting they created."""
     pytest.importorskip("skrl")
     monkeypatch.setattr(sys, "argv", ["play_skrl.py"])
     namespace = runpy.run_module("isaaclab_rl.entrypoints.backends.play_skrl", run_name="test_play_skrl")
     skrl = namespace["skrl"]
+    assert namespace["args_cli"].algorithm is None
+    assert namespace["agent_cfg_entry_point"] == "skrl_cfg_entry_point"
     namespace["args_cli"].ml_framework = "jax"
     monkeypatch.delattr(skrl.config.jax, "backend", raising=False)
 

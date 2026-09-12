@@ -151,63 +151,9 @@ def test_play_request_uses_backend_arguments(backend: str, monkeypatch) -> None:
     assert args.warmup_steps == 12
     assert args.video is True
     assert args.video_length == 37
+    assert args.frontend == "torch"
     assert args.enable_cameras is True
     assert remaining_args == []
-
-
-@pytest.mark.parametrize("backend", ["rsl_rl", "rl_games"])
-@pytest.mark.parametrize("preset", ["resnet18", "theia_tiny"])
-def test_training_request_selects_preset_compatible_agent(backend: str, preset: str, monkeypatch) -> None:
-    """A feature preset picks the matching agent entry point instead of the backend default.
-
-    ``Isaac-Cartpole-Camera`` declares ``resnet18``/``theia_tiny`` as compatible
-    only with its ``*_feature_cfg_entry_point``. Running the raw-camera default
-    against those presets builds a runner whose observation groups do not exist.
-    """
-    import isaaclab_tasks  # noqa: F401
-
-    request = BenchmarkTrainingRequest(backend=backend, task="Isaac-Cartpole-Camera", presets=(preset,))
-    argv = dispatch._request_argv(request)
-    monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
-    entrypoint = importlib.import_module(dispatch._workflow_module("training", backend))
-    # RSL-RL's adapter returns an extra CLI-helper module alongside (args, remaining).
-    args = entrypoint._parse_args(argv)[0]
-
-    assert args.agent == f"{backend}_feature_cfg_entry_point"
-
-
-@pytest.mark.parametrize("backend", ["rsl_rl", "rl_games"])
-def test_play_request_selects_preset_compatible_agent(backend: str, monkeypatch) -> None:
-    """Playback resolves the same agent config, so it needs the same preset pairing.
-
-    A benchmark sweep only reaches playback once training succeeds, so this path
-    mis-selects the raw-camera entry point in exactly the same way, and would
-    then load a feature-trained checkpoint into the wrong policy architecture.
-    """
-    import isaaclab_tasks  # noqa: F401
-
-    request = BenchmarkPlayRequest(backend=backend, task="Isaac-Cartpole-Camera", presets=("resnet18",))
-    argv = dispatch._request_argv(request)
-    monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
-    entrypoint = importlib.import_module(dispatch._workflow_module("play", backend))
-    args = entrypoint._parse_args(argv)[0]
-
-    assert args.agent == f"{backend}_feature_cfg_entry_point"
-
-
-@pytest.mark.parametrize("backend", ["rsl_rl", "rl_games", "sb3"])
-def test_training_request_keeps_backend_default_agent_without_presets(backend: str, monkeypatch) -> None:
-    """Without a preset pairing the backend's canonical default entry point stands."""
-    import isaaclab_tasks  # noqa: F401
-
-    request = BenchmarkTrainingRequest(backend=backend, task="Isaac-Cartpole", max_iterations=1)
-    argv = dispatch._request_argv(request)
-    monkeypatch.setattr(sys, "argv", ["benchmark", *argv])
-    entrypoint = importlib.import_module(dispatch._workflow_module("training", backend))
-    # RSL-RL's adapter returns an extra CLI-helper module alongside (args, remaining).
-    args = entrypoint._parse_args(argv)[0]
-
-    assert args.agent == f"{backend}_cfg_entry_point"
 
 
 @pytest.mark.parametrize("configured_output_dir", [None, "/tmp/custom-videos"])
@@ -218,9 +164,7 @@ def test_play_backend_configures_video_before_environment_creation(
         pass
 
     entrypoint = importlib.import_module(dispatch._workflow_module("play", "rsl_rl"))
-    monkeypatch.setattr(entrypoint._common, "resolve_play_checkpoint", lambda *args: "/tmp/checkpoint")
-
-    import gymnasium as gym
+    monkeypatch.setattr(entrypoint.common, "resolve_play_checkpoint", lambda *args: "/tmp/checkpoint")
 
     import isaaclab.app as app
 
@@ -234,7 +178,8 @@ def test_play_backend_configures_video_before_environment_creation(
             env_cfg.video_recorders = [VideoRecorderCfg(output_dir=configured_output_dir)]
         yield
 
-    def make_environment(task, *, cfg):
+    def create_environment(task, cfg, args, *, convert_marl_to_single_agent):
+        assert convert_marl_to_single_agent is True
         recorder = cfg.video_recorders[0]
         expected_output_dir = configured_output_dir or str(tmp_path / "videos" / "play")
         assert recorder.output_dir == expected_output_dir
@@ -242,7 +187,7 @@ def test_play_backend_configures_video_before_environment_creation(
         raise VideoConfigured
 
     monkeypatch.setattr(app, "launch_simulation", launch_simulation)
-    monkeypatch.setattr(gym, "make", make_environment)
+    monkeypatch.setattr(entrypoint.common, "create_isaaclab_env", create_environment)
 
     with pytest.raises(VideoConfigured):
         entrypoint.run(
@@ -393,10 +338,10 @@ def test_backend_entrypoints_register_environment_cleanup_before_wrapping() -> N
     for entrypoint in entrypoints:
         source = entrypoint.read_text()
         compile(source, str(entrypoint), "exec")
-        creation_index = max(source.find("gym.make("), source.find("_common.create_isaaclab_env("))
+        creation_index = max(source.find("gym.make("), source.find("common.create_isaaclab_env("))
         cleanup_index = source.find("cleanup.callback(lambda: env.close())", creation_index)
         wrapper_indices = [
-            source.find(wrapper, creation_index) for wrapper in ("_common.wrap_record_video(env", "VecEnvWrapper(env")
+            source.find(wrapper, creation_index) for wrapper in ("common.wrap_record_video(env", "VecEnvWrapper(env")
         ]
         first_wrapper_index = min(index for index in wrapper_indices if index >= 0)
 

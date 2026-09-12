@@ -237,8 +237,8 @@ def spawn_ground_plane(
         # apply scale to the mesh
         environment_prim.GetAttribute("xformOp:scale").Set(scale)
 
-        # The bundled asset maps its texture through ``primvars:st`` alone, so rescale the UVs with the
-        # plane to keep the 5 m tile -- and therefore the 1 m grid -- metric in every renderer.
+        # The default asset maps its texture through ``primvars:st`` alone, so rescale the UVs with the
+        # plane to keep the 2 m tile -- and therefore the 1 m checks -- metric in every renderer.
         from . import from_files_cfg  # noqa: PLC0415
 
         if cfg.usd_path == from_files_cfg._DEFAULT_GROUND_PLANE_USD:

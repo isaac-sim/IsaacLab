@@ -1,3 +1,5 @@
+:orphan:
+
 .. _run-scripted-state-machines:
 
 Run Scripted State Machines

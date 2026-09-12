@@ -161,6 +161,8 @@ class KitVisualizer(BaseVisualizer):
 
         self._ensure_simulation_app()
         self._setup_viewport()
+        if self._viewport_api is not None:
+            self._apply_render_product_background(usd_stage, self._viewport_api.render_product_path)
 
         self._env_ids = self._compute_visualized_env_ids()
         self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
@@ -179,6 +181,7 @@ class KitVisualizer(BaseVisualizer):
             rows=[
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
+                ("background_color", self.cfg.background_color),
                 ("streaming_view", self.cfg.streaming_view),
                 ("streaming_gt_types", list(self.cfg.streaming_gt_types)),
                 ("max_visible_envs", self.cfg.max_visible_envs),
@@ -287,6 +290,7 @@ class KitVisualizer(BaseVisualizer):
         # captured frame contains real rendered output, not empty/blank data.
         if self._rgb_annotator is None:
             self._rgb_render_product = rep.create.render_product(camera_path, (w, h))
+            self._apply_render_product_background(self._scene_data_provider.usd_stage, self._rgb_render_product.path)
             self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
             self._rgb_annotator.attach([self._rgb_render_product])
         elif self._runtime_headless and self._rgb_render_product is not None:
@@ -573,6 +577,24 @@ class KitVisualizer(BaseVisualizer):
                     logger.warning("[KitVisualizer] Running in headless mode. Viewport may not display.")
         except ImportError:
             pass
+
+    def _apply_render_product_background(self, stage: Usd.Stage, render_product_path: str | Sdf.Path) -> None:
+        """Apply the configured solid background to an Isaac RTX render product."""
+        if self.cfg.background_color is None:
+            return
+        render_product = stage.GetPrimAtPath(render_product_path)
+        if not render_product.IsValid():
+            logger.warning(
+                "[KitVisualizer] Render product '%s' was not found; background was not applied.",
+                render_product_path,
+            )
+            return
+
+        with Usd.EditContext(stage, stage.GetSessionLayer()), Sdf.ChangeBlock():
+            render_product.CreateAttribute("omni:rtx:background:source:type", Sdf.ValueTypeNames.Token).Set("color")
+            render_product.CreateAttribute("omni:rtx:background:source:color", Sdf.ValueTypeNames.Float3).Set(
+                Gf.Vec3f(*self.cfg.background_color)
+            )
 
     def _setup_viewport(self) -> None:
         """Create/resolve viewport and configure initial camera."""
