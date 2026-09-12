@@ -114,14 +114,7 @@ RLINF_EXTRA_MARKERS = ("ray", "decord", "peft", "diffusers", "timm")
 
 
 def is_importable(module: str) -> bool:
-    """Return whether a module can be resolved without importing it.
-
-    Args:
-        module: Top-level module name to look up.
-
-    Returns:
-        Whether the module was found on the import path.
-    """
+    """Return whether a module can be resolved without importing it."""
     try:
         return importlib.util.find_spec(module) is not None
     except (ImportError, ValueError):
@@ -129,14 +122,7 @@ def is_importable(module: str) -> bool:
 
 
 def installed_version(distribution: str) -> str | None:
-    """Return the installed version of a distribution, or ``None`` when absent.
-
-    Args:
-        distribution: Distribution name as known to the package metadata.
-
-    Returns:
-        The installed version string, or ``None`` if the distribution is not installed.
-    """
+    """Return the installed version of a distribution, or ``None`` when absent."""
     try:
         return importlib.metadata.version(distribution)
     except importlib.metadata.PackageNotFoundError:
@@ -156,11 +142,7 @@ def installed_gr00t_generation() -> str | None:
 
 
 def check_rlinf_extra() -> bool:
-    """Report whether the root ``rlinf`` extra is installed.
-
-    Returns:
-        Whether every marker package from the extra is importable.
-    """
+    """Report whether the root ``rlinf`` extra is installed."""
     missing = [name for name in RLINF_EXTRA_MARKERS if not is_importable(name)]
     if missing:
         print_warning(
@@ -173,13 +155,7 @@ def check_rlinf_extra() -> bool:
 
 
 def install_pinned_packages(pip_cmd: list[str], profile: Gr00tProfile, force: bool) -> None:
-    """Install the packages whose pins must bypass the dependency resolver.
-
-    Args:
-        pip_cmd: Base pip command tokens for the active environment.
-        profile: GR00T generation profile supplying the ``transformers``/``tokenizers`` pins.
-        force: Whether to reinstall even when the pins are already satisfied.
-    """
+    """Install the packages whose pins must bypass the dependency resolver."""
     satisfied = (
         installed_version("rlinf") == RLINF_VERSION and installed_version("transformers") == profile.transformers
     )
@@ -192,11 +168,7 @@ def install_pinned_packages(pip_cmd: list[str], profile: Gr00tProfile, force: bo
 
 
 def install_pytorch3d(pip_cmd: list[str]) -> None:
-    """Build and install pytorch3d, which GR00T's state/action transforms import.
-
-    Args:
-        pip_cmd: Base pip command tokens for the active environment.
-    """
+    """Build and install pytorch3d, which GR00T's state/action transforms import."""
     if is_importable("pytorch3d"):
         print_info("pytorch3d is already installed.")
         return
@@ -205,14 +177,7 @@ def install_pytorch3d(pip_cmd: list[str]) -> None:
 
 
 def install_gr00t(pip_cmd: list[str], gr00t_dir: Path, commit: str, generation: str) -> None:
-    """Clone Isaac-GR00T at a pinned commit and install it in editable mode.
-
-    Args:
-        pip_cmd: Base pip command tokens for the active environment.
-        gr00t_dir: Directory the repository is cloned into.
-        commit: Commit SHA to check out.
-        generation: Profile name (``n15``/``n17``) used to detect a generation swap.
-    """
+    """Clone Isaac-GR00T at a pinned commit and install it in editable mode."""
     installed = installed_gr00t_generation()
     if installed is not None and installed != generation:
         print_info(f"Replacing the installed GR00T {installed} package with {generation}...")
@@ -234,14 +199,7 @@ def install_gr00t(pip_cmd: list[str], gr00t_dir: Path, commit: str, generation: 
 
 
 def is_worktree_dirty(repo_dir: Path) -> bool:
-    """Return whether a git worktree has uncommitted changes.
-
-    Args:
-        repo_dir: Path to the git repository.
-
-    Returns:
-        Whether ``git status --porcelain`` reported any entries.
-    """
+    """Return whether a git worktree has uncommitted changes."""
     result = run_command(["git", "status", "--porcelain"], cwd=repo_dir, check=False, stdout=subprocess.PIPE, text=True)
     return bool(result.stdout and result.stdout.strip())
 
@@ -251,9 +209,6 @@ def check_gr00t_resolves_to(gr00t_dir: Path) -> None:
 
     A stale ``PYTHONPATH`` entry pointing at another Isaac-GR00T clone takes precedence over the
     editable install and silently swaps the GR00T generation the tasks run against.
-
-    Args:
-        gr00t_dir: Directory the editable ``gr00t`` package was installed from.
     """
     result = run_command(
         [extract_python_exe(), "-c", "import gr00t, os; print(os.path.dirname(os.path.dirname(gr00t.__file__)))"],
@@ -274,12 +229,7 @@ def check_gr00t_resolves_to(gr00t_dir: Path) -> None:
 
 
 def install_flash_attn(pip_cmd: list[str], gr00t_dir: Path) -> None:
-    """Install flash-attn, falling back to GR00T's PyTorch SDPA patch when the build fails.
-
-    Args:
-        pip_cmd: Base pip command tokens for the active environment.
-        gr00t_dir: Directory holding the Isaac-GR00T checkout.
-    """
+    """Install flash-attn, falling back to GR00T's PyTorch SDPA patch when the build fails."""
     if is_importable("flash_attn"):
         print_info("flash-attn is already installed.")
         return
@@ -293,11 +243,7 @@ def install_flash_attn(pip_cmd: list[str], gr00t_dir: Path) -> None:
 
 
 def apply_no_flash_attn_patch(gr00t_dir: Path) -> None:
-    """Apply the bundled patch that removes GR00T's flash-attn requirement.
-
-    Args:
-        gr00t_dir: Directory holding the Isaac-GR00T checkout.
-    """
+    """Apply the bundled patch that removes GR00T's flash-attn requirement."""
     already_applied = run_command(
         ["git", "apply", "--reverse", "--check", str(NO_FLASH_ATTN_PATCH)], cwd=gr00t_dir, check=False
     )
@@ -313,10 +259,6 @@ def download_checkpoints(checkpoint_root: Path, profile: Gr00tProfile) -> None:
     Each repository lands under ``checkpoint_root/<repo tail>`` with its Hub layout intact, so a
     task config points at ``<repo tail>/<subfolder>``. Gated repositories such as the Cosmos
     backbone need a logged-in account with access.
-
-    Args:
-        checkpoint_root: Directory the snapshots are written under.
-        profile: GR00T generation profile listing ``(repo_id, subfolder)`` pairs.
     """
     from huggingface_hub import snapshot_download
 
@@ -328,14 +270,7 @@ def download_checkpoints(checkpoint_root: Path, profile: Gr00tProfile) -> None:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse the command line arguments.
-
-    Args:
-        argv: Argument list to parse. Defaults to ``sys.argv[1:]`` when ``None``.
-
-    Returns:
-        The parsed arguments.
-    """
+    """Parse the command line arguments."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--gr00t",
@@ -375,14 +310,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run the on-demand RLinf demo setup.
-
-    Args:
-        argv: Argument list to parse. Defaults to ``sys.argv[1:]`` when ``None``.
-
-    Returns:
-        Process exit code.
-    """
+    """Run the on-demand RLinf demo setup."""
     args = parse_args(argv)
     if not check_rlinf_extra():
         return 1

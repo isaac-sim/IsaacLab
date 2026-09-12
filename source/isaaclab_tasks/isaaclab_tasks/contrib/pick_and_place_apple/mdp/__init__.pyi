@@ -6,7 +6,6 @@
 __all__ = [
     "H2GravityCompensatedJointPositionAction",
     "PnpAppleState",
-    "apple_drop_termination",
     "apple_on_plate_and_released",
     "get_pnp_apple_state",
     "get_robot_joint_states",
@@ -36,5 +35,5 @@ from .rewards import (
     release_on_plate_reward,
     update_task_stage,
 )
-from .terminations import apple_drop_termination, apple_on_plate_and_released, task_success_termination
+from .terminations import apple_on_plate_and_released, task_success_termination
 from isaaclab.envs.mdp import *

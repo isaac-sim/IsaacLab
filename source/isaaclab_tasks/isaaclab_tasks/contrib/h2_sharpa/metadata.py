@@ -26,16 +26,10 @@ from dataclasses import dataclass
 ACTION_DIM = 58
 """Dataset arm and hand dimensions."""
 
-ACTION_MANAGER_PREFIX_PAD = 17
-"""Body dimensions preceding policy actions."""
 
 FULL_ARTICULATION_DOF = 75
 """Full H2 + Sharpa articulation dimensions."""
 
-LEFT_ARM_SLICE = slice(0, 7)
-RIGHT_ARM_SLICE = slice(7, 14)
-LEFT_HAND_SLICE = slice(14, 36)
-RIGHT_HAND_SLICE = slice(36, 58)
 
 # Neutral body pose; tasks provide their own initial poses.
 H2_DEFAULT_JOINT_POS: dict[str, float] = {
@@ -161,7 +155,6 @@ H2_ISAAC_ARTICULATION_ORDER: list[str] = _H2_ISAAC_BODY_BFS_ORDER + H2_SHARPA_HA
 assert len(H2_ISAAC_ARTICULATION_ORDER) == FULL_ARTICULATION_DOF
 
 # Backward-compatible alias.
-H2_JOINT_NAMES_ARTICULATION_ORDER = H2_ISAAC_ARTICULATION_ORDER
 
 # 75-D action order. For Isaac BFS data, map through ``robot.data.joint_names``.
 H2_ACTION_JOINT_ORDER: list[str] = [
@@ -271,14 +264,6 @@ DATASET_JOINT_NAMES_58: list[str] = DATASET_ARM_JOINT_NAMES_K + POLICY_HAND_JOIN
 assert len(DATASET_JOINT_NAMES_58) == ACTION_DIM
 
 
-def src_name_to_joint(name: str) -> str:
-    """Map a LeRobot action/state name to an Isaac env joint name.
-
-    Arm dims use Unitree ``k*`` names; hand dims already use Isaac names and pass through.
-    """
-    return ARM_K2JOINT.get(name, name)
-
-
 # pnp_apple_sim_new_bg_v1 episode_000027 frame 0, replayed from
 # apple_pick_and_place_05142000_filtered episode_000043, in POLICY_58_ORDER
 # (left_arm, right_arm, left_hand, right_hand).
@@ -380,36 +365,8 @@ H2_CAMERAS: tuple[CameraSpec, ...] = (
 )
 CAMERA_BY_NAME: dict[str, CameraSpec] = {c.name: c for c in H2_CAMERAS}
 
-CAMERA_NAMES: tuple[str, ...] = tuple(c.name for c in H2_CAMERAS)
-CAMERA_TO_DATASET_KEY: dict[str, str] = {c.name: c.dataset_key for c in H2_CAMERAS}
-"""Simulation camera to LeRobot key."""
-CAMERA_TO_VIDEO_KEY: dict[str, str] = {c.name: c.video_key for c in H2_CAMERAS}
-"""Simulation camera to N1.5 video key."""
-CAMERA_TO_VIDEO_VIEW: dict[str, str] = {c.name: c.video_view for c in H2_CAMERAS}
-"""Simulation camera to N1.7 video view."""
-CAMERA_TO_LEROBOT_KEY: dict[str, str] = {c.name: c.lerobot_key for c in H2_CAMERAS}
-CAMERA_TO_IMAGE_KEY: dict[str, str] = {c.image_channel: c.dataset_key for c in H2_CAMERAS}
 
 # LeRobot dataset schema shared by converters and policy data configs.
-DATASET_FPS = 30
-LEROBOT_MODALITY: dict[str, dict[str, dict[str, int | str]]] = {
-    "state": {
-        "left_arm": {"start": LEFT_ARM_SLICE.start, "end": LEFT_ARM_SLICE.stop},
-        "right_arm": {"start": RIGHT_ARM_SLICE.start, "end": RIGHT_ARM_SLICE.stop},
-        "left_hand": {"start": LEFT_HAND_SLICE.start, "end": LEFT_HAND_SLICE.stop},
-        "right_hand": {"start": RIGHT_HAND_SLICE.start, "end": RIGHT_HAND_SLICE.stop},
-    },
-    "action": {
-        "left_arm": {"start": LEFT_ARM_SLICE.start, "end": LEFT_ARM_SLICE.stop},
-        "right_arm": {"start": RIGHT_ARM_SLICE.start, "end": RIGHT_ARM_SLICE.stop},
-        "left_hand": {"start": LEFT_HAND_SLICE.start, "end": LEFT_HAND_SLICE.stop},
-        "right_hand": {"start": RIGHT_HAND_SLICE.start, "end": RIGHT_HAND_SLICE.stop},
-    },
-    "video": {c.video_view: {"original_key": c.lerobot_key} for c in H2_CAMERAS},
-    "annotation": {
-        "human.task_description": {"original_key": "task_index"},
-    },
-}
 
 # Shared H2 tri-camera modality keys.
 MODALITY_VIDEO_KEYS: list[str] = ["video.high", "video.left_wrist_view", "video.right_wrist_view"]
@@ -432,15 +389,3 @@ ACTION_HORIZON_N17_INDICES: list[int] = list(range(32))
 # Retry placements for the replay sweep, as XY offsets [m] from the environment's
 # configured apple position. Offsets rather than absolute table coordinates, so a
 # re-calibrated apple pose or table height needs no edit here.
-APPLE_RETRY_XY_OFFSETS: tuple[tuple[float, float], ...] = (
-    (0.000, 0.000),
-    (0.010, -0.005),
-    (0.010, 0.005),
-    (0.000, -0.005),
-    (0.000, 0.005),
-    (0.010, 0.000),
-    (0.000, -0.010),
-    (0.000, 0.010),
-    (-0.010, 0.000),
-    (-0.010, 0.005),
-)
