@@ -7,7 +7,7 @@
 
 from isaaclab.app import AppLauncher
 
-app_launcher = AppLauncher(headless=True, enable_cameras=True, limit_cpu_threads=1)
+app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
 
 
