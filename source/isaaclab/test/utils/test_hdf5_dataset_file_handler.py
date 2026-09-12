@@ -67,6 +67,17 @@ def test_create_dataset_file(temp_dir):
     assert os.path.exists(dataset_file_path + ".hdf5")
 
 
+def test_create_dataset_file_in_current_directory(monkeypatch, tmp_path):
+    """Creating a dataset by basename should not try to create an empty directory path."""
+    monkeypatch.chdir(tmp_path)
+
+    dataset_file_handler = HDF5DatasetFileHandler()
+    dataset_file_handler.create("dataset.hdf5", "test_env_name")
+    dataset_file_handler.close()
+
+    assert (tmp_path / "dataset.hdf5").is_file()
+
+
 def test_add_env_args_preserves_existing_args_after_reopen(temp_dir):
     """Test extending environment arguments after reopening a dataset."""
     dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")
