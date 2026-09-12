@@ -419,7 +419,7 @@ def make_clone_plan(
 
 def clone_plan_from_env_0(
     clone_cfg: CloneCfg,
-    asset_cfgs: Iterable[object],
+    asset_cfgs: Iterable[object | None],
     num_envs: int,
     env_spacing: float,
     *,
@@ -434,7 +434,7 @@ def clone_plan_from_env_0(
 
     Args:
         clone_cfg: Homogeneous clone policy and environment template.
-        asset_cfgs: Flat sequence of prim-authoring configurations.
+        asset_cfgs: Flat sequence of prim-authoring configurations. ``None`` entries are ignored.
         num_envs: Number of target environments.
         env_spacing: Distance between neighboring environment origins [m].
         positions: Optional per-environment world positions [m], shape ``[num_envs, 3]``.
@@ -461,6 +461,8 @@ def clone_plan_from_env_0(
 
     records: list[tuple[Any, str, TemplateMatch | None, sim_utils.SpawnerCfg | None]] = []
     for cfg in asset_cfgs:
+        if cfg is None:
+            continue
         try:
             fields = vars(cfg)
             prim_path = fields["prim_path"]

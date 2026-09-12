@@ -433,7 +433,7 @@ def test_clone_plan_from_env_0_uses_flat_cfg_manifest(sim):
     )
     light = SimpleNamespace(prim_path="/World/Light", spawn=sim_utils.DistantLightCfg(), cloning_contexts=())
     light_reference = SimpleNamespace(prim_path="/World/Light/Reference", spawn=None, cloning_contexts=())
-    plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (robot, sensor, prop, light, light_reference), 4, 1.0)
+    plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (robot, sensor, None, prop, light, light_reference), 4, 1.0)
 
     assert sim.get_clone_plan() is plan
     assert plan.sources == ("/World/envs/env_0",)
