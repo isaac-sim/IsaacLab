@@ -264,9 +264,9 @@ assigns prototype spawn paths before construction:
     cloner.replicate(plan, replicate_physics=clone_cfg.replicate_physics)
 
 Every env receives the same prototype. The tuple is deliberately flat: the
-cloner does not inspect a task or scene cfg tree, and ``None`` is allowed for an
-optional declared participant. Prefer :class:`~isaaclab.scene.InteractiveSceneCfg`
-for environment implementations and heterogeneous scenes.
+cloner does not inspect a task or scene cfg tree. Prefer
+:class:`~isaaclab.scene.InteractiveSceneCfg` for environment implementations and
+heterogeneous scenes.
 
 
 Under the Hood

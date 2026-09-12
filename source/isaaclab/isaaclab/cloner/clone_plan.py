@@ -34,7 +34,7 @@ from isaaclab.utils.version import has_kit
 
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env_regex_ns
 from .cloner_strategies import sequential
-from .path import TemplateMatch, match, under
+from .path import match, under
 from .usd import UsdReplicateContext
 
 
@@ -419,7 +419,7 @@ def make_clone_plan(
 
 def clone_plan_from_env_0(
     clone_cfg: CloneCfg,
-    asset_cfgs: Iterable[object | None],
+    asset_cfgs: Iterable[Any],
     num_envs: int,
     env_spacing: float,
     *,
@@ -434,7 +434,7 @@ def clone_plan_from_env_0(
 
     Args:
         clone_cfg: Homogeneous clone policy and environment template.
-        asset_cfgs: Flat sequence of prim-authoring configurations. ``None`` entries are ignored.
+        asset_cfgs: Flat sequence of prim-authoring configurations.
         num_envs: Number of target environments.
         env_spacing: Distance between neighboring environment origins [m].
         positions: Optional per-environment world positions [m], shape ``[num_envs, 3]``.
@@ -444,13 +444,9 @@ def clone_plan_from_env_0(
         The published :class:`ClonePlan`, with one source row covering every environment.
 
     Raises:
-        TypeError: If ``clone_cfg`` is not a :class:`CloneCfg`, or an asset entry is not a
-            direct prim-authoring configuration.
         ValueError: If heterogeneous clone combinations or a multi-variant spawner are supplied.
         RuntimeError: If no simulation is active or it already owns a clone plan.
     """
-    if not isinstance(clone_cfg, CloneCfg):
-        raise TypeError(f"clone_cfg must be CloneCfg, got {type(clone_cfg).__name__}.")
     if clone_cfg.clone_combinations:
         raise ValueError("clone_plan_from_env_0 requires a homogeneous CloneCfg.")
     sim = sim_utils.SimulationContext.instance()
@@ -459,22 +455,11 @@ def clone_plan_from_env_0(
     if sim.get_clone_plan() is not None:
         raise RuntimeError("A SimulationContext owns exactly one clone lifecycle.")
 
-    records: list[tuple[Any, str, TemplateMatch | None, sim_utils.SpawnerCfg | None]] = []
+    records = []
     for cfg in asset_cfgs:
-        if cfg is None:
-            continue
-        try:
-            fields = vars(cfg)
-            prim_path = fields["prim_path"]
-        except (TypeError, KeyError) as error:
-            raise TypeError(f"Asset entries must directly declare prim_path, got {type(cfg).__name__}.") from error
-        if not isinstance(prim_path, str):
-            raise TypeError(f"{type(cfg).__name__}.prim_path must be a string.")
-        prim_path = expand_env_regex_ns(prim_path, clone_cfg.clone_template)
+        prim_path = expand_env_regex_ns(cfg.prim_path, clone_cfg.clone_template)
         matched = match(prim_path, clone_cfg.clone_template)
-        spawn = fields.get("spawn")
-        if spawn is not None and not isinstance(spawn, sim_utils.SpawnerCfg):
-            raise TypeError(f"{type(cfg).__name__}.spawn must be a SpawnerCfg or None.")
+        spawn = getattr(cfg, "spawn", None)
         if spawn is not None and num_spawn_variants(spawn) != 1:
             raise ValueError("clone_plan_from_env_0 requires single-variant spawners.")
         records.append((cfg, prim_path, matched, spawn))
