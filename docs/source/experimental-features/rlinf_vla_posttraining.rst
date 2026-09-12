@@ -80,30 +80,10 @@ From the Isaac Lab root directory:
    ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/setup_rlinf.py --gr00t n15   # assemble_trocar
    ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/setup_rlinf.py --gr00t n17   # H2 + Sharpa tasks
 
-The tasks target different GR00T generations, which install as the same ``gr00t`` package with
-incompatible APIs. One Python environment therefore holds one generation at a time; re-running
-Step 2 with the other ``--gr00t`` value swaps it.
-
-The N1.7 configurations run plain PPO. RLinf ships no SFT dataloader for GR00T N1.7, so
-``actor.enable_sft_co_train`` stays ``False``; the ``sft_*`` keys document how co-training would be
-wired once such a dataloader is registered.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 40 15 45
-
-   * - Task
-     - GR00T
-     - Config
-   * - ``IsaacContrib-Assemble-Trocar-G129-Dex3``
-     - N1.5
-     - ``isaaclab_ppo_gr00t_assemble_trocar``
-   * - ``IsaacContrib-Pick-And-Place-Apple-H2-Sharpa``
-     - N1.7
-     - ``isaaclab_ppo_gr00t_pick_and_place_apple_n17``
-   * - ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa``
-     - N1.7
-     - ``isaaclab_ppo_gr00t_pack_agx_orin_n17``
+Both generations install as the same ``gr00t`` package with incompatible APIs, so one environment
+holds one at a time and re-running Step 2 with the other value swaps it. ``n15`` serves
+``IsaacContrib-Assemble-Trocar-G129-Dex3``; ``n17`` serves ``IsaacContrib-Pick-And-Place-Apple-H2-Sharpa``
+and ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa``, whose configs carry an ``_n17`` suffix.
 
 Step 2 covers what :file:`pyproject.toml` cannot express. It
 
@@ -318,6 +298,10 @@ Configuration
 All configuration lives in a **single YAML file** loaded by `Hydra <https://hydra.cc/>`_.
 The key configuration block is the ``env.train.isaaclab`` section, which defines how Isaac Lab observations
 are converted to GR00T format:
+
+The N1.7 configurations run plain PPO: RLinf ships no SFT dataloader for GR00T N1.7, so
+``actor.enable_sft_co_train`` stays ``False`` and the ``sft_*`` keys only document how co-training
+would be wired once one is registered.
 
 .. code-block:: yaml
 
