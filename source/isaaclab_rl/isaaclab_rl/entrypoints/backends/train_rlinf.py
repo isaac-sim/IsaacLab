@@ -146,7 +146,9 @@ def run(argv: list[str]) -> None:
                 task=args_cli.task or task_id,
                 config_name=config_name,
             )
-            cfg.runner.resume_dir = str(Path(checkpoint_path).parent)
+            # Ray workers do not inherit the launcher's working directory, so the resolved directory
+            # is absolute.
+            cfg.runner.resume_dir = cli_args._resolve_rlinf_resume_dir(checkpoint_path)
 
         # RLinf builds the eval rollout model from ``rollout.model`` (older releases deep-copied
         # ``actor.model``), so give it every actor key the YAML leaves out: model_type,

@@ -347,11 +347,6 @@ class H2RLTerminationsCfg:
         time_out=False,
         params={"success_stage": 4, "print_log": False},
     )
-    # apple_drop = DoneTerm(
-    #     func=mdp.apple_drop_termination,
-    #     time_out=True,
-    #     params={"apple_cfg": SceneEntityCfg("apple"), "drop_margin": 0.05},
-    # )
 
 
 @configclass

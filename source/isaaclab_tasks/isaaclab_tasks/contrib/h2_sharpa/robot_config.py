@@ -7,23 +7,16 @@
 
 from __future__ import annotations
 
-import os
-
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.contrib.rlinf_assets import ROBOT_ASSET_ROOT
+
 from .metadata import H2_ACTION_JOINT_ORDER, H2_DEFAULT_JOINT_POS, POLICY_58_ORDER
 
-# Hosted in a private Hugging Face dataset repository; direct URL access needs the repository to be
-# public. Until then, point the environment variable at a local mirror that keeps the same
-# Robots/ layout (the Isaac Healthcare bundle layout), e.g. a `snapshot_download` of the repo.
-H2_SHARPA_ASSET_ROOT: str = os.environ.get(
-    "ISAACLAB_H2_SHARPA_ASSET_ROOT",
-    "https://huggingface.co/datasets/LiFanxing/IsaacLabRLinfDemo/resolve/main/assets/Robots",
-)
-H2_SHARPA_USD_PATH: str = f"{H2_SHARPA_ASSET_ROOT}/h2_with_sharpa/H2_with_sharpa_flat.usd"
+H2_SHARPA_USD_PATH: str = f"{ROBOT_ASSET_ROOT}/h2_with_sharpa/H2_with_sharpa_flat.usd"
 
 # Neutral articulation pose; tasks override it through the preset helpers.
 _H2_INIT_POS_NEUTRAL = (-0.95, 0.0, 1.05)

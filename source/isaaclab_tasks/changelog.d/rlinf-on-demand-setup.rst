@@ -16,18 +16,17 @@ Added
   dataloader for ``gr00t_n1d7``, so co-training fails at actor start. Re-enable it only with an N1.7
   SFT dataloader registered in RLinf.
 * Added ``POLICY_STATE_TO_ACTION_INDICES`` to ``isaaclab_tasks.contrib.h2_sharpa.gr00t_n17``, publishing where the policy's 58-D joint state lands in H2's 75-D action vector. The RLinf extension reads it to build a hold-the-current-pose action; H2 interleaves the two hands, so the state is not a contiguous slice of the action.
-* Added ``ISAACLAB_H2_SHARPA_ASSET_ROOT`` and ``ISAACLAB_PICK_AND_PLACE_APPLE_ASSET_ROOT`` to point
-  the H2 + Sharpa tasks at a local mirror of their scene and robot assets, which are hosted outside
-  the Isaac asset server.
+* Added ``isaaclab_tasks.contrib.rlinf_assets``, the asset roots the three RLinf post-training tasks
+  share, and ``ISAACLAB_RLINF_DEMO_ASSET_ROOT`` to point them at a local mirror.
 
 Changed
 ^^^^^^^
 
+* Changed ``assemble_trocar`` to draw its scene from the same asset bundle as the H2 + Sharpa tasks
+  instead of its own pinned Isaac Healthcare release, so props the tasks have in common are fetched
+  and cached once. The files are byte-identical to the ones it used before.
 * Changed ``isaaclab_ppo_gr00t_pack_agx_orin_n17`` to evaluate over 448-step episodes, matching the evaluation the task's reference checkpoints were scored with. ``env.train`` keeps its 416-step rollout, which ``global_batch_size`` is sized for.
 * Changed the default ``model_path`` in ``isaaclab_ppo_gr00t_assemble_trocar.yaml`` from an absolute
   container-specific path to ``.pretrained_checkpoints/rlinf/Assemble_Trocar``, the location that
   ``scripts/reinforcement_learning/rlinf/setup_rlinf.py`` downloads the checkpoint to. Pass
   ``--model_path`` to use a checkpoint stored elsewhere.
-* Changed the default ``model_path`` in ``isaaclab_ppo_gr00t_pick_and_place_apple.yaml`` from an
-  absolute container-specific path to ``.pretrained_checkpoints/rlinf/pnp_apple_n15_sft_ckpt``,
-  matching the assemble-trocar task.

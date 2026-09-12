@@ -90,6 +90,7 @@ Guidelines for modifications:
 * Emily Sturman
 * Emmanuel Ferdman
 * Fabian Jenelten
+* Fanxing Li
 * Fatima Anes
 * Felipe Mohr
 * Felix Yu

@@ -70,23 +70,3 @@ def task_success_termination(
         logger.info("Task completed in %d environment(s)!", task_complete.sum().item())
 
     return task_complete
-
-
-def apple_drop_termination(
-    env: ManagerBasedRLEnv,
-    apple_cfg: SceneEntityCfg = SceneEntityCfg("apple"),
-    drop_margin: float = 0.05,
-    print_log: bool = False,
-) -> torch.Tensor:
-    """Terminate when the apple falls below its reset height."""
-    from .rewards import get_pnp_apple_state
-
-    apple = env.scene[apple_cfg.name]
-    apple_z = apple.data.root_pos_w.torch[:, 2]
-    state = get_pnp_apple_state(env)
-    dropped = apple_z < (state.initial_apple_z - drop_margin)
-
-    if print_log and dropped.any():
-        logger.debug("Apple drop termination for %d environment(s)", dropped.sum().item())
-
-    return dropped

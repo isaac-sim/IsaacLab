@@ -67,6 +67,23 @@ def _resolve_rlinf_checkpoint(
     return str(checkpoint_path)
 
 
+def _resolve_rlinf_resume_dir(weights_path: str) -> str:
+    """Return the checkpoint directory RLinf resumes training from.
+
+    RLinf appends ``actor`` to ``runner.resume_dir`` and reads the step count out of its name, so it
+    wants the ``global_step_<N>`` directory rather than the weights file inside it.
+
+    Args:
+        weights_path: Path to the ``full_weights.pt`` selected by ``--checkpoint``.
+
+    Returns:
+        The enclosing ``global_step_<N>`` directory, absolute; the file's parent when the path has no
+        such ancestor.
+    """
+    weights = Path(weights_path).expanduser().resolve()
+    return str(next((p for p in weights.parents if p.name.startswith("global_step_")), weights.parent))
+
+
 def add_rlinf_args(parser: argparse.ArgumentParser) -> None:
     """Add RLinf arguments to the parser.
 

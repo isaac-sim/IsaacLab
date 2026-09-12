@@ -32,3 +32,8 @@ Fixed
 * Fixed relative ``model_path`` values in RLinf configs resolving against the Ray worker's working
   directory instead of the launcher's. Both the train and play entrypoints now make the path absolute
   before the config reaches the workers.
+* Fixed ``--checkpoint`` never resuming RLinf training. The train entrypoint set ``runner.resume_dir``
+  to the directory holding ``full_weights.pt``, while RLinf appends ``actor`` to that path and reads the
+  step count out of its name; resuming therefore failed on its assertion. ``_resolve_rlinf_resume_dir``
+  now returns the enclosing ``global_step_<N>`` directory, whichever of the three accepted forms
+  ``--checkpoint`` was given.

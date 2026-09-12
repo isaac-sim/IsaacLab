@@ -80,46 +80,14 @@ From the Isaac Lab root directory:
    ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/setup_rlinf.py --gr00t n15   # assemble_trocar
    ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/setup_rlinf.py --gr00t n17   # H2 + Sharpa tasks
 
-Both generations install as the same ``gr00t`` package with incompatible APIs, so one environment
-holds one at a time and re-running Step 2 with the other value swaps it. ``n15`` serves
-``IsaacContrib-Assemble-Trocar-G129-Dex3``; ``n17`` serves ``IsaacContrib-Pick-And-Place-Apple-H2-Sharpa``
-and ``IsaacContrib-Pack-AGX-Orin-H2-Sharpa``, whose configs carry an ``_n17`` suffix.
+Both generations install as the same ``gr00t`` package, so one environment holds one at a time;
+re-run Step 2 with the other value to swap. Checkpoints land in
+:file:`.pretrained_checkpoints/rlinf/`, and the N1.7 profile also fetches the gated
+``nvidia/Cosmos-Reason2-2B`` backbone, so the Hugging Face login must have access to it. Every step is
+idempotent, so the script can be re-run to repair a partial install; ``--help`` lists its remaining
+options.
 
-Step 2 covers what :file:`pyproject.toml` cannot express. It
-
-- installs the RLinf, ``transformers``, and ``tokenizers`` pins with ``--no-deps`` so they bypass the
-  resolver instead of clashing with the pins Isaac Sim has already resolved,
-- builds ``pytorch3d`` from source for N1.5, whose state/action transforms import it. RLinf pins the
-  ``pipablepytorch3d`` wheel for this, but that distribution supports Python 3.11 and older, so it
-  cannot be installed on the Python 3.12 interpreter Isaac Lab ships,
-- clones `Isaac-GR00T <https://github.com/NVIDIA/Isaac-GR00T>`_ at a pinned commit and installs it in
-  editable mode. The pin matters: later commits restructure ``gr00t.experiment`` and drop the
-  ``data_config`` module that the task's :file:`gr00t_config.py` imports,
-- installs ``flash-attn``, falling back to :ref:`the PyTorch SDPA patch <rlinf-skipping-flash-attn>`
-  when the build fails, and
-- downloads the profile's pretrained checkpoints under :file:`.pretrained_checkpoints/rlinf/`, which
-  the task YAMLs point at by default. The N1.7 profile also fetches the gated
-  ``nvidia/Cosmos-Reason2-2B`` backbone, so the Hugging Face login must have access to it.
-
-Every step is idempotent and skips work that is already done, so the script can be re-run to repair a
-partial install. Useful options:
-
-.. code-block:: bash
-
-   # Clone Isaac-GR00T somewhere other than next to the Isaac Lab repository
-   ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/setup_rlinf.py --gr00t_dir /path/to/Isaac-GR00T
-
-   # Reuse a checkpoint already on disk, then pass --model_path when training
-   ./isaaclab.sh -p scripts/reinforcement_learning/rlinf/setup_rlinf.py --skip_checkpoint
-
-.. note::
-
-   Task assets stream from S3 and are cached by Omniverse on first use, so no asset download or mount
-   is needed. Running the demo in a container therefore requires no extra bind mounts. Be aware that
-   ``docker/container.py <profile> stop`` removes the container along with its volumes, which discards
-   the on-demand install; use ``docker stop <container>`` to keep it.
-
-The packages installed in Step 2 intentionally differ from the versions in the
+The packages the setup script installs intentionally differ from the versions in the
 Isaac Lab lockfile. Use ``uv run --no-sync`` for the commands below so that
 ``uv`` does not replace these GR00T-compatible versions before launching.
 
@@ -135,16 +103,6 @@ hand:
 
    cd Isaac-GR00T
    git apply /path/to/IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
-
-.. note::
-
-   **Windows 11**: If ``git apply`` fails with ``error: corrupt patch at line 41``,
-   use ``patch.exe`` (bundled with Git for Windows) instead:
-
-   .. code-block:: bash
-
-      cd Isaac-GR00T
-      "C:\Program Files\Git\usr\bin\patch.exe" -p1 < \path\to\IsaacLab\scripts\imitation_learning\locomanipulation_sdg\gr00t\no_flash_attn.patch
 
 The patch switches GR00T to PyTorch SDPA, so flash-attn is no longer required.
 The training and evaluation commands below work unchanged.
@@ -246,9 +204,8 @@ directory (the ``global_step_<N>`` folder). The script loads the model
 architecture from the base model and overlays the RL-finetuned weights
 (``full_weights.pt``) from the checkpoint.
 
-For GR00T N1.7 tasks the same flag hands ``full_weights.pt`` to RLinf's native loader. An RL run that
-was exported to Hugging Face format (``model-*.safetensors`` with a processor config) is a complete
-model and loads through ``--model_path`` directly.
+An RL run exported to Hugging Face format (``model-*.safetensors`` plus a processor config) is a
+complete model, so it loads through ``--model_path`` instead.
 
 .. note::
 
@@ -280,11 +237,10 @@ accepts ``latest`` and ``best``; both select the newest saved RLinf checkpoint.
 
 .. note::
 
-   RLinf requires the rollout size (``total_num_envs * max_steps_per_rollout_epoch /
-   num_action_chunks`` per rollout epoch) to be a multiple of ``actor.global_batch_size``, which in
-   turn must be a multiple of ``actor.micro_batch_size``. Passing ``--num_envs`` alone can break
-   this: the H2 + Sharpa configs are sized for 96 environments, so shrinking them for a smoke test
-   means lowering the batch sizes in a copy of the YAML passed via ``--config_path``.
+   ``--num_envs`` alone can break RLinf's batch arithmetic: the rollout size
+   (``total_num_envs * max_steps_per_rollout_epoch / num_action_chunks``) must stay a multiple of
+   ``actor.global_batch_size``. Shrinking a config for a smoke test means lowering the batch sizes
+   with it, in a copy of the YAML passed via ``--config_path``.
 
 .. tip::
 
@@ -298,10 +254,6 @@ Configuration
 All configuration lives in a **single YAML file** loaded by `Hydra <https://hydra.cc/>`_.
 The key configuration block is the ``env.train.isaaclab`` section, which defines how Isaac Lab observations
 are converted to GR00T format:
-
-The N1.7 configurations run plain PPO: RLinf ships no SFT dataloader for GR00T N1.7, so
-``actor.enable_sft_co_train`` stays ``False`` and the ``sft_*`` keys only document how co-training
-would be wired once one is registered.
 
 .. code-block:: yaml
 
