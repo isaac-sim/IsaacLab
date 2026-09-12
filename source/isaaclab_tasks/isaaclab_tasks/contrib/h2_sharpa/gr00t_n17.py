@@ -32,7 +32,10 @@ from .metadata import (
 )
 
 _POLICY_PARTS = ("left_arm", "right_arm", "left_hand", "right_hand")
-_POLICY_TO_ACTION = [H2_ACTION_JOINT_ORDER.index(name) for name in POLICY_58_ORDER]
+#: Slot in ``H2_ACTION_JOINT_ORDER`` of every joint the policy predicts, in ``POLICY_58_ORDER``.
+#: Scatters both the policy's 58 actions and its 58-D joint state into the full action vector;
+#: the RLinf extension reads it to build a "hold the current pose" action.
+POLICY_STATE_TO_ACTION_INDICES: list[int] = [H2_ACTION_JOINT_ORDER.index(name) for name in POLICY_58_ORDER]
 
 
 def convert_gr00t_to_isaaclab_action(action_chunk: dict, chunk_size: int = 1) -> np.ndarray:
@@ -54,7 +57,7 @@ def convert_gr00t_to_isaaclab_action(action_chunk: dict, chunk_size: int = 1) ->
         (*policy_action.shape[:-1], len(H2_ACTION_JOINT_ORDER)),
         dtype=policy_action.dtype,
     )
-    full_action[..., _POLICY_TO_ACTION] = policy_action
+    full_action[..., POLICY_STATE_TO_ACTION_INDICES] = policy_action
     return full_action
 
 

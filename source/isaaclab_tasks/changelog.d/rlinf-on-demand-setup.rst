@@ -15,6 +15,7 @@ Added
 * Changed the N1.7 configurations to plain PPO (``enable_sft_co_train: False``): RLinf has no SFT
   dataloader for ``gr00t_n1d7``, so co-training fails at actor start. Re-enable it only with an N1.7
   SFT dataloader registered in RLinf.
+* Added ``POLICY_STATE_TO_ACTION_INDICES`` to ``isaaclab_tasks.contrib.h2_sharpa.gr00t_n17``, publishing where the policy's 58-D joint state lands in H2's 75-D action vector. The RLinf extension reads it to build a hold-the-current-pose action; H2 interleaves the two hands, so the state is not a contiguous slice of the action.
 * Added ``ISAACLAB_H2_SHARPA_ASSET_ROOT`` and ``ISAACLAB_PICK_AND_PLACE_APPLE_ASSET_ROOT`` to point
   the H2 + Sharpa tasks at a local mirror of their scene and robot assets, which are hosted outside
   the Isaac asset server.
