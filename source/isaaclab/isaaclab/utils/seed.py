@@ -16,7 +16,8 @@ def configure_seed(seed: int | None, torch_deterministic: bool = False) -> int:
 
     Args:
         seed: The random seed value. If None, generates a random seed.
-        torch_deterministic: If True, enables deterministic mode for torch operations.
+        torch_deterministic: Whether torch operations should use deterministic mode. ``True`` enables PyTorch
+            deterministic algorithms; ``False`` actively disables them, including a mode enabled by an earlier call.
 
     Returns:
         The seed value that was set.
@@ -41,5 +42,6 @@ def configure_seed(seed: int | None, torch_deterministic: bool = False) -> int:
     else:
         torch.backends.cudnn.benchmark = True
         torch.backends.cudnn.deterministic = False
+        torch.use_deterministic_algorithms(False)
 
     return seed
