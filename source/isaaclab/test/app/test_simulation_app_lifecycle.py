@@ -161,12 +161,15 @@ def test_atexit_close_falls_back_when_exit_code_unsupported(capfd):
     assert calls == [1]
     assert "does not accept exit_code" in capfd.readouterr().err
 
-def test_install_exit_handlers_leaves_fatal_signals_at_default(monkeypatch):
-    """SIGSEGV and SIGABRT must stay at SIG_DFL; only SIGTERM gets a custom handler.
 
-    Regression for issue #7774: a python SIGSEGV handler that returns re-faults
-    forever with no core dump. SIGABRT is left at the default disposition for the
-    same reason; graceful teardown stays on SIGTERM only.
+def test_install_exit_handlers_leaves_fatal_signals_at_default(monkeypatch):
+    """AppLauncher must not register SIGSEGV or SIGABRT; only SIGTERM gets a custom handler.
+
+    Regression for issue #7774: skipping signal.signal leaves those dispositions
+    untouched (default or carb's crash handler) rather than establishing SIG_DFL.
+    a python SIGSEGV handler that returns re-faults forever with no core dump;
+    the former SIGABRT handler restored SIG_DFL and re-raised. graceful teardown
+    stays on SIGTERM only.
     """
     actions = _capture_signal_actions(monkeypatch)
     lifecycle = _make_lifecycle(lambda exit_code=0: None)

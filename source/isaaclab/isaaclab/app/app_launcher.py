@@ -1541,9 +1541,12 @@ class AppLauncher:
           the default action.
         * Signal during a running close: fall back to the default action instead of
           re-entering ``close()``, which previously recursed until stack overflow.
-        * ``SIGSEGV`` / ``SIGABRT``: not intercepted; left at ``SIG_DFL`` so fatal
-          faults terminate and can produce core dumps. a python handler that returns
-          from ``SIGSEGV`` re-faults forever and suppresses carb crash minidumps.
+        * ``SIGSEGV`` / ``SIGABRT``: not intercepted; dispositions are left
+          untouched (default or carb's crash handler). a python ``SIGSEGV``
+          handler that returns re-faults forever and suppresses carb crash
+          minidumps. the former ``SIGABRT`` handler restored ``SIG_DFL`` and
+          re-raised, so skipping registration leaves abort to the existing
+          disposition instead of a graceful-teardown path.
         * ``SIGINT``: Python's default handler, so Ctrl-C unwinds user code and
           exits nonzero.
 
@@ -1579,8 +1582,10 @@ class AppLauncher:
             # close on normal exit so Kit shuts down cleanly instead of via __del__
             atexit.register(self._close_at_exit)
             signal.signal(signal.SIGTERM, self._on_abort_signal)
-            # leave SIGSEGV/SIGABRT at SIG_DFL; a python handler that returns from a
-            # synchronous fault re-executes forever and suppresses core dumps.
+            # leave SIGSEGV/SIGABRT untouched (default or carb's crash handler);
+            # skipping signal.signal does not install SIG_DFL. a python SIGSEGV
+            # handler that returns re-executes the fault forever; the former
+            # SIGABRT handler restored SIG_DFL and re-raised.
             # restore default SIGINT so ctrl-c unwinds user code; see the class docstring
             signal.signal(signal.SIGINT, signal.default_int_handler)
 
