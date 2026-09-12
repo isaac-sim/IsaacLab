@@ -52,6 +52,7 @@ the knee (300 -> 139) and the arms (300 -> 25).
 
 from isaaclab.utils.configclass import configclass
 
+from .rough_29dof_dr_env_cfg import _add_randomization
 from .rough_29dof_env_cfg import _apply_hardware_efforts
 from .rough_29dof_standup_env_cfg import G129DofRoughStandUpEnvCfg
 
@@ -109,3 +110,40 @@ class G129DofRoughMujocoAlignedEnvCfg(G129DofRoughStandUpEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         _align_to_mujoco(self)
+
+
+MJDR_FRICTION_RANGE = (0.5, 2.0)
+"""Ground friction span for the randomized variant, as a multiple of MuJoCo's 1.0.
+
+DR29 uses 0.4-1.6 static and 0.3-1.2 dynamic, which its own docstring describes as Isaac Lab's stock
+0.8/0.6 scaled by 0.5-2x. The same intent against MuJoCo's floor -- a single sliding friction of 1.0
+-- is 0.5 to 2.0 on both, so the span is recentred rather than inherited. Inheriting DR29's numbers
+would centre the draw on 0.8/0.6 and quietly undo the one term this line exists to pin.
+"""
+
+
+@configclass
+class G129DofRoughMujocoAlignedDREnvCfg(G129DofRoughMujocoAlignedEnvCfg):
+    """The aligned arm with DR29's randomization spread around MuJoCo's values.
+
+    The alignment and the randomization are not in conflict as long as the draws are centred on what
+    was aligned to. DR29's joint-friction span is already ``0.0-0.3`` "to bracket the official
+    MuJoCo G1's 0.2 N*m of frictionloss" -- its own words -- so that one carries over untouched and
+    now sits around a nominal this arm actually uses. Armature and actuator stiffness are scaled
+    0.5-2x about their nominal, which is unchanged by the alignment. Only the ground friction has to
+    be respanned, because DR29's numbers are relative to the stock floor rather than MuJoCo's.
+
+    The trade this makes is explicit: a randomized floor is no longer MuJoCo's floor, so this arm is
+    the sim2real candidate and the unrandomized :class:`G129DofRoughMujocoAlignedEnvCfg` stays the
+    one to lockstep against MuJoCo.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        _add_randomization(self)
+        self.events.physics_material.params.update(
+            {
+                "static_friction_range": MJDR_FRICTION_RANGE,
+                "dynamic_friction_range": MJDR_FRICTION_RANGE,
+            }
+        )

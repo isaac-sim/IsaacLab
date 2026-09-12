@@ -49,6 +49,7 @@ from .rough_29dof_distill_env_cfg import (
     G129DofRoughAirTime100DistillObservationsCfg,
 )
 from .rough_29dof_dr_env_cfg import _HISTORY_LENGTH, _HISTORY_TERMS
+from .rough_29dof_mjalign_env_cfg import G129DofRoughMujocoAlignedEnvCfg
 from .rough_29dof_mjlab_env_cfg import (
     G129DofRoughMjlabScaleEnvCfg,
     G129DofRoughMjlabScaleHipKneeEnvCfg,
@@ -301,6 +302,36 @@ class G129DofRoughYmsDepthDistillEnvCfg(G129DofRoughMjlabScaleEnvCfg):
     The environment is ``yms``'s own. The mirror augmentation lives in how the teacher was trained,
     not in the environment, so the student does not inherit it -- whether the symmetry survives the
     distillation is a thing to measure on the student rather than assume.
+    """
+
+    observations: G129DofRoughAirTime100DepthDistillObservationsCfg = (
+        G129DofRoughAirTime100DepthDistillObservationsCfg()
+    )
+
+    def __post_init__(self):
+        super().__post_init__()
+        _wire_depth_student(self)
+
+
+@configclass
+class G129DofRoughMjDepthDistillEnvCfg(G129DofRoughMujocoAlignedEnvCfg):
+    """The depth student under ``mj``'s environment.
+
+    ``mj`` is ``su`` with every difference against the MuJoCo model that a config or an override
+    layer can close: the torso and waist inertials, the hardware torque ceilings, 0.2 N*m of joint
+    dry friction, 0.05 of passive damping, and a ground friction of 1.0. Its best seed is the
+    cleanest walk this family has produced -- success 0.992, single-stance 0.924, flight 0.006,
+    pelvis roll 1.65 degrees, no falls, and it tracks a straight command to within 0.002 m/s
+    laterally.
+
+    Two things to hold against it. Only one of three seeds trained at 6000 iterations, so the
+    teacher is s44 rather than a representative draw. And the arm's ground friction is *pinned* at
+    MuJoCo's 1.0 rather than randomized, which is what makes it the right thing to lockstep against
+    MuJoCo and the wrong thing to expect floor robustness from --
+    :class:`G129DofRoughMujocoAlignedDREnvCfg` is the variant that randomizes around those values.
+
+    Pair this with ``g1_mj_aligned.usda``: the student's environment has to be the teacher's, and
+    that includes the asset.
     """
 
     observations: G129DofRoughAirTime100DepthDistillObservationsCfg = (
