@@ -60,8 +60,8 @@ class LinearInterpolation:
         Returns:
             The interpolated values at query points. It has the same shape as the input tensor.
         """
-        # serialized q
-        q_1d = q.view(-1)
+        # serialize q; reshape also supports non-contiguous query tensors
+        q_1d = q.reshape(-1)
         # Number of elements in the x that are strictly smaller than query points (use int32 instead of int64)
         num_smaller_elements = torch.sum(self._x.unsqueeze(1) < q_1d.unsqueeze(0), dim=0, dtype=torch.int)
 
@@ -80,6 +80,6 @@ class LinearInterpolation:
         # Perform linear interpolation
         fq = self._y[lower_bound] + weight * (self._y[upper_bound] - self._y[lower_bound])
 
-        # deserialized fq
-        fq = fq.view(q.shape)
+        # deserialize fq
+        fq = fq.reshape(q.shape)
         return fq
