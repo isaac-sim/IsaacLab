@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Branch to build and publish (e.g. develop, release/3.0.0-beta2)'
+        description: 'Branch to build and publish (e.g. develop, release/3.0.0)'
         required: true
         type: string
 

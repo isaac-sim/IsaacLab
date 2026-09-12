@@ -10,7 +10,7 @@
 # branch's changelog current without requiring a maintainer to run
 # ``compile`` by hand.
 #
-# Scheduled workflow — must live on the default branch (``main``) for the
+# Scheduled workflow — must live on the repository's default branch for the
 # cron to register. See ``.github/workflows/README.md``.
 #
 # Scheduled runs combine ``env.CRON_BRANCHES`` with every remote
@@ -38,8 +38,7 @@ env:
 
 on:
   schedule:
-    # Run nightly at 5 AM UTC (one hour after daily-compatibility, so we
-    # don't compete for runner capacity).
+    # Run nightly at 5 AM UTC.
     - cron: '0 5 * * *'
   workflow_dispatch:
     inputs:
