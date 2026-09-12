@@ -122,6 +122,18 @@ def test_empty_buffer_access(circular_buffer):
         circular_buffer[torch.tensor([0, 0, 0], device=circular_buffer.device)]
 
 
+def test_buffer_property_requires_first_append_and_preserves_warmup(circular_buffer):
+    """The raw buffer property should reject pre-append access and preserve its warmup layout."""
+    with pytest.raises(RuntimeError, match="append data"):
+        _ = circular_buffer.buffer
+
+    data = torch.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+    circular_buffer.append(data)
+
+    expected = data.unsqueeze(1).repeat(1, circular_buffer.max_length, 1)
+    torch.testing.assert_close(circular_buffer.buffer, expected)
+
+
 def test_invalid_batch_size(circular_buffer):
     """Test appending data with an invalid batch size."""
     data = torch.ones((circular_buffer.batch_size + 1, 2), device=circular_buffer.device)
