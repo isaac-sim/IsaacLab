@@ -157,8 +157,10 @@ env:
     group_size: 1
     reward_coef: 1.0
     use_fixed_reset_state_ids: True
-    max_steps_per_rollout_epoch: 416
-    max_episode_steps: 416
+    # 448, not the 416 env.train uses: this is the cap the evaluation runs the task at, and
+    # env.train's value is tied to global_batch_size (see the note above the algorithm block).
+    max_steps_per_rollout_epoch: 448
+    max_episode_steps: 448
     video_cfg:
       save_video: False
       info_on_video: True
