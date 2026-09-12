@@ -20,7 +20,7 @@ overrides = [
     { name = "mujoco", specifier = "~=3.12.0" },
     { name = "mujoco-warp", specifier = "~=3.12.0" },
     { name = "newton", extras = ["sim"], specifier = "==1.6.0rc1" },
-    { name = "newton-usd-schemas", specifier = ">=0.4.1" },
+    { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numpy", specifier = ">=2" },
     { name = "packaging", specifier = ">=20,<27" },
     { name = "torch", marker = "(platform_machine != 'aarch64' and platform_machine != 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and sys_platform != 'win32')", specifier = "==2.11.0" },
@@ -1754,7 +1754,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "24.1.1"
+version = "24.1.2"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -2041,7 +2041,7 @@ requires-dist = [
     { name = "moviepy", marker = "extra == 'video'", specifier = ">=1.0.3,<2.0.0.dev0" },
     { name = "myst-parser", marker = "extra == 'dev'" },
     { name = "newton", extras = ["sim"], specifier = "==1.6.0rc1" },
-    { name = "newton-usd-schemas", specifier = ">=0.2.0" },
+    { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "numpydantic", marker = "extra == 'rlinf'", specifier = ">=1.7.0" },
@@ -2137,7 +2137,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-mimic"
-version = "2.0.6"
+version = "2.0.7"
 source = { editable = "source/isaaclab_mimic" }
 dependencies = [
     { name = "isaaclab" },
@@ -2154,7 +2154,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "6.2.0"
+version = "6.2.1"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2180,7 +2180,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "7.1.1"
+version = "7.1.2"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2202,7 +2202,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "0.17.2"
+version = "0.17.3"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -2219,7 +2219,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "20.1.2"
+version = "20.1.3"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
@@ -2249,7 +2249,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-teleop"
-version = "0.8.4"
+version = "0.9.0"
 source = { editable = "source/isaaclab_teleop" }
 dependencies = [
     { name = "isaaclab" },
@@ -2260,7 +2260,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-visualizers"
-version = "1.10.4"
+version = "1.10.5"
 source = { editable = "source/isaaclab_visualizers" }
 dependencies = [
     { name = "isaaclab" },
@@ -3371,11 +3371,11 @@ sim = [
 
 [[package]]
 name = "newton-usd-schemas"
-version = "0.4.1"
+version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/98/5f/aad1672263880d7e0ee3a7ce9b877ef16e99dba45fb5eb8084181eb7ee1e/newton_usd_schemas-0.4.1.tar.gz", hash = "sha256:1f6946ce2741d7a86ca8e3e84d7b64328c88b42a3b29160a7607b2ce0c837bf4", size = 69561, upload-time = "2026-07-30T17:40:41.505Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/69/3b/602eea8123824daf2215fcdf4a61a0958507ea11e5c38e4313285f6b745f/newton_usd_schemas-0.5.0.tar.gz", hash = "sha256:a404232e9f89cfce130ee5ed5c8b6b23b187514e857803b5d7b08568bb2516e0", size = 76299, upload-time = "2026-08-14T00:02:50.252Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9b/24/d1d44f682dbd28392ef0b6f9e6f9e40374c6009af06e494fa6a9308f79e2/newton_usd_schemas-0.4.1-py3-none-any.whl", hash = "sha256:8911e846c65448426609a2945db6d1135d33e84bf4107efd888a62287b1aa93d", size = 19424, upload-time = "2026-07-30T17:40:40.076Z" },
+    { url = "https://files.pythonhosted.org/packages/78/bc/ffad9598cc4772cb0b8d8d47c6700493dac3d8d6518dead78c596a0325ed/newton_usd_schemas-0.5.0-py3-none-any.whl", hash = "sha256:edb559522474855fc03e6f395e0702b11074a13fe1c2ed9cce63fbb06516b342", size = 22280, upload-time = "2026-08-14T00:02:49.056Z" },
 ]
 
 [[package]]

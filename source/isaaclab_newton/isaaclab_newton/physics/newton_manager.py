@@ -1950,7 +1950,14 @@ class NewtonManager(PhysicsManager):
 
         from pxr import UsdGeom
 
+        # MPMObject imports NewtonManager, so defer this reciprocal import until model construction.
+        from isaaclab_newton.assets.mpm_object.mpm_object import (  # noqa: PLC0415
+            record_registered_mpm_particle_ranges,
+            reset_registered_mpm_particle_ranges,
+        )
+
         stage = get_current_stage()
+        reset_registered_mpm_particle_ranges()
         up_axis = UsdGeom.GetStageUpAxis(stage)
 
         # Scan /World children for env-like Xforms (Env_0, env_1, ...)
@@ -1986,6 +1993,7 @@ class NewtonManager(PhysicsManager):
             import_result = builder.add_usd(
                 stage, ignore_paths=[*hf_ignore_paths, *solver_ignore_paths], schema_resolvers=schema_resolvers
             )
+            record_registered_mpm_particle_ranges(import_result.get("path_particle_map", {}))
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
             import_builder_visual_material_paths(builder, stage)
@@ -2002,6 +2010,7 @@ class NewtonManager(PhysicsManager):
             # and any terrain colliders already added as heightfields above.
             ignore_paths = [path for _, path in env_paths] + hf_ignore_paths + solver_ignore_paths
             import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
+            record_registered_mpm_particle_ranges(import_result.get("path_particle_map", {}))
             _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
             replace_newton_builder_shape_colors(builder, stage)
             import_builder_visual_material_paths(builder, stage)
@@ -2039,6 +2048,17 @@ class NewtonManager(PhysicsManager):
             positions = np.asarray([pos for pos, _ in poses], dtype=np.float32)
             quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
             mapping = np.ones((1, len(env_paths)), dtype=np.bool_)
+
+            def record_source_particle_ranges(source, particle_offset, source_builder, source_xform) -> None:
+                if source == proto_path:
+                    record_registered_mpm_particle_ranges(
+                        import_result.get("path_particle_map", {}),
+                        particle_offset,
+                        builder=builder,
+                        source_builder=source_builder,
+                        source_xform=source_xform,
+                    )
+
             local_site_map, world_xforms, _ = replicate_builder_mapping(
                 builder=builder,
                 sources=(proto_path,),
@@ -2049,6 +2069,7 @@ class NewtonManager(PhysicsManager):
                 source_site_indices=source_site_indices,
                 env_root_sites=env_root_sites,
                 per_world_builder_hooks=cls._per_world_builder_hooks,
+                source_builder_added=record_source_particle_ranges if cls._mpm_object_registry else None,
             )
 
             NewtonManager._cl_site_index_map = {label: (idx, None) for label, idx in global_site_indices.items()}

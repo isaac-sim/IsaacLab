@@ -102,6 +102,19 @@ geometric correction is intentional, and not as a substitute for valid initial
 states, collision geometry, or a stable timestep. Coupled MPM entries do not
 support this manager-level projection pass.
 
+Both :class:`~isaaclab_newton.sim.MPMGridCfg` and
+:class:`~isaaclab_newton.sim.MPMPointsCfg` author schema-valid
+``UsdGeom.Points`` simulation geometry. Grid configurations still generate the
+lattice in Isaac Lab before authoring explicit points, widths, velocities, and
+masses. Materials use ``NewtonMPMMaterialAPI``; damping [s] is authored as
+``damping * young_modulus`` [Pa·s]. ``critical_fraction`` remains solver-global
+on :class:`~isaaclab_newton.physics.MPMSolverCfg` and is authored on the owning
+``NewtonMPMSceneAPI`` physics scene.
+
+Grid jitter is generated once in asset-local coordinates with a fixed seed, so
+USD clones share the same local particle distribution. Use reset events or domain
+randomization when each environment needs an independent distribution.
+
 
 Render a Particle Surface
 -------------------------

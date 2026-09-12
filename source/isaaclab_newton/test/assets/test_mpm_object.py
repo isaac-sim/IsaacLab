@@ -14,25 +14,13 @@ import torch
 newton = pytest.importorskip("newton")
 
 from isaaclab_newton.assets.mpm_object import MPMObject, MPMObjectCfg
-from isaaclab_newton.assets.mpm_object.mpm_object import MPMObjectRegistryEntry, add_mpm_entry_to_builder
 from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg, NewtonMPMManager
-from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg, MPMPointsCfg
+from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils import configclass
-
-
-def test_mpm_particle_material_emits_custom_attributes():
-    """MPM materials are value cfgs forwarded as Newton custom attributes, not USD material spawners."""
-    from isaaclab_newton.sim.spawners.mpm.mpm import _material_custom_attributes
-
-    attrs = _material_custom_attributes(MPMParticleMaterialCfg(viscosity=0.1))
-
-    assert attrs["mpm:friction"] == pytest.approx(0.68)
-    assert attrs["mpm:viscosity"] == pytest.approx(0.1)
-    assert "density" not in attrs
 
 
 def test_mpm_object_cfg_resolves_asset_class():
@@ -42,55 +30,6 @@ def test_mpm_object_cfg_resolves_asset_class():
     )
 
     assert cfg.class_type.__name__ == MPMObject.__name__
-
-
-def test_mpm_grid_emission_records_constant_offsets_per_env():
-    builder = newton.ModelBuilder()
-    NewtonMPMManager._register_builder_attributes(builder)
-
-    cfg = MPMObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Sand",
-        spawn=MPMGridCfg(
-            lower=(0.0, 0.0, 0.0),
-            upper=(0.1, 0.1, 0.1),
-            voxel_size=0.1,
-            particles_per_cell=1.0,
-            jitter=0.0,
-            particle_placement="cell_center",
-        ),
-    )
-    entry = MPMObjectRegistryEntry(cfg)
-
-    add_mpm_entry_to_builder(builder, entry, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
-    add_mpm_entry_to_builder(builder, entry, 1, [1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
-
-    assert entry.particles_per_object == 1
-    assert entry.particle_offsets == [0, 1]
-    assert builder.particle_count == 2
-
-
-def test_mpm_points_emission_records_constant_offsets_per_env():
-    builder = newton.ModelBuilder()
-    NewtonMPMManager._register_builder_attributes(builder)
-
-    cfg = MPMObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Fluid",
-        spawn=MPMPointsCfg(
-            positions=((0.0, 0.0, 0.0), (0.0, 0.0, 0.1), (0.0, 0.1, 0.0)),
-            velocities=((0.0, 0.0, 0.0), (0.0, 0.0, 0.1), (0.0, 0.1, 0.0)),
-            mass=0.01,
-            radius=0.02,
-            material=MPMParticleMaterialCfg(viscosity=0.1, friction=0.0),
-        ),
-    )
-    entry = MPMObjectRegistryEntry(cfg)
-
-    add_mpm_entry_to_builder(builder, entry, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
-    add_mpm_entry_to_builder(builder, entry, 1, [0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0])
-
-    assert entry.particles_per_object == 3
-    assert entry.particle_offsets == [0, 3]
-    assert builder.particle_count == 6
 
 
 def test_mpm_object_initializes_from_interactive_scene():

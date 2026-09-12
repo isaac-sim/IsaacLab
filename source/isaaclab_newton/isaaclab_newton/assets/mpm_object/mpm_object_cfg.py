@@ -22,10 +22,11 @@ class MPMObjectCfg(DeformableObjectCfg):
     """Configuration parameters for a Newton MPM particle object."""
 
     cloning_contexts: tuple[str | type, ...] | None = ("isaaclab_newton.cloner:NewtonReplicateContext",)
-    """Physics cloning context for the MPM object: Newton replication. The spawner authors
-    only an empty Xform, which is fully USD-clonable, so USD clones are still created under
-    Kit like any spawned asset; particle positions then sync through Fabric on top of the
-    per-environment prims."""
+    """Physics cloning context for the MPM object: Newton replication.
+
+    The authored simulation points are USD-clonable. A separate mutable particle
+    cloud mirrors the simulated positions for renderer compatibility.
+    """
 
     class_type: type[MPMObject] | str = "{DIR}.mpm_object:MPMObject"
 

@@ -44,6 +44,7 @@ from . import mdp
 
 RIGID_ENTRY = "robot"
 MPM_ENTRY = "media"
+GROUND_PLANE_SHAPE_PATTERN = r".*/GroundPlane/CollisionPlane$"
 MPM_VOXEL_SIZE = 0.025
 MPM_COLLIDER_MARGIN = 0.5 * MPM_VOXEL_SIZE
 MPM_PARTICLES_PER_CELL = 2.0
@@ -70,8 +71,6 @@ SPARSE_MPM_MIN_TOTAL_UPPER_NODE_COUNT = 1 << 5
 # Shared source of truth for the visible MPM and hidden rigid solver geometry.
 WORK_SURFACE_SIZE = (1.28, 0.91, 0.04)
 WORK_SURFACE_POSITION = (0.3939, 0.0, -0.02)
-MPM_GROUND_SIZE = (2.60, 2.60, 0.10)
-MPM_GROUND_POSITION = (0.60, 0.0, -1.10)
 BIN_FLOOR_SIZE = (0.36, 0.56, 0.04)
 BIN_FLOOR_POSITION = (1.2139, 0.0, -0.20)
 BIN_FRONT_SIZE = (0.05, 0.66, 0.20)
@@ -403,16 +402,6 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
         color=(0.3, 0.3, 0.3),
         visible=False,
     )
-    # Newton MPM owns a simple per-world mirror of the visible global lab floor. Without it, the
-    # few grains permitted to spill leave the solver entirely and accelerate forever.
-    mpm_ground = _kinematic_box(
-        "{ENV_REGEX_NS}/MPMGround",
-        size=MPM_GROUND_SIZE,
-        position=MPM_GROUND_POSITION,
-        color=(0.18, 0.18, 0.18),
-        visible=False,
-    )
-
     # Catch tote mounted against the +X edge of the workbench. Its front wall ends flush with the
     # tabletop and overlaps the floor, closing the otherwise hidden under-table escape slot without
     # adding a lip above the sweep surface.
@@ -447,8 +436,7 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
         color=(0.12, 0.22, 0.34),
     )
 
-    # These static mirrors are automatically owned by the rigid entry together with the official
-    # table and ground. The MPM entry owns only the kinematic copies above, so no shape is shared.
+    # These static mirrors supply rigid contact while MPM uses the kinematic bin collision above.
     rigid_bin_floor = _static_collision_box(
         "{ENV_REGEX_NS}/RigidBinFloor",
         size=BIN_FLOOR_SIZE,
@@ -978,7 +966,8 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                             nconmax=512,
                         ),
                         bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Table"],
-                        include_static_shapes=True,
+                        # Let Newton derive body and global static shape visibility without explicit ownership.
+                        include_body_shapes=False,
                         # Refine rigid integration with three substeps per coupled interval.
                         substeps=3,
                     ),
@@ -1003,13 +992,13 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                         ),
                         bodies=[
                             r"/World/envs/env_.*/MPMWorkSurface",
-                            r"/World/envs/env_.*/MPMGround",
                             r"/World/envs/env_.*/MPMBinFloor",
                             r"/World/envs/env_.*/MPMBinFront",
                             r"/World/envs/env_.*/MPMBinBack",
                             r"/World/envs/env_.*/MPMBinLeft",
                             r"/World/envs/env_.*/MPMBinRight",
                         ],
+                        shape_label_patterns=[GROUND_PLANE_SHAPE_PATTERN],
                         all_particles=True,
                         include_static_shapes=False,
                         include_child_joints=False,
