@@ -52,3 +52,21 @@ def test_no_prebundled_package_lost_its_entry_point():
     """
     broken = _in_image('find / -path "*pip_prebundle*" -xtype l -name "__init__.py" 2>/dev/null || true').strip()
     assert not broken, "prebundled packages lost their entry point:\n" + broken
+
+
+def test_uv_run_resolves_the_shipped_environment():
+    """``uv run`` must use the venv the image ships, not build a second one.
+
+    uv reads the project environment from ``UV_PROJECT_ENVIRONMENT`` and ignores ``VIRTUAL_ENV``,
+    so an image setting only the latter has ``uv run`` create ``${ISAACLAB_PATH}/.venv`` and
+    reinstall the whole lock. On a bind-mounted source tree that write fails outright
+    (nvbugs 6732972, ``could not create '<package>.egg-info': Permission denied``).
+    """
+    virtual_env = _in_image('printf %s "$VIRTUAL_ENV"').strip()
+    assert virtual_env, "image does not set VIRTUAL_ENV"
+
+    prefix = _in_image('uv run python -c "import sys; print(sys.prefix)"').strip()
+    assert prefix == virtual_env, f"uv run resolved {prefix}, not the image environment {virtual_env}"
+
+    stray = _in_image('ls -d "${ISAACLAB_PATH}/.venv" 2>/dev/null || true').strip()
+    assert not stray, f"uv run built a second environment at {stray}"
