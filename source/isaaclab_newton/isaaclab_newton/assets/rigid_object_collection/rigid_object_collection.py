@@ -21,7 +21,6 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
-from isaaclab.cloner import queue_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -77,8 +76,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # flag for whether the asset is initialized
         self._is_initialized = False
         # spawn the rigid objects
-        source_rigid_object_cfgs = cfg.rigid_objects
-        for rigid_body_name, rigid_body_cfg in self.cfg.rigid_objects.items():
+        for rigid_body_cfg in self.cfg.rigid_objects.values():
             # spawn the asset
             if rigid_body_cfg.spawn is not None:
                 spawn_path = rigid_body_cfg.spawn.spawn_path or rigid_body_cfg.prim_path
@@ -92,7 +90,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             matching_prims = sim_utils.find_matching_prims(rigid_body_cfg.prim_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {rigid_body_cfg.prim_path}.")
-            queue_replication(source_rigid_object_cfgs[rigid_body_name])
         # stores object names
         self._body_names_list = []
 

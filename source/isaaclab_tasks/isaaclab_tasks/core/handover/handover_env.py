@@ -10,12 +10,8 @@ from collections.abc import Sequence
 
 import torch
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation, RigidObject
+from isaaclab.assets import Articulation
 from isaaclab.envs import DirectMARLEnv
-from isaaclab.markers import VisualizationMarkers
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, saturate, scale_transform, unscale_transform
 
 from isaaclab_tasks.core.handover.handover_common import GOAL_POSITION_OFFSET
@@ -34,6 +30,9 @@ class HandoverEnv(DirectMARLEnv):
 
     def __init__(self, cfg: HandoverEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+        self.right_hand, self.left_hand, self.object, self.goal_markers = [
+            self.scene[name] for name in ("right_robot", "left_robot", "object", "goal_object")
+        ]
 
         self.num_hand_dofs = self.right_hand.num_joints
 
@@ -91,9 +90,6 @@ class HandoverEnv(DirectMARLEnv):
         self.goal_pos[:, :] = self.object.data.default_root_pose.torch[:, :3] + torch.tensor(
             GOAL_POSITION_OFFSET, dtype=torch.float, device=self.device
         )
-        # initialize goal marker
-        self.goal_markers = VisualizationMarkers(self.cfg.goal_object_cfg)
-
         # Sticky per-env flag: True once the object reached the goal within threshold.
         self._episode_succeeded = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         # Goal distance from the most recent reward step, read at reset as the episode's final value.
@@ -103,28 +99,6 @@ class HandoverEnv(DirectMARLEnv):
         # unit tensors for sampling goal/object rotations about the x and y axes
         self.x_unit_tensor = torch.tensor([1, 0, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
-
-    def _setup_scene(self):
-        self.right_hand = Articulation(self.cfg.right_robot_cfg)
-        self.left_hand = Articulation(self.cfg.left_robot_cfg)
-        self.object = RigidObject(self.cfg.object_cfg)
-        # add ground plane
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=["/World/ground"])
-        # add articulation to scene - we must register to scene to randomize with EventManager
-        self.scene.articulations["right_robot"] = self.right_hand
-        self.scene.articulations["left_robot"] = self.left_hand
-        self.scene.rigid_objects["object"] = self.object
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
 
     def _pre_physics_step(self, actions: dict[str, torch.Tensor]) -> None:
         self.actions = actions

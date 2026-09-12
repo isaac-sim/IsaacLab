@@ -14,7 +14,7 @@ from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -53,19 +53,9 @@ class AntPhysicsCfg(PresetCfg):
 
 
 @configclass
-class AntEnvCfg(DirectRLEnvCfg):
-    """Configuration for the direct-workflow Ant walking environment."""
+class AntDirectSceneCfg(InteractiveSceneCfg):
+    """Ant, terrain, sensor, and light constructed through one clone lifecycle."""
 
-    # env
-    episode_length_s = 16.0
-    decimation = 2
-    action_scale = 0.5
-    action_space = 8
-    observation_space = 60
-    state_space = 0
-
-    # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=AntPhysicsCfg())
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
         terrain_type="plane",
@@ -79,19 +69,36 @@ class AntEnvCfg(DirectRLEnvCfg):
         ),
         debug_vis=False,
     )
+    robot: ArticulationCfg = ANT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+    light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
+
+
+@configclass
+class AntEnvCfg(DirectRLEnvCfg):
+    """Configuration for the direct-workflow Ant walking environment."""
+
+    # env
+    episode_length_s = 16.0
+    decimation = 2
+    action_scale = 0.5
+    action_space = 8
+    observation_space = 60
+    state_space = 0
+
+    # simulation
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=AntPhysicsCfg())
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
+    scene: AntDirectSceneCfg = AntDirectSceneCfg(
         num_envs=4096, env_spacing=5.0, replicate_physics=True, clone_in_fabric=True
     )
 
-    # robot
-    robot: ArticulationCfg = ANT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     # effort scale per joint, keyed by joint name expression
     joint_gears: dict[str, float] = {".*": 15.0}
 
-    # sensors
-    joint_wrench: JointWrenchSensorCfg = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
     feet_body_names: list[str] = ["front_left_foot", "front_right_foot", "left_back_foot", "right_back_foot"]
 
     # walk target, relative to the environment origin

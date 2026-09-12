@@ -7,13 +7,15 @@ from __future__ import annotations
 
 import isaaclab.sim as sim_utils
 from isaaclab.renderers import RendererCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg
+from isaaclab.sensors import CameraCfg, JointWrenchSensorCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import (
+    ShadowHandEnvCfg,
+    ShadowHandSceneCfg,
+)
 from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
@@ -170,12 +172,21 @@ class ShadowHandTiledCameraCfg(PresetCfg):
 
 
 @configclass
+class ShadowHandCameraSceneCfg(ShadowHandSceneCfg):
+    """Shadow Hand scene with camera and fingertip-wrench sensors."""
+
+    num_envs = 1225
+    env_spacing = 2.0
+    ground = None
+    joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+    tiled_camera: ShadowHandTiledCameraCfg = ShadowHandTiledCameraCfg()
+
+
+@configclass
 class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1225, env_spacing=2.0, replicate_physics=True)
+    scene: ShadowHandCameraSceneCfg = ShadowHandCameraSceneCfg()
 
-    # camera — data-type and renderer backend selectable via CLI presets
-    tiled_camera: ShadowHandTiledCameraCfg = ShadowHandTiledCameraCfg()
     feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(
         pretrained_checkpoint=preset(  # type: ignore[arg-type]
             default=_DIRECT_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
@@ -192,7 +203,7 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
 
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""
-        validate_shadow_hand_camera_settings(self.tiled_camera, self.feature_extractor)
+        validate_shadow_hand_camera_settings(self.scene.tiled_camera, self.feature_extractor)
 
     def play_mode(self):
         # play-mode overrides of parent

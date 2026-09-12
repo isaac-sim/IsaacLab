@@ -6,17 +6,21 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.sim import SpawnerCfg
 from isaaclab.utils import configclass
+
+if TYPE_CHECKING:
+    from .asset import Asset
 
 
 @configclass
 class AssetBaseCfg:
     """The base configuration class for an asset's parameters.
 
-    Please see the :class:`AssetBase` class for more information on the asset class.
+    See :class:`~isaaclab.assets.Asset` and :class:`~isaaclab.assets.AssetBase` for authoring-only and
+    runtime-view assets.
     """
 
     @configclass
@@ -39,11 +43,11 @@ class AssetBaseCfg:
         Defaults to (0.0, 0.0, 0.0, 1.0).
         """
 
-    class_type: type | str | None = None
-    """The associated asset class. Defaults to None, which means that the asset will be spawned
-    but cannot be interacted with via the asset class.
+    class_type: type[Asset] | str = "{DIR}.asset:Asset"
+    """The associated asset class. Defaults to :class:`~isaaclab.assets.Asset`, which authors the asset
+    without creating a runtime simulation view.
 
-    The class should inherit from :class:`isaaclab.assets.asset_base.AssetBase`.
+    Physics-backed asset classes should inherit from :class:`~isaaclab.assets.AssetBase`.
     """
 
     cloning_contexts: tuple[str | type, ...] | None = None
@@ -100,8 +104,7 @@ class AssetBaseCfg:
     """
 
     def _post_spawn(self, stage: Any) -> None:
-        """Hook invoked by :class:`~isaaclab.assets.AssetBase` after the asset's prims are
-        spawned and verified to exist on the stage.
+        """Hook invoked by :class:`~isaaclab.assets.Asset` after its spawner returns a valid prim.
 
         The default implementation is a no-op. Subclasses that need to author additional
         USD schemas tied to this asset (for example, :class:`~isaaclab.assets.ArticulationCfg`

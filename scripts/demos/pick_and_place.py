@@ -33,28 +33,54 @@ from collections.abc import Sequence
 
 import torch
 import warp as wp
-from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
+from isaaclab_physx.assets import SurfaceGripperCfg
 
 import carb
 import omni
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import (
-    Articulation,
-    ArticulationCfg,
-    RigidObject,
-    RigidObjectCfg,
-)
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
-from isaaclab.markers import SPHERE_MARKER_CFG, VisualizationMarkers
+from isaaclab.markers import SPHERE_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils import configclass
 from isaaclab.utils.math import sample_uniform
 
 from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
+
+
+@configclass
+class PickAndPlaceSceneCfg(InteractiveSceneCfg):
+    """Assets for the pick-and-place example."""
+
+    robot: ArticulationCfg = PICK_AND_PLACE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    cube: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/Cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.4, 0.4, 0.4),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.0, 0.8)),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(),
+    )
+
+    # Surface Gripper, the prim_expr need to point to a unique surface gripper per environment.
+    gripper = SurfaceGripperCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/picker_head/SurfaceGripper",
+        max_grip_distance=0.1,
+        shear_force_limit=500.0,
+        coaxial_force_limit=500.0,
+        retry_interval=0.2,
+    )
+    ground: AssetBaseCfg = AssetBaseCfg(prim_path="/World/ground", collision_group=-1, spawn=sim_utils.GroundPlaneCfg())
+    light: AssetBaseCfg = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
+    goal_position = SPHERE_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_position")
+    goal_position.markers["sphere"].radius = 0.25
 
 
 @configclass
@@ -82,36 +108,11 @@ class PickAndPlaceEnvCfg(DirectRLEnvCfg):
     )
     debug_vis = True
 
-    # robot
-    robot_cfg: ArticulationCfg = PICK_AND_PLACE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    scene: PickAndPlaceSceneCfg = PickAndPlaceSceneCfg(num_envs=1, env_spacing=12.0, replicate_physics=True)
+
     x_dof_name = "x_axis"
     y_dof_name = "y_axis"
     z_dof_name = "z_axis"
-
-    # We add a cube to pick-up
-    cube_cfg: RigidObjectCfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/Robot/Cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.4, 0.4, 0.4),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.0, 0.8)),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(),
-    )
-
-    # Surface Gripper, the prim_expr need to point to a unique surface gripper per environment.
-    gripper = SurfaceGripperCfg(
-        prim_path="/World/envs/env_.*/Robot/picker_head/SurfaceGripper",
-        max_grip_distance=0.1,
-        shear_force_limit=500.0,
-        coaxial_force_limit=500.0,
-        retry_interval=0.2,
-    )
-
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=12.0, replicate_physics=True)
 
     # reset logic
     # Initial position of the robot
@@ -141,6 +142,9 @@ class PickAndPlaceEnv(DirectRLEnv):
 
     def __init__(self, cfg: PickAndPlaceEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+        self.pick_and_place, self.cube, self.gripper, self.goal_pos_visualizer = [
+            self.scene[name] for name in ("robot", "cube", "gripper", "goal_position")
+        ]
 
         # Indices used to control the different axes of the gantry
         self._x_dof_idx, _ = self.pick_and_place.find_joints(self.cfg.x_dof_name)
@@ -219,28 +223,6 @@ class PickAndPlaceEnv(DirectRLEnv):
             self.go_to_cube[:] = False
             self.go_to_target[:] = False
             self.instant_controls[:] = self._instant_key_controls["ZEROS"]
-
-    def _setup_scene(self):
-        self.pick_and_place = Articulation(self.cfg.robot_cfg)
-        self.cube = RigidObject(self.cfg.cube_cfg)
-        self.gripper = SurfaceGripper(self.cfg.gripper)
-        # add ground plane
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=["/World/ground"])
-        # add articulation to scene
-        self.scene.articulations["pick_and_place"] = self.pick_and_place
-        self.scene.rigid_objects["cube"] = self.cube
-        self.scene.surface_grippers["gripper"] = self.gripper
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         # Store the actions
@@ -407,19 +389,7 @@ class PickAndPlaceEnv(DirectRLEnv):
         self.pick_and_place.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
-        # create markers if necessary for the first tome
-        if debug_vis:
-            if not hasattr(self, "goal_pos_visualizer"):
-                marker_cfg = SPHERE_MARKER_CFG.copy()
-                marker_cfg.markers["sphere"].radius = 0.25
-                # -- goal pose
-                marker_cfg.prim_path = "/Visuals/Command/goal_position"
-                self.goal_pos_visualizer = VisualizationMarkers(marker_cfg)
-            # set their visibility to true
-            self.goal_pos_visualizer.set_visibility(True)
-        else:
-            if hasattr(self, "goal_pos_visualizer"):
-                self.goal_pos_visualizer.set_visibility(False)
+        self.goal_pos_visualizer.set_visibility(debug_vis)
 
     def _debug_vis_callback(self, event):
         # update the markers

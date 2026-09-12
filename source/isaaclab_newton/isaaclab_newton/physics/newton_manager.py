@@ -1343,14 +1343,12 @@ class NewtonManager(PhysicsManager):
         main_builder: ModelBuilder,
         source_builders: dict[str, ModelBuilder],
     ) -> tuple[dict[str, int], dict[int, dict[str, list[int]]], dict[str, wp.transform]]:
-        """Inject registered sites into source builders before replication.
+        """Inject registered sites into plan-owned builders before replication.
 
-        Non-global sites are matched against source builder body labels using
-        :func:`resolve_matching_names` (regex). Global sites
-        (``body_pattern is None``) are added to *main_builder* with
-        ``body=-1``.
+        Body sites are matched against source builders, then the main builder containing
+        shared assets. Bodyless global sites are added to *main_builder* with ``body=-1``.
 
-        Returns source-builder-local shape indices so that ``newton_replicate`` can
+        Returns builder-local shape indices so that ``newton_replicate`` can
         compute final indices during replication without a second pattern match.
 
         Pending requests are cleared after processing.
@@ -1362,7 +1360,7 @@ class NewtonManager(PhysicsManager):
         Returns:
             Tuple of ``(global_site_indices, source_site_indices, env_root_sites)`` where
             *global_site_indices* maps ``{label: main_builder_shape_idx}``,
-            *source_site_indices* maps ``{id(source_builder): {label: [source_local_shape_idx, ...]}}``,
+            *source_site_indices* maps ``{id(builder): {label: [builder_shape_idx, ...]}}``,
             and *env_root_sites* maps ``{label: env_root_relative_transform}``.
         """
         global_site_indices: dict[str, int] = {}
@@ -1380,7 +1378,9 @@ class NewtonManager(PhysicsManager):
                 continue
 
             any_matched = False
-            for _source_path, source_builder in source_builders.items():
+            for source_builder in (*source_builders.values(), main_builder):
+                if source_builder is main_builder and any_matched:
+                    break
                 body_labels = list(source_builder.body_label)
                 matched_indices, matched_names = resolve_matching_names(
                     body_pattern, body_labels, raise_when_no_match=False
@@ -1389,20 +1389,17 @@ class NewtonManager(PhysicsManager):
                     continue
 
                 any_matched = True
-                source_builder_id = id(source_builder)
                 site_indices: list[int] = []
                 for body_idx, body_name in zip(matched_indices, matched_names):
                     site_label = f"{body_name}/{label}"
                     source_site_idx = source_builder.add_site(body=body_idx, xform=xform, label=site_label)
                     site_indices.append(source_site_idx)
-                    logger.debug(f"Injected site '{site_label}' into source builder")
-                source_site_indices.setdefault(source_builder_id, {})[label] = site_indices
+                    logger.debug(f"Injected site '{site_label}' into clone-plan builder")
+                source_site_indices.setdefault(id(source_builder), {})[label] = site_indices
 
             if not any_matched:
                 raise ValueError(
-                    f"Site '{label}' with body_pattern '{body_pattern}' matched no source-builder bodies "
-                    f"across {len(source_builders)} source builder(s). "
-                    f"Check that the pattern matches a body label in a source builder."
+                    f"Site '{label}' with body_pattern '{body_pattern}' matched no clone-plan builder bodies."
                 )
 
         cls._cl_pending_sites.clear()

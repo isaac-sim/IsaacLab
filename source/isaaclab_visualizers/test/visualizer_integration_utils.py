@@ -1860,8 +1860,8 @@ def _make_cartpole_camera_env(
     env_cfg.viewer.eye = camera_kwargs["eye"]
     env_cfg.viewer.lookat = camera_kwargs["lookat"]
     tw, th = _CARTPOLE_TILED_CAMERA_INTEGRATION_WH
-    env_cfg.tiled_camera.width = tw
-    env_cfg.tiled_camera.height = th
+    env_cfg.scene.tiled_camera.width = tw
+    env_cfg.scene.tiled_camera.height = th
     if isinstance(env_cfg.observation_space, list) and len(env_cfg.observation_space) >= 3:
         env_cfg.observation_space = [th, tw, env_cfg.observation_space[2]]
     env_cfg.seed = None

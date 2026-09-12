@@ -10,10 +10,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation
-from isaaclab.sensors import Camera, save_images_to_file
+from isaaclab.sensors import save_images_to_file
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.images import is_rgb_like, normalize_camera_image
 
@@ -33,16 +30,17 @@ class CartpoleCameraEnv(CartpoleEnv):
         if isinstance(cfg.observation_space, list):
             cfg.observation_space = [
                 int(cfg.observation_space[0]) * cfg.frame_stack,
-                int(cfg.tiled_camera.height),
-                int(cfg.tiled_camera.width),
+                int(cfg.scene.tiled_camera.height),
+                int(cfg.scene.tiled_camera.width),
             ]
 
         super().__init__(cfg, render_mode, **kwargs)
 
-        if len(self.cfg.tiled_camera.data_types) != 1:
+        self._tiled_camera = self.scene["tiled_camera"]
+        if len(self.cfg.scene.tiled_camera.data_types) != 1:
             raise ValueError(
                 "The Cartpole camera environment only supports one image type at a time but the following were"
-                f" provided: {self.cfg.tiled_camera.data_types}"
+                f" provided: {self.cfg.scene.tiled_camera.data_types}"
             )
 
         self._stack: CircularBuffer | None = None
@@ -53,30 +51,8 @@ class CartpoleCameraEnv(CartpoleEnv):
                 max_len=self.cfg.frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1
             )
 
-    def _setup_scene(self):
-        """Setup the scene with the cartpole and camera (no ground plane, which obstructs the view)."""
-        self.cartpole = Articulation(self.cfg.robot_cfg)
-        self._tiled_camera = Camera(self.cfg.tiled_camera)
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos)
-        cloner.replicate(plan)
-
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[])
-
-        # add articulation and sensors to scene
-        self.scene.articulations["cartpole"] = self.cartpole
-        self.scene.sensors["tiled_camera"] = self._tiled_camera
-        # add lights
-        light_cfg = sim_utils.DistantLightCfg(intensity=2000.0, color=(1.0, 1.0, 1.0))
-        # quaternion for euler angles (roll, pitch, yaw) = (0, -45, -45) degrees
-        light_orientation = (-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
-        light_cfg.func("/World/Light", light_cfg, orientation=light_orientation)
-
     def _get_observations(self) -> dict:
-        data_type = self.cfg.tiled_camera.data_types[0]
+        data_type = self.cfg.scene.tiled_camera.data_types[0]
         camera_data = self._tiled_camera.data.output[data_type]
 
         rgb_like = is_rgb_like(data_type)

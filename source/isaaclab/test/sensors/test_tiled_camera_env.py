@@ -111,8 +111,8 @@ def _launch_tests(tile_widths: range, tile_heights: range, num_envs: int):
             sim_utils.create_new_stage()
             # parse configuration
             env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
-            env_cfg.tiled_camera.width = width
-            env_cfg.tiled_camera.height = height
+            env_cfg.scene.tiled_camera.width = width
+            env_cfg.scene.tiled_camera.height = height
             print(f">>> Running test for resolution: {width} x {height}")
             # check environment
             _run_environment(env_cfg)
@@ -135,7 +135,7 @@ def _run_environment(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg):
     if args_cli.save_images:
         save_images_to_file(
             obs["policy"] + 0.93,
-            f"output_{env.num_envs}_{env_cfg.tiled_camera.width}x{env_cfg.tiled_camera.height}.png",
+            f"output_{env.num_envs}_{env_cfg.scene.tiled_camera.width}x{env_cfg.scene.tiled_camera.height}.png",
         )
 
     # close the environment

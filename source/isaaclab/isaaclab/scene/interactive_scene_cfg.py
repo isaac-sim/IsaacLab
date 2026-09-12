@@ -121,9 +121,7 @@ class InteractiveSceneCfg:
 
     .. note::
         The scene pipes this flag into :attr:`~isaaclab.cloner.CloneCfg.replicate_physics`;
-        the policy is applied by :func:`~isaaclab.cloner.replicate`. Direct workflows that
-        call :func:`~isaaclab.cloner.replicate` themselves pass ``replicate_physics``
-        explicitly.
+        the policy is applied by :func:`~isaaclab.cloner.replicate`.
     """
 
     filter_collisions: bool = True
@@ -142,7 +140,7 @@ class InteractiveSceneCfg:
     clone_in_fabric: bool = False
     """Deprecated legacy Fabric cloning flag. Default is False.
 
-    Queued replication no longer forwards this flag to the PhysX replicator;
+    Clone-plan replication does not forward this flag to the PhysX replicator;
     ``useFabricForReplication`` is always ``False``.
     """
 

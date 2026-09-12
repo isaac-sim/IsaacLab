@@ -16,16 +16,13 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import queue_replication
-from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
-from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.warp import ProxyArray
 
-if TYPE_CHECKING:
-    from pxr import Usd
+from .asset import Asset
 
+if TYPE_CHECKING:
     from .asset_base_cfg import AssetBaseCfg
 
 
@@ -55,7 +52,7 @@ class _AssetSelectorCache:
         self._entries.clear()
 
 
-class AssetBase(ABC):
+class AssetBase(Asset, ABC):
     """The base interface class for assets.
 
     An asset corresponds to any physics-enabled object that can be spawned in the simulation. These include
@@ -65,13 +62,8 @@ class AssetBase(ABC):
     This allows a convenient way to perform post-processing operations on the buffers before writing them
     into the simulator and obtaining the corresponding simulation results.
 
-    The class handles both the spawning of the asset into the USD stage as well as initialization of necessary
-    physics handles to interact with the asset. Upon construction of the asset instance, the prim corresponding
-    to the asset is spawned into the USD stage if the spawn configuration is not None. The spawn configuration
-    is defined in the :attr:`AssetBaseCfg.spawn` attribute. In case the configured :attr:`AssetBaseCfg.prim_path`
-    is an expression, then the prim is spawned at all the matching paths. Otherwise, a single prim is spawned
-    at the configured path. For more information on the spawn configuration, see the
-    :mod:`isaaclab.sim.spawners` module.
+    The class extends :class:`Asset` with physics handles and runtime data buffers. Construction first authors
+    the asset and then registers callbacks that initialize its runtime view.
 
     Unlike backend-specific interfaces (e.g. Isaac Sim PhysX) where one usually needs to call
     initialize explicitly, the asset class automatically initializes and invalidates physics
@@ -93,20 +85,8 @@ class AssetBase(ABC):
         Args:
             cfg: The configuration class for the asset.
 
-        Raises:
-            RuntimeError: If no prims found at input prim path or prim path expression.
         """
-        # check that the config is valid
-        cfg.validate()
-        # expand the namespace macro before the cfg is queued, so the clone plan keys its rows
-        # by a real path expression. The scene has already done this for the assets it collects;
-        # this covers the ones a direct environment builds itself.
-        cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
-        # register the original cfg object for cloning: the clone plan keys rows by the
-        # cfg identity the scene collected; contexts and policy resolve at replication time
-        queue_replication(cfg)
-        # store inputs
-        self.cfg = cfg.copy()
+        super().__init__(cfg)
         # Resolve shape-check flag once: True means checks are active.
         # cfg.disable_shape_checks: None -> follow __debug__
         # True -> force disable checks; False -> force enable checks.
@@ -116,30 +96,6 @@ class AssetBase(ABC):
             self._check_shapes = not self.cfg.disable_shape_checks
         # flag for whether the asset is initialized
         self._is_initialized = False
-        # get stage handle
-        self.stage: Usd.Stage = get_current_stage()
-
-        # spawn the asset
-        # determine path where prims should exist after spawn
-        if self.cfg.spawn is not None:
-            # Use spawn_path if set (by InteractiveScene), otherwise fall back to prim_path
-            check_path = self.cfg.spawn.spawn_path if self.cfg.spawn.spawn_path is not None else self.cfg.prim_path
-            self.cfg.spawn.func(
-                check_path,
-                self.cfg.spawn,
-                translation=self.cfg.init_state.pos,
-                orientation=self.cfg.init_state.rot,
-            )
-            # check that prims exist
-            matching_prims = sim_utils.find_matching_prims(check_path)
-            if len(matching_prims) == 0:
-                raise RuntimeError(f"Could not find prim with path {check_path}.")
-            # schema-side post-spawn hook (e.g. ArticulationCfg authors NewtonActuator prims here)
-            self.cfg._post_spawn(self.stage)
-        else:
-            # asset should exist at run time
-            check_path = self.cfg.prim_path
-
         # register various callback functions
         self._register_callbacks()
 
@@ -195,36 +151,6 @@ class AssetBase(ABC):
     """
     Operations.
     """
-
-    def set_visibility(self, visible: bool, env_ids: Sequence[int] | None = None):
-        """Set the visibility of the prims corresponding to the asset.
-
-        This operation affects the visibility of the prims corresponding to the asset in the USD stage.
-        It is useful for toggling the visibility of the asset in the simulator. For instance, one can
-        hide the asset when it is not being used to reduce the rendering overhead.
-
-        .. note::
-            This operation uses the PXR API to set the visibility of the prims. Thus, the operation
-            may have an overhead if the number of prims is large.
-
-        Args:
-            visible: Whether to make the prims visible or not.
-            env_ids: The indices of the object to set visibility. Defaults to None (all instances).
-        """
-        # resolve the environment ids
-        if env_ids is None:
-            env_ids = range(len(self._prims))
-        elif isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.detach().cpu().tolist()
-
-        # obtain the prims corresponding to the asset
-        # note: we only want to find the prims once since this is a costly operation
-        if not hasattr(self, "_prims"):
-            self._prims = sim_utils.find_matching_prims(self.cfg.prim_path)
-
-        # iterate over the environment ids
-        for env_id in env_ids:
-            sim_utils.set_prim_visibility(self._prims[env_id], visible)
 
     def set_debug_vis(self, debug_vis: bool) -> bool:
         """Sets whether to visualize the asset data.

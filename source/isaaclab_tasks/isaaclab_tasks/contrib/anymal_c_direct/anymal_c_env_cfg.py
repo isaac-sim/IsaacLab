@@ -7,7 +7,7 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
@@ -52,6 +52,60 @@ class EventCfg:
 
 
 @configclass
+class AnymalCFlatSceneCfg(InteractiveSceneCfg):
+    terrain = TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type="plane",
+        collision_group=-1,
+        physics_material=sim_utils.RigidBodyMaterialCfg(
+            friction_combine_mode="multiply",
+            restitution_combine_mode="multiply",
+            static_friction=1.0,
+            dynamic_friction=1.0,
+            restitution=0.0,
+        ),
+        debug_vis=False,
+    )
+    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    contact_sensor = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/[^/]*", history_length=3, update_period=0.005, track_air_time=True
+    )
+    light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
+
+
+@configclass
+class AnymalCRoughSceneCfg(AnymalCFlatSceneCfg):
+    terrain = TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type="generator",
+        terrain_generator=ROUGH_TERRAINS_CFG,
+        max_init_terrain_level=9,
+        collision_group=-1,
+        physics_material=sim_utils.RigidBodyMaterialCfg(
+            friction_combine_mode="multiply",
+            restitution_combine_mode="multiply",
+            static_friction=1.0,
+            dynamic_friction=1.0,
+        ),
+        visual_material=sim_utils.MdlFileCfg(
+            mdl_path="{NVIDIA_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
+            project_uvw=True,
+        ),
+        debug_vis=False,
+    )
+    height_scanner = RayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base",
+        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
+        ray_alignment="yaw",
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
+        debug_vis=False,
+        mesh_prim_paths=["/World/ground"],
+    )
+
+
+@configclass
 class AnymalCFlatEnvCfg(DirectRLEnvCfg):
     # env
     episode_length_s = 20.0
@@ -74,31 +128,12 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
             restitution=0.0,
         ),
     )
-    terrain = TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type="plane",
-        collision_group=-1,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
-            friction_combine_mode="multiply",
-            restitution_combine_mode="multiply",
-            static_friction=1.0,
-            dynamic_friction=1.0,
-            restitution=0.0,
-        ),
-        debug_vis=False,
-    )
 
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
+    scene: AnymalCFlatSceneCfg = AnymalCFlatSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
 
     # events
     events: EventCfg = EventCfg()
-
-    # robot
-    robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    contact_sensor: ContactSensorCfg = ContactSensorCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/[^/]*", history_length=3, update_period=0.005, track_air_time=True
-    )
 
     # reward scales
     lin_vel_reward_scale = 1.0
@@ -127,34 +162,7 @@ class AnymalCRoughEnvCfg(AnymalCFlatEnvCfg):
     # env
     observation_space = 235
 
-    terrain = TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type="generator",
-        terrain_generator=ROUGH_TERRAINS_CFG,
-        max_init_terrain_level=9,
-        collision_group=-1,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
-            friction_combine_mode="multiply",
-            restitution_combine_mode="multiply",
-            static_friction=1.0,
-            dynamic_friction=1.0,
-        ),
-        visual_material=sim_utils.MdlFileCfg(
-            mdl_path="{NVIDIA_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
-            project_uvw=True,
-        ),
-        debug_vis=False,
-    )
-
-    # we add a height scanner for perceptive locomotion
-    height_scanner = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/base",
-        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-        ray_alignment="yaw",
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
-        debug_vis=False,
-        mesh_prim_paths=["/World/ground"],
-    )
+    scene: AnymalCRoughSceneCfg = AnymalCRoughSceneCfg(num_envs=4096, env_spacing=4.0, replicate_physics=True)
 
     # reward scales (override from flat config)
     flat_orientation_reward_scale = 0.0

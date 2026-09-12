@@ -12,11 +12,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sensors import Camera, save_images_to_file
+from isaaclab.sensors import save_images_to_file
 
 if TYPE_CHECKING:
     from .render_benchmark_env_cfg import RenderBenchmarkFrankaCabinetEnvCfg
@@ -25,83 +22,20 @@ if TYPE_CHECKING:
 class RenderBenchmarkEnv(DirectRLEnv):
     """Environment that animates its articulations so a renderer can be profiled on them.
 
-    Every articulation in :attr:`RenderBenchmarkFrankaCabinetEnvCfg.articulations` is driven by a
-    sinusoid around its default joint positions. Actions are ignored and rewards are zero: the
-    only output that matters is the camera image, and the only cost that matters is the time
-    spent producing it.
+    Every articulation in the configured scene is driven by a sinusoid around its default joint
+    positions. Actions are ignored and rewards are zero: the only output that matters is the camera
+    image, and the only cost that matters is the time spent producing it.
     """
 
     cfg: RenderBenchmarkFrankaCabinetEnvCfg
 
-    # --- scene construction --------------------------------------------------
-
-    def _setup_scene(self):
+    def __init__(self, cfg: RenderBenchmarkFrankaCabinetEnvCfg, render_mode: str | None = None, **kwargs):
         # Per-(env, joint) sinusoid phases [rad] and the elapsed animation time [s]. The phases
         # are filled on the first step; see :meth:`_sample_animation_phases`.
         self._anim_phases: dict[str, torch.Tensor] | None = None
         self._anim_time: float = 0.0
-
-        self._articulations: dict[str, Articulation] = {
-            name: Articulation(articulation_cfg) for name, articulation_cfg in self.cfg.articulations.items()
-        }
-        self._tiled_camera = Camera(self.cfg.tiled_camera)
-        self._ground = RigidObject(self._ground_cfg())
-        self._spawn_lights()
-
-        # Assets must exist before planning: the plan keys its rows off the cfgs they queued.
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos)
-        cloner.replicate(plan)
-
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[])
-
-        for name, articulation in self._articulations.items():
-            self.scene.articulations[name] = articulation
-        self.scene.rigid_objects["ground"] = self._ground
-        self.scene.sensors["tiled_camera"] = self._tiled_camera
-
-    def _ground_cfg(self) -> RigidObjectCfg:
-        """Build the per-environment ground cuboid.
-
-        A flat cuboid routed through :class:`~isaaclab.assets.RigidObject` keeps the comparison
-        apples-to-apples: a USD ground plane is invisible to Warp's renderer, which only knows
-        about simulation meshes, so the two renderers would otherwise disagree on primary-ray
-        misses and shadow-ray counts.
-
-        The tile is clamped to the env spacing so neighboring clones tile edge-to-edge instead of
-        overlapping. An oversized tile would leave every environment's camera looking at several
-        redundant, coplanar ground meshes -- extra geometry that neither backend needs to resolve
-        in the real scene, and whose BVH/intersection cost grows with the environment count.
-        """
-        spacing = self.scene.cfg.env_spacing
-        size_x = min(self.cfg.ground_size[0], spacing)
-        size_y = min(self.cfg.ground_size[1], spacing)
-        thickness = self.cfg.ground_thickness
-        return RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Ground",
-            spawn=sim_utils.CuboidCfg(
-                size=(size_x, size_y, thickness),
-                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=self.cfg.ground_color, metallic=0.0),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True, kinematic_enabled=True),
-                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, self.cfg.ground_top_z - thickness / 2.0)),
-        )
-
-    def _spawn_lights(self) -> None:
-        """Spawn the ambient dome light and, when configured, the directional light above it."""
-        dome_cfg = sim_utils.DomeLightCfg(intensity=self.cfg.dome_light_intensity, color=(0.75, 0.75, 0.75))
-        dome_cfg.func("/World/Light", dome_cfg)
-        if self.cfg.light_cfg is not None:
-            self.cfg.light_cfg.func(
-                "/World/LightDirectional",
-                self.cfg.light_cfg,
-                orientation=self.cfg.light_orientation,
-            )
+        super().__init__(cfg, render_mode, **kwargs)
+        self._tiled_camera = self.scene["tiled_camera"]
 
     # --- joint animation -----------------------------------------------------
 
@@ -125,10 +59,10 @@ class RenderBenchmarkEnv(DirectRLEnv):
         incomparable. Multiplying by two coprime primes spreads the phases pseudo-uniformly.
 
         Deferred to the first step because it reads articulation data, which the simulation only
-        populates after :meth:`_setup_scene` returns.
+        populates after scene initialization.
         """
         phases = {}
-        for name, articulation in self._articulations.items():
+        for name, articulation in self.scene.articulations.items():
             default_pos = articulation.data.default_joint_pos.torch
             num_envs, num_joints = default_pos.shape
             env_idx = torch.arange(num_envs, device=self.device, dtype=default_pos.dtype).unsqueeze(1)
@@ -140,7 +74,7 @@ class RenderBenchmarkEnv(DirectRLEnv):
         """Advance the animation clock and drive every joint to its sinusoidal target."""
         self._anim_time += self.cfg.sim.dt * self.cfg.decimation
         omega = 2.0 * math.pi * self.cfg.joint_animation_freq_hz
-        for name, articulation in self._articulations.items():
+        for name, articulation in self.scene.articulations.items():
             default_pos = articulation.data.default_joint_pos.torch
             offset = self.cfg.joint_animation_amplitude * torch.sin(omega * self._anim_time + self._anim_phases[name])
             soft_limits = articulation.data.soft_joint_pos_limits.torch
@@ -167,7 +101,7 @@ class RenderBenchmarkEnv(DirectRLEnv):
         Args:
             output: Rendered outputs from the tiled camera, keyed by data type.
         """
-        data_type = self.cfg.tiled_camera.data_types[0]
+        data_type = self.cfg.scene.tiled_camera.data_types[0]
         if not isinstance(output, dict) or data_type not in output:
             return
         try:

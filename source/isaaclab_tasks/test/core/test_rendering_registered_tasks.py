@@ -104,7 +104,7 @@ def test_rendering_registered_tasks(
         env_cfg.sim.device = "cuda:0"
         env_cfg.scene.num_envs = 4
         if allow_multiple_data_types:
-            env_cfg.tiled_camera.data_types = list(presets)
+            env_cfg.scene.tiled_camera.data_types = list(presets)
 
         env = make_cartpole_rendering_test_env(env_cfg) if allow_multiple_data_types else gym.make(task_id, cfg=env_cfg)
         unwrapped: Any = env.unwrapped

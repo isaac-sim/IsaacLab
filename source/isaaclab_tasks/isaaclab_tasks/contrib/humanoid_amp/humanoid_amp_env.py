@@ -10,11 +10,7 @@ import numpy as np
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import quat_apply
 
 from .humanoid_amp_env_cfg import HumanoidAmpEnvCfg
@@ -26,6 +22,8 @@ class HumanoidAmpEnv(DirectRLEnv):
 
     def __init__(self, cfg: HumanoidAmpEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+
+        self.robot = self.scene["robot"]
 
         # action offset and scale
         soft_joint_pos_limits = self.robot.data.soft_joint_pos_limits.torch
@@ -51,34 +49,6 @@ class HumanoidAmpEnv(DirectRLEnv):
         self.amp_observation_buffer = torch.zeros(
             (self.num_envs, self.cfg.num_amp_observations, self.cfg.amp_observation_space), device=self.device
         )
-
-    def _setup_scene(self):
-        self.robot = Articulation(self.cfg.robot)
-        # add ground plane
-        spawn_ground_plane(
-            prim_path="/World/ground",
-            cfg=GroundPlaneCfg(
-                physics_material=sim_utils.RigidBodyMaterialCfg(
-                    static_friction=1.0,
-                    dynamic_friction=1.0,
-                    restitution=0.0,
-                ),
-            ),
-        )
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=["/World/ground"])
-
-        # add articulation to scene
-        self.scene.articulations["robot"] = self.robot
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
 
     def _pre_physics_step(self, actions: torch.Tensor):
         self.actions = actions.clone()

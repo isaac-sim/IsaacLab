@@ -10,11 +10,7 @@ from collections.abc import Sequence
 
 import torch
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation
 from isaaclab.envs import DirectMARLEnv
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import sample_uniform
 
 from isaaclab_tasks.core.pendulum.pendulum_marl_env_cfg import PendulumMARLEnvCfg
@@ -32,6 +28,7 @@ class PendulumMARLEnv(DirectMARLEnv):
     def __init__(self, cfg: PendulumMARLEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
+        self.robot = self.scene["robot"]
         self._cart_dof_idx, _ = self.robot.find_joints(self.cfg.cart_dof_name)
         self._pole_dof_idx, _ = self.robot.find_joints(self.cfg.pole_dof_name)
         self._pendulum_dof_idx, _ = self.robot.find_joints(self.cfg.pendulum_dof_name)
@@ -40,24 +37,6 @@ class PendulumMARLEnv(DirectMARLEnv):
         self.joint_vel = self.robot.data.joint_vel.torch
         self._success_required_steps = round(self.cfg.success_duration_s / self.step_dt)
         self._consecutive_upright_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
-
-    def _setup_scene(self):
-        self.robot = Articulation(self.cfg.robot_cfg)
-        # add ground plane
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[])
-        # add articulation to scene
-        self.scene.articulations["robot"] = self.robot
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
 
     def _pre_physics_step(self, actions: dict[str, torch.Tensor]) -> None:
         self.actions = actions

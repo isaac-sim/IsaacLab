@@ -45,13 +45,13 @@ class CartpoleCameraShowcaseEnv(CartpoleCameraEnv):
 
     def _get_observations(self) -> dict:
         # get camera data
-        data_type = "rgb" if "rgb" in self.cfg.tiled_camera.data_types else "depth"
-        if "rgb" in self.cfg.tiled_camera.data_types:
+        data_type = "rgb" if "rgb" in self.cfg.scene.tiled_camera.data_types else "depth"
+        if "rgb" in self.cfg.scene.tiled_camera.data_types:
             camera_data = self._tiled_camera.data.output[data_type] / 255.0
             # normalize the camera data for better training results
             mean_tensor = torch.mean(camera_data, dim=(1, 2), keepdim=True)
             camera_data -= mean_tensor
-        elif "depth" in self.cfg.tiled_camera.data_types:
+        elif "depth" in self.cfg.scene.tiled_camera.data_types:
             camera_data = self._tiled_camera.data.output[data_type]
             camera_data[camera_data == float("inf")] = 0
 

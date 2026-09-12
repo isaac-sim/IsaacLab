@@ -20,9 +20,7 @@ __all__ = [
     "query",
     "random",
     "ReplicateSession",
-    "REPLICATION_QUEUE",
     "replicate",
-    "queue_replication",
     "sequential",
     "UsdReplicateContext",
     "usd_replicate",
@@ -41,12 +39,7 @@ from .clone_plan import (
 from .cloner_cfg import CloneCfg, InclusionSet, add, expand_env_regex_ns
 from .cloner_strategies import random, sequential
 from .collision_filter import filter_collisions
-from .replicate_session import (
-    REPLICATION_QUEUE,
-    ReplicateSession,
-    queue_replication,
-    replicate,
-)
+from .replicate_session import ReplicateSession, replicate
 from .usd import (
     UsdReplicateContext,
     usd_replicate,
