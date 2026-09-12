@@ -18,7 +18,6 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
@@ -29,9 +28,7 @@ from isaaclab_tasks.utils import PresetCfg
 
 from ... import mdp
 from .franka_soft_env_cfg import (
-    FRANKA_CAMERA_CFG,
     TABLE_SPAWN_CFG,
-    FrankaCameraObservationsCfg,
     FrankaSoftEnvCfg,
     _FrankaSoftSceneCfg,
 )
@@ -150,13 +147,6 @@ class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
 
 
 @configclass
-class FrankaCableCameraSceneCfg(FrankaCableSceneCfg):
-    """Franka cable scene with a base camera."""
-
-    base_camera: CameraCfg = FRANKA_CAMERA_CFG
-
-
-@configclass
 class CommandsCfg:
     """Goal position for cable segment 6 in the robot root frame."""
 
@@ -209,29 +199,6 @@ class ObservationsCfg:
             self.concatenate_terms = True
 
     policy: PolicyCfg = PolicyCfg()
-
-
-@configclass
-class FrankaCableCameraObservationsCfg(FrankaCameraObservationsCfg):
-    """Observation groups for visual cable lifting."""
-
-    @configclass
-    class PolicyCfg(FrankaCameraObservationsCfg.PolicyCfg):
-        target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "cable_pose"})
-
-    @configclass
-    class PerceptionCfg(ObsGroup):
-        cable_segment_positions = ObsTerm(
-            func=mdp.cable_segment_positions_in_robot_root_frame,
-            params={"asset_cfg": SceneEntityCfg("cable")},
-        )
-
-        def __post_init__(self) -> None:
-            self.enable_corruption = True
-            self.concatenate_terms = True
-
-    policy: PolicyCfg = PolicyCfg()
-    perception: PerceptionCfg = PerceptionCfg()
 
 
 @configclass
@@ -348,15 +315,3 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
         if not isaac_rtx_per_env_scene_partition_enabled():
             self.scene.partition_bounds_marker_min = None
             self.scene.partition_bounds_marker_max = None
-
-
-@configclass
-class FrankaCableCameraEnvCfg(FrankaCableEnvCfg):
-    """Visual Franka cable lifting environment."""
-
-    scene: FrankaCableCameraSceneCfg = FrankaCableCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=True)
-    observations: FrankaCableCameraObservationsCfg = FrankaCableCameraObservationsCfg()
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        self.num_rerenders_on_reset = 2

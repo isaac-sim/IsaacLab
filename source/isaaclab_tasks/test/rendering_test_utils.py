@@ -2192,7 +2192,9 @@ def rendering_test_franka_cloth(
 
     from isaaclab.envs import ManagerBasedRLEnv
 
-    from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothCameraEnvCfg
+    from isaaclab_tasks.benchmark.franka_deformable_camera.franka_deformable_camera_env_cfg import (
+        FrankaClothCameraEnvCfg,
+    )
 
     env_cfg = FrankaClothCameraEnvCfg()
 
@@ -2279,7 +2281,9 @@ def rendering_test_franka_soft(
 
     from isaaclab.envs import ManagerBasedRLEnv
 
-    from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftCameraEnvCfg
+    from isaaclab_tasks.benchmark.franka_deformable_camera.franka_deformable_camera_env_cfg import (
+        FrankaSoftCameraEnvCfg,
+    )
 
     env_cfg = FrankaSoftCameraEnvCfg()
 
@@ -2477,7 +2481,9 @@ def rendering_test_franka_cable(
 
     from isaaclab.envs import ManagerBasedRLEnv
 
-    from isaaclab_tasks.core.lift.config.franka_soft.franka_cable_env_cfg import FrankaCableCameraEnvCfg
+    from isaaclab_tasks.benchmark.franka_deformable_camera.franka_deformable_camera_env_cfg import (
+        FrankaCableCameraEnvCfg,
+    )
 
     env_cfg = FrankaCableCameraEnvCfg()
 

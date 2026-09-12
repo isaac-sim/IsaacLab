@@ -27,7 +27,6 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysxAutoCfg
-from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -36,14 +35,9 @@ from isaaclab_tasks.utils import PresetCfg
 
 from ... import mdp
 from .franka_soft_env_cfg import (
-    FRANKA_CAMERA_CFG,
-    FrankaCameraObservationsCfg,
-    FrankaSoftEnvCfg,
-    _FrankaSoftSceneCfg,
-)
-from .franka_soft_env_cfg import (
     EventCfg as FrankaSoftEventCfg,
 )
+from .franka_soft_env_cfg import FrankaSoftEnvCfg, _FrankaSoftSceneCfg
 from .franka_soft_env_cfg import (
     RewardsCfg as FrankaSoftRewardsCfg,
 )
@@ -209,25 +203,6 @@ class FrankaClothScenePresetCfg(PresetCfg):
 
 
 @configclass
-class FrankaClothCameraSceneCfg(FrankaClothSceneCfg):
-    """Franka cloth scene with a base camera."""
-
-    base_camera: CameraCfg = FRANKA_CAMERA_CFG
-
-
-@configclass
-class FrankaClothCameraScenePresetCfg(PresetCfg):
-    """Scene presets for visual Franka cloth lifting."""
-
-    newton_mjwarp_vbd_proxy: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(
-        num_envs=128, env_spacing=2.5, replicate_physics=True
-    )
-    physx: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
-    isaacsim_physx = physx
-    default = newton_mjwarp_vbd_proxy
-
-
-@configclass
 class FrankaClothEventCfg(FrankaSoftEventCfg):
     """Reset and startup events for the Franka cloth environment."""
 
@@ -279,16 +254,3 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
         self.sim.physics = PhysicsCfg()
         # Fully close the gripper on the thin cloth; the shared beam default only closes to 0.01 m.
         self.actions.ik.gripper_action.close_command_expr = {"panda_finger_joint1": 0.0}
-
-
-@configclass
-class FrankaClothCameraEnvCfg(FrankaClothEnvCfg):
-    """Visual Franka surface-deformable lifting environment."""
-
-    scene: FrankaClothCameraScenePresetCfg = FrankaClothCameraScenePresetCfg()
-    observations: FrankaCameraObservationsCfg = FrankaCameraObservationsCfg()
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        # Warm up the RTX render product/annotator (Newton skips the PhysX assets_loading render loop).
-        self.num_rerenders_on_reset = 2
