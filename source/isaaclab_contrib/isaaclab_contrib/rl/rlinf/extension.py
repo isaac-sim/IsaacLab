@@ -306,6 +306,85 @@ def _resolve_action_converter(cfg: dict):
     return getattr(module, "convert_gr00t_to_isaaclab_action", _convert_gr00t_to_isaaclab_action)
 
 
+def _resolve_state_to_action_indices(cfg: dict) -> list[int] | None:
+    """Return where the policy's joint-state vector lands in the action vector, if the task says so.
+
+    Needed to command "hold the current pose". A task whose action order differs from its policy
+    order — H2 interleaves the two hands, so the state is not a contiguous slice of the action —
+    publishes the mapping as ``POLICY_STATE_TO_ACTION_INDICES`` in its ``modality_config_module``.
+
+    Args:
+        cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
+
+    Returns:
+        Action-vector index for each state entry, or ``None`` when the task publishes no mapping.
+    """
+    module_name = cfg.get("modality_config_module", "")
+    if not module_name or _gr00t_model_type() != "gr00t_n1d7":
+        return None
+    indices = getattr(importlib.import_module(module_name), "POLICY_STATE_TO_ACTION_INDICES", None)
+    return None if indices is None else list(indices)
+
+
+def _extract_states(policy_obs: dict, cfg: dict) -> torch.Tensor | None:
+    """Concatenate the state terms a task lists under ``states`` into one vector.
+
+    Args:
+        policy_obs: The environment's policy observation group.
+        cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
+
+    Returns:
+        The concatenated state of shape ``(B, D)``, or ``None`` when no listed term is present.
+    """
+    state_parts = []
+    for spec in cfg.get("states") or []:
+        if isinstance(spec, str):
+            state = policy_obs.get(spec)
+        else:
+            state = policy_obs.get(spec.get("key"))
+            slice_range = spec.get("slice") if state is not None else None
+            if slice_range:
+                state = state[:, slice_range[0] : slice_range[1]]
+        if state is not None:
+            state_parts.append(state)
+    return torch.cat(state_parts, dim=-1) if state_parts else None
+
+
+def _apply_reset_sensor_refresh(env) -> None:
+    """Step once after every reset so the first observation shows the new episode.
+
+    ``TiledCamera`` refreshes its annotators only through a real simulation step: the observation
+    returned by ``reset`` still carries the previous episode's image, which the policy would then
+    act on. Re-commanding the robot's current joint positions advances the render without moving
+    it. Requires the task to publish :func:`_resolve_state_to_action_indices`; other tasks are
+    left untouched.
+
+    Args:
+        env: The unwrapped IsaacLab environment to patch in place.
+    """
+    cfg = _get_isaaclab_cfg()
+    indices = _resolve_state_to_action_indices(cfg)
+    if indices is None:
+        return
+
+    action_indices = torch.as_tensor(indices, dtype=torch.long, device=env.device)
+    original_reset = env.reset
+
+    def reset_then_refresh(*args, **kwargs):
+        obs, extras = original_reset(*args, **kwargs)
+        states = _extract_states(obs.get("policy", obs), cfg)
+        if states is None:
+            return obs, extras
+        # Zero raw actions map to the default pose for the joints the policy does not predict
+        # (see the action term's offset), so this holds the whole robot where the reset put it.
+        hold = torch.zeros((env.num_envs, env.action_manager.total_action_dim), device=env.device)
+        hold[:, action_indices] = states.to(device=hold.device, dtype=hold.dtype)
+        obs, _, _, _, extras = env.step(hold)
+        return obs, extras
+
+    env.reset = reset_then_refresh
+
+
 def _register_gr00t_converters(cfg: dict) -> None:
     """Register GR00T obs/action converters for IsaacLab tasks.
 
@@ -516,6 +595,61 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             infos["episode"] = episode_info
             return infos
 
+        def chunk_step(self, chunk_actions):
+            """Execute an action chunk, holding the pose of sub-environments that reset mid-chunk.
+
+            ``ManagerBasedRLEnv.step`` resets a terminated sub-environment before returning, so the
+            remainder of the chunk — predicted from the episode that just ended — would otherwise be
+            applied to the fresh one, yanking the robot toward the previous episode's final pose.
+            When the task sets ``hold_pose_on_midchunk_reset``, those actions are replaced by the
+            post-reset joint positions, leaving the robot still until the next chunk boundary
+            produces policy output for the new episode.
+
+            The masking is installed on ``self.step`` for the duration of the chunk rather than by
+            reimplementing the chunk loop, so RLinf keeps doing its own reward and done bookkeeping.
+
+            Args:
+                chunk_actions: Actions of shape ``(num_envs, chunk_size, action_dim)``.
+
+            Returns:
+                The tuple returned by ``IsaaclabBaseEnv.chunk_step``.
+            """
+            cfg = _get_isaaclab_cfg()
+            if not cfg.get("hold_pose_on_midchunk_reset", False):
+                return super().chunk_step(chunk_actions)
+
+            indices = _resolve_state_to_action_indices(cfg)
+            action_indices = None if indices is None else torch.as_tensor(indices, dtype=torch.long, device=self.device)
+            done_so_far = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+            last_states = [None]
+            base_step = super().step
+
+            def step_holding_reset_envs(actions, auto_reset=True):
+                states = last_states[0]
+                if states is not None and bool(done_so_far.any()):
+                    rows = done_so_far.nonzero(as_tuple=False).squeeze(-1)
+                    hold = states[rows].to(device=actions.device, dtype=actions.dtype)
+                    actions = actions.clone()
+                    if action_indices is None:
+                        # Without a published mapping the state is assumed to occupy the action's
+                        # tail, which is how ``action_mapping.prefix_pad`` lays it out.
+                        actions[rows, actions.shape[-1] - hold.shape[-1] :] = hold
+                    else:
+                        # Zero raw actions hold the joints the policy does not predict at their
+                        # default pose (see the action term's offset).
+                        actions[rows] = 0.0
+                        actions[rows[:, None], action_indices[None, :]] = hold
+                obs, step_reward, terminations, truncations, infos = base_step(actions, auto_reset=auto_reset)
+                last_states[0] = obs.get("states")
+                done_so_far.logical_or_((terminations | truncations).bool())
+                return obs, step_reward, terminations, truncations, infos
+
+            self.step = step_holding_reset_envs
+            try:
+                return super().chunk_step(chunk_actions)
+            finally:
+                del self.step
+
         def _make_env_function(self) -> collections.abc.Callable:
             """Create the environment factory function.
 
@@ -543,6 +677,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                 isaac_env_cfg = parse_env_cfg(self.isaaclab_env_id, num_envs=self.cfg.init_params.num_envs)
 
                 env = gym.make(self.isaaclab_env_id, cfg=isaac_env_cfg, render_mode="rgb_array").unwrapped
+                _apply_reset_sensor_refresh(env)
 
                 return env, sim_app
 
@@ -596,24 +731,9 @@ def _create_generic_env_wrapper(task_id: str) -> type:
                     rlinf_obs["extra_view_images"] = torch.stack(extra_imgs, dim=1)
 
             # states: list of state specs -> concatenate to (B, D)
-            # Each spec: string "key" or dict {"key": "...", "slice": [start, end]}
-            state_specs = cfg.get("states")
-            if state_specs:
-                state_parts = []
-                for spec in state_specs:
-                    if isinstance(spec, str):
-                        state = policy_obs.get(spec)
-                        if state is not None:
-                            state_parts.append(state)
-                    elif isinstance(spec, dict):
-                        state = policy_obs.get(spec.get("key"))
-                        if state is not None:
-                            slice_range = spec.get("slice")
-                            if slice_range:
-                                state = state[:, slice_range[0] : slice_range[1]]
-                            state_parts.append(state)
-                if state_parts:
-                    rlinf_obs["states"] = torch.cat(state_parts, dim=-1)
+            states = _extract_states(policy_obs, cfg)
+            if states is not None:
+                rlinf_obs["states"] = states
 
             return rlinf_obs
 
