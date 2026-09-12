@@ -121,6 +121,7 @@ class TestLidarPattern:
             # Test partial horizontal FOV
             ((-90.0, 90.0), 30.0, 1, (-10.0, -10.0)),
             ((0.0, 180.0), 45.0, 1, (-10.0, -10.0)),
+            ((0.0, 100.0), 30.0, 1, (0.0, 0.0)),
             # Test 360 no overlap case
             ((-180.0, 180.0), 90.0, 1, (0.0, 0.0)),
             # Test partial FOV case
@@ -142,16 +143,14 @@ class TestLidarPattern:
         )
         ray_starts, ray_directions = patterns.lidar_pattern(cfg, device)
 
-        # Calculate expected number of horizontal angles
-        if abs(abs(horizontal_fov_range[0] - horizontal_fov_range[1]) - 360.0) < 1e-6:
-            # 360 degree FOV - exclude last point to avoid overlap
-            expected_num_horizontal = (
-                math.ceil((horizontal_fov_range[1] - horizontal_fov_range[0]) / horizontal_res) + 1
-            ) - 1
+        # Calculate expected number of horizontal angles for fixed-step sampling.
+        horizontal_span = horizontal_fov_range[1] - horizontal_fov_range[0]
+        if abs(abs(horizontal_span) - 360.0) < 1e-6:
+            # Full-circle scans exclude the duplicate terminal direction.
+            expected_num_horizontal = math.ceil(horizontal_span / horizontal_res)
         else:
-            expected_num_horizontal = (
-                math.ceil((horizontal_fov_range[1] - horizontal_fov_range[0]) / horizontal_res) + 1
-            )
+            # Partial scans include the endpoint only when it lies on the resolution grid.
+            expected_num_horizontal = math.floor(horizontal_span / horizontal_res + 1e-6) + 1
 
         expected_num_rays = channels * expected_num_horizontal
 
@@ -179,6 +178,17 @@ class TestLidarPattern:
 
         # All rays should start from origin
         torch.testing.assert_close(ray_starts, torch.zeros_like(ray_starts))
+
+    def test_lidar_pattern_invalid_resolution(self, device):
+        """Test that non-positive horizontal resolution is rejected."""
+        cfg = patterns_cfg.LidarPatternCfg(
+            horizontal_fov_range=(0.0, 90.0),
+            horizontal_res=0.0,
+            channels=1,
+            vertical_fov_range=(0.0, 0.0),
+        )
+        with pytest.raises(ValueError, match="Horizontal resolution must be greater than 0"):
+            patterns.lidar_pattern(cfg, device)
 
     @pytest.mark.parametrize(
         "vertical_fov_range,channels",
@@ -220,6 +230,8 @@ class TestLidarPattern:
             ((-90.0, 90.0), 90.0, 3, 90.0),
             # Test case: 180 deg FOV with 60 deg resolution (avoids atan2 discontinuity at ±180°)
             ((-90.0, 90.0), 60.0, 4, 60.0),
+            # Test case: non-divisible partial FOV preserves the configured step.
+            ((0.0, 100.0), 30.0, 4, 30.0),
             # Test case: 360 deg FOV with 120 deg resolution
             ((-180.0, 180.0), 120.0, 3, 120.0),
         ],
