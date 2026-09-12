@@ -86,6 +86,7 @@ Guidelines for modifications:
 * Diego Ferigo
 * Dongxuan Fan
 * Dorsa Rohani
+* Dundy Pasupuleti
 * Ege Sekkin
 * Emily Sturman
 * Emmanuel Ferdman
