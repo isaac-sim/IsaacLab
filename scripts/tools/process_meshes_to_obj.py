@@ -42,15 +42,16 @@ def run_blender_convert2obj(in_file: str, out_file: str):
         in_file: Input mesh file.
         out_file: Output obj file.
     """
+    if BLENDER_EXE_PATH is None:
+        raise FileNotFoundError("Unable to find the Blender executable on PATH.")
+
     # resolve for python file
     tools_dirname = os.path.dirname(os.path.abspath(__file__))
     script_file = os.path.join(tools_dirname, "blender_obj.py")
-    # complete command
-    command_exe = f"{BLENDER_EXE_PATH} --background --python {script_file} -- -i {in_file} -o {out_file}"
-    # break command into list
-    command_exe_list = command_exe.split(" ")
-    # run command
-    subprocess.run(command_exe_list)
+    # build the argument list directly so paths containing whitespace remain single arguments
+    command_exe = [BLENDER_EXE_PATH, "--background", "--python", script_file, "--", "-i", in_file, "-o", out_file]
+    # run command and surface conversion failures to the caller
+    subprocess.run(command_exe, check=True)
 
 
 def convert_meshes(source_folders: list[str], destination_folders: list[str]):
