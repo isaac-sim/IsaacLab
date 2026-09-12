@@ -3,27 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
-# ===========================================================================
-# GR00T N1.7 co-train (PPO + SFT) config for pnp_apple (Unitree H2 + Sharpa).
-#
-# Differences from the N1.5 config (isaaclab_ppo_gr00t_pnp_apple.yaml):
-#   * model_type:        gr00t  ->  gr00t_n1d7
-#   * backbone:          Eagle2.5-VL (bundled)  ->  Qwen3-VL / Cosmos-Reason2-2B
-#                        (must be provided separately via backbone_model_path)
-#   * action horizon:    16 (N1.5 dataset)  ->  32 (N1.7 dataset delta indices)
-#   * SFT data pipeline: LeRobotSingleDataset + BaseDataConfig.transform()
-#                        ->  ShardedSingleStepDataset + Gr00tN1d7Processor
-#                        (handled in the fsdp_actor_worker override)
-#   * data_config_class: intentionally OMITTED. For N1.7 the model loads its
-#                        processor from the checkpoint's processor/ dir and the
-#                        modality config is registered by importing
-#                        sim2real.embodiments.unitree.h2.gr00t_n17. Setting
-#                        data_config_class would (wrongly) route get_model to
-#                        the N1.5 loader in the isaaclab extension.
-#
-# Requires: RLinf c90951a0+ (gr00t_n1d7) and sim2real SFT overrides, plus an
-# Isaac-GR00T pinned to n1.7-release. See setup/uv.sh isaaclab-n17.
-# ===========================================================================
+# GR00T N1.7 PPO for pick-and-place apple on Unitree H2 + Sharpa. The checkpoint's processor owns
+# N1.7 normalization and modality configuration, so data_config_class is intentionally omitted:
+# setting it would route model construction to the N1.5 loader in the RLinf extension.
 
 defaults:
   - override hydra/job_logging: stdout
@@ -379,7 +361,6 @@ reward:
 critic:
   use_critic_model: False
 
-# Required by RLinf c90951a0+ (see examples/embodiment/config/weight_syncer/patch_syncer.yaml).
 weight_syncer:
   type: patch
   patch:
