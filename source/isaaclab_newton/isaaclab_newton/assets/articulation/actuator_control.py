@@ -134,14 +134,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
 
     def submit_commands(self, collection: ActuatorCollection) -> None:
         """Publish the collection's targets to the backend arrays."""
-        self._submit_commands(collection)
-        # Newton takes coordinate-layout position targets from 1.6 on; the writers in
-        # ``_submit_commands`` below are all DOF-indexed, so the staging buffer has to be
-        # scattered across on every path.
-        self._articulation.data._flush_joint_targets(self._articulation._ALL_ENV_MASK)
-
-    def _submit_commands(self, collection: ActuatorCollection) -> None:
         articulation = self._articulation
+        needs_reorder = articulation.data.has_joint_ordering
         if self._native_actuator_path_active:
             # Newton consumes raw explicit-actuator targets through joint_act.
             user_effort = collection._joint_effort_target
@@ -150,12 +144,11 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             write_pos_target = True
             write_vel_target = True
             write_joint_act = True
-            if not articulation.data.has_joint_ordering:
+            if not needs_reorder:
                 articulation.data._sim_bind_joint_position_target.assign(collection._joint_pos_target)
                 articulation.data._sim_bind_joint_velocity_target.assign(collection._joint_vel_target)
                 articulation.data._sim_bind_joint_act.assign(collection._joint_effort_target)
                 articulation.data._sim_bind_joint_effort.assign(collection._joint_effort_target)
-                return
         else:
             # Lab executors publish processed targets; only implicit joints use
             # the backend position and velocity drives.
@@ -165,28 +158,34 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             write_pos_target = collection.has_implicit_actuators
             write_vel_target = collection.has_implicit_actuators
             write_joint_act = False
-        if not articulation.data.has_joint_ordering:
-            articulation.data._sim_bind_joint_effort.assign(collection._joint_effort_target_sim)
-            if collection.has_implicit_actuators:
-                articulation.data._sim_bind_joint_position_target.assign(collection._joint_pos_target_sim)
-                articulation.data._sim_bind_joint_velocity_target.assign(collection._joint_vel_target_sim)
-            return
+            if not needs_reorder:
+                articulation.data._sim_bind_joint_effort.assign(collection._joint_effort_target_sim)
+                if collection.has_implicit_actuators:
+                    articulation.data._sim_bind_joint_position_target.assign(collection._joint_pos_target_sim)
+                    articulation.data._sim_bind_joint_velocity_target.assign(collection._joint_vel_target_sim)
 
-        ordering_kernels.launch_reorder_joint_targets_user_to_backend(
-            user_effort=user_effort,
-            user_pos_target=user_pos_target,
-            user_vel_target=user_vel_target,
-            backend_to_user=articulation._joint_backend_to_user_map(),
-            write_effort=True,
-            write_pos_target=write_pos_target,
-            write_vel_target=write_vel_target,
-            write_joint_act=write_joint_act,
-            backend_effort=articulation.data._sim_bind_joint_effort,
-            backend_pos_target=articulation.data._sim_bind_joint_position_target,
-            backend_vel_target=articulation.data._sim_bind_joint_velocity_target,
-            backend_joint_act=articulation.data._sim_bind_joint_act,
-            device=self.device,
-        )
+        if needs_reorder:
+            ordering_kernels.launch_reorder_joint_targets_user_to_backend(
+                user_effort=user_effort,
+                user_pos_target=user_pos_target,
+                user_vel_target=user_vel_target,
+                backend_to_user=articulation._joint_backend_to_user_map(),
+                write_effort=True,
+                write_pos_target=write_pos_target,
+                write_vel_target=write_vel_target,
+                write_joint_act=write_joint_act,
+                backend_effort=articulation.data._sim_bind_joint_effort,
+                backend_pos_target=articulation.data._sim_bind_joint_position_target,
+                backend_vel_target=articulation.data._sim_bind_joint_velocity_target,
+                backend_joint_act=articulation.data._sim_bind_joint_act,
+                device=self.device,
+            )
+
+        # Newton takes coordinate-layout position targets from 1.6 on; every branch above writes
+        # DOF-indexed targets, so the staging buffer has to be scattered across unconditionally.
+        # Sequenced after the writes above (not a try/finally) so an exception mid-write leaves the
+        # staging buffer unflushed rather than scattering a half-written buffer into joint_target_q.
+        articulation.data._flush_joint_targets(articulation._ALL_ENV_MASK)
 
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
         if self._native_actuator_path_active and SimulationManager._adapter is not None:
