@@ -678,9 +678,8 @@ def test_load_torchscript_model_invalid_file():
         temp_file_path = temp_file.name
 
     try:
-        # Should handle the error gracefully and return None
-        model = load_torchscript_model(temp_file_path)
-        assert model is None
+        with pytest.raises(RuntimeError, match="Failed to load TorchScript model"):
+            load_torchscript_model(temp_file_path)
     finally:
         # Clean up the temporary file
         os.unlink(temp_file_path)
@@ -695,9 +694,8 @@ def test_load_torchscript_model_empty_file():
         temp_file_path = temp_file.name
 
     try:
-        # Should handle the error gracefully and return None
-        model = load_torchscript_model(temp_file_path)
-        assert model is None
+        with pytest.raises(RuntimeError, match="Failed to load TorchScript model"):
+            load_torchscript_model(temp_file_path)
     finally:
         # Clean up the temporary file
         os.unlink(temp_file_path)
@@ -766,9 +764,8 @@ def test_load_torchscript_model_error_handling():
         temp_file_path = temp_file.name
 
     try:
-        # Should handle the error gracefully and return None
-        model = load_torchscript_model(temp_file_path)
-        assert model is None
+        with pytest.raises(RuntimeError, match="Failed to load TorchScript model"):
+            load_torchscript_model(temp_file_path)
     finally:
         # Clean up the temporary file
         os.unlink(temp_file_path)

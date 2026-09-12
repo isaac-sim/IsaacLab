@@ -25,16 +25,17 @@ def load_torchscript_model(model_path: str, device: str = "cpu") -> torch.nn.Mod
         torch.nn.Module: The loaded TorchScript model in evaluation mode
 
     Raises:
-        FileNotFoundError: If the model file does not exist
+        FileNotFoundError: If the model file does not exist.
+        RuntimeError: If the file cannot be loaded as a TorchScript model.
     """
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"TorchScript model file not found: {model_path}")
 
     try:
         model = torch.jit.load(model_path, map_location=device)
-        model.eval()
-        print(f"Successfully loaded TorchScript model from {model_path}")
-        return model
-    except Exception as e:
-        print(f"Error loading TorchScript model: {e}")
-        return None
+    except Exception as exc:
+        raise RuntimeError(f"Failed to load TorchScript model from {model_path}") from exc
+
+    model.eval()
+    print(f"Successfully loaded TorchScript model from {model_path}")
+    return model
