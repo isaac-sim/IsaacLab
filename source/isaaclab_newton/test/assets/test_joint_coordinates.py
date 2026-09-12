@@ -10,7 +10,12 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.assets.articulation.joint_coordinates import JointCoordinateMap
+from isaaclab_newton.assets.articulation.joint_coordinates import (
+    JointCoordinateTables,
+    build_joint_coordinate_tables,
+    gather_joint_coordinates,
+    scatter_joint_coordinates,
+)
 
 # One revolute, one ball, one revolute -- the layout that hides an off-by-one when the tables are
 # built by walking the model instead of the view's own per-joint counts.
@@ -32,8 +37,8 @@ def _rotvec_to_quat(rotvec: np.ndarray) -> np.ndarray:
     return np.concatenate([axis * np.sin(0.5 * angle), [np.cos(0.5 * angle)]])
 
 
-def _map() -> JointCoordinateMap:
-    return JointCoordinateMap(COORD_COUNTS, DOF_COUNTS, "cpu")
+def _map() -> JointCoordinateTables:
+    return build_joint_coordinate_tables(COORD_COUNTS, DOF_COUNTS, "cpu")
 
 
 def test_tables_cover_every_dof() -> None:
@@ -48,7 +53,7 @@ def test_tables_cover_every_dof() -> None:
 
 def test_two_ball_tables_cover_every_dof() -> None:
     """A second ball joint's offsets are not a simple repeat of the first's."""
-    m = JointCoordinateMap(TWO_BALL_COORD_COUNTS, TWO_BALL_DOF_COUNTS, "cpu")
+    m = build_joint_coordinate_tables(TWO_BALL_COORD_COUNTS, TWO_BALL_DOF_COUNTS, "cpu")
     assert list(m.ball_dof.numpy()) == [1, 4]
     assert list(m.ball_coord.numpy()) == [1, 5]
     covered = list(m.single_dof.numpy()) + [b + k for b in m.ball_dof.numpy() for k in range(3)]
@@ -67,7 +72,7 @@ def test_zero_rotation_vector_scatters_to_identity_quaternion() -> None:
     coords = wp.zeros((1, n_coords), dtype=wp.float32, device="cpu")
     mask = wp.array(np.array([True]), dtype=wp.bool, device="cpu")
 
-    m.scatter(dofs, coords, mask)
+    scatter_joint_coordinates(m, dofs, coords, mask)
 
     ball_coord = int(m.ball_coord.numpy()[0])
     np.testing.assert_array_equal(coords.numpy()[0, ball_coord : ball_coord + 4], [0.0, 0.0, 0.0, 1.0])
@@ -84,7 +89,7 @@ def test_identity_quaternion_gathers_to_zero_rotation_vector(sign: float) -> Non
     coords_np[0, ball_coord : ball_coord + 4] = np.array([0.0, 0.0, 0.0, 1.0]) * sign
     out = wp.zeros((1, n_dofs), dtype=wp.float32, device="cpu")
 
-    m.gather(wp.array(coords_np, dtype=wp.float32, device="cpu"), out)
+    gather_joint_coordinates(m, wp.array(coords_np, dtype=wp.float32, device="cpu"), out)
 
     ball_dof = int(m.ball_dof.numpy()[0])
     np.testing.assert_array_equal(out.numpy()[0, ball_dof : ball_dof + 3], [0.0, 0.0, 0.0])
@@ -93,7 +98,7 @@ def test_identity_quaternion_gathers_to_zero_rotation_vector(sign: float) -> Non
 def test_joint_pos_is_dof_shaped_on_a_ball_jointed_mock() -> None:
     """Regression for the original bug: :attr:`ArticulationData.joint_pos` must be DOF-shaped
     even when the underlying view's ``joint_q`` is wider (a ball joint). This exercises
-    ``_create_simulation_bindings`` end to end, unlike the ``JointCoordinateMap``-only tests
+    ``_create_simulation_bindings`` end to end, unlike the coordinate-table-only tests
     above -- it fails on the pre-fix binding, which read ``get_dof_positions()`` (coordinate
     space) straight into ``joint_pos`` with no conversion, so ``joint_pos.shape[1]`` would be
     ``sum(TWO_BALL_COORD_COUNTS) == 10`` instead of ``sum(TWO_BALL_DOF_COUNTS) == 8``.
@@ -148,14 +153,14 @@ def test_joint_pos_is_dof_shaped_on_a_ball_jointed_mock() -> None:
 
 def test_map_is_inert_without_ball_joints() -> None:
     """An articulation whose joints all have one coordinate per DOF needs no conversion."""
-    assert not JointCoordinateMap([1, 1, 1], [1, 1, 1], "cpu").required
-    assert not JointCoordinateMap([], [], "cpu").required
+    assert not build_joint_coordinate_tables([1, 1, 1], [1, 1, 1], "cpu").required
+    assert not build_joint_coordinate_tables([], [], "cpu").required
 
 
 def test_unsupported_layout_is_rejected() -> None:
     """A distance joint (7 coordinates, 6 DOFs) must not be decoded as a quaternion."""
     with pytest.raises(NotImplementedError, match="7 coordinates against 6 DOFs"):
-        JointCoordinateMap([7], [6], "cpu")
+        build_joint_coordinate_tables([7], [6], "cpu")
 
 
 @pytest.mark.parametrize("num_envs", [1, 2])
@@ -169,7 +174,7 @@ def test_scatter_then_gather_round_trips(num_envs: int) -> None:
     coords = wp.zeros((num_envs, n_coords), dtype=wp.float32, device="cpu")
     mask = wp.array(np.ones(num_envs, dtype=bool), dtype=wp.bool, device="cpu")
 
-    m.scatter(dofs, coords, mask)
+    scatter_joint_coordinates(m, dofs, coords, mask)
     # The quaternion the scatter wrote must match an independent exp map.
     ball_coord = int(m.ball_coord.numpy()[0])
     ball_dof = int(m.ball_dof.numpy()[0])
@@ -178,7 +183,7 @@ def test_scatter_then_gather_round_trips(num_envs: int) -> None:
         np.testing.assert_allclose(coords.numpy()[env, ball_coord : ball_coord + 4], expected, atol=1e-6)
 
     out = wp.zeros((num_envs, n_dofs), dtype=wp.float32, device="cpu")
-    m.gather(coords, out)
+    gather_joint_coordinates(m, coords, out)
     np.testing.assert_allclose(out.numpy(), dofs_np, atol=1e-5)
 
 
@@ -195,7 +200,7 @@ def test_gather_is_invariant_to_quaternion_sign() -> None:
         coords = base.copy()
         coords[0, c : c + 4] *= sign
         out = wp.zeros((1, n_dofs), dtype=wp.float32, device="cpu")
-        m.gather(wp.array(coords, dtype=wp.float32, device="cpu"), out)
+        gather_joint_coordinates(m, wp.array(coords, dtype=wp.float32, device="cpu"), out)
         decoded.append(out.numpy().copy())
     np.testing.assert_allclose(decoded[0], decoded[1], atol=1e-6)
 
@@ -208,6 +213,6 @@ def test_scatter_only_touches_masked_environments() -> None:
     coords = wp.array(coords_np, dtype=wp.float32, device="cpu")
     dofs = wp.array(np.full((2, n_dofs), 0.3, dtype=np.float32), dtype=wp.float32, device="cpu")
 
-    m.scatter(dofs, coords, wp.array(np.array([True, False]), dtype=wp.bool, device="cpu"))
+    scatter_joint_coordinates(m, dofs, coords, wp.array(np.array([True, False]), dtype=wp.bool, device="cpu"))
     assert not np.allclose(coords.numpy()[0], coords_np[0])
     np.testing.assert_array_equal(coords.numpy()[1], coords_np[1])

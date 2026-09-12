@@ -22,7 +22,11 @@ from isaaclab.utils.warp.utils import capture_unsafe
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
-from isaaclab_newton.assets.articulation.joint_coordinates import JointCoordinateMap
+from isaaclab_newton.assets.articulation.joint_coordinates import (
+    build_joint_coordinate_tables,
+    gather_joint_coordinates,
+    scatter_joint_coordinates,
+)
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 if TYPE_CHECKING:
@@ -139,7 +143,9 @@ class ArticulationData(BaseArticulationData):
             env_mask: Per-environment boolean selection of the environments that were written.
         """
         if self._joint_coord_map.required:
-            self._joint_coord_map.scatter(self._sim_bind_joint_pos, self._sim_bind_joint_coords, env_mask)
+            scatter_joint_coordinates(
+                self._joint_coord_map, self._sim_bind_joint_pos, self._sim_bind_joint_coords, env_mask
+            )
 
     def _ensure_fk_fresh(self) -> None:
         """Run forward kinematics if joint state has changed since the last FK update.
@@ -1611,14 +1617,14 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_coords = self._root_view.get_dof_positions(SimulationManager.get_state_0())[:, 0]
             # The view's per-joint counts are already in the column order of the array above and
             # already exclude the free root, fixed joints and loop-closing joints.
-            self._joint_coord_map = JointCoordinateMap(
+            self._joint_coord_map = build_joint_coordinate_tables(
                 self._root_view.joint_coord_counts, self._root_view.joint_dof_counts, self.device
             )
             if self._joint_coord_map.required:
                 self._sim_bind_joint_pos = wp.zeros(
                     (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
                 )
-                self._joint_coord_map.gather(self._sim_bind_joint_coords, self._sim_bind_joint_pos)
+                gather_joint_coordinates(self._joint_coord_map, self._sim_bind_joint_coords, self._sim_bind_joint_pos)
             else:
                 self._sim_bind_joint_pos = self._sim_bind_joint_coords
             self._sim_bind_joint_vel = self._root_view.get_dof_velocities(SimulationManager.get_state_0())[:, 0]
@@ -1640,7 +1646,9 @@ class ArticulationData(BaseArticulationData):
                 self._sim_bind_joint_position_target = wp.zeros(
                     (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
                 )
-                self._joint_coord_map.gather(self._sim_bind_joint_target_coords, self._sim_bind_joint_position_target)
+                gather_joint_coordinates(
+                    self._joint_coord_map, self._sim_bind_joint_target_coords, self._sim_bind_joint_position_target
+                )
             self._sim_bind_joint_velocity_target = self._root_view.get_attribute(
                 "joint_target_qd", SimulationManager.get_control()
             )[:, 0]
@@ -1673,7 +1681,7 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_coords = self._sim_bind_joint_pos = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
-            self._joint_coord_map = JointCoordinateMap(
+            self._joint_coord_map = build_joint_coordinate_tables(
                 self._root_view.joint_coord_counts, self._root_view.joint_dof_counts, self.device
             )
             self._sim_bind_joint_vel = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
@@ -2215,8 +2223,11 @@ class ArticulationData(BaseArticulationData):
             env_mask: Per-environment mask of instances to scatter.
         """
         if self._joint_targets_need_conversion:
-            self._joint_coord_map.scatter(
-                self._sim_bind_joint_position_target, self._sim_bind_joint_target_coords, env_mask
+            scatter_joint_coordinates(
+                self._joint_coord_map,
+                self._sim_bind_joint_position_target,
+                self._sim_bind_joint_target_coords,
+                env_mask,
             )
 
     def _gather_joint_coordinates(self) -> None:
@@ -2226,7 +2237,7 @@ class ArticulationData(BaseArticulationData):
         zero-copy view onto ``joint_q`` and is always current.
         """
         if self._joint_coord_map.required:
-            self._joint_coord_map.gather(self._sim_bind_joint_coords, self._sim_bind_joint_pos)
+            gather_joint_coordinates(self._joint_coord_map, self._sim_bind_joint_coords, self._sim_bind_joint_pos)
 
     def _refresh_user_order_state(self) -> None:
         """Republish all Tier-1 user-order state shadows from live backend state, and gather any
