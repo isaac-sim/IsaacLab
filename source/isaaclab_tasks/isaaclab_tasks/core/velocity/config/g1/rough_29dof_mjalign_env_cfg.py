@@ -50,6 +50,7 @@ the knee (300 -> 139) and the arms (300 -> 25).
   this is the leading suspect and cannot be closed by a config change.
 """
 
+from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.utils.configclass import configclass
 
 from .rough_29dof_dr_env_cfg import _add_randomization
@@ -147,3 +148,42 @@ class G129DofRoughMujocoAlignedDREnvCfg(G129DofRoughMujocoAlignedEnvCfg):
                 "dynamic_friction_range": MJDR_FRICTION_RANGE,
             }
         )
+
+
+@configclass
+class G129DofRoughMujocoAlignedExplicitEnvCfg(G129DofRoughMujocoAlignedEnvCfg):
+    """The aligned arm with the PD computed explicitly instead of by the solver.
+
+    This is the last difference against the MuJoCo model that a config can express. Isaac Lab's
+    ``ImplicitActuatorCfg`` evaluates the PD once per 50 Hz control step and hands the solver a
+    target; the deploy loop recomputes ``tau = kp(q* - q) + kd(dq* - dq)`` every 2 ms from fresh
+    state. The lockstep ablation puts this first: closing the inertials, the torque ceilings, the
+    dry friction and the ground friction narrowed the knee's torque disagreement from about 2.0x to
+    1.6x but did not move the divergence step at all.
+
+    The earlier ``ex`` arm made the same swap on the *unaligned* base and hopped -- single-stance
+    0.027 with 33 to 38 percent of the time fully airborne, while scoring the project's best
+    left/right airborne ratio and lowest pelvis roll. That result says nothing about this one: it
+    was a different plant, and it is the reason to judge this arm on phase before anything else.
+
+    :func:`~.rough_29dof_explicit_env_cfg._to_explicit` is deliberately not reused. It rebuilds each
+    group from ``stiffness``/``damping``/``armature``/``effort_limit_sim`` only, which would drop the
+    ``friction`` and ``viscous_friction`` this line exists to set -- an arm that looks like a
+    one-variable change and is silently a three-variable one.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        rebuilt = {}
+        for name, group in self.scene.robot.actuators.items():
+            rebuilt[name] = IdealPDActuatorCfg(
+                joint_names_expr=list(group.joint_names_expr),
+                stiffness=group.stiffness,
+                damping=group.damping,
+                armature=group.armature,
+                friction=group.friction,
+                viscous_friction=group.viscous_friction,
+                effort_limit_sim=group.effort_limit_sim,
+                velocity_limit_sim=getattr(group, "velocity_limit_sim", None),
+            )
+        self.scene.robot.actuators = rebuilt

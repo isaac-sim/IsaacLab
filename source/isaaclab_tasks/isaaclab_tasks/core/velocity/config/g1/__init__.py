@@ -807,6 +807,19 @@ gym.register(
 
 
 gym.register(
+    id="Isaac-Velocity-Rough-G1-29Dof-AirTime100-MujocoAligned-Explicit-Sym",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": (
+            f"{__name__}.rough_29dof_mjalign_env_cfg:G129DofRoughMujocoAlignedExplicitEnvCfg"
+        ),
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1RoughSymmetryPPORunnerCfg",
+    },
+)
+
+
+gym.register(
     id="Isaac-Velocity-Rough-G1-29Dof-AirTime100-MujocoAligned-DR-Sym",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
