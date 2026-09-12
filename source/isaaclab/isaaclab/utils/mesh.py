@@ -167,6 +167,14 @@ def _create_cone_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
     mesh = trimesh.creation.cone(radius=radius, height=height)
     # shift all vertices down by height/2 for usd / trimesh cone primitive definition discrepancy
     mesh.apply_translation((0.0, 0.0, -height / 2.0))
+    axis = prim.GetAttribute("axis").Get()
+    if axis == "X":
+        # USD cones point their apex along the positive configured axis.
+        R = trimesh.transformations.rotation_matrix(np.radians(90), [0, 1, 0])
+        mesh.apply_transform(R)
+    elif axis == "Y":
+        R = trimesh.transformations.rotation_matrix(np.radians(-90), [1, 0, 0])
+        mesh.apply_transform(R)
     return mesh
 
 
