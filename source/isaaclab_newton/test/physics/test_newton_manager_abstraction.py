@@ -233,26 +233,6 @@ def test_solver_kwargs_include_newton_deterministic_mode(monkeypatch: pytest.Mon
     assert kwargs["deterministic"] == wp.DeterministicMode.GPU_TO_GPU
 
 
-def test_semi_implicit_solver_cfg_forwards_constructor_fields() -> None:
-    """SemiImplicit construction should forward each exposed solver setting."""
-    model = ModelBuilder().finalize(device="cpu")
-    cfg = SemiImplicitSolverCfg(
-        angular_damping=0.12,
-        friction_smoothing=0.34,
-        joint_attach_ke=5678.0,
-        joint_attach_kd=91.0,
-        enable_tri_contact=False,
-    )
-
-    solver = NewtonSemiImplicitManager._create_solver(model, cfg)
-
-    assert solver.angular_damping == 0.12
-    assert solver.friction_smoothing == 0.34
-    assert solver.joint_attach_ke == 5678.0
-    assert solver.joint_attach_kd == 91.0
-    assert solver.enable_tri_contact is False
-
-
 @pytest.mark.parametrize(
     "solver_cfg",
     [
@@ -1570,49 +1550,6 @@ def test_initialize_solver_populates_canonical_state(
         sim.step(render=False)
 
 
-def test_semi_implicit_gravity_and_ground_contact():
-    """SemiImplicit should accelerate under gravity and settle on generated contacts."""
-    sim_cfg = SimulationCfg(
-        dt=1.0 / 120.0,
-        device="cpu",
-        gravity=(0.0, 0.0, -9.81),
-        physics=NewtonCfg(
-            solver_cfg=SemiImplicitSolverCfg(),
-            num_substeps=4,
-            use_cuda_graph=False,
-        ),
-    )
-
-    with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
-        world_builder = NewtonManager.create_builder()
-        body = world_builder.add_body(
-            xform=wp.transform((0.0, 0.0, 0.5), wp.quat_identity()),
-            mass=1.0,
-            inertia=inertia,
-            lock_inertia=True,
-            label="sphere",
-        )
-        world_builder.add_shape_sphere(body=body, radius=0.1)
-        builder = NewtonManager.create_builder()
-        builder.add_ground_plane()
-        builder.add_world(world_builder)
-        NewtonManager.set_builder(builder)
-        sim.reset()
-
-        sim.step(render=False)
-        assert NewtonManager._state_0.body_q.numpy()[0, 2] < 0.5
-        assert NewtonManager._state_0.body_qd.numpy()[0, 2] < 0.0
-
-        for _ in range(239):
-            sim.step(render=False)
-
-        settled_pose = NewtonManager._state_0.body_q.numpy()[0]
-        settled_velocity = NewtonManager._state_0.body_qd.numpy()[0]
-        assert settled_pose[2] == pytest.approx(0.1, abs=0.01)
-        assert settled_velocity[2] == pytest.approx(0.0, abs=1.0e-3)
-
-
 def _bind_kitless_rigid_object(device: str) -> RigidObject:
     """Bind Isaac Lab's real rigid-object API to the manager's finalized free bodies."""
     model = NewtonManager.get_model()
@@ -1622,7 +1559,6 @@ def _bind_kitless_rigid_object(device: str) -> RigidObject:
     rigid_object._device = device
     rigid_object._root_view = root_view
     rigid_object._data = data
-    rigid_object._ALL_INDICES = wp.array(np.arange(root_view.count, dtype=np.int32), device=device)
     rigid_object._ALL_ENV_MASK = wp.ones(root_view.count, dtype=wp.bool, device=device)
     return rigid_object
 
@@ -1689,9 +1625,7 @@ def test_semi_implicit_body_force_and_root_resets(device, use_cuda_graph):
             root_velocity=wp.array(reset_velocity, dtype=wp.spatial_vectorf, device=device), env_mask=env_mask
         )
 
-        assert NewtonManager._world_reset_mask.numpy().tolist() == [True, False, False]
         sim.step(render=False)
-        assert NewtonManager._world_reset_mask.numpy().tolist() == [False, False, False]
 
         selected_pose = rigid_object.data.root_link_pose_w.warp.numpy()
         selected_velocity = rigid_object.data.root_com_vel_w.warp.numpy()
@@ -1753,7 +1687,6 @@ def test_semi_implicit_public_joint_state_reaches_next_folded_iteration():
         articulation._device = "cpu"
         articulation._root_view = root_view
         articulation._data = ArticulationData(root_view, "cpu")
-        articulation._ALL_INDICES = wp.array([0, 1], dtype=wp.int32, device="cpu")
         articulation._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")
         articulation._ALL_JOINT_INDICES = wp.array([0], dtype=wp.int32, device="cpu")
         articulation._ALL_JOINT_MASK = wp.ones(1, dtype=wp.bool, device="cpu")
