@@ -8,11 +8,13 @@
 from isaaclab.app import AppLauncher
 
 # launch the simulator
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
+app_launcher = AppLauncher(headless=True)
 simulation_app = app_launcher.app
 
 
 """Rest everything follows."""
+
+from contextlib import contextmanager
 
 import gymnasium as gym
 import pytest
@@ -51,97 +53,64 @@ def registered_tasks():
     return registered_tasks
 
 
+@contextmanager
+def _make_env(task_name: str, *, num_envs: int, finite_horizon: bool = False):
+    """Create and close an RSL-RL environment."""
+    sim_utils.create_new_stage()
+    get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
+
+    env_cfg = parse_env_cfg(task_name, device="cuda", num_envs=num_envs)
+    env_cfg.is_finite_horizon = finite_horizon
+    env = gym.make(task_name, cfg=env_cfg)
+    try:
+        if isinstance(env.unwrapped, DirectMARLEnv):
+            env = multi_agent_to_single_agent(env)
+        yield RslRlVecEnvWrapper(env)
+    finally:
+        env.close()
+
+
+def test_get_observations():
+    """Return the current observations from a real environment."""
+    with _make_env("Isaac-Cartpole", num_envs=2) as env:
+        observations, _ = env.reset()
+        torch.testing.assert_close(env.get_observations()["policy"], observations["policy"])
+
+        actions = torch.zeros(env.action_space.shape, device=env.unwrapped.device)
+        observations = env.step(actions)[0]
+        torch.testing.assert_close(env.get_observations()["policy"], observations["policy"])
+
+
 def test_random_actions(registered_tasks):
     """Run random actions and check environments return valid signals."""
-    # common parameters
-    num_envs = 64
-    device = "cuda"
     for task_name in registered_tasks:
-        # Use pytest's subtests
         print(f">>> Running test for environment: {task_name}")
-        # create a new stage
-        sim_utils.create_new_stage()
-        # reset the rtx sensors carb setting to False
-        get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
-        try:
-            # parse configuration
-            env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
-            # create environment
-            env = gym.make(task_name, cfg=env_cfg)
-            # convert to single-agent instance if required by the RL algorithm
-            if isinstance(env.unwrapped, DirectMARLEnv):
-                env = multi_agent_to_single_agent(env)
-            # wrap environment
-            env = RslRlVecEnvWrapper(env)
-        except Exception as e:
-            if "env" in locals() and hasattr(env, "_is_closed"):
-                env.close()
-            else:
-                if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
-                    e.obj.close()
-            pytest.fail(f"Failed to set-up the environment for task {task_name}. Error: {e}")
+        with _make_env(task_name, num_envs=64) as env:
+            obs, extras = env.reset()
+            assert _check_valid_tensor(obs)
+            assert _check_valid_tensor(extras)
 
-        # reset environment
-        obs, extras = env.reset()
-        # check signal
-        assert _check_valid_tensor(obs)
-        assert _check_valid_tensor(extras)
-
-        # simulate environment for 100 steps
-        with torch.inference_mode():
-            for _ in range(100):
-                # sample actions from -1 to 1
-                actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
-                # apply actions
-                transition = env.step(actions)
-                # check signals
-                for data in transition:
-                    assert _check_valid_tensor(data), f"Invalid data: {data}"
-
-        # close the environment
-        print(f">>> Closing environment: {task_name}")
-        env.close()
+            with torch.inference_mode():
+                for _ in range(100):
+                    actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
+                    for data in env.step(actions):
+                        assert _check_valid_tensor(data), f"Invalid data: {data}"
 
 
 def test_no_time_outs(registered_tasks):
     """Check that environments with finite horizon do not send time-out signals."""
-    # common parameters
-    num_envs = 64
-    device = "cuda"
     # The time-out contract belongs to the wrapper, so two environments are sufficient.
     for task_name in registered_tasks[:2]:
-        # Use pytest's subtests
         print(f">>> Running test for environment: {task_name}")
-        # create a new stage
-        sim_utils.create_new_stage()
-        # parse configuration
-        env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
-        # change to finite horizon
-        env_cfg.is_finite_horizon = True
+        with _make_env(task_name, num_envs=64, finite_horizon=True) as env:
+            _, extras = env.reset()
+            assert "time_outs" not in extras, "Time-out signal found in finite horizon environment."
 
-        # create environment
-        env = gym.make(task_name, cfg=env_cfg)
-        # wrap environment
-        env = RslRlVecEnvWrapper(env)
-
-        # reset environment
-        _, extras = env.reset()
-        # check signal
-        assert "time_outs" not in extras, "Time-out signal found in finite horizon environment."
-
-        # simulate environment for 10 steps
-        with torch.inference_mode():
-            for _ in range(10):
-                # sample actions from -1 to 1
-                actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
-                # apply actions
-                extras = env.step(actions)[-1]
-                # check signals
-                assert "time_outs" not in extras, "Time-out signal found in finite horizon environment."
-
-        # close the environment
-        print(f">>> Closing environment: {task_name}")
-        env.close()
+            with torch.inference_mode():
+                for _ in range(10):
+                    actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
+                    extras = env.step(actions)[-1]
+                    assert "time_outs" not in extras, "Time-out signal found in finite horizon environment."
 
 
 """
