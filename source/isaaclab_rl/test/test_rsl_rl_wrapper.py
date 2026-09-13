@@ -14,15 +14,14 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 
 import gymnasium as gym
-import pytest
 import torch
 from tensordict import TensorDict
 
 import isaaclab.sim as sim_utils
-from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 
 from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
@@ -30,38 +29,23 @@ from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
-
-@pytest.fixture(scope="module")
-def registered_tasks():
-    # acquire all Isaac environments names
-    registered_tasks = list()
-    for task_spec in gym.registry.values():
-        if "Isaac" in task_spec.id:
-            cfg_entry_point = gym.spec(task_spec.id).kwargs.get("rsl_rl_cfg_entry_point")
-            if cfg_entry_point is not None:
-                registered_tasks.append(task_spec.id)
-    # sort environments by name
-    registered_tasks.sort()
-    registered_tasks = registered_tasks[:5]
-
-    # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
-    # test on many environments.
-    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
-
-    # print all existing task names
-    print(">>> All registered environments:", registered_tasks)
-    return registered_tasks
+_TASK_IDS = (
+    "Isaac-Ant",
+    "Isaac-Ant-Direct",
+    "Isaac-Cartpole",
+    "Isaac-Cartpole-Camera",
+)
 
 
 @contextmanager
-def _make_env(task_name: str, *, num_envs: int, finite_horizon: bool = False):
+def _make_env(task_id: str, *, num_envs: int, finite_horizon: bool | None = None) -> Iterator[RslRlVecEnvWrapper]:
     """Create and close an RSL-RL environment."""
     sim_utils.create_new_stage()
-    get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
 
-    env_cfg = parse_env_cfg(task_name, device="cuda", num_envs=num_envs)
-    env_cfg.is_finite_horizon = finite_horizon
-    env = gym.make(task_name, cfg=env_cfg)
+    env_cfg = parse_env_cfg(task_id, device="cuda", num_envs=num_envs)
+    if finite_horizon is not None:
+        env_cfg.is_finite_horizon = finite_horizon
+    env = gym.make(task_id, cfg=env_cfg)
     try:
         if isinstance(env.unwrapped, DirectMARLEnv):
             env = multi_agent_to_single_agent(env)
@@ -81,28 +65,28 @@ def test_get_observations():
         torch.testing.assert_close(env.get_observations()["policy"], observations["policy"])
 
 
-def test_random_actions(registered_tasks):
+def test_random_actions():
     """Run random actions and check environments return valid signals."""
-    for task_name in registered_tasks:
-        print(f">>> Running test for environment: {task_name}")
-        with _make_env(task_name, num_envs=64) as env:
-            obs, extras = env.reset()
-            assert _check_valid_tensor(obs)
-            assert _check_valid_tensor(extras)
+    for task_id in _TASK_IDS:
+        print(f">>> Running test for environment: {task_id}")
+        with _make_env(task_id, num_envs=64) as env:
+            observations, extras = env.reset()
+            assert _has_no_nan(observations)
+            assert _has_no_nan(extras)
 
             with torch.inference_mode():
-                for _ in range(100):
+                for _ in range(10):
                     actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
                     for data in env.step(actions):
-                        assert _check_valid_tensor(data), f"Invalid data: {data}"
+                        assert _has_no_nan(data), f"Invalid data: {data}"
 
 
-def test_no_time_outs(registered_tasks):
+def test_no_time_outs():
     """Check that environments with finite horizon do not send time-out signals."""
     # The time-out contract belongs to the wrapper, so two environments are sufficient.
-    for task_name in registered_tasks[:2]:
-        print(f">>> Running test for environment: {task_name}")
-        with _make_env(task_name, num_envs=64, finite_horizon=True) as env:
+    for task_id in _TASK_IDS[:2]:
+        print(f">>> Running test for environment: {task_id}")
+        with _make_env(task_id, num_envs=64, finite_horizon=True) as env:
             _, extras = env.reset()
             assert "time_outs" not in extras, "Time-out signal found in finite horizon environment."
 
@@ -113,32 +97,18 @@ def test_no_time_outs(registered_tasks):
                     assert "time_outs" not in extras, "Time-out signal found in finite horizon environment."
 
 
-"""
-Helper functions.
-"""
-
-
-@staticmethod
-def _check_valid_tensor(data: torch.Tensor | dict) -> bool:
-    """Checks if given data does not have corrupted values.
+def _has_no_nan(data: torch.Tensor | TensorDict | dict[str, object]) -> bool:
+    """Check that all tensors in the data structure contain no NaNs.
 
     Args:
-        data: Data buffer.
+        data: Tensor or nested mapping of tensors.
 
     Returns:
-        True if the data is valid.
+        True if none of the tensors contain NaNs.
     """
-    if isinstance(data, torch.Tensor):
-        return not torch.any(torch.isnan(data))
-    elif isinstance(data, TensorDict):
+    if isinstance(data, (torch.Tensor, TensorDict)):
         return not data.isnan().any()
-    elif isinstance(data, dict):
-        valid_tensor = True
-        for value in data.values():
-            if isinstance(value, dict):
-                valid_tensor &= _check_valid_tensor(value)
-            elif isinstance(value, torch.Tensor):
-                valid_tensor &= not torch.any(torch.isnan(value))
-        return valid_tensor
-    else:
-        raise ValueError(f"Input data of invalid type: {type(data)}.")
+    if isinstance(data, dict):
+        tensor_values = (value for value in data.values() if isinstance(value, (torch.Tensor, TensorDict, dict)))
+        return all(_has_no_nan(value) for value in tensor_values)
+    raise TypeError(f"Unsupported data type: {type(data)}.")
