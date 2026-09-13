@@ -326,6 +326,11 @@ class MockNewtonArticulationView:
         return self._is_fixed_base
 
     @property
+    def is_floating_base(self) -> bool:
+        """Whether this fixed-or-free mock stores its root pose in joint state."""
+        return not self._is_fixed_base
+
+    @property
     def joint_dof_names(self) -> list[str]:
         """Names of the DOFs."""
         return self._joint_dof_names

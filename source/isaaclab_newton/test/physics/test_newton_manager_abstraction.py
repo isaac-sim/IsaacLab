@@ -17,6 +17,8 @@ Covers:
   rejects the ``MJWarp + use_mujoco_contacts=True + collision_cfg`` combination.
 * Manager name dispatch (used by :class:`InteractiveScene` and the various
   factory dispatchers) still starts with ``"newton"``.
+* Fixed-root pose writes notify the active solver, including graph replay,
+  so MuJoCo's active contact response matches a freshly synchronized solver.
 * End-to-end: spinning up a simulation with each solver builds the correct
   solver, sets the right ``_use_single_state`` / ``_needs_collision_pipeline``
   flags, and lands canonical state on :class:`NewtonManager` so that external
@@ -28,12 +30,14 @@ from __future__ import annotations
 import logging
 from inspect import signature
 from types import SimpleNamespace
+from unittest import mock
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.assets.articulation import articulation as articulation_module
+from isaaclab_newton.assets.rigid_object import rigid_object as rigid_object_module
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoDVICfg,
@@ -58,7 +62,8 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
-from newton import JointTargetMode, JointType, ModelBuilder, ShapeFlags
+from newton import CollisionPipeline, JointTargetMode, JointType, ModelBuilder, ModelFlags, ShapeFlags, eval_fk
+from newton.selection import ArticulationView
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
 
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -1179,6 +1184,207 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
 # ---------------------------------------------------------------------------
 # Manager state-refresh boundaries (no SimulationContext required)
 # ---------------------------------------------------------------------------
+
+
+def _root_pose_writer_fixture(root_kind, device):
+    """Bind real selection buffers to the asset writer without a SimulationContext."""
+    builder = ModelBuilder()
+    SolverMuJoCo.register_custom_attributes(builder)
+    builder.default_shape_cfg.mu = 0.0
+    builder.add_shape_plane(plane=(0.0, 0.0, 1.0, 0.0), width=0.0, length=0.0, custom_attributes={"mujoco:condim": 1})
+    for world in range(2):
+        builder.begin_world()
+        root_pose = wp.transform(wp.vec3(2.0 * world, 0.0, 0.2), wp.quat_identity())
+        root = builder.add_link(
+            xform=root_pose, mass=1.0, com=wp.vec3(0.03, 0.0, 0.0), inertia=wp.mat33(np.eye(3)), label="root"
+        )
+        if root_kind == "free":
+            root_joint = builder.add_joint_free(root)
+        else:
+            add_root = builder.add_joint_fixed if root_kind == "fixed" else builder.add_joint_d6
+            root_joint = add_root(-1, root, parent_xform=root_pose)
+        child = builder.add_link(xform=wp.transform(wp.vec3(2.0 * world, 0.0, 0.09), wp.quat_identity()), label="child")
+        child_joint = builder.add_joint_prismatic(
+            root, child, parent_xform=wp.transform(wp.vec3(0.0, 0.0, -0.11), wp.quat_identity()), axis=wp.vec3(0, 0, 1)
+        )
+        builder.add_articulation([root_joint, child_joint], label="robot")
+        builder.add_shape_sphere(child, radius=0.1, custom_attributes={"mujoco:condim": 1})
+        builder.end_world()
+    model = builder.finalize(device=device)
+    model.request_contact_attributes("force")
+    state = model.state()
+    eval_fk(model, model.joint_q, model.joint_qd, state)
+    view = ArticulationView(model, "robot", verbose=False)
+    data = SimpleNamespace(
+        root_link_pose_w=view.get_root_transforms(state)[:, 0],
+        root_com_pose_w=wp.empty(2, dtype=wp.transform, device=device),
+        _sim_bind_body_com_pos_b=view.get_attribute("body_com", model)[:, 0],
+        _reset_pose=mock.Mock(),
+    )
+    data.body_com_pos_b = data._sim_bind_body_com_pos_b
+
+    def check_array(array, shape, dtype, name):
+        assert array.shape == shape, name
+        assert array.dtype == dtype, name
+
+    asset = SimpleNamespace(
+        root_view=view,
+        data=data,
+        device=device,
+        _ALL_ENV_MASK=wp.array([True, True], dtype=wp.bool, device=device),
+        _resolve_env_ids=lambda ids: ids,
+        _resolve_mask=lambda mask, default: default if mask is None else mask,
+        assert_shape_and_dtype=check_array,
+        assert_shape_and_dtype_mask=lambda array, shape, dtype, name: check_array(array, (2,), dtype, name),
+    )
+    return model, state, asset
+
+
+@pytest.mark.parametrize("asset_class", [articulation_module.Articulation, rigid_object_module.RigidObject])
+@pytest.mark.parametrize("root_kind", ["fixed", "locked_d6", "free"])
+@pytest.mark.parametrize("frame, selection", [("link", "index"), ("link", "mask"), ("com", "index"), ("com", "mask")])
+@pytest.mark.parametrize("skip_forward", [False, True])
+def test_root_pose_writer_notifies_model_change(monkeypatch, asset_class, root_kind, frame, selection, skip_forward):
+    """Model-backed root writes notify immediately, including writes that skip FK invalidation."""
+    model, _, asset = _root_pose_writer_fixture(root_kind, "cpu")
+    before = asset.data.root_link_pose_w.numpy().copy()
+    observed = []
+    solver = SimpleNamespace(
+        notify_model_changed=lambda flags: observed.append((flags, asset.data.root_link_pose_w.numpy().copy()))
+    )
+    monkeypatch.setattr(NewtonManager, "_solver", solver)
+    monkeypatch.setattr(NewtonManager, "_model", model)
+    monkeypatch.setattr(NewtonManager, "_model_changes", set())
+    target = before.copy()
+    target[0, :3] += [0.04, -0.02, -0.01]
+    if frame == "com":
+        target[:, :3] += [0.03, 0.0, 0.0]
+    kwargs = {"skip_forward": skip_forward}
+    if selection == "index":
+        kwargs["env_ids"] = wp.array([0], dtype=wp.int32, device="cpu")
+        target = target[:1]
+    else:
+        kwargs["env_mask"] = wp.array([True, False], dtype=wp.bool, device="cpu")
+    kwargs["root_pose"] = wp.array(target, dtype=wp.transform, device="cpu")
+    getattr(asset_class, f"write_root_{frame}_pose_to_sim_{selection}")(asset, **kwargs)
+    expected = before.copy()
+    expected[0, :3] += [0.04, -0.02, -0.01]
+    np.testing.assert_allclose(asset.data.root_link_pose_w.numpy(), expected, atol=1e-7)
+    if root_kind == "free":
+        assert observed == []
+    else:
+        assert len(observed) == 1, "The model transform changed without notifying the active solver"
+        assert observed[0][0] == ModelFlags.JOINT_PROPERTIES
+        np.testing.assert_allclose(observed[0][1], expected, atol=1e-7)
+    assert asset.data._reset_pose.call_count == (0 if skip_forward else 1)
+    assert NewtonManager._model_changes == set()
+
+
+def test_notify_model_change_before_solver_construction(monkeypatch):
+    """Changes made before solver construction stay in the existing initialization queue."""
+    monkeypatch.setattr(NewtonManager, "_solver", None)
+    monkeypatch.setattr(NewtonManager, "_model_changes", set())
+    NewtonManager._notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+    assert NewtonManager._model_changes == {ModelFlags.JOINT_PROPERTIES}
+
+
+@pytest.mark.parametrize("root_kind", ["fixed", "locked_d6"])
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("capture_write", [False, True])
+def test_root_pose_writer_preserves_active_mujoco_contact_response(monkeypatch, root_kind, device, capture_write):
+    """A masked root rotation updates active contact response, also on repeated graph replay."""
+    if device.startswith("cuda") and not wp.is_cuda_available():
+        pytest.skip("CUDA device unavailable")
+    if capture_write and device == "cpu":
+        pytest.skip("CUDA graph replay requires a CUDA device")
+    model, state, asset = _root_pose_writer_fixture(root_kind, device)
+    options = dict(
+        use_mujoco_contacts=False,
+        update_data_interval=2,
+        iterations=100,
+        ls_iterations=15,
+        integrator="implicitfast",
+        cone="pyramidal",
+        nconmax=2,
+        njmax=8,
+    )
+    solver = SolverMuJoCo(model, **options)
+    monkeypatch.setattr(NewtonManager, "_solver", solver)
+    monkeypatch.setattr(NewtonManager, "_model", model)
+    monkeypatch.setattr(NewtonManager, "_state_0", state)
+    monkeypatch.setattr(NewtonManager, "_model_changes", set())
+    initial_roots = asset.data.root_link_pose_w.numpy().copy()
+    targets = wp.array(initial_roots, dtype=wp.transform, device=device)
+    mask = wp.array([True, False], dtype=wp.bool, device=device)
+
+    def write():
+        articulation_module.Articulation.write_root_link_pose_to_sim_mask(
+            asset, root_pose=targets, env_mask=mask, skip_forward=True
+        )
+
+    # Compile the writer and notification before capture, using unchanged poses.
+    write()
+    graph = None
+    if capture_write:
+        with wp.ScopedCapture(device=device) as capture:
+            write()
+        graph = capture.graph
+    pipeline = CollisionPipeline(model, rigid_contact_max=solver.mjw_data.naconmax)
+    control = model.control()
+    shape_body = model.shape_body.numpy()
+
+    def child_forces(contacts):
+        count = int(contacts.rigid_contact_count.numpy()[0])
+        result = np.zeros((2, 3), dtype=np.float64)
+        forces = contacts.force.numpy()[:count, :3]
+        for side, sign in ((contacts.rigid_contact_shape0, 1.0), (contacts.rigid_contact_shape1, -1.0)):
+            bodies = shape_body[side.numpy()[:count]]
+            for world, child in enumerate((1, 3)):
+                result[world] += sign * forces[bodies == child].sum(axis=0)
+        return result
+
+    for angle in (0.5, -0.35):
+        target = initial_roots.copy()
+        rotation = wp.quat_from_axis_angle(wp.vec3(0.0, 1.0, 0.0), angle)
+        # Keep the child sphere center at z=.09 m, hence a .01 m penetration.
+        target[0, :3] = [0.03, 0.0, 0.09 + 0.11 * np.cos(angle)]
+        target[0, 3:] = np.asarray(rotation)
+        targets.assign(target)
+        if graph is None:
+            write()
+        else:
+            wp.capture_launch(graph)
+        # The public writer has already changed the model. A fresh solver provides
+        # an independent synchronization reference without manually notifying it.
+        fresh = SolverMuJoCo(model, **options)
+        fresh_state = model.state()
+        state.joint_q.assign(model.joint_q)
+        state.joint_qd.assign(model.joint_qd)
+        for current in (state, fresh_state):
+            eval_fk(model, model.joint_q, model.joint_qd, current)
+        solver.reset(state, flags=0)
+        # Both cold solves start on the same import-cadence boundary.
+        assert solver._step % 2 == 0
+        candidate_contacts, fresh_contacts = pipeline.contacts(), pipeline.contacts()
+        for _ in range(2):
+            for current, current_solver, contacts in (
+                (state, solver, candidate_contacts),
+                (fresh_state, fresh, fresh_contacts),
+            ):
+                pipeline.collide(current, contacts)
+                current_solver.step(current, current, control, contacts, 0.005)
+                current_solver.update_contacts(contacts, current)
+            candidate_force = child_forces(candidate_contacts)
+            reference_force = child_forces(fresh_contacts)
+            assert np.linalg.norm(reference_force[0]) > 1e-3, "The moved-world contact must carry force"
+            assert np.linalg.norm(reference_force[1]) > 1e-3, "The unchanged-world contact must carry force"
+            # Check forces before poses so the pre-fix regression demonstrates an
+            # active-contact consequence, not just the already-known mocap mismatch.
+            np.testing.assert_allclose(candidate_force, reference_force, rtol=1e-5, atol=1e-4)
+            np.testing.assert_allclose(state.joint_qd.numpy(), fresh_state.joint_qd.numpy(), rtol=1e-5, atol=1e-6)
+            np.testing.assert_allclose(solver.mjw_data.xpos.numpy(), fresh.mjw_data.xpos.numpy(), atol=1e-6)
+        np.testing.assert_array_equal(asset.data.root_link_pose_w.numpy()[1], initial_roots[1])
+        assert NewtonManager._model_changes == set()
 
 
 def test_forward_consumes_existing_reset_masks(monkeypatch):

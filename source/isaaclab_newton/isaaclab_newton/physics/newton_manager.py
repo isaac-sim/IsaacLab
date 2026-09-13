@@ -1454,6 +1454,23 @@ class NewtonManager(PhysicsManager):
         cls._model_changes.add(change)
 
     @classmethod
+    def _notify_model_changed(cls, change: ModelFlags) -> None:
+        """Notify the active solver immediately after a model write.
+
+        Unlike :meth:`add_model_change`, this dispatches at the write boundary so
+        device-side updates can be captured alongside the write and replayed.
+        Capture support depends on the solver's notification handler. Before
+        solver construction, retain the change in the initialization queue.
+
+        Args:
+            change: Category of model properties that changed.
+        """
+        if cls._solver is None:
+            cls.add_model_change(change)
+        else:
+            cls._solver.notify_model_changed(change)
+
+    @classmethod
     def invalidate_fk(
         cls,
         env_mask: wp.array | None = None,
