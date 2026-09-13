@@ -7,13 +7,11 @@
 
 import argparse
 import contextlib
-import importlib.metadata as metadata
 import os
 import sys
 import time
 
 import torch
-from packaging import version
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -38,9 +36,6 @@ from isaaclab_rl.entrypoints.common import (
 from isaaclab_rl.rsl_rl import (
     RslRlBaseRunnerCfg,
     RslRlVecEnvWrapper,
-    export_policy_as_jit,
-    export_policy_as_onnx,
-    handle_deprecated_rsl_rl_cfg,
 )
 from isaaclab_rl.utils.pretrained_checkpoint import (
     get_pretrained_checkpoint_backend_names,
@@ -111,8 +106,6 @@ if args_cli.external_callback:
 remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
 sys.argv = [sys.argv[0]] + remaining_args
 
-installed_version = metadata.version("rsl-rl-lib")
-
 
 @hydra_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlBaseRunnerCfg):
@@ -129,8 +122,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
             # Warp reads its determinism mode at module build time, so request it before the env exists.
             request_determinism(args_cli, env_cfg)
-
-            agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
 
             # note: certain randomizations occur in the environment initialization so we set the seed here
             env_cfg.seed = agent_cfg.seed
@@ -195,26 +186,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             policy = runner.get_inference_policy(device=env.unwrapped.device)
 
             export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
-
-            if version.parse(installed_version) >= version.parse("4.0.0"):
-                runner.export_policy_to_jit(path=export_model_dir, filename="policy.pt")
-                runner.export_policy_to_onnx(path=export_model_dir, filename="policy.onnx")
-                policy_nn = None  # Not needed for rsl-rl >= 4.0.0
-            else:
-                if version.parse(installed_version) >= version.parse("2.3.0"):
-                    policy_nn = runner.alg.policy
-                else:
-                    policy_nn = runner.alg.actor_critic
-
-                if hasattr(policy_nn, "actor_obs_normalizer"):
-                    normalizer = policy_nn.actor_obs_normalizer
-                elif hasattr(policy_nn, "student_obs_normalizer"):
-                    normalizer = policy_nn.student_obs_normalizer
-                else:
-                    normalizer = None
-
-                export_policy_as_jit(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.pt")
-                export_policy_as_onnx(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.onnx")
+            runner.export_policy_to_jit(path=export_model_dir, filename="policy.pt")
+            runner.export_policy_to_onnx(path=export_model_dir, filename="policy.onnx")
 
             dt = env.unwrapped.step_dt
 
@@ -229,10 +202,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                         actions = policy(obs)
                         obs, _, dones, _ = env.step(actions)
                         # reset recurrent states for episodes that have terminated
-                        if version.parse(installed_version) >= version.parse("4.0.0"):
-                            policy.reset(dones)
-                        else:
-                            policy_nn.reset(dones)
+                        policy.reset(dones)
                     if args_cli.video:
                         timestep += 1
                         video_stop = args_cli.video_length

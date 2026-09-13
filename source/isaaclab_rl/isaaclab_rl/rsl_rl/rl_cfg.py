@@ -64,34 +64,6 @@ class RslRlMLPModelCfg:
         class_name: str = "HeteroscedasticGaussianDistribution"
         """The distribution class name. Default is HeteroscedasticGaussianDistribution."""
 
-    stochastic: bool = MISSING
-    """Whether the model output is stochastic.
-
-    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and set it to None
-    for deterministic output or to a valid configuration class, e.g., `GaussianDistributionCfg` for stochastic output.
-    """
-
-    init_noise_std: float = MISSING
-    """The initial noise standard deviation for the model.
-
-    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the
-    `init_std` field of the distribution configuration to specify the initial noise standard deviation.
-    """
-
-    noise_std_type: Literal["scalar", "log"] = "scalar"
-    """The type of noise standard deviation for the model. Defaults to scalar.
-
-    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use the
-    `std_type` field of the distribution configuration to specify the type of noise standard deviation.
-    """
-
-    state_dependent_std: bool = False
-    """Whether to use state-dependent standard deviation for the policy. Defaults to False.
-
-    For rsl-rl >= 5.0.0, this configuration is is deprecated. Please use `distribution_cfg` instead and use
-    the `HeteroscedasticGaussianDistributionCfg` if state-dependent standard deviation is desired.
-    """
-
 
 @configclass
 class RslRlRNNModelCfg(RslRlMLPModelCfg):
@@ -249,13 +221,6 @@ class RslRlBaseRunnerCfg:
     max_iterations: int = MISSING
     """The maximum number of iterations."""
 
-    empirical_normalization: bool = MISSING
-    """This parameter is deprecated and will be removed in the future.
-
-    For rsl-rl < 4.0.0, use `actor_obs_normalization` and `critic_obs_normalization` of the policy instead.
-    For rsl-rl >= 4.0.0, use `obs_normalization` of the model instead.
-    """
-
     obs_groups: dict[str, list[str]] = MISSING
     """A mapping from observation groups to observation sets.
 
@@ -345,70 +310,3 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
 
     algorithm: RslRlPpoAlgorithmCfg = MISSING
     """The algorithm configuration."""
-
-    policy: RslRlPpoActorCriticCfg = MISSING
-    """The policy configuration.
-
-    For rsl-rl >= 4.0.0, this configuration is is deprecated. Please use `actor` and `critic` model configurations
-    instead.
-    """
-
-
-#############################
-# Deprecated configurations #
-#############################
-
-
-@configclass
-class RslRlPpoActorCriticCfg:
-    """Configuration for the PPO actor-critic networks.
-
-    For rsl-rl >= 4.0.0, this configuration is deprecated. Please use `RslRlMLPModelCfg` instead.
-    """
-
-    class_name: str = "ActorCritic"
-    """The policy class name. Defaults to ActorCritic."""
-
-    init_noise_std: float = MISSING
-    """The initial noise standard deviation for the policy."""
-
-    noise_std_type: Literal["scalar", "log"] = "scalar"
-    """The type of noise standard deviation for the policy. Defaults to scalar."""
-
-    state_dependent_std: bool = False
-    """Whether to use state-dependent standard deviation for the policy. Defaults to False."""
-
-    actor_obs_normalization: bool = MISSING
-    """Whether to normalize the observation for the actor network."""
-
-    critic_obs_normalization: bool = MISSING
-    """Whether to normalize the observation for the critic network."""
-
-    actor_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the actor network."""
-
-    critic_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the critic network."""
-
-    activation: str = MISSING
-    """The activation function for the actor and critic networks."""
-
-
-@configclass
-class RslRlPpoActorCriticRecurrentCfg(RslRlPpoActorCriticCfg):
-    """Configuration for the PPO actor-critic networks with recurrent layers.
-
-    For rsl-rl >= 4.0.0, this configuration is deprecated. Please use `RslRlRNNModelCfg` instead.
-    """
-
-    class_name: str = "ActorCriticRecurrent"
-    """The policy class name. Defaults to ActorCriticRecurrent."""
-
-    rnn_type: str = MISSING
-    """The type of RNN to use. Either "lstm" or "gru"."""
-
-    rnn_hidden_dim: int = MISSING
-    """The dimension of the RNN layers."""
-
-    rnn_num_layers: int = MISSING
-    """The number of RNN layers."""

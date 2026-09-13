@@ -37,7 +37,6 @@ class RslRlSymmetryCfg:
     The function signature should be as follows:
 
     Args:
-
         env (VecEnv): The environment object. This is used to access the environment's properties.
         obs (tensordict.TensorDict | None): The observation tensor dictionary. If None, the observation is not used.
         action (torch.Tensor | None): The action tensor. If None, the action is not used.

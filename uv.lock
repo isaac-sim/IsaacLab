@@ -1754,12 +1754,12 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "24.1.1"
+version = "24.2.1"
 source = { editable = "source/isaaclab" }
 
 [[package]]
 name = "isaaclab-assets"
-version = "0.8.0"
+version = "0.8.1"
 source = { editable = "source/isaaclab_assets" }
 dependencies = [
     { name = "isaaclab" },
@@ -1827,7 +1827,6 @@ dependencies = [
     { name = "numpy" },
     { name = "omniverseclient" },
     { name = "onnx" },
-    { name = "onnxscript" },
     { name = "open3d", marker = "platform_machine == 'x86_64' or sys_platform == 'win32'" },
     { name = "packaging" },
     { name = "pillow" },
@@ -1864,7 +1863,6 @@ dependencies = [
 all = [
     { name = "aiohttp" },
     { name = "gym" },
-    { name = "onnxscript" },
     { name = "ovphysx" },
     { name = "ovrtx" },
     { name = "ovstage" },
@@ -1950,7 +1948,6 @@ rlinf = [
     { name = "timm" },
 ]
 rsl-rl = [
-    { name = "onnxscript" },
     { name = "rsl-rl-lib" },
 ]
 sb3 = [
@@ -2047,8 +2044,6 @@ requires-dist = [
     { name = "numpydantic", marker = "extra == 'rlinf'", specifier = ">=1.7.0" },
     { name = "omniverseclient", specifier = "==2.72.3", index = "https://pypi.org/simple" },
     { name = "onnx", specifier = ">=1.18.0" },
-    { name = "onnxscript", specifier = ">=0.5" },
-    { name = "onnxscript", marker = "extra == 'rsl-rl'", specifier = ">=0.5" },
     { name = "open3d", marker = "(python_full_version < '3.13' and platform_machine != 'aarch64') or (python_full_version < '3.13' and sys_platform != 'linux')", specifier = ">=0.19.0" },
     { name = "ovphysx", marker = "extra == 'ov'", specifier = "==0.5.11", index = "https://pypi.org/simple" },
     { name = "ovphysx", marker = "extra == 'ovphysx'", specifier = "==0.5.11", index = "https://pypi.org/simple" },
@@ -2081,8 +2076,8 @@ requires-dist = [
     { name = "rich", marker = "extra == 'sb3'" },
     { name = "rl-games", marker = "extra == 'rl-games'", git = "https://github.com/isaac-sim/rl_games.git?rev=python3.11" },
     { name = "robomimic", marker = "sys_platform == 'linux' and extra == 'mimic'", git = "https://github.com/ARISE-Initiative/robomimic.git?rev=v0.4.0" },
-    { name = "rsl-rl-lib", specifier = "==5.4.1" },
-    { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", specifier = "==5.4.1" },
+    { name = "rsl-rl-lib", specifier = "==5.5.1" },
+    { name = "rsl-rl-lib", marker = "extra == 'rsl-rl'", specifier = "==5.5.1" },
     { name = "scipy", specifier = ">=1.11.0" },
     { name = "skrl", marker = "extra == 'skrl'", specifier = ">=2.1.0" },
     { name = "sphinx", marker = "extra == 'dev'", specifier = ">=7.0,<9" },
@@ -2137,7 +2132,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-mimic"
-version = "2.0.6"
+version = "2.0.8"
 source = { editable = "source/isaaclab_mimic" }
 dependencies = [
     { name = "isaaclab" },
@@ -2154,7 +2149,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "6.2.0"
+version = "6.3.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2165,7 +2160,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "3.1.0"
+version = "3.1.1"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2180,7 +2175,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "7.1.1"
+version = "7.1.3"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2202,7 +2197,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "0.17.2"
+version = "0.17.4"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -2219,7 +2214,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "20.1.2"
+version = "20.3.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
@@ -2249,7 +2244,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-teleop"
-version = "0.8.4"
+version = "0.9.0"
 source = { editable = "source/isaaclab_teleop" }
 dependencies = [
     { name = "isaaclab" },
@@ -2260,7 +2255,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-visualizers"
-version = "1.10.4"
+version = "1.11.0"
 source = { editable = "source/isaaclab_visualizers" }
 dependencies = [
     { name = "isaaclab" },
@@ -5010,7 +5005,7 @@ wheels = [
 
 [[package]]
 name = "rsl-rl-lib"
-version = "5.4.1"
+version = "5.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gitpython" },
@@ -5021,12 +5016,10 @@ dependencies = [
     { name = "tensordict" },
     { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "platform_machine == 'x86_64' or sys_platform == 'win32'" },
     { name = "torch", version = "2.11.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "platform_machine != 'x86_64' and sys_platform != 'win32'" },
-    { name = "torchvision", version = "0.26.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "platform_machine == 'x86_64' or sys_platform == 'win32'" },
-    { name = "torchvision", version = "0.26.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "platform_machine != 'x86_64' and sys_platform != 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ab/7e/b4461227bd281aa9ddd3f82e59ebb4cc70eb82511ad6197a0821e878916c/rsl_rl_lib-5.4.1.tar.gz", hash = "sha256:d8857f9e9a1ef616ad7b7e19cd7a604afc81b9712e3f6d4929b68e131eacb394", size = 65933, upload-time = "2026-06-04T10:48:14.266Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/97/0e/142a31e8124255ec9276516c49c6fbe1497f2146ea384a92b81d23e3c525/rsl_rl_lib-5.5.1.tar.gz", hash = "sha256:50129065b35c69735ea197343321145a400af8c1b5fe9a28116fdaf1890fab43", size = 68077, upload-time = "2026-09-09T11:28:51.656Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a0/64/8f2d1b390d658b4a054c6800fe87bcd2aa537bfa99c7682bd44f9a971b05/rsl_rl_lib-5.4.1-py3-none-any.whl", hash = "sha256:064c7cec1960566ffe07741915e436c0598ecb906387205356f1554aac017934", size = 92911, upload-time = "2026-06-04T10:48:12.926Z" },
+    { url = "https://files.pythonhosted.org/packages/f7/d3/0d4d446c61cb61377802c9e4366cfab8a6c378b9dbcaaad376dcc152c03c/rsl_rl_lib-5.5.1-py3-none-any.whl", hash = "sha256:bdb6382e21c62ddc2b47a37f39318486d0dfde234c7d446bfd42be482ecbd6ea", size = 100035, upload-time = "2026-09-09T11:28:50.331Z" },
 ]
 
 [[package]]

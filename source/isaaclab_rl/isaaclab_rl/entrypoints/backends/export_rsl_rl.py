@@ -9,14 +9,11 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import importlib.metadata as metadata
 import os
 import random
 import sys
 import time
 from collections.abc import Mapping
-
-RSL_RL_MIN_VERSION = "5.0.1"
 
 
 def parse_export_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[str]]:
@@ -127,7 +124,6 @@ def export_rsl_rl_agent(
     import leapp
     import torch
     from leapp import annotate
-    from packaging import version
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab.envs import ManagerBasedRLEnv
@@ -136,7 +132,7 @@ def export_rsl_rl_agent(
     from isaaclab.utils.leapp.utils import ensure_env_spec_id
 
     from isaaclab_rl.entrypoints.backends.export_common import create_graph_configs, get_checkpoint_path
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
     from isaaclab_rl.utils.pretrained_checkpoint import (
         get_pretrained_checkpoint_backend_names,
         get_published_pretrained_checkpoint,
@@ -144,20 +140,11 @@ def export_rsl_rl_agent(
 
     import isaaclab_tasks  # noqa: F401
 
-    installed_version = metadata.version("rsl-rl-lib")
-    if version.parse(installed_version) < version.parse(RSL_RL_MIN_VERSION):
-        print(
-            f"[WARNING] LEAPP RSL-RL export is validated with rsl-rl-lib {RSL_RL_MIN_VERSION} or newer. "
-            f"Installed version is '{installed_version}'."
-        )
-
     task_name = args_cli.task.split(":")[-1]
     checkpoint_task_name = task_name.replace("-Play", "")
 
     agent_cfg = _update_agent_cfg_from_export_args(agent_cfg, args_cli)
     env_cfg.scene.num_envs = 1
-
-    agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
 
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed

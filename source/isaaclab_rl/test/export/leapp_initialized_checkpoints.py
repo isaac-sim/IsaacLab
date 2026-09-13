@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import contextlib
 import copy
-import importlib.metadata as metadata
 import math
 from collections.abc import Sequence
 from pathlib import Path
@@ -78,13 +77,11 @@ def _create_rsl_rl_checkpoint(
 
     from isaaclab.envs import DirectMARLEnvCfg, multi_agent_to_single_agent
 
-    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
     _set_single_env(env_cfg)
-    installed_version = metadata.version("rsl-rl-lib")
     if getattr(args_cli, "seed", None) is not None:
         agent_cfg.seed = args_cli.seed
-    agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
     env_cfg.seed = agent_cfg.seed
     env_cfg.log_dir = str(checkpoint_root)
 

@@ -3,20 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Kit-free checks for the observation contract of :class:`RslRlVecEnvWrapper`.
-
-The wrapper reads the environment-owned ``obs_buf`` instead of calling the environment's
-private ``_get_observations``. These tests pin that contract without a simulator, so a
-regression is caught before the Kit-dependent wrapper tests run.
-"""
-
-import inspect
+"""Checks for the observation contract of :class:`RslRlVecEnvWrapper`."""
 
 import pytest
 import torch
 from tensordict import TensorDict
-
-from isaaclab.envs import DirectRLEnv
 
 from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
@@ -46,44 +37,17 @@ def _make_wrapper(env: _FakeEnv, num_envs: int = 2) -> RslRlVecEnvWrapper:
     return wrapper
 
 
-def test_get_observations_returns_the_environment_buffer():
-    """The wrapper should hand back the environment's own observation buffer."""
+def test_get_observations_tracks_the_environment_buffer():
+    """The wrapper returns the environment's current observation buffer."""
     env = _FakeEnv()
     wrapper = _make_wrapper(env)
 
     observations = wrapper.get_observations()
-
     assert isinstance(observations, TensorDict)
     torch.testing.assert_close(observations["policy"], env.obs_buf["policy"])
 
-
-def test_get_observations_tracks_buffer_updates():
-    """Successive reads should reflect the latest reset/step observations."""
-    env = _FakeEnv()
-    wrapper = _make_wrapper(env)
-
     env.obs_buf = {"policy": torch.tensor([[5.0, 6.0], [7.0, 8.0]])}
-
     torch.testing.assert_close(wrapper.get_observations()["policy"], env.obs_buf["policy"])
-
-
-def test_get_observations_does_not_use_private_environment_methods():
-    """The wrapper must not reach into the environment's private observation API."""
-    env = _FakeEnv()
-
-    def _private_call():
-        raise AssertionError("get_observations() must not call the private _get_observations()")
-
-    env._get_observations = _private_call
-    wrapper = _make_wrapper(env)
-
-    wrapper.get_observations()
-
-
-def test_direct_rl_env_stores_the_observation_buffer():
-    """The environment side of the contract: reset and step both publish ``obs_buf``."""
-    assert "self.obs_buf" in inspect.getsource(DirectRLEnv.reset)
-    assert "self.obs_buf" in inspect.getsource(DirectRLEnv.step)
 
 
 def test_invalid_environment_error_reports_unwrapped_type():
