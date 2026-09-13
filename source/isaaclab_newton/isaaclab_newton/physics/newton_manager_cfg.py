@@ -172,7 +172,7 @@ class NewtonCfg(PhysicsCfg):
 
     MJWarp on the GPU with
     :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` set to
-    ``True``, XPBD, and Featherstone support this setting. Newton raises an
+    ``True``, XPBD, Featherstone, and SemiImplicit support this setting. Newton raises an
     error during solver initialization for unsupported solvers rather than
     silently running them without the requested guarantee.
     """
@@ -197,7 +197,8 @@ class NewtonCfg(PhysicsCfg):
       ``use_collision_detector=False``,
     - :class:`XPBDSolverCfg` (always),
     - :class:`VBDSolverCfg` (always),
-    - :class:`FeatherstoneSolverCfg` (always).
+    - :class:`FeatherstoneSolverCfg` (always),
+    - :class:`SemiImplicitSolverCfg` (always).
 
     :class:`~isaaclab_newton.physics.MPMSolverCfg` does not use this pipeline;
     implicit MPM treats rigid geometry as colliders internally.
