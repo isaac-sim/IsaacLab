@@ -1772,6 +1772,7 @@ def rendering_test_cartpole(
         env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},{preset_data_type}"]
     )
 
+    env_cfg.scene.num_envs = 4
     env_cfg.scene.tiled_camera.data_types = data_types
     if getattr(env_cfg.scene.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
         env_cfg.scene.tiled_camera.renderer_cfg.render_order = "pixel_priority"

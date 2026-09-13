@@ -372,7 +372,7 @@ def test_collect_asset_cfgs_resolves_env_regex_macros_and_declares_globals():
 
 
 def test_collect_asset_cfgs_excludes_entities_without_spawners():
-    """Only configs that can author clone sources reach make_clone_plan."""
+    """Sensors without spawners add no clone rows but still declare their debug-marker roots."""
 
     scene = object.__new__(InteractiveScene)
     sensor = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
@@ -383,7 +383,7 @@ def test_collect_asset_cfgs_excludes_entities_without_spawners():
     cfgs, global_paths, _ = scene._collect_asset_cfgs()
 
     assert cfgs == []
-    assert global_paths == ()
+    assert global_paths == (sensor.visualizer_cfg.prim_path,)
 
 
 def assert_state_equal(s1: dict, s2: dict, path=""):
