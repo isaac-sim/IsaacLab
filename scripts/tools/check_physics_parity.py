@@ -76,7 +76,11 @@ def _fmt(v, spec=""):
 
 def compare(path_a: str, path_b: str) -> int:
     """Print two reports side by side and return a shell exit code."""
-    a, b = (json.load(open(p)) for p in (path_a, path_b))
+    reports = []
+    for path in (path_a, path_b):
+        with open(path) as handle:
+            reports.append(json.load(handle))
+    a, b = reports
     print(f"\n{'':38s} {a['backend']:>22s} {b['backend']:>22s}")
     print("-" * 86)
     rows = [
@@ -148,11 +152,10 @@ if not args.task:
 
 sys.argv = [sys.argv[0]] + hydra_args
 
+import gymnasium as gym  # noqa: E402
 import torch  # noqa: E402
 
 from isaaclab.app import launch_simulation, scan  # noqa: E402
-
-import gymnasium as gym  # noqa: E402
 
 import isaaclab_tasks  # noqa: F401, E402
 from isaaclab_tasks.utils.hydra import hydra_task_config  # noqa: E402

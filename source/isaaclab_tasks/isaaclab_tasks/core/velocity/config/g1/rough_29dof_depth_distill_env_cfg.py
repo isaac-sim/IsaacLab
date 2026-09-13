@@ -113,6 +113,25 @@ as-is gives RMS 1.125 m and row-flipped gives 0.042 m. A flat scene cannot tell 
 scene before anything is flipped here.
 """
 
+_DEPTH_NOISE = {
+    "noise_frac": 0.02,
+    "dropout_prob": 0.03,
+    "blob_prob": 0.15,
+    "blob_radius": 3,
+}
+"""The D435's error model, as the noisy arms apply it.
+
+``noise_frac`` 0.02 is the sensor's own roughly 2% of range; the error grows with distance rather
+than being constant, which is why it is a fraction. ``dropout_prob`` and ``blob_prob`` are the part
+that matters more: on hardware a depth frame is full of holes -- reflective floor, dark objects,
+edges -- and every one of them arrives as *no return*, which
+:class:`~g1_deploy.depth.DepthStack` maps to the far range. Simulation produces none: measured on
+this task, 5.3% of pixels sit at the far clip and **every one of them is a real hit past three
+metres**, not a miss. A contiguous blob is included alongside the per-pixel dropout because a
+convolution averages salt-and-pepper away, where a hole it cannot see through is the thing the
+policy actually has to survive.
+"""
+
 _DEPTH_FRAME_STACK = 3
 """Depth frames handed to the student as channels.
 
@@ -146,12 +165,69 @@ class DepthImageStack(ManagerTermBase):
             max_len=_DEPTH_FRAME_STACK, batch_size=env.num_envs, device=env.device, stack_dim=1
         )
 
+    @staticmethod
+    def _corrupt(
+        observation: torch.Tensor,
+        noise_frac: float,
+        dropout_prob: float,
+        blob_prob: float,
+        blob_radius: int,
+    ) -> torch.Tensor:
+        """Apply the sensor model, in metres, before the term's clip and scale."""
+        out = observation
+        if noise_frac > 0.0:
+            out = out + torch.randn_like(out) * (out * noise_frac)
+        if dropout_prob > 0.0:
+            lost = torch.rand_like(out) < dropout_prob
+            out = torch.where(lost, torch.full_like(out, _DEPTH_MAX_RANGE), out)
+        if blob_prob > 0.0:
+            batch, _, height, width = out.shape
+            hit = torch.rand(batch, device=out.device) < blob_prob
+            if bool(hit.any()):
+                cy = torch.randint(0, height, (batch,), device=out.device)
+                cx = torch.randint(0, width, (batch,), device=out.device)
+                ys = torch.arange(height, device=out.device).view(1, height, 1)
+                xs = torch.arange(width, device=out.device).view(1, 1, width)
+                patch = ((ys - cy.view(-1, 1, 1)).abs() <= blob_radius) & (
+                    (xs - cx.view(-1, 1, 1)).abs() <= blob_radius
+                )
+                patch = patch & hit.view(-1, 1, 1)
+                out = torch.where(patch.unsqueeze(1), torch.full_like(out, _DEPTH_MAX_RANGE), out)
+        return out.clamp_(min=0.0)
+
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         # Without this a freshly reset environment would keep looking at the terrain its previous
         # episode ended on.
         self._stack.reset(env_ids)
 
-    def __call__(self, env, sensor_cfg: SceneEntityCfg, data_type: str) -> torch.Tensor:
+    def __call__(
+        self,
+        env,
+        sensor_cfg: SceneEntityCfg,
+        data_type: str,
+        noise_frac: float = 0.0,
+        dropout_prob: float = 0.0,
+        blob_prob: float = 0.0,
+        blob_radius: int = 3,
+    ) -> torch.Tensor:
+        """Stacked depth [m], optionally corrupted the way a D435 corrupts it.
+
+        Args:
+            env: Environment the term belongs to.
+            sensor_cfg: Which camera to read.
+            data_type: Annotator to read from it.
+            noise_frac: Standard deviation of the range error, as a fraction of the range. A
+                RealSense's error grows with distance rather than being constant, so this is
+                proportional rather than absolute.
+            dropout_prob: Per-pixel probability of returning nothing. Dropped pixels go to the far
+                range, not to zero -- that is what the hardware reports and what
+                :class:`~g1_deploy.depth.DepthStack` maps a no-return to.
+            blob_prob: Per-frame probability of losing a contiguous patch, which is what a
+                reflective or dark surface actually produces. Salt-and-pepper dropout alone is too
+                easy: a convolution averages it away, where a hole it cannot see through is the
+                thing the policy has to survive.
+            blob_radius: Half-width of that patch [px].
+        """
         camera = env.scene.sensors[sensor_cfg.name]
         frame = camera.data.output[data_type]
         frame = frame.torch if hasattr(frame, "torch") else frame
@@ -159,7 +235,17 @@ class DepthImageStack(ManagerTermBase):
         # within three metres", which is what the hardware reports; mapping them to zero would say
         # "something touching the lens".
         frame = torch.nan_to_num(frame, nan=_DEPTH_MAX_RANGE, posinf=_DEPTH_MAX_RANGE)
-        observation = frame.permute(0, 3, 1, 2).contiguous()
+        # Rotate 180 degrees. The rendered frame comes out upside down *and* mirrored against the
+        # real D435 and against MuJoCo, which reproduces it: on flat ground the rendered rows run
+        # near-to-far top-to-bottom where the analytic reference and MuJoCo both run far-to-near
+        # (correlation +0.97 against -0.99), and an obstacle placed on the robot's left lands on the
+        # right of the image. Both axes, so it is a roll about the optical axis rather than a row
+        # order -- fixed here rather than in the mount quaternion because the asset's own
+        # ``d435_link`` frame has no axis pointing where the real camera looks, so there is no
+        # authoritative rotation to correct it to.
+        observation = frame.permute(0, 3, 1, 2).flip(-2).flip(-1).contiguous()
+        if noise_frac > 0.0 or dropout_prob > 0.0 or blob_prob > 0.0:
+            observation = self._corrupt(observation, noise_frac, dropout_prob, blob_prob, blob_radius)
         self._stack.append(observation)
         return self._stack.stacked.clone()
 
@@ -379,6 +465,47 @@ class G129DofRoughYhkDepthDistillEnvCfg(G129DofRoughMjlabScaleHipKneeEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         _wire_depth_student(self)
+
+
+def _add_depth_noise(cfg) -> None:
+    """Give the depth term the sensor model, in place.
+
+    Args:
+        cfg: Environment configuration whose ``observations.depth.image`` term to corrupt.
+    """
+    cfg.observations.depth.image.params.update(_DEPTH_NOISE)
+
+
+@configclass
+class G129DofRoughYsuDepthDistillNoisyEnvCfg(G129DofRoughAirTime100WaistWarmupEnvCfg):
+    """``ysud``'s environment with the depth camera corrupted the way the hardware corrupts it.
+
+    One variable against :class:`G129DofRoughYsuDepthDistillEnvCfg`: the depth term's noise
+    parameters. Everything else -- the teacher, the reward set, the asset, the camera geometry --
+    is the same, so a difference between the two students is attributable to the sensor model and
+    not to anything else.
+    """
+
+    observations: G129DofRoughAirTime100DepthDistillObservationsCfg = (
+        G129DofRoughAirTime100DepthDistillObservationsCfg()
+    )
+
+    def __post_init__(self):
+        super().__post_init__()
+        from .rough_29dof_standup_env_cfg import _STAND_WEIGHTS, _add_stand_height  # noqa: PLC0415
+
+        _add_stand_height(self, _STAND_WEIGHTS["s1"])
+        _wire_depth_student(self)
+        _add_depth_noise(self)
+
+
+@configclass
+class G129DofRoughMjDepthDistillNoisyEnvCfg(G129DofRoughMjDepthDistillEnvCfg):
+    """``mjd``'s environment with the same sensor model. One variable against its clean twin."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        _add_depth_noise(self)
 
 
 @configclass
