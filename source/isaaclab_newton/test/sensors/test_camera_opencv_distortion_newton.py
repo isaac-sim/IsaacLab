@@ -3,78 +3,33 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Validate that the Newton warp renderer applies the OpenCV lens-distortion camera model.
-
-A ground plane is rendered through a camera carrying an OpenCV pinhole (or fisheye) calibration. The
-Newton renderer inverts the OpenCV forward model per output pixel to trace the distorted camera-space
-rays, so a per-pixel ray-hit distance (``distance_to_camera``) map warps under the distortion. The
-distance map is used as the comparison signal because it is purely geometric: it does not depend on
-scene textures (which Newton skips without Kit), so the distortion effect is visible across the whole
-frame rather than only on sparse textured features.
-
-With the coefficients applied vs. muted (``apply_lens_distortion=False``) the same calibrated camera
-produces meaningfully different distance maps; the OpenCV fisheye projection likewise differs from an
-undistorted pinhole.
-
-Notes:
-  * Runs against the Newton warp renderer (no Kit/Isaac Sim, no OVRTX). It requires ``newton`` and a
-    CUDA GPU; it skips cleanly otherwise.
-  * Uses Newton physics (``NewtonCfg`` + ``MJWarpSolverCfg``) so the scene is built through the
-    Newton model the warp renderer traces.
-"""
+"""Tests for OpenCV lens distortion with the Newton Warp renderer."""
 
 from __future__ import annotations
 
-import importlib.util
-
 import numpy as np
 import pytest
+import torch
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sensors import Camera, CameraCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
+from isaaclab.sim.spawners.sensors.sensors_cfg import (
+    OpenCvDistortionCfg,
+    OpenCvFisheyeDistortionCfg,
+    OpenCvPinholeDistortionCfg,
+    PinholeCameraCfg,
+)
+from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils.configclass import configclass
+from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
-
-_REQUIRED_MODULES = ("isaaclab_newton", "newton", "warp", "torch")
-_MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
-
-
-def _cuda_available() -> bool:
-    """Whether a CUDA device is available for the Newton warp renderer."""
-    if _MISSING_MODULES:
-        return False
-    import torch
-
-    return torch.cuda.is_available()
-
-
-_SKIP_NO_NEWTON = pytest.mark.skipif(
-    bool(_MISSING_MODULES),
-    reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
-)
-_SKIP_NO_CUDA = pytest.mark.skipif(
-    not _cuda_available(),
-    reason="requires a CUDA GPU for the Newton warp renderer",
-)
-
-if not _MISSING_MODULES:
-    import torch
-    from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
-    from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg
-    from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-    import isaaclab.sim as sim_utils
-    from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.sensors import Camera, CameraCfg
-    from isaaclab.sim import SimulationCfg
-    from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-    from isaaclab.sim.spawners.sensors.sensors_cfg import (
-        OpenCvDistortionCfg,
-        OpenCvFisheyeDistortionCfg,
-        OpenCvPinholeDistortionCfg,
-        PinholeCameraCfg,
-    )
-    from isaaclab.terrains import TerrainImporterCfg
-    from isaaclab.utils.configclass import configclass
-    from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 
 SIM_DT = 1.0 / 60.0
 WIDTH, HEIGHT = 640, 480
@@ -92,37 +47,35 @@ _CAM_EYE = (0.0, 0.0, 2.5)
 _CAM_TARGET = (1.75, 0.0, 0.0)
 
 
-if not _MISSING_MODULES:
+@configclass
+class _DistortionSceneCfg(InteractiveSceneCfg):
+    """A ground plane, calibrated camera, and off-screen anchor body for Newton."""
 
-    @configclass
-    class _DistortionSceneCfg(InteractiveSceneCfg):
-        """A ground plane, calibrated camera, and off-screen anchor body for Newton."""
-
-        ground = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-        dome_light = AssetBaseCfg(
-            prim_path="/World/DomeLight",
-            spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9)),
-        )
-        anchor = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Anchor",
-            spawn=sim_utils.CuboidCfg(
-                size=(0.01, 0.01, 0.01),
-                rigid_props=sim_utils.RigidBodyBaseCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
-                collision_props=sim_utils.CollisionBaseCfg(),
-                physics_material=RigidBodyMaterialBaseCfg(),
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
-        )
-        camera = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Camera",
-            update_period=0.0,
-            height=HEIGHT,
-            width=WIDTH,
-            data_types=["distance_to_camera"],
-            spawn=PinholeCameraCfg(focal_length=13.6, clipping_range=(0.001, 20.0)),
-            renderer_cfg=NewtonWarpRendererCfg(),
-        )
+    ground = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    dome_light = AssetBaseCfg(
+        prim_path="/World/DomeLight",
+        spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9)),
+    )
+    anchor = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Anchor",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.01, 0.01, 0.01),
+            rigid_props=sim_utils.RigidBodyBaseCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
+            collision_props=sim_utils.CollisionBaseCfg(),
+            physics_material=RigidBodyMaterialBaseCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
+    )
+    camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        update_period=0.0,
+        height=HEIGHT,
+        width=WIDTH,
+        data_types=["distance_to_camera"],
+        spawn=PinholeCameraCfg(focal_length=13.6, clipping_range=(0.001, 20.0)),
+        renderer_cfg=NewtonWarpRendererCfg(),
+    )
 
 
 def _pinhole_distortion(apply_lens_distortion: bool) -> OpenCvPinholeDistortionCfg:
@@ -179,38 +132,29 @@ def _expected_pinhole_ground_distance(px: int, py: int) -> float:
     return float(-eye[2] / ray_world[2])
 
 
-def _render_distance(distortion: OpenCvDistortionCfg, device: str) -> np.ndarray:
-    """Render the ground-plane distance map through an OpenCV-calibrated Newton camera.
-
-    ``distance_to_camera`` (per-pixel ray-hit distance [m]) is used instead of ``rgb`` because it is
-    purely geometric and does not depend on scene textures, which Newton skips without Kit.
-    """
-    sim_utils.create_new_stage()
-    sim = sim_utils.SimulationContext(
-        SimulationCfg(dt=SIM_DT, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1), device=device)
+def _render_distance(distortion: OpenCvDistortionCfg) -> np.ndarray:
+    """Render the ground-plane distance map through an OpenCV-calibrated Newton camera."""
+    sim_cfg = SimulationCfg(
+        dt=SIM_DT,
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), num_substeps=1),
+        device="cuda:0",
     )
-    rot = tuple(
-        quat_from_matrix(
-            create_rotation_matrix_from_view(torch.tensor([_CAM_EYE]), torch.tensor([_CAM_TARGET]), up_axis="Z")
-        )[0].tolist()
-    )
-    scene_cfg = _DistortionSceneCfg(num_envs=1, env_spacing=20.0)
-    scene_cfg.camera.offset = CameraCfg.OffsetCfg(pos=_CAM_EYE, rot=rot, convention="opengl")
-    scene_cfg.camera.spawn.distortion = distortion
-    scene = InteractiveScene(scene_cfg)
-    camera: Camera = scene["camera"]
-    try:
+    with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
+        rot = tuple(
+            quat_from_matrix(
+                create_rotation_matrix_from_view(torch.tensor([_CAM_EYE]), torch.tensor([_CAM_TARGET]), up_axis="Z")
+            )[0].tolist()
+        )
+        scene_cfg = _DistortionSceneCfg(num_envs=1, env_spacing=20.0)
+        scene_cfg.camera.offset = CameraCfg.OffsetCfg(pos=_CAM_EYE, rot=rot, convention="opengl")
+        scene_cfg.camera.spawn.distortion = distortion
+        scene = InteractiveScene(scene_cfg)
+        camera: Camera = scene["camera"]
         sim.reset()
         for _ in range(WARMUP_STEPS):
             sim.step()
             camera.update(SIM_DT, force_recompute=True)
-        distance = camera.data.output["distance_to_camera"].torch[0].detach().cpu().float().numpy().copy()
-        return distance
-    finally:
-        del camera
-        del scene
-        sim.stop()
-        sim.clear_instance()
+        return camera.data.output["distance_to_camera"].torch[0].detach().cpu().float().numpy().copy()
 
 
 def _mean_abs_distance_diff(a: np.ndarray, b: np.ndarray) -> float:
@@ -220,13 +164,10 @@ def _mean_abs_distance_diff(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.abs(a[valid] - b[valid]).mean())
 
 
-@pytest.mark.parametrize("device", ["cuda:0"])
-@_SKIP_NO_NEWTON
-@_SKIP_NO_CUDA
-def test_opencv_distortion_changes_newton_render(device):
+def test_opencv_distortion_changes_newton_render():
     """The Newton renderer must render the distorted and zero-coefficient cameras meaningfully differently."""
-    distorted = _render_distance(_pinhole_distortion(True), device=device)
-    reference = _render_distance(_pinhole_distortion(False), device=device)
+    distorted = _render_distance(_pinhole_distortion(True))
+    reference = _render_distance(_pinhole_distortion(False))
 
     assert distorted.shape == (HEIGHT, WIDTH, 1)
     assert np.isfinite(distorted).mean() > 0.9
@@ -237,18 +178,15 @@ def test_opencv_distortion_changes_newton_render(device):
         assert distorted[py, px, 0] == pytest.approx(_expected_pinhole_ground_distance(px, py), abs=2e-3)
 
 
-@pytest.mark.parametrize("device", ["cuda:0"])
-@_SKIP_NO_NEWTON
-@_SKIP_NO_CUDA
-def test_opencv_fisheye_distortion_renders_through_newton(device):
+def test_opencv_fisheye_distortion_renders_through_newton():
     """The Newton renderer honors the OpenCV fisheye model: its render differs meaningfully from the pinhole.
 
     The same calibrated camera is rendered under the OpenCV fisheye model and under an undistorted
     pinhole. The fisheye equidistant projection bends the rays, so the two distance maps must differ
     well beyond render noise.
     """
-    fisheye = _render_distance(_fisheye_distortion(True), device=device)
-    pinhole = _render_distance(_pinhole_distortion(False), device=device)
+    fisheye = _render_distance(_fisheye_distortion(True))
+    pinhole = _render_distance(_pinhole_distortion(False))
 
     assert fisheye.shape == (HEIGHT, WIDTH, 1)
     assert np.isfinite(fisheye).mean() > 0.9
