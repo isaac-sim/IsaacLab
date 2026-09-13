@@ -131,10 +131,7 @@ def _set_spawn_paths(spawn_cfg: Any, paths: list[str | None]) -> None:
         spawn_cfg.spawn_path = None
         spawn_cfg.spawn_paths = paths
     else:
-        active = [path for path in paths if path is not None]
-        if len(active) > 1:
-            raise ValueError("Single spawner expects exactly one planned source path.")
-        spawn_cfg.spawn_path = active[0] if active else None
+        spawn_cfg.spawn_path = paths[0]
 
 
 def make_valid_clone_combinations(
