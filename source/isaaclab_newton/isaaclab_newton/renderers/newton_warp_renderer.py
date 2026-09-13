@@ -382,11 +382,9 @@ class RenderData:
         """
         cfg = self._distortion
         image_width, image_height = float(cfg.image_size[0]), float(cfg.image_size[1])
-        # ``apply_lens_distortion=False`` keeps the intrinsics but mutes the distortion coefficients.
-        apply = bool(getattr(cfg, "apply_lens_distortion", True))
 
-        def _coeff(name: str) -> float:
-            return float(getattr(cfg, name, 0.0)) if apply else 0.0
+        def _coefficient(value: float) -> float:
+            return float(value) if cfg.apply_lens_distortion else 0.0
 
         if cfg.model == "opencvFisheye":
             return self.newton_sensor.utils.compute_camera_rays_fisheye_opencv(
@@ -398,10 +396,10 @@ class RenderData:
                 float(cfg.cy),
                 image_width=image_width,
                 image_height=image_height,
-                k1=_coeff("k1"),
-                k2=_coeff("k2"),
-                k3=_coeff("k3"),
-                k4=_coeff("k4"),
+                k1=_coefficient(cfg.k1),
+                k2=_coefficient(cfg.k2),
+                k3=_coefficient(cfg.k3),
+                k4=_coefficient(cfg.k4),
                 # Limit fisheye rays to the forward hemisphere.
                 max_fov=math.pi,
             )
@@ -415,18 +413,18 @@ class RenderData:
             float(cfg.cy),
             image_width=image_width,
             image_height=image_height,
-            k1=_coeff("k1"),
-            k2=_coeff("k2"),
-            k3=_coeff("k3"),
-            k4=_coeff("k4"),
-            k5=_coeff("k5"),
-            k6=_coeff("k6"),
-            p1=_coeff("p1"),
-            p2=_coeff("p2"),
-            s1=_coeff("s1"),
-            s2=_coeff("s2"),
-            s3=_coeff("s3"),
-            s4=_coeff("s4"),
+            k1=_coefficient(cfg.k1),
+            k2=_coefficient(cfg.k2),
+            k3=_coefficient(cfg.k3),
+            k4=_coefficient(cfg.k4),
+            k5=_coefficient(cfg.k5),
+            k6=_coefficient(cfg.k6),
+            p1=_coefficient(cfg.p1),
+            p2=_coefficient(cfg.p2),
+            s1=_coefficient(cfg.s1),
+            s2=_coefficient(cfg.s2),
+            s3=_coefficient(cfg.s3),
+            s4=_coefficient(cfg.s4),
         )
 
     @wp.kernel
