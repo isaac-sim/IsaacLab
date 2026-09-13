@@ -50,16 +50,26 @@ from isaaclab_newton.physics import (
     NewtonManager,
     NewtonMJWarpManager,
     NewtonMPMManager,
+    NewtonSemiImplicitManager,
     NewtonShapeCfg,
     NewtonSolverCfg,
     NewtonVBDManager,
     NewtonXPBDManager,
+    SemiImplicitSolverCfg,
     VBDSolverCfg,
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
 from newton import JointTargetMode, JointType, ModelBuilder, ShapeFlags
-from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
+from newton.solvers import (
+    SolverFeatherstone,
+    SolverImplicitMPM,
+    SolverKamino,
+    SolverMuJoCo,
+    SolverSemiImplicit,
+    SolverVBD,
+    SolverXPBD,
+)
 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.physics import PhysicsManager
@@ -113,6 +123,14 @@ SOLVER_MATRIX = [
         id="featherstone",
     ),
     pytest.param(
+        lambda: SemiImplicitSolverCfg(),
+        NewtonSemiImplicitManager,
+        SolverSemiImplicit,
+        False,
+        True,
+        id="semi_implicit",
+    ),
+    pytest.param(
         lambda: KaminoPADMMSolverCfg(use_collision_detector=True),
         NewtonKaminoManager,
         SolverKamino,
@@ -143,6 +161,7 @@ RIGID_BODY_FORCE_INPUT_SUPPORT = {
     NewtonVBDManager: True,
     NewtonXPBDManager: True,
     NewtonFeatherstoneManager: True,
+    NewtonSemiImplicitManager: True,
     NewtonKaminoManager: True,
     NewtonMPMManager: False,
 }
@@ -212,6 +231,26 @@ def test_solver_kwargs_include_newton_deterministic_mode(monkeypatch: pytest.Mon
     assert kwargs["deterministic"] == wp.DeterministicMode.GPU_TO_GPU
 
 
+def test_semi_implicit_solver_cfg_forwards_constructor_fields() -> None:
+    """SemiImplicit construction should forward each exposed solver setting."""
+    model = ModelBuilder().finalize(device="cpu")
+    cfg = SemiImplicitSolverCfg(
+        angular_damping=0.12,
+        friction_smoothing=0.34,
+        joint_attach_ke=5678.0,
+        joint_attach_kd=91.0,
+        enable_tri_contact=False,
+    )
+
+    solver = NewtonSemiImplicitManager._create_solver(model, cfg)
+
+    assert solver.angular_damping == 0.12
+    assert solver.friction_smoothing == 0.34
+    assert solver.joint_attach_ke == 5678.0
+    assert solver.joint_attach_kd == 91.0
+    assert solver.enable_tri_contact is False
+
+
 @pytest.mark.parametrize(
     "solver_cfg",
     [
@@ -231,6 +270,7 @@ def test_deterministic_mode_rejects_unsupported_solver_cfg(solver_cfg) -> None:
     "solver_cfg_cls, solver_cfg_kwargs",
     [
         pytest.param(FeatherstoneSolverCfg, {}, id="featherstone"),
+        pytest.param(SemiImplicitSolverCfg, {}, id="semi_implicit"),
         pytest.param(MJWarpSolverCfg, {"disable_sensors": True}, id="mujoco_warp"),
         pytest.param(XPBDSolverCfg, {}, id="xpbd"),
     ],
@@ -802,6 +842,7 @@ def test_active_manager_create_builder_registers_mpm_attributes():
     [
         pytest.param(NewtonMJWarpManager, MJWarpSolverCfg(), 0.11, 0.23, id="mjwarp"),
         pytest.param(NewtonFeatherstoneManager, FeatherstoneSolverCfg(), 0.0, 0.0, id="featherstone"),
+        pytest.param(NewtonSemiImplicitManager, SemiImplicitSolverCfg(), 0.0, 0.0, id="semi_implicit"),
     ],
 )
 def test_production_imports_scope_mujoco_joint_properties(
@@ -877,6 +918,7 @@ def test_production_imports_scope_mujoco_joint_properties(
     [
         pytest.param(NewtonMJWarpManager, True, id="mjwarp"),
         pytest.param(NewtonFeatherstoneManager, False, id="featherstone"),
+        pytest.param(NewtonSemiImplicitManager, False, id="semi_implicit"),
     ],
 )
 @pytest.mark.parametrize(
@@ -1251,6 +1293,7 @@ def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypat
         NewtonXPBDManager,
         NewtonVBDManager,
         NewtonFeatherstoneManager,
+        NewtonSemiImplicitManager,
         NewtonKaminoManager,
         NewtonMPMManager,
     ],
@@ -1279,6 +1322,7 @@ def test_clear_resets_rigid_body_force_capability(monkeypatch):
         NewtonXPBDManager,
         NewtonVBDManager,
         NewtonFeatherstoneManager,
+        NewtonSemiImplicitManager,
         NewtonKaminoManager,
         NewtonMPMManager,
     ):
@@ -1386,6 +1430,7 @@ def test_abstract_create_solver_raises():
         NewtonXPBDManager,
         NewtonVBDManager,
         NewtonFeatherstoneManager,
+        NewtonSemiImplicitManager,
         NewtonKaminoManager,
         NewtonMPMManager,
     ],
@@ -1486,8 +1531,10 @@ def test_initialize_solver_populates_canonical_state(
         else:
             # Pre-populate the builder with a minimal scene so MJCF conversion has
             # something to work with.
-            body = builder.add_body(mass=1.0)
-            builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+            inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+            body = builder.add_link(mass=1.0, inertia=inertia, lock_inertia=True)
+            joint = builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+            builder.add_articulation([joint])
             if isinstance(solver_cfg, (KaminoPADMMSolverCfg, KaminoDVISolverCfg)) and solver_cfg.use_collision_detector:
                 builder.add_shape_sphere(body=body, radius=0.05)
                 builder.add_ground_plane()
@@ -1519,6 +1566,129 @@ def test_initialize_solver_populates_canonical_state(
         # end-to-end.  (We do not assert physics; that's covered by the
         # asset/sensor test suites.)
         sim.step(render=False)
+
+
+def test_semi_implicit_gravity_and_ground_contact():
+    """SemiImplicit should accelerate under gravity and settle on generated contacts."""
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device="cpu",
+        gravity=(0.0, 0.0, -9.81),
+        physics=NewtonCfg(
+            solver_cfg=SemiImplicitSolverCfg(),
+            num_substeps=4,
+            use_cuda_graph=False,
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+        world_builder = NewtonManager.create_builder()
+        body = world_builder.add_body(
+            xform=wp.transform((0.0, 0.0, 0.5), wp.quat_identity()),
+            mass=1.0,
+            inertia=inertia,
+            lock_inertia=True,
+            label="sphere",
+        )
+        world_builder.add_shape_sphere(body=body, radius=0.1)
+        builder = NewtonManager.create_builder()
+        builder.add_ground_plane()
+        builder.add_world(world_builder)
+        NewtonManager.set_builder(builder)
+        sim.reset()
+
+        sim.step(render=False)
+        assert NewtonManager._state_0.body_q.numpy()[0, 2] < 0.5
+        assert NewtonManager._state_0.body_qd.numpy()[0, 2] < 0.0
+
+        for _ in range(239):
+            sim.step(render=False)
+
+        settled_pose = NewtonManager._state_0.body_q.numpy()[0]
+        settled_velocity = NewtonManager._state_0.body_qd.numpy()[0]
+        assert settled_pose[2] == pytest.approx(0.1, abs=0.01)
+        assert settled_velocity[2] == pytest.approx(0.0, abs=1.0e-3)
+
+
+@pytest.mark.parametrize(
+    ("device", "use_cuda_graph"),
+    [
+        pytest.param("cpu", False, id="cpu_eager"),
+        pytest.param("cuda:0", False, id="cuda_eager"),
+        pytest.param("cuda:0", True, id="cuda_graph"),
+    ],
+)
+def test_semi_implicit_body_force_and_root_resets(device, use_cuda_graph):
+    """SemiImplicit should integrate body forces and preserve maximal-coordinate resets."""
+    dt = 0.1
+    sim_cfg = SimulationCfg(
+        dt=dt,
+        device=device,
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(
+            solver_cfg=SemiImplicitSolverCfg(angular_damping=0.0),
+            num_substeps=1,
+            use_cuda_graph=use_cuda_graph,
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+        world_builder = NewtonManager.create_builder(gravity=(0.0, 0.0, 0.0))
+        world_builder.add_body(mass=2.0, inertia=inertia, lock_inertia=True, label="root")
+        builder = NewtonManager.create_builder(gravity=(0.0, 0.0, 0.0))
+        builder.add_world(world_builder)
+        builder.add_world(world_builder)
+        NewtonManager.set_builder(builder)
+
+        force = wp.array(
+            [(4.0, 0.0, 0.0, 0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)],
+            dtype=wp.spatial_vector,
+            device=device,
+        )
+        NewtonManager.register_state_force_callback(lambda state: state.body_f.assign(force))
+        sim.reset()
+
+        assert (NewtonManager._graph is not None) is use_cuda_graph
+        sim.step(render=False)
+
+        # Semi-implicit Euler: v1 = F/m * dt = 0.2 m/s, x1 = v1 * dt = 0.02 m.
+        body_pose = NewtonManager._state_0.body_q.numpy()
+        body_velocity = NewtonManager._state_0.body_qd.numpy()
+        np.testing.assert_allclose(body_pose[:, 0], [0.02, 0.0], rtol=1.0e-5, atol=1.0e-6)
+        np.testing.assert_allclose(body_velocity[:, 0], [0.2, 0.0], rtol=1.0e-5, atol=1.0e-6)
+
+        force.zero_()
+        reset_pose = body_pose.copy()
+        reset_velocity = body_velocity.copy()
+        reset_pose[0] = [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]
+        reset_velocity[0] = [0.5, 0.0, 0.0, 0.0, 0.0, 0.0]
+        NewtonManager._state_0.body_q.assign(reset_pose)
+        NewtonManager._state_0.body_qd.assign(reset_velocity)
+        env_ids = wp.array([0], dtype=wp.int32, device=device)
+        NewtonManager.invalidate_body_state(env_ids=env_ids)
+
+        assert NewtonManager._world_reset_mask.numpy().tolist() == [True, False, False]
+        sim.step(render=False)
+        assert NewtonManager._world_reset_mask.numpy().tolist() == [False, False, False]
+
+        selected_pose = NewtonManager._state_0.body_q.numpy()
+        selected_velocity = NewtonManager._state_0.body_qd.numpy()
+        np.testing.assert_allclose(selected_pose[0, :3], [1.05, 2.0, 3.0], rtol=1.0e-5, atol=1.0e-6)
+        np.testing.assert_allclose(selected_velocity[0, :3], [0.5, 0.0, 0.0], rtol=1.0e-5, atol=1.0e-6)
+        np.testing.assert_allclose(selected_pose[1], body_pose[1], rtol=1.0e-5, atol=1.0e-6)
+
+        sim.step(render=False)
+        np.testing.assert_allclose(
+            NewtonManager._state_0.body_q.numpy()[0, :3], [1.1, 2.0, 3.0], rtol=1.0e-5, atol=1.0e-6
+        )
+
+        sim.reset()
+        assert (NewtonManager._graph is not None) is use_cuda_graph
+        sim.step(render=False)
+        np.testing.assert_allclose(NewtonManager._state_0.body_q.numpy()[:, :3], 0.0, atol=1.0e-6)
+        np.testing.assert_allclose(NewtonManager._state_0.body_qd.numpy(), 0.0, atol=1.0e-6)
 
 
 def test_mjwarp_internal_contacts_with_collision_cfg_raises():

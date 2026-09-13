@@ -209,6 +209,11 @@ double-buffered states, no collision pipeline, and no visualizer force input.
            NewtonManager._needs_collision_pipeline = True
            NewtonManager._supports_rigid_body_force_input = True
 
+:class:`~isaaclab_newton.physics.NewtonSemiImplicitManager` is the shipped
+example of this minimal standalone pattern. It constructs Newton's
+``SolverSemiImplicit`` and relies on the base manager for collision, stepping,
+external forces, resets, and graph capture.
+
 Override anything else only when the solver needs it:
 
 * ``_create_solver()``: construct a solver without mutating manager state, so a

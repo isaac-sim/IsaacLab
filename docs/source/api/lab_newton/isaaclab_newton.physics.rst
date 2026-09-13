@@ -18,8 +18,10 @@
     NewtonVBDManager
     NewtonShapeCfg
     NewtonSolverCfg
+    NewtonSemiImplicitManager
     NewtonXPBDManager
     MJWarpSolverCfg
+    SemiImplicitSolverCfg
     VBDSolverCfg
     XPBDSolverCfg
     FeatherstoneSolverCfg
@@ -64,6 +66,11 @@ Physics Configuration
   :exclude-members: __init__
 
 .. autoclass:: MJWarpSolverCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: SemiImplicitSolverCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__
@@ -152,6 +159,11 @@ Solver Managers
 ---------------
 
 .. autoclass:: NewtonMJWarpManager
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
+.. autoclass:: NewtonSemiImplicitManager
   :members:
   :inherited-members:
   :show-inheritance:

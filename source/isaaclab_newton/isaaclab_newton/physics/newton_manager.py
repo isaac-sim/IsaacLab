@@ -104,6 +104,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
+from isaaclab_newton.physics.semi_implicit_manager_cfg import SemiImplicitSolverCfg
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
 from isaaclab_newton.physics.visualization_deformables import populate_shadow_deformable_registry
 from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
@@ -2065,7 +2066,7 @@ class NewtonManager(PhysicsManager):
         """Initialize contacts using Newton's :class:`CollisionPipeline`.
 
         This default implementation handles solvers that rely on Newton's
-        unified collision pipeline (XPBD, Featherstone, and MuJoCo with
+        unified collision pipeline (XPBD, Featherstone, SemiImplicit, and MuJoCo with
         ``use_mujoco_contacts=False``).  Solver subclasses with internal
         contact handling (e.g. :class:`NewtonMJWarpManager` when
         ``use_mujoco_contacts=True``) override this method to allocate a
@@ -2129,7 +2130,7 @@ class NewtonManager(PhysicsManager):
         * :attr:`NewtonManager._use_single_state` — ``True`` if the solver
           steps in-place on a single :class:`State` (e.g. MuJoCo); ``False``
           if it needs separate input/output states (e.g. XPBD, Featherstone,
-          Kamino).
+          SemiImplicit, Kamino).
         * :attr:`NewtonManager._needs_collision_pipeline` — ``True`` if the
           manager owns Newton's :class:`CollisionPipeline` for contact
           generation; ``False`` if the solver runs internal collision
@@ -2172,10 +2173,10 @@ class NewtonManager(PhysicsManager):
         if deterministic_mode == wp.DeterministicMode.NOT_GUARANTEED:
             return
         solver_cfg_type = type(solver_cfg).__name__
-        if not isinstance(solver_cfg, (FeatherstoneSolverCfg, MJWarpSolverCfg, XPBDSolverCfg)):
+        if not isinstance(solver_cfg, (FeatherstoneSolverCfg, MJWarpSolverCfg, SemiImplicitSolverCfg, XPBDSolverCfg)):
             raise ValueError(
                 f"Newton deterministic mode {deterministic_mode.name} is not supported by {solver_cfg_type}. "
-                "Use MJWarp on the GPU, XPBD, or Featherstone, or disable deterministic mode."
+                "Use MJWarp on the GPU, XPBD, Featherstone, or SemiImplicit, or disable deterministic mode."
             )
         if getattr(solver_cfg, "use_mujoco_cpu", False):
             raise ValueError(
