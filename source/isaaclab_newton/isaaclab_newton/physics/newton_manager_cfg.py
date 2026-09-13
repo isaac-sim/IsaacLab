@@ -233,11 +233,11 @@ class NewtonCfg(PhysicsCfg):
     usd_importer: Callable[..., dict[str, Any]] | None = None
     """Optional USD importer for Newton physics-model builders.
 
-    The callable receives (builder, source, **native_options) and must return
-    the same result dictionary as Newton's ModelBuilder.add_usd. The manager
+    The callable receives ``(builder, source, **native_options)`` and must return
+    the same result dictionary as Newton's ``ModelBuilder.add_usd``. The manager
     forwards each production import's native options unchanged and propagates
-    the callable's result and exceptions. If None, Newton's native
-    builder.add_usd(source, **native_options) is used.
+    the callable's result and exceptions. If ``None``, Newton's native
+    ``builder.add_usd(source, **native_options)`` is used.
     """
 
     bvh_constructor_geometry: Literal["lbvh", "sah", "cubql"] = "cubql"
