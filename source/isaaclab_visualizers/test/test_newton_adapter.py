@@ -693,12 +693,14 @@ def test_newton_visualizer_forwards_and_neutralizes_picking():
 def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch):
     from isaaclab_newton.physics import NewtonManager
 
+    monkeypatch.setattr(NewtonManager, "_state_force_callbacks", [])
     new_model = object()
     new_state = object()
     monkeypatch.setattr(NewtonManager, "get_model", lambda: new_model)
     monkeypatch.setattr(NewtonManager, "get_state_0", lambda: new_state)
 
     viewer = _Viewer()
+    viewer.apply_forces = Mock()
     viewer.picking_enabled = False
     viewer.set_model = Mock()
     viewer._register_isaaclab_ui_callbacks = Mock()
@@ -723,6 +725,10 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch):
     assert viewer.picking_enabled is True
     assert viewer.wind is None
     assert visualizer._viewer_picking_binding._viewer is viewer
+
+    for callback in NewtonManager._state_force_callbacks:
+        callback(new_state)
+    viewer.apply_forces.assert_called_once_with(new_state)
 
 
 def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):

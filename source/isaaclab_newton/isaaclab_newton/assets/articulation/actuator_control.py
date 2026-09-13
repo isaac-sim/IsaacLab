@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import warp as wp
@@ -40,7 +40,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             articulation: Newton articulation that owns backend simulation handles.
         """
         super().__init__(articulation)
-        self._post_actuator_callback: Callable[[], None] | None = None
 
     def prepare_native_actuators(self, collection: ActuatorCollection, actuator_cfgs: dict) -> set[str]:
         articulation = self._articulation
@@ -118,8 +117,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 device=self.device,
             )
 
-        self._post_actuator_callback = _post_actuator
-        SimulationManager.register_post_actuator_callback(self._post_actuator_callback)
+        SimulationManager.register_post_actuator_callback(_post_actuator)
 
         if adapter is None:
             return None
@@ -131,12 +129,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 joint_ordering.user_to_backend_indices if joint_ordering is not None else None
             ),
         )
-
-    def _clear_callbacks(self) -> None:
-        """Release the telemetry hook before replacing or discarding this control owner."""
-        if self._post_actuator_callback is not None:
-            SimulationManager.unregister_post_actuator_callback(self._post_actuator_callback)
-            self._post_actuator_callback = None
 
     def compute_native_actuators(self, collection: ActuatorCollection, dt: float) -> bool:
         return self._native_actuator_path_active

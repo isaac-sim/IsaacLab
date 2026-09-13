@@ -1,4 +1,9 @@
+Changed
+^^^^^^^
+
+* **Breaking:** Cleared model-bound execution hooks on hard reset. Extensions must register hooks during each ``PHYSICS_READY`` event and release model-bound resources on ``MODEL_INIT`` and ``STOP``; lifecycle subscriptions persist across hard resets.
+
 Fixed
 ^^^^^
 
-* Rebound native articulation actuator owners after hard model resets, preserving folded decimation and removing stale telemetry callbacks.
+* Released native actuator owners before hard model resets, then rebuilt their bindings and CUDA graphs.

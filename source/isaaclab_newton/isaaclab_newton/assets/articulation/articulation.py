@@ -231,7 +231,8 @@ class Articulation(BaseArticulation):
         )
 
     def _configure_joint_target_modes(self, _event) -> None:
-        """Apply configured actuator modes to the private Newton model builder."""
+        """Release native owners and configure actuator modes before finalization."""
+        self._release_native_actuators()
         builder = SimulationManager._builder
         if builder is not None:
             _configure_builder_joint_target_modes(builder, self.cfg)
@@ -3398,17 +3399,16 @@ class Articulation(BaseArticulation):
     def _rebind_physics_state(self, _event) -> None:
         """Rebind data and native actuator owners after the finalized model changes."""
         self._data._create_simulation_bindings()
-        if self._actuator_control.native_actuator_path_active:
+        if self._has_newton_actuators:
             # Native groups and the shared adapter reference model-created actuators.
             # Rebuild them together so their ownership and folded cadence stay aligned.
             self._process_actuators_cfg()
+        if self._post_step_callback is not None:
+            SimulationManager.register_post_step_callback(self._post_step_callback)
 
     def _clear_callbacks(self) -> None:
         """Clears all registered callbacks, including the physics-ready rebind handle."""
         super()._clear_callbacks()
-        actuator_control = getattr(self, "_actuator_control", None)
-        if actuator_control is not None:
-            actuator_control._clear_callbacks()
         if hasattr(self, "_model_init_handle") and self._model_init_handle is not None:
             self._model_init_handle.deregister()
             self._model_init_handle = None
@@ -3528,17 +3528,26 @@ class Articulation(BaseArticulation):
         """Invalidates the scene elements."""
         # call parent
         super()._invalidate_initialize_callback(event)
+        self._release_native_actuators()
         self._root_view = None
 
     """
     Internal helpers -- Actuators.
     """
 
+    def _release_native_actuators(self) -> None:
+        """Drop model-owned actuator bindings before rebuilding or stopping physics."""
+        if not getattr(self, "_has_newton_actuators", False):
+            return
+        self.actuators = None
+        self._data._actuator_collection = None
+        self._actuator_control = None
+        self.newton_actuator_adapter = None
+        self._implicit_dof_mask = None
+        self._implicit_dof_mask_owner = None
+
     def _process_actuators_cfg(self):
         """Process actuator configs through :class:`ActuatorCollection`."""
-        actuator_control = getattr(self, "_actuator_control", None)
-        if actuator_control is not None:
-            actuator_control._clear_callbacks()
         self._actuator_control = NewtonActuatorControl(self)
         self.actuators = ActuatorCollection(
             self.cfg.actuators,
