@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from newton import Model
+from newton import Contacts, Control, Model, State, eval_ik
 from newton.solvers import SolverSemiImplicit
 
 from .newton_manager import NewtonManager
@@ -37,3 +37,13 @@ class NewtonSemiImplicitManager(NewtonManager):
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
         NewtonManager._supports_rigid_body_force_input = True
+
+    @classmethod
+    def _step_solver(
+        cls, state_0: State, state_1: State, control: Control, contacts: Contacts | None, substep_dt: float
+    ) -> None:
+        """Run one substep and reconcile generalized state from the authoritative body state."""
+        cls._solver.step(state_0, state_1, control, contacts, substep_dt)
+        # SemiImplicit integrates maximal coordinates only. Public root/joint bindings and
+        # the next folded actuator iteration read generalized coordinates from this state.
+        eval_ik(cls._model, state_1, state_1.joint_q, state_1.joint_qd)
