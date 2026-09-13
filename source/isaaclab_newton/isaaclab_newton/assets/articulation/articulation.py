@@ -3375,7 +3375,7 @@ class Articulation(BaseArticulation):
 
         # Register callback to rebind simulation data after a full reset (model/state recreation).
         self._physics_ready_handle = SimulationManager.register_callback(
-            self._rebind_physics_state,
+            lambda _: self._data._create_simulation_bindings(),
             PhysicsEvent.PHYSICS_READY,
             name=f"articulation_rebind_{self.cfg.prim_path}",
         )
@@ -3395,20 +3395,9 @@ class Articulation(BaseArticulation):
         # Let the articulation data know that it is fully instantiated and ready to use.
         self.data.is_primed = True
 
-    def _rebind_physics_state(self, _event) -> None:
-        """Rebind data and native actuator owners after the finalized model changes."""
-        self._data._create_simulation_bindings()
-        if self._actuator_control.native_actuator_path_active:
-            # Native groups and the shared adapter reference model-created actuators.
-            # Rebuild them together so their ownership and folded cadence stay aligned.
-            self._process_actuators_cfg()
-
     def _clear_callbacks(self) -> None:
         """Clears all registered callbacks, including the physics-ready rebind handle."""
         super()._clear_callbacks()
-        actuator_control = getattr(self, "_actuator_control", None)
-        if actuator_control is not None:
-            actuator_control._clear_callbacks()
         if hasattr(self, "_model_init_handle") and self._model_init_handle is not None:
             self._model_init_handle.deregister()
             self._model_init_handle = None
@@ -3536,9 +3525,6 @@ class Articulation(BaseArticulation):
 
     def _process_actuators_cfg(self):
         """Process actuator configs through :class:`ActuatorCollection`."""
-        actuator_control = getattr(self, "_actuator_control", None)
-        if actuator_control is not None:
-            actuator_control._clear_callbacks()
         self._actuator_control = NewtonActuatorControl(self)
         self.actuators = ActuatorCollection(
             self.cfg.actuators,

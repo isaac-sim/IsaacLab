@@ -2190,7 +2190,7 @@ def test_callback_changes_remove_captured_kernels_and_allow_rebind(
         dt=0.005,
         device=device,
         gravity=(0.0, 0.0, 0.0),
-        physics=NewtonCfg(solver_cfg=FeatherstoneSolverCfg(), num_substeps=5, use_cuda_graph=use_cuda_graph),
+        physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), num_substeps=5, use_cuda_graph=use_cuda_graph),
     )
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         manager = sim.physics_manager

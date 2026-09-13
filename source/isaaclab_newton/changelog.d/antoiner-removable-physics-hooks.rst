@@ -6,6 +6,4 @@ Added
 Fixed
 ^^^^^
 
-* Deferred Featherstone CUDA graph capture until the requested physics step so callback changes before the first replay kept lazy solver scratch valid.
-
 * Preserved eager execution for solvers that reject CUDA graph capture when physics callbacks were registered or removed through the base Newton manager.

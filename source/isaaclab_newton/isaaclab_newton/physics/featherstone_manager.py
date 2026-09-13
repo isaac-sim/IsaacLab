@@ -21,16 +21,6 @@ class NewtonFeatherstoneManager(NewtonManager):
     """
 
     @classmethod
-    def _requires_initial_reset_before_graph_capture(cls) -> bool:
-        """Defer capture until the requested step can immediately replay it.
-
-        Featherstone lazily allocates cached state scratch during its first step.
-        CUDA graph allocations are unmapped until replay, so replacing an initial
-        unlaunched graph would leave that scratch invalid for the next capture.
-        """
-        return True
-
-    @classmethod
     def _create_solver(cls, model: Model, solver_cfg: FeatherstoneSolverCfg) -> SolverFeatherstone:
         """Construct the configured Featherstone solver."""
         return SolverFeatherstone(model, **cls._filter_solver_kwargs(SolverFeatherstone, solver_cfg))
