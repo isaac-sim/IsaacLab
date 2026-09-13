@@ -83,8 +83,11 @@ def main(env_cfg, agent_cfg):
     obs_1d = torch.randn(4, dim_1d, device=device)
     obs_2d = [torch.rand(4, *s, device=device) for s in shapes_2d]
 
+    # A student with no image group is a plain MLP, and ``as_jit`` then gives a module whose
+    # forward takes the single flat observation -- the deployment stack's own calling convention.
+    blind = not shapes_2d
     with torch.inference_mode():
-        got = exported(obs_1d, obs_2d)
+        got = exported(obs_1d) if blind else exported(obs_1d, obs_2d)
         # The live model consumes a TensorDict of named groups; build one from the same tensors so
         # the comparison is of the export, not of two different inputs.
         from tensordict import TensorDict  # noqa: PLC0415
@@ -117,7 +120,7 @@ def main(env_cfg, agent_cfg):
             stiffness[i] = float(_per_joint(group.stiffness, name))
             damping[i] = float(_per_joint(group.damping, name))
 
-    cam = env_cfg.scene.depth_camera
+    cam = getattr(env_cfg.scene, "depth_camera", None) if not blind else None
     contract = {
         "task": args_cli.task,
         "checkpoint": args_cli.checkpoint,
@@ -126,7 +129,7 @@ def main(env_cfg, agent_cfg):
         "stiffness": stiffness,
         "damping": damping,
         "action_dim": int(u.action_manager.total_action_dim),
-        "action_scale": float(env_cfg.actions.joint_pos.scale),
+        "action_scale": env_cfg.actions.joint_pos.scale,
         "use_default_offset": bool(env_cfg.actions.joint_pos.use_default_offset),
         "control_dt": float(env_cfg.sim.dt * env_cfg.decimation),
         "history_length": int(env_cfg.observations.policy.joint_pos.history_length or 1),
@@ -138,9 +141,11 @@ def main(env_cfg, agent_cfg):
             )
         ],
         "depth_shape": list(shapes_2d[0]) if shapes_2d else None,
-        "depth_max_range_m": float(env_cfg.observations.depth.image.clip[1]),
-        "depth_frame_order": "oldest first along the channel axis",
-        "camera": {
+        "depth_max_range_m": (float(env_cfg.observations.depth.image.clip[1]) if not blind else None),
+        "depth_frame_order": None if blind else "oldest first along the channel axis",
+        "camera": None
+        if blind
+        else {
             "prim_path": cam.prim_path,
             "offset_pos_m": list(cam.offset.pos),
             "offset_rot_wxyz": list(cam.offset.rot),

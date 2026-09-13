@@ -51,8 +51,10 @@ from .rough_29dof_distill_env_cfg import (
 from .rough_29dof_dr_env_cfg import _HISTORY_LENGTH, _HISTORY_TERMS
 from .rough_29dof_mjalign_env_cfg import G129DofRoughMujocoAlignedEnvCfg
 from .rough_29dof_mjlab_env_cfg import (
+    _LOCOMOTION_JOINTS,
     G129DofRoughMjlabScaleEnvCfg,
     G129DofRoughMjlabScaleHipKneeEnvCfg,
+    G129DofRoughMjlabScaleNoFingersEnvCfg,
 )
 from .rough_29dof_posture_env_cfg import G129DofRoughHipL2AirTime100EnvCfg
 from .rough_29dof_power_env_cfg import G129DofRoughWaist1Power2HipPitchLightEnvCfg
@@ -89,21 +91,26 @@ Confirmed against Unitree's own documentation, which gives 42.4 degrees between 
 axis and the depth camera's optical axis -- the same 47.6 degrees below horizontal.
 """
 
-_D435_MOUNT_ROT = (0.4035, 0.0, -0.9150, 0.0)
-"""Camera orientation as a ``world``-convention quaternion (w, x, y, z).
+_D435_MOUNT_ROT = (0.9150, 0.0, -0.4035, 0.0)
+"""Camera orientation as a ``world``-convention quaternion (w, x, y, z): 47.6 degrees about -Y.
 
-Not derived -- measured. The first version of this config used the ``ros`` convention with the
-quaternion read off the URDF-converted asset's ``d435_link``, and the rendered image had its
-near-to-far axis running horizontally: the camera was effectively looking sideways, and the student
-trained on it learned to ignore the input entirely (zeroing the depth changed ``success_rate`` by
-0.000). Several attempts to fix it by composing rotations failed because ``quat_w_world`` reports
-the world convention while the offset was being given in ``ros``, so every check was reading a
-different frame from the one being set.
+Verified against a closed form rather than against the other simulator. On flat ground the depth of
+every pixel follows from the camera height, its pitch and its intrinsics with nothing left to tune,
+so ``scratchpad/depth_analytic.py`` computes it and the render is differenced against that. At a
+measured camera height of 1.2459 m this value gives **RMS 0.042 m** over the frame -- 1.4% of the
+1.12 to 3.00 m range -- and reproduces both endpoints of the analytic row profile.
 
-What this value is checked against, on a near-flat mesh terrain: 94.1% of pixels return a hit
-(against 68.8% before) and the row means fall monotonically from 2.69 m at the top of the image to
-1.11 m at the bottom (correlation -0.97), which is what a camera aimed at the ground ahead must
-produce. The earlier value gave a flat row profile and all its variation across columns.
+The previous value, ``(0.4035, 0.0, -0.9150, 0.0)``, is the same rotation 180 degrees away and aims
+the camera back into the robot's own torso: every pixel reads 0.00 to 0.17 m. That was invisible for
+as long as :attr:`~isaaclab.sensors.CameraCfg.update_latest_camera_pose` was left at its default,
+because the frozen pose was computed down a different path and happened to produce a plausible
+picture of the ground from wherever the camera had been stranded.
+
+One thing is measured but **not yet resolved**: the rendered rows run bottom-up against the analytic
+reference and against MuJoCo, which publishes row 0 as the top of the image. Differencing the frame
+as-is gives RMS 1.125 m and row-flipped gives 0.042 m. A flat scene cannot tell a row flip from a
+180-degree roll about the optical axis, so which of the two it is has to be settled on an asymmetric
+scene before anything is flipped here.
 """
 
 _DEPTH_FRAME_STACK = 3
@@ -204,6 +211,12 @@ def _add_chest_camera(cfg) -> None:
         ),
         width=_DEPTH_WIDTH,
         height=_DEPTH_HEIGHT,
+        # Without this the sensor reports the pose it was given at initialization and never again:
+        # the camera stops following the torso, and the depth image is then *constant for the whole
+        # episode*. It is the default, it raises nothing, and the picture still looks like a picture,
+        # so it cost this line five trained students before it was caught. The extra cost is a
+        # FrameView read per step.
+        update_latest_camera_pose=True,
     )
     # Render once per control step. The default render interval is tied to the physics step, which
     # would re-render four times per observation for no benefit.
@@ -365,6 +378,44 @@ class G129DofRoughYhkDepthDistillEnvCfg(G129DofRoughMjlabScaleHipKneeEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        _wire_depth_student(self)
+
+
+@configclass
+class G129DofRoughNfDepthDistillEnvCfg(G129DofRoughMjlabScaleNoFingersEnvCfg):
+    """The depth student under ``nf``'s environment.
+
+    ``nf`` is ``yms`` with the fourteen finger joints taken out of the action and observation
+    spaces, which is the set the hardware actually has -- ``g1_deploy`` maps all fourteen to motor
+    index -1. It is the cleanest gait this line has measured, on four seeds rather than three:
+    success 0.997 / 0.996 / 0.993 / 1.000, single-stance 0.905 / 0.913 / 0.892 / 0.938, flight at
+    most 0.008, pelvis roll 0.74 to 1.49 degrees. The mechanism is not luck -- ``action_rate_l2``,
+    ``dof_torques_l2`` and ``dof_acc_l2`` are summed over the whole action or joint vector, so on
+    the 43-joint arms most of the term meant to smooth the legs was being spent on fingers.
+
+    The teacher is s45, the seed that reached success 1.000 with the best posture of the four.
+
+    **The action and observation contract differs from every other student on this line.** Action
+    dimension is 29 rather than 43 and the proprioception loses 42 values, so the export and the
+    deployment stack need the 29-joint ordering rather than ``ysud``'s. That is a change toward the
+    robot, not away from it, but it is not a drop-in swap for an existing student.
+
+    The teacher group is scoped to the same joints here. It inherits
+    :class:`~isaaclab_tasks.core.velocity.velocity_env_cfg.ObservationsCfg.PolicyCfg` directly
+    rather than the parent's already-scoped ``policy`` group, so without this it would hand the
+    teacher 43 joints of proprioception where its checkpoint expects 29.
+    """
+
+    observations: G129DofRoughAirTime100DepthDistillObservationsCfg = (
+        G129DofRoughAirTime100DepthDistillObservationsCfg()
+    )
+
+    def __post_init__(self):
+        super().__post_init__()
+        for term in ("joint_pos", "joint_vel"):
+            getattr(self.observations.teacher, term).params["asset_cfg"] = SceneEntityCfg(
+                "robot", joint_names=list(_LOCOMOTION_JOINTS)
+            )
         _wire_depth_student(self)
 
 

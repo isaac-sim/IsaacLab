@@ -1,0 +1,6 @@
+# task=Isaac-Velocity-Rough-G1 (stock/default config, native heightfield terrain)
+# repo=/home/henry/workspace/IsaacLab-develop
+# commit=3b736feb04a98f708bb69ed1f69eb0f8e81b2adf  (origin/develop @ 2026-08-11T16:34:03+08:00)
+# num_envs=<task default 4096> max_iterations=<task default 5000> seed=<default>
+# cmd=uv run isaaclab train --rl_library rsl_rl --task Isaac-Velocity-Rough-G1 presets=newton_mjwarp
+# started=2026-08-11T16:34:03+08:00

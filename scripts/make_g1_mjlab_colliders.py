@@ -255,11 +255,7 @@ def main() -> None:
         if prim.HasAPI(UsdPhysics.MassAPI) or not prim.HasAPI(UsdPhysics.RigidBodyAPI):
             return "", ""
         name = prim.GetName()
-        twin = (
-            name.replace("left_", "right_", 1)
-            if name.startswith("left_")
-            else name.replace("right_", "left_", 1)
-        )
+        twin = name.replace("left_", "right_", 1) if name.startswith("left_") else name.replace("right_", "left_", 1)
         if twin not in mass_by_name:
             raise SystemExit(f"[colliders] {name} has no explicit mass and no mirror twin to copy")
         mass, diag, com = mass_by_name[twin]
@@ -270,7 +266,7 @@ def main() -> None:
             f"{indent}float3 physics:diagonalInertia = ({diag[0]!r}, {diag[1]!r}, {diag[2]!r})\n"
             f"{indent}point3f physics:centerOfMass = ({com[0]!r}, {-com[1]!r}, {com[2]!r})\n"
         )
-        return ' (\n%sprepend apiSchemas = ["PhysicsMassAPI"]\n%s)' % (indent, indent[:-4]), body
+        return f' (\n{indent}prepend apiSchemas = ["PhysicsMassAPI"]\n{indent[:-4]})', body
 
     lines = [
         "#usda 1.0\n(\n"

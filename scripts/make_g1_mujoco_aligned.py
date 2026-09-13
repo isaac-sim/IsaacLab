@@ -148,7 +148,8 @@ def main() -> None:
             '        over "collisions" (\n            active = false\n        )\n        {\n        }\n'
             '        def Cube "foot_plate" (\n            prepend apiSchemas = ["PhysicsCollisionAPI"]\n        )\n'
             "        {\n            double size = 1\n"
-            f"            float3 xformOp:translate = ({_PLATE_TRANSLATE[0]}, {_PLATE_TRANSLATE[1]}, {_PLATE_TRANSLATE[2]})\n"
+            f"            float3 xformOp:translate = ({_PLATE_TRANSLATE[0]}, {_PLATE_TRANSLATE[1]},"
+            f" {_PLATE_TRANSLATE[2]})\n"
             f"            float3 xformOp:scale = ({_PLATE_SCALE[0]}, {_PLATE_SCALE[1]}, {_PLATE_SCALE[2]})\n"
             '            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]\n'
             "        }\n    }\n"

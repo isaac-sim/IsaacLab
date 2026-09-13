@@ -1,0 +1,15 @@
+  seed 42  NaN @ iter 15
+  seed 43  NaN @ iter 11
+  seed 44  NaN @ iter 9
+  seed 45  NaN @ iter 11
+  seed 46  NaN @ iter 6
+  seed 47  NaN @ iter 11
+  seed 48  NaN @ iter 23
+  seed 49  NaN @ iter 8
+  seed 50  NaN @ iter 0
+  seed 51  NaN @ iter 17
+  seed 52  NaN @ iter 19
+grep: （标准输入）: 匹配到二进制文件
+  seed 53  NaN @ iter 0
+RESULT newsrc_newnewton: 12/12 NaN   died_at=[15 11 9 11 6 11 23 8 0 17 19 0]
+  seed 53  NaN @ iter 19

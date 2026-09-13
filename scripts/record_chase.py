@@ -31,6 +31,13 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--task", type=str, required=True, help="Task the checkpoint was trained on.")
 parser.add_argument("--checkpoint", type=str, required=True, help="Checkpoint to record.")
 parser.add_argument("--out", type=str, required=True, help="Output .mp4 path.")
+parser.add_argument(
+    "--depth_out",
+    type=str,
+    default=None,
+    help="Write the robot's own depth image to this .mp4 alongside --out, one frame"
+    " per rendered frame. Only meaningful on a task that carries the camera.",
+)
 parser.add_argument("--steps", type=int, default=500, help="Control steps to record.")
 parser.add_argument("--seed", type=int, default=12345, help="Evaluation seed; must differ from training's.")
 parser.add_argument("--num_envs", type=int, default=1, help="Environments to simulate.")
@@ -68,6 +75,7 @@ simulation_app = app_launcher.app
 
 import gymnasium as gym  # noqa: E402
 import imageio.v2 as imageio  # noqa: E402
+import numpy as np  # noqa: E402
 import torch  # noqa: E402
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner  # noqa: E402
 
@@ -164,7 +172,8 @@ def main(env_cfg, agent_cfg):
     if isinstance(obs, tuple):
         obs = obs[0]
 
-    frames, resets = [], 0
+    frames, depth_frames, resets = [], [], 0
+    camera = env.unwrapped.scene["depth_camera"] if args_cli.depth_out else None
     with torch.inference_mode():
         for _ in range(args_cli.steps):
             aim()
@@ -174,10 +183,24 @@ def main(env_cfg, agent_cfg):
             frame = viz.render_rgb_array()
             if frame is not None:
                 frames.append(frame)
+                if camera is not None:
+                    # What the policy actually reads: the same 64x38 distance image, invalid
+                    # returns pushed to the far clip so the frame matches the observation rather
+                    # than a prettier version of it. Near is white.
+                    raw = camera.data.output["distance_to_image_plane"]
+                    raw = raw.torch if hasattr(raw, "torch") else raw
+                    image = raw[args_cli.env_id].squeeze(-1).float()
+                    far = 3.0
+                    image = torch.nan_to_num(image, nan=far, posinf=far, neginf=far).clamp(0.0, far)
+                    grey = ((1.0 - image / far) * 255.0).to(torch.uint8).cpu().numpy()
+                    depth_frames.append(np.repeat(np.repeat(grey, 8, axis=0), 8, axis=1))
 
     if not frames:
         raise RuntimeError("the visualizer returned no frames")
     imageio.mimwrite(args_cli.out, frames, fps=50, quality=8, macro_block_size=1)
+    if args_cli.depth_out and depth_frames:
+        imageio.mimwrite(args_cli.depth_out, depth_frames, fps=50, quality=8, macro_block_size=1)
+        print(f"[record] wrote {args_cli.depth_out} ({len(depth_frames)} depth frames)")
     print(f"[record] wrote {args_cli.out}: {len(frames)} frames, robot reset {resets} times")
     env.close()
 

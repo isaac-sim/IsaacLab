@@ -119,6 +119,102 @@ Until the upstream fix lands in Newton, please use the ``physx`` preset for
 Digit-based environments.
 
 
+.. _known-issues-stiff-drives-kitless-physx:
+
+Stiff joint drives on light links can diverge on PhysX
+-------------------------------------------------------
+
+A joint whose link carries very little inertia and whose actuator is a stiff
+:class:`~isaaclab.actuators.ImplicitActuatorCfg` can oscillate on the PhysX backend while
+remaining stable on ``newton_mjwarp``. The oscillation is not confined to that joint: the
+energy it injects travels through the articulation and disturbs the whole robot, including
+bodies whose own drives are well behaved.
+
+Measured on ``Isaac-Velocity-Rough-G1-29Dof-AirTime100-MjlabScale-Sym``, holding the default
+pose with the action fixed at zero -- the robot is asked only to stand still:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 20 20
+
+   * -
+     - ``newton_mjwarp``
+     - ``physx``
+   * - mean \|joint speed\| [rad/s]
+     - 0.082
+     - 4.94
+   * - peak \|joint speed\| [rad/s]
+     - 6.5
+     - 4761
+   * - joints exceeding the velocity limit their own USD authors
+     - 0 of 43
+     - 32 of 43
+   * - foot contact reported [% of steps]
+     - 88.8
+     - 30.4
+   * - foot contact force / robot weight [%]
+     - 88.0
+     - 52.9
+
+Every one of the worst joints is one of the G1's fourteen finger joints. The fingers play no
+part in locomotion -- ``g1_deploy`` maps all fourteen to motor index -1, because the robot has
+29 motors -- but their drive is what makes the rest of the measurements diverge.
+
+The consequence is easy to miss, because nothing raises an error. Air-time rewards and
+ground-contact terminations read the contact sensor rather than the geometry, so on this
+backend a robot that is standing perfectly still is reported as airborne 70% of the time --
+the same configuration therefore presents a different reward signal on the two backends.
+
+**Remedy.** Take the stiffness off the actuator group that owns the offending joints. Joints
+that no policy needs to position cost nothing this way:
+
+.. code-block:: python
+
+   # in the environment config's __post_init__
+   self.scene.robot.actuators["hands"].stiffness = 0.0
+   self.scene.robot.actuators["hands"].damping = 0.1
+
+or, as a command-line override::
+
+   env.scene.robot.actuators.hands.stiffness=0.0 env.scene.robot.actuators.hands.damping=0.1
+
+This restores the PhysX numbers above to 0.86 rad/s mean, 27.6 rad/s peak and 97.6% contact,
+and it is measurably inert on ``newton_mjwarp`` -- settled root height 0.65813 m against
+0.65795 m, contact 88.6% against 88.7% -- so the same config can serve both backends.
+
+.. note::
+
+   Everything quoted here is measured on the standing robot, with no policy. That establishes
+   what each backend applies and reports; it does **not** establish that removing the
+   oscillation is sufficient to make training on PhysX match training on Newton. On the task
+   above, PhysX at 2048 environments reaches a single-stance share of 0.53 to 0.66 across three
+   seeds against the 0.85 to 0.94 of a walk, and Newton at the same environment count degrades
+   on one seed of two -- so at least part of that gap is the environment count rather than the
+   backend. Treat the remedy as removing one identified defect, not as a tuning recipe.
+
+To find out whether a task is affected, run :file:`scripts/tools/check_physics_parity.py` once
+per backend and compare the two reports. It needs no policy and no training.
+
+Two further observations on the PhysX backend, both visible in that report:
+
+* ``physxJoint:maxJointVelocity`` authored in the asset is not in force after spawn. The G1's
+  finger joints author 12.0 rad/s and reach 4761 rad/s. Writing any joint property at runtime
+  re-applies the limit, after which the peak is exactly 12.0 rad/s.
+* A joint property written through
+  :meth:`~isaaclab.assets.Articulation.write_joint_armature_to_sim` takes effect in the solver
+  but reads back as the previous value. The write is not lost -- writing armature onto the
+  finger joints does change their behaviour -- but the reported joint state cannot be used to
+  confirm it.
+
+Which PhysX backend you get depends on whether Kit is running: ``physics=physx`` resolves to
+the kitless ``OvPhysxCfg`` when nothing in the run requires Isaac Sim, which is the usual case
+for headless training, and to the Kit-based ``PhysxCfg`` otherwise. The two have different
+defaults, and the numbers above are from the kitless backend. A diagnostic script that calls
+``AppLauncher(args).app`` before Hydra resolves the config will start Kit and therefore measure
+the other one; resolve the config first and launch through
+:func:`~isaaclab.app.launch_simulation`, as the training entry points do.
+
+
 .. _known-issues-animated-curve-scene-partition:
 
 Animated curves disappear under Isaac RTX scene partitioning

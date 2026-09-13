@@ -1,0 +1,10 @@
+arm            margin   seed   rep   exit   last
+heightfield    0.0      42     1     1      8
+heightfield    0.0      42     2     1      23
+heightfield    0.0      43     1     1      41
+heightfield    0.0      43     2     1      9
+heightfield    0.0      44     1     1      5
+heightfield    0.0      44     2     1      0
+heightfield    0.01     42     -     1      none
+heightfield    0.01     43     -     1      none
+heightfield    0.01     44     -     1      none
